@@ -36,11 +36,14 @@ enum WindowServerCaptureContract {
         static var checkDelay: TimeInterval = 0
         static var checks = 0
         static var whileChecking: (() -> Void)?
+        /// Counts the queue's clock reads, so a case can tell when an answer
+        /// has been timed before it moves the clock.
+        static var clockReads = 0
         static let entered = DispatchSemaphore(value: 0)
         static let release = DispatchSemaphore(value: 0)
 
         static func makeQueue() -> WindowServerCaptureQueue {
-            WindowServerCaptureQueue(now: { lock.withLock { clock } }, checkPermission: {
+            WindowServerCaptureQueue(now: { lock.withLock { clockReads += 1; return clock } }, checkPermission: {
                 let hook = lock.withLock { () -> (() -> Void)? in
                     checks += 1
                     clock += checkDelay
@@ -109,6 +112,7 @@ enum WindowServerCaptureContract {
                 checkDelay = 0
                 checks = 0
                 whileChecking = nil
+                clockReads = 0
             }
             Provider.windowServerCaptures = makeQueue()
         }
@@ -215,6 +219,10 @@ enum WindowServerCaptureContract {
             Fake.calls == [1, survivorID] && Fake.maximumInFlight == 1
                 && Fake.results[survivorID] == true && Fake.results[1] == false
         }, "after a late native result, only a live request captures and cancelled results stay discarded")
+        let warmID = UInt32(11 + count)
+        launch(warmID, waiting: false, finished: finished)
+        suite.expect(wait(finished) && Fake.lock.withLock { Fake.results[warmID] == true },
+                     "background warming captures again once cancelled requests have left the queue")
 
         Fake.reset()
         Task.detached {
@@ -228,6 +236,31 @@ enum WindowServerCaptureContract {
 
         runStallGuards(suite, finished: finished)
         runScreenCaptureKitTurns(suite, finished: finished)
+        runProductionWiring(suite)
+    }
+
+    /// The app's own queue asks tccd first, and the switcher captures only
+    /// while someone can see its thumbnails.
+    private static func runProductionWiring(_ suite: TestSuite) {
+        suite.expect(WindowServerCaptureQueue.screenRecordingCheck != nil,
+                     "TCCAccessPreflight resolves from TCC.framework, so each capture turn can ask tccd first")
+        WindowServerCaptureQueue.screenRecordingCheck?()
+        let provider = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowPreviewProvider.swift",
+                                    encoding: .utf8)) ?? ""
+        suite.expect(provider.contains("WindowServerCaptureQueue(\n        checkPermission: WindowServerCaptureQueue.screenRecordingCheck ?? {})"),
+                     "the shared capture queue asks tccd before its turns")
+        suite.expect(provider.components(separatedBy: "Self.screenIsInView(),").count == 4
+                     && provider.contains("displaysAsleep: CGDisplayIsAsleep(CGMainDisplayID()) != 0)"),
+                     "refreshes and warming capture only while the screen is in view")
+        let onConsole = kCGSessionOnConsoleKey as String
+        suite.expect(SwitcherSupport.screenIsInView(session: [onConsole: true], displaysAsleep: false)
+                     && SwitcherSupport.screenIsInView(session: nil, displaysAsleep: false),
+                     "thumbnails are captured on an unlocked screen with the displays awake")
+        suite.expect(!SwitcherSupport.screenIsInView(session: [onConsole: false], displaysAsleep: false)
+                     && !SwitcherSupport.screenIsInView(session: [onConsole: true, "CGSSessionScreenIsLocked": true],
+                                                        displaysAsleep: false)
+                     && !SwitcherSupport.screenIsInView(session: [onConsole: true], displaysAsleep: true),
+                     "no thumbnail is captured for another account, a locked screen or sleeping displays")
     }
 
     /// Issue #1863: the permission check stalling under load ends the session
@@ -246,7 +279,10 @@ enum WindowServerCaptureContract {
         launch(31, finished: finished)
         suite.expect(wait(finished) && Fake.lock.withLock { Fake.calls.isEmpty && Fake.checks == 1 },
                      "captures stay paused after a slow check without asking again")
+        suite.expect(!Provider.windowServerCaptures.acceptsCaptures,
+                     "a reader can tell captures are paused instead of taking the refusal for a missing window")
         Fake.advance(by: WindowServerCaptureQueue.pause(afterSlowTurns: 1))
+        suite.expect(Provider.windowServerCaptures.acceptsCaptures, "the pause ends on time")
         launch(32, finished: finished)
         suite.expect(wait(finished) && Fake.lock.withLock {
             Fake.calls == [32] && Fake.checks == 2 && Fake.results[32] == true
@@ -278,6 +314,39 @@ enum WindowServerCaptureContract {
         launch(36, finished: finished)
         suite.expect(wait(finished) && Fake.lock.withLock { Fake.calls == [36] && Fake.checks == 1 },
                      "the turn given up after the check leaves the queue usable")
+
+        // The same turn must also close when nothing else is asked for, or
+        // two quiet seconds later every capture is refused for good.
+        Fake.reset()
+        let givenUpChecking = DispatchSemaphore(value: 0)
+        let givenUpAnswer = DispatchSemaphore(value: 0)
+        Fake.lock.withLock {
+            Fake.whileChecking = {
+                givenUpChecking.signal()
+                _ = givenUpAnswer.wait(timeout: .now() + 3)
+            }
+        }
+        let givenUp = launch(37, finished: finished)
+        let givenUpAsked = wait(givenUpChecking)
+        let readsBeforeAnswer = Fake.lock.withLock { Fake.clockReads }
+        givenUp.cancel()
+        givenUpAnswer.signal()
+        // Move the clock only once the answer has been timed, so the check
+        // itself still reads as prompt.
+        var answerTimed = false
+        for _ in 0..<300 where !answerTimed {
+            answerTimed = Fake.lock.withLock { Fake.clockReads > readsBeforeAnswer }
+            if !answerTimed { usleep(10_000) }
+        }
+        Fake.advance(by: WindowServerCaptureQueue.slowCapture)
+        var reopened = false
+        for _ in 0..<300 where !reopened {
+            reopened = Provider.windowServerCaptures.acceptsCaptures
+            if !reopened { usleep(10_000) }
+        }
+        suite.expect(givenUpAsked && wait(finished) && answerTimed && reopened
+                     && Fake.lock.withLock { Fake.calls.isEmpty && Fake.checks == 1 },
+                     "a turn given up after its check closes, so later captures are not refused")
 
         Fake.reset(holding: [40])
         let slowFinished = DispatchSemaphore(value: 0)
@@ -314,6 +383,17 @@ enum WindowServerCaptureContract {
         suite.expect(wait(finished) && Fake.lock.withLock {
             Fake.calls == [40, 45] && Fake.checks == 3 && Fake.results[45] == true
         }, "a prompt check and a quick capture resume captures")
+        Fake.lock.withLock { Fake.heldIDs = [46] }
+        launch(46, finished: slowFinished)
+        let laterSlowStarted = wait(Fake.entered)
+        Fake.advance(by: WindowServerCaptureQueue.slowCapture)
+        Fake.release.signal()
+        let laterSlowCameBack = wait(slowFinished)
+        Fake.advance(by: WindowServerCaptureQueue.pause(afterSlowTurns: 1))
+        launch(47, finished: finished)
+        suite.expect(laterSlowStarted && laterSlowCameBack && wait(finished)
+                     && Fake.lock.withLock { Fake.results[47] == true },
+                     "a quick capture resets the backoff, so the next slow turn pauses for half a minute again")
     }
 
     /// ScreenCaptureKit requests make the same check, so they take the same turns.

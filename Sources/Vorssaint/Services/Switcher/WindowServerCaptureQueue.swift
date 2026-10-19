@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import os
 
 /// Lets one window capture reach the system at a time, ScreenCaptureKit work
 /// included, and keeps the synchronous window-server calls off Swift's
@@ -32,6 +33,23 @@ final class WindowServerCaptureQueue: @unchecked Sendable {
         let doublings = Double(min(max(count, 1), 6) - 1)
         return min(600, 30 * pow(2, doublings))
     }
+
+    private typealias PermissionPreflight = @convention(c) (CFString, CFDictionary?) -> Int32
+
+    /// `TCCAccessPreflight` puts the Screen Recording check to tccd from this
+    /// app itself: it never prompts, and nothing else waits on its answer.
+    /// Nil where the symbol is missing; the queue then only has its pauses
+    /// to go by.
+    static let screenRecordingCheck: (() -> Void)? = {
+        guard let framework = dlopen("/System/Library/PrivateFrameworks/TCC.framework/TCC", RTLD_LAZY),
+              let symbol = dlsym(framework, "TCCAccessPreflight")
+        else { return nil }
+        let preflight = unsafeBitCast(symbol, to: PermissionPreflight.self)
+        return { _ = preflight("kTCCServiceScreenCapture" as CFString, nil) }
+    }()
+
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                    category: "window-capture")
 
     private let queue = DispatchQueue(label: "com.vorssaint.window-capture", qos: .userInitiated)
     private let lock = NSLock()
@@ -114,6 +132,10 @@ final class WindowServerCaptureQueue: @unchecked Sendable {
         return time - turnStartedAt < Self.slowCapture
     }
 
+    /// Whether a capture asked for now would get a turn. A caller can keep
+    /// what it last saw instead of reading a refusal as a missing window.
+    var acceptsCaptures: Bool { lock.withLock { acceptsTurns(at: now()) } }
+
     /// Starts a turn, asking the check again first when its last prompt
     /// answer is old. Nil leaves the turn without a capture.
     private func beginTurn(unlessCancelled cancelled: () -> Bool) -> TimeInterval? {
@@ -135,7 +157,7 @@ final class WindowServerCaptureQueue: @unchecked Sendable {
                     promptCheckAt = answered
                 } else {
                     turnStartedAt = nil
-                    pauseAfterSlowTurn(at: answered)
+                    pauseAfterSlowTurn(at: answered, took: answered - asked, reason: "Screen Recording check")
                 }
             }
             guard prompt else { return nil }
@@ -154,7 +176,7 @@ final class WindowServerCaptureQueue: @unchecked Sendable {
             pendingCount -= 1
             turnStartedAt = nil
             if time - start >= Self.slowCapture {
-                pauseAfterSlowTurn(at: time)
+                pauseAfterSlowTurn(at: time, took: time - start, reason: "capture")
             } else {
                 slowTurns = 0
             }
@@ -162,10 +184,13 @@ final class WindowServerCaptureQueue: @unchecked Sendable {
     }
 
     /// Captures come back only after the check answers promptly again.
-    private func pauseAfterSlowTurn(at time: TimeInterval) {
+    /// Logged, since thumbnails and Watch otherwise just stop for a while.
+    private func pauseAfterSlowTurn(at time: TimeInterval, took: TimeInterval, reason: String) {
         slowTurns += 1
-        pausedUntil = time + Self.pause(afterSlowTurns: slowTurns)
+        let pause = Self.pause(afterSlowTurns: slowTurns)
+        pausedUntil = time + pause
         promptCheckAt = nil
+        Self.log.notice("Window captures paused for \(Int(pause), privacy: .public) s: a \(reason, privacy: .public) took \(Int(took * 1000), privacy: .public) ms")
     }
 
     private final class Request<Value>: @unchecked Sendable {

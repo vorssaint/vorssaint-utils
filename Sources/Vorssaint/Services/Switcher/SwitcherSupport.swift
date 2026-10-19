@@ -522,6 +522,15 @@ struct SwitcherShortcutHints: Equatable {
 }
 
 enum SwitcherSupport {
+    /// Nobody sees a thumbnail while the displays sleep, the screen is locked
+    /// or another account is on screen, and capturing then only risks the
+    /// stall described on the capture queue (issue #1863).
+    static func screenIsInView(session: [String: Any]?, displaysAsleep: Bool) -> Bool {
+        SessionActivitySupport.isOnConsole(session)
+            && !KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: session)
+            && !displaysAsleep
+    }
+
     /// How long the shortcut must be held before the panel appears. A quick
     /// press can still switch directly without flashing the panel, while zero
     /// gives users who prefer immediate visual feedback an instant surface.

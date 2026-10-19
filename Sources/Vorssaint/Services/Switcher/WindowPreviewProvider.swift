@@ -241,30 +241,21 @@ final class WindowPreviewProvider {
     /// other-Space windows come back as their real, untransformed content.
     private static let windowServerCaptureOptions: UInt32 = (1 << 8) | (1 << 11)
 
-    private typealias PermissionPreflight = @convention(c) (CFString, CFDictionary?) -> Int32
-
-    /// `TCCAccessPreflight` puts the Screen Recording check to tccd from this
-    /// app itself, so nothing else waits on its answer. Without it the queue
-    /// only has its pauses to go by.
-    private static let screenRecordingPreflight: PermissionPreflight? = {
-        guard let framework = dlopen("/System/Library/PrivateFrameworks/TCC.framework/TCC", RTLD_LAZY),
-              let symbol = dlsym(framework, "TCCAccessPreflight")
-        else { return nil }
-        return unsafeBitCast(symbol, to: PermissionPreflight.self)
-    }()
-
     /// Shared by every preview provider, the screenshot tool and Watch.
     /// Cancelling a caller must not let another capture overlap its
     /// unfinished system call.
-    private static let windowServerCaptures = WindowServerCaptureQueue(checkPermission: {
-        _ = screenRecordingPreflight?("kTCCServiceScreenCapture" as CFString, nil)
-    })
+    private static let windowServerCaptures = WindowServerCaptureQueue(
+        checkPermission: WindowServerCaptureQueue.screenRecordingCheck ?? {})
 
     /// ScreenCaptureKit captures that run on their own, like Watch's
     /// readings, take their turn with the window-server ones.
     static func captureViaScreenCaptureKit<Value>(_ operation: @escaping () async -> Value?) async -> Value? {
         await windowServerCaptures.perform(operation)
     }
+
+    /// Paused, or stuck behind a capture that has not come back: a capture
+    /// asked for now is refused, which says nothing about the window.
+    static var capturesArePaused: Bool { !windowServerCaptures.acceptsCaptures }
 
     /// Internal so the screenshot tool can reuse the existing window capture.
     /// Background warming passes `waitingForOtherCaptures: false`: it is
@@ -530,15 +521,11 @@ final class WindowPreviewProvider {
         }
     }
 
-    /// Nobody sees a thumbnail while the displays sleep, the screen is locked
-    /// or another account is on screen, and capturing then only risks the
-    /// stall described on the capture queue (issue #1863). Apps still become
-    /// active with the displays off, as when a script launches one.
+    /// Apps still become active with the displays off, as when a script
+    /// launches one, so the switcher asks before capturing.
     private static func screenIsInView() -> Bool {
-        let session = CGSessionCopyCurrentDictionary() as? [String: Any]
-        return SessionActivitySupport.isOnConsole(session)
-            && !KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: session)
-            && CGDisplayIsAsleep(CGMainDisplayID()) == 0
+        SwitcherSupport.screenIsInView(session: CGSessionCopyCurrentDictionary() as? [String: Any],
+                                       displaysAsleep: CGDisplayIsAsleep(CGMainDisplayID()) != 0)
     }
 
     private static func captureIsPaused(excludedAppsKey: String) -> Bool {

@@ -269,6 +269,10 @@ final class NotchWatchService: ObservableObject {
     @MainActor
     private func read() async {
         guard let target else { return }
+        // Captures paused while the permission check is slow cannot read the
+        // window, which says nothing about where it went: the last reading
+        // stays, and nothing asks the window server for now (issue #1863).
+        guard !WindowPreviewProvider.capturesArePaused else { return }
         let generation = self.generation
         var window: WindowInfo?
         if let windowID = target.windowID {
@@ -283,6 +287,9 @@ final class NotchWatchService: ObservableObject {
             return
         }
         if permissionMissing { permissionMissing = false }
+        // ScreenCaptureKit draws nothing from sleeping displays, and a call
+        // left waiting there would hold every other capture's turn.
+        let displaysAsleep = CGDisplayIsAsleep(CGMainDisplayID()) != 0
         let image: CGImage?
         if let windowID = target.windowID, let info = window {
             // The window server returns only the part of a window inside a
@@ -290,7 +297,7 @@ final class NotchWatchService: ObservableObject {
             // the window's proportions would read other pixels.
             var captured = await WindowPreviewProvider.captureViaWindowServer(windowID)
                 .flatMap { Self.wholeWindow($0, size: info.bounds.size) }
-            if captured == nil, info.onScreen {
+            if captured == nil, info.onScreen, !displaysAsleep {
                 // ScreenCaptureKit alone, in a turn of its own: the window
                 // server already answered above, and asking it again would
                 // only add another permission check (issue #1863).
@@ -304,6 +311,7 @@ final class NotchWatchService: ObservableObject {
                     .flatMap { full.cropping(to: $0) }
             }
         } else {
+            guard !displaysAsleep else { return }
             let region = regionCapture
             image = await WindowPreviewProvider.captureViaScreenCaptureKit { await region?.image() }
         }

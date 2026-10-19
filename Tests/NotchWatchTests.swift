@@ -335,5 +335,19 @@ enum NotchWatchTests {
         } else {
             suite.expect(false, "the reading loop still checks Screen Recording before capturing")
         }
+        // Issue #1863: a paused capture keeps the last reading, and readings
+        // take the shared capture turns.
+        if let paused = line("guard !WindowPreviewProvider.capturesArePaused else { return }"),
+           let info = line("guard let info = Self.windowInfo(windowID) else { finish(.closed); return }") {
+            suite.expect(paused < info,
+                         "while captures are paused Watch keeps its last reading and asks the window server nothing")
+        } else {
+            suite.expect(false, "Watch still waits out paused captures before reading")
+        }
+        suite.expect(source.components(separatedBy: "WindowPreviewProvider.captureViaScreenCaptureKit {").count == 3
+                     && !source.contains("ScreenshotCaptureEngine.captureWindow(")
+                     && source.contains("if captured == nil, info.onScreen, !displaysAsleep {")
+                     && source.contains("guard !displaysAsleep else { return }\n            let region = regionCapture"),
+                     "Watch's ScreenCaptureKit readings take a capture turn and wait for the displays to wake")
     }
 }
