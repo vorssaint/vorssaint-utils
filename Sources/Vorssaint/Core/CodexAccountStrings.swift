@@ -315,6 +315,25 @@ extension FeatureStrings {
             signIn: "請在此 Codex 資料夾中使用 ChatGPT 登入。",
             update: "請更新 Codex 以檢查額度。",
             failed: "無法檢查額度，請再試一次。")
+        case .ar: return CodexAccountStrings(
+            title: "حسابات Codex",
+            explanation: "يحصل كل مجلد CODEX_HOME تضيفه على بطاقة حدود خاصة به. وأثناء فتح صفحة “وكلاء الذكاء الاصطناعي”، يتحقق Codex من كل واحد نحو مرة كل خمس دقائق بتسجيل الدخول الخاص بذلك المجلد. ولا تُرسل أي مطالبة.",
+            accountName: "اسم الحساب",
+            remove: "إزالة بطاقة هذا الحساب",
+            find: "البحث عن الحسابات المحلية",
+            add: "إضافة مجلد…",
+            check: "التحقق من الحدود",
+            fallback: "حين لا تُضاف حسابات، تأتي حدود Codex من جلساته المحلية.",
+            resetsNote: "تبقى بطاقة “إعادات الضبط” تابعة لحساب Codex الافتراضي.",
+            chooseFolder: "اختر مجلد Codex",
+            invalidFolder: "اختر مجلد CODEX_HOME منفصلًا فيه config.toml أو auth.json. ويجب أن يكون المجلد ملكك ولا يستطيع غيرك الكتابة فيه، وأن يكون auth.json خاصًا وليس رابطًا. وقد يحدّث Codex تسجيل دخوله وذاكرته المؤقتة هناك.",
+            folderProblem: "اختر مجلد هذا الحساب مجددًا في الإعدادات.",
+            defaultName: "الافتراضي",
+            defaultAccount: "الحساب الافتراضي",
+            refreshHint: "حدّث للتحقق من حدود هذا الحساب.",
+            signIn: "سجّل الدخول عبر ChatGPT في مجلد Codex هذا.",
+            update: "حدّث Codex للتحقق من الحدود.",
+            failed: "تعذّر التحقق من الحدود. حاول مجددًا.")
         }
     }
 }
