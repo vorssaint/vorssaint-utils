@@ -35,6 +35,7 @@ struct SettingsSearchState: Equatable {
             DefaultsKey.notchCommandBar, DefaultsKey.notchMascotVisits, DefaultsKey.monitorAlertCPU,
             DefaultsKey.monitorAlertCPUTemperature, DefaultsKey.monitorAlertDisk,
             DefaultsKey.monitorAlertBattery, DefaultsKey.monitorAlertBatteryTemperature,
+            DefaultsKey.menuBarSeparateMetrics,
         ].filter { defaults.bool(forKey: $0) })
     }
 
@@ -384,6 +385,7 @@ enum SettingsDirectory {
                                         (.fanControl, [FeatureStrings.fanControl(language).menuBarTitle]),
                                        ], terms: [
                                         .init([s.monitorCombineTemperatures], when: !state.bars),
+                                        .init([s.monitorMenuBarReadingClicks], when: !state.on(DefaultsKey.menuBarSeparateMetrics)),
                                         .init([barStyle.customize, barStyle.normalColor, barStyle.mediumColor, barStyle.highColor,
                                                barStyle.mediumFrom, barStyle.highFrom], when: state.bars),
                                        ]),

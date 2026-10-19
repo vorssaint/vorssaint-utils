@@ -420,9 +420,25 @@ final class StatusItemController {
     @objc private func clicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             onRightClick?(statusItem.button)
+        } else if let button = statusItem.button, let metric = clickedReading(in: button) {
+            onMetricClick?(metric, button)
         } else {
             onLeftClick?()
         }
+    }
+
+    /// The metric under the pointer, when the title marks its metrics (see
+    /// `MenuBarRenderer.attributedReadings`). The button lays its title out
+    /// from its title rect, after the glyph. A click that did not come from
+    /// the pointer finds nothing and opens the panel as before.
+    private func clickedReading(in button: NSStatusBarButton) -> MenuBarMetric? {
+        guard let event = NSApp.currentEvent, event.type == .leftMouseUp,
+              event.window === button.window, let cell = button.cell else { return nil }
+        let point = button.convert(event.locationInWindow, from: nil)
+        let titleOriginX = cell.titleRect(forBounds: button.bounds).minX
+        let spans = MenuBarReadingHitTest.spans(in: button.attributedTitle)
+        return MenuBarReadingHitTest.reading(atX: point.x - titleOriginX, in: spans)
+            .flatMap(MenuBarMetric.init(rawValue:))
     }
 
     /// The item a right-click menu opens from: the main one while it is in
@@ -489,10 +505,17 @@ final class StatusItemController {
             renderedMetricItemCount = 0
         }
         if !separateMetrics, !metrics.isEmpty {
-            let metricsTitle = MenuBarRenderer.attributed(for: snapshot,
-                                                          metrics: metrics,
-                                                          allowStacked: !includesCountdown,
-                                                          linePrefix: " ")
+            // With metric clicks on, the title is built from the groups the
+            // separate items use, each run marked with the metric it opens.
+            let metricsTitle = defaults.bool(forKey: DefaultsKey.menuBarReadingClicks)
+                ? MenuBarRenderer.attributedReadings(
+                    for: snapshot,
+                    groups: Self.metricStatusGroups(for: metrics, strings: strings)
+                        .map { (metrics: $0.metrics, reading: $0.focusMetric) })
+                : MenuBarRenderer.attributed(for: snapshot,
+                                             metrics: metrics,
+                                             allowStacked: !includesCountdown,
+                                             linePrefix: " ")
             if metricsTitle.length > 0 {
                 if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
                 title.append(metricsTitle)
