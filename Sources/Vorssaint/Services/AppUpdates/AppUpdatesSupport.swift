@@ -562,8 +562,14 @@ enum AppUpdatesSupport {
               }) else { return catalogVersion }
         // Only a build with as many digits as the catalog's counts the same
         // way; a shorter or longer one ("21", a 13-digit timestamp) is some
-        // other number.
-        let ownBuild = installedBuild.trimmingCharacters(in: .whitespacesAndNewlines)
+        // other number. A build written out in full ("4.0.4.4900") is this
+        // release followed by its build.
+        var ownBuild = installedBuild.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ownParts = ownBuild.split(separator: ".", omittingEmptySubsequences: false)
+        if ownParts.count == releaseParts.count + 1, ownParts.allSatisfy(isNumber),
+           zip(releaseParts, ownParts).allSatisfy({ compareDigits(String($0), String($1)) == .orderedSame }) {
+            ownBuild = String(ownParts[releaseParts.count])
+        }
         if isNumber(Substring(ownBuild)),
            stripLeadingZeros(ownBuild).count == stripLeadingZeros(String(build)).count,
            compareDigits(String(build), ownBuild) == .orderedDescending {
@@ -629,8 +635,9 @@ enum AppUpdatesSupport {
     /// the build as one more dotted number ("2.19.0.2258" for a bundle that
     /// shows 2.19.0 and builds 2258). A build with as many digits as that
     /// number completes the bundle's version, so the same build is current and
-    /// an older one is a newer build of the same release. Otherwise this is the
-    /// version the bundle shows.
+    /// an older one is a newer build of the same release. A build already
+    /// written in that form ("2.19.0.2201") is that number. Otherwise this is
+    /// the version the bundle shows.
     static func installedNumber(_ app: InstalledApp, against release: String) -> String {
         let shown = versionCore(app.version)
         let build = app.buildVersion.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -638,7 +645,14 @@ enum AppUpdatesSupport {
               releaseParts.count == shownParts.count + 1,
               zip(shownParts, releaseParts).allSatisfy({ compareDigits($0, $1) == .orderedSame }),
               let catalogBuild = releaseParts.last, stripLeadingZeros(catalogBuild).count >= 3,
-              numericParts(build)?.count == 1,
+              let buildParts = numericParts(build) else { return app.version }
+        if buildParts.count == releaseParts.count,
+           zip(shownParts, buildParts).allSatisfy({ compareDigits($0, $1) == .orderedSame }),
+           let ownBuild = buildParts.last,
+           stripLeadingZeros(ownBuild).count == stripLeadingZeros(catalogBuild).count {
+            return build
+        }
+        guard buildParts.count == 1,
               stripLeadingZeros(build).count == stripLeadingZeros(catalogBuild).count else { return app.version }
         return "\(shown).\(build)"
     }

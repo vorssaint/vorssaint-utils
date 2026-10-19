@@ -2006,7 +2006,11 @@ enum UpdateFeatureTests {
                "a build written as one more dotted number is current when the bundle's own build is the same or later")
         let olderDottedBuild = catalogFinding("2.19.0", build: "2201", catalog: "2.19.0.2258")
         suite.expect(olderDottedBuild.items.map(\.versionSummary) == ["2.19.0 → 2.19.0.2258"]
-                && updated([("2.18.0", "2258", "2.19.0.2258")]),
+                && updated([("2.18.0", "2258", "2.19.0.2258"), ("2.19.0", "2.19.0.2201", "2.19.0.2258"),
+                            ("1.2", "3", "1.2.1"), ("1.2", "25", "1.2.10"),
+                            ("3.22.3", "3.22.3.104", "3.22.3+105"), ("4.0.4", "4.0.4.4900", "4.0.4-4926")])
+                && current([("2.19.0", "2.19.0.2300", "2.19.0.2258"), ("3.22.3", "3.22.3.105", "3.22.3+105"),
+                            ("4.0.4", "4.0.4.4926", "4.0.4-4926")]),
                "an older build of the same release, or an older release, is still an update")
         let unreportedBuild = catalogFinding("2026.5.1", build: "2026.5.1", catalog: "2026.5.1.161-3889610")
         suite.expect(unreportedBuild.items.isEmpty && unreportedBuild.checkedPaths.isEmpty
