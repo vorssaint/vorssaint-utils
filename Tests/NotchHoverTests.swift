@@ -159,6 +159,8 @@ enum NotchHoverTests {
             updateBounds()
         }
         func collapse() {
+            // The production collapse refuses while a drag holds the island.
+            guard !heldDrag else { return }
             closures += 1; expanded = false; peeking = false; openedByHover = false
             hoverState.close(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
             hoverWork?.cancel(); hoverWork = nil
