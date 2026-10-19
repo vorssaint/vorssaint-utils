@@ -304,6 +304,13 @@ def main():
                         "    func syncWithPreferences(", "    private func start(", "    func stop(",
                         "    private func handleLaunch(", "    private func handleMediaKeyEvent("])
           + "}\n}\n")
+    write("AppLaunchBlockerLifecycle.swift", "import Foundation\n"
+          + "extension AppLaunchBlockerContract {\nfinal class Service: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/AppLaunchBlock/AppLaunchBlocker.swift", prefix)
+                    .replace("private ", "", 1) for prefix in [
+                        "    static func isProtected(", "    func reload(", "    func add(", "    func remove(",
+                        "    func syncWithPreferences(", "    private func handleLaunch("])
+          + "}\n}\n")
     middle_click_lifecycle = "".join(
         declaration("Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift", prefix)
         .replace("private ", "", 1) for prefix in [

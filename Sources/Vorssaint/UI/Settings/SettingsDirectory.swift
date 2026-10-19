@@ -177,10 +177,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
                                        keywords: [s.launchAtLogin, s.languageLabel,
                                                   FeatureStrings.appearance(language).label,
-                                                  FeatureStrings.appearance(language).dark],
-                                       featureKeywords: [
-                                        (.musicBlock, [s.musicBlockTitle, s.musicBlockSection]),
-                                       ]),
+                                                  FeatureStrings.appearance(language).dark]),
                 // Searching any feature name lands here even when the feature
                 // is hidden, so the hub is always the way back.
                 SettingsDirectoryItem(page: .features, title: FeatureStrings.hub(language).pageTitle,
@@ -356,6 +353,11 @@ enum SettingsDirectory {
                                       title: FeatureStrings.portManager(language).title,
                                       icon: "network",
                                       keywords: ["port", "ports", "listening", "socket", "PID", "kill port"]),
+                SettingsDirectoryItem(page: .appLaunchBlock,
+                                      title: FeatureStrings.hub(language).titleMusicBlock,
+                                      icon: "nosign",
+                                      keywords: [s.musicBlockTitle, s.musicBlockSection,
+                                                 FeatureStrings.appLaunchBlock(language).listTitle]),
             ]),
             (categories.utilities, [
                 SettingsDirectoryItem(page: .notch,

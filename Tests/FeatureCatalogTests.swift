@@ -383,6 +383,7 @@ enum FeatureCatalogTests {
                    "an invalid gesture age preserves the launch")
         }
         MusicLaunchBlockerContract.run(suite)
+        AppLaunchBlockerContract.run(suite)
 
         // MARK: Features hub catalog
 
@@ -395,10 +396,10 @@ enum FeatureCatalogTests {
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
-            "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
+            "mixer", "soundOutputSwitcher", "audioPriority", "micMute",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
-            "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
+            "cleaner", "uninstaller", "musicBlock", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices", "fanControl",
@@ -2063,11 +2064,13 @@ enum FeatureCatalogTests {
         suite.expect(AppFeature.cleaningMode.settingsDestination
                 == FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode),
                "cleaning mode lands on Quick Tools cleaning mode section")
-        suite.expect(AppFeature.musicBlock.settingsDestination
-                == FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
-                && AppFeature.diskImageInstaller.settingsDestination
-                == FeatureSettingsDestination(.features),
+        suite.expect(AppFeature.diskImageInstaller.settingsDestination == FeatureSettingsDestination(.features),
                "features without dedicated pages use explicit nearest Settings destinations")
+        suite.expect(AppFeature.musicBlock.group == .tools
+                && AppFeature.musicBlock.settingsDestination == FeatureSettingsDestination(.appLaunchBlock)
+                && pageVisible(.appLaunchBlock, available: [.musicBlock])
+                && !pageVisible(.appLaunchBlock, available: allFeatures.subtracting([.musicBlock])),
+               "app launch blocking is a tool with its own page, shown only while the feature is installed")
         suite.expect(!AppFeature.diskImageInstaller.hasNavigableSettingsDestination
                 && AppFeature.allCases.filter { $0 != .diskImageInstaller }
                     .allSatisfy(\.hasNavigableSettingsDestination),
@@ -2209,10 +2212,10 @@ enum FeatureCatalogTests {
 
         let generalToolRouter = SettingsRouter()
         let mixerDestination = FeatureSettingsDestination(.general, sectionAnchor: .mixer)
-        let musicBlockingDestination = FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
+        let outputSwitcherDestination = FeatureSettingsDestination(.general, sectionAnchor: .soundOutputSwitcher)
         generalToolRouter.request(mixerDestination)
-        generalToolRouter.request(musicBlockingDestination)
-        generalToolRouter.request(musicBlockingDestination)
+        generalToolRouter.request(outputSwitcherDestination)
+        generalToolRouter.request(outputSwitcherDestination)
         generalToolRouter.goBack()
         suite.expect(generalToolRouter.destination == mixerDestination,
                "Settings Back returns to the previous General tool")
@@ -2221,7 +2224,7 @@ enum FeatureCatalogTests {
                "Settings Back returns from a General tool to the General overview")
         generalToolRouter.goForward()
         generalToolRouter.goForward()
-        suite.expect(generalToolRouter.destination == musicBlockingDestination,
+        suite.expect(generalToolRouter.destination == outputSwitcherDestination,
                "Settings Forward retraces General tools")
         generalToolRouter.page = .energy
         generalToolRouter.request(FeatureSettingsDestination(.energy, sectionAnchor: .keepAwake))
@@ -3202,5 +3205,147 @@ enum MusicLaunchBlockerContract {
         launch(fallback)
         suite.expect(fallback.forceCalls == 1 && fallback.terminateCalls == 1 && service.replacementCalls == 1,
                      "a successful normal termination still opens the configured replacement once")
+    }
+}
+
+/// The production list, lifecycle and launch handler are extracted into
+/// Service. The doubles replace defaults, the workspace and running apps; no
+/// test watches real launches or quits a process.
+enum AppLaunchBlockerContract {
+    enum Environment {
+        static var available = true
+        static var stored: [String: [String]] = [:]
+        static var installed: [String: URL] = [:]
+    }
+    enum AppFeature {
+        case musicBlock
+        var isAvailable: Bool { Environment.available }
+    }
+    enum UserDefaults {
+        static let standard = Store()
+        final class Store {
+            func stringArray(forKey key: String) -> [String]? { Environment.stored[key] }
+            func set(_ value: [String], forKey key: String) { Environment.stored[key] = value }
+        }
+    }
+    enum InstalledApps {
+        static func url(for bundleID: String) -> URL? { Environment.installed[bundleID] }
+    }
+    final class NSRunningApplication {
+        let bundleIdentifier: String?
+        let bundleURL: URL?
+        var terminateCalls = 0
+        var forceCalls = 0
+        init(_ bundle: String?, at path: String? = nil) {
+            bundleIdentifier = bundle
+            bundleURL = path.map { URL(fileURLWithPath: $0) }
+        }
+        @discardableResult func terminate() -> Bool { terminateCalls += 1; return true }
+        func forceTerminate() -> Bool { forceCalls += 1; return true }
+    }
+    enum NSWorkspace {
+        static let shared = Workspace()
+        static let willLaunchApplicationNotification = Notification.Name("fixture.appLaunchBlock.willLaunch")
+        static let didLaunchApplicationNotification = Notification.Name("fixture.appLaunchBlock.didLaunch")
+        static let applicationUserInfoKey = "application"
+        final class Workspace { let notificationCenter = NotificationCenter() }
+    }
+    class Fixture {
+        var apps: [String] = []
+        var observers: [NSObjectProtocol] = []
+    }
+
+    static func run(_ suite: TestSuite) {
+        let key = DefaultsKey.appLaunchBlockBundleIDs
+        suite.expect(Defaults.registeredDefaults[key] as? [String] == []
+                && SettingsBackupSupport.exportKeys().contains(key),
+                     "the blocked list starts empty and travels with a settings backup")
+
+        let service = Service()
+        func set(_ list: [String]) {
+            Environment.stored[key] = list
+            service.reload()
+            service.syncWithPreferences()
+        }
+        func launch(_ app: NSRunningApplication, did: Bool = false) {
+            NSWorkspace.shared.notificationCenter.post(
+                name: did ? NSWorkspace.didLaunchApplicationNotification
+                    : NSWorkspace.willLaunchApplicationNotification,
+                object: nil, userInfo: [NSWorkspace.applicationUserInfoKey: app])
+        }
+        defer {
+            Environment.available = false
+            service.syncWithPreferences()
+            Environment.available = true
+        }
+
+        set([" com.example.a ", "com.example.a", ""])
+        suite.expect(service.apps == ["com.example.a"] && Environment.stored[key] == ["com.example.a"],
+                     "a stored list is trimmed, deduplicated and written back clean")
+
+        set([])
+        suite.expect(service.observers.isEmpty, "an empty list watches no launches")
+        Environment.available = false
+        set(["com.apple.Dictionary"])
+        suite.expect(service.observers.isEmpty, "a feature switched off in the hub watches no launches")
+        Environment.available = true
+        service.syncWithPreferences()
+        service.syncWithPreferences()
+        suite.expect(service.observers.count == 2,
+                     "a listed app and an available feature install one observer pair, never duplicated")
+
+        let dictionary = NSRunningApplication("com.apple.Dictionary", at: "/System/Applications/Dictionary.app")
+        launch(dictionary)
+        launch(dictionary, did: true)
+        suite.expect(dictionary.terminateCalls == 2 && dictionary.forceCalls == 0,
+                     "a listed app is asked to quit at will- and did-launch and never force quit")
+
+        let other = NSRunningApplication("com.apple.Calculator", at: "/System/Applications/Calculator.app")
+        launch(other)
+        launch(other, did: true)
+        suite.expect(other.terminateCalls == 0 && other.forceCalls == 0, "an unlisted app is left alone")
+
+        let finderPath = "/System/Library/CoreServices/Finder.app"
+        Environment.installed = ["com.apple.loginwindow": URL(fileURLWithPath: "/System/Library/CoreServices/loginwindow.app")]
+        set(["com.apple.Dictionary", "com.vorssaint.app", "com.vorssaint.app.dev",
+             "com.apple.finder", "com.apple.loginwindow"])
+        let protected = [NSRunningApplication("com.vorssaint.app", at: "/Applications/Vorssaint.app"),
+                         NSRunningApplication("com.vorssaint.app.dev", at: "/Applications/Vorssaint Dev.app"),
+                         NSRunningApplication("com.apple.finder", at: finderPath),
+                         NSRunningApplication("com.apple.loginwindow")]
+        for app in protected {
+            launch(app)
+            launch(app, did: true)
+        }
+        suite.expect(protected.allSatisfy { $0.terminateCalls == 0 && $0.forceCalls == 0 },
+                     "Vorssaint and /System/Library components stay running even when a backup lists them")
+        suite.expect(Service.isProtected(bundleID: "com.apple.loginwindow", bundleURL: nil)
+                && !Service.isProtected(bundleID: "com.apple.Dictionary",
+                                        bundleURL: URL(fileURLWithPath: "/System/Applications/Dictionary.app")),
+                     "the picker's check resolves an app's location and keeps /System/Applications blockable")
+
+        let removedMidLaunch = NSRunningApplication("com.apple.Dictionary",
+                                                    at: "/System/Applications/Dictionary.app")
+        launch(removedMidLaunch)
+        service.remove("com.apple.Dictionary")
+        launch(removedMidLaunch, did: true)
+        suite.expect(removedMidLaunch.terminateCalls == 1 && !service.apps.contains("com.apple.Dictionary"),
+                     "an app taken off the list during its launch is let through at did-launch")
+
+        set(["com.apple.Dictionary"])
+        service.remove("com.apple.Dictionary")
+        suite.expect(service.observers.isEmpty && Environment.stored[key] == [],
+                     "removing the last app stops watching launches")
+        service.add("com.apple.Dictionary")
+        suite.expect(service.observers.count == 2 && Environment.stored[key] == ["com.apple.Dictionary"],
+                     "adding an app saves it and starts watching")
+        Environment.available = false
+        service.syncWithPreferences()
+        let afterUninstall = NSRunningApplication("com.apple.Dictionary", at: "/System/Applications/Dictionary.app")
+        launch(afterUninstall)
+        suite.expect(service.observers.isEmpty && afterUninstall.terminateCalls == 0,
+                     "switching the feature off in the hub stops blocking at once")
+        Environment.available = true
+        Environment.installed = [:]
     }
 }
