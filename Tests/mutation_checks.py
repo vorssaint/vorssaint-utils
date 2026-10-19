@@ -432,7 +432,7 @@ MUTATIONS = [
      "Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift",
      "            && !displaysAsleep\n", "\n",
      "no thumbnail is captured for another account, a locked screen or sleeping displays"),
-    ("Watch calls a window hidden while captures are paused", "notch",
+    ("Watch reads through a pause instead of keeping its last reading", "notch",
      "Sources/Vorssaint/Services/Notch/NotchWatchService.swift",
      "        guard !WindowPreviewProvider.capturesArePaused else { return }\n", "",
      "Watch still waits out paused captures before reading"),

@@ -313,10 +313,10 @@ enum NotchWatchTests {
     private static func readingLoopContracts(_ suite: TestSuite) {
         let source = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchWatchService.swift",
                                   encoding: .utf8)) ?? ""
-        func line(_ fragment: String) -> Int? {
-            source.components(separatedBy: "\n").enumerated().first { _, line in
+        func line(_ fragment: String, after start: Int = 0) -> Int? {
+            source.components(separatedBy: "\n").enumerated().first { offset, line in
                 let code = line.trimmingCharacters(in: .whitespaces)
-                return !code.hasPrefix("//") && code.contains(fragment)
+                return offset >= start && !code.hasPrefix("//") && code.contains(fragment)
             }.map { $0.offset + 1 }
         }
         suite.expect(line("tracker.observe(signature: signature, reading: text, at: Date())") != nil
@@ -327,7 +327,9 @@ enum NotchWatchTests {
         } else {
             suite.expect(false, "the reading loop still reads text and keeps the area's picture")
         }
-        if let permission = line("guard CGPreflightScreenCaptureAccess() else"),
+        // Choosing an area checks the permission too; this is the reading's own check.
+        if let reading = line("private func read() async"),
+           let permission = line("guard CGPreflightScreenCaptureAccess() else", after: reading),
            let capture = line("await WindowPreviewProvider.captureViaWindowServer(windowID)"),
            let region = line("await region?.image()") {
             suite.expect(permission < capture && permission < region,

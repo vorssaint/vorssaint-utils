@@ -363,7 +363,8 @@ enum WindowServerCaptureContract {
             queuedIn = Fake.lock.withLock { Fake.clockReads > readsBeforeQueued }
             if !queuedIn { usleep(10_000) }
         }
-        suite.expect(queuedStarted && queuedIn && Fake.lock.withLock { Fake.calls == [40] && Fake.results[41] == nil },
+        suite.expect(queuedStarted && queuedIn && finished.wait(timeout: .now() + 0.1) == .timedOut
+                     && Fake.lock.withLock { Fake.calls == [40] && Fake.results[41] == nil },
                      "a capture asked for early waits behind the slow one")
         Fake.advance(by: WindowServerCaptureQueue.slowCapture)
         launch(42, finished: finished)
