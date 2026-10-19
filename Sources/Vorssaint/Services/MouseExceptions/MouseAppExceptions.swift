@@ -136,10 +136,10 @@ final class MouseAppExceptions: ObservableObject {
     /// contain it. Main thread only: the workspace notification center posts
     /// here, and `NSWorkspace.frontmostApplication` belongs to the main
     /// thread. The PID set answers first when the frontmost app is running
-    /// under a helper identity (issue #1009); the identity answers the rest.
+    /// under a helper identity (issue #1009); the identities answer the rest.
     private func refreshFrontmostApp() {
         let app = NSWorkspace.shared.frontmostApplication
-        let identity = Self.identity(for: app)
+        let identities = identities(for: app)
         let pid = app?.processIdentifier
         let (lookups, sources) = lock.withLock { (self.lookups, self.sourceProcessIDs) }
         var matches = Set<MouseExceptionScope>()
@@ -147,7 +147,7 @@ final class MouseAppExceptions: ObservableObject {
             guard let exceptions = lookups[scope], !exceptions.isEmpty else { continue }
             let pidListed = pid.map { sources[scope]?.contains($0) ?? false } ?? false
             if pidListed
-                || MouseAppExceptionSupport.isExcepted(identity, exceptions: exceptions) {
+                || MouseAppExceptionSupport.isExcepted(identities, exceptions: exceptions) {
                 matches.insert(scope)
             }
         }
