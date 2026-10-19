@@ -25,9 +25,10 @@ Clipboard history that can expire old items and a hidden Dynamic Island that sti
 - App lists in Settings show names without ".app" when the Finder shows all filename extensions.
 - The volume mixer's AirPlay stream pauses once routed apps go quiet, so iPhones and HomePods stop showing the Mac as playing, and sound comes back after pausing from the phone.
 - Command Bar copies a script's output and closes when the script row was reached by part of its name or opened from its shortcut.
+- App Switcher, Dock Preview and Watch pause window captures while macOS is slow to confirm Screen Recording, which could log you out under heavy load. Thumbnails also stop updating while the displays sleep or the screen is locked.
 
 ### Contributors
-Thanks to @bebricoOOOOOOf, @becastellani, @Chubi01, @emreertunc, @jainnam-1993, @juanra, @Likheet, @marianhoenscheid, @mikeknight85, @mschoeffmann, @RKeyProg and @root-daemon.
+Thanks to @bebricoOOOOOOf, @becastellani, @bharathvbcr, @cdbrandt729-code, @Chubi01, @emreertunc, @jainnam-1993, @juanra, @Likheet, @marianhoenscheid, @mikeknight85, @mschoeffmann, @RKeyProg and @root-daemon.
 Feedback: Brain.
 
 ## [3.4.2-beta.1] - 2026-10-18

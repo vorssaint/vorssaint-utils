@@ -329,7 +329,7 @@ enum NotchWatchTests {
         }
         if let permission = line("guard CGPreflightScreenCaptureAccess() else"),
            let capture = line("await WindowPreviewProvider.captureViaWindowServer(windowID)"),
-           let region = line("await regionCapture?.image()") {
+           let region = line("await region?.image()") {
             suite.expect(permission < capture && permission < region,
                          "without Screen Recording nothing is captured, so the system is not asked again")
         } else {

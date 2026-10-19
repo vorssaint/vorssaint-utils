@@ -291,8 +291,12 @@ final class NotchWatchService: ObservableObject {
             var captured = await WindowPreviewProvider.captureViaWindowServer(windowID)
                 .flatMap { Self.wholeWindow($0, size: info.bounds.size) }
             if captured == nil, info.onScreen {
-                captured = await ScreenshotCaptureEngine.captureWindow(windowID, scale: 2)
-                    .flatMap { Self.wholeWindow($0.image, size: info.bounds.size) }
+                // ScreenCaptureKit alone, in a turn of its own: the window
+                // server already answered above, and asking it again would
+                // only add another permission check (issue #1863).
+                captured = await WindowPreviewProvider.captureViaScreenCaptureKit {
+                    await ScreenshotCaptureEngine.captureIndependentWindow(windowID, scale: 2)
+                }.flatMap { Self.wholeWindow($0, size: info.bounds.size) }
             }
             image = captured.flatMap { full in
                 NotchWatchSupport.pixelCrop(target.crop, windowSize: info.bounds.size,
@@ -300,7 +304,8 @@ final class NotchWatchService: ObservableObject {
                     .flatMap { full.cropping(to: $0) }
             }
         } else {
-            image = await regionCapture?.image()
+            let region = regionCapture
+            image = await WindowPreviewProvider.captureViaScreenCaptureKit { await region?.image() }
         }
         guard self.generation == generation, isActive else { return }
         guard let image else {
