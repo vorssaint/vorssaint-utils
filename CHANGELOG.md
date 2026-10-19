@@ -15,6 +15,7 @@ Clipboard history that can expire old items and a hidden Dynamic Island that sti
 
 ### Fixed
 - Dynamic Island's Now Playing page shows the Explore button again when Explore is not a floating button, and can grow a little to fit it while a song plays. The System page shows it too where it had no top row, such as on displays without a notch.
+- Dynamic Island says when the chosen display keeps it off displays without a notch, with a button to show it on all displays. Settings → Dynamic Island → Layout → Displays without a notch.
 - Smooth scrolling keeps its remaining motion in the original window or scroll area when the pointer moves. New wheel input elsewhere starts there immediately.
 - Dock Preview avoids waiting on a frozen neighboring app when hovering the uncovered Dock.
 - Mirrored displays remain listed with their own brightness controls, including the built-in screen.
@@ -27,7 +28,7 @@ Clipboard history that can expire old items and a hidden Dynamic Island that sti
 - Command Bar copies a script's output and closes when the script row was reached by part of its name or opened from its shortcut.
 
 ### Contributors
-Thanks to @bebricoOOOOOOf, @becastellani, @Chubi01, @emreertunc, @jainnam-1993, @juanra, @Likheet, @marianhoenscheid, @mikeknight85, @mschoeffmann, @RKeyProg and @root-daemon.
+Thanks to @andrewgribben, @bebricoOOOOOOf, @becastellani, @Chubi01, @Dusk-afk, @emreertunc, @jainnam-1993, @juanra, @Likheet, @marianhoenscheid, @mikeknight85, @mschoeffmann, @RKeyProg, @rohanod and @root-daemon.
 Feedback: Brain.
 
 ## [3.4.2-beta.1] - 2026-10-18

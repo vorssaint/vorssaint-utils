@@ -3292,6 +3292,14 @@ final class NotchService: ObservableObject {
         NotchDisplay(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchDisplay) ?? "") ?? .automatic
     }
 
+    /// The displays as the choice of display reads them: which are built in,
+    /// which have a camera housing, and which one has the menu bar.
+    private static func displayLayout(_ screens: [NSScreen]) -> (builtIn: [Bool], notched: [Bool], main: Int) {
+        (screens.map { CGDisplayIsBuiltin($0.notchDisplayID) != 0 },
+         screens.map { $0.safeAreaInsets.top > 0 },
+         screens.firstIndex(where: { $0 === NSScreen.withMenuBar }) ?? 0)
+    }
+
     private func screenIndex(in screens: [NSScreen]) -> Int? {
         let preference = displayPreference
         var pointer: Int?
@@ -3301,13 +3309,17 @@ final class NotchService: ObservableObject {
             pointer = screens.firstIndex { $0.notchDisplayID == displayID }
                 ?? screens.firstIndex { NSMouseInRect(mouse, $0.frame, false) }
         }
-        return NotchSupport.screenIndex(
-            preference: preference,
-            builtIn: screens.map { CGDisplayIsBuiltin($0.notchDisplayID) != 0 },
-            notched: screens.map { $0.safeAreaInsets.top > 0 },
-            main: screens.firstIndex(where: { $0 === NSScreen.withMenuBar }) ?? 0,
-            pointer: pointer,
-            hasLid: Self.hasLid)
+        let layout = Self.displayLayout(screens)
+        return NotchSupport.screenIndex(preference: preference, builtIn: layout.builtIn, notched: layout.notched,
+                                        main: layout.main, pointer: pointer, hasLid: Self.hasLid)
+    }
+
+    /// Whether `preference` lets the island reach a connected display without
+    /// a notch, so the shape chosen for those displays shows somewhere.
+    static func reachesDisplayWithoutNotch(_ preference: NotchDisplay) -> Bool {
+        let layout = displayLayout(NSScreen.screens)
+        return NotchSupport.reachesDisplayWithoutNotch(preference: preference, builtIn: layout.builtIn,
+                                                       notched: layout.notched, main: layout.main, hasLid: hasLid)
     }
 
     /// With the chosen display away, as the built-in one with the lid closed,

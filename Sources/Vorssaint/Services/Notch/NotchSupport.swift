@@ -2153,6 +2153,19 @@ enum NotchSupport {
         case .pointer, .all: return pointer.flatMap { builtIn.indices.contains($0) ? $0 : nil } ?? fallback
         }
     }
+
+    /// Whether the island can rest on a display without a notch, where the
+    /// shape chosen for those displays shows. The pointer can take it to any
+    /// display; otherwise the chosen display decides, and one with a camera,
+    /// or a built-in screen closed under its lid, keeps it off all of them.
+    static func reachesDisplayWithoutNotch(preference: NotchDisplay, builtIn: [Bool], notched: [Bool], main: Int,
+                                           hasLid: Bool = true) -> Bool {
+        guard notched.contains(false) else { return false }
+        if preference == .pointer || preference == .all { return true }
+        guard let index = screenIndex(preference: preference, builtIn: builtIn, notched: notched, main: main,
+                                      hasLid: hasLid) else { return false }
+        return !notched[index]
+    }
 }
 
 /// A hidden menu bar retains only a measurement from the same display and mode.

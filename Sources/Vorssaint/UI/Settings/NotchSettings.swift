@@ -255,6 +255,13 @@ struct NotchSettings: View {
                         silhouetteChoice(.capsule, title: text.capsuleShape)
                         silhouetteChoice(.notch, title: text.notchShape)
                     }
+                    // An island kept on a camera, or away with the lid closed,
+                    // shows neither shape, so the card says where to change that.
+                    if enabled, !NotchService.reachesDisplayWithoutNotch(NotchDisplay(rawValue: display) ?? .automatic) {
+                        Text(text.withoutNotchUnreached).font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button(text.showOnAllDisplays) { display = NotchDisplay.all.rawValue }
+                    }
                 }
                 if NotchSilhouette(rawValue: silhouette) ?? .capsule == .capsule {
                     SettingsCard(title: text.capsuleFit) {

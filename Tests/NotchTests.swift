@@ -3205,6 +3205,38 @@ enum NotchTests {
                              "with every display chosen, the island that responds follows the pointer")
             }
         }
+        // The shape for displays without a notch shows only where the island can rest.
+        suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: .automatic, builtIn: [true, false],
+                                                              notched: [true, false], main: 1),
+               "automatic keeps a notched laptop's island off its monitor, even the main one")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .automatic, builtIn: [false],
+                                                             notched: [false], main: 0),
+               "automatic reaches the monitor once the lid closes")
+        suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [true, false],
+                                                              notched: [true, false], main: 1),
+               "the built-in choice keeps the island on its camera")
+        suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [false],
+                                                              notched: [false], main: 0),
+               "the built-in choice reaches no monitor while the lid is closed")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [true, false],
+                                                             notched: [false, false], main: 1),
+               "a built-in screen without a notch floats the island itself")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [false, false],
+                                                             notched: [false, false], main: 1, hasLid: false),
+               "a Mac without a lid keeps the built-in choice on its main display")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .main, builtIn: [true, false],
+                                                             notched: [true, false], main: 1)
+                     && !NotchSupport.reachesDisplayWithoutNotch(preference: .main, builtIn: [true, false],
+                                                                 notched: [true, false], main: 0),
+               "the main display choice reaches a monitor only when it has the menu bar")
+        for preference in [NotchDisplay.pointer, .all] {
+            suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: preference, builtIn: [true, false],
+                                                                 notched: [true, false], main: 0),
+                   "the pointer can take the island to a monitor: \(preference)")
+            suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: preference, builtIn: [true],
+                                                                  notched: [true], main: 0),
+                   "no display without a notch is reached when none is connected: \(preference)")
+        }
         suite.expect(NotchSupport.shouldReplace(.volume, with: .brightness), "continuous controls can replace each other")
         suite.expect(!NotchSupport.shouldReplace(.volume, with: .clipboard), "copy does not interrupt a volume adjustment")
         suite.expect(NotchSupport.shouldReplace(.battery, with: .capture), "a capture takes precedence over passive battery status")
