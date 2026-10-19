@@ -49,8 +49,14 @@ enum BrightnessKeyRoutingTests {
     final class UserDefaults {
         static let standard = UserDefaults()
         var overlay = false
+        var followsPointer = true
+        var allDisplays = false
         func bool(forKey key: String) -> Bool {
-            key == DefaultsKey.brightnessKeysEnabled || overlay
+            switch key {
+            case DefaultsKey.brightnessKeysEnabled: return followsPointer
+            case DefaultsKey.brightnessKeysAllDisplays: return allDisplays
+            default: return overlay
+            }
         }
     }
     enum NotchSupport {
@@ -89,6 +95,7 @@ enum BrightnessKeyRoutingTests {
         var functionKeyStep = BrightnessSupport.KeyStep.standard
         var functionKeysAdjustBrightness = true
         var functionKeysFollowPointer = true
+        var functionKeysAllDisplays = false
         var functionKeySystemTarget: UInt32? = 1
         var overlayReplacesNativeOSD = false
         var brightnessOSDSupported = true
@@ -99,6 +106,7 @@ enum BrightnessKeyRoutingTests {
         var systemKeyTarget: Display? { displays.first }
         var routes: [UInt32: Route] = [1: Route(method: .system), 2: Route(method: .system)]
         var steps = 0
+        var aimedAt: [UInt32] = []
         var focusedDisplayID: UInt32?
         func focusKeyDisplay(_ id: UInt32) { focusedDisplayID = id }
         func AXIsProcessTrusted() -> Bool { true }
@@ -109,6 +117,10 @@ enum BrightnessKeyRoutingTests {
         func currentSystemBrightness(for id: UInt32, fallback: Double?) -> Double? { fallback }
         func setBrightness(_ value: Double, for id: UInt32, showOSD: Bool, smooth: Bool) { steps += 1 }
         func step(_ id: UInt32, method: Method, delta: Double, showOSD: Bool) { steps += 1 }
+        func stepKeyPress(_ id: UInt32, method: Method, delta: Double, showOSD: Bool) {
+            steps += 1
+            aimedAt.append(id)
+        }
         func applyKeyStep(_ press: BrightnessSupport.BrightnessKeyEvent, to id: UInt32, method: Method) {
             steps += 1
         }
@@ -126,6 +138,8 @@ enum BrightnessKeyRoutingTests {
             func service() -> Service {
                 NSScreen.current = 1
                 UserDefaults.standard.overlay = false
+                UserDefaults.standard.followsPointer = true
+                UserDefaults.standard.allDisplays = false
                 Service.forwardedSteps = 0
                 return Service()
             }
@@ -216,6 +230,37 @@ enum BrightnessKeyRoutingTests {
             suite.expect(press(both) && press(both, increase: false)
                          && press(both, down: false) && press(both, down: false, increase: false),
                          "\(kind): opposite brightness keys keep independent releases")
+
+            // Moving every display: the system would only move the built-in
+            // panel, so a press there is taken and stepped here too.
+            func linked(followsPointer: Bool) -> Service {
+                let host = service()
+                UserDefaults.standard.followsPointer = followsPointer
+                UserDefaults.standard.allDisplays = true
+                host.functionKeysFollowPointer = followsPointer
+                host.functionKeysAllDisplays = true
+                return host
+            }
+            let pointerLinked = linked(followsPointer: true)
+            suite.expect(press(pointerLinked) && press(pointerLinked, repeated: true)
+                         && press(pointerLinked, down: false) && pointerLinked.steps == 2,
+                         "\(kind): with all displays linked, a press on the built-in panel is stepped here")
+            suite.expect(!mediaKey || pointerLinked.aimedAt == [1, 1],
+                         "\(kind): the linked step is aimed at the display under the pointer")
+            let targetLinked = linked(followsPointer: false)
+            NSScreen.current = 2
+            suite.expect(press(targetLinked) && press(targetLinked, down: false) && targetLinked.steps == 1,
+                         "\(kind): all displays linked without pointer routing still claims the press")
+            suite.expect(!mediaKey || targetLinked.aimedAt == [1],
+                         "\(kind): without pointer routing the linked step is aimed at the system target")
+            let unlinkedHeld = linked(followsPointer: false)
+            suite.expect(press(unlinkedHeld), "\(kind): a linked press starts on the built-in panel")
+            UserDefaults.standard.allDisplays = false
+            unlinkedHeld.functionKeysAllDisplays = false
+            suite.expect(press(unlinkedHeld, repeated: true) && press(unlinkedHeld, down: false),
+                         "\(kind): unlinking displays mid-press cannot leak a handled repeat or release")
+            UserDefaults.standard.followsPointer = true
+            UserDefaults.standard.allDisplays = false
         }
     }
 }

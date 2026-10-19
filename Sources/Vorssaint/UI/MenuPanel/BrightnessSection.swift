@@ -12,6 +12,7 @@ struct BrightnessSection: View {
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
+    @AppStorage(DefaultsKey.brightnessKeysAllDisplays) private var brightnessKeysAllDisplays = false
     @State private var optionsExpanded = false
     var collapsible = true
 
@@ -96,7 +97,16 @@ struct BrightnessSection: View {
                         .font(.system(size: 9.5))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    if brightnessKeysEnabled, !permissions.accessibility {
+                    Toggle(strings.allDisplaysToggle, isOn: $brightnessKeysAllDisplays)
+                        .onChange(of: brightnessKeysAllDisplays) { _, isOn in
+                            if isOn { permissions.requestAccessibility() }
+                            service.syncWithPreferences()
+                        }
+                    Text(strings.allDisplaysCaption)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if brightnessKeysEnabled || brightnessKeysAllDisplays, !permissions.accessibility {
                         Button {
                             permissions.openAccessibilitySettings()
                         } label: {

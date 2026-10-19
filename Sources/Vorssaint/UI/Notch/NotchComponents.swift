@@ -76,6 +76,25 @@ struct NotchMeter: View {
     }
 }
 
+/// One meter per level, stacked: the brightness a key moved on every
+/// display, the aimed display's on top. A single level is a plain meter.
+struct NotchMeters: View {
+    let levels: [Double]
+    var height: CGFloat = 5
+    var tint: Color = .white
+
+    var body: some View {
+        if levels.count < 2 {
+            NotchMeter(value: levels.first ?? 0, height: height, tint: tint)
+        } else {
+            let each = max(2, (height * 1.6 - CGFloat(levels.count - 1) * 2) / CGFloat(levels.count))
+            VStack(spacing: 2) {
+                ForEach(levels.indices, id: \.self) { NotchMeter(value: levels[$0], height: each, tint: tint) }
+            }
+        }
+    }
+}
+
 /// A clock's digits roll into the next reading, downward while it counts
 /// down and upward while it counts up; Reduce Motion changes them in place.
 struct NotchRollingDigits: ViewModifier {

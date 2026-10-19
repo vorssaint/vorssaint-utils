@@ -205,6 +205,7 @@ enum SettingsDirectory {
                                                         .allowDisplaySleep]),
                                         (.brightness, [FeatureStrings.brightness(language).pageTitle,
                                                        FeatureStrings.brightness(language).osdToggle,
+                                                       FeatureStrings.brightness(language).allDisplaysToggle,
                                                        FeatureStrings.brightness(language).keyStep,
                                                        FeatureStrings.brightness(language).keyStepHalf,
                                                        FeatureStrings.brightness(language).keyStepQuarter]),
