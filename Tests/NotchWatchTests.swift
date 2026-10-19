@@ -338,12 +338,15 @@ enum NotchWatchTests {
         // Issue #1863: a paused capture keeps the last reading, and readings
         // take the shared capture turns.
         if let paused = line("guard !WindowPreviewProvider.capturesArePaused else { return }"),
-           let info = line("guard let info = Self.windowInfo(windowID) else { finish(.closed); return }") {
-            suite.expect(paused < info,
-                         "while captures are paused Watch keeps its last reading and asks the window server nothing")
+           let info = line("guard let info = Self.windowInfo(windowID) else { finish(.closed); return }"),
+           let capture = line("await WindowPreviewProvider.captureViaWindowServer(windowID)") {
+            suite.expect(info < paused && paused < capture,
+                         "while captures are paused Watch still notices a closed window but keeps its last reading")
         } else {
             suite.expect(false, "Watch still waits out paused captures before reading")
         }
+        suite.expect(line("if !WindowPreviewProvider.capturesArePaused, state != .hidden { state = .hidden }") != nil,
+                     "a capture refused because captures just paused does not call the window hidden")
         suite.expect(source.components(separatedBy: "WindowPreviewProvider.captureViaScreenCaptureKit {").count == 3
                      && !source.contains("ScreenshotCaptureEngine.captureWindow(")
                      && source.contains("if captured == nil, info.onScreen, !displaysAsleep {")

@@ -269,16 +269,16 @@ final class NotchWatchService: ObservableObject {
     @MainActor
     private func read() async {
         guard let target else { return }
-        // Captures paused while the permission check is slow cannot read the
-        // window, which says nothing about where it went: the last reading
-        // stays, and nothing asks the window server for now (issue #1863).
-        guard !WindowPreviewProvider.capturesArePaused else { return }
         let generation = self.generation
         var window: WindowInfo?
         if let windowID = target.windowID {
             guard let info = Self.windowInfo(windowID) else { finish(.closed); return }
             window = info
         }
+        // Captures paused while the permission check is slow cannot read the
+        // window, which says nothing about how it looks: the last reading
+        // stays until they resume (issue #1863).
+        guard !WindowPreviewProvider.capturesArePaused else { return }
         // Turned off in System Settings: nothing can be read, and asking the
         // capture again would only raise the system's prompt.
         guard CGPreflightScreenCaptureAccess() else {
@@ -317,7 +317,9 @@ final class NotchWatchService: ObservableObject {
         }
         guard self.generation == generation, isActive else { return }
         guard let image else {
-            if state != .hidden { state = .hidden }
+            // A capture refused because this very turn paused captures is no
+            // sign of a hidden window either.
+            if !WindowPreviewProvider.capturesArePaused, state != .hidden { state = .hidden }
             return
         }
         if state != .watching { state = .watching }

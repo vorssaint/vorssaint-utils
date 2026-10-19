@@ -353,10 +353,17 @@ enum WindowServerCaptureContract {
         launch(40, finished: slowFinished)
         suite.expect(wait(Fake.entered), "a capture that will come back slowly starts")
         let queued = DispatchSemaphore(value: 0)
+        // With 40 held, the only clock read is 41's own request: once it is
+        // in, the clock can move without refusing it.
+        let readsBeforeQueued = Fake.lock.withLock { Fake.clockReads }
         launch(41, started: queued, finished: finished)
         let queuedStarted = wait(queued)
-        usleep(100_000)
-        suite.expect(queuedStarted && Fake.lock.withLock { Fake.calls == [40] && Fake.results[41] == nil },
+        var queuedIn = false
+        for _ in 0..<300 where !queuedIn {
+            queuedIn = Fake.lock.withLock { Fake.clockReads > readsBeforeQueued }
+            if !queuedIn { usleep(10_000) }
+        }
+        suite.expect(queuedStarted && queuedIn && Fake.lock.withLock { Fake.calls == [40] && Fake.results[41] == nil },
                      "a capture asked for early waits behind the slow one")
         Fake.advance(by: WindowServerCaptureQueue.slowCapture)
         launch(42, finished: finished)
