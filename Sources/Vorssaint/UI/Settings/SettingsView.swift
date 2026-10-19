@@ -1194,7 +1194,9 @@ struct PermissionRow: View {
 /// wrong or who is holding it. It also hides every key from the switcher's
 /// tap, so the switcher hands ⌘Tab back to macOS for as long as it lasts and
 /// the macOS switcher shows up instead. This row is the only place the app
-/// explains either, and it names the holder when the session can attribute it.
+/// explains either. macOS never names the holder, only the app that was
+/// active when it turned on, so the row offers that app as a lead rather than
+/// as the holder.
 ///
 /// Every call site instantiates it only once secure input is on, and the
 /// snippets and switcher pages wait for their own toggles as well, so the

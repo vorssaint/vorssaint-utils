@@ -109,6 +109,10 @@ final class AppSwitcher: ObservableObject {
     private var pendingStartAfterStop = false
     /// Alive only while the Switcher's tap needs layout labels off main.
     private var keyboardLayoutObserver: NSObjectProtocol?
+    /// Registered only while the switcher takes macOS's keys over.
+    private lazy var secureInputWatch = SecureInputWatch { [weak self] enabled in
+        self?.secureInputChanged(enabled)
+    }
     private var wakeObserver: NSObjectProtocol?
     private var wakeRetry: DispatchWorkItem?
 
@@ -231,8 +235,10 @@ final class AppSwitcher: ObservableObject {
             // A live tap can pick up a shortcut change without rebuilding;
             // apply here so the native hotkeys follow immediately.
             if !UserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts) {
+                secureInputWatch.stop()
                 restoreNativeHotkeys()
             } else {
+                secureInputWatch.start()
                 applyNativeHotkeySuppressionIfTapLive()
             }
             // Build the panel and its SwiftUI tree now: the first hosting-view
@@ -246,6 +252,7 @@ final class AppSwitcher: ObservableObject {
                 WindowPreviewProvider.shared.startWarming()
             }
         } else {
+            secureInputWatch.stop()
             restoreNativeHotkeys()
             stopObservingKeyboardLayout()
             stopObservingWake()
@@ -258,6 +265,7 @@ final class AppSwitcher: ObservableObject {
     /// resets its own permissions, so a revoked Accessibility grant can never
     /// leave a live tap behind.
     func suspend() {
+        secureInputWatch.stop()
         restoreNativeHotkeys()
         stopObservingWake()
         routeLock.withLock { routeCanStartSession = false }
@@ -451,7 +459,9 @@ final class AppSwitcher: ObservableObject {
 
     /// Dock's ⌘Tab handler is a symbolic hotkey, not an event the session tap
     /// can swallow. Switch those hotkeys off only while this tap is actually
-    /// installed, so a missing Accessibility grant never kills both switchers.
+    /// installed, so a missing Accessibility grant never kills both switchers,
+    /// and only while it can hear the keyboard, so Secure Event Input never
+    /// does either.
     private func applyNativeHotkeySuppression() {
         let (apps, windows) = routeLock.withLock { (routeShortcut, routeWindowShortcut) }
         let takeOver = UserDefaults.standard.bool(
@@ -459,6 +469,7 @@ final class AppSwitcher: ObservableObject {
         SystemShortcutTakeover.setWanted(
             SwitcherSupport.nativeHotkeyIDs(
                 takeOverSystemShortcuts: takeOver,
+                secureInputEnabled: IsSecureEventInputEnabled(),
                 appsShortcut: apps,
                 windowShortcut: windows,
                 liveEntries: SymbolicHotKeys.entries(for: SwitcherNativeSymbolicHotKey.ids) ?? []),
@@ -482,6 +493,7 @@ final class AppSwitcher: ObservableObject {
         else { return [] }
         return SwitcherSupport.nativeHotkeyIDs(
             takeOverSystemShortcuts: true,
+            secureInputEnabled: IsSecureEventInputEnabled(),
             appsShortcut: GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
                                                fallback: .switcherDefault),
             windowShortcut: GlobalShortcut.saved(for: DefaultsKey.switcherWindowShortcut,
@@ -497,6 +509,19 @@ final class AppSwitcher: ObservableObject {
 
     private func restoreNativeHotkeys() {
         SystemShortcutTakeover.setWanted([], for: SystemShortcutTakeover.switcherSource)
+    }
+
+    /// Secure Event Input stops every key from reaching the tap, so macOS gets
+    /// its keys back for as long as it lasts, and a session already open is
+    /// dropped: the release that would commit it can no longer arrive.
+    private func secureInputChanged(_ enabled: Bool) {
+        guard enabled else {
+            applyNativeHotkeySuppressionIfTapLive()
+            return
+        }
+        routeLock.withLock { routePendingSessionStart = nil }
+        if sessionActive { cancelSession() }
+        restoreNativeHotkeys()
     }
 
     private func clearEventTapThread() -> Bool {

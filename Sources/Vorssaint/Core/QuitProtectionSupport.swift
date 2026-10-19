@@ -79,10 +79,18 @@ enum QuitProtectionSupport {
     }
 
     static func usesNativeQuitRequest(for shortcut: QuitProtectionShortcut,
-                                      bundleIdentifier: String? = nil) -> Bool {
+                                      bundleIdentifier: String? = nil,
+                                      confirmedWithExtraModifier: Bool = false) -> Bool {
         guard shortcut == .quit else { return false }
-        if let bundleIdentifier, requiresSyntheticQuit(bundleIdentifier: bundleIdentifier) {
+        guard let bundleIdentifier else { return true }
+        if requiresSyntheticQuit(bundleIdentifier: bundleIdentifier) {
             return false
+        }
+        // These send each held key on its own, not the flags of the replayed
+        // press, so with the extra modifier still down the other computer
+        // would get ⇧⌘Q or ⌃⌘Q. Quitting the app itself does less harm.
+        if keyForwardingBundleIdentifiers.contains(bundleIdentifier) {
+            return confirmedWithExtraModifier
         }
         return true
     }
@@ -90,6 +98,41 @@ enum QuitProtectionSupport {
     static func requiresSyntheticQuit(bundleIdentifier: String) -> Bool {
         bundleIdentifier == "com.valvesoftware.steam"
     }
+
+    /// Remote screens and virtual machines pass ⌘Q on to the computer they
+    /// show, which quits its own app. Terminating one of them instead quits
+    /// the local window onto that computer.
+    static let keyForwardingBundleIdentifiers: Set<String> = [
+        // Remote screens
+        "com.apple.ScreenSharing",
+        "com.apple.RemoteDesktop",
+        "com.microsoft.rdc.macos",
+        "com.p5sys.jump.mac.viewer",
+        "com.p5sys.jump.mac.viewer.web",
+        "com.edovia.screens.5",
+        "com.realvnc.rvncconnect",
+        "com.realvnc.vncviewer",
+        "com.teamviewer.TeamViewer",
+        "com.philandro.anydesk",
+        "com.carriez.rustdesk",
+        "com.splashtop.stb.macosx",
+        "com.splashtop.stp.macosx",
+        "com.2X.Client.Mac",
+        "com.lemonmojo.RoyalTSX.App",
+        "com.devolutions.remotedesktopmanager",
+        "com.citrix.receiver.icaviewer.mac",
+        "com.omnissa.horizon.client.mac",
+        "com.vmware.horizon",
+        "tv.parsec.www",
+        "com.moonlight-stream.Moonlight",
+        // Virtual machines
+        "com.parallels.desktop.console",
+        "com.parallels.desktop.appstore",
+        "com.vmware.fusion",
+        "com.utmapp.UTM",
+        "org.virtualbox.app.VirtualBoxVM",
+        "codes.rambo.VirtualBuddy",
+    ]
 
     static func scopeAllows(_ scope: QuitProtectionScope,
                             bundleIdentifier: String?,

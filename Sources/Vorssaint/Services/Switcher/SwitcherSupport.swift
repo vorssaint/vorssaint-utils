@@ -1800,10 +1800,18 @@ enum SwitcherSupport {
     /// table: the shared take-over speaks WindowServer ids, and reading the
     /// shortcut of each id from the table is what keeps a remapped key — or a
     /// neighbour such as the screenshot key — from being taken over by guess.
+    ///
+    /// Secure Event Input hides every key from event taps, the switcher's
+    /// included, while macOS still answers its own switcher keys (measured on
+    /// 27.2: a session tap saw no key while another process held it). Asking
+    /// for nothing then keeps ⌘Tab working instead of leaving it dead until
+    /// the app holding it lets go.
     static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
+                                secureInputEnabled: Bool,
                                 appsShortcut: GlobalShortcut,
                                 windowShortcut: GlobalShortcut,
                                 liveEntries: [LiveSystemShortcut]) -> Set<Int32> {
+        guard !secureInputEnabled else { return [] }
         let nativeShortcuts = Dictionary(
             liveEntries.compactMap { entry -> (SwitcherNativeSymbolicHotKey, GlobalShortcut)? in
                 SwitcherNativeSymbolicHotKey(rawValue: entry.id).map { ($0, entry.shortcut) }

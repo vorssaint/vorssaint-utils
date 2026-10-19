@@ -376,9 +376,11 @@ enum NotchTests {
         }
     }
 
-    /// Each page takes the width it needs, up to the chosen one: the player
-    /// about 380 points between its sides, still wrapping the camera, the
-    /// home page its row of shortcuts, and lists the whole chosen width.
+    /// Under a preset each page takes the width it needs, up to the preset's:
+    /// the player about 380 points between its sides, still wrapping the
+    /// camera, the home page its row of shortcuts, and lists the whole width.
+    /// A width set by hand is the island's on every page, so a wider one
+    /// makes the player, the timer and the home page wider too.
     private static func pageWidthContracts(_ suite: TestSuite) {
         let screens: [(CGFloat, CGFloat)] = [(0, 0), (156, 28), (179, 32), (185, 37.5), (210, 37.5), (224, 37.5)]
         for (camera, top) in screens {
@@ -413,6 +415,36 @@ enum NotchTests {
         custom.pageContentWidth = NotchLayout.musicContentWidth
         suite.expect(custom.expandedWidth == 360 && custom.headerCameraGap == 0,
                      "a chosen width narrower than the player still limits it, and its row then sits below the camera")
+        var handSet = true, wraps = true
+        for (camera, top) in screens {
+            let preset = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: top,
+                                       cameraWidth: camera, layout: .spacious, silhouette: camera == 0 ? .capsule : .notch)
+                .page(.music, controls: [], sectionsButton: false)
+            for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 20) {
+                let base = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: top,
+                                         cameraWidth: camera, layout: .custom, customWidth: width,
+                                         silhouette: camera == 0 ? .capsule : .notch)
+                for module: NotchModule in [.music, .timer, .controls] {
+                    for sectionsButton in [false, true] {
+                        let page = base.page(module, controls: shortcuts, sectionsButton: sectionsButton)
+                        handSet = handSet && page.expandedWidth == CGFloat(width)
+                    }
+                }
+                // As wide as the preset's player or wider, it still wraps the camera.
+                let player = base.page(.music, controls: [], sectionsButton: false)
+                if CGFloat(width) >= preset.expandedWidth {
+                    wraps = wraps && player.headerCameraGap == preset.headerCameraGap
+                }
+            }
+        }
+        suite.expect(handSet, "a width set by hand is the island's on the player, the timer and the home page")
+        suite.expect(wraps, "a player set wider by hand wraps the camera as the preset's does")
+        // The Layout tab previews the home page at the width the island opens
+        // it at, never a preset's wider island around it.
+        let editor = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift", encoding: .utf8)) ?? ""
+        suite.expect(editor.contains("private var actualWidth: CGFloat { previewGeometry.expandedWidth }")
+                     && editor.contains("return geometry.page(.controls, controls: NotchSupport.controls(),"),
+                     "the Layout preview opens the home page as the island does")
     }
 
     /// Without a floating Explore button each page's row starts with the
@@ -532,9 +564,11 @@ enum NotchTests {
                 let music = base.page(.music, controls: home, sectionsButton: true)
                 let musicBand = NotchBand(geometry: music, contentWidth: music.contentWidth)
                 if musicBand.besideCamera {
-                    // Across from the cover the reading keeps its glyph and a meter.
+                    // Across from the cover the reading keeps its glyph and a
+                    // meter: a preset's player is only as wide as it needs, and
+                    // only a wider width set by hand leaves room for the percentage.
                     narrowestPlayer = min(narrowestPlayer, musicBand.side)
-                    player = player && musicBand.side < NotchLayout.levelReadingDetailWidth
+                    player = player && (size == .custom || musicBand.side < NotchLayout.levelReadingDetailWidth)
                         && musicBand.side - 18 - 8 >= 36
                 }
             }

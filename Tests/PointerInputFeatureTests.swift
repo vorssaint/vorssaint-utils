@@ -3971,6 +3971,30 @@ enum PointerInputFeatureTests {
         suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
                     for: .quit, bundleIdentifier: "com.example.editor"),
                "an ordinary app continues using native terminate requests")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.apple.ScreenSharing")
+                && !QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.vmware.fusion"),
+               "a remote screen or virtual machine gets the confirmed shortcut to pass on instead of quitting itself")
+        suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.apple.ScreenSharing",
+                    confirmedWithExtraModifier: true),
+               "a remote screen confirmed with the extra modifier still held quits itself instead of forwarding that modifier")
+        let quitProtectionServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(quitProtectionServiceSource.contains("confirmedWithExtraModifier: modifier != nil"),
+               "the confirmation tells the forwarding rule whether the extra modifier is still held")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.valvesoftware.steam",
+                    confirmedWithExtraModifier: true)
+                && QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.example.editor",
+                    confirmedWithExtraModifier: true),
+               "an extra modifier leaves Steam and ordinary apps on their usual path")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .close, bundleIdentifier: "com.apple.ScreenSharing"),
+               "close stays a window shortcut in a remote screen")
 
         suite.expect(QuitProtectionSupport.scopeAllows(.all, bundleIdentifier: nil, exceptions: []),
                "all-app scope protects even an app without a bundle identifier")

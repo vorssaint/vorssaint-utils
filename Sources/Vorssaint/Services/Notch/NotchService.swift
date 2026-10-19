@@ -173,6 +173,8 @@ final class NotchService: ObservableObject {
     private var captureControlsSubscription: AnyCancellable?
     private var captureControlsWork: DispatchWorkItem?
     private var heldDrag = false
+    /// Closes the island once a shelf tile dragged out of it stays out.
+    private var shelfDragExitWork: DispatchWorkItem?
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var subscriptions = Set<AnyCancellable>()
     private var eventMonitors: [Any] = []
@@ -422,9 +424,16 @@ final class NotchService: ObservableObject {
     }
 
     /// A simulated cutout covers no camera, so in full screen it stays out
-    /// of the picture until a shortcut opens it.
+    /// of the picture until the configured hover or a shortcut opens it.
     private var hiddenAtRestInFullscreen: Bool {
         fullscreenCompact && !geometry.isNotched
+    }
+
+    /// Out of sight at rest, the island has no window for the pointer to
+    /// enter, so hover follows the pointer over its place instead.
+    private var watchesHiddenHover: Bool {
+        hiddenUntilHover || (hiddenAtRestInFullscreen && !dragPlaceholder && captureControls == nil
+            && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover))
     }
 
     /// A Mac without a battery has no charge to show, so a saved battery
@@ -851,9 +860,10 @@ final class NotchService: ObservableObject {
             && !showingSections && !showingAppPanel && selectedMetric == nil
         result.pageTop = expandedPageTop
         if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
-        // Each page takes the width it needs, up to the chosen one; the
-        // gallery, details and the empty island keep the chosen width, and
-        // lead their row with their own way back instead of the sections.
+        // Under a preset each page takes the width it needs, up to the
+        // preset's; the gallery, details and the empty island keep the chosen
+        // width, and lead their row with their own way back instead of the
+        // sections.
         if !showingSections, !showingAppPanel, selectedMetric == nil, !modules.isEmpty {
             result.pageContentWidth = NotchLayout.naturalContentWidth(selected, controls: homeControls,
                                                                       within: geometry.contentWidth)
@@ -1279,6 +1289,7 @@ final class NotchService: ObservableObject {
         endFileDrop()
         fileInteractionActive = false
         heldDrag = false
+        shelfDragExitWork?.cancel(); shelfDragExitWork = nil
         selectedMetric = nil
         pinned = false
         notice = nil
@@ -1500,11 +1511,11 @@ final class NotchService: ObservableObject {
     }
 
     func hover(_ entered: Bool) {
-        guard running, !suspended, !hiddenAtRestInFullscreen else { removeHoverExitMonitors(); return }
+        guard running, !suspended, !hiddenAtRestInFullscreen || watchesHiddenHover else { removeHoverExitMonitors(); return }
         let point = NSEvent.mouseLocation
         let wasInside = inside
         let showedPicker = showsCompactActivityPicker
-        inside = hiddenUntilHover ? geometry.contains(point, in: geometry.collapsed)
+        inside = watchesHiddenHover ? geometry.contains(point, in: geometry.collapsed)
             && windowHost?.isConcealedForMissionControl == false
             : windowHost?.containsHover(point) == true || pointerOverChildWindow(point)
         hoverState.update(pointerInside: inside)
@@ -1525,7 +1536,13 @@ final class NotchService: ObservableObject {
             refreshPresentation()
         }
         defer { syncHoverExitMonitoring(entered: entered, point: point) }
-        captureHover?(entered)
+        // Out of sight, hidden until hover or kept out of full screen, the
+        // island hears every move on screen. A timed capture still attached
+        // to it hears only the pointer reaching the island's place or leaving
+        // it: each move told as an entry would hold its dismissal off for as
+        // long as the island stays out of sight.
+        if !watchesHiddenHover { captureHover?(entered) }
+        else if inside != wasInside { captureHover?(inside) }
         if captureControls != nil {
             updateCaptureControlsHover(wasInside: wasInside)
             return
@@ -1561,7 +1578,7 @@ final class NotchService: ObservableObject {
                       self.captureControls == nil, (self.notice == nil || self.hiddenUntilHover), !self.dragPlaceholder,
                       UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
                       self.windowHost?.blocksHoverReveal() == false,
-                      self.geometry.contains(NSEvent.mouseLocation, in: self.hiddenUntilHover ? self.geometry.collapsed : self.surfaceSize) else { return }
+                      self.geometry.contains(NSEvent.mouseLocation, in: self.watchesHiddenHover ? self.geometry.collapsed : self.surfaceSize) else { return }
                 // Following the closed island ends as it opens or peeks.
                 self.removeHoverExitMonitors()
                 if UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) {
@@ -1948,6 +1965,7 @@ final class NotchService: ObservableObject {
     func fileDragChanged(_ active: Bool, internalDrag: Bool = false) {
         guard running, !suspended, internalDrag || NotchSupport.routesShelf() else { return }
         heldDrag = active && internalDrag
+        if !heldDrag { shelfDragExitWork?.cancel(); shelfDragExitWork = nil }
         if active, !internalDrag, NotchSupport.revealsShelfDrag(), !expanded {
             mutatePresentation { dragPlaceholder = true; peeking = false }
         } else if !active {
@@ -1959,6 +1977,32 @@ final class NotchService: ObservableObject {
         if active, dragPlaceholder, NotchMascotSupport.isEnabled() {
             NotificationCenter.default.post(name: .notchMascotDragMoved, object: nil)
         }
+    }
+
+    /// A tile dragged out of the island's shelf is usually headed for
+    /// something the open island covers, such as a browser's tabs. Once it
+    /// stays out for the close delay, the island closes for the rest of the
+    /// drag, unless it is pinned; coming back in first keeps it open.
+    func shelfDragMoved(to point: CGPoint) {
+        // AppKit reports every move of the drag, so the cheap checks go first.
+        guard heldDrag, expanded, !pinned, windowHost?.containsHover(point) != true,
+              !pointerOverChildWindow(point), !keepsWorkingSurface else {
+            shelfDragExitWork?.cancel(); shelfDragExitWork = nil
+            return
+        }
+        guard shelfDragExitWork == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.shelfDragExitWork = nil
+            guard self.heldDrag, self.expanded, !self.pinned, !self.keepsWorkingSurface,
+                  self.windowHost?.containsHover(NSEvent.mouseLocation) != true,
+                  !self.pointerOverChildWindow(NSEvent.mouseLocation) else { return }
+            // The drag goes on, and ends, without an island to hold open.
+            self.heldDrag = false
+            self.collapse()
+        }
+        shelfDragExitWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + NotchSupport.closeDelay(), execute: work)
     }
 
     func presentCaptureControls(_ options: ScreenCaptureSelectionOptions, cancel: @escaping () -> Void) {
@@ -2680,7 +2724,7 @@ final class NotchService: ObservableObject {
     }
 
     private func syncHiddenHoverMonitoring() {
-        guard running, !suspended, hiddenUntilHover, windowHost != nil else {
+        guard running, !suspended, watchesHiddenHover, windowHost != nil else {
             removeHiddenHoverMonitors()
             return
         }
