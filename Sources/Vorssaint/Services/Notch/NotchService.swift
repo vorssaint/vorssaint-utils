@@ -858,9 +858,10 @@ final class NotchService: ObservableObject {
             && !showingSections && !showingAppPanel && selectedMetric == nil
         result.pageTop = expandedPageTop
         if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
-        // Each page takes the width it needs, up to the chosen one; the
-        // gallery, details and the empty island keep the chosen width, and
-        // lead their row with their own way back instead of the sections.
+        // Under a preset each page takes the width it needs, up to the
+        // preset's; the gallery, details and the empty island keep the chosen
+        // width, and lead their row with their own way back instead of the
+        // sections.
         if !showingSections, !showingAppPanel, selectedMetric == nil, !modules.isEmpty {
             result.pageContentWidth = NotchLayout.naturalContentWidth(selected, controls: homeControls,
                                                                       within: geometry.contentWidth)
@@ -1532,9 +1533,13 @@ final class NotchService: ObservableObject {
             refreshPresentation()
         }
         defer { syncHoverExitMonitoring(entered: entered, point: point) }
-        // A capture held by an island kept out of full screen cannot be seen:
-        // the moves followed there neither pause nor restart its dismissal.
-        if !hiddenAtRestInFullscreen { captureHover?(entered) }
+        // Out of sight, hidden until hover or kept out of full screen, the
+        // island hears every move on screen. A timed capture still attached
+        // to it hears only the pointer reaching the island's place or leaving
+        // it: each move told as an entry would hold its dismissal off for as
+        // long as the island stays out of sight.
+        if !watchesHiddenHover { captureHover?(entered) }
+        else if inside != wasInside { captureHover?(inside) }
         if captureControls != nil {
             updateCaptureControlsHover(wasInside: wasInside)
             return
