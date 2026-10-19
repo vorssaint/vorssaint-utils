@@ -3237,6 +3237,16 @@ enum NotchTests {
                                                                   notched: [true], main: 0),
                    "no display without a notch is reached when none is connected: \(preference)")
         }
+        // Settings asks that rule with the displays connected now, and its
+        // button switches to every display (issue #1711).
+        let notchSettings = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/NotchSettings.swift",
+                                         encoding: .utf8)) ?? ""
+        let notchServiceSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchService.swift",
+                                              encoding: .utf8)) ?? ""
+        suite.expect(notchSettings.contains("if enabled, !NotchService.reachesDisplayWithoutNotch(NotchDisplay(rawValue: display) ?? .automatic) {")
+                     && notchSettings.contains("Button(text.showOnAllDisplays) { display = NotchDisplay.all.rawValue }")
+                     && notchServiceSource.contains("notched: layout.notched, main: layout.main, hasLid: hasLid)"),
+               "the Displays without a notch card offers All displays only while the chosen display keeps the island off them")
         suite.expect(NotchSupport.shouldReplace(.volume, with: .brightness), "continuous controls can replace each other")
         suite.expect(!NotchSupport.shouldReplace(.volume, with: .clipboard), "copy does not interrupt a volume adjustment")
         suite.expect(NotchSupport.shouldReplace(.battery, with: .capture), "a capture takes precedence over passive battery status")
