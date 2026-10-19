@@ -37,6 +37,7 @@ extension FeatureStrings {
         case .uk: return .uk
         case .zhHans: return .zhHans
         case .zhHK: return .zhHK
+        case .ar: return .ar
         case .zhTW: return .zhTW
         }
     }
@@ -189,5 +190,15 @@ private extension ConnectedDevicesFeatureStrings {
         menuBarLabel: "USB",
         oneConnected: "已連接 1 部裝置",
         devicesConnectedFormat: "已連接 %d 部裝置"
+    )
+
+    static let ar = ConnectedDevicesFeatureStrings(
+        title: "الأجهزة الموصولة",
+        hubDescription: "احسب عدد أجهزة USB الخارجية الموصولة",
+        noDevices: "لا توجد أجهزة خارجية موصولة",
+        unnamedDevice: "جهاز USB",
+        menuBarLabel: "USB",
+        oneConnected: "جهاز واحد موصول",
+        devicesConnectedFormat: "عدد الأجهزة الموصولة: %d"
     )
 }

@@ -173,7 +173,7 @@ struct SettingsView: View {
                 let strings = SettingsNavigationStrings.localized(l10n.language)
                 let title = sidebarShown ? strings.hideSidebar : strings.showSidebar
                 Button(action: toggleSidebar) {
-                    Label(title, systemImage: "sidebar.left")
+                    Label(title, systemImage: "sidebar.leading")
                 }
                 .keyboardShortcut("s", modifiers: [.control, .command])
                 .help(title)
@@ -362,7 +362,7 @@ struct SettingsView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: collapsedSectionIDs.contains(section.id)
-                            ? "chevron.right" : "chevron.down")
+                            ? "chevron.forward" : "chevron.down")
                             .font(.system(size: 9, weight: .semibold))
                             .frame(width: 12)
                         Text(section.title)

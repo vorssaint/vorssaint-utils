@@ -39,6 +39,13 @@ struct CommandBarDropletMotion: Equatable {
     static let beadSide: CGFloat = 26
     /// The companion's size in the bar's field.
     static let mascotSize: CGFloat = 22
+
+    /// Where the bar's face sits in `field`: at its leading end, past the
+    /// field's padding, which a right-to-left bar puts at the right.
+    static func iconCenter(in field: CGRect, rightToLeft: Bool) -> CGPoint {
+        let inset = 16 + mascotSize / 2
+        return CGPoint(x: rightToLeft ? field.maxX - inset : field.minX + inset, y: field.midY)
+    }
     /// Its size riding in the drop, as a share of that.
     static let ridingScale: CGFloat = 0.7
     /// The neck roots this far inside the island, so it grows out of its edge.

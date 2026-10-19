@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -199,5 +200,16 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "Лише вікна",
         hidden: "Ніколи не показувати",
         caption: "Виберіть, як кожна програма з’являється. Програми без правила використовують вибір вище."
+    )
+
+    static let ar = SwitcherAppRulesStrings(
+        listTitle: "القواعد حسب التطبيق",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        behaviorLabel: "سلوك مبدّل النوافذ",
+        showWithoutWindows: "العرض بدون نوافذ",
+        windowsOnly: "النوافذ فقط",
+        hidden: "عدم العرض أبدًا",
+        caption: "اختر كيف يظهر كل تطبيق. التطبيقات بلا قاعدة تتبع الخيار أعلاه."
     )
 }

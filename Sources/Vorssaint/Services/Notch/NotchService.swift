@@ -88,10 +88,12 @@ struct NotchNotice: Equatable {
 
     /// Where the companion stands in this notice, as an offset of its centre
     /// from the camera's: at the leading end, past the inset, since a notice
-    /// that carries it reads from the ends.
-    func mascotOffset(in geometry: NotchGeometry) -> CGFloat {
+    /// that carries it reads from the ends. A right-to-left notice draws its
+    /// leading end right of the camera, as `surfaceShift` reaches.
+    func mascotOffset(in geometry: NotchGeometry, rightToLeft: Bool = false) -> CGFloat {
         let wing = wings(in: geometry).leading
-        return -(geometry.noticeCameraGap / 2 + wing) + inset(wing: wing) + NotchMascotSupport.noticeSize / 2
+        let offset = -(geometry.noticeCameraGap / 2 + wing) + inset(wing: wing) + NotchMascotSupport.noticeSize / 2
+        return rightToLeft ? -offset : offset
     }
 
     func previewContentHeight(width: CGFloat) -> CGFloat {
@@ -926,10 +928,17 @@ final class NotchService: ObservableObject {
     /// How far the island's centre sits right of the camera's. Only a closed
     /// notice beside a camera, or the music strip naming its song, reaches
     /// further toward its wider side. A capsule runs its strips end to end.
+    /// Their wings follow the reading order, so in a right-to-left language
+    /// the trailing side is the camera's left and the island reaches the
+    /// other way.
     var surfaceShift: CGFloat {
-        guard !geometry.floats, !fullscreenCompact, captureControls == nil, !expanded, !dragPlaceholder else { return 0 }
-        if let notice { return noticeExpanded ? 0 : geometry.noticeShift(notice.wings(in: geometry)) }
-        return namedMusicWings.map { ($0.trailing - $0.leading) / 2 } ?? 0
+        func towardTrailing() -> CGFloat {
+            guard !geometry.floats, !fullscreenCompact, captureControls == nil, !expanded, !dragPlaceholder else { return 0 }
+            if let notice { return noticeExpanded ? 0 : geometry.noticeShift(notice.wings(in: geometry)) }
+            return namedMusicWings.map { ($0.trailing - $0.leading) / 2 } ?? 0
+        }
+        let shift = towardTrailing()
+        return L10n.shared.language.isRightToLeft ? -shift : shift
     }
 
     /// The open island around the Command Bar: the bar's width within the
@@ -1753,14 +1762,18 @@ final class NotchService: ObservableObject {
             if let target = highlightedSection, filteredSections.contains(target) { select(target) }
             return true
         }
-        let direction: QuickToolsSupport.GridDirection
+        // The side arrows name a place on screen, and the gallery is drawn
+        // in reverse in a right-to-left interface; the vertical pair is not.
+        let arrow: QuickToolsSupport.GridDirection
         switch event.keyCode {
-        case 123 where sectionQuery.isEmpty: direction = .left
-        case 124 where sectionQuery.isEmpty: direction = .right
-        case 125: direction = .down
-        case 126: direction = .up
+        case 123 where sectionQuery.isEmpty: arrow = .left
+        case 124 where sectionQuery.isEmpty: arrow = .right
+        case 125: arrow = .down
+        case 126: arrow = .up
         default: return false
         }
+        let direction = QuickToolsSupport.gridDirection(forArrow: arrow,
+                                                        rightToLeft: L10n.shared.language.isRightToLeft)
         let sections = filteredSections
         guard !sections.isEmpty else { return true }
         // While typing, the side arrows keep editing the query and the
@@ -2189,7 +2202,9 @@ final class NotchService: ObservableObject {
     @discardableResult
     func updateFileDrop(at point: CGPoint) -> Bool {
         let targeted = choosingFileDropDestination
-            && NotchFileToolsSupport.mediaDropArea(in: expandedGeometry, size: surfaceSize).contains(point)
+            && NotchFileToolsSupport.mediaDropArea(in: expandedGeometry, size: surfaceSize,
+                                                   rightToLeft: L10n.shared.language.isRightToLeft)
+                .contains(point)
         if targetsMediaDrop != targeted { targetsMediaDrop = targeted }
         return !targeted || NotchFileToolsService.shared.canAcceptMediaDrop
     }
@@ -4606,7 +4621,8 @@ extension NotchService {
         let scale = mascotNoticeScale
         // As long as the notice takes to come in.
         let duration: TimeInterval = 0.45
-        showMascotBridge(from: from, to: shown.mascotOffset(in: geometry), duration: duration, scale: (1, scale),
+        showMascotBridge(from: from, to: shown.mascotOffset(in: geometry, rightToLeft: L10n.shared.language.isRightToLeft),
+                         duration: duration, scale: (1, scale),
                          trailsGrowth: true)
         // On the way it plays the notice's reaction, in step with the notice's own.
         if NotchMascotSupport.reacts() {
@@ -4626,7 +4642,7 @@ extension NotchService {
               mascotRestsInView else { return nil }
         // Where the notice draws it, before the notice starts to leave.
         endMascotBridgeNow()
-        let from = ending.mascotOffset(in: geometry)
+        let from = ending.mascotOffset(in: geometry, rightToLeft: L10n.shared.language.isRightToLeft)
         let scale = mascotNoticeScale
         mascotBridgeLift = mascotClosedTrack.hop(0.22)
         showMascotBridge(from: from, to: from, duration: 0, scale: (scale, scale))
