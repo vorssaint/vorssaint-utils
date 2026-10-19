@@ -13,9 +13,6 @@ Clipboard history that can expire old items and a hidden Dynamic Island that sti
 - Clipboard history can remove items after a set number of days, while pinned items stay. Settings → Clipboard → Keep items for.
 - Dynamic Island set to Hidden until hover can still come into view for activities and indicators, then hide again. Settings → Dynamic Island → Behavior → Opening → Show activity and indicators.
 
-### Changed
-- Dynamic Island closes when a file or link is dragged out of its Shelf, so it no longer covers browser tabs or other places to drop it. A pinned island stays open.
-
 ### Fixed
 - Dynamic Island's Now Playing page shows the Explore button again when Explore is not a floating button, and can grow a little to fit it while a song plays. The System page shows it too where it had no top row, such as on displays without a notch.
 - Smooth scrolling keeps its remaining motion in the original window or scroll area when the pointer moves. New wheel input elsewhere starts there immediately.
