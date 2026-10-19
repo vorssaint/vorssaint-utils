@@ -847,6 +847,8 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "الحد الأقصى للمفكرات: %d",
         previewFormatting: "إظهار التنسيق",
         editText: "تحرير النص",
+        taskDone: "تم",
+        taskNotDone: "لم يتم",
         markBold: "عريض",
         markItalic: "مائل",
         markStrikethrough: "يتوسطه خط",
