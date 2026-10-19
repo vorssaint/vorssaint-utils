@@ -902,10 +902,11 @@ extension AppUpdateStrings {
         onlineUnavailable: "تعذّر إكمال التحقق عبر الإنترنت. ولا تزال النتائج الأخرى معروضة.",
         skipVersionFormat: "تخطّي الإصدار %@",
         excludeApp: "عدم فحص هذا التطبيق",
-        rulesTitle: "قواعد التحديث",
+        rulesTitle: "استثناءات التحديث",
+        addException: "إضافة تطبيق يُستثنى من التحقق",
         skippedVersionFormat: "إصدار متخطّى %@",
         excludedApp: "لا يُفحص حتى تُزال هذه القاعدة",
-        removeRule: "إزالة القاعدة",
+        removeRule: "إزالة",
         rulesHint: "تخطّي إصدار لا يمنع الإصدارات الأحدث. وبعد إزالة استثناء تطبيق، استخدم “التحقق الآن” لتحديثه.",
         noVisibleUpdates: "لا تحديثات خارج قواعدك")
 }

@@ -2263,7 +2263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             },
             onOpenSettings: { [weak self] in self?.openSettingsFromWhatsNew() },
             onFinish: { [weak self] in self?.whatsNewWindow?.close() }
-        ))
+        ).appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
         window.title = strings.tabReleaseNotes
@@ -2416,9 +2416,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
            host.rootView.content.availableSize != visible.size {
             host.rootView.content.availableSize = visible.size
         }
-        if let host = window.contentViewController as? NSHostingController<WhatsNewDigestView>,
-           host.rootView.availableSize != visible.size {
-            host.rootView.availableSize = visible.size
+        if let host = window.contentViewController as? NSHostingController<MirroredView<WhatsNewDigestView>>,
+           host.rootView.content.availableSize != visible.size {
+            host.rootView.content.availableSize = visible.size
         }
         window.contentView?.layoutSubtreeIfNeeded()
         if let fitting = window.contentViewController?.view.fittingSize,

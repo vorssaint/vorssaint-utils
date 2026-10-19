@@ -765,7 +765,7 @@ struct NotchBandBackButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.backward")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.55))
                 Text(title)

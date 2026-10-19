@@ -772,7 +772,9 @@ extension FeatureStrings {
             shuffle: "خلط",
             preferredPlayer: "الفتح حين لا يُشغَّل شيء",
             preferredPlayerHint: "يفتح الغلاف وأزرار التشغيل هذا التطبيق. ويفتح “تلقائي” آخر تطبيق موسيقى شغّل شيئًا، ثم Spotify أو Apple Music.",
-            openNamedPlayer: "فتح %@")
+            openNamedPlayer: "فتح %@",
+            browserCovers: "البحث عن الأغلفة في Firefox وZen",
+            browserCoversHint: "حين يشغّل Firefox أو Zen أو متصفح آخر مبني على Firefox بلا غلاف واضح، تُقرأ جلسته المحفوظة على هذا الـ Mac للعثور على علامة تبويب YouTube الخاصة بالأغنية وتحميل صورتها المصغّرة من i.ytimg.com. وإن لم تعرض أي علامة تبويب الأغنية وكانت علامة تبويب YouTube Music مفتوحة، يُرسَل عنوان الأغنية والفنان والمنطقة إلى itunes.apple.com وتُحمَّل صورة الألبوم من mzstatic.com.")
         }
     }
 }
