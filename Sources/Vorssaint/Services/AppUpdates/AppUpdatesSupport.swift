@@ -549,7 +549,8 @@ enum AppUpdatesSupport {
                   $0.allSatisfy(\.isNumber) && stripLeadingZeros($0).isEmpty
               }) else { return catalogVersion }
         // Only a build with as many digits as the catalog's counts the same
-        // way; a short one ("21") is some other number.
+        // way; a shorter or longer one ("21", a 13-digit timestamp) is some
+        // other number.
         let ownBuild = installedBuild.trimmingCharacters(in: .whitespacesAndNewlines)
         if isNumber(Substring(ownBuild)),
            stripLeadingZeros(ownBuild).count == stripLeadingZeros(String(build)).count,
@@ -560,10 +561,10 @@ enum AppUpdatesSupport {
     }
 
     /// The version and build a new project starts with. A bundle that still
-    /// carries both says nothing about which release it holds, so it can be
-    /// neither behind a catalog nor proven current by one. A build that
-    /// repeats the version ("1.0.0" twice, as Electron apps are built) is a
-    /// first release, not the template.
+    /// carries both says nothing about which release it holds, so only a
+    /// catalog at that same version can vouch for it. The build must be
+    /// exactly 1: one that repeats the version ("1.0.0" twice, as Electron
+    /// apps are built) belongs to a real first release.
     static func reportsPlaceholderVersion(_ app: InstalledApp) -> Bool {
         compare(versionCore(app.version), "1") == .orderedSame
             && app.buildVersion.trimmingCharacters(in: .whitespacesAndNewlines) == "1"
