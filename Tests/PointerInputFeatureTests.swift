@@ -3980,6 +3980,11 @@ enum PointerInputFeatureTests {
                     for: .quit, bundleIdentifier: "com.apple.ScreenSharing",
                     confirmedWithExtraModifier: true),
                "a remote screen confirmed with the extra modifier still held quits itself instead of forwarding that modifier")
+        let quitProtectionServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(quitProtectionServiceSource.contains("confirmedWithExtraModifier: modifier != nil"),
+               "the confirmation tells the forwarding rule whether the extra modifier is still held")
         suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
                     for: .quit, bundleIdentifier: "com.valvesoftware.steam",
                     confirmedWithExtraModifier: true)
