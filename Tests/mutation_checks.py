@@ -248,7 +248,7 @@ MUTATIONS = [
      "Sources/Vorssaint/Services/Notch/NotchSupport.swift",
      "hasLid: hasLid) else { return false }", "hasLid: hasLid) else { return true }",
      "the built-in choice reaches no monitor while the lid is closed"),
-    ("the display hint shows for every display choice", "notch",
+    ("the display hint shows only where the island already reaches those displays", "notch",
      "Sources/Vorssaint/UI/Settings/NotchSettings.swift",
      "if enabled, !NotchService.reachesDisplayWithoutNotch(", "if enabled, NotchService.reachesDisplayWithoutNotch(",
      "the Displays without a notch card offers All displays only while the chosen display keeps the island off them"),
