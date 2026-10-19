@@ -6231,6 +6231,28 @@ enum SwitcherModelFeatureTests {
                                                windowShortcut: .switcherWindowDefault,
                                                liveEntries: liveSwitcherEntries).isEmpty,
                "while Secure Event Input hides every key from the tap, ⌘Tab and ⌘` stay with macOS")
+        // That rule reaches macOS only through the switcher's two callers of
+        // the shared take-over, and stays right only while a watch tells the
+        // switcher about each change for exactly as long as it takes keys over.
+        let secureInputSwitcher = switcherSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        suite.expect(secureInputSwitcher.components(
+                         separatedBy: "secureInputEnabled: IsSecureEventInputEnabled()").count == 3,
+               "the live take-over and launch recovery both pass the secure input flag")
+        let secureInputChange = sourceBody(of: secureInputSwitcher,
+                                           from: "private func secureInputChanged(_ enabled: Bool) {",
+                                           to: "\n    private func ")
+        suite.expect(secureInputChange.contains("applyNativeHotkeySuppressionIfTapLive()")
+               && secureInputChange.contains("cancelSession()")
+               && secureInputChange.contains("restoreNativeHotkeys()"),
+               "secure input turning on gives the keys back and drops an open session, and turning off takes them again")
+        let secureInputSuspend = sourceBody(of: secureInputSwitcher, from: "func suspend() {",
+                                            to: "\n    }")
+        suite.expect(secureInputSuspend.contains("secureInputWatch.stop()")
+               && secureInputSwitcher.components(separatedBy: "secureInputWatch.stop()").count == 4
+               && secureInputSwitcher.components(separatedBy: "secureInputWatch.start()").count == 2,
+               "the secure input watch runs only while the switcher takes macOS's keys over")
 
         // The shared take-over works on raw WindowServer ids. Same transition
         // rule as the switcher had: suppress only what is enabled now, restore
