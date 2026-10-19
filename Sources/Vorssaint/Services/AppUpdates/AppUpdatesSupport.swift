@@ -524,13 +524,16 @@ enum AppUpdatesSupport {
 
     /// Some catalog versions end in a build after a dash ("3.8-08539"), the
     /// way others carry one after a comma. A bundle that reports only its
-    /// release ("3.8.0") lines up with the part in front of the dash.
+    /// release ("3.8.0") lines up with the part in front of the dash, unless
+    /// its own build is numbered like the catalog's and is older: that is a
+    /// newer build of the same release ("4.0.4" build 4900 before "4.0.4-4926").
     ///
     /// Everything else is compared whole: a bundle with a dash of its own or
     /// a further number of its own may be reporting that part, a short number
     /// can be a fix release ("4.10-8" after "4.10-7"), and a dated version
     /// ("2024-01-15") has no dotted release in front of its last dash.
-    static func catalogRelease(_ catalogVersion: String, installedVersion: String) -> String {
+    static func catalogRelease(_ catalogVersion: String, installedVersion: String,
+                               installedBuild: String = "") -> String {
         let installed = versionCore(installedVersion)
         guard !installed.contains("-"),
               let dash = catalogVersion.lastIndex(of: "-") else { return catalogVersion }
@@ -545,15 +548,25 @@ enum AppUpdatesSupport {
               parts(of: installed).dropFirst(releaseParts.count).allSatisfy({
                   $0.allSatisfy(\.isNumber) && stripLeadingZeros($0).isEmpty
               }) else { return catalogVersion }
+        // Only a build with as many digits as the catalog's counts the same
+        // way; a short one ("21") is some other number.
+        let ownBuild = installedBuild.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isNumber(Substring(ownBuild)),
+           stripLeadingZeros(ownBuild).count == stripLeadingZeros(String(build)).count,
+           compareDigits(String(build), ownBuild) == .orderedDescending {
+            return catalogVersion
+        }
         return String(release)
     }
 
     /// The version and build a new project starts with. A bundle that still
     /// carries both says nothing about which release it holds, so it can be
-    /// neither behind a catalog nor proven current by one.
+    /// neither behind a catalog nor proven current by one. A build that
+    /// repeats the version ("1.0.0" twice, as Electron apps are built) is a
+    /// first release, not the template.
     static func reportsPlaceholderVersion(_ app: InstalledApp) -> Bool {
         compare(versionCore(app.version), "1") == .orderedSame
-            && compare(versionCore(app.buildVersion), "1") == .orderedSame
+            && app.buildVersion.trimmingCharacters(in: .whitespacesAndNewlines) == "1"
     }
 
     /// Whether a catalog number goes past the bundle's only in parts the
@@ -629,7 +642,7 @@ enum AppUpdatesSupport {
                   isCompatible(entry,
                                operatingSystemVersion: operatingSystemVersion) else { return nil }
             let latest = versionCore(entry.version)
-            let release = catalogRelease(latest, installedVersion: app.version)
+            let release = catalogRelease(latest, installedVersion: app.version, installedBuild: app.buildVersion)
             if cannotCompare(app, with: release) {
                 uncomparableApps.append(app)
                 return nil

@@ -1902,6 +1902,12 @@ enum UpdateFeatureTests {
                 && catalogFinding("27.0.3", build: "58680", catalog: "27.0.3-58680").items.isEmpty
                 && catalogFinding("6.0.3", catalog: "6.0.3-20260619").items.isEmpty,
                "a build after a dash is left out when the bundle reports only its release")
+        suite.expect(catalogFinding("4.0.4", build: "4900", catalog: "4.0.4-4926").items.map(\.versionSummary)
+                == ["4.0.4 → 4.0.4-4926"]
+                && catalogFinding("4.0.4", build: "4926", catalog: "4.0.4-4926").items.isEmpty
+                && catalogFinding("4.0.4", build: "5012", catalog: "4.0.4-4926").items.isEmpty
+                && catalogFinding("3.8.0", build: "21", catalog: "3.8-08539").items.isEmpty,
+               "a bundle that numbers its builds like the catalog still shows a newer build of the same release")
         suite.expect(catalogFinding("3.7.0", build: "3.7.0", catalog: "3.8-08539").items.map(\.versionSummary)
                 == ["3.7.0 → 3.8-08539"],
                "a newer release before the dash is still an update, shown with the catalog's whole number")
@@ -1954,12 +1960,15 @@ enum UpdateFeatureTests {
                 && catalogFinding("2.0", build: "1", catalog: "3.14").items.count == 1,
                "a 1.0 bundle with its own build, or no build, is still compared")
         suite.expect(AppUpdatesSupport.reportsPlaceholderVersion(.init(name: "A", bundleID: "a", path: "/A.app",
-                    version: "1", isFromAppStore: false, buildVersion: "1.0"))
+                    version: "1", isFromAppStore: false, buildVersion: "1"))
                 && AppUpdatesSupport.reportsPlaceholderVersion(.init(name: "A", bundleID: "a", path: "/A.app",
                     version: "1.0.0", isFromAppStore: false, buildVersion: "1"))
                 && !AppUpdatesSupport.reportsPlaceholderVersion(.init(name: "A", bundleID: "a", path: "/A.app",
                     version: "1.0.1", isFromAppStore: false, buildVersion: "1")),
                "the template version reads the same in any of its spellings")
+        suite.expect(catalogFinding("1.0.0", build: "1.0.0", catalog: "1.0.1").items.count == 1
+                && catalogFinding("1.0", build: "1.0", catalog: "1.1").items.count == 1,
+               "a first release whose build repeats its version is still compared, not taken for the template")
 
         let listWithOnline = AppUpdatesSupport.merged(mergedRows, onlineRows)
         let selectionWithOnline = AppUpdatesSupport.reconciledSelection(

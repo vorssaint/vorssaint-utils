@@ -221,7 +221,7 @@ final class AppUpdatesService: ObservableObject {
             }
             group.notify(queue: self.workQueue) {
                 let resolvedFeed = feedResult.resolvingCatalogFallback(
-                    checkedPaths: onlineResult.answeredPaths, candidates: onlineCandidates)
+                    answeredBy: onlineResult, candidates: onlineCandidates)
                 DispatchQueue.main.async {
                     guard generation == self.scanGeneration else { return }
                     self.finishCheck(items: AppUpdatesSupport.merged(packageResult.items,
@@ -236,8 +236,7 @@ final class AppUpdatesService: ObservableObject {
                                      uncheckedAppNames: AppUpdatesSupport.uncheckedAppNames(
                                         storeResult.uncheckedApps + resolvedFeed.uncheckedApps + onlineResult.uncheckedApps,
                                         checkedPaths: resolvedFeed.checkedPaths),
-                                     uncomparableAppNames: AppUpdatesSupport.uncheckedAppNames(
-                                        onlineResult.uncomparableApps, checkedPaths: resolvedFeed.checkedPaths),
+                                     uncomparableAppNames: onlineResult.uncomparableAppNames(coveredBy: resolvedFeed),
                                      automatic: automatic)
                 }
             }
@@ -451,6 +450,18 @@ final class AppUpdatesService: ObservableObject {
             return SourceResult(items: items, available: available && missing.isEmpty,
                                 checkedPaths: checkedPaths,
                                 uncheckedApps: uncheckedApps + candidates.filter { missing.contains($0.path) })
+        }
+
+        /// The feeds, with a missing one answered by whatever the catalog
+        /// found for that app, compared or only named.
+        func resolvingCatalogFallback(answeredBy catalog: SourceResult,
+                                      candidates: [AppUpdatesSupport.InstalledApp]) -> SourceResult {
+            resolvingCatalogFallback(checkedPaths: catalog.answeredPaths, candidates: candidates)
+        }
+
+        /// The catalog's uncompared apps, less those their own feed compared.
+        func uncomparableAppNames(coveredBy feeds: SourceResult) -> [String] {
+            AppUpdatesSupport.uncheckedAppNames(uncomparableApps, checkedPaths: feeds.checkedPaths)
         }
     }
 
