@@ -1062,28 +1062,50 @@ enum PointerInputFeatureTests {
         }
         suite.expect(!FocusFollowsMouseSupport.shouldActivate(
             targetWindowID: 42, focusedWindowID: nil, focusedWindowBlocksTarget: false,
-            targetAppIsFrontmost: true),
+            focusedWindowSharesRoot: false, targetAppIsFrontmost: true),
                "hover leaves the active app alone when its focused window cannot be read")
         suite.expect(!FocusFollowsMouseSupport.shouldActivate(
             targetWindowID: 42, focusedWindowID: 42, focusedWindowBlocksTarget: false,
-            targetAppIsFrontmost: true),
+            focusedWindowSharesRoot: false, targetAppIsFrontmost: true),
                "hover does not reactivate the app's focused window")
         suite.expect(FocusFollowsMouseSupport.shouldActivate(
             targetWindowID: 42, focusedWindowID: 43, focusedWindowBlocksTarget: false,
-            targetAppIsFrontmost: true),
+            focusedWindowSharesRoot: false, targetAppIsFrontmost: true),
                "hover can still switch to another window within the active app")
         suite.expect(!FocusFollowsMouseSupport.shouldActivate(
             targetWindowID: 42, focusedWindowID: 43, focusedWindowBlocksTarget: true,
-            targetAppIsFrontmost: true),
+            focusedWindowSharesRoot: false, targetAppIsFrontmost: true),
                "hover leaves focus on a sheet or modal window that blocks the hovered window")
+        suite.expect(!FocusFollowsMouseSupport.shouldActivate(
+            targetWindowID: 42, focusedWindowID: 43, focusedWindowBlocksTarget: false,
+            focusedWindowSharesRoot: true, targetAppIsFrontmost: true),
+               "hover keeps focus within a window and the suggestion list or popover it holds")
         for focusedWindowID: CGWindowID? in [nil, 42, 43] {
             for focusedWindowBlocksTarget in [false, true] {
-                suite.expect(FocusFollowsMouseSupport.shouldActivate(
-                    targetWindowID: 42, focusedWindowID: focusedWindowID,
-                    focusedWindowBlocksTarget: focusedWindowBlocksTarget, targetAppIsFrontmost: false),
-                       "hover can activate a background app regardless of its last focused window")
+                for focusedWindowSharesRoot in [false, true] {
+                    suite.expect(FocusFollowsMouseSupport.shouldActivate(
+                        targetWindowID: 42, focusedWindowID: focusedWindowID,
+                        focusedWindowBlocksTarget: focusedWindowBlocksTarget,
+                        focusedWindowSharesRoot: focusedWindowSharesRoot, targetAppIsFrontmost: false),
+                           "hover can activate a background app regardless of its last focused window")
+                }
             }
         }
+        // Chrome in full screen: browser 1, toolbar overlay 2 attached to it,
+        // address bar suggestions 3 attached to the overlay, find bar 4
+        // attached to the browser; window 5 is a second browser window.
+        let parentWindows: [CGWindowID: CGWindowID] = [2: 1, 3: 2, 4: 1, 7: 8, 8: 7]
+        let rootWindowID = { (windowID: CGWindowID) in
+            FocusFollowsMouseSupport.rootWindowID(of: windowID) { parentWindows[$0] }
+        }
+        suite.expect(rootWindowID(3) == 1 && rootWindowID(2) == 1 && rootWindowID(4) == 1 && rootWindowID(1) == 1,
+               "child windows lead back to the window they hang from, through an overlay in between")
+        suite.expect(rootWindowID(5) == 5 && rootWindowID(5) != rootWindowID(3),
+               "another top-level window of the same app keeps a root of its own")
+        suite.expect([7, 8].contains(rootWindowID(7)),
+               "a cycle in reported parents ends the walk instead of hanging hover")
+        suite.expect(FocusFollowsMouseSupport.rootWindowID(of: 9) { _ in kCGNullWindowID } == 9,
+               "a null parent means the window is attached to nothing")
         suite.expect(FocusFollowsMouseSupport.shouldRestoreFocus(
             to: 42, reportedFocusedWindowID: 42, appIsFrontmost: true),
                "a canceled handoff gives focus back to the window that still holds it")
