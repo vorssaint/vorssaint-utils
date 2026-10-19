@@ -199,14 +199,20 @@ enum AlwaysOnTopTests {
         suite.expect(registered[DefaultsKey.alwaysOnTopEnabled] as? Bool == false
                 && registered[DefaultsKey.alwaysOnTopReveal] as? String == AlwaysOnTopReveal.click.rawValue
                 && registered[DefaultsKey.alwaysOnTopBorder] as? String == AlwaysOnTopBorder.medium.rawValue
+                && registered[DefaultsKey.alwaysOnTopBorderColor] as? String == ""
                 && registered[DefaultsKey.alwaysOnTopShortcut] as? String == GlobalShortcut.alwaysOnTopDefault.storageValue
                 && (registered[DefaultsKey.alwaysOnTopExcludedApps] as? [String])?.isEmpty == true,
                "Always On Top starts off, revealing on click, with a medium border and nothing excluded")
         suite.expect(AlwaysOnTopBorder.allCases.map(\.width) == [0, 1, 2, 4],
                "the border goes from none to thick, getting wider each step")
+        suite.expect(AlwaysOnTopBorder.colorHex(nil) == nil
+                && AlwaysOnTopBorder.colorHex("") == nil
+                && AlwaysOnTopBorder.colorHex("not a colour") == nil
+                && AlwaysOnTopBorder.colorHex("#ff9f0a") == "#FF9F0A",
+               "the border follows the accent colour until a valid colour is picked")
         let backupKeys = SettingsBackupSupport.exportKeys()
         suite.expect([DefaultsKey.alwaysOnTopEnabled, DefaultsKey.alwaysOnTopShortcut,
-                      DefaultsKey.alwaysOnTopReveal, DefaultsKey.alwaysOnTopBorder,
+                      DefaultsKey.alwaysOnTopReveal, DefaultsKey.alwaysOnTopBorder, DefaultsKey.alwaysOnTopBorderColor,
                       DefaultsKey.alwaysOnTopExcludedApps]
                         .allSatisfy(backupKeys.contains),
                "Always On Top choices travel with the settings backup")

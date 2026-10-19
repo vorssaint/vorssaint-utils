@@ -31,6 +31,16 @@ enum AlwaysOnTopBorder: String, CaseIterable {
         UserDefaults.standard.string(forKey: DefaultsKey.alwaysOnTopBorder)
             .flatMap(AlwaysOnTopBorder.init(rawValue:)) ?? .medium
     }
+
+    /// The chosen border colour as `#RRGGBB`, or nil to follow the system
+    /// accent colour, which is also what an empty or unreadable value means.
+    static func colorHex(_ raw: String?) -> String? {
+        raw.flatMap(MenuBarUsageBarSupport.normalizedColorHex)
+    }
+
+    static var savedColorHex: String? {
+        colorHex(UserDefaults.standard.string(forKey: DefaultsKey.alwaysOnTopBorderColor))
+    }
 }
 
 /// One on-screen window as the window server lists it, front to back.

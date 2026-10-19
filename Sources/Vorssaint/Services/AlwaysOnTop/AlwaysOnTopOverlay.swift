@@ -41,9 +41,11 @@ final class AlwaysOnTopOverlay: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// The line around the mirror, in points; zero draws none.
-    func setBorderWidth(_ width: CGFloat) {
+    /// The line around the mirror, in points; zero draws none. A nil
+    /// colour follows the system accent colour.
+    func setBorder(width: CGFloat, color: NSColor?) {
         mirrorView.borderWidth = width
+        mirrorView.borderColor = color
     }
 
     /// A short line over the mirror, or nil to clear it.
@@ -93,6 +95,10 @@ private final class AlwaysOnTopMirrorView: NSView {
             border.borderWidth = borderWidth
             border.isHidden = borderWidth == 0
         }
+    }
+
+    var borderColor: NSColor? {
+        didSet { updateBorderColor() }
     }
 
     var message: String? {
@@ -148,7 +154,7 @@ private final class AlwaysOnTopMirrorView: NSView {
     }
 
     private func updateBorderColor() {
-        border.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.85).cgColor
+        border.borderColor = (borderColor ?? .controlAccentColor).withAlphaComponent(0.85).cgColor
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }

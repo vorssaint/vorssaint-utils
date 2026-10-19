@@ -71,7 +71,11 @@ final class AlwaysOnTopPin {
     }
 
     func applyBorder() {
-        overlay.setBorderWidth(AlwaysOnTopBorder.saved.width)
+        let color = AlwaysOnTopBorder.savedColorHex.map { hex -> NSColor in
+            let rgb = MenuBarUsageBarSupport.rgb(for: hex, fallback: hex)
+            return NSColor(srgbRed: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1)
+        }
+        overlay.setBorder(width: AlwaysOnTopBorder.saved.width, color: color)
     }
 
     private var text: AlwaysOnTopStrings { FeatureStrings.alwaysOnTop(L10n.shared.language) }

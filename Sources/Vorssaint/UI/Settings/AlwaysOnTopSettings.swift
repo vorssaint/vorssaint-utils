@@ -12,6 +12,7 @@ struct AlwaysOnTopSettings: View {
     @AppStorage(DefaultsKey.alwaysOnTopEnabled) private var enabled = false
     @AppStorage(DefaultsKey.alwaysOnTopReveal) private var reveal = AlwaysOnTopReveal.click.rawValue
     @AppStorage(DefaultsKey.alwaysOnTopBorder) private var border = AlwaysOnTopBorder.medium.rawValue
+    @AppStorage(DefaultsKey.alwaysOnTopBorderColor) private var borderColor = ""
 
     private var text: AlwaysOnTopStrings { FeatureStrings.alwaysOnTop(l10n.language) }
 
@@ -90,11 +91,37 @@ struct AlwaysOnTopSettings: View {
                     Text(text.borderThick).tag(AlwaysOnTopBorder.thick.rawValue)
                 }
                 .onChange(of: border) { _, _ in service.syncWithPreferences() }
+                if border != AlwaysOnTopBorder.none.rawValue {
+                    SettingsRow(symbol: "paintpalette", title: text.borderColor) {
+                        HStack(spacing: 8) {
+                            if AlwaysOnTopBorder.colorHex(borderColor) != nil {
+                                Button(text.borderColorAccent) { borderColor = "" }
+                            }
+                            ColorPicker(text.borderColor, selection: borderColorBinding, supportsOpacity: false)
+                                .labelsHidden()
+                        }
+                    }
+                    .onChange(of: borderColor) { _, _ in service.syncWithPreferences() }
+                }
                 Label(text.indicatorNote, systemImage: "record.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    /// Shows the accent colour until a colour is picked.
+    private var borderColorBinding: Binding<Color> {
+        Binding {
+            guard let hex = AlwaysOnTopBorder.colorHex(borderColor) else { return Color.accentColor }
+            let rgb = MenuBarUsageBarSupport.rgb(for: hex, fallback: hex)
+            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        } set: { color in
+            guard let converted = NSColor(color).usingColorSpace(.sRGB) else { return }
+            borderColor = MenuBarUsageBarSupport.hex(red: Double(converted.redComponent),
+                                                     green: Double(converted.greenComponent),
+                                                     blue: Double(converted.blueComponent))
         }
     }
 

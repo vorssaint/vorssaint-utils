@@ -148,6 +148,7 @@ enum DefaultsKey {
     static let alwaysOnTopShortcut = "alwaysOnTopShortcut"
     static let alwaysOnTopReveal = "alwaysOnTopReveal" // "click" or "hover": what brings a pinned window forward
     static let alwaysOnTopBorder = "alwaysOnTopBorder" // "none", "thin", "medium" or "thick": the line around a pin's mirror
+    static let alwaysOnTopBorderColor = "alwaysOnTopBorderColor" // "#RRGGBB", or "" to follow the system accent colour
     static let alwaysOnTopExcludedApps = "alwaysOnTopExcludedApps" // [bundle id or executable path]
     static let spacesOrderEnabled = "spacesOrderEnabled" // keeps macOS from rearranging Spaces by recent use (Dock mru-spaces)
     static let spacesOrderRestore = "spacesOrderRestore" // local recovery; never backed up: "absent" or "on", the mru-spaces state to put back, or "off" when there was nothing to put back
@@ -1352,6 +1353,7 @@ enum Defaults {
         DefaultsKey.alwaysOnTopShortcut: GlobalShortcut.alwaysOnTopDefault.storageValue,
         DefaultsKey.alwaysOnTopReveal: AlwaysOnTopReveal.click.rawValue,
         DefaultsKey.alwaysOnTopBorder: AlwaysOnTopBorder.medium.rawValue,
+        DefaultsKey.alwaysOnTopBorderColor: "",
         DefaultsKey.alwaysOnTopExcludedApps: [String](),
         DefaultsKey.middleClickEnabled: false,
         DefaultsKey.middleClickTapFingers: 0,
