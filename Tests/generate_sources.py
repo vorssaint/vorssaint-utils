@@ -508,6 +508,13 @@ def main():
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
                         "    private static func copyAnswer(").replace("private static", "static", 1)
           + "}\n")
+    write("CommandBarRunScript.swift", "import Foundation\n"
+          + "extension CommandBarFeatureTests.ScriptRunHost {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                        "    private static func runScript(").replace("private static", "static", 1)
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarScriptRunner.swift",
+                        "final class CommandBarScriptRunner {")
+          + "}\n")
     write("CommandBarSelection.swift", "import Foundation\nextension CommandBarSelectionTests {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift", "enum CommandBarText {")
           + "final class Catalog: Fixture {\n"
@@ -1014,6 +1021,7 @@ def main():
               "    private func endMusicStripSong(", "    private func musicStripHolds(",
               "    func musicStripStandIn("])
           .replace("NotchSupport.routes(notice.event)", "routesNotices")
+          .replace("NotchSupport.hiddenShowsActivity()", "hiddenShowsActivity")
           .replace("NotchSupport.closeDelay()", "NotchSupport.sanitizedCloseDelay(UserDefaults.standard.closeDelay)")
           + capsule_music
           + declaration(notch, "    func toggleMusicStripSong(")
@@ -1027,7 +1035,8 @@ def main():
         "    var surfaceSize:", "    var surfaceShift:", "    func collapse(",
         "    private func detachCaptureIfClosingOnCollapse(", "    func endCaptureControls(",
         "    private func syncVisibleConsumers(", "    private func releaseMonitor("])
-    for call in ["NotchSupport.controls", "NotchSupport.watchesMusicActivity", "NotchSupport.idleContent"]:
+    for call in ["NotchSupport.controls", "NotchSupport.watchesMusicActivity", "NotchSupport.idleContent",
+                 "NotchSupport.hiddenShowsActivity"]:
         music_visibility = music_visibility.replace(call + "()", call + "(in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("NotchSupport.routes(.track)",
                                                 "NotchSupport.routes(.track, in: ReviewDefaults.current)")
@@ -1064,6 +1073,7 @@ def main():
           + declaration(notch, "    private func syncMenuSpaceMonitoring()").replace("private func", "func", 1)
               .replace("AXIsProcessTrusted()", "accessibilityGranted")
               .replace("NotchSupport.coversMenus()", "coversMenus")
+              .replace("NotchSupport.hiddenShowsActivity()", "hiddenShowsActivity")
           + declaration(notch, "    private func syncPointerFollowing()").replace("private func", "func", 1)
           + declaration(notch, "    private func removePointerMonitors()").replace("private func", "func", 1)
           + declaration(notch, "    private var canFollowPointer:").replace("private var", "var", 1)
@@ -1077,6 +1087,7 @@ def main():
               "    private func closeMirrors()", "    private func updateFullscreenDisplays()",
               "    private func bringIsland("])
           .replace("NotchSupport.hidesUntilHover()", "hidesUntilHover")
+          .replace("NotchSupport.hiddenShowsActivity()", "hiddenShowsActivity")
           .replace("NotchSupport.coversMenus()", "coversMenus")
           .replace("NotchSupport.showsInCaptures()", "showsInCaptures")
           .replace("UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled)", "outlineEnabled")
@@ -1117,10 +1128,13 @@ def main():
               .replace(".receive(on: DispatchQueue.main)", "")
               .replace("panel?.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()) + 1)", "panel?.level = 2")
           + declaration(notch, "    private var hiddenUntilHover:").replace("private var", "var", 1)
+              .replace("NotchSupport.hiddenShowsActivity()", "hiddenShowsActivity")
           + declaration(notch, "    private var hiddenAtRestInFullscreen:").replace("private var", "var", 1)
           + declaration(notch, "    var acceptsUserInteraction:")
           + declaration(notch, "    var acceptsSystemFeedback:")
           + declaration(notch, "    var showsSystemFeedback:")
+              .replace("NotchSupport.hiddenShowsActivity()", "hiddenShowsActivity")
+          + declaration(notch, "    private func canHostMascotVisit(").replace("private func", "func", 1)
           + declaration(notch, "    var usesGlassSurface:")
           + declaration(notch, "    var lingeringMusic:")
           + declaration(notch, "    var expandedGeometry:").replace("var expandedGeometry", "override var expandedGeometry", 1)

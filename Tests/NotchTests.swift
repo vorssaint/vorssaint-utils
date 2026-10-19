@@ -1931,6 +1931,15 @@ enum NotchTests {
         suite.expect(!NotchSupport.hidesUntilHover(in: defaults), "click to open does not hide the island until hover")
         defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
         suite.expect(NotchSupport.hidesUntilHover(in: defaults), "hidden until hover waits out of sight for the pointer")
+        suite.expect(NotchSupport.hidesNoticesUntilHover(in: defaults) && !NotchSupport.hiddenShowsActivity(in: defaults),
+               "hidden until hover keeps activity and notices out of sight by default")
+        defaults.set(true, forKey: DefaultsKey.notchHiddenShowsActivity)
+        suite.expect(NotchSupport.hiddenShowsActivity(in: defaults) && !NotchSupport.hidesNoticesUntilHover(in: defaults),
+               "a hidden island set to show activity takes notices while it waits for the pointer")
+        defaults.set(false, forKey: DefaultsKey.notchOpenOnHover)
+        suite.expect(!NotchSupport.hiddenShowsActivity(in: defaults), "showing activity only applies while hidden until hover")
+        defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
+        defaults.set(false, forKey: DefaultsKey.notchHiddenShowsActivity)
         defaults.set(false, forKey: DefaultsKey.notchOpenOnHover)
         suite.expect(!NotchSupport.hidesUntilHover(in: defaults), "an island that opens by click never waits for hover")
         defaults.set(false, forKey: DefaultsKey.notchHideUntilHover)

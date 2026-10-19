@@ -163,6 +163,8 @@ enum NotchPresentationRefreshContract {
         func compactCompanions(of primary: NotchCompactActivity) -> [NotchCompactActivity] { [] }
         var showsCompactActivityPicker = false
         var hiddenInFullscreen = false
+        /// Hidden until hover and set to show activity, as Settings has it.
+        var hiddenShowsActivity = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         let objectWillChange = ObservableObjectPublisher()
         var running = true, suspended = false
@@ -193,6 +195,7 @@ enum NotchPresentationRefreshContract {
         func syncMascotAgents() {}
         var mascotRestsInView = false
         var mascotRestedInView = false
+        var mascotInBar = false, mascotHasRoom = true
         var mascotLingers = false
         var mascotBridging = false
         var mascotBridgeTargetShows = true
@@ -756,6 +759,48 @@ enum NotchPresentationRefreshContract {
             hidden.refreshPresentation()
             suite.expect(hidden.panel?.isVisible == false, "ending the interaction hides the window again")
         }
+        // Set to show activity, the hidden island takes notices while it
+        // waits, comes into view while an activity runs or a notice shows,
+        // and hides again once it ends. Otherwise it stays out of sight.
+        for showsActivity in [false, true] {
+            let waiting = Service()
+            waiting.hiddenShowsActivity = showsActivity
+            waiting.expanded = false
+            waiting.refreshPresentation()
+            suite.expect(waiting.panel?.isVisible == false && waiting.showsSystemFeedback == showsActivity,
+                   "a hidden island takes notices while it waits only when set to show activity")
+            waiting.compactActivityIsVisible = true
+            waiting.refreshPresentation()
+            suite.expect(waiting.panel?.isVisible == showsActivity,
+                   "an activity brings a hidden island into view only when it is set to show activity")
+            waiting.compactActivityIsVisible = false
+            waiting.refreshPresentation()
+            suite.expect(waiting.panel?.isVisible == false, "a hidden island goes out of sight again once the activity ends")
+            waiting.notice = true
+            waiting.refreshPresentation()
+            suite.expect(waiting.panel?.isVisible == showsActivity,
+                   "a notice brings a hidden island into view only when it is set to show activity")
+            waiting.notice = nil
+            waiting.refreshPresentation()
+            suite.expect(waiting.panel?.isVisible == false, "a hidden island goes out of sight again once the notice ends")
+        }
+        // Out of sight, it shows no companion: an activity bringing it into
+        // view has none to fade out, and no visit comes while it waits, even
+        // as it still fades away.
+        let unseen = Service()
+        unseen.hiddenShowsActivity = true
+        unseen.expanded = false
+        suite.expect(unseen.panel?.isVisible == true && !unseen.canHostMascotVisit(),
+                     "a hidden island set to show activity hosts no companion visit with nothing to show")
+        unseen.mascotRestsInView = true
+        unseen.refreshPresentation()
+        unseen.mascotRestsInView = false
+        unseen.compactActivityIsVisible = true
+        NotificationCenter.default.restYields = 0
+        unseen.refreshPresentation()
+        suite.expect(unseen.panel?.isVisible == true && NotificationCenter.default.restYields == 0,
+                     "an activity bringing a hidden island into view finds no companion there to fade out")
+        suite.expect(unseen.canHostMascotVisit(), "an activity in view leaves the companion room to visit")
         UserDefaults.standard.hides = false
         let physical = Service()
         physical.expanded = false

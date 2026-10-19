@@ -88,6 +88,8 @@ enum NotchHoverTests {
         var hiddenInFullscreen = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         var showsSystemFeedback = true, routesNotices = true
+        /// Hidden until hover and set to show activity, as Settings has it.
+        var hiddenShowsActivity = false
         var running = true, suspended = false, inside = false, hoverEmphasized = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
@@ -1463,6 +1465,18 @@ enum NotchHoverTests {
         DispatchQueue.main.advance(0.26)
         expect(hidden.noticeWork != nil && !hidden.noticeExpanded && hidden.openings == 1,
                "hidden mode reveals the island as usual instead of holding a banner it cannot show")
+        // Set to show activity, the hidden island shows the banner, so the
+        // pointer holds it and opens it in place as on a visible island.
+        let shown = fixture(false)
+        UserDefaults.standard.hides = true
+        shown.hiddenShowsActivity = true
+        arrive(shown)
+        shown.hover(true)
+        DispatchQueue.main.advance(0.26)
+        expect(shown.noticeExpanded && shown.openings == 0 && !shown.hiddenUntilHover,
+               "a hidden island set to show activity holds a banner under the pointer and opens it in place")
+        shown.notice = nil
+        expect(shown.hiddenUntilHover, "with the banner gone, the island waits out of sight again")
 
         // Notification replacement and preference changes run the production handlers.
         let exitRace = fixture(false)
