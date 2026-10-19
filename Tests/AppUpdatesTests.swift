@@ -174,6 +174,19 @@ enum AppUpdatesContract {
         suite.expect(Service().onlineResult(candidates: [unknownVersion], catalog: [entry()], operatingSystemVersion: "15.7").checkedPaths.isEmpty,
                      "an unknown installed version cannot prove catalog coverage")
 
+        var templateApp = AppUpdatesSupport.InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path,
+                                                         version: "1.0", isFromAppStore: false, buildVersion: "1")
+        templateApp.updateFeed = .init(url: URL(string: url)!, format: .manifest)
+        let template = Service().onlineResult(candidates: [templateApp], catalog: [entry()], operatingSystemVersion: "15.7")
+        suite.expect(template.available && template.items.isEmpty && template.checkedPaths.isEmpty
+                     && template.uncomparableApps == [templateApp] && template.answeredPaths == [templateApp.path],
+                     "a catalog match with an uncomparable version reaches the service named, not as a row")
+        ResponseProtocol.reset([url: .init(status: 404)])
+        let missingTemplateFeed = publisher([templateApp], suite: suite)
+            .resolvingCatalogFallback(checkedPaths: template.answeredPaths, candidates: [templateApp])
+        suite.expect(missingTemplateFeed.available && missingTemplateFeed.uncheckedApps.isEmpty,
+                     "a missing feed answered by an uncomparable catalog match is not also reported as unchecked")
+
         var shared = app
         shared.updateFeed = .init(url: URL(string: url)!, format: .manifest)
         let renamed = AppUpdatesSupport.InstalledApp(name: "Other Copy", bundleID: app.bundleID,

@@ -522,12 +522,87 @@ enum AppUpdatesSupport {
         }
     }
 
+    /// Some catalog versions end in a build after a dash ("3.8-08539"), the
+    /// way others carry one after a comma. A bundle that reports only its
+    /// release ("3.8.0") lines up with the part in front of the dash.
+    ///
+    /// Everything else is compared whole: a bundle with a dash of its own or
+    /// a further number of its own may be reporting that part, a short number
+    /// can be a fix release ("4.10-8" after "4.10-7"), and a dated version
+    /// ("2024-01-15") has no dotted release in front of its last dash.
+    static func catalogRelease(_ catalogVersion: String, installedVersion: String) -> String {
+        let installed = versionCore(installedVersion)
+        guard !installed.contains("-"),
+              let dash = catalogVersion.lastIndex(of: "-") else { return catalogVersion }
+        let release = catalogVersion[..<dash]
+        let build = catalogVersion[catalogVersion.index(after: dash)...]
+        let releaseParts = release.split(separator: ".", omittingEmptySubsequences: false)
+        func isNumber(_ part: Substring) -> Bool {
+            !part.isEmpty && part.allSatisfy { $0.isASCII && $0.isNumber }
+        }
+        guard build.count >= 3, isNumber(build),
+              releaseParts.count > 1, releaseParts.allSatisfy(isNumber),
+              parts(of: installed).dropFirst(releaseParts.count).allSatisfy({
+                  $0.allSatisfy(\.isNumber) && stripLeadingZeros($0).isEmpty
+              }) else { return catalogVersion }
+        return String(release)
+    }
+
+    /// The version and build a new project starts with. A bundle that still
+    /// carries both says nothing about which release it holds, so it can be
+    /// neither behind a catalog nor proven current by one.
+    static func reportsPlaceholderVersion(_ app: InstalledApp) -> Bool {
+        compare(versionCore(app.version), "1") == .orderedSame
+            && compare(versionCore(app.buildVersion), "1") == .orderedSame
+    }
+
+    /// Whether a catalog number goes past the bundle's only in parts the
+    /// bundle never reports, so the bundle cannot say which of those releases
+    /// it holds: "2026.1" stands for every "2026.1.x.y" an app numbered that
+    /// way ships, and "5.17" for every "5.17-N". One more dotted part ("1.2"
+    /// before "1.2.1") is the usual next release and still counts, and so does
+    /// a bundle that reports a dash of its own.
+    static func catalogOnlyAddsUnreportedParts(_ catalogVersion: String, installedVersion: String) -> Bool {
+        let installed = versionCore(installedVersion)
+        guard !installed.contains("-"), let installedParts = numericParts(installed) else { return false }
+        guard let dash = catalogVersion.lastIndex(of: "-") else {
+            guard let catalogParts = numericParts(catalogVersion) else { return false }
+            return catalogParts.count >= installedParts.count + 2
+                && zip(installedParts, catalogParts).allSatisfy { compareDigits($0, $1) == .orderedSame }
+        }
+        let release = String(catalogVersion[..<dash])
+        let suffix = catalogVersion[catalogVersion.index(after: dash)...]
+        return (1...2).contains(suffix.count) && suffix.allSatisfy { $0.isASCII && $0.isNumber }
+            && (numericParts(release)?.count ?? 0) > 1
+            && compare(release, installed) == .orderedSame
+    }
+
+    /// A catalog number the bundle cannot be placed against: a template
+    /// bundle that does not match it, or a newer number that only adds parts
+    /// the bundle never reports.
+    static func cannotCompare(_ app: InstalledApp, with release: String) -> Bool {
+        if reportsPlaceholderVersion(app) {
+            return compare(release, versionCore(app.version)) != .orderedSame
+        }
+        return isNewer(release, than: app.version)
+            && catalogOnlyAddsUnreportedParts(release, installedVersion: app.version)
+    }
+
+    /// "2026.1.4" as its numbers, or nil when any part is not a plain number.
+    private static func numericParts(_ version: String) -> [String]? {
+        let parts = version.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        return parts.allSatisfy { !$0.isEmpty && $0.allSatisfy { $0.isASCII && $0.isNumber } } ? parts : nil
+    }
+
     /// Exact names take priority; a single identity also finds renamed apps
     /// and installer packages without confusing companion apps with the owner.
+    /// Apps whose version cannot be compared come back on their own, so they
+    /// are named instead of reported as updates or as current.
     static func onlineCatalogFindings(apps: [InstalledApp],
                                       catalog: [CatalogEntry],
                                       operatingSystemVersion: String,
-                                      ignoredTokens: Set<String> = []) -> (items: [Item], checkedPaths: Set<String>) {
+                                      ignoredTokens: Set<String> = [])
+        -> (items: [Item], checkedPaths: Set<String>, uncomparableApps: [InstalledApp]) {
         var entriesByName: [String: [CatalogEntry]] = [:]
         var entriesByID: [String: [CatalogEntry]] = [:]
         for entry in catalog where !ignoredTokens.contains(entry.token) {
@@ -542,6 +617,7 @@ enum AppUpdatesSupport {
         }
 
         var checkedPaths = Set<String>()
+        var uncomparableApps: [InstalledApp] = []
         let items = apps.compactMap { app -> Item? in
             let installedName = URL(fileURLWithPath: app.path).lastPathComponent
             let named = entriesByName[installedName] ?? []
@@ -552,10 +628,15 @@ enum AppUpdatesSupport {
             guard !isUncomparable(entry.version),
                   isCompatible(entry,
                                operatingSystemVersion: operatingSystemVersion) else { return nil }
+            let latest = versionCore(entry.version)
+            let release = catalogRelease(latest, installedVersion: app.version)
+            if cannotCompare(app, with: release) {
+                uncomparableApps.append(app)
+                return nil
+            }
             // Current versions are covered too; absence of a row alone proves nothing.
             if !isUncomparable(app.version) { checkedPaths.insert(app.path) }
-            let latest = versionCore(entry.version)
-            guard isNewer(latest, than: app.version) else { return nil }
+            guard isNewer(release, than: app.version) else { return nil }
             return Item(id: "\(Source.onlineCatalog.rawValue):\(app.path)",
                         source: .onlineCatalog,
                         name: app.name,
@@ -566,7 +647,7 @@ enum AppUpdatesSupport {
                         storePage: nil,
                         bundleID: app.bundleID)
         }
-        return (items, checkedPaths)
+        return (items, checkedPaths, uncomparableApps)
     }
 
     private static func isCompatible(_ entry: CatalogEntry,

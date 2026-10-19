@@ -33,6 +33,10 @@ final class AppUpdatesService: ObservableObject {
     @Published private(set) var onlineCatalogAvailable = true
     @Published private(set) var appStoreAvailable = true
     @Published private(set) var uncheckedAppNames: [String] = []
+    /// Apps the catalog knows whose own version cannot be compared with it.
+    /// They are named instead of listed, so nothing claims an update for them
+    /// or implies they are current.
+    @Published private(set) var uncomparableAppNames: [String] = []
     /// A check finished in THIS process. The time of the last check survives
     /// relaunches, but its findings do not, so nothing may claim the Mac is
     /// up to date until a scan has actually run here.
@@ -217,7 +221,7 @@ final class AppUpdatesService: ObservableObject {
             }
             group.notify(queue: self.workQueue) {
                 let resolvedFeed = feedResult.resolvingCatalogFallback(
-                    checkedPaths: onlineResult.checkedPaths, candidates: onlineCandidates)
+                    checkedPaths: onlineResult.answeredPaths, candidates: onlineCandidates)
                 DispatchQueue.main.async {
                     guard generation == self.scanGeneration else { return }
                     self.finishCheck(items: AppUpdatesSupport.merged(packageResult.items,
@@ -232,6 +236,8 @@ final class AppUpdatesService: ObservableObject {
                                      uncheckedAppNames: AppUpdatesSupport.uncheckedAppNames(
                                         storeResult.uncheckedApps + resolvedFeed.uncheckedApps + onlineResult.uncheckedApps,
                                         checkedPaths: resolvedFeed.checkedPaths),
+                                     uncomparableAppNames: AppUpdatesSupport.uncheckedAppNames(
+                                        onlineResult.uncomparableApps, checkedPaths: resolvedFeed.checkedPaths),
                                      automatic: automatic)
                 }
             }
@@ -243,6 +249,7 @@ final class AppUpdatesService: ObservableObject {
                              onlineCatalogAvailable catalogAvailable: Bool,
                              appStoreAvailable storeAvailable: Bool,
                              uncheckedAppNames: [String],
+                             uncomparableAppNames: [String],
                              automatic: Bool) {
         // The feature can be switched off in the hub while a scan is in
         // flight; its findings belong to a surface that no longer exists.
@@ -277,6 +284,7 @@ final class AppUpdatesService: ObservableObject {
         onlineCatalogAvailable = catalogAvailable
         appStoreAvailable = storeAvailable
         self.uncheckedAppNames = uncheckedAppNames
+        self.uncomparableAppNames = uncomparableAppNames
         hasCheckedThisSession = true
         isChecking = false
         let now = Date()
@@ -431,6 +439,11 @@ final class AppUpdatesService: ObservableObject {
         var checkedPaths: Set<String> = []
         var uncheckedApps: [AppUpdatesSupport.InstalledApp] = []
         var catalogFallbackPaths: Set<String> = []
+        var uncomparableApps: [AppUpdatesSupport.InstalledApp] = []
+
+        /// A catalog match whose version cannot be compared still answers for
+        /// a missing feed; that app is named for its version instead.
+        var answeredPaths: Set<String> { checkedPaths.union(uncomparableApps.map(\.path)) }
 
         func resolvingCatalogFallback(checkedPaths catalogPaths: Set<String>,
                                       candidates: [AppUpdatesSupport.InstalledApp]) -> SourceResult {
@@ -551,7 +564,8 @@ final class AppUpdatesService: ObservableObject {
             operatingSystemVersion: operatingSystemVersion,
             ignoredTokens: Self.ownPackageTokens)
         return SourceResult(items: findings.items, available: true,
-                            checkedPaths: findings.checkedPaths)
+                            checkedPaths: findings.checkedPaths,
+                            uncomparableApps: findings.uncomparableApps)
     }
 
     // MARK: - Update rules

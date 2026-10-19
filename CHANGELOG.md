@@ -25,9 +25,10 @@ Clipboard history that can expire old items and a hidden Dynamic Island that sti
 - App lists in Settings show names without ".app" when the Finder shows all filename extensions.
 - The volume mixer's AirPlay stream pauses once routed apps go quiet, so iPhones and HomePods stop showing the Mac as playing, and sound comes back after pausing from the phone.
 - Command Bar copies a script's output and closes when the script row was reached by part of its name or opened from its shortcut.
+- App Updates no longer shows an update for apps whose catalog version only adds a build number after a dash, such as Private Internet Access. Apps that report a generic or shorter version than the catalog, such as Unified Remote and Android Studio, are named as not compared instead of out of date.
 
 ### Contributors
-Thanks to @bebricoOOOOOOf, @becastellani, @Chubi01, @emreertunc, @jainnam-1993, @juanra, @Likheet, @marianhoenscheid, @mikeknight85, @mschoeffmann, @RKeyProg and @root-daemon.
+Thanks to @bebricoOOOOOOf, @becastellani, @Chubi01, @emreertunc, @iltonandrew, @jainnam-1993, @juanra, @Likheet, @marianhoenscheid, @mendozal, @mikeknight85, @mmoradi97, @mschoeffmann, @RKeyProg, @root-daemon, @StudioKeys and @webipsum.
 Feedback: Brain.
 
 ## [3.4.2-beta.1] - 2026-10-18

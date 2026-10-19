@@ -1887,6 +1887,80 @@ enum UpdateFeatureTests {
         suite.expect(externalCandidates == [onlineApps[0]],
                "store receipts and package-managed paths never reach the online catalog source")
 
+        // Catalog numbering that the bundle does not share (#3198, #3230).
+        func catalogFinding(_ version: String, build: String = "", catalog: String)
+            -> (items: [AppUpdatesSupport.Item], checkedPaths: Set<String>, uncomparableApps: [AppUpdatesSupport.InstalledApp]) {
+            let app = AppUpdatesSupport.InstalledApp(name: "Client", bundleID: "com.example.client",
+                path: "/Applications/Client.app", version: version, isFromAppStore: false, buildVersion: build)
+            let entry = AppUpdatesSupport.CatalogEntry(token: "client", version: catalog, appNames: ["Client.app"],
+                bundleIDs: [app.bundleID], minimumOSVersions: [], exactOSVersions: [], hasUnsupportedOSConstraint: false)
+            return AppUpdatesSupport.onlineCatalogFindings(apps: [app], catalog: [entry], operatingSystemVersion: "15.7")
+        }
+        let dashBuild = catalogFinding("3.8.0", build: "3.8.0", catalog: "3.8-08539")
+        suite.expect(dashBuild.items.isEmpty && dashBuild.checkedPaths == ["/Applications/Client.app"]
+                && dashBuild.uncomparableApps.isEmpty
+                && catalogFinding("27.0.3", build: "58680", catalog: "27.0.3-58680").items.isEmpty
+                && catalogFinding("6.0.3", catalog: "6.0.3-20260619").items.isEmpty,
+               "a build after a dash is left out when the bundle reports only its release")
+        suite.expect(catalogFinding("3.7.0", build: "3.7.0", catalog: "3.8-08539").items.map(\.versionSummary)
+                == ["3.7.0 → 3.8-08539"],
+               "a newer release before the dash is still an update, shown with the catalog's whole number")
+        suite.expect(catalogFinding("3.0.4-777", catalog: "3.0.4-780").items.count == 1
+                && catalogFinding("27.0.3.58600", catalog: "27.0.3-58680").items.count == 1
+                && catalogFinding("2024.01.10", catalog: "2024-01-15").items.count == 1,
+               "a bundle that reports its own dash or further number, and a dated version, are compared whole")
+        suite.expect(catalogFinding("4.10.7", catalog: "4.10-8").items.count == 1
+                && catalogFinding("5.16", catalog: "5.17-1").items.count == 1
+                && catalogFinding("4.10.8", catalog: "4.10-8").items.isEmpty,
+               "a short number after a dash can be a fix release, so it still counts")
+        suite.expect(AppUpdatesSupport.catalogRelease("3.8-08539", installedVersion: "3.8.0") == "3.8"
+                && AppUpdatesSupport.catalogRelease("3.8-08539", installedVersion: "3.8.1") == "3.8-08539"
+                && AppUpdatesSupport.catalogRelease("5.17-1", installedVersion: "5.17") == "5.17-1"
+                && AppUpdatesSupport.catalogRelease("3.0.4-780", installedVersion: "3.0.4-777") == "3.0.4-780"
+                && AppUpdatesSupport.catalogRelease("1.2.3-beta", installedVersion: "1.2.2") == "1.2.3-beta"
+                && AppUpdatesSupport.catalogRelease("2024-01-15", installedVersion: "2024.01.10") == "2024-01-15",
+               "only a dotted release followed by a build number loses the part after its dash")
+
+        // A bundle that reports fewer parts than the catalog (#1465).
+        let coarse = catalogFinding("2026.2", build: "AI-262.26222.65.2621.16204760", catalog: "2026.2.1.8")
+        suite.expect(coarse.items.isEmpty && coarse.checkedPaths.isEmpty && coarse.uncomparableApps.count == 1,
+               "a bundle that reports only the front of a longer catalog number is named, neither updated nor current")
+        suite.expect(catalogFinding("2026.1", build: "AI-261.26222.65.2614.16204760", catalog: "2026.2.1.8").items.count == 1
+                && catalogFinding("1.2", catalog: "1.2.1").items.count == 1
+                && catalogFinding("1.2", catalog: "1.2.10").items.count == 1,
+               "a different release, or one more short part, is still an update")
+        let shortSuffix = catalogFinding("5.17", catalog: "5.17-1")
+        suite.expect(shortSuffix.items.isEmpty && shortSuffix.checkedPaths.isEmpty && shortSuffix.uncomparableApps.count == 1
+                && catalogFinding("4.10", catalog: "4.10-8").uncomparableApps.count == 1
+                && catalogFinding("0.9.0", catalog: "0.9.0-22").uncomparableApps.count == 1,
+               "a short number after a dash the bundle never shows is named for its release")
+        suite.expect(AppUpdatesSupport.catalogOnlyAddsUnreportedParts("2026.1.4.7", installedVersion: "2026.1")
+                && AppUpdatesSupport.catalogOnlyAddsUnreportedParts("5.17-1", installedVersion: "5.17.0")
+                && !AppUpdatesSupport.catalogOnlyAddsUnreportedParts("2026.2.1.8", installedVersion: "2026.1")
+                && !AppUpdatesSupport.catalogOnlyAddsUnreportedParts("3.0.4-780", installedVersion: "3.0.4-777")
+                && !AppUpdatesSupport.catalogOnlyAddsUnreportedParts("2024-01-15", installedVersion: "2024.01.10"),
+               "only parts past the bundle's own number count as unreported")
+
+        let placeholder = catalogFinding("1.0", build: "1", catalog: "3.14.0.2604")
+        suite.expect(placeholder.items.isEmpty && placeholder.checkedPaths.isEmpty
+                && placeholder.uncomparableApps.map(\.name) == ["Client"],
+               "a bundle still carrying the template version and build is named, neither updated nor current")
+        let samePlaceholder = catalogFinding("1.0", build: "1", catalog: "1.0")
+        suite.expect(samePlaceholder.items.isEmpty && samePlaceholder.uncomparableApps.isEmpty
+                && samePlaceholder.checkedPaths == ["/Applications/Client.app"],
+               "a catalog at the same version as a template bundle still covers it")
+        suite.expect(catalogFinding("1.0", build: "2", catalog: "3.14").items.count == 1
+                && catalogFinding("1.0", catalog: "3.14").items.count == 1
+                && catalogFinding("2.0", build: "1", catalog: "3.14").items.count == 1,
+               "a 1.0 bundle with its own build, or no build, is still compared")
+        suite.expect(AppUpdatesSupport.reportsPlaceholderVersion(.init(name: "A", bundleID: "a", path: "/A.app",
+                    version: "1", isFromAppStore: false, buildVersion: "1.0"))
+                && AppUpdatesSupport.reportsPlaceholderVersion(.init(name: "A", bundleID: "a", path: "/A.app",
+                    version: "1.0.0", isFromAppStore: false, buildVersion: "1"))
+                && !AppUpdatesSupport.reportsPlaceholderVersion(.init(name: "A", bundleID: "a", path: "/A.app",
+                    version: "1.0.1", isFromAppStore: false, buildVersion: "1")),
+               "the template version reads the same in any of its spellings")
+
         let listWithOnline = AppUpdatesSupport.merged(mergedRows, onlineRows)
         let selectionWithOnline = AppUpdatesSupport.reconciledSelection(
             previous: Set(onlineRows.map(\.id)), knownIDs: [], items: listWithOnline)

@@ -29,6 +29,7 @@ enum AppUpdateRulesContract {
         var onlineCatalogAvailable = true
         var appStoreAvailable = true
         var uncheckedAppNames: [String] = []
+        var uncomparableAppNames: [String] = []
         var hasCheckedThisSession = false
         var lastCheck: Date?
         var scans = 0
@@ -169,6 +170,11 @@ enum AppUpdateRulesContract {
                      && source.contains(".accessibilityLabel(\"\\(moreOptions): \\(item.name)\")")
                      && !source.contains(".help(text.excludeApp)"),
                      "the row menu is named for both rule actions and says which app it belongs to")
+        suite.expect(source.contains("private var coveragePartial: Bool { coverageIncomplete || versionsUncompared }")
+                     && source.contains("Label(coveragePartial ? text.partialUpToDate")
+                     && source.contains("if versionsUncompared {")
+                     && source.contains("Text(updates.uncomparableAppNames.joined(separator: \", \"))"),
+                     "apps named as not compared get their own note and keep an empty list from reading as current")
 
         // Settings hosts the full list and the menu bar panel the compact one,
         // whose rows have no width to spare for the visible menu.
@@ -200,13 +206,20 @@ enum AppUpdateRulesContract {
         let next = item("2.1.3")
         let unrelated = item("2.1.2", bundleID: "com.example.other")
         let service = Service()
-        func finish(_ items: [Support.Item], automatic: Bool = false) {
+        func finish(_ items: [Support.Item], automatic: Bool = false, uncomparable: [String] = []) {
             service.isChecking = true
             service.finishCheck(items: items, packageManagerAvailable: true,
                                 onlineCatalogAvailable: true, appStoreAvailable: true,
-                                uncheckedAppNames: [], automatic: automatic)
+                                uncheckedAppNames: [], uncomparableAppNames: uncomparable,
+                                automatic: automatic)
         }
+        finish([], automatic: true, uncomparable: ["Unified Remote"])
+        suite.expect(service.uncomparableAppNames == ["Unified Remote"] && service.items.isEmpty
+                     && service.notifications == 0 && service.onlineCatalogAvailable
+                     && UserDefaults.standard.integer(forKey: DefaultsKey.appUpdatesLastCount) == 0,
+                     "an app whose version cannot be compared is named without a row, a count or a notice")
         finish([current, unrelated])
+        suite.expect(service.uncomparableAppNames.isEmpty, "the next scan replaces the named apps")
         service.skipVersion(current)
         suite.expect(service.items == [unrelated] && service.selection == [unrelated.id],
                      "skip removes the row and its bulk-update selection immediately")
@@ -272,6 +285,9 @@ enum AppUpdateRulesContract {
                           text.excludedApp, text.removeRule, text.rulesHint, text.noVisibleUpdates,
                           FeatureStrings.mouseClickDebounce(language).moreOptions].allSatisfy { !$0.isEmpty },
                          "update rule controls are localized for \(language)")
+            suite.expect(!text.uncomparableVersions.isEmpty && !text.uncomparableVersionsNote.isEmpty
+                         && (language == .enUS || text.uncomparableVersionsNote != AppUpdateStrings.enUS.uncomparableVersionsNote),
+                         "the note for versions that cannot be compared is translated for \(language)")
             suite.expect(text.skipVersionFormat.contains("%@") && text.skippedVersionFormat.contains("%@"),
                          "localized skip actions identify the exact release")
         }
