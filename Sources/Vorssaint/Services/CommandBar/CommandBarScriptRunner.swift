@@ -14,6 +14,17 @@ import Foundation
 final class CommandBarScriptRunner {
     struct Result: Equatable {
         let text: String
+        let items: [CommandBarScriptItem]
+
+        init(text: String, items: [CommandBarScriptItem]? = nil) {
+            if let items, !items.isEmpty {
+                self.items = items
+                self.text = items.first?.value ?? text
+            } else {
+                self.text = text
+                self.items = [CommandBarScriptItem(title: text, subtitle: nil, value: text)]
+            }
+        }
     }
 
     /// How long the query has to sit still before a script actually runs.
@@ -110,7 +121,8 @@ final class CommandBarScriptRunner {
                 self.inFlight.remove(cacheKey)
                 let whenAnswered = self.answerHandlers.removeValue(forKey: cacheKey)
                 guard let text = text ?? (status == 0 ? nil : self.failureText) else { return }
-                let result = Result(text: text)
+                let items = CommandBarLinks.parseScriptItems(text)
+                let result = Result(text: text, items: items)
                 self.cache[cacheKey] = result
                 self.onResult?()
                 whenAnswered?(result)

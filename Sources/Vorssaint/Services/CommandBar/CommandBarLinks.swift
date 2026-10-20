@@ -94,6 +94,20 @@ enum CommandBarLinkPlaceholder: String, CaseIterable, Identifiable {
     var token: String { "{\(rawValue)}" }
 }
 
+/// An item extracted from a script's output, whether from a plain string
+/// or parsed from a JSON array or object.
+struct CommandBarScriptItem: Equatable {
+    let title: String
+    let subtitle: String?
+    let value: String
+
+    init(title: String, subtitle: String? = nil, value: String? = nil) {
+        self.title = title
+        self.subtitle = subtitle
+        self.value = value ?? title
+    }
+}
+
 /// Reading, writing and filling in what the person saved. Pure, so every rule
 /// here is pinned by tests.
 enum CommandBarLinks {
@@ -260,6 +274,83 @@ enum CommandBarLinks {
     static func resultText(_ output: String) -> String? {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Extracts structured items from a script's output when it is formatted
+    /// as JSON. Returns nil when the output is not JSON (or is empty / invalid),
+    /// allowing legacy plain text scripts to function as is.
+    static func parseScriptItems(_ output: String) -> [CommandBarScriptItem]? {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("[") || trimmed.hasPrefix("{"),
+              let data = trimmed.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data, options: [])
+        else {
+            return nil
+        }
+
+        func stringValue(_ any: Any?) -> String? {
+            guard let any else { return nil }
+            if let str = any as? String { return str }
+            if let num = any as? NSNumber { return num.stringValue }
+            return nil
+        }
+
+        func itemFromDict(_ dict: [String: Any]) -> CommandBarScriptItem? {
+            let title = stringValue(dict["title"])
+                ?? stringValue(dict["name"])
+                ?? stringValue(dict["label"])
+                ?? stringValue(dict["text"])
+                ?? stringValue(dict["value"])
+                ?? stringValue(dict["arg"])
+            guard let title = title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else {
+                return nil
+            }
+            let subtitle = (stringValue(dict["subtitle"])
+                ?? stringValue(dict["detail"])
+                ?? stringValue(dict["description"])
+                ?? stringValue(dict["hint"]))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = (stringValue(dict["value"])
+                ?? stringValue(dict["arg"])
+                ?? stringValue(dict["copy"])
+                ?? stringValue(dict["text"])
+                ?? stringValue(dict["content"]))?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? title
+            return CommandBarScriptItem(
+                title: title,
+                subtitle: (subtitle?.isEmpty == false) ? subtitle : nil,
+                value: value.isEmpty ? title : value
+            )
+        }
+
+        var candidates: [Any] = []
+        if let array = json as? [Any] {
+            candidates = array
+        } else if let dict = json as? [String: Any] {
+            if let array = (dict["items"] as? [Any])
+                ?? (dict["options"] as? [Any])
+                ?? (dict["results"] as? [Any])
+                ?? (dict["rows"] as? [Any])
+                ?? (dict["data"] as? [Any]) {
+                candidates = array
+            } else if let single = itemFromDict(dict) {
+                return [single]
+            }
+        }
+
+        var items: [CommandBarScriptItem] = []
+        for candidate in candidates {
+            if let dict = candidate as? [String: Any] {
+                if let item = itemFromDict(dict) {
+                    items.append(item)
+                }
+            } else if let str = stringValue(candidate)?.trimmingCharacters(in: .whitespacesAndNewlines), !str.isEmpty {
+                items.append(CommandBarScriptItem(title: str, subtitle: nil, value: str))
+            }
+        }
+
+        guard !items.isEmpty else { return nil }
+        return Array(items.prefix(12))
     }
 
     /// The URL a link opens, or nil when what was saved cannot be opened. A
