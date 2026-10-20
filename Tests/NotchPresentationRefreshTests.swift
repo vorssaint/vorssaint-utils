@@ -801,6 +801,23 @@ enum NotchPresentationRefreshContract {
         suite.expect(unseen.panel?.isVisible == true && NotificationCenter.default.restYields == 0,
                      "an activity bringing a hidden island into view finds no companion there to fade out")
         suite.expect(unseen.canHostMascotVisit(), "an activity in view leaves the companion room to visit")
+        // Beside a simulated cutout it draws the activity only once the menus
+        // leave it room, and waits out of sight for the pointer again when
+        // they take that room back.
+        let roomless = Service()
+        roomless.hiddenShowsActivity = true
+        roomless.expanded = false
+        roomless.geometry = NotchGeometry(screen: roomless.geometry.screen, safeAreaTop: 0, cameraWidth: 0)
+        roomless.compactActivityIsVisible = true
+        roomless.refreshPresentation()
+        suite.expect(roomless.panel?.isVisible == false && roomless.hiddenUntilHover,
+                     "with no room beside a simulated cutout, a hidden island set to show activity waits for the pointer")
+        roomless.applyMenuSpace(64)
+        suite.expect(roomless.panel?.isVisible == true && !roomless.hiddenUntilHover,
+                     "room from the menus brings a waiting activity into view")
+        roomless.applyMenuSpace(nil)
+        suite.expect(roomless.panel?.isVisible == false && roomless.hiddenUntilHover,
+                     "losing that room hides the activity and waits for the pointer again")
         UserDefaults.standard.hides = false
         let physical = Service()
         physical.expanded = false

@@ -746,6 +746,36 @@ enum NotchHoverTests {
             suite.expect(heard == [true, false],
                          "a capture paused over the open island resumes once it hides and the pointer moves away")
         }
+        // Set to show activity, a hidden island beside a simulated cutout
+        // draws one only with room from the menus. With none it stays out of
+        // sight, so it keeps following the pointer to open where it waits.
+        for silhouette in [NotchSilhouette.notch, .capsule] {
+            for room in [64, nil] as [CGFloat?] {
+                let waiting = fixture()
+                UserDefaults.standard.hides = true
+                waiting.hiddenShowsActivity = true
+                waiting.geometry = NotchGeometry(screen: waiting.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                                 menuBarHeight: 22, compactSideRoom: room, silhouette: silhouette)
+                waiting.compactActivity = .timer
+                waiting.compactActivities = [.timer]
+                waiting.windowHost?.visible = room != nil
+                waiting.updateBounds()
+                waiting.syncHiddenHoverMonitoring()
+                guard room == nil else {
+                    suite.expect(!waiting.hiddenUntilHover && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                                 "with room beside a simulated cutout, a hidden island set to show activity shows it")
+                    continue
+                }
+                suite.expect(waiting.hiddenUntilHover && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                             "with no room beside a simulated cutout, a hidden island set to show activity waits out of sight")
+                let place = waiting.geometry.frame(for: waiting.geometry.collapsed)
+                follow(to: CGPoint(x: place.midX, y: place.minY - 200))
+                follow(to: CGPoint(x: place.midX, y: place.maxY - 1))
+                DispatchQueue.main.advance(0.26)
+                suite.expect(waiting.openings == 1 && waiting.openedByHover,
+                             "with no room beside a simulated cutout, a hidden island set to show activity still opens under the pointer")
+            }
+        }
         // Opening or peeking on hover ends the closed island's follow at once,
         // so the next move cannot tell a page or preview the pointer left.
         for expands in [true, false] {

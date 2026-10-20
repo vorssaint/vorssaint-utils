@@ -90,15 +90,29 @@ enum SwitcherModelFeatureTests {
                     navigation = SwitcherScrollNavigation()
                     let fractions = [-0.25, -0.5, -0.5, -0.75]
                     let expected = [0, 0, inverted ? -1 : 1, inverted ? -1 : 1]
+                    // Scroll Direction's tap runs after the switcher's, so the
+                    // switcher turns the wheel itself.
+                    let direction = ScrollDirectionPreferences(
+                        isAvailable: { _ in true },
+                        boolFor: { [DefaultsKey.scrollInverterEnabled,
+                                    DefaultsKey.scrollInverterHorizontalEnabled].contains($0) && inverted },
+                        stringFor: { _ in nil })
                     for index in fractions.indices {
                         let sample = wheel(fixed: fractions[index], continuous: continuous, horizontal: horizontal,
                                            timestamp: 1_000_000_000 + UInt64(index) * 500_000_000)
-                        ScrollWheelSupport.applyDirection(to: sample, isContinuous: continuous,
-                            invertVertical: inverted, invertHorizontal: inverted, horizontalModifier: nil)
-                        suite.expect(navigation.selectionDelta(for: sample) == expected[index],
+                        suite.expect(navigation.selectionDelta(for: sample, direction: direction) == expected[index],
                             "fractional wheel movement retains its remainder across pauses and inversion: continuous=\(continuous), horizontal=\(horizontal), inverted=\(inverted), sample=\(index)")
+                        suite.expect(sample.getDoubleValueField(horizontal ? .scrollWheelEventFixedPtDeltaAxis2
+                                                                           : .scrollWheelEventFixedPtDeltaAxis1) == fractions[index],
+                            "turning the wheel for the switcher leaves the event other taps see untouched")
                     }
                 }
+                navigation = SwitcherScrollNavigation()
+                let reversed = ScrollDirectionPreferences(isAvailable: { _ in true },
+                    boolFor: { $0 == DefaultsKey.scrollInverterEnabled }, stringFor: { _ in nil })
+                let pad = event(-step, continuous: true, phase: .began)
+                suite.expect(navigation.selectionDelta(for: pad, direction: reversed) == 1,
+                             "Scroll Direction leaves a trackpad gesture alone in the switcher, as it does everywhere")
                 navigation = SwitcherScrollNavigation()
                 suite.expect(navigation.selectionDelta(for: wheel(line: -1, fixed: 0, continuous: continuous,
                                                                   horizontal: horizontal)) == 1,
@@ -141,7 +155,16 @@ enum SwitcherModelFeatureTests {
                          "\(path) yields scrolling to the open switcher")
         }
         suite.expect(!code("Sources/Vorssaint/Services/ScrollInverter.swift").contains("AppSwitcher.shared.scrollNavigationActive"),
-                     "scroll direction still transforms wheel events before they reach the open switcher")
+                     "scroll direction never stands aside for the open switcher")
+        // Both wheel taps run after the switcher's session tap, so it applies
+        // Scroll Direction itself, minus the apps excepted from it.
+        suite.expect(switcher.contains("scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil)")
+                && switcher.contains(".scrollDirection, at: event.location"),
+                     "the open switcher scrolls the way Scroll Direction turns the wheel, except where it is excepted")
+        // A remote screen posts its scroll below the HID stage, already
+        // turned the controlling computer's way.
+        suite.expect(switcher.contains("let directionApplies = direction.isEnabled\n                && ScrollWheelHIDStage.shared.passed(event)\n"),
+                     "the open switcher leaves a remote screen's scroll as it came")
     }
 
     static func run(_ suite: TestSuite) {

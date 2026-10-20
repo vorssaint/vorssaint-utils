@@ -12,19 +12,32 @@ struct SwitcherScrollNavigation {
     private var lastGesturePhaseTimestamp: CGEventTimestamp?
     private var wasMouseWheel: Bool?
 
-    mutating func selectionDelta(for event: CGEvent) -> Int {
-        guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
+    /// `direction` is Scroll Direction where it applies under the pointer.
+    /// Its tap turns the wheel around only after this one has consumed it,
+    /// so a mouse wheel is turned here to follow the way everything else
+    /// scrolls, as it did when that tap ran first.
+    mutating func selectionDelta(for input: CGEvent, direction: ScrollDirectionPreferences? = nil) -> Int {
+        guard input.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
             return 0
         }
         let traits = ScrollWheelEventTraits(
-            isContinuous: event.getIntegerValueField(.scrollWheelEventIsContinuous) != 0,
-            momentumPhase: event.getIntegerValueField(.scrollWheelEventMomentumPhase),
-            scrollPhase: event.getIntegerValueField(.scrollWheelEventScrollPhase),
-            scrollCount: event.getIntegerValueField(.scrollWheelEventScrollCount)
+            isContinuous: input.getIntegerValueField(.scrollWheelEventIsContinuous) != 0,
+            momentumPhase: input.getIntegerValueField(.scrollWheelEventMomentumPhase),
+            scrollPhase: input.getIntegerValueField(.scrollWheelEventScrollPhase),
+            scrollCount: input.getIntegerValueField(.scrollWheelEventScrollCount)
         )
         let phase = CGScrollPhase(rawValue: UInt32(truncatingIfNeeded: traits.scrollPhase))
         let isMouseWheel = ScrollWheelSupport.isMouseWheel(traits, secondsSinceLastGesturePhase:
-            lastGesturePhaseTimestamp.map { Double(event.timestamp &- $0) / 1_000_000_000 })
+            lastGesturePhaseTimestamp.map { Double(input.timestamp &- $0) / 1_000_000_000 })
+        var event = input
+        if isMouseWheel, let direction, direction.invertVertical || direction.invertHorizontal,
+           let turned = input.copy() {
+            ScrollWheelSupport.applyDirection(to: turned, isContinuous: traits.isContinuous,
+                                              invertVertical: direction.invertVertical,
+                                              invertHorizontal: direction.invertHorizontal,
+                                              horizontalModifier: nil)
+            event = turned
+        }
         if traits.scrollPhase != 0 || traits.momentumPhase != 0 {
             lastGesturePhaseTimestamp = event.timestamp
         }

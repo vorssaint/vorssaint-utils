@@ -730,7 +730,15 @@ final class AppSwitcher: ObservableObject {
         switch type {
         case .scrollWheel:
             guard sessionActive else { return Unmanaged.passUnretained(event) }
-            let delta = scrollNavigation.selectionDelta(for: event)
+            // A remote screen's scroll comes already turned the controlling
+            // computer's way, so Scroll Direction is for local wheels only.
+            let direction = ScrollDirectionPreferences(defaults: .standard)
+            let directionApplies = direction.isEnabled
+                && ScrollWheelHIDStage.shared.passed(event)
+                && !MouseAppExceptions.shared.excludesPointerTarget(
+                    .scrollDirection, at: event.location,
+                    sourceProcessID: event.getIntegerValueField(.eventSourceUnixProcessID))
+            let delta = scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil)
             if delta != 0 {
                 // Moving the row must not select the card under a stationary pointer.
                 hoverAnchor = NSEvent.mouseLocation

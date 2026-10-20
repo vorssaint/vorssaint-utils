@@ -1194,8 +1194,10 @@ final class WindowLayoutService: ObservableObject {
         guard var session = directionalSession else { return Unmanaged.passUnretained(event) }
 
         if type == .scrollWheel {
-            let deltaY = event.getDoubleValueField(.scrollWheelEventPointDeltaAxis1)
-            let fixedDeltaY = event.getIntegerValueField(.scrollWheelEventDeltaAxis1)
+            // Read the wheel as Scroll Direction delivers it everywhere else.
+            let wheel = ScrollInverter.directionApplied(to: event)
+            let deltaY = wheel.getDoubleValueField(.scrollWheelEventPointDeltaAxis1)
+            let fixedDeltaY = wheel.getIntegerValueField(.scrollWheelEventDeltaAxis1)
             let scrollY = deltaY != 0 ? deltaY : Double(fixedDeltaY)
 
             if scrollY > 0.5 {

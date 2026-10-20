@@ -626,6 +626,26 @@ def main():
     write("LinearScrollTap.swift", "import CoreGraphics\nimport Foundation\nextension LinearScrollTapTests.Inverter {\n"
           + wheel_tap.replace("private func", "func", 1)
                      .replace("AppFeature.linearScroll.isAvailable", "AppFeature.linearScroll.isAvailable(in: defaults)")
+          + declaration("Sources/Vorssaint/Services/ScrollInverter.swift", "    static func directionApplied(to event:",
+                        scope="final class ScrollInverter:")
+          + "}\nextension LinearScrollTapTests.SideWheel {\n"
+          + declaration("Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutService.swift",
+                        "    private func sideWheelInput(for event:").replace("private func", "func", 1)
+          + "}\n")
+    smooth = "Sources/Vorssaint/Services/SmoothScrollService.swift"
+    smooth_handler = declaration(smooth, "    private func handle(type:").replace("private func", "func", 1)
+    smooth_handler = smooth_handler.replace("AppFeature.smoothScroll.isAvailable", "AppFeature.smoothScroll.isAvailable(in: UserDefaults.standard)")
+    smooth_handler = smooth_handler.replace("AppFeature.linearScroll.isAvailable", "AppFeature.linearScroll.isAvailable(in: defaults)")
+    smooth_post = declaration(smooth, "    private func post(vertical:").replace("private func", "func", 1)
+    if smooth_post.count("event.postToPid(target.processID)") != 1:
+        raise ValueError("Expected one targeted smooth-scroll post")
+    write("SmoothScrollRouting.swift", "import AppKit\nimport ApplicationServices\nimport CoreGraphics\n"
+          + "extension SmoothScrollRoutingTests.Service {\n"
+          + smooth_handler
+          + declaration(smooth, "    private func stopGlide()").replace("private func", "func", 1)
+          + declaration(smooth, "    private func emitFrame(at timestamp:").replace("private func", "func", 1)
+          + declaration(smooth, "    private static func pixelField(").replace("private static", "static", 1)
+          + smooth_post.replace("event.postToPid(target.processID)", "SmoothScrollRoutingTests.record(event, to: target.processID)")
           + "}\n")
     write("KeyboardDebounceTap.swift", "import ApplicationServices\nimport CoreGraphics\nimport Foundation\n"
           + "extension KeyboardDebounceTapTests.Service {\n"
