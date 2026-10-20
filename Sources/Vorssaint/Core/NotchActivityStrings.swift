@@ -48,6 +48,36 @@ struct NotchActivityStrings {
 extension FeatureStrings {
     static func notchActivities(_ language: AppLanguage) -> NotchActivityStrings {
         switch language {
+        case .ar: return NotchActivityStrings(
+            timer: "المؤقت",
+            timerDescription: "مؤقتات وساعة إيقاف وجلسات عمل مركّز في الجزيرة الديناميكية.",
+            pomodoro: "بومودورو",
+            stopwatch: "ساعة الإيقاف",
+            focus: "تركيز",
+            shortBreak: "استراحة قصيرة",
+            longBreak: "استراحة طويلة",
+            pomodoroHint: "ابدأ كل مرحلة عندما تكون جاهزًا. تنتهي الدورة بعد آخر جلسة تركيز.",
+            totalSessions: "إجمالي الجلسات",
+            longBreakInterval: "الجلسات بين الاستراحات الطويلة",
+            sessionProgress: "الجلسة %d من %d",
+            pomodoroFinished: "اكتمل بومودورو",
+            minutes: "دقائق",
+            start: "بدء",
+            resume: "استئناف",
+            finished: "انتهى الوقت",
+            soundEnabled: "تشغيل صوت عند انتهاء الوقت",
+            hideTimerCountdown: "إخفاء العد التنازلي للمؤقت",
+            camera: "مرآة الكاميرا",
+            cameraUnavailable: "تعذر بدء الكاميرا. حاول فتحها مجددًا.",
+            cameraHint: "افتح مرآة مباشرة هنا. تتوقف الكاميرا عند مغادرة هذا العرض.",
+            startCamera: "فتح الكاميرا",
+            stopCamera: "إيقاف الكاميرا",
+            accessories: "تنبيهات الملحقات",
+            accessoryDescription: "يعرض الملحقات المتصلة وينبه مرة واحدة عندما تنخفض بطاريتها إلى 20%.",
+            connected: "متصل",
+            lowBattery: "انخفاض البطارية",
+            keepAwakeActivity: "إظهار “إبقاء الاستيقاظ” في الجزيرة المغلقة",
+            keepAwakeActivityHint: "تظهر الجلسة النشطة بجانب الكاميرا مع وقتها المتبقي، أو ∞ عندما تكون بلا نهاية.")
         case .enUS: return NotchActivityStrings(
             timer: "Timer",
             timerDescription: "Timers, a stopwatch and focused work sessions in the Dynamic Island.",

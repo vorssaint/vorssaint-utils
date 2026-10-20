@@ -5,6 +5,15 @@ import Foundation
 
 enum ClipboardSensitiveTextPreferenceTests {
     static func run(_ suite: TestSuite) {
+        // Registration defaults are shared across UserDefaults instances.
+        // Leave later migration fixtures the same unregistered environment.
+        let registrationDomain = UserDefaults.standard.volatileDomain(
+            forName: UserDefaults.registrationDomain)
+        defer {
+            UserDefaults.standard.setVolatileDomain(registrationDomain,
+                                                    forName: UserDefaults.registrationDomain)
+        }
+
         let key = DefaultsKey.clipboardHistoryFilterSensitiveText
         let legacyKey = "clipboardHistorySkipSensitive"
         suite.expect(Defaults.registeredDefaults[key] as? Bool == false,

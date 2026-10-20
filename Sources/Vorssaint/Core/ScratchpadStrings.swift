@@ -58,6 +58,7 @@ struct ScratchpadFeatureStrings {
 extension FeatureStrings {
     static func scratchpad(_ language: AppLanguage) -> ScratchpadFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -829,4 +830,53 @@ extension ScratchpadFeatureStrings {
         case .link: return markLink
         }
     }
+}
+
+extension ScratchpadFeatureStrings {
+    static let ar = ScratchpadFeatureStrings(
+        pageTitle: "المفكرة",
+        hubDescription: "مفكرات عائمة للملاحظات المؤقتة",
+        panelCaption: "ملاحظات سريعة في تبويبات مستقلة",
+        openButton: "فتح المفكرة",
+        placeholder: "اكتب ما تريد. يُحفظ تلقائيًا.",
+        copyAll: "نسخ الكل",
+        copied: "تم النسخ",
+        exportAction: "حفظ كملف",
+        exportFailed: "تعذر حفظ الملف",
+        loadFailed: "تعذر فتح ملاحظاتك. بقيت دون تغيير.",
+        saveFailed: "تعذر حفظ ملاحظاتك. انسخها إلى مكان آخر قبل الإنهاء.",
+        clearAction: "مسح",
+        retentionTitle: "المسح التلقائي",
+        retentionNever: "أبدًا",
+        retentionDay: "بعد يوم دون استخدام",
+        retentionWeek: "بعد أسبوع دون استخدام",
+        retentionMonth: "بعد شهر دون استخدام",
+        retentionCaption: "تُفرّغ المفكرة تلقائيًا عندما يمر هذا الوقت دون تعديل النص.",
+        closeOnClickOutside: "الإغلاق عند النقر خارجها",
+        keepOpen: "إبقاء مفتوحًا",
+        backgroundOpacity: "خلفية المفكرة",
+        backgroundTranslucent: "شفافة",
+        backgroundOpaque: "معتمة",
+        newPad: "مفكرة جديدة",
+        padActions: "إجراءات المفكرة",
+        renamePad: "إعادة تسمية المفكرة",
+        closePad: "إغلاق المفكرة",
+        saveName: "حفظ",
+        cancel: "إلغاء",
+        deletePadMessageFormat: "حذف “%@” وكل ما فيها؟",
+        padLimitFormat: "يمكنك الاحتفاظ بما يصل إلى %d من المفكرات",
+        previewFormatting: "إظهار التنسيق",
+        editText: "تحرير النص",
+        markBold: "عريض",
+        markItalic: "مائل",
+        markStrikethrough: "يتوسطه خط",
+        markHeading: "عنوان",
+        markBullet: "قائمة نقطية",
+        markNumbered: "قائمة مرقمة",
+        markQuote: "اقتباس",
+        markCode: "شفرة",
+        markLink: "رابط",
+        formatMarks: "التنسيق",
+        textSize: "حجم النص"
+    )
 }

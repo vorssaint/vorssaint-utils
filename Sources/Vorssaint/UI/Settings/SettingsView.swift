@@ -131,6 +131,11 @@ struct SettingsView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         let searchResults: SearchResultsSnapshot = {
             guard hasSearchQuery else { return SearchResultsSnapshot(query: searchQuery, groups: []) }
             return SearchResultsSnapshot(
@@ -164,39 +169,22 @@ struct SettingsView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
-        .toolbar {
-            // SwiftUI adds its sidebar button only to windows it creates, and
-            // this one is AppKit's. Without it, a sidebar dragged shut could
-            // only be dragged back from a one-point strip at the window's
-            // edge, and a full-screen window could only peek at it.
-            ToolbarItem(placement: .navigation) {
-                let strings = SettingsNavigationStrings.localized(l10n.language)
-                let title = sidebarShown ? strings.hideSidebar : strings.showSidebar
-                Button(action: toggleSidebar) {
-                    Label(title, systemImage: "sidebar.left")
+        // AppKit retains the split view's physical column order after an
+        // environment change. Recreate it only when the reading direction changes.
+        .id(l10n.language.isRightToLeft)
+        .background(SettingsToolbarBridge(language: l10n.language, sidebarShown: sidebarShown,
+            canGoBack: router.canGoBack(isPageVisible: isPageVisible),
+            canGoForward: router.canGoForward(isPageVisible: isPageVisible), toggleSidebar: toggleSidebar)
+                // SwiftUI resolves the original shortcut for the current keyboard
+                // layout while AppKit renders the visible toolbar button.
+                .background {
+                    Button(action: toggleSidebar) { EmptyView() }
+                        .keyboardShortcut("s", modifiers: [.control, .command])
+                        .buttonStyle(.plain)
+                        .opacity(0)
+                        .accessibilityHidden(true)
                 }
-                .keyboardShortcut("s", modifiers: [.control, .command])
-                .help(title)
-            }
-            ToolbarItemGroup(placement: .navigation) {
-                let strings = SettingsNavigationStrings.localized(l10n.language)
-                Button {
-                    router.goBack(isPageVisible: isPageVisible)
-                } label: {
-                    Label(strings.back, systemImage: "chevron.backward")
-                }
-                .disabled(!router.canGoBack(isPageVisible: isPageVisible))
-                .help(strings.back)
-
-                Button {
-                    router.goForward(isPageVisible: isPageVisible)
-                } label: {
-                    Label(strings.forward, systemImage: "chevron.forward")
-                }
-                .disabled(!router.canGoForward(isPageVisible: isPageVisible))
-                .help(strings.forward)
-            }
-        }
+                .frame(width: 0, height: 0))
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
         .onAppear {
             ensureVisiblePage()
@@ -211,6 +199,7 @@ struct SettingsView: View {
             activeSearchIndex = nil
             ensureVisiblePage()
         }
+
     }
 
     /// macOS 27 backs the pinned sidebar search field with a hard top scroll
@@ -362,7 +351,7 @@ struct SettingsView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: collapsedSectionIDs.contains(section.id)
-                            ? "chevron.right" : "chevron.down")
+                            ? "chevron.forward" : "chevron.down")
                             .font(.system(size: 9, weight: .semibold))
                             .frame(width: 12)
                         Text(section.title)
@@ -592,6 +581,7 @@ struct SettingsView: View {
         case .uninstaller: UninstallerView()
         case .killProcess: KillProcessView()
         case .portManager: PortManagerView()
+        case .menuBarOrganizer: MenuBarOrganizerSettings()
         case .urlCleaner: URLCleanerSettings()
         case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()
@@ -1316,6 +1306,33 @@ private struct SidebarSearchField: View {
         .padding(.horizontal, 10)
         .padding(.top, 8)
         .padding(.bottom, 4)
+    }
+}
+
+private final class SettingsToolbarAnchor: NSView {
+    var configure: ((SettingsWindow) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let window = window as? SettingsWindow { configure?(window) }
+    }
+}
+
+private struct SettingsToolbarBridge: NSViewRepresentable {
+    let language: AppLanguage
+    let sidebarShown: Bool
+    let canGoBack: Bool
+    let canGoForward: Bool
+    let toggleSidebar: () -> Void
+
+    func makeNSView(context: Context) -> SettingsToolbarAnchor { SettingsToolbarAnchor() }
+
+    func updateNSView(_ view: SettingsToolbarAnchor, context: Context) {
+        view.configure = { window in
+            window.configureToolbar(language: language, sidebarShown: sidebarShown,
+                canGoBack: canGoBack, canGoForward: canGoForward, toggleSidebar: toggleSidebar)
+        }
+        if let window = view.window as? SettingsWindow { view.configure?(window) }
     }
 }
 

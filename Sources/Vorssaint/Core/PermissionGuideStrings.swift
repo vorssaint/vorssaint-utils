@@ -26,6 +26,7 @@ struct PermissionGuideStrings {
 extension FeatureStrings {
     static func permissionGuide(_ language: AppLanguage) -> PermissionGuideStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -240,5 +241,20 @@ extension PermissionGuideStrings {
         staleHint: "清單裡已經開啟了？那筆項目屬於此 App 的早期副本。重新開始以取代它。",
         startOver: "重新開始",
         relaunch: "重新啟動以套用"
+    )
+}
+
+extension PermissionGuideStrings {
+    static let ar = PermissionGuideStrings(
+        title: "تبقت خطوة واحدة",
+        stepOpen: "فتح macOS إعدادات النظام على القائمة المطلوبة.",
+        stepToggle: "فعّل Vorssaint في تلك القائمة.",
+        stepReturn: "عد هنا. تكتشف هذه البطاقة التغيير تلقائيًا.",
+        waiting: "في انتظار الإذن…",
+        granted: "مُنح الإذن!",
+        closeHelp: "إغلاق",
+        staleHint: "مفعّل بالفعل في القائمة؟ يخص هذا العنصر نسخة أقدم من التطبيق. ابدأ من جديد لاستبداله.",
+        startOver: "البدء من جديد",
+        relaunch: "إعادة الفتح للتطبيق"
     )
 }

@@ -61,6 +61,7 @@ struct AppUpdateStrings {
 extension FeatureStrings {
     static func appUpdates(_ language: AppLanguage) -> AppUpdateStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -888,5 +889,58 @@ extension AppUpdateStrings {
         noVisibleUpdates: "Немає оновлень поза вашими правилами",
         uncomparableVersions: "Не вдалося порівняти версії",
         uncomparableVersionsNote: "Оновлення не показується, якщо версію, яку повідомляє програма, не можна порівняти з каталогом. Перевірте оновлення в самій програмі."
+    )
+}
+
+extension AppUpdateStrings {
+    static let ar = AppUpdateStrings(
+        pageTitle: "تحديثات التطبيقات",
+        hubDescription: "البحث عن تحديثات التطبيقات المثبتة وتثبيتها",
+        caption: "يبحث عن إصدارات أحدث للتطبيقات على هذا الـMac ويساعدك على إكمال كل تحديث من مصدره الأصلي.",
+        panelCaption: "معرفة التطبيقات التي يتوفر لها إصدار أحدث",
+        checkNow: "التحقق الآن",
+        checking: "جارٍ التحقق",
+        lastCheckFormat: "آخر تحقق %@",
+        neverChecked: "لم يتم التحقق بعد",
+        upToDate: "لا توجد تحديثات",
+        partialUpToDate: "لم يُعثر على تحديثات في هذا الفحص الجزئي",
+        coverageNote: "يتحقق من المصادر الأصلية للتطبيقات المثبتة ومن دليل عام. تُثبّت التحديثات عبر مصادرها الأصلية.",
+        selectAll: "تحديد الكل",
+        clearSelection: "مسح",
+        updateSelectedFormat: "تحديث %d",
+        updateOne: "تحديث",
+        openAppStore: "فتح App Store",
+        appStoreBadge: "App Store",
+        storeHint: "يفتح App Store لتثبيت هذا التحديث",
+        frequencyLabel: "التحقق في الخلفية",
+        frequencyOff: "إيقاف",
+        frequencyDaily: "يوميًا",
+        frequencyWeekly: "أسبوعيًا",
+        nextCheckFormat: "التحقق التالي %@",
+        notifyToggle: "إشعاري عند توفر تحديث لتطبيق",
+        includeStoreToggle: "تضمين تطبيقات App Store",
+        includeStoreCaption: "يتحقق من إصدارات المتجر باستخدام منطقة هذا الـMac. تتولى Apple تثبيت هذه التحديثات.",
+        packageMissing: "لم يُثبّت Homebrew، لذا لا يمكن تحديث التطبيقات من هنا بعد.",
+        notificationBodyFormat: "يتوفر إصدار أحدث لعدد %@ من التطبيقات.",
+        notificationBodyOne: "يتوفر إصدار أحدث لتطبيق واحد.",
+        showInPanel: "إظهار في اللوحة",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "المصادر",
+        includeHomebrewToggle: "تضمين تطبيقات Homebrew",
+        onlineBadge: "متصل",
+        openApp: "فتح",
+        openAppHint: "يفتح التطبيق ليكمل أداة التحديث الخاصة به العملية",
+        includeOnlineToggle: "تضمين التطبيقات المثبتة الأخرى",
+        includeOnlineCaption: "يتحقق مباشرة من المطورين عند توفر الدعم، ثم يستخدم دليلًا عامًا. تتولى أداة تحديث التطبيق تثبيت التحديث.",
+        incompleteCheck: "التحقق غير مكتمل",
+        onlineUnavailable: "تعذر إكمال التحقق عبر الإنترنت. لا تزال النتائج الأخرى ظاهرة.",
+        skipVersionFormat: "تخطي الإصدار %@",
+        excludeApp: "عدم التحقق من هذا التطبيق",
+        rulesTitle: "قواعد التحديث",
+        skippedVersionFormat: "تم تخطي الإصدار %@",
+        excludedApp: "لن يتم التحقق حتى إزالة هذه القاعدة",
+        removeRule: "إزالة القاعدة",
+        rulesHint: "يسمح تخطي إصدار بالتحقق من الإصدارات الأحدث. بعد إزالة استثناء تطبيق، استخدم التحقق الآن لتحديث النتائج.",
+        noVisibleUpdates: "لا توجد تحديثات خارج قواعدك"
     )
 }

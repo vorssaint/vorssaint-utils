@@ -11,6 +11,9 @@ struct SettingsNavigationStrings {
 
     static func localized(_ language: AppLanguage) -> Self {
         switch language {
+        case .ar:
+            return Self(go: "انتقال", back: "رجوع", forward: "تقدم",
+                        showSidebar: "إظهار الشريط الجانبي", hideSidebar: "إخفاء الشريط الجانبي")
         case .enUS:
             return Self(go: "Go", back: "Back", forward: "Forward",
                         showSidebar: "Show Sidebar", hideSidebar: "Hide Sidebar")

@@ -422,6 +422,7 @@ private struct NetworkAddressBlock: View {
                 // Nothing connected: the value is left out, like the totals block.
                 if !service.localAddresses.isEmpty {
                     Text(service.localAddresses.joined(separator: "\n"))
+                        .environment(\.layoutDirection, .leftToRight)
                         .font(.system(size: 10.5, weight: .medium))
                         .monospacedDigit()
                         .multilineTextAlignment(.trailing)

@@ -15,6 +15,7 @@ struct DiskExclusionStrings {
 extension FeatureStrings {
     static func diskExclusions(_ language: AppLanguage) -> DiskExclusionStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -167,5 +168,16 @@ extension DiskExclusionStrings {
         removeButton: "Видалити",
         customPlaceholder: "Назва диска або тому",
         caption: "Диски з цього списку ніколи не демонтуються при використанні «Вийняти всі диски»."
+    )
+}
+
+extension DiskExclusionStrings {
+    static let ar = DiskExclusionStrings(
+        listTitle: "الأقراص المستثناة",
+        addButton: "إضافة قرص…",
+        otherDrive: "اسم قرص آخر…",
+        removeButton: "إزالة",
+        customPlaceholder: "اسم القرص أو وحدة التخزين",
+        caption: "لا تُفصل الأقراص في هذه القائمة عند استخدام إخراج جميع الأقراص."
     )
 }

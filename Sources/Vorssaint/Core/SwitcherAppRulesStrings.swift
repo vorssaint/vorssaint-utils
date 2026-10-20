@@ -17,6 +17,7 @@ struct SwitcherAppRulesStrings {
 extension FeatureStrings {
     static func switcherAppRules(_ language: AppLanguage) -> SwitcherAppRulesStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -199,5 +200,18 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "Лише вікна",
         hidden: "Ніколи не показувати",
         caption: "Виберіть, як кожна програма з’являється. Програми без правила використовують вибір вище."
+    )
+}
+
+extension SwitcherAppRulesStrings {
+    static let ar = SwitcherAppRulesStrings(
+        listTitle: "قواعد حسب التطبيق",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        behaviorLabel: "سلوك المبدّل",
+        showWithoutWindows: "الإظهار دون نوافذ",
+        windowsOnly: "النوافذ فقط",
+        hidden: "عدم الإظهار مطلقًا",
+        caption: "اختر طريقة ظهور كل تطبيق. تستخدم التطبيقات دون قاعدة الخيار أعلاه."
     )
 }

@@ -17,6 +17,11 @@ struct NotchView: View {
     private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         surface
             // An activity arriving over the resting companion fades in as the
             // companion fades out, and one ending fades back into it, instead
@@ -61,6 +66,7 @@ struct NotchView: View {
             .environment(\.notchGlassSurface, usesGlassSurface)
             .tint(.white)
             .accessibilityIdentifier("notch.surface")
+
     }
 
     private var usesGlassSurface: Bool {

@@ -8,6 +8,7 @@ enum LocalizationTests {
         (.enUS, .enUS), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
         (.sk, .sk), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
         (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK),
+        (.ar, .ar),
     ]
 
     static func fields(_ value: Any) -> [String: String] {
@@ -27,6 +28,16 @@ enum LocalizationTests {
         let dashes = values.filter { $0.value.contains("\u{2014}") }.keys.sorted()
         suite.expect(dashes.isEmpty, "\(name): em-dash in \(dashes.joined(separator: ", "))")
         for (field, original) in base {
+            if name.hasSuffix("/ar") {
+                let technicalTerms: Set<String> = [
+                    "CPU", "GPU", "PID", "PID %d", "Shift", "Option", "Control", "Command", "Caps Lock",
+                    "Vorssaint", "Dock", "Apple", "App Store", "Homebrew", "Liquid Glass", "USB", "SMART",
+                    "GIF", "FPS", "ISO 8601", "Formulae", "Casks", "Wi-Fi", "Bluetooth", "%", "%@ -> %@",
+                    "example.com", ";email", "myemail@example.com",
+                ]
+                suite.expect(values[field] != original || technicalTerms.contains(original),
+                             "\(name).\(field): Arabic has a translation instead of an English fallback")
+            }
             let expected = TestFormat.parse(original)
             guard field.lowercased().contains("format") || expected?.arguments.isEmpty == false else { continue }
             let actual = values[field].flatMap(TestFormat.parse)
@@ -55,6 +66,21 @@ enum LocalizationTests {
     }
 
     static func run(_ suite: TestSuite) {
+        suite.expect(AppLanguage.ar.horizontalNavigationStep(-1) == 1
+                     && AppLanguage.ar.horizontalNavigationStep(1) == -1
+                     && AppLanguage.enUS.horizontalNavigationStep(-1) == -1
+                     && AppLanguage.enUS.horizontalNavigationStep(1) == 1,
+                     "physical arrow keys follow mirrored rows and preserve left-to-right navigation")
+        suite.expect(AppLanguage.preferredLanguage("ar-SA") == .ar
+                     && AppLanguage.preferredLanguage("ar_YE") == .ar
+                     && AppLanguage.preferredLanguage("AR") == .ar,
+                     "Arabic system languages select the Arabic catalog")
+        suite.expect(AppLanguage.preferredLanguage("fr-CA") == .fr
+                     && AppLanguage.preferredLanguage("unsupported") == .enUS,
+                     "language matching preserves supported variants and the English fallback")
+        suite.expect(AppLanguage.ar.isRightToLeft
+                     && AppLanguage.allCases.filter(\.isRightToLeft) == [.ar],
+                     "only Arabic uses right-to-left interface layout")
         formattingChecks(suite)
         suite.expect(Set(languages.map { $0.0 }) == Set(AppLanguage.allCases)
                      && languages.count == AppLanguage.allCases.count,

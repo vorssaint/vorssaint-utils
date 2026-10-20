@@ -143,6 +143,11 @@ private struct PermissionGuideCard: View {
     let onClose: () -> Void
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 7) {
                 Image(systemName: "hand.raised.fill")
@@ -217,6 +222,7 @@ private struct PermissionGuideCard: View {
         )
         .animation(.easeOut(duration: 0.2), value: model.granted)
         .animation(.easeOut(duration: 0.2), value: model.stale)
+
     }
 
     private func stepRow(_ number: Int, _ text: String) -> some View {

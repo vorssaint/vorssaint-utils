@@ -244,6 +244,7 @@ enum NotchCompactTests {
                                                                            text: FeatureStrings.notchCalendar(language),
                                                                            countdown: chosen, choose: { _ in }, open: {})
                         .environment(\.locale, Locale(identifier: language.rawValue))
+                        .environment(\.layoutDirection, language.isRightToLeft ? .rightToLeft : .leftToRight)
                         .frame(width: width))
                     host.layoutSubtreeIfNeeded()
                     suite.expect(host.fittingSize.width == width && host.fittingSize.height.isFinite,
@@ -254,8 +255,9 @@ enum NotchCompactTests {
                 let long = height(title: Array(repeating: "A long appointment title", count: 10).joined(separator: " "))
                 suite.expect(long > short + 40,
                              "long agenda titles grow vertically instead of clipping into a fixed-height card")
-                suite.expect(height(title: "Meeting", chosen: true) == short,
-                             "the mark of an event chosen to count down fits its time line without growing the card")
+                let marked = height(title: "Meeting", chosen: true)
+                suite.expect(marked == short,
+                             "the countdown mark fits in \(language.rawValue) at \(width) pt (\(short) vs \(marked))")
             }
         }
     }

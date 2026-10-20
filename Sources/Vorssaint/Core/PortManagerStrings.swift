@@ -26,6 +26,7 @@ struct PortManagerFeatureStrings {
 extension FeatureStrings {
     static func portManager(_ language: AppLanguage) -> PortManagerFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -74,4 +75,8 @@ extension PortManagerFeatureStrings {
     static let zhHans = PortManagerFeatureStrings(title: "端口管理器", filter: "按端口、进程或 PID 筛选", openFormat: "%d 个开放", empty: "未找到监听端口", emptyHint: "尝试刷新或更改搜索条件。", listeningCaption: "你的监听端口", kill: "终止", forceKill: "强制终止", loadFailed: "无法读取监听端口。请尝试刷新。", refresh: "刷新", copyPort: "复制端口", copyAddress: "复制地址:端口", terminateFormat: "要终止 %@ 吗？", terminateMessageFormat: "终止 PID %2$d 将关闭端口 %1$d。", hubDescription: "查看活动的监听端口，并在已安装“结束进程”时终止使用它们的进程", allInterfaces: "所有接口", allInterfacesHelp: "正在所有网络接口上监听，同一网络中的其他设备可能可以连接。")
     static let zhTW = PortManagerFeatureStrings(title: "連接埠管理器", filter: "依連接埠、程序或 PID 篩選", openFormat: "%d 個開啟", empty: "找不到監聽中的連接埠", emptyHint: "請嘗試重新整理或變更搜尋條件。", listeningCaption: "您的監聽中連接埠", kill: "結束", forceKill: "強制結束", loadFailed: "無法讀取監聽中的連接埠。請嘗試重新整理。", refresh: "重新整理", copyPort: "複製連接埠", copyAddress: "複製位址:連接埠", terminateFormat: "要結束 %@ 嗎？", terminateMessageFormat: "結束 PID %2$d 將關閉連接埠 %1$d。", hubDescription: "檢視使用中的監聽連接埠，並在已安裝「結束處理程序」時結束使用它們的程序", allInterfaces: "所有介面", allInterfacesHelp: "正在所有網路介面上監聽，同一網路中的其他裝置可能可以連線。")
     static let zhHK = PortManagerFeatureStrings(title: "連接埠管理員", filter: "按連接埠、程序或 PID 篩選", openFormat: "%d 個開啟", empty: "找不到監聽中的連接埠", emptyHint: "請嘗試重新整理或變更搜尋條件。", listeningCaption: "您的監聽中連接埠", kill: "結束", forceKill: "強制結束", loadFailed: "無法讀取監聽中的連接埠。請嘗試重新整理。", refresh: "重新整理", copyPort: "複製連接埠", copyAddress: "複製位址:連接埠", terminateFormat: "要結束 %@ 嗎？", terminateMessageFormat: "結束 PID %2$d 會關閉連接埠 %1$d。", hubDescription: "檢視使用中的監聽連接埠，並在已安裝「結束處理程序」時結束使用它們的程序", allInterfaces: "所有介面", allInterfacesHelp: "正在所有網絡介面上監聽，同一網絡中的其他裝置可能可以連線。")
+}
+
+extension PortManagerFeatureStrings {
+    static let ar = PortManagerFeatureStrings(title: "مدير المنافذ", filter: "تصفية حسب المنفذ أو العملية أو PID", openFormat: "المفتوحة: %d", empty: "لم يُعثر على منافذ تستمع", emptyHint: "حاول التحديث أو تغيير البحث.", listeningCaption: "منافذك المستمعة", kill: "إنهاء", forceKill: "إنهاء قسري", loadFailed: "تعذرت قراءة المنافذ المستمعة. حاول التحديث.", refresh: "تحديث", copyPort: "نسخ المنفذ", copyAddress: "نسخ العنوان:المنفذ", terminateFormat: "إنهاء %@؟", terminateMessageFormat: "يغلق هذا المنفذ %d بإنهاء العملية PID %d.", hubDescription: "عرض المنافذ المستمعة النشطة وإنهاء العمليات التي تستخدمها عند تثبيت أداة إنهاء العمليات", allInterfaces: "كل الواجهات", allInterfacesHelp: "يستمع على كل واجهات الشبكة، لذا قد تتمكن الأجهزة الأخرى على الشبكة من الاتصال.")
 }

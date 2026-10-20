@@ -128,6 +128,10 @@ struct MetricsTests {
                 QuickTogglesAlertTests.run(suite)
                 PortManagerRefreshTests.run(suite)
             }),
+            ("menu-bar-organizer", {
+                MenuBarOrganizerTests.run(suite)
+                MenuBarOrganizerStringsTests.run(suite)
+            }),
             ("settings", {
                 SettingsFeatureTests.run(suite)
                 SettingsWindowTests.run { suite.expect($0, $1) }

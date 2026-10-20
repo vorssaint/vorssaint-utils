@@ -21,6 +21,11 @@ struct CameraPreviewView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         ZStack {
             Color.black
             content
@@ -37,6 +42,7 @@ struct CameraPreviewView: View {
         // buttons) must draw for a dark background in either system look.
         .environment(\.colorScheme, .dark)
         .onHover { hovering = $0 }
+
     }
 
     @ViewBuilder

@@ -36,10 +36,17 @@ struct RadialMenuView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         ZStack {
             backplate
             wedge
             ring.id(service.stack.count)
+                // Pointer hit testing uses physical angles around the wheel.
+                .environment(\.layoutDirection, .leftToRight)
             hub
         }
         .frame(width: RadialMenuLayout.panelSize, height: RadialMenuLayout.panelSize)
@@ -60,6 +67,7 @@ struct RadialMenuView: View {
         .onChange(of: service.highlightedIndex) { _, _ in syncWedge() }
         .onChange(of: items.count) { _, _ in syncWedge() }
         .accessibilityLabel(text.pageTitle)
+
     }
 
     /// One shape that sweeps to the slice under the pointer instead of a new
