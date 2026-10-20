@@ -476,7 +476,8 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.hermes, ".hermes")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -499,6 +500,11 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .hermes {
+            if path == url.appending(path: AgentHermesReader.database).path { return true }
+            let profiles = url.appending(path: "profiles").path + "/"
+            return path.hasPrefix(profiles) && path.hasSuffix("/" + AgentHermesReader.database)
+        }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -693,6 +699,7 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        if name == AgentHermesReader.database || name == AgentHermesReader.database + "-wal" { return true }
         return path.hasSuffix(".jsonl")
     }
 
@@ -749,6 +756,21 @@ enum AgentLogReader {
                 }
                 continue
             }
+            // Hermes keeps a database in the default home and one beside each
+            // profile; all of them are the one Hermes the person runs.
+            if root.provider == .hermes {
+                let profiles = root.url.appending(path: "profiles")
+                var paths = [root.url.appending(path: AgentHermesReader.database).path]
+                for name in (try? FileManager.default.contentsOfDirectory(atPath: profiles.path)) ?? [] {
+                    paths.append(profiles.appending(path: name).appending(path: AgentHermesReader.database).path)
+                }
+                for path in paths {
+                    if let modified = AgentOpenCodeReader.modified(path), modified >= horizon {
+                        found.append((path, root.provider, modified, false))
+                    }
+                }
+                continue
+            }
             // A Copilot session can contain a complete workspace checkout,
             // databases and checkpoints. Its log has one fixed shallow path;
             // recursively walking the workspace can delay the first snapshot
@@ -777,6 +799,10 @@ enum AgentLogReader {
                              shouldContinue: () -> Bool = { true },
                              including: ((Data, Range<Int>) -> Bool)? = nil, line: (Data) -> Void) {
         guard shouldContinue() else { return }
+        if cursor.provider == .hermes {
+            AgentHermesReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return

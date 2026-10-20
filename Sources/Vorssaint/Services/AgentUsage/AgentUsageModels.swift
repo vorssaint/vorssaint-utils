@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude, codex, opencode, copilot, hermes
 
     var id: String { rawValue }
 
@@ -16,6 +16,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .hermes: return "Hermes"
         }
     }
 
@@ -25,11 +26,16 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .hermes: return "bolt"
         }
     }
 
+    /// Whether the provider keeps its sessions in one database instead of
+    /// log files, so reading follows rows rather than lines.
+    var readsDatabase: Bool { self == .opencode || self == .hermes }
+
     /// Whether the provider records a plan allowance in its local logs.
-    var reportsLimits: Bool { self != .copilot }
+    var reportsLimits: Bool { self != .copilot && self != .hermes }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes
