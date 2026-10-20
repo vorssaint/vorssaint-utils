@@ -35,11 +35,20 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case zhHans = "zh-Hans"
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
+    case ar = "ar"
 
     var id: String { rawValue }
 
+    /// Interface direction follows the chosen app language, independently of macOS.
+    var isRightToLeft: Bool { self == .ar }
+
+    /// Convert a physical left/right step into the order of a mirrored row.
+    func horizontalNavigationStep(_ step: Int) -> Int {
+        isRightToLeft ? -step : step
+    }
+
     /// How this language agrees a counted noun with the number in front of
-    /// it. Three of the fifteen put a distinct form between one and many, and
+    /// it. Some languages put a distinct form between one and many, and
     /// they disagree on which numbers take it, so the count itself is not
     /// enough to pick a form without knowing the language's rule.
     var countAgreement: CountAgreement {
@@ -54,6 +63,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .enUS: return "English (US)"
+        case .ar: return "العربية"
         case .ptBR: return "Português (Brasil)"
         case .tr: return "Türkçe"
         case .ru: return "Русский"
@@ -83,7 +93,10 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 
     static var systemDefault: AppLanguage {
-        let preferred = Locale.preferredLanguages.first ?? "en"
+        preferredLanguage(Locale.preferredLanguages.first ?? "en")
+    }
+
+    static func preferredLanguage(_ preferred: String) -> AppLanguage {
         let p = preferred.lowercased()
 
         if p.hasPrefix("zh-hk") || p.hasPrefix("zh-hant-hk") {
@@ -95,10 +108,10 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
 
         let matches: [(String, AppLanguage)] = [
-            ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
+            ("ar", .ar), ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
             ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
         ]
-        for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
+        for (prefix, language) in matches where p == prefix || p.hasPrefix(prefix + "-") || p.hasPrefix(prefix + "_") { return language }
         return .enUS
     }
 }
@@ -129,6 +142,7 @@ extension Strings {
     /// feature string tables offer theirs.
     static func localized(_ language: AppLanguage) -> Strings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr

@@ -12,7 +12,7 @@ struct SwitcherScrollNavigation {
     private var lastGesturePhaseTimestamp: CGEventTimestamp?
     private var wasMouseWheel: Bool?
 
-    mutating func selectionDelta(for event: CGEvent) -> Int {
+    mutating func selectionDelta(for event: CGEvent, rightToLeft: Bool = false) -> Int {
         guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
             return 0
         }
@@ -52,7 +52,7 @@ struct SwitcherScrollNavigation {
                                 point: .scrollWheelEventPointDeltaAxis1)
         let horizontal = movement(line: .scrollWheelEventDeltaAxis2, fixed: .scrollWheelEventFixedPtDeltaAxis2,
                                   point: .scrollWheelEventPointDeltaAxis2)
-        let delta = abs(horizontal) > abs(vertical) ? horizontal : vertical
+        let delta = abs(horizontal) > abs(vertical) ? (rightToLeft ? -horizontal : horizontal) : vertical
         guard delta.isFinite, delta != 0 else { return 0 }
         if accumulated * delta < 0 { accumulated = 0 }
         accumulated += delta

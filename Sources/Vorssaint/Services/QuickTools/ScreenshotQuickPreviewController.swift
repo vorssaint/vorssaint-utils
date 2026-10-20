@@ -549,8 +549,14 @@ private struct ScreenshotQuickPreviewView: View {
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         if actionsOnly { actionBar }
         else { preview }
+
     }
 
     private var actionBar: some View {

@@ -16,6 +16,11 @@ struct UpdateHighlightsView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         let size = UpdateHighlightsLayout.size(in: availableSize)
         VStack(spacing: 16) {
             VStack(spacing: 4) {
@@ -66,6 +71,7 @@ struct UpdateHighlightsView: View {
         .frame(maxWidth: 500)
         .padding(24)
         .frame(width: size.width, height: size.height)
+
     }
 }
 

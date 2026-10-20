@@ -37,6 +37,7 @@ struct GeneralSettingsStrings {
 extension FeatureStrings {
     static func generalSettings(_ language: AppLanguage) -> GeneralSettingsStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -490,5 +491,36 @@ extension GeneralSettingsStrings {
         sectionUtilities: "截圖、清理、更新和其他工具。",
         sectionControls: "滑鼠、鍵盤和視窗功能的開關。",
         sectionToggles: "深色模式、將麥克風靜音等一鍵操作。"
+    )
+}
+
+extension GeneralSettingsStrings {
+    static let ar = GeneralSettingsStrings(
+        pageDescription: "كيفية بدء Vorssaint ومظهره وما تعرضه لوحة شريط القوائم.",
+        appearanceCaption: "ينطبق على نوافذ ولوحات Vorssaint فقط، وليس على الـMac كله.",
+        launchAtLoginCaption: "يفتح تلقائيًا كلما شغّلت الـMac.",
+        liquidGlassCaption: "لوحات شفافة بمظهر زجاجي.",
+        liquidGlassOtherWindows: "النوافذ واللوحات الأخرى",
+        panelIntro: "انقر أيقونة Vorssaint في شريط القوائم لفتح اللوحة. تظهر تبويباتها بهذا الترتيب.",
+        panelReorderHint: "اسحب لإعادة الترتيب. أوقف ما لا تحتاجه.",
+        menuBarIconTitle: "أيقونة شريط القوائم",
+        menuBarIconCaption: "اختر أيقونة Vorssaint في شريط القوائم.",
+        menuBarIconOther: "رمز آخر",
+        menuBarIconOtherCaption: "اكتب اسم أي رمز SF Symbol. اتركه فارغًا لاستخدام أيقونة Vorssaint.",
+        menuBarIconUnknown: "لا يوجد رمز بهذا الاسم على هذا الـMac.",
+        menuBarIconReset: "استخدام أيقونة Vorssaint",
+        iconMissingTitle: "لا تجد الأيقونة؟",
+        iconMissingCaption: "قد يخفيها ازدحام شريط القوائم، خاصة على أجهزة Mac ذات النتوء.",
+        sectionKeepAwake: "يبقي الـMac مستيقظًا للمدة التي تريدها.",
+        sectionDisplays: "سطوع شاشاتك.",
+        sectionMixer: "صوت كل تطبيق، بشريط تمرير مستقل.",
+        sectionSystem: "المعالج والرسوميات والذاكرة بنظرة سريعة.",
+        sectionNetwork: "سرعة الإنترنت والتطبيقات التي تستخدمه.",
+        sectionDisks: "المساحة الحرة ونشاط القرص.",
+        sectionPower: "البطارية والشحن واستخدام الطاقة.",
+        sectionFanControl: "سرعات المراوح ومنحناك الخاص.",
+        sectionUtilities: "لقطات الشاشة والمنظف والتحديثات وأدوات أخرى.",
+        sectionControls: "مفاتيح ميزات الماوس ولوحة المفاتيح والنوافذ.",
+        sectionToggles: "إجراءات بنقرة واحدة مثل الوضع الداكن وكتم الميكروفون."
     )
 }

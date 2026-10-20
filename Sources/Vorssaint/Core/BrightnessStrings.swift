@@ -48,6 +48,7 @@ struct BrightnessFeatureStrings {
 extension FeatureStrings {
     static func brightness(_ language: AppLanguage) -> BrightnessFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -650,5 +651,46 @@ extension BrightnessFeatureStrings {
         islandPromptTitle: "Показувати яскравість у Dynamic Island?",
         islandPromptMessage: "Dynamic Island показує зміни яскравості, лише коли в налаштуваннях «Дисплеї» увімкнено «Керування дисплеями».",
         islandPromptKeepOff: "Залишити вимкненим"
+    )
+}
+
+extension BrightnessFeatureStrings {
+    static let ar = BrightnessFeatureStrings(
+        pageTitle: "الشاشات",
+        hubDescription: "التحكم في سطوع كل شاشة وتشغيلها",
+        enable: "التحكم في الشاشات",
+        enableCaption: "التحكم في سطوع الشاشات المدمجة والخارجية وتشغيلها، هنا وفي لوحة شريط القوائم.",
+        externalCaption: "تُضبط الشاشات الخارجية عبر البروتوكول نفسه الذي تستخدمه أزرارها. عندما لا يدعمه الاتصال، كما في محولات HDMI، يُعتّم شريط التمرير الصورة بدلًا من ذلك ليظل التحكم في السطوع متاحًا.",
+        noDisplays: "لم يُعثر على شاشة.",
+        displayOff: "إيقاف",
+        turnOffDisplay: "إيقاف الشاشة",
+        turnOnDisplay: "تشغيل الشاشة",
+        lastDisplayCaption: "يجب أن تبقى شاشة واحدة على الأقل قيد التشغيل.",
+        switchUnavailable: "تبديل الشاشات غير متاح على هذا الـMac.",
+        switchFailed: "تعذر تغيير هذه الشاشة.",
+        openLidToEnable: "افتح الغطاء لتشغيل الشاشة المدمجة.",
+        keysToggle: "مفاتيح السطوع تتبع المؤشر",
+        keysCaption: "تغيّر مفاتيح سطوع لوحة المفاتيح الشاشة الموجودة أسفل المؤشر.",
+        keyStep: "خطوات مفاتيح السطوع",
+        keyStepCaption: "خطوات أصغر لكل ضغطة على مفاتيح السطوع واختصارات سطوع الشاشة.",
+        keyStepStandard: "قياسية",
+        keyStepHalf: "نصف خطوة",
+        keyStepQuarter: "ربع خطوة",
+        osdToggle: "إظهار السطوع عند ضبطه",
+        osdCaption: "يعرض نسبة السطوع عند استخدام مفاتيح السطوع أو أشرطة التمرير.",
+        displayBrightnessShortcuts: "استخدام اختصارات سطوع الشاشة",
+        displayBrightnessShortcutCaption: "تضبط الاختصارات الشاشة الرئيسية، أو الشاشة أسفل المؤشر عند تفعيل تتبع المؤشر.",
+        displayBrightnessDecrease: "خفض سطوع الشاشة",
+        displayBrightnessIncrease: "زيادة سطوع الشاشة",
+        keyboardLight: "إضاءة لوحة المفاتيح",
+        keyboardLightCaption: "يشغّل الإضاءة الخلفية للوحة المفاتيح أو يوقفها.",
+        keyboardBrightnessShortcuts: "استخدام اختصارات سطوع لوحة المفاتيح",
+        keyboardBrightnessDecrease: "خفض سطوع لوحة المفاتيح",
+        keyboardBrightnessIncrease: "زيادة سطوع لوحة المفاتيح",
+        softwareDimming: "تعتيم الصورة",
+        extendedDimming: "تعتيم إضافي",
+        islandPromptTitle: "إظهار السطوع في الجزيرة الديناميكية؟",
+        islandPromptMessage: "تعرض الجزيرة الديناميكية تغييرات السطوع فقط عند تفعيل “التحكم في الشاشات” في إعدادات الشاشات.",
+        islandPromptKeepOff: "إبقاء متوقفًا"
     )
 }

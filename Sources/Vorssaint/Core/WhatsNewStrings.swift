@@ -181,6 +181,20 @@ extension FeatureStrings {
                 skipPreviewCheckbox: "업데이트 전에 새로운 기능 보지 않기",
                 showPreviewToggle: "업데이트 전에 새로운 기능 보기",
                 showPreviewCaption: "업데이트할 때마다 설치된 기능의 변경 사항은 계속 표시됩니다.")
+        case .ar:
+            return WhatsNewStrings(
+                updatedFromFormat: "تم التحديث من %@",
+                newFeatures: "ميزات جديدة",
+                yourFeatures: "ميزاتك",
+                notInstalled: "غير مثبتة",
+                kindNew: "جديد",
+                kindChanged: "تغييرات",
+                kindFixed: "إصلاحات",
+                updated: "محدَّث",
+                chooseFeatureHint: "اختر ميزة لمعرفة ما تغيّر فيها.",
+                skipPreviewCheckbox: "عدم إظهار المستجدات قبل التحديث",
+                showPreviewToggle: "إظهار المستجدات قبل التحديث",
+                showPreviewCaption: "ستظل تغييرات ميزاتك تظهر بعد كل تحديث.")
         case .uk:
             return WhatsNewStrings(
                 updatedFromFormat: "Оновлено з версії %@",

@@ -197,7 +197,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         L10n.shared.$language
             .dropFirst()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.installMainMenu() }
+            .sink { [weak self] _ in
+                self?.installMainMenu()
+                self?.updateSettingsWindowTitle()
+            }
             .store(in: &cancellables)
 
         let defaults = UserDefaults.standard
@@ -1489,6 +1492,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let manager = KeepAwakeManager.shared
         let strings = L10n.shared.s
         let menu = NSMenu()
+        menu.userInterfaceLayoutDirection = L10n.shared.language.isRightToLeft ? .rightToLeft : .leftToRight
 
         if AppFeature.keepAwake.isAvailable {
             let toggleItem = NSMenuItem(title: manager.isActive ? strings.menuDisableAwake : strings.menuEnableAwake,
@@ -1501,6 +1505,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if AppFeature.keepAwake.isAvailable, !manager.isActive {
             let durationsItem = NSMenuItem(title: strings.menuActivateFor, action: nil, keyEquivalent: "")
             let submenu = NSMenu()
+            submenu.userInterfaceLayoutDirection = L10n.shared.language.isRightToLeft ? .rightToLeft : .leftToRight
             let options: [(String, Int)] = [(strings.minutes15, 15), (strings.minutes30, 30),
                                             (strings.hour1, 60), (strings.hours2, 120),
                                             (strings.hours4, 240), (strings.hours8, 480),
@@ -1624,11 +1629,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     func installMainMenu() {
         let strings = L10n.shared.s
         let mainMenu = NSMenu()
+        mainMenu.userInterfaceLayoutDirection = L10n.shared.language.isRightToLeft ? .rightToLeft : .leftToRight
 
         // Application menu (the bold, app-named first menu).
         let appMenuItem = NSMenuItem()
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu()
+        appMenu.userInterfaceLayoutDirection = L10n.shared.language.isRightToLeft ? .rightToLeft : .leftToRight
         appMenuItem.submenu = appMenu
 
         let about = NSMenuItem(title: strings.menuAbout, action: #selector(showAbout), keyEquivalent: "")
@@ -1657,6 +1664,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let editMenuItem = NSMenuItem()
         mainMenu.addItem(editMenuItem)
         let editMenu = NSMenu(title: strings.menuEdit)
+        editMenu.userInterfaceLayoutDirection = L10n.shared.language.isRightToLeft ? .rightToLeft : .leftToRight
         editMenuItem.submenu = editMenu
 
         editMenu.addItem(NSMenuItem(title: strings.menuUndo, action: Selector(("undo:")), keyEquivalent: "z"))
@@ -1680,6 +1688,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let windowMenuItem = NSMenuItem()
         mainMenu.addItem(windowMenuItem)
         let windowMenu = NSMenu(title: strings.menuWindow)
+        windowMenu.userInterfaceLayoutDirection = L10n.shared.language.isRightToLeft ? .rightToLeft : .leftToRight
         windowMenuItem.submenu = windowMenu
 
         windowMenu.addItem(NSMenuItem(title: strings.menuMinimize,
@@ -1741,7 +1750,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             window.delegate = self
             settingsWindow = window
         }
-        settingsWindow?.title = L10n.shared.s.settingsTitle
+        updateSettingsWindowTitle()
         if let window = settingsWindow {
             positionSettingsWindow(window, force: createdWindow, on: targetScreen)
         }
@@ -1761,6 +1770,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard let self, let window = self.settingsWindow else { return }
             self.positionSettingsWindow(window, force: false, on: targetScreen)
         }
+    }
+
+    private func updateSettingsWindowTitle() {
+        settingsWindow?.title = L10n.shared.s.settingsTitle
+        // Keep the native window title in LTR. The RTL toolbar places its
+        // localized title beside the controls on the right.
+        settingsWindow?.titleVisibility = L10n.shared.language.isRightToLeft ? .hidden : .visible
     }
 
     func openFeedbackWindow(kind: FeedbackKind = .bug) {

@@ -29,6 +29,7 @@ struct DiskImageInstallerStrings {
 extension FeatureStrings {
     static func diskImageInstaller(_ language: AppLanguage) -> DiskImageInstallerStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -391,5 +392,30 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Показати встановлену програму у Finder",
         installedKeptDownloadBodyFormat: "%@ встановлено в %@. Образ диска вийнято, а завантаження збережено.",
         installingFormat: "Встановлення %@…"
+    )
+}
+
+extension DiskImageInstallerStrings {
+    static let ar = DiskImageInstallerStrings(
+        title: "مثبّت صور الأقراص",
+        hubDescription: "تثبيت التطبيق الوحيد الموجود في صورة قرص وتنظيف التنزيل",
+        useUserApplications: "التثبيت في مجلد التطبيقات داخل المجلد الرئيسي",
+        applicationsFolder: "مجلد التطبيقات",
+        userApplicationsFolder: "مجلد التطبيقات داخل المجلد الرئيسي",
+        promptTitle: "تثبيت هذا التطبيق؟",
+        promptBodyFormat: "سيُنسخ %@ إلى %@ وتُخرج صورة القرص.",
+        installButton: "تثبيت",
+        installedTitle: "تم تثبيت التطبيق",
+        installedBodyFormat: "%@ جاهز في %@. أُخرجت صورة القرص ونُقل ملف التنزيل إلى سلة المهملات.",
+        installedKeepingMountBodyFormat: "تم تثبيت %@ في %@، لكن تعذر إخراج صورة القرص. احتُفظ بملف التنزيل.",
+        installedKeepingDownloadBodyFormat: "تم تثبيت %@ في %@ وأُخرجت صورة القرص، لكن تعذر نقل ملف التنزيل إلى سلة المهملات.",
+        failedTitle: "تعذر التثبيت",
+        failedBody: "لم يتغير شيء. لا يزال بإمكانك سحب التطبيق إلى مجلد التطبيقات.",
+        verificationFailedBody: "تعذر على هذا الـMac التحقق من التطبيق، لذا لم يُثبّت شيء.",
+        alreadyInstalledBodyFormat: "%@ موجود بالفعل في التطبيقات.",
+        trashDownloadOption: "نقل ملف التنزيل إلى سلة المهملات",
+        revealAppOption: "إظهار التطبيق المثبت في Finder",
+        installedKeptDownloadBodyFormat: "%@ جاهز في %@. أُخرجت صورة القرص واحتُفظ بملف التنزيل.",
+        installingFormat: "جارٍ تثبيت %@…"
     )
 }

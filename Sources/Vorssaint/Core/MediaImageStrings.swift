@@ -64,6 +64,7 @@ struct MediaImageConverterStrings {
 
     static func localized(_ language: AppLanguage) -> MediaImageConverterStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -980,6 +981,68 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "Збережено зображень: %d",
         batchPartialFormat: "Збережено: %d, не вдалося: %d",
         batchSummaryHeaderFormat: "Збережено: %d, не вдалося: %d",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+}
+
+extension MediaImageConverterStrings {
+    static let ar = MediaImageConverterStrings(
+        filesSelectedFormat: "الملفات المحددة: %d",
+        profile: "ملف إعداد",
+        noProfile: "بلا ملف إعداد",
+        profileName: "اسم ملف الإعداد",
+        saveAsNew: "حفظ جديد",
+        updateProfile: "تحديث",
+        deleteProfile: "حذف ملف الإعداد",
+        profileModified: "معدّل",
+        profileDefaultNameFormat: "ملف إعداد %d",
+        presetWeb: "الويب",
+        presetSocial: "التواصل الاجتماعي",
+        presetDocs: "المستندات",
+        resize: "تغيير الحجم",
+        resizeNone: "دون تغيير",
+        resizeMax: "أقصى ضلع",
+        resizeWidth: "العرض",
+        resizeHeight: "الارتفاع",
+        resizeExact: "مخصص",
+        exactStretch: "تمديد",
+        exactFit: "احتواء",
+        exactFill: "ملء",
+        height: "الارتفاع",
+        watermark: "علامة مائية",
+        watermarkOff: "إيقاف",
+        watermarkText: "نص",
+        watermarkLogo: "شعار",
+        watermarkBoth: "نص وشعار",
+        watermarkTextPlaceholder: "نص العلامة المائية",
+        noLogo: "بلا شعار",
+        chooseLogo: "اختيار شعار",
+        position: "الموضع",
+        topLeft: "أعلى اليسار",
+        topRight: "أعلى اليمين",
+        center: "توسيط",
+        bottomLeft: "أسفل اليسار",
+        bottomRight: "أسفل اليمين",
+        opacity: "العتامة",
+        margin: "الهامش",
+        scale: "المقياس",
+        rename: "إعادة التسمية",
+        preview: "معاينة",
+        outputName: "المخرجات",
+        background: "الخلفية",
+        backgroundTransparent: "شفافة",
+        backgroundWhite: "أبيض",
+        backgroundBlack: "أسود",
+        preserveDate: "الاحتفاظ بتاريخ التعديل الأصلي",
+        saveInSubfolder: "الحفظ في مجلد فرعي “Converted”",
+        moreOptions: "خيارات إضافية",
+        tooLarge: "هذه الأبعاد كبيرة جدًا للمعالجة الآمنة. اختر حجمًا أصغر.",
+        copySummary: "نسخ الملخص",
+        savedBytesFormat: "تم توفير %@",
+        grewBytesFormat: "أكبر بمقدار %@",
+        batchSavedFormat: "الصور المحفوظة: %d",
+        batchPartialFormat: "تم حفظ %d وفشل %d",
+        batchSummaryHeaderFormat: "تم حفظ %d وفشل %d",
         batchSummaryItemFormat: "%@ -> %@"
     )
 }

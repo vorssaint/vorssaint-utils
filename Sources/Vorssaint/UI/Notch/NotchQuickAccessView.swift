@@ -82,6 +82,11 @@ struct NotchQuickAccessView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         let drops = NotchQuickAccessDrops(placements: motion.placements, progress: motion.progress)
         let buttons = ZStack(alignment: .topLeading) {
             ForEach(motion.placements) { placement in

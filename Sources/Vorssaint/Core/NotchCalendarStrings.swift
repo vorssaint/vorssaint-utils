@@ -46,6 +46,38 @@ struct NotchCalendarStrings {
 extension FeatureStrings {
     static func notchCalendar(_ language: AppLanguage) -> NotchCalendarStrings {
         switch language {
+        case .ar: return NotchCalendarStrings(
+            title: "التقويم",
+            description: "تصفح الشهر ومواعيدك القادمة في الجزيرة الديناميكية.",
+            permission: "قراءة تقاويمك لعرض المواعيد القادمة. تبقى الأحداث على هذا الـMac.",
+            allow: "السماح بالوصول إلى التقويم",
+            denied: "اسمح بالوصول إلى التقويم في إعدادات النظام لرؤية مواعيدك.",
+            settings: "فتح إعدادات النظام",
+            empty: "لا توجد مواعيد قادمة",
+            next: "التالي",
+            ongoing: "جارٍ الآن",
+            allDay: "طوال اليوم",
+            untitled: "حدث دون عنوان",
+            openCalendar: "فتح التقويم",
+            week: "الأيام السبعة القادمة",
+            today: "اليوم",
+            requestFailed: "تعذر طلب الوصول إلى التقويم. حاول مجددًا.",
+            previousMonth: "الشهر السابق",
+            nextMonth: "الشهر التالي",
+            previousWeek: "الأسبوع السابق",
+            nextWeek: "الأسبوع التالي",
+            month: "الشهر",
+            emptyDay: "لا توجد مواعيد في هذا اليوم",
+            hasEvents: "توجد مواعيد",
+            countdown: "العد التنازلي للحدث",
+            countdownHint: "إظهار كل حدث محدد الوقت في الجزيرة المغلقة خلال الساعة السابقة لبدئه. للعد لبعض الأحداث فقط، أوقف هذا وانقرها بزر الماوس الأيمن في صفحة تقويم الجزيرة. قد تظهر العناوين في لقطات الشاشة.",
+            addCountdown: "إضافة عد تنازلي",
+            removeCountdown: "إزالة العد التنازلي",
+            timeLeft: "الوقت المتبقي للحدث الحالي",
+            timeLeftHint: "إظهار الحدث الجاري محدد الوقت في الجزيرة المغلقة خلال الساعة السابقة لانتهائه. قد يظهر عنوانه في لقطات الشاشة.",
+            weekNumbers: "أرقام الأسابيع",
+            weekNumber: "الأسبوع %d",
+            calendars: "التقاويم المعروضة")
         case .enUS: return NotchCalendarStrings(
             title: "Calendar",
             description: "Browse the month and your upcoming appointments in the Dynamic Island.",

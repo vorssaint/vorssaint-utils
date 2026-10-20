@@ -1,0 +1,12 @@
+/* Localized macOS permission prompts. */
+"NSAppleEventsUsageDescription" = "يستخدم Vorssaint الأتمتة لنقل الملفات وإرسال العناصر إلى سلة المهملات وفتح الأوامر المطلوبة والتحكم في تشغيل الوسائط في تطبيقاتك.";
+"NSAudioCaptureUsageDescription" = "يستخدم Vorssaint صوت كل تطبيق لضبط مستواه في المازج وتحريك أشرطة موسيقى الجزيرة الديناميكية وتضمين صوت الـMac في تسجيلات الشاشة التي تبدأها. لا يغادر شيء هذا الـMac.";
+"NSBluetoothAlwaysUsageDescription" = "يستخدم Vorssaint تقنية Bluetooth لقراءة مستوى بطارية الملحقات المتصلة فقط. لا يغادر شيء هذا الـMac.";
+"NSMicrophoneUsageDescription" = "يسجل Vorssaint ميكروفونك فقط عندما تفعّله لتسجيل الشاشة. يبقى الصوت على الـMac ما لم تختر إنشاء رابط مؤقت.";
+"NSCameraUsageDescription" = "يعرض Vorssaint الكاميرا في نافذة المعاينة التي تفتحها فقط لتتحقق من مظهرك قبل المكالمة. لا يُسجل شيء ولا يغادر هذا الـMac.";
+"NSDownloadsFolderUsageDescription" = "يفحص Vorssaint البيانات الوصفية المحلية في التنزيلات لمراجعة ملفات WhatsApp المؤكدة التي تختارها أو تنظيمها أو نقلها إلى سلة المهملات. يبحث المنظف أيضًا عن لقطات الشاشة المنسية عندما تحفظها هنا.";
+"NSDesktopFolderUsageDescription" = "ينظم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحة. يبحث المنظف أيضًا عن لقطات الشاشة المنسية عندما تحفظها هنا.";
+"NSDocumentsFolderUsageDescription" = "ينظم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحة. يبحث المنظف أيضًا عن لقطات الشاشة المنسية عندما تحفظها هنا.";
+"NSNetworkVolumesUsageDescription" = "ينظم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحة. يبحث المنظف أيضًا عن لقطات الشاشة المنسية عندما تحفظها هنا.";
+"NSRemovableVolumesUsageDescription" = "ينظم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحة. يبحث المنظف أيضًا عن لقطات الشاشة المنسية عندما تحفظها هنا.";
+"NSCalendarsFullAccessUsageDescription" = "عرض مواعيدك القادمة في الجزيرة الديناميكية. تبقى أحداث التقويم على هذا الـMac.";

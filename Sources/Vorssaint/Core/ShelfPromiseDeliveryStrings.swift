@@ -12,6 +12,13 @@ struct ShelfPromiseDeliveryStrings {
 
     static func localized(_ language: AppLanguage) -> ShelfPromiseDeliveryStrings {
         switch language {
+        case .ar:
+            return .init(
+                failedTitle: "تعذرت إضافة المرفق",
+                failedBody: "لم يكتمل حفظ الملف على الرف.",
+                fullTitle: "الرف ممتلئ",
+                fullBody: "اكتمل حفظ المرفق لكن لا توجد مساحة متبقية على الرف.",
+                okButton: "موافق")
         case .enUS:
             return .init(
                 failedTitle: "Couldn’t add attachment",

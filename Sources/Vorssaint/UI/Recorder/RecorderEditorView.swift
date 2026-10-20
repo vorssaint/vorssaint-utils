@@ -34,10 +34,16 @@ struct RecorderEditorView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(spacing: 0) {
             topBand
             HStack(spacing: 0) {
                 stage
+                    .environment(\.layoutDirection, .leftToRight)
                 Divider().opacity(0.5)
                 RecorderInspector(model: model)
             }
@@ -392,6 +398,8 @@ struct RecorderEditorView: View {
                 .frame(width: 64, alignment: .trailing)
                 .lineLimit(1)
             content()
+                // Timeline gestures use physical x coordinates, with time increasing rightward.
+                .environment(\.layoutDirection, .leftToRight)
         }
     }
 

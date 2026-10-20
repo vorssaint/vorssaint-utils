@@ -52,6 +52,7 @@ struct FanControlFeatureStrings {
 extension FeatureStrings {
     static func fanControl(_ language: AppLanguage) -> FanControlFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -759,5 +760,53 @@ extension FanControlFeatureStrings {
         hottestGPU: "Найгарячіший GPU",
         helperUnavailable: "Захищений контролер вентиляторів недоступний. Дозвольте Vorssaint у розділі «Автозапуск» і спробуйте знову.",
         resumeAfterRestart: "Відновлювати після перезавантаження або сну"
+    )
+}
+
+extension FanControlFeatureStrings {
+    static let ar = FanControlFeatureStrings(
+        title: "التحكم في المراوح",
+        hubDescription: "التحكم في المراوح يدويًا أو بمنحنيات الحرارة مع عرض السرعة الحالية والمستهدفة",
+        showInPanel: "إظهار التحكم في المراوح في اللوحة",
+        settingsCaption: "يضيف سرعات المراوح اليدوية ومنحنيات الحرارة إلى لوحة شريط القوائم.",
+        fanNameFormat: "المروحة %d",
+        rpmFormat: "%d دورة/دقيقة",
+        allowControl: "السماح بالتحكم في المراوح",
+        approvalCaption: "اسمح لـVorssaint في عناصر الدخول باستخدام وحدة التحكم المحمية في المراوح.",
+        openSettings: "فتح إعدادات النظام",
+        noFans: "لا يحتوي هذا الـMac على مروحة قابلة للتحكم.",
+        unsupported: "التحكم في المراوح غير متاح على هذا الـMac.",
+        alreadyControlled: "تتحكم عملية أخرى في المراوح. أعدها إلى تحكم النظام أولًا.",
+        failed: "عادت المراوح إلى تحكم النظام لتعذر التحقق من التحكم المطلوب.",
+        safetyCaption: "يبقى التحكم فعالًا حتى تعيده إلى النظام. يعود تلقائيًا عند انقطاع التطبيق أو سكون الـMac أو تعطل قراءات المستشعرات أو ارتفاع الضغط الحراري.",
+        safetyStopped: "عاد التحكم إلى النظام لانقطاع التحكم في المراوح.",
+        menuBarTitle: "سرعة المروحة",
+        systemControl: "النظام",
+        manualControl: "يدوي",
+        customCurve: "منحنى",
+        mode: "وضع التحكم",
+        coolingIntensity: "سرعة المروحة",
+        currentRPMFormat: "الحالية %d دورة/دقيقة",
+        targetRPMFormat: "المستهدفة %d دورة/دقيقة",
+        applyManual: "تطبيق التحكم اليدوي",
+        applyCurve: "تطبيق منحنى المروحة",
+        returnToSystem: "استخدام تحكم النظام",
+        temperatureUnavailable: "توقف مستشعر الحرارة المحدد عن الاستجابة. عاد التحكم في المراوح إلى النظام.",
+        curveUnavailable: "أحد مستشعرات الحرارة المحددة غير متاح على هذا الـMac.",
+        sensor: "مستشعر الحرارة",
+        temperature: "درجة الحرارة",
+        fanSpeed: "سرعة المروحة",
+        addPoint: "إضافة نقطة",
+        addSensor: "إضافة مستشعر",
+        removePoint: "إزالة نقطة",
+        removeSensor: "إزالة مستشعر",
+        curveGraph: "منحنى الحرارة وسرعة المروحة",
+        averageSoC: "متوسط حرارة SoC",
+        hottestSoC: "أعلى حرارة SoC",
+        averageCPU: "متوسط حرارة المعالج",
+        hottestCPU: "أعلى حرارة للمعالج",
+        hottestGPU: "أعلى حرارة للرسوميات",
+        helperUnavailable: "وحدة التحكم المحمية في المراوح غير متاحة. اسمح لـVorssaint في عناصر الدخول ثم حاول مجددًا.",
+        resumeAfterRestart: "الاستئناف بعد إعادة التشغيل أو السكون"
     )
 }

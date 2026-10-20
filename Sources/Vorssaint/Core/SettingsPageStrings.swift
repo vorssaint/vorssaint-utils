@@ -21,6 +21,7 @@ struct SettingsPageStrings {
 extension FeatureStrings {
     static func settingsPages(_ language: AppLanguage) -> SettingsPageStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -234,5 +235,20 @@ extension SettingsPageStrings {
         switcherLayoutWindowsCaption: "每個視窗一張預覽，包括已縮到最小的視窗。",
         switcherLayoutIcons: "大圖示",
         switcherLayoutSimple: "簡單列表"
+    )
+}
+
+extension SettingsPageStrings {
+    static let ar = SettingsPageStrings(
+        energyDescription: "إبقاء الـMac مستيقظًا والتحكم في الشاشات وتوفير البطارية.",
+        monitorDescription: "ما يعرضه شريط القوائم واللوحة عن الـMac، ومتى ينبهك.",
+        mouseDescription: "تعيين وظائف جديدة للعجلة والأزرار الجانبية ولوحة التعقب.",
+        switcherDescription: "التبديل بين التطبيقات والنوافذ بطريقتك.",
+        dockTitle: "Dock",
+        dockDescription: "رؤية نوافذ التطبيق من أيقونته في Dock واختيار وظيفة النقر عليها.",
+        switcherLayoutWindows: "معاينات النوافذ",
+        switcherLayoutWindowsCaption: "معاينة لكل نافذة، بما فيها المصغرة.",
+        switcherLayoutIcons: "أيقونات كبيرة",
+        switcherLayoutSimple: "قائمة بسيطة"
     )
 }

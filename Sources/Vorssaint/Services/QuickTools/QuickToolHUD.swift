@@ -164,7 +164,7 @@ enum QuickToolHUD {
     private static func present(_ content: AnyView,
                                 dismissAfter: Double,
                                 windowShadow: Bool = true) {
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: AppLocalizedView { content })
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
 

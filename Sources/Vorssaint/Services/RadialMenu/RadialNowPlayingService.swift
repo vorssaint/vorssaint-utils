@@ -152,6 +152,11 @@ private struct RadialNowPlayingCard: View {
     private var title: String { snapshot.title ?? appName }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         Button(action: openApplication) {
             HStack(alignment: .center, spacing: 12) {
                 artwork
@@ -202,6 +207,7 @@ private struct RadialNowPlayingCard: View {
         .buttonStyle(.plain)
         .accessibilityLabel(title)
         .accessibilityHint(String(format: text.mediaOpenAppFormat, appName))
+
     }
 
     @ViewBuilder

@@ -13,6 +13,11 @@ struct CutFeedbackView: View {
     private let maxRows = 5
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         Group {
             if let result = service.lastResult {
                 resultBody(result)
@@ -32,6 +37,7 @@ struct CutFeedbackView: View {
         )
         .animation(.easeOut(duration: 0.18), value: service.marked)
         .animation(.easeOut(duration: 0.18), value: service.lastResult)
+
     }
 
     // MARK: Marked for move

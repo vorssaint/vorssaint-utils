@@ -145,6 +145,11 @@ extension FeatureStrings {
             compact: "컴팩트",
             comfortable: "여유",
             hint: "컴팩트 항목은 한두 줄을 보여 주며 포인터를 잠시 올려 두면 확장됩니다.")
+        case .ar: return NotchClipboardSizeStrings(
+            entrySize: "حجم العناصر",
+            compact: "مضغوط",
+            comfortable: "مريح",
+            hint: "تعرض العناصر المضغوطة سطرًا أو سطرين، وتتوسع عند إبقاء المؤشر عليها.")
         case .uk: return NotchClipboardSizeStrings(
             entrySize: "Розмір записів",
             compact: "Компактний",

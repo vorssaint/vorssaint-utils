@@ -38,6 +38,7 @@ struct FeedbackStrings {
 extension FeatureStrings {
     static func feedback(_ language: AppLanguage) -> FeedbackStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -535,5 +536,39 @@ extension FeedbackStrings {
         commandFeature: "Запропонувати функцію",
         commandSubtitle: "Надіслати відгук",
         diagnosticsChannelLabel: "Канал оновлення"
+    )
+}
+
+extension FeedbackStrings {
+    static let ar = FeedbackStrings(
+        sectionTitle: "الملاحظات",
+        sectionCaption: "أرسل بلاغًا عن خطأ أو فكرة ميزة مباشرة إلى المسؤول عن صيانة Vorssaint.",
+        openButton: "إرسال ملاحظات",
+        windowTitle: "إرسال ملاحظات",
+        bugTitle: "خطأ",
+        featureTitle: "فكرة ميزة",
+        messageLabel: "ما الذي تود مشاركته؟",
+        bugPlaceholder: "صف ما حدث وما كنت تتوقعه.",
+        featurePlaceholder: "صف الفكرة وكيف ستفيدك.",
+        charactersFormat: "%d من 2000 حرف",
+        includeDiagnostics: "تضمين التفاصيل التقنية",
+        includeDiagnosticsCaption: "يضيف التفاصيل التقنية الموضحة أدناه فقط. لا يتضمن السجلات.",
+        whatSentTitle: "ما سيُرسل",
+        whatSentBasic: "الفئة المختارة والنص أعلاه.",
+        whatSentDiagnostics: "التفاصيل التقنية المدرجة أدناه.",
+        privacyNote: "لا تُضمّن أسماء أو حسابات أو بريد إلكتروني أو معرّفات أجهزة أو سجلات أو لقطات شاشة أو ملفات أو محتوى الحافظة. يُعالج عنوان IP العام مؤقتًا لمنع إساءة الاستخدام ولا يُرفق بالملاحظات.",
+        retentionNote: "بعد التسليم، يبقى النص في قنوات دعم خاصة حتى يحذفه مالك الخدمة. تُحذف النسخة غير المسلمة نهائيًا بعد 7 أيام.",
+        sendButton: "إرسال ملاحظات",
+        sending: "جارٍ الإرسال…",
+        sentTitle: "تم إرسال الملاحظات",
+        sentCaption: "شكرًا لك. لم تُرسل معلومات اتصال، لذا لن تتلقى ردًا مباشرًا.",
+        unavailableError: "تعذر الاتصال. تحقق من اتصالك بالإنترنت وحاول مجددًا.",
+        rateLimitError: "طلبات كثيرة من هذه الشبكة. حاول لاحقًا.",
+        genericError: "تعذر إرسال الملاحظات الآن.",
+        done: "تم",
+        commandBug: "الإبلاغ عن خطأ",
+        commandFeature: "اقتراح ميزة",
+        commandSubtitle: "إرسال ملاحظات",
+        diagnosticsChannelLabel: "قناة التحديث"
     )
 }

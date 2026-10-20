@@ -29,6 +29,11 @@ struct FeedbackView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(spacing: 0) {
             header
             Divider()
@@ -39,6 +44,7 @@ struct FeedbackView: View {
             }
         }
         .frame(width: 600, height: 650)
+
     }
 
     private var header: some View {
