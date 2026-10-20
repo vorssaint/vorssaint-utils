@@ -38,3 +38,14 @@ enum NotchAppleMusicLikeSupport {
         }
     }
 }
+
+/// Which button takes the place after the transport on the music page: the
+/// audio output, or the heart for the song playing. The heart shows only where
+/// there is one to offer, and the output button stays otherwise.
+enum NotchMusicSidePlace: String, CaseIterable {
+    case output, like
+
+    static func sanitized(_ rawValue: String?) -> NotchMusicSidePlace {
+        rawValue.flatMap(NotchMusicSidePlace.init(rawValue:)) ?? .output
+    }
+}
