@@ -15,6 +15,7 @@ Clipboard history that can expire old items and a hidden Dynamic Island that sti
 - **⌘Tab under secure input.** When the window switcher replaces macOS ⌘Tab, the shortcut no longer goes dead while another app has secure input on, as password fields do.
 
 ### Added
+- Command Bar custom scripts can now return multiple selectable response rows by outputting JSON (array of items or an object containing an items list). Selecting any row copies its value to the clipboard. Legacy scripts outputting plain text continue to work as is.
 - Clipboard history can remove items after a set number of days, while pinned items stay. Settings → Clipboard → Keep items for.
 - Dynamic Island set to Hidden until hover can still come into view for activities, indicators and notifications, then hide again. Settings → Dynamic Island → Behavior → Opening → Show activity and indicators.
 
