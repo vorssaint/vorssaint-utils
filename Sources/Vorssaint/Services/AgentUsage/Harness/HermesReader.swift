@@ -10,8 +10,31 @@ struct HermesReader: AgentHarnessReader {
     var provider: AgentProvider { .hermes }
 
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        guard AgentLogParser.contains(line, #""role":""#) || AgentLogParser.contains(line, #""type":"reset""#),
-              let json = AgentLogParser.object(line) else { return [] }
+        guard let json = AgentLogParser.object(line) else { return [] }
+        if json["type"] as? String == "usage_snapshot" {
+            guard let rows = json["records"] as? [[String: Any]] else { return [] }
+            // One snapshot owns the database, not whichever turn was read last.
+            state.session = ""
+            state.parentSession = ""
+            let records = rows.compactMap { row -> AgentUsageRecord? in
+                guard let session = row["session_id"] as? String,
+                      let date = AgentLogParser.seconds(row["time_created"]) else { return nil }
+                let tokens = AgentTokens(input: AgentLogParser.int(row["input_tokens"]),
+                    cacheWrite: AgentLogParser.int(row["cache_write_tokens"]),
+                    cacheRead: AgentLogParser.int(row["cache_read_tokens"]),
+                    output: AgentLogParser.int(row["output_tokens"]),
+                    reasoning: AgentLogParser.int(row["reasoning_tokens"]))
+                let project = AgentLogParser.projectName(row["directory"] as? String ?? "")
+                // Zero placeholders on an included/unknown route are not API charges.
+                let rawCost = row["cost"] as? Double
+                let cost = rawCost.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
+                return AgentUsageRecord(provider: .hermes, date: date,
+                    model: AgentLogParser.native(row["model"] as? String ?? ""), project: project,
+                    session: AgentLogParser.native(session), requests: AgentLogParser.int(row["requests"]),
+                    tokens: tokens, cost: cost, savings: 0, reportedCost: cost != nil)
+            }
+            return [.usageSnapshot(records)]
+        }
         if json["type"] as? String == "reset" {
             state.hermesSessions.removeAll()
             state.turnOpen = false

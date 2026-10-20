@@ -34,8 +34,8 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
     /// log files, so reading follows rows rather than lines.
     var readsDatabase: Bool { self == .opencode || self == .hermes }
 
-    /// Whether the provider records a plan allowance in its local logs.
-    var reportsLimits: Bool { self != .copilot && self != .hermes }
+    /// Whether limits can be read from logs or the agent's public account command.
+    var reportsLimits: Bool { self != .copilot }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes

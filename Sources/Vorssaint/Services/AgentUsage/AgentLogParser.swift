@@ -12,6 +12,8 @@ import Foundation
 enum AgentLogEntry: Equatable {
     /// `key` identifies the response across duplicate lines and files.
     case usage(key: String, record: AgentUsageRecord, billable: AgentBillable)
+    /// Cumulative database counters replace the previous reading, not add to it.
+    case usageSnapshot([AgentUsageRecord])
     /// A later chunk can identify the model of an already-counted request.
     case usageModel(key: String, model: String)
     case limits(AgentLimits)

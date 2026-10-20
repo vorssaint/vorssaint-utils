@@ -61,6 +61,9 @@ final class AgentUsageStore {
         var events: [AgentUsageEvent] = []
         for entry in entries {
             switch entry {
+            case .usageSnapshot(let snapshot):
+                guard provider == .hermes else { continue }
+                replaceUsage(snapshot, source: file)
             case .usage(let key, let record, let billable):
                 // Copilot exposes response activity and session-wide token
                 // totals, neither of which measures the current root task.
@@ -155,6 +158,24 @@ final class AgentUsageStore {
             waiting.removeValue(forKey: key)
         }
         return removed
+    }
+
+    /// Replaces a database's cumulative session/model counters in one transaction.
+    /// They are not per-turn usage: charging them to the live turn would count its
+    /// entire session again. Rewinds, deletions and updated request counts replace
+    /// the old snapshot too. Profiles own independent sources, even with equal IDs.
+    private func replaceUsage(_ snapshot: [AgentUsageRecord], source: String) {
+        let positions = records.indices.filter { records[$0].provider == .hermes && sources[$0] == [source] }
+        guard positions.map({ records[$0] }) != snapshot else { return }
+        let removed = Set(positions)
+        keepRecords { !removed.contains($0) }
+        summary.invalidate()
+        for (offset, record) in snapshot.enumerated() {
+            index["hermes-snapshot:\(source):\(offset)"] = records.count
+            records.append(record)
+            billables.append(AgentBillable(tokens: record.tokens, isAggregate: true))
+            sources.append([source])
+        }
     }
 
     /// `source` is the log the response was read from; `file` names the log
@@ -263,7 +284,7 @@ final class AgentUsageStore {
     func reprice() {
         summary.invalidate()
         for position in records.indices {
-            guard !records[position].reportedCost else { continue }
+            guard !records[position].reportedCost, records[position].provider != .hermes else { continue }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
             // A zero OpenCode recorded for a model the list still does not
             // know stays that reply's cost.
@@ -391,7 +412,7 @@ final class AgentUsageStore {
     var saved: Saved {
         var keys = [String](repeating: "", count: records.count)
         for (key, position) in index { keys[position] = key }
-        let kept = records.indices.filter { records[$0].provider != .opencode }.map {
+        let kept = records.indices.filter { !records[$0].provider.readsDatabase }.map {
             Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
         }
         return Saved(records: kept,
@@ -478,8 +499,18 @@ struct AgentLogRoot: Equatable {
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
          (.hermes, ".hermes")].map { provider, path in
-            AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
+            let url = provider == .hermes && home == FileManager.default.homeDirectoryForCurrentUser
+                ? hermesHome(home: home) : canonical(home.appending(path: path, directoryHint: .isDirectory))
+            return AgentLogRoot(provider: provider, url: url)
         }
+    }
+
+    static func hermesHome(home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                           environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        if let path = environment["HERMES_HOME"], path.hasPrefix("/"), !path.isEmpty {
+            return canonical(URL(fileURLWithPath: path, isDirectory: true))
+        }
+        return canonical(home.appending(path: ".hermes", directoryHint: .isDirectory))
     }
 
     /// The path the file system reports for `url`; the path as given while

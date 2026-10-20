@@ -165,7 +165,31 @@ struct NotchAgentStrings {
     }
 }
 
+struct HermesUsageStrings { let note: String }
+
 extension FeatureStrings {
+    static func hermesUsageNote(_ language: AppLanguage) -> HermesUsageStrings {
+        HermesUsageStrings(note: {
+        switch language {
+        case .enUS: return "Hermes: cumulative session totals grouped by last activity, not daily billing. Account limits are checked through your local Hermes CLI for its configured profile; credentials stay with Hermes."
+        case .ptBR: return "Hermes: totais acumulados por sessão, agrupados pela última atividade, não cobrança diária. Os limites da conta são consultados pela CLI local do Hermes no perfil configurado; as credenciais ficam no Hermes."
+        case .es: return "Hermes: totales acumulados por sesión agrupados por la última actividad, no facturación diaria. Los límites se consultan con la CLI local de Hermes para su perfil configurado; las credenciales permanecen en Hermes."
+        case .sk: return "Hermes: súhrny relácií podľa poslednej aktivity, nie denná fakturácia. Limity účtu zisťuje miestne CLI Hermes pre nastavený profil; prihlasovacie údaje zostávajú v Hermes."
+        case .de: return "Hermes: kumulierte Sitzungssummen nach letzter Aktivität, keine Tagesabrechnung. Kontolimits werden über die lokale Hermes-CLI für das konfigurierte Profil abgefragt; Zugangsdaten bleiben bei Hermes."
+        case .fr: return "Hermes : totaux cumulés des sessions regroupés par dernière activité, pas une facturation quotidienne. Les limites du compte sont vérifiées par la CLI locale Hermes pour le profil configuré ; les identifiants restent dans Hermes."
+        case .it: return "Hermes: totali cumulativi delle sessioni per ultima attività, non fatturazione giornaliera. I limiti dell’account vengono verificati dalla CLI locale Hermes per il profilo configurato; le credenziali restano in Hermes."
+        case .ru: return "Hermes: накопленные итоги сеансов по последней активности, а не расходы за день. Лимиты аккаунта проверяет локальная CLI Hermes для настроенного профиля; учётные данные остаются в Hermes."
+        case .tr: return "Hermes: günlük fatura değil, son etkinliğe göre gruplanan birikimli oturum toplamları. Hesap limitleri yapılandırılan profil için yerel Hermes CLI ile sorgulanır; kimlik bilgileri Hermes’te kalır."
+        case .ja: return "Hermes：最終アクティビティ別の累積セッション合計であり、日別の請求額ではありません。アカウント制限はローカルの Hermes CLI で設定済みプロファイルについて確認します。認証情報は Hermes に保持されます。"
+        case .ko: return "Hermes: 일별 청구가 아닌 마지막 활동 기준 누적 세션 합계입니다. 계정 한도는 로컬 Hermes CLI의 설정된 프로필로 확인하며 인증 정보는 Hermes에 남습니다."
+        case .uk: return "Hermes: накопичені підсумки сеансів за останньою активністю, а не витрати за день. Ліміти облікового запису перевіряє локальна CLI Hermes для налаштованого профілю; облікові дані залишаються в Hermes."
+        case .zhHans: return "Hermes：按最后活动分组的会话累计用量，并非每日账单。账户限额由本地 Hermes CLI 查询已配置的配置文件；凭据保留在 Hermes 中。"
+        case .zhTW: return "Hermes：依最後活動分組的工作階段累計用量，並非每日帳單。帳戶限額由本機 Hermes CLI 查詢已設定的設定檔；憑證保留在 Hermes 中。"
+        case .zhHK: return "Hermes：按最後活動分組的工作階段累計用量，並非每日帳單。帳戶限額由本機 Hermes CLI 查詢已設定的設定檔；憑證保留在 Hermes 中。"
+        }
+        }())
+    }
+
     static func notchAgents(_ language: AppLanguage) -> NotchAgentStrings {
         switch language {
         case .enUS: return .enUS

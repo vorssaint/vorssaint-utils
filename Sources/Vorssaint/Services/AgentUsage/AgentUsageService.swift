@@ -30,6 +30,12 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAccountIdentity: ClaudeAccountProfile.Identity?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
+    @Published private(set) var hermesAccount: AgentHermesLimits.Reading?
+    @Published private(set) var hermesAccountChecking = false
+    @Published private(set) var hermesAccountFailure: AgentHermesLimits.Failure?
+    private let hermesAccountQueue = DispatchQueue(label: "com.vorssaint.hermes-limits", qos: .utility)
+    private var hermesAccountRequest: BoundedProcessCancellation?
+    private var hermesAccountAttempted = Date.distantPast
     let events = PassthroughSubject<AgentUsageEvent, Never>()
 
     /// The history the island can show: thirteen weeks for the activity map.
@@ -147,6 +153,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshHermesLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -160,6 +167,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelHermesLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -174,6 +182,7 @@ final class AgentUsageService: ObservableObject {
     private func resume() {
         paused = false
         startTimer()
+        refreshHermesLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             watch(AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile).filter { enabled.contains($0.provider) })
@@ -194,6 +203,10 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         running = false
         cancelClaudeLimits()
+        cancelHermesLimits()
+        hermesAccount = nil
+        hermesAccountFailure = nil
+        hermesAccountAttempted = .distantPast
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
@@ -255,6 +268,7 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshHermesLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -273,6 +287,55 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused, claudeAccountRequest == nil else { return }
         claudeAccountAttempted = .distantPast
         refreshClaudeLimits(pageShows: true)
+    /// Account quota is fetched by Hermes itself for the configured profile.
+    /// No auth files are read here. Disabled/locked islands do no network work.
+    func refreshHermesLimits(force: Bool = false) {
+        guard running, !paused, providers.contains(.hermes), hermesAccountRequest == nil else { return }
+        let now = Date()
+        if hermesAccount?.current(at: now) == nil {
+            let expected = session
+            queue.async { [self] in
+                guard readerSession == expected else { return }
+                store.clearLimits(.hermes)
+                schedulePublish()
+            }
+        }
+        guard force || now.timeIntervalSince(hermesAccountAttempted) >= 120 else { return }
+        hermesAccountAttempted = now
+        hermesAccountChecking = true
+        let request = BoundedProcessCancellation()
+        hermesAccountRequest = request
+        let expected = session
+        let profileHome = AgentLogRoot.hermesHome(home: home)
+        hermesAccountQueue.async { [weak self] in
+            let result = AgentHermesLimits.fetch(home: profileHome, cancellation: request)
+            DispatchQueue.main.async {
+                guard let self, self.running, !self.paused, self.session == expected,
+                      self.hermesAccountRequest === request else { return }
+                self.hermesAccountRequest = nil
+                self.hermesAccountChecking = false
+                switch result {
+                case .success(let reading):
+                    self.hermesAccount = reading
+                    self.hermesAccountFailure = reading.current(at: Date()) == nil ? .unavailable : nil
+                case .failure(let failure):
+                    self.hermesAccountFailure = failure
+                }
+                let limits = self.hermesAccount?.current(at: Date())?.limits
+                self.queue.async { [self] in
+                    guard self.readerSession == expected, self.enabled.contains(.hermes) else { return }
+                    if let limits { self.store.updateLimits(limits) } else { self.store.clearLimits(.hermes) }
+                    self.checkLimits()
+                    self.schedulePublish()
+                }
+            }
+        }
+    }
+
+    private func cancelHermesLimits() {
+        hermesAccountRequest?.cancel()
+        hermesAccountRequest = nil
+        hermesAccountChecking = false
     }
 
     // MARK: Reading
@@ -325,7 +388,7 @@ final class AgentUsageService: ObservableObject {
             // A budget already passed before launch is history, not news.
             let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
             if let budget = NotchAgentSupport.dailyBudget(),
-               store.records.lazy.filter({ $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
+               store.records.lazy.filter({ $0.provider != .hermes && $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
                 budgetDay = today
             }
             watch(roots)
@@ -501,7 +564,9 @@ final class AgentUsageService: ObservableObject {
         guard let cancellation = readerCancellation, !cancellation.isCancelled else { return false }
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
-            return store.forget(file: path)
+            let changed = store.forget(file: path)
+            if provider == .hermes { store.forget(files: [path]) }
+            return changed || provider == .hermes
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
@@ -579,6 +644,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshHermesLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -704,7 +770,7 @@ final class AgentUsageService: ObservableObject {
     /// A warned window that renews brings its agent back: worth a word.
     private func reportRenewals(now: Date) {
         for (id, entry) in warned {
-            guard let resets = entry.window.resetsAt, resets <= now else { continue }
+            guard entry.provider != .hermes, let resets = entry.window.resetsAt, resets <= now else { continue }
             warned[id] = nil
             report(.limitReset(provider: entry.provider, window: entry.window))
         }
@@ -713,7 +779,7 @@ final class AgentUsageService: ObservableObject {
     private func checkBudget(_ snapshot: AgentUsageSnapshot) {
         guard store.reportsTransitions, let budget = NotchAgentSupport.dailyBudget() else { return }
         let today = Calendar.autoupdatingCurrent.startOfDay(for: snapshot.now)
-        let spent = snapshot.usage(.today).total.cost
+        let spent = snapshot.dailyBudgetCost
         guard spent >= budget, budgetDay != today else { return }
         budgetDay = today
         report(.budgetReached(spent: spent, budget: budget))

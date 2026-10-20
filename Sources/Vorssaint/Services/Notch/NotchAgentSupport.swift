@@ -138,7 +138,18 @@ enum NotchAgentSupport {
     /// or the one closest to running out while the account reports no such
     /// window. A model's own allowance is never the chosen one.
     static func focusedLimit(_ limits: AgentLimits?, focus: NotchAgentLimitFocus, now: Date) -> AgentLimitWindow? {
-        chosenLimit(limits, focus: focus, now: now) ?? AgentLimitSupport.binding(limits, now: now)
+        let limits = currentLimits(limits, now: now)
+        return chosenLimit(limits, focus: focus, now: now) ?? AgentLimitSupport.binding(limits, now: now)
+    }
+
+    /// Hermes quota is unknown once stale or reset; never synthesize a free window.
+    private static func currentLimits(_ limits: AgentLimits?, now: Date) -> AgentLimits? {
+        guard var limits else { return nil }
+        guard limits.provider == .hermes else { return limits }
+        let age = now.timeIntervalSince(limits.observedAt)
+        guard age >= -60, age < 600 else { return nil }
+        limits.windows.removeAll { $0.resetsAt.map { $0 <= now } ?? false }
+        return limits.windows.isEmpty ? nil : limits
     }
 
     /// The plan-wide window of the chosen kind; nil for the most used one or
@@ -159,7 +170,9 @@ enum NotchAgentSupport {
     static func restingLimit(_ snapshot: AgentUsageSnapshot, focus: NotchAgentLimitFocus,
                              now: Date) -> (provider: AgentProvider, window: AgentLimitWindow)? {
         func mostSpent(_ pick: (AgentLimits) -> AgentLimitWindow?) -> (provider: AgentProvider, window: AgentLimitWindow)? {
-            snapshot.limits.compactMap { provider, limits in pick(limits).map { (provider: provider, window: $0) } }.max {
+            snapshot.limits.compactMap { provider, limits in
+                currentLimits(limits, now: now).flatMap(pick).map { (provider: provider, window: $0) }
+            }.max {
                 $0.window.usedPercent != $1.window.usedPercent ? $0.window.usedPercent < $1.window.usedPercent
                     : $0.provider.rawValue > $1.provider.rawValue
             }
@@ -338,7 +351,8 @@ enum NotchAgentSupport {
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
         if row.contains(where: \.card.fullWidth) { return chartHeight }
-        return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
+        return row.contains { $0.accountID != nil || $0.namesDefaultAccount || $0.provider == .hermes }
+            ? accountCardHeight : cardHeight
     }
 
     /// An account card's line in place of its windows while it has none, or

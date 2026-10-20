@@ -101,6 +101,11 @@ struct AgentUsageSnapshot: Equatable {
     /// Providers with anything on disk: usage, limits or a turn.
     var seen: Set<AgentProvider> = []
 
+    /// Session checkpoints have no daily cost ledger, so cannot trip daily alerts.
+    var dailyBudgetCost: Double {
+        max(0, usage(.today).total.cost - (usage(.today).byProvider[.hermes]?.cost ?? 0))
+    }
+
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }
 }
@@ -144,7 +149,7 @@ enum AgentUsageSummary {
             if record.provider == .claude, record.date > now.addingTimeInterval(-blockHistory), record.date <= now {
                 claude.append(record)
             }
-            if record.date >= recent, record.date <= now {
+            if record.provider != .hermes, record.date >= recent, record.date <= now {
                 snapshot.burnRate[record.provider, default: AgentTotals()].add(record)
             }
             guard let first = starts.first, record.date >= first, record.date < tomorrow,
@@ -354,7 +359,7 @@ final class AgentUsageSummaryCache {
     }
 
     private func isRecent(_ record: AgentUsageRecord, now: Date) -> Bool {
-        guard providers.contains(record.provider) else { return false }
+        guard providers.contains(record.provider), record.provider != .hermes else { return false }
         return record.provider == .claude
             ? record.date > now.addingTimeInterval(-AgentUsageSummary.blockHistory)
             : record.date >= now.addingTimeInterval(-AgentUsageSummary.burnWindow)
