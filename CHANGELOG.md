@@ -45,9 +45,10 @@ Clipboard history that can expire old items and a hidden Dynamic Island that sti
 - Quit Protection in Screen Sharing and other remote desktop or virtual machine apps passes a ⌘Q confirmed by holding it or pressing it twice on to the other computer instead of quitting the app itself.
 - Smooth scrolling keeps its glide in the window or scroll area where it started instead of carrying into the one under the pointer.
 - Quit on close no longer quits an app when you minimize its window, as Premiere Pro did.
+- Extra Brightness no longer leaves only the wallpaper in Mission Control's desktop thumbnails.
 
 ### Contributors
-Thanks to @andrewgribben, @bebricoOOOOOOf, @becastellani, @bharathvbcr, @cdbrandt729-code, @Chubi01, @Dusk-afk, @emreertunc, @iltonandrew, @jainnam-1993, @juanra, @Likheet, @marianhoenscheid, @mendozal, @mikeknight85, @mmoradi97, @mschoeffmann, @pedro-fontinele, @RKeyProg, @rohanod, @root-daemon, @StudioKeys, @suhrudsh, @ucrbuffalo, @webipsum, @Yahddyyp and @Zvzdov.
+Thanks to @andrewgribben, @baacon, @bebricoOOOOOOf, @becastellani, @bharathvbcr, @cdbrandt729-code, @Chubi01, @Dusk-afk, @emreertunc, @iltonandrew, @jainnam-1993, @juanra, @Likheet, @marianhoenscheid, @mendozal, @mikeknight85, @mmoradi97, @mschoeffmann, @pedro-fontinele, @RKeyProg, @rohanod, @root-daemon, @StudioKeys, @suhrudsh, @ucrbuffalo, @webipsum, @Yahddyyp and @Zvzdov.
 Feedback: Brain.
 
 ## [3.4.2-beta.1] - 2026-10-18
