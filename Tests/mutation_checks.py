@@ -1497,6 +1497,10 @@ MUTATIONS = [
      "Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift",
      "            if windowIsMinimized(CGWindowID(windowID)) { return true }\n", "",
      "a window minimized into the Dock keeps its app running when Accessibility cannot see it (#3249)"),
+    ("Extra Brightness covers the screen with one full screen window", "app-management",
+     "Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift",
+     "        return [lower, upper]\n", "        return [lower.union(upper)]\n",
+     "no extra brightness overlay window reads as a full screen window"),
 ]
 
 

@@ -362,6 +362,30 @@ enum AppManagementFeatureTests {
                && !ExtraBrightnessSupport.canReuseSpaceWindows(
                    sameDisplay: true, overlayOnActiveSpace: true, triggerOnActiveSpace: false),
                "display changes and incomplete Space handoffs still rebuild the overlay pair")
+        for ebScreen in [CGRect(x: 0, y: 0, width: 1512, height: 982),
+                         CGRect(x: 0, y: 0, width: 1728, height: 1117),
+                         CGRect(x: -1800, y: 140, width: 1800, height: 1169)] {
+            let ebFrames = ExtraBrightnessSupport.overlayFrames(for: ebScreen)
+            let ebArea = ebFrames.reduce(CGFloat(0)) { $0 + $1.width * $1.height }
+            let ebOverlap = ebFrames.indices.contains { first in
+                ebFrames.indices.contains { second in
+                    first < second && !ebFrames[first].intersection(ebFrames[second]).isEmpty
+                }
+            }
+            suite.expect(ebFrames.reduce(CGRect.null) { $0.union($1) } == ebScreen
+                   && ebArea == ebScreen.width * ebScreen.height && !ebOverlap
+                   && ebFrames.allSatisfy { $0 == $0.integral },
+                   "the extra brightness overlay windows tile \(ebScreen) on whole points")
+            // AppKit reports a window above the main menu whose frame contains
+            // the screen's safe area (the screen below the camera housing) as a
+            // full screen window, which left only the wallpaper in Mission
+            // Control's desktop thumbnails (#3292). A generous 64 pt housing
+            // covers every notch.
+            let ebSafeArea = CGRect(x: ebScreen.minX, y: ebScreen.minY,
+                                    width: ebScreen.width, height: ebScreen.height - 64)
+            suite.expect(!ebFrames.contains { $0.contains(ebSafeArea) },
+                   "no extra brightness overlay window reads as a full screen window on \(ebScreen)")
+        }
         var ebFactor = 1.48
         var ebLow = 0
         for ebEngaged in [true, false, false, false, true, true] {
