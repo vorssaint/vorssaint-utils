@@ -1824,13 +1824,13 @@ final class CommandBarService: ObservableObject {
         let scriptMatch = isEnabled(.links)
             ? CommandBarLinks.matchingScriptLink(in: savedLinks, query: trimmed)
             : nil
-        var scriptAnswer: CommandBarEntry?
+        var scriptAnswers: [CommandBarEntry] = []
         if let scriptMatch, !hiddenCache.contains("link.\(scriptMatch.link.id.uuidString)") {
             if let result = scriptRunner.cachedResult(linkID: scriptMatch.link.id,
                                                        argument: scriptMatch.argument) {
                 scriptRunner.cancelPending()
-                scriptAnswer = CommandBarCatalog.scriptAnswerEntry(link: scriptMatch.link,
-                                                                   result: result, bar: bar)
+                scriptAnswers = CommandBarCatalog.scriptAnswerEntries(link: scriptMatch.link,
+                                                                      result: result, bar: bar)
             } else {
                 scriptRunner.schedule(link: scriptMatch.link, argument: scriptMatch.argument)
             }
@@ -1890,7 +1890,7 @@ final class CommandBarService: ObservableObject {
                 CommandBarLinks.matchingScriptLinks(in: savedLinks, query: trimmed)
                     .map { "link.\($0.id.uuidString)" })
             pool.removeAll {
-                matchingScriptIDs.contains($0.id) && (scriptAnswer != nil || $0.id != winnerID)
+                matchingScriptIDs.contains($0.id) && (!scriptAnswers.isEmpty || $0.id != winnerID)
             }
         }
         // Quitting an app is a rare, heavy verb: its rows only join the list
@@ -1985,7 +1985,7 @@ final class CommandBarService: ObservableObject {
         var result: [CommandBarEntry] = []
         if let answer, colorPreview == nil { result.append(answer) }
         if let openURL { result.append(openURL) }
-        if let scriptAnswer { result.append(scriptAnswer) }
+        result.append(contentsOf: scriptAnswers)
         for index in ranked {
             let entry = pool[index]
             if entry.id.hasPrefix("answer."),

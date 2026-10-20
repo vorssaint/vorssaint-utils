@@ -2205,6 +2205,69 @@ enum CommandBarFeatureTests {
         suite.expect(CommandBarLinks.resultText("   \n") == nil,
                "empty output means nothing is ready yet")
 
+        // MARK: Script item JSON parsing and legacy fallback
+        suite.expect(CommandBarLinks.parseScriptItems("not json at all") == nil,
+               "plain text strings return nil to maintain legacy behavior")
+        suite.expect(CommandBarLinks.parseScriptItems("line 1\nline 2\nline 3") == nil,
+               "multi-line plain text strings return nil to maintain legacy behavior")
+        suite.expect(CommandBarLinks.parseScriptItems("{ invalid json }") == nil,
+               "invalid JSON returns nil without crashing")
+        suite.expect(CommandBarLinks.parseScriptItems("[]") == nil,
+               "empty array returns nil")
+        suite.expect(CommandBarLinks.parseScriptItems("{}") == nil,
+               "empty object returns nil")
+        suite.expect(CommandBarLinks.parseScriptItems("{\"items\": []}") == nil,
+               "object with empty items returns nil")
+
+        // Array of strings
+        let stringArray = CommandBarLinks.parseScriptItems("[\"alpha\", \"beta\", \"gamma\"]")
+        suite.expect(stringArray == [
+            CommandBarScriptItem(title: "alpha", subtitle: nil, value: "alpha"),
+            CommandBarScriptItem(title: "beta", subtitle: nil, value: "beta"),
+            CommandBarScriptItem(title: "gamma", subtitle: nil, value: "gamma"),
+        ], "array of strings parses to items where value equals title")
+
+        // Alternate key names in objects
+        let altKeys = CommandBarLinks.parseScriptItems("""
+        [
+            {"name": "Name1", "description": "Desc1", "copy": "Copy1"},
+            {"label": "Label2", "hint": "Hint2", "content": "Content2"},
+            {"text": "Text3", "detail": "Detail3", "arg": "Arg3"}
+        ]
+        """)
+        suite.expect(altKeys == [
+            CommandBarScriptItem(title: "Name1", subtitle: "Desc1", value: "Copy1"),
+            CommandBarScriptItem(title: "Label2", subtitle: "Hint2", value: "Content2"),
+            CommandBarScriptItem(title: "Text3", subtitle: "Detail3", value: "Arg3"),
+        ], "alternate property names (name/label/text, desc/hint/detail, copy/content/arg) are mapped correctly")
+
+        // Numerical values and types
+        let numValues = CommandBarLinks.parseScriptItems("[{\"title\": \"Port\", \"value\": 8080}]")
+        suite.expect(numValues == [
+            CommandBarScriptItem(title: "Port", subtitle: nil, value: "8080")
+        ], "numerical values are cleanly coerced to strings")
+
+        // Container wrappers: options, results, rows, data
+        for key in ["options", "results", "rows", "data"] {
+            let wrapped = CommandBarLinks.parseScriptItems("{\"\(key)\": [\"one\", \"two\"]}")
+            suite.expect(wrapped?.count == 2 && wrapped?[0].title == "one" && wrapped?[1].title == "two",
+                   "wrapped array under key '\(key)' is correctly recognized")
+        }
+
+        // Single object format
+        let singleObj = CommandBarLinks.parseScriptItems("{\"title\": \"Standalone\", \"subtitle\": \"Sub\", \"value\": \"solo\"}")
+        suite.expect(singleObj == [
+            CommandBarScriptItem(title: "Standalone", subtitle: "Sub", value: "solo")
+        ], "single dictionary object is parsed into one item")
+
+        // Max limit of 12 items
+        let longList = (1...20).map { "Item \($0)" }
+        let longJSON = try! JSONEncoder().encode(longList)
+        let capped = CommandBarLinks.parseScriptItems(String(data: longJSON, encoding: .utf8)!)
+        suite.expect(capped?.count == 12 && capped?.first?.title == "Item 1" && capped?.last?.title == "Item 12",
+               "output is capped at 12 items to respect the Command Bar limit")
+
+
         let savedBeforeTheField = #"[{"id":"E621E1F8-C36C-495A-93FC-0C247A3E6E5F","name":"gh","#
             + #""kind":"link","destination":"https://x"}]"#
         let loadedOldShortcuts = CommandBarLinks.decode(Data(savedBeforeTheField.utf8))
