@@ -1446,27 +1446,42 @@ enum AppManagementFeatureTests {
         ]
         let trafficLightWindow = CGRect(x: -1200, y: 300, width: 800, height: 500)
         func isOnCloseButton(_ point: CGPoint) -> Bool {
-            WindowServerSupport.contains(CGPoint(x: trafficLightWindow.minX + point.x,
-                                                 y: trafficLightWindow.minY + point.y),
-                                         inCloseButtonOf: trafficLightWindow)
+            let click = CGPoint(x: trafficLightWindow.minX + point.x, y: trafficLightWindow.minY + point.y)
+            return WindowServerSupport.contains(click, inCloseButtonOf: trafficLightWindow)
         }
+        // Plain loops and typed steps: Swift 6.0.3 cannot type-check nested
+        // stride closures with this arithmetic in time.
         func dotPoints(around center: CGPoint, radius: CGFloat) -> [CGPoint] {
-            stride(from: CGFloat(-radius), through: radius, by: 0.25).flatMap { x in
-                stride(from: CGFloat(-radius), through: radius, by: 0.25).compactMap { y in
-                    x * x + y * y <= radius * radius ? CGPoint(x: center.x + x, y: center.y + y) : nil
+            var points: [CGPoint] = []
+            var x: CGFloat = -radius
+            while x <= radius {
+                var y: CGFloat = -radius
+                while y <= radius {
+                    let distanceSquared: CGFloat = x * x + y * y
+                    if distanceSquared <= radius * radius {
+                        points.append(CGPoint(x: center.x + x, y: center.y + y))
+                    }
+                    y += 0.25
                 }
+                x += 0.25
+            }
+            return points
+        }
+        var otherButtonsTakenForClose: [String] = []
+        var closeButtonsMissed: [String] = []
+        for layout in trafficLightLayouts {
+            for other in layout.others where dotPoints(around: other, radius: 7).contains(where: isOnCloseButton) {
+                otherButtonsTakenForClose.append(layout.name)
+            }
+            let dot: [CGPoint] = dotPoints(around: layout.close, radius: 7)
+            let countedShare: Double = Double(dot.filter(isOnCloseButton).count) / Double(dot.count)
+            let centerCounts: Bool = dotPoints(around: layout.close, radius: 4).allSatisfy(isOnCloseButton)
+            if !centerCounts || countedShare < 0.9 {
+                closeButtonsMissed.append(layout.name)
             }
         }
-        let otherButtonsTakenForClose = trafficLightLayouts.filter { layout in
-            layout.others.contains { dotPoints(around: $0, radius: 7).contains(where: isOnCloseButton) }
-        }.map(\.name)
         suite.expect(otherButtonsTakenForClose.isEmpty,
                "without Accessibility, a click on the minimize or zoom button is never taken for the close button (#3249): \(otherButtonsTakenForClose)")
-        let closeButtonsMissed = trafficLightLayouts.filter { layout in
-            let dot = dotPoints(around: layout.close, radius: 7)
-            return !dotPoints(around: layout.close, radius: 4).allSatisfy(isOnCloseButton)
-                || Double(dot.filter(isOnCloseButton).count) < 0.9 * Double(dot.count)
-        }.map(\.name)
         suite.expect(closeButtonsMissed.isEmpty,
                "without Accessibility, a click on the close button still counts in every title bar style: \(closeButtonsMissed)")
         suite.expect(!isOnCloseButton(CGPoint(x: 8, y: 40)) && !isOnCloseButton(CGPoint(x: 40, y: 40))
@@ -1482,10 +1497,11 @@ enum AppManagementFeatureTests {
             kCGWindowOwnerPID as String: NSNumber(value: 1001),
             kCGWindowNumber as String: NSNumber(value: 11),
         ]
-        suite.expect(WindowServerSupport.trafficLightCandidate(
-                        in: [trafficLightEntry],
-                        at: CGPoint(x: trafficLightWindow.minX + 39, y: trafficLightWindow.minY + 16),
-                        button: .close, ownProcessID: 501, pidIsEligible: { _ in true })?.frame == trafficLightWindow,
+        let minimizeClick = CGPoint(x: trafficLightWindow.minX + 39, y: trafficLightWindow.minY + 16)
+        let minimizeClickCandidate = WindowServerSupport.trafficLightCandidate(
+            in: [trafficLightEntry], at: minimizeClick, button: .close,
+            ownProcessID: 501, pidIsEligible: { _ in true })
+        suite.expect(minimizeClickCandidate?.frame == trafficLightWindow,
                "a traffic light click carries the window's frame, so the close button's place can be judged")
         suite.expect(AutoQuitSupport.isWindowButtonOtherThanClose(subrole: kAXMinimizeButtonSubrole)
                 && AutoQuitSupport.isWindowButtonOtherThanClose(subrole: kAXZoomButtonSubrole)
