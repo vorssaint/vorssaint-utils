@@ -34,17 +34,21 @@ struct NotchAgentStrip: View {
         let working = working(live)
         let tint = working.first?.tint ?? .white
         let budget = geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
-        let iconSize = min(working.count > 1 ? 11.0 : 14.0, max(8, budget - 4))
+        let mark = NotchAgentWorkingLayout(live, budget: budget)
         let textSize = NotchAgentSupport.stripTextSize(height: geometry.compactActivityContentHeight)
         let iconInset = !geometry.compactActivityUsesFooter
-            ? geometry.compactActivityEdgeInset(boxHeight: iconSize + 4, radius: (iconSize + 4) / 2) : 0
+            ? geometry.compactActivityEdgeInset(boxHeight: mark?.ring ?? 14, radius: (mark?.ring ?? 14) / 2) : 0
         let textInset = !geometry.compactActivityUsesFooter
             ? geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0) : 0
         HStack(spacing: 0) {
             Button { service.openActivity(.agents) } label: {
                 HStack(spacing: 1) {
-                    if geometry.compactActivityWingWidth >= 28 {
-                        ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
+                    if geometry.compactActivityWingWidth >= 28, let mark {
+                        NotchAgentWorkingMark(layout: mark,
+                                              window: NotchAgentSupport.focusedLimit(
+                                                usage.snapshot.limits[mark.provider],
+                                                focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: Date()),
+                                              used: display == NotchAgentLimitDisplay.used.rawValue)
                     }
                 }
                 .padding(.leading, iconInset)
@@ -84,11 +88,24 @@ struct NotchAgentStrip: View {
         .padding(.top, geometry.compactActivityTopPadding)
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(working.map(\.displayName).joined(separator: ", "))
+        .accessibilityLabel(speech(working: working, live: live))
         .accessibilityValue(reading(at: Date(), live: live))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { service.openActivity(.agents) }
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+    }
+
+    /// "Claude, 2 in terminal, 1 in app", then any other agent working.
+    private func speech(working: [AgentProvider], live: [AgentLiveSession]) -> String {
+        let places = FeatureStrings.notchAgentPlaces(l10n.language)
+        return working.map { provider in
+            let own = live.filter { $0.provider == provider }
+            let counts = [AgentSessionPlace.terminal, .app].compactMap { place -> String? in
+                let count = own.filter { $0.place == place }.count
+                return count > 0 ? places.count(place, count) : nil
+            }
+            return ([provider.displayName] + counts).joined(separator: ", ")
+        }.joined(separator: "; ")
     }
 
     private func reading(at now: Date, live: [AgentLiveSession]) -> String {

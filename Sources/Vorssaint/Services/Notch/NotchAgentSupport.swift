@@ -578,7 +578,78 @@ enum NotchAgentSupport {
 
 /// Numbers in the reader's region; costs in US dollars, the currency both
 /// providers list their prices in.
+/// The closed island's mark while agents work: the agent whose turn runs
+/// longest inside its limit ring, and beside the ring a badge for each place
+/// it works, terminal above app, with a count from two sessions up.
+struct NotchAgentWorkingLayout: Equatable {
+    static let gap: CGFloat = 2
+    static let badgeGap: CGFloat = 1
+
+    let provider: AgentProvider
+    let terminal: Int
+    let app: Int
+    let ring: CGFloat
+
+    init(provider: AgentProvider, terminal: Int, app: Int, budget: CGFloat) {
+        self.provider = provider
+        self.terminal = terminal
+        self.app = app
+        ring = max(10, min(20, budget))
+    }
+
+    /// The working agent's sessions by place, from the snapshot's turns.
+    init?(_ live: [AgentLiveSession], budget: CGFloat) {
+        // The snapshot keeps turns oldest first: its first runs longest.
+        guard let provider = live.first?.provider else { return nil }
+        let own = live.filter { $0.provider == provider }
+        self.init(provider: provider, terminal: own.filter { $0.place == .terminal }.count,
+                  app: own.filter { $0.place == .app }.count, budget: budget)
+    }
+
+    var stacked: Bool { terminal > 0 && app > 0 }
+    var badgeHeight: CGFloat { stacked ? (ring - Self.badgeGap) / 2 : ring * 0.6 }
+    var badgeIcon: CGFloat { (badgeHeight - 2).rounded(.down) }
+    var countSize: CGFloat { max(6, badgeHeight - 2) }
+
+    /// The icon, and the count's digits beside it from two sessions up.
+    func badgeWidth(count: Int) -> CGFloat {
+        let padding: CGFloat = 3
+        guard count > 1 else { return max(badgeHeight, badgeIcon + padding) }
+        let digits = CGFloat(String(count).count) * countSize * 0.62
+        return badgeIcon + 1 + digits + padding
+    }
+
+    var width: CGFloat {
+        let badges = [terminal, app].filter { $0 > 0 }.map { badgeWidth(count: $0) }
+        guard let widest = badges.max() else { return ring }
+        return ring + Self.gap + widest
+    }
+}
+
 enum AgentFormat {
+    /// Spending colors: green under $100, yellow to $500, red beyond.
+    enum SpendLevel: Equatable {
+        case low, medium, high
+    }
+
+    static func spendLevel(_ value: Double) -> SpendLevel {
+        if value >= 500 { return .high }
+        if value >= 100 { return .medium }
+        return .low
+    }
+
+    /// When a limit renews, as a clock time: "4:26 PM" today, "Sat 3:33 PM"
+    /// on a later day, "Oct 30" beyond a week.
+    static func resetTime(_ date: Date, now: Date, locale: Locale, calendar: Calendar = .autoupdatingCurrent) -> String {
+        if calendar.isDate(date, inSameDayAs: now) {
+            return date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(locale))
+        }
+        if date.timeIntervalSince(now) < 6 * 86_400 {
+            return date.formatted(Date.FormatStyle().weekday(.abbreviated).hour().minute().locale(locale))
+        }
+        return date.formatted(Date.FormatStyle().month(.abbreviated).day().locale(locale))
+    }
+
     static func cost(_ value: Double, locale: Locale = .autoupdatingCurrent) -> String {
         guard value.isFinite else { return "$0" }
         let magnitude = abs(value)

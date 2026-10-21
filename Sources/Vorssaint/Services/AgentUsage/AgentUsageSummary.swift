@@ -98,6 +98,9 @@ struct AgentUsageSnapshot: Equatable {
     var plans: [AgentProvider: AgentPlan] = [:]
     var live: [AgentLiveSession] = []
     var claudeBlock: AgentBlock?
+    /// The same window counted from the Claude app's responses only, which the
+    /// plan pays for when an API key pays for Claude Code elsewhere.
+    var claudeAppBlock: AgentBlock?
     /// The last half hour, scaled to an hour.
     var burnRate: [AgentProvider: AgentTotals] = [:]
     var lastActivity: [AgentProvider: Date] = [:]
@@ -203,6 +206,7 @@ enum AgentUsageSummary {
         snapshot.days = days
         snapshot.hours = hours
         snapshot.claudeBlock = currentBlock(claude, now: now)
+        snapshot.claudeAppBlock = currentBlock(claude.filter(\.claudeApp), now: now)
         return snapshot
     }
 
@@ -354,6 +358,7 @@ final class AgentUsageSummaryCache {
             result.burnRate[provider]!.savings *= 2
         }
         result.claudeBlock = AgentUsageSummary.currentBlock(claude, now: now)
+        result.claudeAppBlock = AgentUsageSummary.currentBlock(claude.filter(\.claudeApp), now: now)
         return result
     }
 

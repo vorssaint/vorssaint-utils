@@ -16,6 +16,109 @@ extension AgentProvider {
     }
 }
 
+/// When a limit renews, in teal: good news, kept apart from the agents'
+/// colors and the green, yellow and red of spending.
+let agentResetTint = Color(red: 0x40 / 255, green: 0xC8 / 255, blue: 0xE0 / 255)
+
+/// An amount at API prices: green under $100, yellow to $500, red beyond.
+func agentSpendTint(_ value: Double) -> Color {
+    switch AgentFormat.spendLevel(value) {
+    case .low: return Color(red: 0x5F / 255, green: 0xD0 / 255, blue: 0x68 / 255)
+    case .medium: return Color(red: 0xF2 / 255, green: 0xC9 / 255, blue: 0x4C / 255)
+    case .high: return Color(red: 1, green: 0x45 / 255, blue: 0x3A / 255)
+    }
+}
+
+/// A terminal's prompt, `>_`, drawn to fit any square.
+struct NotchAgentTerminalMark: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + w * 0.16, y: rect.minY + h * 0.24))
+        path.addLine(to: CGPoint(x: rect.minX + w * 0.44, y: rect.minY + h * 0.5))
+        path.addLine(to: CGPoint(x: rect.minX + w * 0.16, y: rect.minY + h * 0.76))
+        path.move(to: CGPoint(x: rect.minX + w * 0.54, y: rect.minY + h * 0.8))
+        path.addLine(to: CGPoint(x: rect.minX + w * 0.84, y: rect.minY + h * 0.8))
+        return path
+    }
+}
+
+/// Where a session runs: the terminal's prompt in white, or an app tile in
+/// the agent's own color with its mark in white.
+struct NotchAgentPlaceIcon: View {
+    let place: AgentSessionPlace
+    let provider: AgentProvider
+    let size: CGFloat
+    var tint: Color = .white
+
+    var body: some View {
+        Group {
+            switch place {
+            case .terminal:
+                NotchAgentTerminalMark()
+                    .stroke(tint, style: StrokeStyle(lineWidth: max(1, size * 0.13), lineCap: .round, lineJoin: .round))
+            case .app:
+                RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
+                    .fill(provider.tint)
+                    .overlay(NotchAgentMark(provider: provider, size: size * 0.62, tint: .white))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The closed island's mark while agents work: the agent inside its limit
+/// ring, read as the person chose (used or left), and its places beside it.
+struct NotchAgentWorkingMark: View {
+    let layout: NotchAgentWorkingLayout
+    let window: AgentLimitWindow?
+    let used: Bool
+
+    var body: some View {
+        HStack(spacing: NotchAgentWorkingLayout.gap) {
+            ZStack {
+                if let window {
+                    NotchAgentRing(value: used ? window.usedFraction : window.remainingFraction,
+                                   tint: ringTint(window), lineWidth: max(1.6, layout.ring * 0.1))
+                } else {
+                    Circle().stroke(.white.opacity(0.18), lineWidth: max(1.6, layout.ring * 0.1))
+                }
+                NotchAgentMark(provider: layout.provider, size: layout.ring * 0.5, tint: layout.provider.tint)
+            }
+            .frame(width: layout.ring, height: layout.ring)
+            VStack(alignment: .leading, spacing: NotchAgentWorkingLayout.badgeGap) {
+                if layout.terminal > 0 { badge(.terminal, count: layout.terminal) }
+                if layout.app > 0 { badge(.app, count: layout.app) }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    /// White while the window has room; the resting island's yellow and red
+    /// as it runs low, whichever way the ring is read.
+    private func ringTint(_ window: AgentLimitWindow) -> Color {
+        let status = NotchAgentSupport.restingStatus(usedFraction: window.usedFraction)
+        return status == .normal ? .white : agentStatusTint(status)
+    }
+
+    private func badge(_ place: AgentSessionPlace, count: Int) -> some View {
+        HStack(spacing: 1) {
+            NotchAgentPlaceIcon(place: place, provider: layout.provider, size: layout.badgeIcon)
+            if count > 1 {
+                Text("\(count)")
+                    .font(.system(size: layout.countSize, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+        .frame(width: layout.badgeWidth(count: count), height: layout.badgeHeight)
+        .background(Capsule(style: .continuous).fill(.white.opacity(0.2)))
+    }
+}
+
 /// The resting island's colors: green while a window has room, yellow once
 /// it runs low and red when it is almost out, as the system draws them dark.
 func agentStatusTint(_ status: NotchAgentRestingStatus) -> Color {

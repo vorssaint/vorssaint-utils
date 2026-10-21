@@ -145,6 +145,12 @@ struct AgentPlan: Equatable {
     let monthlyPrice: Double?
 }
 
+/// Where a person runs an agent: its command line in a terminal, or its own
+/// desktop app.
+enum AgentSessionPlace: Equatable {
+    case terminal, app
+}
+
 /// A turn an agent is working on right now, from its session log.
 struct AgentLiveSession: Equatable, Identifiable {
     let id: String
@@ -155,6 +161,7 @@ struct AgentLiveSession: Equatable, Identifiable {
     var project: String
     var tokens: AgentTokens
     var cost: Double
+    var place: AgentSessionPlace = .terminal
 }
 
 /// Something worth a moment in the closed island.
