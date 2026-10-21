@@ -72,7 +72,8 @@ enum CodexAccountLimitsTests {
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .resets], providers: [.claude, .codex], codexAccounts: [])
                         == NotchAgentSupport.tiles(cards: [.limits, .resets], providers: [.claude, .codex])
                         && NotchAgentSupport.height(of: [tiles[1], tiles[2]]) == NotchAgentSupport.accountCardHeight
-                        && NotchAgentSupport.height(of: [tiles[0], tiles[3]]) == NotchAgentSupport.cardHeight,
+                        && NotchAgentSupport.height(of: [tiles[0], tiles[3]]) == NotchAgentSupport.sessionCardHeight
+                        && NotchAgentSupport.height(of: [tiles[3]]) == NotchAgentSupport.cardHeight,
                      "without accounts the page is unchanged, and a row with an account card makes room for its time")
         suite.expect(tiles.last?.namesDefaultAccount == true
                         && NotchAgentSupport.height(of: [tiles[4]]) == NotchAgentSupport.accountCardHeight,

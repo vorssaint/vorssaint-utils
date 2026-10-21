@@ -470,8 +470,14 @@ private struct NotchAgentStripSample: View {
     var body: some View {
         NotchAgentReadoutTimeline(readout: readout) { date in
             let working = usage.snapshot.live.first?.provider ?? provider
+            // An example works in both places while nothing runs.
+            let mark = NotchAgentWorkingLayout(usage.snapshot.live, budget: 16)
+                ?? NotchAgentWorkingLayout(provider: provider, terminal: 1, app: 1, budget: 16)
             HStack(spacing: 0) {
-                NotchAgentGlyph(provider: working, size: 11)
+                NotchAgentWorkingMark(layout: mark,
+                                      window: NotchAgentSupport.focusedLimit(usage.snapshot.limits[mark.provider],
+                                                                             focus: focus, now: date),
+                                      used: display == .used)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Color.clear.frame(width: Self.camera)
                 Text(reading(at: date))
