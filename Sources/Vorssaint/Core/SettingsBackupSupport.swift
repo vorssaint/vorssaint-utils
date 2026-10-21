@@ -49,6 +49,7 @@ enum SettingsBackupSupport {
         DefaultsKey.autoQuitEnabled,
         DefaultsKey.shelfEnabled,
         DefaultsKey.finderCutPasteEnabled,
+        DefaultsKey.finderToolsConfiguration,
         DefaultsKey.textSnippets,
         DefaultsKey.radialMenuItems,
         DefaultsKey.radialMenuProfiles,

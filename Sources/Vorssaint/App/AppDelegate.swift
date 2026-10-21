@@ -54,6 +54,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var whatsNewWindow: NSWindow?
     private var whatsNewIsReview = false
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let request = urls.compactMap(FinderToolsRequest.init(url:)).first else { return }
+        FinderToolsService.shared.open(request: request)
+    }
+
+    @objc func openFinderTools(_ pasteboard: NSPasteboard, userData: String?,
+                               error: AutoreleasingUnsafeMutablePointer<NSString?>) {
+        guard let request = FinderToolsPasteboardSelection.request(from: pasteboard) else {
+            error.pointee = FinderToolsStrings.localized(L10n.shared.language).emptySelection as NSString
+            return
+        }
+        FinderToolsService.shared.open(request: request)
+    }
+
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -197,7 +211,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         L10n.shared.$language
             .dropFirst()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.installMainMenu() }
+            .sink { [weak self] _ in
+                self?.installMainMenu()
+                FinderToolsService.shared.publishMenu()
+            }
             .store(in: &cancellables)
 
         let defaults = UserDefaults.standard
@@ -242,6 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.presentUpdateIntros()
             }
         }
+        NSApp.servicesProvider = self
     }
 
     /// Asking another app about its windows waits for that app to answer, and
@@ -283,6 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard FinderToolsService.shared.prepareForTermination() else { return .terminateCancel }
         if inputSourceRestorationPending { return .terminateLater }
         guard CommandBarService.shared.hasBorrowedInputSource else { return .terminateNow }
         inputSourceRestorationPending = true
@@ -298,6 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        FinderToolsService.shared.suspend()
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.

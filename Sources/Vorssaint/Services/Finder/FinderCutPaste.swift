@@ -456,6 +456,23 @@ final class FinderCutPaste: ObservableObject {
 
     // MARK: - Cut
 
+    /// Explicit-selection entry point for Finder Tools. It shares the same
+    /// marks and clipboard generation as the keyboard workflow.
+    func cutFromTools(_ urls: [URL]) -> Bool {
+        guard AppFeature.finderCutPaste.isAvailable, cutPasteEnabled,
+              !moveInProgress, !urls.isEmpty, urls.allSatisfy(\.isFileURL) else { return false }
+        operationGeneration += 1
+        applyCut(urls)
+        return true
+    }
+
+    func pasteFromTools(into directory: URL) -> Bool {
+        guard AppFeature.finderCutPaste.isAvailable, cutPasteEnabled, directory.isFileURL,
+              !moveInProgress, !marked.isEmpty, NSPasteboard.general.changeCount == markedChangeCount else { return false }
+        pasteAsync(destination: directory)
+        return true
+    }
+
     private func cutAsync() {
         operationGeneration += 1
         let generation = operationGeneration
@@ -485,14 +502,14 @@ final class FinderCutPaste: ObservableObject {
 
     // MARK: - Paste (move)
 
-    private func pasteAsync() {
+    private func pasteAsync(destination: URL? = nil) {
         guard !moveInProgress else { return }
         moveInProgress = true
         operationGeneration += 1
         let generation = operationGeneration
         let urls = marked.map(\.url)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let destPath = FinderBridge.insertionLocationPath() else {
+            guard let destPath = destination?.path ?? FinderBridge.insertionLocationPath() else {
                 DispatchQueue.main.async {
                     self?.finishPaste(generation: generation, moved: 0, failed: urls.count,
                                       stillCut: [])

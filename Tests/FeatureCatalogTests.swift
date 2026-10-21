@@ -386,14 +386,14 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 77, "feature catalog has 77 features")
+        suite.expect(AppFeature.allCases.count == 78, "feature catalog has 78 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
             "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
-            "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
+            "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "finderTools", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
@@ -1500,18 +1500,18 @@ enum FeatureCatalogTests {
                               DefaultsKey.whatsAppOrganizerEnabled,
                               DefaultsKey.whatsAppDownloadsNotify]) == [.cleaner],
                "the experimental WhatsApp organizer can offer an undo notification")
-        suite.expect(activeSet(.filesAndFolders) == [],
-               "WhatsApp Downloads folder access stays unused until that cleaner is turned on")
-        suite.expect(activeSet(.filesAndFolders, on: [DefaultsKey.whatsAppDownloadsEnabled]) == [.cleaner],
-               "the cleaner owns WhatsApp Downloads folder access")
+        suite.expect(activeSet(.filesAndFolders) == [.finderTools],
+               "Finder tools use selected folders on demand; WhatsApp folder access stays unused until enabled")
+        suite.expect(activeSet(.filesAndFolders, on: [DefaultsKey.whatsAppDownloadsEnabled]) == [.cleaner, .finderTools],
+               "the enabled cleaner and Finder tools own their folder access")
 
         suite.expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
                "cleaner and uninstaller are on-demand full disk users")
         suite.expect(activeSet(.automationFinder, on: [DefaultsKey.finderCutPasteEnabled])
-                == [.finderCutPaste, .uninstaller, .quickToggles],
-               "finder automation is used by cut and paste, the uninstaller and the quick toggles")
+                == [.finderCutPaste, .finderTools, .uninstaller, .quickToggles],
+               "finder automation is used by cut and paste, Finder tools, the uninstaller and quick toggles")
         suite.expect(activeSet(.automationFinder, on: [DefaultsKey.finderPasteImageAsFile])
-                == [.finderCutPaste, .uninstaller, .quickToggles],
+                == [.finderCutPaste, .finderTools, .uninstaller, .quickToggles],
                "pasting copied images as files engages the shared Finder feature")
         suite.expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")
@@ -1525,13 +1525,13 @@ enum FeatureCatalogTests {
                "audio capture reads as unused once the mixer is off in the hub")
         suite.expect(activeSet(.audioCapture, on: [DefaultsKey.recorderSystemAudio]) == [.mixer, .screenRecorder],
                "the recorder uses audio capture only while the Mac's sound is a chosen source")
-        suite.expect(activeSet(.microphone).isEmpty
-                && activeSet(.microphone, on: [DefaultsKey.recorderMicrophone]) == [.screenRecorder],
-               "the recorder uses microphone access only when that optional source is on")
-        suite.expect(activeSet(.camera) == [.cameraPreview],
-               "the camera preview is the only on-demand camera user")
-        suite.expect(activeSet(.camera, available: Set(AppFeature.allCases).subtracting([.cameraPreview])) == [],
-               "the camera reads as unused once the preview is off in the hub")
+        suite.expect(activeSet(.microphone) == [.finderTools]
+                && activeSet(.microphone, on: [DefaultsKey.recorderMicrophone]) == [.screenRecorder, .finderTools],
+               "screen recording uses its optional microphone source; Finder recording asks on demand")
+        suite.expect(activeSet(.camera) == [.cameraPreview, .finderTools],
+               "camera preview and Finder camera recording use the camera on demand")
+        suite.expect(activeSet(.camera, available: Set(AppFeature.allCases).subtracting([.cameraPreview, .finderTools])) == [],
+               "the camera reads as unused when preview and Finder tools are unavailable")
         suite.expect(AppFeature.cameraPreview.permissions == [.camera]
                 && AppFeature.cameraPreview.enabledKeys.isEmpty,
                "the camera preview works on demand and only ever asks for the camera")

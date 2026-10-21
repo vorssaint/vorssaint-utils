@@ -22,3 +22,5 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaint, doğrulanmış WhatsApp indirmelerini açıkça seçtiğiniz bir hedef klasörde düzenler. Ekran görüntülerinizi buraya kaydediyorsanız Temizlik unutulan ekran görüntülerini de arar.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint, doğrulanmış WhatsApp indirmelerini açıkça seçtiğiniz bir hedef klasörde düzenler. Ekran görüntülerinizi buraya kaydediyorsanız Temizlik unutulan ekran görüntülerini de arar.";
 "NSCalendarsFullAccessUsageDescription" = "Yaklaşan randevularınızı ekranın üst kısmında gösterir. Takvim etkinlikleri bu Mac’te kalır.";
+
+"NSLocalNetworkUsageDescription" = "Vorssaint, paylaşımı başlattığınızda seçtiğiniz dosyaları yerel ağınızdaki cihazlarla paylaşır.";
