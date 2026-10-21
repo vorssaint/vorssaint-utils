@@ -274,7 +274,8 @@ extension AppFeature {
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
         case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled,
-                                      DefaultsKey.finderPasteImageAsFile]
+                                      DefaultsKey.finderPasteImageAsFile,
+                                      DefaultsKey.finderForwardDeleteTrash]
         case .finderRename: return [DefaultsKey.finderRenameEnabled]
         case .shelf: return [DefaultsKey.shelfEnabled]
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
@@ -508,6 +509,11 @@ extension AppFeature {
             let keys = feature.enabledKeys
             guard keys.isEmpty || keys.contains(where: boolFor) else { return false }
             switch (feature, permission) {
+            case (.finderCutPaste, .automationFinder):
+                // The forward delete key only rewrites a keystroke and never
+                // asks Finder for anything.
+                return boolFor(DefaultsKey.finderCutPasteEnabled)
+                    || boolFor(DefaultsKey.finderPasteImageAsFile)
             case (.notch, .automationPlayback):
                 return !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")
             case (.switcher, .screenRecording):
