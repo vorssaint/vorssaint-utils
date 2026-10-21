@@ -78,6 +78,21 @@ enum CodexAccountLimitsTests {
         suite.expect(tiles.last?.namesDefaultAccount == true
                         && NotchAgentSupport.height(of: [tiles[4]]) == NotchAgentSupport.accountCardHeight,
                      "the Resets card beside accounts makes room for the account it names")
+        let codexLimits = NotchAgentTile(card: .limits, provider: .codex)
+        let spend = NotchAgentTile(card: .spend, provider: nil)
+        let codexLive = (0..<2).map {
+            AgentLiveSession(id: "codex-\($0)", provider: .codex, started: now, lastActivity: now, model: "gpt-5",
+                             project: "p\($0)", tokens: AgentTokens(), cost: 0, place: .app)
+        }
+        suite.expect(NotchAgentSupport.height(of: [codexLimits, spend], live: codexLive)
+                        == NotchAgentSupport.sessionCardHeight + NotchAgentSupport.sessionRowHeight
+                        && NotchAgentSupport.height(of: [codexLimits, spend], live: Array(codexLive.prefix(1)))
+                        == NotchAgentSupport.sessionCardHeight
+                        && NotchAgentSupport.height(of: [spend], live: codexLive) == NotchAgentSupport.sessionCardHeight,
+                     "two Codex sessions grow Codex's row by one, and Spending beside it matches; alone it does not grow")
+        suite.expect(NotchAgentSupport.height(of: [tiles[1], tiles[2]], live: codexLive) == NotchAgentSupport.accountCardHeight
+                        && NotchAgentSupport.sessionPlaces(.codex, live: codexLive) == [.app],
+                     "an added account's card lists no sessions, and Codex's app sessions take the only slot")
         func notes(windows: Bool, checking: Bool = false, failure: String?) -> (placeholder: String?, caption: String?) {
             NotchAgentSupport.accountNotes(hasWindows: windows, checking: checking, failure: failure, hint: "Refresh",
                                            loading: "Loading", updated: windows ? "Updated" : nil)

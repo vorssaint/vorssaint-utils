@@ -97,8 +97,8 @@ struct NotchAgentTile: Identifiable, Equatable {
     var splitsBilling = false
     var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "") }
     var fullWidth: Bool { card.fullWidth || splitsBilling }
-    /// Claude's and Codex's own limits cards keep a row for the sessions
-    /// they pay for, running or not, so the card never changes size.
+    /// Claude's and Codex's own limits cards list the sessions they pay for,
+    /// a row each, and keep one row while none runs.
     var showsSessions: Bool {
         card == .limits && accountID == nil && (provider == .claude || provider == .codex)
     }
@@ -501,11 +501,14 @@ enum NotchAgentSupport {
     /// An account card's reading, checked every five minutes, has missed two.
     static let accountStaleness: TimeInterval = 10 * 60
     /// Claude's split card: the plan and the API key side by side, or one
-    /// above the other where cards do not pair.
+    /// above the other where cards do not pair. Each size holds one session
+    /// row per slot; a card grows a row for every session past the first.
     static let splitHeight: CGFloat = 178
     static let stackedSplitHeight: CGFloat = 300
-    /// A limits card with its sessions' row under the meters.
+    /// A limits card with one row of sessions under the meters.
     static let sessionCardHeight: CGFloat = 156
+    /// One running session in a limits card.
+    static let sessionRowHeight: CGFloat = 26
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
@@ -558,12 +561,37 @@ enum NotchAgentSupport {
         return rows
     }
 
-    static func height(of row: [NotchAgentTile], width: CGFloat = .infinity) -> CGFloat {
-        if row.contains(where: \.splitsBilling) { return width >= pairWidth ? splitHeight : stackedSplitHeight }
+    /// A row's cards share its height, so a card beside a taller one, such
+    /// as Spending beside Codex's sessions, grows with it.
+    static func height(of row: [NotchAgentTile], width: CGFloat = .infinity, live: [AgentLiveSession] = []) -> CGFloat {
+        let growth = row.map { sessionGrowth($0, live: live, width: width) }.max() ?? 0
+        if row.contains(where: \.splitsBilling) { return (width >= pairWidth ? splitHeight : stackedSplitHeight) + growth }
         if row.contains(where: \.card.fullWidth) { return chartHeight }
         let height = row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
         // Spending lists its top models under the total.
-        return row.contains { $0.showsSessions || $0.card == .spend } ? max(height, sessionCardHeight) : height
+        return (row.contains { $0.showsSessions || $0.card == .spend } ? max(height, sessionCardHeight) : height) + growth
+    }
+
+    /// Where a limits card's sessions show: the app and the terminal for
+    /// Claude, the app alone for Codex unless its command line is working too.
+    static func sessionPlaces(_ provider: AgentProvider, live: [AgentLiveSession]) -> [AgentSessionPlace] {
+        provider == .codex && !live.contains { $0.provider == .codex && $0.place == .terminal }
+            ? [.app] : [.app, .terminal]
+    }
+
+    /// A slot's rows: one for each session, or one saying none is running.
+    static func sessionRows(provider: AgentProvider, place: AgentSessionPlace, live: [AgentLiveSession]) -> Int {
+        max(1, live.filter { $0.provider == provider && $0.place == place }.count)
+    }
+
+    /// How much a card grows past its one-row size to list every session:
+    /// slots side by side by the fuller one's rows, Claude's split card
+    /// stacked by both.
+    static func sessionGrowth(_ tile: NotchAgentTile, live: [AgentLiveSession], width: CGFloat) -> CGFloat {
+        guard tile.showsSessions, let provider = tile.provider else { return 0 }
+        let extra = sessionPlaces(provider, live: live).map { sessionRows(provider: provider, place: $0, live: live) - 1 }
+        let rows = tile.splitsBilling && width < pairWidth ? extra.reduce(0, +) : extra.max() ?? 0
+        return CGFloat(rows) * sessionRowHeight
     }
 
     // MARK: Month
@@ -617,9 +645,10 @@ enum NotchAgentSupport {
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 
-    static func contentHeight(_ rows: [[NotchAgentTile]], width: CGFloat = .infinity) -> CGFloat {
+    static func contentHeight(_ rows: [[NotchAgentTile]], width: CGFloat = .infinity,
+                              live: [AgentLiveSession] = []) -> CGFloat {
         guard !rows.isEmpty else { return 0 }
-        return rows.map { height(of: $0, width: width) }.reduce(0, +) + spacing * CGFloat(rows.count - 1)
+        return rows.map { height(of: $0, width: width, live: live) }.reduce(0, +) + spacing * CGFloat(rows.count - 1)
     }
 }
 
