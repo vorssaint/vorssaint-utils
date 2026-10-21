@@ -140,8 +140,6 @@ struct NotchAgentRestingChoices: DynamicProperty {
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsRestingLayout) private var layoutValue = NotchAgentRestingLayout.single.rawValue
-    @AppStorage(DefaultsKey.notchAgentsRestingSession) private var session = true
-    @AppStorage(DefaultsKey.notchAgentsRestingWeekly) private var weekly = true
     @AppStorage(DefaultsKey.notchAgentsRestingHidden) private var hidden = ""
 
     var used: Bool { display == NotchAgentLimitDisplay.used.rawValue }
@@ -153,7 +151,6 @@ struct NotchAgentRestingChoices: DynamicProperty {
         let shown = NotchAgentSupport.applyingSimulation(snapshot, NotchAgentSupport.simulatedRestingUsage())
         return NotchAgentSupport.restingSequence(shown, layout: layout, providers: AgentProvider.allCases,
                                                  hidden: NotchAgentSupport.parseRestingHidden(hidden),
-                                                 session: session, weekly: weekly,
                                                  focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
     }
 
@@ -171,9 +168,10 @@ enum NotchAgentRestingPlacement {
     case leading, trailing, row
 }
 
-/// The resting island's wings: each account's limits as a ring and a bar
-/// with a number, laid out as the person chose, or today's API value when
-/// no allowance is known.
+/// The resting island's wings: each account's limit as a ring with its
+/// number and the time it renews, laid out as the person chose, or today's
+/// API value when no allowance is known. Each wing keeps to its outer end,
+/// where the working strip's ring and reading sit.
 struct NotchAgentRestingWing: View {
     let side: HorizontalEdge
     /// Example usage for the settings preview while none is known.
@@ -202,11 +200,9 @@ private struct NotchAgentRestingContent: View {
         self.sample = sample
     }
 
-    /// Room for the number in a wing: what the ring leaves of the 44-point
-    /// wing past its shoulder, or the whole wing's when alone there.
-    private static let besideRing: CGFloat = 17.5
-    private static let alone: CGFloat = 31
     private static let gap: CGFloat = 1.5
+    /// The capsule's ring, a size down from the wing's to fit its row.
+    private static let rowRing: CGFloat = 16
 
     var body: some View {
         // Often enough that a renewal or a fresh check shows within seconds.
@@ -218,69 +214,85 @@ private struct NotchAgentRestingContent: View {
     @ViewBuilder private func content(now: Date) -> some View {
         let snapshot = sample ?? usage.snapshot
         let meters = choices.meters(snapshot, now: now)
-        if meters.isEmpty {
-            fallback(snapshot)
-        } else if choices.layout == .cycle, meters.count > 1, !reduceMotion {
-            TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: NotchAgentSupport.restingCycle)) { tick in
-                let meter = meters[NotchAgentSupport.restingCycleIndex(at: tick.date, count: meters.count)]
-                ZStack {
-                    one(meter).id(meter.id).transition(.opacity)
+        Group {
+            if meters.isEmpty {
+                fallback(snapshot)
+            } else if choices.layout == .cycle, meters.count > 1, !reduceMotion {
+                TimelineView(.periodic(from: Date(timeIntervalSinceReferenceDate: 0), by: NotchAgentSupport.restingCycle)) { tick in
+                    let meter = meters[NotchAgentSupport.restingCycleIndex(at: tick.date, count: meters.count)]
+                    ZStack {
+                        one(meter, now: now).id(meter.id).transition(.opacity)
+                    }
+                    .animation(.easeInOut(duration: 0.3), value: meter.id)
                 }
-                .animation(.easeInOut(duration: 0.3), value: meter.id)
+            } else if choices.layout == .split, meters.count > 1 {
+                split(meters[0], meters[1], now: now)
+            } else {
+                // Single, Rotate held still, or One per side with one account.
+                one(meters[0], now: now)
             }
-        } else if choices.layout == .split, meters.count > 1 {
-            split(meters[0], meters[1])
-        } else {
-            // Single, Rotate held still, or One per side with one account.
-            one(meters[0])
         }
+        .frame(maxWidth: placement == .row ? nil : .infinity, alignment: placement == .trailing ? .trailing : .leading)
     }
 
-    @ViewBuilder private func one(_ meter: NotchAgentRestingMeter) -> some View {
+    @ViewBuilder private func one(_ meter: NotchAgentRestingMeter, now: Date) -> some View {
         switch placement {
         case .leading: gauge(meter)
-        case .trailing: amount(meter, width: Self.alone, worded: true)
-        case .row: HStack(spacing: Self.gap) { gauge(meter); amount(meter, width: Self.alone, worded: true) }
+        case .trailing: amount(meter, now: now, style: .stacked)
+        case .row:
+            HStack(spacing: 5) {
+                gauge(meter, ring: Self.rowRing)
+                amount(meter, now: now, style: .inline)
+            }
         }
     }
 
     /// The first account left of the camera, the second right of it, each
-    /// with its meter at the outer edge. Beside a ring the wing holds only
-    /// the bare number; the ring's fill and VoiceOver say left or used.
-    @ViewBuilder private func split(_ first: NotchAgentRestingMeter, _ second: NotchAgentRestingMeter) -> some View {
+    /// with its ring at the outer end and its number toward the camera.
+    @ViewBuilder private func split(_ first: NotchAgentRestingMeter, _ second: NotchAgentRestingMeter,
+                                    now: Date) -> some View {
         switch placement {
         case .leading:
-            HStack(spacing: Self.gap) { gauge(first); amount(first, width: Self.besideRing, worded: false) }
+            HStack(spacing: Self.gap) {
+                gauge(first, ring: NotchAgentRestingGauge.splitRing)
+                amount(first, now: now, style: .compact, alignment: .leading)
+            }
         case .trailing:
-            HStack(spacing: Self.gap) { amount(second, width: Self.besideRing, worded: false, gauge: .trailing); gauge(second) }
+            HStack(spacing: Self.gap) {
+                amount(second, now: now, style: .compact, alignment: .trailing)
+                gauge(second, ring: NotchAgentRestingGauge.splitRing)
+            }
         case .row:
             HStack(spacing: NotchCapsuleLayout.groupSpacing) {
-                HStack(spacing: Self.gap) { gauge(first); amount(first, width: Self.alone, worded: true) }
-                HStack(spacing: Self.gap) { gauge(second); amount(second, width: Self.alone, worded: true) }
+                HStack(spacing: 5) { gauge(first, ring: Self.rowRing); amount(first, now: now, style: .inline) }
+                HStack(spacing: 5) { gauge(second, ring: Self.rowRing); amount(second, now: now, style: .inline) }
             }
         }
     }
 
-    private func gauge(_ meter: NotchAgentRestingMeter) -> some View {
-        NotchAgentRestingGauge(meter: meter, used: choices.used)
+    private func gauge(_ meter: NotchAgentRestingMeter, ring: CGFloat = NotchAgentRestingGauge.ring) -> some View {
+        NotchAgentRestingGauge(meter: meter, used: choices.used, ring: ring)
     }
 
-    private func amount(_ meter: NotchAgentRestingMeter, width: CGFloat, worded: Bool,
-                        gauge: HorizontalEdge = .leading) -> some View {
-        let text = FeatureStrings.notchAgents(l10n.language)
-        return NotchAgentRestingAmount(window: meter.amount, used: choices.used,
-                                       word: worded ? (choices.used ? text.restingWordUsed : text.restingWordLeft) : nil,
-                                       gauge: gauge, size: 12, width: width)
+    private func amount(_ meter: NotchAgentRestingMeter, now: Date, style: NotchAgentRestingAmount.Style,
+                        alignment: HorizontalAlignment = .trailing) -> some View {
+        NotchAgentRestingAmount(window: meter.window, used: choices.used,
+                                reset: NotchAgentSupport.restingReset(meter.window, now: now,
+                                                                      locale: l10n.language.formattingLocale()),
+                                style: style, alignment: alignment)
     }
 
-    /// No account reports a limit: the first agent's mark and today's API
-    /// value, as before the meters.
+    /// No account reports a limit: the first agent's mark where the ring
+    /// would be, and today's API value in the spending colors.
     @ViewBuilder private func fallback(_ snapshot: AgentUsageSnapshot) -> some View {
         if let provider = choices.fallbackProvider(snapshot) {
-            let mark = NotchAgentMark(provider: provider, size: 10)
-            let cost = Text(AgentFormat.cost(snapshot.usage(.today).total.cost))
-                .font(.system(size: 9, weight: .medium))
+            let value = snapshot.usage(.today).total.cost
+            let mark = NotchAgentMark(provider: provider, size: 11)
+                .frame(width: placement == .row ? Self.rowRing : NotchAgentRestingGauge.ring)
+            let cost = Text(AgentFormat.cost(value))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+                .foregroundStyle(agentSpendTint(value))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             switch placement {
@@ -293,8 +305,9 @@ private struct NotchAgentRestingContent: View {
 }
 
 /// The resting island read as one element: which layout, every meter it
-/// stands for whatever Rotate shows now, and a word for a window running
-/// low, so color is never the only sign. Anything else at rest stays hidden.
+/// stands for whatever Rotate shows now with the time each renews, and a
+/// word for a limit running low, so color is never the only sign. Anything
+/// else at rest stays hidden.
 struct NotchAgentRestingAccessibility: ViewModifier {
     let service: NotchService
     let active: Bool
@@ -308,7 +321,8 @@ struct NotchAgentRestingAccessibility: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        let meters = active ? choices.meters(usage.snapshot, now: Date()) : []
+        let now = Date()
+        let meters = active ? choices.meters(usage.snapshot, now: now) : []
         // Empty wings, with nothing seen at all, say nothing either.
         if active, !meters.isEmpty || choices.fallbackProvider(usage.snapshot) != nil {
             let text = FeatureStrings.notchAgents(l10n.language)
@@ -317,7 +331,7 @@ struct NotchAgentRestingAccessibility: ViewModifier {
                 .accessibilityLabel(meters.isEmpty ? text.restingTitle : text.restingLabel(choices.layout))
                 .accessibilityValue(meters.isEmpty ? AgentFormat.cost(usage.snapshot.usage(.today).total.cost)
                                     : NotchAgentSupport.restingSpeech(meters, used: choices.used, text: text,
-                                                                      locale: l10n.language.formattingLocale()))
+                                                                      locale: l10n.language.formattingLocale(), now: now))
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { service.openActivity(.agents) }
                 .accessibilityHint(FeatureStrings.notch(l10n.language).open)

@@ -18,8 +18,6 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var limitFocus = NotchAgentLimitFocus.mostUsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsRestingLayout) private var restingLayout = NotchAgentRestingLayout.single.rawValue
-    @AppStorage(DefaultsKey.notchAgentsRestingSession) private var restingSession = true
-    @AppStorage(DefaultsKey.notchAgentsRestingWeekly) private var restingWeekly = true
     @AppStorage(DefaultsKey.notchAgentsRestingHidden) private var restingHidden = ""
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
@@ -243,8 +241,9 @@ struct NotchAgentsSettingsControls: View {
         return AgentProvider.allCases.filter { on[$0] == true && $0.reportsLimits }
     }
 
-    /// How the resting island shows the allowances: the layout, the windows
-    /// its meters fill, the agents that rest, and the strip as it will look.
+    /// How the resting island shows the allowances: the layout, the agents
+    /// that rest, and the strip as it will look. "Limit to show" above picks
+    /// the limit each meter shows.
     @ViewBuilder private var restingGroup: some View {
         let layout = NotchAgentRestingLayout(rawValue: restingLayout) ?? .single
         Text(text.atRest).font(.subheadline.weight(.medium)).padding(.top, 4)
@@ -253,14 +252,6 @@ struct NotchAgentsSettingsControls: View {
                 Text(text.restingLayout(option)).tag(option.rawValue)
             }
         }
-        restingWindowRow(text.sessionLimit, isOn: $restingSession) { tint in
-            Circle().stroke(tint, lineWidth: 1.6).frame(width: 10, height: 10)
-        }
-        .disabled(layout == .single)
-        restingWindowRow(text.weeklyLimit, isOn: $restingWeekly) { tint in
-            Capsule().fill(tint).frame(width: 12, height: 2.5)
-        }
-        .disabled(layout == .single)
         Text(text.restingFocusCaption).font(.caption).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         if layout == .split, restable.filter({ !restingHiddenSet.contains($0) }).count > 2 {
@@ -287,20 +278,6 @@ struct NotchAgentsSettingsControls: View {
     }
 
     private var restingHiddenSet: Set<AgentProvider> { NotchAgentSupport.parseRestingHidden(restingHidden) }
-
-    /// A window's switch, beside the shape that window takes on the island.
-    private func restingWindowRow<Chip: View>(_ title: String, isOn: Binding<Bool>,
-                                              @ViewBuilder chip: (Color) -> Chip) -> some View {
-        HStack(spacing: 12) {
-            chip(agentStatusTint(.normal))
-                .frame(width: 26, height: 26)
-                .background(.black, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .accessibilityHidden(true)
-            Text(title)
-            Spacer(minLength: 12)
-            Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch)
-        }
-    }
 
     private func restingBinding(_ provider: AgentProvider) -> Binding<Bool> {
         Binding {

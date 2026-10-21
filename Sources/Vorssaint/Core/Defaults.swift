@@ -899,6 +899,8 @@ enum DefaultsKey {
     static let notchAgentsLimitDisplay = "notchAgentsLimitDisplay"
     static let notchAgentsLimitFocus = "notchAgentsLimitFocus"
     static let notchAgentsRestingLayout = "notchAgentsRestingLayout"
+    /// Retired: the resting island's ring follows "Limit to show". Read once
+    /// by `migrateRestingWindows`.
     static let notchAgentsRestingSession = "notchAgentsRestingSession"
     static let notchAgentsRestingWeekly = "notchAgentsRestingWeekly"
     static let notchAgentsRestingHidden = "notchAgentsRestingHidden"
@@ -1510,8 +1512,6 @@ enum Defaults {
         DefaultsKey.notchAgentsLimitDisplay: NotchAgentLimitDisplay.remaining.rawValue,
         DefaultsKey.notchAgentsLimitFocus: NotchAgentLimitFocus.mostUsed.rawValue,
         DefaultsKey.notchAgentsRestingLayout: NotchAgentRestingLayout.single.rawValue,
-        DefaultsKey.notchAgentsRestingSession: true,
-        DefaultsKey.notchAgentsRestingWeekly: true,
         DefaultsKey.notchAgentsRestingHidden: "",
         DefaultsKey.notchAgentsLiveActivity: true,
         DefaultsKey.notchAgentsReadout: NotchAgentReadout.elapsed.rawValue,
@@ -2040,6 +2040,7 @@ enum Defaults {
         migrateSwitcherPreviewSize(in: defaults)
         migrateSwitcherPreviewExcludedApps(in: defaults)
         migrateNotchWatchAvailability(in: defaults)
+        migrateRestingWindows(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         activateBetaChannelIfRunningBeta(in: defaults)
@@ -2296,6 +2297,23 @@ enum Defaults {
               defaults.object(forKey: AppFeature.notch.availabilityKey) as? Bool == false
         else { return }
         defaults.set(false, forKey: AppFeature.notchWatch.availabilityKey)
+    }
+
+    /// The resting island's session ring and weekly bar had switches of
+    /// their own; its one ring now shows the limit "Limit to show" picks.
+    /// Whoever kept only one of them, and left that choice on Most used,
+    /// keeps seeing the same limit.
+    static func migrateRestingWindows(in defaults: UserDefaults) {
+        let session = defaults.object(forKey: DefaultsKey.notchAgentsRestingSession) as? Bool
+        let weekly = defaults.object(forKey: DefaultsKey.notchAgentsRestingWeekly) as? Bool
+        guard session != nil || weekly != nil else { return }
+        let focus = defaults.string(forKey: DefaultsKey.notchAgentsLimitFocus) ?? NotchAgentLimitFocus.mostUsed.rawValue
+        if (session ?? true) != (weekly ?? true), focus == NotchAgentLimitFocus.mostUsed.rawValue {
+            defaults.set((session ?? true) ? NotchAgentLimitFocus.session.rawValue : NotchAgentLimitFocus.weekly.rawValue,
+                         forKey: DefaultsKey.notchAgentsLimitFocus)
+        }
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsRestingSession)
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsRestingWeekly)
     }
 
     /// Linear scrolling reached development builds installed, before new

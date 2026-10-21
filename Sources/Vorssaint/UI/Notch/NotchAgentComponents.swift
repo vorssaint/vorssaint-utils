@@ -595,171 +595,119 @@ struct NotchAgentMark: View {
     }
 }
 
-/// One account at rest: its mark inside the session ring, the weekly bar
-/// below. Each window wears its own status color; one switched off keeps
-/// its empty track, so the ring always means the session and the bar the week.
+/// One account at rest: its mark inside the ring of the limit it shows,
+/// filled as the person reads limits, used or left. Single's ring is the
+/// working strip's, so an agent starting leaves it as it is.
 struct NotchAgentRestingGauge: View {
     let meter: NotchAgentRestingMeter
     let used: Bool
-    static let ring: CGFloat = 14
-    static let lineWidth: CGFloat = 1.6
-    static let barHeight: CGFloat = 2
-    static let barGap: CGFloat = 1.8
-    /// How far the ring's middle sits above the wing's.
-    static let ringRise: CGFloat = 2.4
-    static let track = Color.white.opacity(0.18)
+    var ring: CGFloat = NotchAgentRestingGauge.ring
+    /// The working strip's ring beside a 32-point camera.
+    static let ring: CGFloat = 22
+    /// One per side's, which leaves its number room in the wing.
+    static let splitRing: CGFloat = 14
 
     var body: some View {
-        VStack(spacing: Self.barGap) {
-            ZStack {
-                if let session = meter.session {
-                    NotchAgentRing(value: fill(session), tint: tint(session), lineWidth: Self.lineWidth)
-                } else {
-                    Circle().stroke(Self.track, lineWidth: Self.lineWidth)
-                }
-                NotchAgentMark(provider: meter.provider, box: 9)
+        let window = meter.window
+        // The working strip's stroke and track; a small ring keeps a mark
+        // large enough to tell the agents apart.
+        let lineWidth = max(1.6, ring * 0.114)
+        ZStack {
+            if !used, window.remainingFraction <= 0 {
+                // Nothing left to fill: a faint red track still reads as
+                // empty, not as missing.
+                Circle().stroke(agentStatusTint(.almostOut).opacity(0.35), lineWidth: lineWidth)
+            } else {
+                NotchAgentRing(value: used ? window.usedFraction : window.remainingFraction,
+                               tint: notchAgentRestingInk(window, room: .white), lineWidth: lineWidth, track: 0.24)
             }
-            .frame(width: Self.ring, height: Self.ring)
-            ZStack(alignment: .leading) {
-                Capsule(style: .continuous).fill(Self.track.opacity(meter.weekly == nil ? 0.45 : 1))
-                if let weekly = meter.weekly, fill(weekly) > 0 {
-                    Capsule(style: .continuous)
-                        .fill(tint(weekly))
-                        .frame(width: max(Self.barHeight, Self.ring * fill(weekly)))
-                }
-            }
-            .frame(width: Self.ring, height: Self.barHeight)
+            NotchAgentMark(provider: meter.provider, size: ring * (ring < Self.ring ? 0.6 : 0.48),
+                           tint: meter.provider.tint)
         }
-        // The ring's middle sits above the wing's, the bar below.
-        .offset(y: -Self.ringRise + (Self.barGap + Self.barHeight) / 2)
+        .frame(width: ring, height: ring)
         .accessibilityHidden(true)
-    }
-
-    private func fill(_ window: AgentLimitWindow) -> Double {
-        used ? window.usedFraction : window.remainingFraction
-    }
-
-    private func tint(_ window: AgentLimitWindow) -> Color {
-        agentStatusTint(NotchAgentSupport.restingStatus(usedFraction: window.usedFraction))
     }
 }
 
-/// The number beside a resting meter: with its "%" over "left" or "used"
-/// where the wing has room, each line centred on its ink so "1" and "%" do
-/// not pull it off the axis, or the bare number set against the gauge it
-/// shares the wing with.
+/// A resting limit's color: white while it has room, then the resting
+/// island's yellow and red, whichever way it is read.
+func notchAgentRestingInk(_ window: AgentLimitWindow, room: Color = .white.opacity(0.92)) -> Color {
+    let status = NotchAgentSupport.restingStatus(usedFraction: window.usedFraction)
+    return status == .normal ? room : agentStatusTint(status)
+}
+
+/// A resting limit's number, and with it the time that limit renews, in
+/// teal. No word says left or used: the person chose which, the ring's fill
+/// shows it, and VoiceOver says it.
 struct NotchAgentRestingAmount: View {
+    enum Style {
+        /// Single's wing: the number over the time, at full length where
+        /// the wing has room for it.
+        case stacked
+        /// One per side's wing, beside a gauge: the bare number over the
+        /// short time.
+        case compact
+        /// The capsule's row: the number and the time on one line.
+        case inline
+    }
+
     let window: AgentLimitWindow
     let used: Bool
-    /// "left" or "used" under the number; nil for the bare number.
-    let word: String?
-    /// The side the bare number's gauge is on.
-    var gauge: HorizontalEdge = .leading
-    /// The number's size; the sign and the word follow it.
-    var size: CGFloat = 12
-    var width: CGFloat = 31
+    let reset: NotchAgentRestingReset?
+    var style: Style = .stacked
+    var alignment: HorizontalAlignment = .trailing
 
     var body: some View {
         let fraction = used ? window.usedFraction : window.remainingFraction
         let digits = String(Int((fraction * 100).rounded()))
-        let status = NotchAgentSupport.restingStatus(usedFraction: window.usedFraction)
-        let tint = status == .normal ? Color.white.opacity(0.92) : agentStatusTint(status)
-        let face = Font.system(size: size, weight: .semibold, design: .rounded)
-        if let word {
-            let wordSize = size * 0.625
-            ZStack {
-                (Text(digits).font(face).monospacedDigit()
-                    + Text("%").font(.system(size: size * 0.7, weight: .semibold, design: .rounded)))
-                    .foregroundStyle(tint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .offset(x: NotchAgentRestingInk.offset(number: digits, size: size, percent: true), y: -size * 0.3)
-                Text(word)
-                    .font(.system(size: wordSize, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .offset(x: NotchAgentRestingInk.offset(word: word, size: wordSize), y: size * 0.48)
+        Group {
+            switch style {
+            case .stacked:
+                VStack(alignment: alignment, spacing: 0) {
+                    number(digits, size: 13)
+                    time(size: 7.5)
+                }
+            case .compact:
+                VStack(alignment: alignment, spacing: 0) {
+                    number(digits, size: 11, percent: false)
+                    time(size: 7, short: true)
+                }
+            case .inline:
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    number(digits, size: 12)
+                    time(size: 9)
+                }
             }
-            .frame(width: width)
-            .accessibilityHidden(true)
-        } else {
-            // Level with the ring, not with the ring and bar together: an
-            // unfilled bar reads as empty space, and the number would hang
-            // below the ring. Digits' ink sits 0.3 points under their line's
-            // middle. As far from its ring whatever the digits: the ink, not
-            // the advance, starts a gap past the stroke. The slot gives way
-            // to a taller strip's wider shoulder, and "100", 24 points in
-            // even digits, shrinks to fit 16.
-            let bearings = NotchAgentRestingInk.bearings(number: digits, size: size)
-            let clearance = NotchAgentRestingGauge.lineWidth / 2
-            Text(digits).font(face).monospacedDigit()
-                .foregroundStyle(tint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .offset(x: gauge == .trailing ? bearings.trailing - clearance : clearance - bearings.leading,
-                        y: 0.3 - NotchAgentRestingGauge.ringRise)
-                .frame(maxWidth: width, alignment: gauge == .trailing ? .trailing : .leading)
-                .accessibilityHidden(true)
         }
-    }
-}
-
-/// Where a line's ink lies within its advance, so it can sit on the axis or
-/// against a gauge by its glyphs. Measured once per string and size; there
-/// are few of either.
-enum NotchAgentRestingInk {
-    /// The blank before and after a line's glyphs.
-    private static var bearings: [String: (leading: CGFloat, trailing: CGFloat)] = [:]
-
-    /// How far a line moves so the middle of its ink, not of its advance,
-    /// lies on the axis.
-    static func offset(number digits: String, size: CGFloat, percent: Bool) -> CGFloat {
-        let blank = numberBearings(digits, size: size, percent: percent)
-        return (blank.trailing - blank.leading) / 2
+        .accessibilityHidden(true)
     }
 
-    static func offset(word: String, size: CGFloat) -> CGFloat {
-        let blank = cached("w\(size) \(word)") { [(word, font(size, .medium))] }
-        return (blank.trailing - blank.leading) / 2
+    private func number(_ digits: String, size: CGFloat, percent: Bool = true) -> some View {
+        (Text(digits).font(.system(size: size, weight: .semibold, design: .rounded)).monospacedDigit()
+            + Text(percent ? "%" : "").font(.system(size: size * 0.7, weight: .semibold, design: .rounded)))
+            .foregroundStyle(notchAgentRestingInk(window))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
     }
 
-    /// The blank either side of a bare number's digits.
-    static func bearings(number digits: String, size: CGFloat) -> (leading: CGFloat, trailing: CGFloat) {
-        numberBearings(digits, size: size, percent: false)
-    }
-
-    private static func numberBearings(_ digits: String, size: CGFloat, percent: Bool) -> (leading: CGFloat, trailing: CGFloat) {
-        cached("n\(size)\(percent) \(digits)") {
-            [(digits, font(size, .semibold, monospacedDigits: true))] + (percent ? [("%", font(size * 0.7, .semibold))] : [])
+    @ViewBuilder private func time(size: CGFloat, short: Bool = false) -> some View {
+        if let reset {
+            Group {
+                if short {
+                    Text(reset.short).minimumScaleFactor(0.8)
+                } else {
+                    // "Sat 3:33 PM" is wider than a 44-point wing leaves;
+                    // there it says "Sat".
+                    ViewThatFits(in: .horizontal) {
+                        Text(reset.full)
+                        Text(reset.short).minimumScaleFactor(0.8)
+                    }
+                }
+            }
+            .font(.system(size: size, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(agentResetTint)
+            .lineLimit(1)
         }
-    }
-
-    private static func cached(_ key: String, _ parts: () -> [(String, NSFont)]) -> (leading: CGFloat, trailing: CGFloat) {
-        if let blank = bearings[key] { return blank }
-        let blank = measure(parts())
-        bearings[key] = blank
-        return blank
-    }
-
-    static func measure(_ parts: [(String, NSFont)]) -> (leading: CGFloat, trailing: CGFloat) {
-        let text = NSMutableAttributedString()
-        for (string, font) in parts { text.append(NSAttributedString(string: string, attributes: [.font: font])) }
-        let line = CTLineCreateWithAttributedString(text)
-        let advance = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
-        let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
-        guard advance > 0, !ink.isNull, ink.width > 0 else { return (0, 0) }
-        return (ink.minX, advance - ink.maxX)
-    }
-
-    static func font(_ size: CGFloat, _ weight: NSFont.Weight, monospacedDigits: Bool = false) -> NSFont {
-        let system = NSFont.systemFont(ofSize: size, weight: weight)
-        var descriptor = system.fontDescriptor.withDesign(.rounded) ?? system.fontDescriptor
-        if monospacedDigits {
-            descriptor = descriptor.addingAttributes([.featureSettings: [[
-                NSFontDescriptor.FeatureKey.typeIdentifier: kNumberSpacingType,
-                NSFontDescriptor.FeatureKey.selectorIdentifier: kMonospacedNumbersSelector]]])
-        }
-        return NSFont(descriptor: descriptor, size: size) ?? system
     }
 }
