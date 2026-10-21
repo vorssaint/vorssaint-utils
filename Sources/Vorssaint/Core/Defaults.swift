@@ -397,6 +397,7 @@ enum DefaultsKey {
     static let menuBarPreset = "menuBarPreset"           // dense
     static let menuBarMetricSpacing = "menuBarMetricSpacing" // standard | compact
     static let menuBarMetricAppearance = "menuBarMetricAppearance" // values | bars
+    static let menuBarFontWeight = "menuBarFontWeight" // automatic | regular | medium | semibold | bold
     static let menuBarUsageBarNormalColor = "menuBarUsageBarNormalColor" // #RRGGBB
     static let menuBarUsageBarElevatedColor = "menuBarUsageBarElevatedColor" // #RRGGBB
     static let menuBarUsageBarCriticalColor = "menuBarUsageBarCriticalColor" // #RRGGBB
@@ -1633,6 +1634,7 @@ enum Defaults {
         DefaultsKey.menuBarPreset: "dense",
         DefaultsKey.menuBarMetricSpacing: "compact",  // owner's call: compact by default in 3.1.8
         DefaultsKey.menuBarMetricAppearance: "values",
+        DefaultsKey.menuBarFontWeight: "automatic",
         DefaultsKey.menuBarUsageBarNormalColor: "#64D2FF",
         DefaultsKey.menuBarUsageBarElevatedColor: "#FFD60A",
         DefaultsKey.menuBarUsageBarCriticalColor: "#FF453A",
