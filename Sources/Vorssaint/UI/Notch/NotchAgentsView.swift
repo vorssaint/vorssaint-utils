@@ -654,8 +654,10 @@ private struct NotchAgentClaudeBillingCard: View {
         }
     }
 
+    /// Only Claude Code outside the Claude app: the plan pays for the app's
+    /// sessions, and the Spending card counts everything.
     private func cost(_ days: [AgentBucket]) -> String {
-        let totals = days.compactMap { $0.byProvider[.claude] }
+        let totals = days.map(\.claudeAPI)
         let spent = totals.reduce(0) { $0 + $1.cost }
         return (totals.contains { $0.unpriced > 0 } ? "≥ " : "") + AgentFormat.cost(spent)
     }
