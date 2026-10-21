@@ -517,14 +517,19 @@ private struct NotchAgentSessionSlot: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
                 NotchAgentPlaceIcon(place: place, provider: provider, size: 9, tint: .white.opacity(0.5))
-                Text((place == .app ? places.inApp(provider) : places.inTerminal).uppercased()
-                     + (sessions.isEmpty ? "" : " · \(sessions.count)"))
+                Text((place == .app ? places.inApp(provider) : places.inTerminal).uppercased())
                     .font(.system(size: 8.5, weight: .semibold))
                     .tracking(0.4)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                 Spacer(minLength: 2)
-                if !sessions.isEmpty { NotchAgentPulse(tint: provider.tint, size: 5) }
+                if !sessions.isEmpty {
+                    Text("\(sessions.count)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(provider.tint)
+                    NotchAgentPulse(tint: provider.tint, size: 5)
+                }
             }
             if sessions.isEmpty {
                 Text(places.noSessions)
@@ -843,19 +848,8 @@ private struct NotchAgentClaudeBillingCard: View {
         let days = snapshot.days
         let monthDays = days.filter { $0.start >= month }
         let today = days.last.flatMap { calendar.isDate($0.start, inSameDayAs: now) ? $0 : nil }
-        let working = snapshot.working(provider)
         return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                section(billing.api)
-                Spacer(minLength: 2)
-                if !working.isEmpty {
-                    Text("\(working.count)")
-                        .font(.system(size: 9, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(provider.tint)
-                    NotchAgentPulse(tint: provider.tint, size: 5)
-                }
-            }
+            section(billing.api)
             figure(text.period(.today), cost(today.map { [$0] } ?? []))
             figure(billing.thisMonth, cost(monthDays))
             credits(days: days)
