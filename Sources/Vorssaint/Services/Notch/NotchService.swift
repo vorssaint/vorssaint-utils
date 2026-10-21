@@ -810,11 +810,11 @@ final class NotchService: ObservableObject {
             AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
             display: NotchAgentSupport.limitDisplay(), focus: NotchAgentSupport.limitFocus(), now: Date()))
         let width = (shape as NSString).size(withAttributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .semibold)
         ]).width
         let reading = width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
         // The mark on the other side, drawn as the strip draws it: the
-        // longest-working agent's ring and a badge for each place it works.
+        // longest-working agent's ring and the badges on it.
         let budget = provisional.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
         let layout = NotchAgentWorkingLayout(AgentUsageService.shared.snapshot.live, budget: budget)
         let ring = layout?.ring ?? 14

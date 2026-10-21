@@ -50,13 +50,19 @@ enum AgentSessionPlaceTests {
                      "the island follows the longest-working agent and counts its sessions by place")
         suite.expect(NotchAgentWorkingLayout([], budget: 20) == nil, "nothing working draws no mark")
         if let layout {
-            suite.expect(layout.width > layout.ring && layout.badgeWidth(count: 2) > layout.badgeWidth(count: 1)
-                            && layout.badgeHeight * 2 + NotchAgentWorkingLayout.badgeGap <= layout.ring + 0.001,
-                         "two stacked badges fit beside the ring, and a count widens its badge")
+            suite.expect(layout.width > layout.ring
+                            && layout.badgeWidth(.terminal, count: 2) > layout.badgeWidth(.terminal, count: 1)
+                            && layout.badgeWidth(.app, count: 1) == layout.badgeHeight,
+                         "a count widens its badge, and a lone session's badge is a square tile")
+            suite.expect(layout.anchor(.terminal).y < layout.anchor(.app).y
+                            && layout.anchor(.terminal).x == layout.anchor(.app).x
+                            && layout.badgeHeight < layout.ring / 2,
+                         "with both places working the terminal sits above the app on the ring, both smaller")
         }
         let alone = NotchAgentWorkingLayout(provider: .codex, terminal: 0, app: 1, budget: 30)
-        suite.expect(alone.ring == 20 && !alone.stacked && alone.width <= 44,
-                     "the ring never outgrows the wing, and one badge leaves room in a 44-point wing")
+        suite.expect(alone.ring == 22 && !alone.stacked && alone.width <= 44 - 11
+                        && alone.anchor(.app).x > alone.ring / 2 && alone.anchor(.app).y > alone.ring / 2,
+                     "the ring never outgrows the wing, and a lone badge sits at 4:30 inside a 44-point wing")
     }
 
     private static func spending(_ suite: TestSuite) {

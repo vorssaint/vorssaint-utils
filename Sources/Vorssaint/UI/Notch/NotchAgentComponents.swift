@@ -69,29 +69,35 @@ struct NotchAgentPlaceIcon: View {
 }
 
 /// The closed island's mark while agents work: the agent inside its limit
-/// ring, read as the person chose (used or left), and its places beside it.
+/// ring, read as the person chose (used or left), and on the ring a badge for
+/// each place it works.
 struct NotchAgentWorkingMark: View {
     let layout: NotchAgentWorkingLayout
     let window: AgentLimitWindow?
     let used: Bool
 
+    /// The terminal's badge, grey beside the agent-colored app tile.
+    private static let terminalFill = Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)
+
     var body: some View {
-        HStack(spacing: NotchAgentWorkingLayout.gap) {
-            ZStack {
-                if let window {
-                    NotchAgentRing(value: used ? window.usedFraction : window.remainingFraction,
-                                   tint: ringTint(window), lineWidth: max(1.6, layout.ring * 0.1))
-                } else {
-                    Circle().stroke(.white.opacity(0.18), lineWidth: max(1.6, layout.ring * 0.1))
-                }
-                NotchAgentMark(provider: layout.provider, size: layout.ring * 0.5, tint: layout.provider.tint)
+        ZStack {
+            if let window {
+                NotchAgentRing(value: used ? window.usedFraction : window.remainingFraction,
+                               tint: ringTint(window), lineWidth: layout.lineWidth, track: 0.24)
+            } else {
+                Circle().stroke(.white.opacity(0.24), lineWidth: layout.lineWidth)
             }
-            .frame(width: layout.ring, height: layout.ring)
-            VStack(alignment: .leading, spacing: NotchAgentWorkingLayout.badgeGap) {
+            NotchAgentMark(provider: layout.provider, size: layout.markSize, tint: layout.provider.tint)
+        }
+        .frame(width: layout.ring, height: layout.ring)
+        // Badges overhang the ring's box; nothing here may clip them.
+        .overlay(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) {
                 if layout.terminal > 0 { badge(.terminal, count: layout.terminal) }
                 if layout.app > 0 { badge(.app, count: layout.app) }
             }
         }
+        .frame(width: layout.width, height: layout.ring, alignment: .leading)
         .accessibilityHidden(true)
     }
 
@@ -103,8 +109,22 @@ struct NotchAgentWorkingMark: View {
     }
 
     private func badge(_ place: AgentSessionPlace, count: Int) -> some View {
-        HStack(spacing: 1) {
-            NotchAgentPlaceIcon(place: place, provider: layout.provider, size: layout.badgeIcon)
+        let height = layout.badgeHeight
+        let glyph = layout.glyph(place)
+        let anchor = layout.anchor(place)
+        let radius = height * 0.3
+        let cut = NotchAgentWorkingLayout.cut
+        return HStack(spacing: 1) {
+            Group {
+                switch place {
+                case .terminal:
+                    NotchAgentTerminalMark()
+                        .stroke(.white, style: StrokeStyle(lineWidth: max(1, glyph * 0.13), lineCap: .round, lineJoin: .round))
+                case .app:
+                    NotchAgentMark(provider: layout.provider, size: glyph, tint: .white)
+                }
+            }
+            .frame(width: glyph, height: glyph)
             if count > 1 {
                 Text("\(count)")
                     .font(.system(size: layout.countSize, weight: .bold, design: .rounded))
@@ -114,8 +134,15 @@ struct NotchAgentWorkingMark: View {
                     .fixedSize()
             }
         }
-        .frame(width: layout.badgeWidth(count: count), height: layout.badgeHeight)
-        .background(Capsule(style: .continuous).fill(.white.opacity(0.2)))
+        .padding(.leading, count > 1 ? layout.padding(place) : 0)
+        .frame(width: layout.badgeWidth(place, count: count), height: height,
+               alignment: count > 1 ? .leading : .center)
+        .background(RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .fill(place == .terminal ? Self.terminalFill : layout.provider.tint))
+        .background(RoundedRectangle(cornerRadius: radius + cut, style: .continuous)
+            .fill(.black)
+            .padding(-cut))
+        .offset(x: anchor.x - height / 2, y: anchor.y - height / 2)
     }
 }
 
@@ -223,11 +250,12 @@ struct NotchAgentRing: View {
     let value: Double
     var tint: Color = .white
     var lineWidth: CGFloat = 2.5
+    var track: Double = 0.18
 
     var body: some View {
         let fraction = value.isFinite ? min(1, max(0, value)) : 0
         ZStack {
-            Circle().stroke(.white.opacity(0.18), lineWidth: lineWidth)
+            Circle().stroke(.white.opacity(track), lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: fraction)
                 .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))

@@ -655,11 +655,15 @@ enum NotchAgentSupport {
 /// Numbers in the reader's region; costs in US dollars, the currency both
 /// providers list their prices in.
 /// The closed island's mark while agents work: the agent whose turn runs
-/// longest inside its limit ring, and beside the ring a badge for each place
-/// it works, terminal above app, with a count from two sessions up.
+/// longest inside its limit ring, and on the ring a badge for each place it
+/// works, the app at 4:30 and the terminal at 1:30 beside it, with a count
+/// inside the badge from two sessions up.
 struct NotchAgentWorkingLayout: Equatable {
-    static let gap: CGFloat = 2
-    static let badgeGap: CGFloat = 1
+    /// How far from the ring's centre a badge sits, as a share of the ring:
+    /// just outside the stroke, so it hides as little of the arc as it can.
+    static let badgeReach: CGFloat = 0.523
+    /// The black that parts a badge from the arc beneath it.
+    static let cut: CGFloat = 1.5
 
     let provider: AgentProvider
     let terminal: Int
@@ -670,7 +674,7 @@ struct NotchAgentWorkingLayout: Equatable {
         self.provider = provider
         self.terminal = terminal
         self.app = app
-        ring = max(10, min(20, budget))
+        ring = max(10, min(22, budget))
     }
 
     /// The working agent's sessions by place, from the snapshot's turns.
@@ -683,22 +687,37 @@ struct NotchAgentWorkingLayout: Equatable {
     }
 
     var stacked: Bool { terminal > 0 && app > 0 }
-    var badgeHeight: CGFloat { stacked ? (ring - Self.badgeGap) / 2 : ring * 0.6 }
-    var badgeIcon: CGFloat { (badgeHeight - 2).rounded(.down) }
-    var countSize: CGFloat { max(6, badgeHeight - 2) }
+    var lineWidth: CGFloat { max(1.6, ring * 0.114) }
+    var markSize: CGFloat { ring * 0.48 }
+    var badgeHeight: CGFloat { ring * (stacked ? 0.4545 : 0.5) }
+    var countSize: CGFloat { badgeHeight * 0.78 }
 
-    /// The icon, and the count's digits beside it from two sessions up.
-    func badgeWidth(count: Int) -> CGFloat {
-        let padding: CGFloat = 3
-        guard count > 1 else { return max(badgeHeight, badgeIcon + padding) }
+    func glyph(_ place: AgentSessionPlace) -> CGFloat {
+        badgeHeight * (place == .terminal ? 0.8 : 0.68)
+    }
+
+    func padding(_ place: AgentSessionPlace) -> CGFloat { (badgeHeight - glyph(place)) / 2 }
+
+    /// A badge's centre in the ring's box: 4:30, or 1:30 for the terminal
+    /// while the app works too.
+    func anchor(_ place: AgentSessionPlace) -> CGPoint {
+        let reach = ring * Self.badgeReach * 0.5.squareRoot()
+        let up = stacked && place == .terminal
+        return CGPoint(x: ring / 2 + reach, y: ring / 2 + (up ? -reach : reach))
+    }
+
+    /// A square tile, widening to the right for a count's digits.
+    func badgeWidth(_ place: AgentSessionPlace, count: Int) -> CGFloat {
+        guard count > 1 else { return badgeHeight }
         let digits = CGFloat(String(count).count) * countSize * 0.62
-        return badgeIcon + 1 + digits + padding
+        return padding(place) * 2 + 0.5 + glyph(place) + 1 + digits
     }
 
     var width: CGFloat {
-        let badges = [terminal, app].filter { $0 > 0 }.map { badgeWidth(count: $0) }
-        guard let widest = badges.max() else { return ring }
-        return ring + Self.gap + widest
+        let badges = [(AgentSessionPlace.terminal, terminal), (.app, app)].filter { $0.1 > 0 }.map { place, count in
+            anchor(place).x - badgeHeight / 2 + badgeWidth(place, count: count)
+        }
+        return max(ring, badges.max() ?? ring)
     }
 }
 
