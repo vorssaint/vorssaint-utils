@@ -92,6 +92,11 @@ struct AgentUsageSnapshot: Equatable {
     var periods: [AgentPeriod: AgentPeriodUsage] = [:]
     /// Oldest first, ending with today.
     var days: [AgentBucket] = []
+    /// Each of `days`' models, by provider and name, for the ledger that
+    /// keeps them once their logs are gone.
+    var dayModels: [[String: AgentShare]] = []
+    /// Every day the ledger kept, all agents, filled in by the service.
+    var lifetime = AgentPeriodUsage()
     /// Today's hours, from midnight.
     var hours: [AgentBucket] = []
     var limits: [AgentProvider: AgentLimits] = [:]
@@ -135,6 +140,7 @@ enum AgentUsageSummary {
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)
         let hourStarts: [Date] = (0..<24).compactMap { calendar.date(byAdding: .hour, value: $0, to: today) }
         var days = starts.map { AgentBucket(start: $0) }
+        var dayModels = [[String: AgentShare]](repeating: [:], count: starts.count)
         var hours = hourStarts.map { AgentBucket(start: $0) }
         var periods: [AgentPeriod: AgentPeriodUsage] = [:]
         var models: [AgentPeriod: [String: AgentShare]] = [:]
@@ -170,6 +176,9 @@ enum AgentUsageSummary {
                 names[record.model] = name
             }
             let modelID = record.provider.rawValue + ":" + name
+            dayModels[day][modelID, default: AgentShare(
+                id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())]
+                .totals.add(record)
             for period in AgentPeriod.allCases where day > lastDay - period.days {
                 periods[period, default: AgentPeriodUsage()].total.add(record)
                 periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
@@ -204,6 +213,7 @@ enum AgentUsageSummary {
         }
         snapshot.periods = periods
         snapshot.days = days
+        snapshot.dayModels = dayModels
         snapshot.hours = hours
         let start = snapshot.limits[.claude]?.sessionStart(at: now)
         snapshot.claudeBlock = currentBlock(claude, now: now, after: start)
@@ -399,6 +409,8 @@ final class AgentUsageSummaryCache {
         let name = names[record.model] ?? AgentPricing.displayName(record.model)
         names[record.model] = name
         let modelID = record.provider.rawValue + ":" + name
+        history!.dayModels[day][modelID, default: AgentShare(
+            id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())].totals += delta
         for period in AgentPeriod.allCases where day > starts.count - 1 - period.days {
             history!.periods[period]!.total += delta
             history!.periods[period]!.byProvider[record.provider, default: AgentTotals()] += delta

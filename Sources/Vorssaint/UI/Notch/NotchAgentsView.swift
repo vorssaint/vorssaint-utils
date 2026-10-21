@@ -921,9 +921,9 @@ private struct NotchAgentClaudeBillingCard: View {
 
 // MARK: Spending
 
-/// Every agent's work this calendar month at API prices, whatever period
-/// the island's top row shows, colored by how much it is; the models that
-/// did most of the last thirty days sit under it.
+/// Every agent's work at API prices since the ledger began, whatever period
+/// the island's top row shows, colored by how much it is, with the models
+/// that did most of it under it. The plan multiples stay on thirty days.
 private struct NotchAgentSpendCard: View {
     let snapshot: AgentUsageSnapshot
     let providers: [AgentProvider]
@@ -933,16 +933,13 @@ private struct NotchAgentSpendCard: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        let now = snapshot.now
-        let days = NotchAgentSupport.monthDays(snapshot, now: now)
-        var month = AgentPeriodUsage()
-        for day in days {
-            for provider in providers {
-                guard let totals = day.byProvider[provider] else { continue }
-                month.total += totals
-                month.byProvider[provider, default: AgentTotals()] += totals
-            }
+        var lifetime = AgentPeriodUsage()
+        for provider in providers {
+            guard let totals = snapshot.lifetime.byProvider[provider] else { continue }
+            lifetime.total += totals
+            lifetime.byProvider[provider] = totals
         }
+        lifetime.models = snapshot.lifetime.models.filter { $0.provider.map(providers.contains) ?? false }
         let thirty = snapshot.usage(.month)
         let places = FeatureStrings.notchAgentPlaces(l10n.language)
         return NotchAgentCardChrome {
@@ -951,23 +948,23 @@ private struct NotchAgentSpendCard: View {
                     multiples(thirty)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text((month.fullyPriced ? "" : "≥ ") + AgentFormat.cost(month.total.cost))
+                    Text((lifetime.fullyPriced ? "" : "≥ ") + AgentFormat.cost(lifetime.total.cost))
                         .font(.system(size: 22, weight: .medium, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(agentSpendTint(month.total.cost))
+                        .foregroundStyle(agentSpendTint(lifetime.total.cost))
                         .contentTransition(.numericText())
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                    Text(places.allAgentsMonth)
+                    Text(places.allAgentsLifetime)
                         .font(.system(size: 9.5))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                     Spacer(minLength: 0)
                 }
-                .help(month.fullyPriced ? text.valueNote : text.unpriced)
-                split(month)
-                models(thirty)
+                .help(lifetime.fullyPriced ? text.valueNote : text.unpriced)
+                split(lifetime)
+                models(lifetime)
             }
         }
     }
