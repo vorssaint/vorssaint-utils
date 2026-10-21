@@ -80,6 +80,11 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchShowInCaptures) private var showInCaptures = true
     @AppStorage(DefaultsKey.notchLockScreen) private var lockScreen = false
     @AppStorage(DefaultsKey.notchLockSounds) private var lockSounds = false
+    @AppStorage(DefaultsKey.notchLockScreenAgents) private var lockScreenAgents = false
+    @AppStorage(DefaultsKey.notchLockScreenAgentsHideProjects) private var lockScreenHidesProjects = false
+    @AppStorage(DefaultsKey.notchLockScreenAgentsHideAmounts) private var lockScreenHidesAmounts = false
+    @AppStorage(DefaultsKey.notchLockScreenMac) private var lockScreenMac = false
+    @AppStorage(DefaultsKey.notchLockScreenMacHideEvents) private var lockScreenHidesEvents = false
     @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = false
@@ -651,6 +656,29 @@ struct NotchSettings: View {
             let locked = FeatureStrings.notchLockScreen(l10n.language)
             SettingsCard(title: locked.title) {
                 switchRow("lock.display", locked.show, caption: locked.showHint, isOn: $lockScreen)
+                // The AI page beside the player, and what it keeps back.
+                if lockScreen, NotchAgentSupport.sectionShows() {
+                    switchRow("sparkles", FeatureStrings.notchAgents(l10n.language).title, caption: locked.agentsHint,
+                              isOn: $lockScreenAgents)
+                    if lockScreenAgents {
+                        Group {
+                            switchRow("eye.slash", locked.hideProjects, caption: locked.hideProjectsHint,
+                                      isOn: $lockScreenHidesProjects)
+                            switchRow("dollarsign.circle", locked.hideAmounts, caption: locked.hideAmountsHint,
+                                      isOn: $lockScreenHidesAmounts)
+                        }
+                        .padding(.leading, settingsRowTextInset)
+                    }
+                }
+                // The machine itself left of the player, and today's titles.
+                if lockScreen {
+                    switchRow("laptopcomputer", locked.mac, caption: locked.macHint, isOn: $lockScreenMac)
+                    if lockScreenMac {
+                        switchRow("calendar.badge.minus", locked.hideEvents, caption: locked.hideEventsHint,
+                                  isOn: $lockScreenHidesEvents)
+                            .padding(.leading, settingsRowTextInset)
+                    }
+                }
                 switchRow("speaker.wave.2", locked.sounds, caption: locked.soundsHint, isOn: $lockSounds)
             }
         }
