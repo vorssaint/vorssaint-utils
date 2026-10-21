@@ -169,6 +169,18 @@ struct TrackpadGesturesSection: View {
                     }
                 }
             }
+            // The window action most asked of a swipe (issue #967), one click
+            // away instead of behind the action editor.
+            if AppFeature.windowLayout.isAvailable {
+                Section {
+                    Button {
+                        store(TrackpadGestureMappingSupport.windowLayout(.minimize), for: gesture)
+                    } label: {
+                        Label(WindowLayoutAction.minimize.title(FeatureStrings.windowLayout(l10n.language)),
+                              systemImage: WindowLayoutAction.minimize.symbolName)
+                    }
+                }
+            }
             Divider()
             Button(text.otherAction) {
                 if case .item(let item)? = action {

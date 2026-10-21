@@ -72,6 +72,12 @@ enum TriggerActionUnavailability: Equatable {
 /// stored. Unknown gestures and dead actions are dropped on read, so a blob
 /// written by a newer version or edited by hand never fires something broken.
 enum TrackpadGestureMappingSupport {
+    /// A window layout action as a gesture action, stored as the wheel's
+    /// own window layout slice so both run it the same way.
+    static func windowLayout(_ action: WindowLayoutAction) -> TriggerAction {
+        .item(RadialMenuItem(kind: .windowLayout, payload: action.rawValue))
+    }
+
     /// Keeps an action only when it can run. Item payloads are validated and
     /// normalized exactly as for a wheel slice.
     static func sanitized(_ action: TriggerAction) -> TriggerAction? {

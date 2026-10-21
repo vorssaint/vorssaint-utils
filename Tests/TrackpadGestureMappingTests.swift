@@ -22,6 +22,19 @@ enum TrackpadGestureMappingTests {
         let decoded = TrackpadGestureMappingSupport.decode(TrackpadGestureMappingSupport.encode(mappings))
         suite.expect(decoded == mappings, "mappings survive a save and a reload")
 
+        // Issue #967: a three-finger swipe down that minimizes the focused window.
+        let swipeDown3 = TrackpadGesture(kind: .swipeDown, fingers: 3)!
+        let minimize = TrackpadGestureMappingSupport.windowLayout(.minimize)
+        let minimizeMapping = TrackpadGestureMappingSupport.decode(
+            TrackpadGestureMappingSupport.encode([swipeDown3: minimize]))
+        if case .item(let item)? = minimizeMapping[swipeDown3] {
+            suite.expect(item.windowLayoutAction == .minimize
+                            && TrackpadGestureMappingSupport.needsAccessibility(minimize),
+                         "minimize window is kept as a gesture action and asks for Accessibility")
+        } else {
+            suite.expect(false, "minimize window survives a save and a reload")
+        }
+
         let submenu = RadialMenuItem(kind: .submenu, children: [tool])
         suite.expect(TrackpadGestureMappingSupport.sanitized(.item(submenu)) == nil,
                      "a submenu has no meaning outside the wheel and is refused")
