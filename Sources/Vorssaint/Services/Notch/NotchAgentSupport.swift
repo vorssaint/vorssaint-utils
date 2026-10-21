@@ -8,10 +8,16 @@ import Foundation
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
     // The order is the page's default. Sessions now sit in the limits cards
-    // and models in Spending, so Now and Models come last, hidden at first.
+    // and models in Spending, so Now and Models are retired: the cases stay
+    // only so saved orders still read.
     case limits, spend, trend, projects, resets, activity, live, models
 
     var id: String { rawValue }
+
+    /// Cards the page no longer shows, whatever the saved settings say. A
+    /// page whose hidden cards were saved before they retired would
+    /// otherwise list the sessions and models a second time.
+    var retired: Bool { self == .live || self == .models }
 
     var symbol: String {
         switch self {
@@ -139,10 +145,14 @@ enum NotchAgentSupport {
 
     /// Every card in the saved order; cards added later join at the end.
     static func orderedCards(in defaults: UserDefaults = .standard) -> [NotchAgentCard] {
-        let stored = (defaults.string(forKey: DefaultsKey.notchAgentsCardOrder) ?? "")
-            .split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) }
+        orderedCards(defaults.string(forKey: DefaultsKey.notchAgentsCardOrder) ?? "")
+    }
+
+    /// The cards a saved order lists, without retired or repeated ones.
+    static func orderedCards(_ saved: String) -> [NotchAgentCard] {
+        let stored = saved.split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) }
         var seen = Set<NotchAgentCard>()
-        return (stored + NotchAgentCard.allCases).filter { seen.insert($0).inserted }
+        return (stored + NotchAgentCard.allCases).filter { !$0.retired && seen.insert($0).inserted }
     }
 
     /// Cards a new page leaves out until the person shows them.

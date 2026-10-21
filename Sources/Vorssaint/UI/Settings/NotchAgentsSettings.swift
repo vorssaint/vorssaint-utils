@@ -42,11 +42,7 @@ struct NotchAgentsSettingsControls: View {
     private var billingText: ClaudeBillingStrings { FeatureStrings.claudeBilling(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
 
-    private var orderedCards: [NotchAgentCard] {
-        let stored = cardOrder.split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) }
-        var seen = Set<NotchAgentCard>()
-        return (stored + NotchAgentCard.allCases).filter { seen.insert($0).inserted }
-    }
+    private var orderedCards: [NotchAgentCard] { NotchAgentSupport.orderedCards(cardOrder) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {

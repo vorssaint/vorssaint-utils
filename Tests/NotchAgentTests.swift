@@ -3304,8 +3304,13 @@ enum NotchAgentTests {
 
         defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
-        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .resets, .live, .models],
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
+        // Saved before Now and Models retired, nothing hidden and both ordered.
+        defaults.set("live,limits,models,spend", forKey: DefaultsKey.notchAgentsCardOrder)
+        defaults.set("", forKey: DefaultsKey.notchAgentsHiddenCards)
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.limits, .spend, .trend, .projects, .resets, .activity],
+                     "Now and Models never come back below the cards that hold sessions and models")
         defaults.removeObject(forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.removeObject(forKey: DefaultsKey.notchAgentsHiddenCards)
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.limits, .spend, .trend, .projects, .resets, .activity],
