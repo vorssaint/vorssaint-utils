@@ -941,6 +941,13 @@ enum DefaultsKey {
     static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
     static let notchAgentsDailyBudget = "notchAgentsDailyBudget"
     static let notchAgentsPriceUpdates = "notchAgentsPriceUpdates"
+    /// Who pays for Claude Code's requests: `AgentClaudeBilling`.
+    static let notchAgentsClaudeBilling = "notchAgentsClaudeBilling"
+    /// The API key's prepaid balance in US dollars as entered, when, and what
+    /// that day had already spent; 0 while none is entered.
+    static let notchAgentsClaudeCredits = "notchAgentsClaudeCredits"
+    static let notchAgentsClaudeCreditsSince = "notchAgentsClaudeCreditsSince"
+    static let notchAgentsClaudeCreditsBaseline = "notchAgentsClaudeCreditsBaseline"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     // How the island looks on a display without a camera housing.
@@ -1555,6 +1562,10 @@ enum Defaults {
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,
         DefaultsKey.notchAgentsDailyBudget: 0.0,
         DefaultsKey.notchAgentsPriceUpdates: true,
+        DefaultsKey.notchAgentsClaudeBilling: AgentClaudeBilling.automatic.rawValue,
+        DefaultsKey.notchAgentsClaudeCredits: 0.0,
+        DefaultsKey.notchAgentsClaudeCreditsSince: 0.0,
+        DefaultsKey.notchAgentsClaudeCreditsBaseline: 0.0,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,

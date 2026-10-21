@@ -29,6 +29,11 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
     @AppStorage(DefaultsKey.notchAgentsDailyBudget) private var dailyBudget = 0.0
     @AppStorage(DefaultsKey.notchAgentsPriceUpdates) private var priceUpdates = true
+    @AppStorage(DefaultsKey.notchAgentsClaudeBilling) private var claudeBilling = AgentClaudeBilling.automatic.rawValue
+    @AppStorage(DefaultsKey.notchAgentsClaudeCredits) private var claudeCredits = 0.0
+    @AppStorage(DefaultsKey.notchAgentsClaudeCreditsSince) private var claudeCreditsSince = 0.0
+    /// The balance being typed, kept apart until it is saved.
+    @State private var creditsDraft = ""
     @State private var dragging: NotchAgentCard?
     @State private var roots: [AgentProvider: Bool] = [:]
     @State private var claudeApp: URL?
@@ -36,6 +41,7 @@ struct NotchAgentsSettingsControls: View {
     @State private var claudeAppFileCheck: Date?
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
+    private var billingText: ClaudeBillingStrings { FeatureStrings.claudeBilling(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
 
     private var orderedCards: [NotchAgentCard] {
@@ -152,6 +158,7 @@ struct NotchAgentsSettingsControls: View {
                     Text(text.claudeLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                claudeBillingGroup
             }
         }
         .toggleStyle(.switch)
@@ -170,9 +177,64 @@ struct NotchAgentsSettingsControls: View {
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
-                       String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
+                       String(liveActivity), readout, limitDisplay, limitFocus, claudeBilling]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
+    }
+
+    /// Who pays for Claude Code, and the API key's balance when it does.
+    @ViewBuilder private var claudeBillingGroup: some View {
+        let detected = AgentClaudeBilling.detected(home: FileManager.default.homeDirectoryForCurrentUser)
+        Text(billingText.billingTitle).font(.subheadline.weight(.medium)).padding(.top, 4)
+        SettingsMenuRow(symbol: "creditcard", title: billingText.billsTo, selection: $claudeBilling) {
+            ForEach(AgentClaudeBilling.allCases) { option in
+                Text(billingText.billing(option, detectedAPI: detected)).tag(option.rawValue)
+            }
+        }
+        Text(billingText.billingCaption).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        let _ = claudeBilling
+        if AgentClaudeBilling.usesAPI() {
+            SettingsRow(symbol: "dollarsign.circle", title: billingText.creditsTitle) {
+                HStack(spacing: 6) {
+                    TextField(billingText.balance, text: $creditsDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 96)
+                        .multilineTextAlignment(.trailing)
+                        .onSubmit(saveCredits)
+                    Button(billingText.save, action: saveCredits)
+                        .disabled(parsedCredits == nil)
+                    if claudeCredits > 0 {
+                        Button(billingText.clear) {
+                            AgentClaudeCredits.clear()
+                            creditsDraft = ""
+                        }
+                    }
+                }
+            }
+            if let stored = AgentClaudeCredits.stored(), claudeCreditsSince > 0,
+               let left = stored.remaining(days: usage.snapshot.days) {
+                Text(billingText.creditsLeft(AgentFormat.cost(max(0, left)),
+                                             since: stored.since.formatted(.relative(presentation: .named).locale(locale))))
+                    .font(.callout)
+                    .padding(.leading, settingsRowTextInset)
+            }
+            Text(billingText.creditsCaption).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The balance typed, in the reader's own way of writing numbers.
+    private var parsedCredits: Double? {
+        let trimmed = creditsDraft.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
+        let value = (try? Double(trimmed, format: .number.locale(locale))) ?? Double(trimmed)
+        return value.flatMap { $0 > 0 && $0.isFinite ? $0 : nil }
+    }
+
+    private func saveCredits() {
+        guard let balance = parsedCredits else { return }
+        AgentClaudeCredits.store(balance: balance, now: Date(), days: usage.snapshot.days)
+        creditsDraft = ""
     }
 
     /// Agents switched on that report a plan allowance, the ones that can rest.

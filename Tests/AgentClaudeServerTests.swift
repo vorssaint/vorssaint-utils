@@ -10,6 +10,9 @@ enum AgentClaudeServerTests {
         /// Whether anything but the page's Limits card uses the limits.
         static var used = true
         static func limitsInUse(pageShown: Bool) -> Bool { used || pageShown }
+        /// Whether a limit is on screen, which shortens the wait between checks.
+        static var onScreen = false
+        static func limitsOnScreen(pageShown: Bool) -> Bool { onScreen || pageShown }
     }
 
     class Fixture {

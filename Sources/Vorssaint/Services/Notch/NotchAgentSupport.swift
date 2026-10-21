@@ -91,7 +91,10 @@ struct NotchAgentTile: Identifiable, Equatable {
     var accountID: String? = nil
     /// The Resets card beside added Codex homes, which says whose resets they are.
     var namesDefaultAccount = false
+    /// Claude's limits card beside the API key's spending, which takes a row.
+    var splitsBilling = false
     var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "") }
+    var fullWidth: Bool { card.fullWidth || splitsBilling }
 }
 
 enum NotchAgentSupport {
@@ -400,6 +403,14 @@ enum NotchAgentSupport {
             || (pageShown && !hiddenCards(in: defaults).contains(.limits))
     }
 
+    /// Whether a limit is on screen, the page's or the closed island's,
+    /// which keeps Claude's account check at its shortest wait.
+    static func limitsOnScreen(pageShown: Bool, in defaults: UserDefaults = .standard) -> Bool {
+        (pageShown && !hiddenCards(in: defaults).contains(.limits))
+            || NotchSupport.idleContent(in: defaults) == .agents
+            || (showsLiveActivity(in: defaults) && readout(in: defaults) == .limit)
+    }
+
     // MARK: Strip
 
     /// A wing is never narrower than the music strip's, nor wide enough to
@@ -479,20 +490,29 @@ enum NotchAgentSupport {
     static let accountCardHeight: CGFloat = 116
     /// An account card's reading, checked every five minutes, has missed two.
     static let accountStaleness: TimeInterval = 10 * 60
+    /// Claude's split card: the plan and the API key side by side, or one
+    /// above the other where cards do not pair.
+    static let splitHeight: CGFloat = 118
+    static let stackedSplitHeight: CGFloat = 196
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
     /// Codex homes the person added take the place of Codex's one limits
     /// card, the usual home among them when they add it.
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
-                      codexAccounts: [String] = [], claudeAccount: String? = nil) -> [NotchAgentTile] {
+                      codexAccounts: [String] = [], claudeAccount: String? = nil,
+                      claudeUsesAPI: Bool = false) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
             switch card {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
                 if provider == .claude, let claudeAccount {
-                    return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount)]
+                    return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount,
+                                           splitsBilling: claudeUsesAPI)]
                 }
-                guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
+                guard provider == .codex, !codexAccounts.isEmpty else {
+                    return [NotchAgentTile(card: .limits, provider: provider,
+                                           splitsBilling: provider == .claude && claudeUsesAPI)]
+                }
                 return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
             }
             // Banked resets belong to a Codex account: the default one, which
@@ -511,7 +531,7 @@ enum NotchAgentSupport {
         var rows: [[NotchAgentTile]] = []
         var waiting: NotchAgentTile?
         for tile in tiles {
-            if tile.card.fullWidth || !pairs {
+            if tile.fullWidth || !pairs {
                 if let waiting { rows.append([waiting]) }
                 waiting = nil
                 rows.append([tile])
@@ -526,7 +546,8 @@ enum NotchAgentSupport {
         return rows
     }
 
-    static func height(of row: [NotchAgentTile]) -> CGFloat {
+    static func height(of row: [NotchAgentTile], width: CGFloat = .infinity) -> CGFloat {
+        if row.contains(where: \.splitsBilling) { return width >= pairWidth ? splitHeight : stackedSplitHeight }
         if row.contains(where: \.card.fullWidth) { return chartHeight }
         return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
     }
@@ -549,9 +570,9 @@ enum NotchAgentSupport {
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 
-    static func contentHeight(_ rows: [[NotchAgentTile]]) -> CGFloat {
+    static func contentHeight(_ rows: [[NotchAgentTile]], width: CGFloat = .infinity) -> CGFloat {
         guard !rows.isEmpty else { return 0 }
-        return rows.map(height).reduce(0, +) + spacing * CGFloat(rows.count - 1)
+        return rows.map { height(of: $0, width: width) }.reduce(0, +) + spacing * CGFloat(rows.count - 1)
     }
 }
 

@@ -780,9 +780,10 @@ final class AgentUsageService: ObservableObject {
             claudeAppSamples = modified == nil ? []
                 : (try? Data(contentsOf: url)).flatMap(AgentClaudeAppUsage.samples) ?? []
         }
-        // Claude Code's own first request can place the session's start.
-        let start = AgentClaudeAppUsage.sessionStart(store.records, samples: claudeAppSamples,
-                                                     organization: claudeOrganization)
+        // Claude Code's own first request can place the session's start,
+        // unless an API key pays for it and the plan never sees it.
+        let start = AgentClaudeBilling.usesAPI(home: home) ? nil
+            : AgentClaudeAppUsage.sessionStart(store.records, samples: claudeAppSamples, organization: claudeOrganization)
         let desktop = AgentClaudeAppUsage.limits(from: claudeAppSamples, now: now, sessionStart: start,
                                                  organization: claudeOrganization)
         let account = AgentClaudeServer.current(claudeAccountLimits, now: now)
@@ -854,8 +855,10 @@ final class AgentUsageService: ObservableObject {
     private func claudeLimitsDue(at now: Date, pageShows: Bool) -> Bool {
         guard running, !paused, online, providers.contains(.claude), claudeAccountRequest == nil,
               NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
+        // The resting island shows the plan's limits all day, as the page does.
         return now.timeIntervalSince(claudeAccountAttempted) >= AgentClaudeServer.interval(
-            after: claudeAccountFailure, repeated: claudeAccountUnreachable, pageVisible: pageVisible)
+            after: claudeAccountFailure, repeated: claudeAccountUnreachable,
+            pageVisible: NotchAgentSupport.limitsOnScreen(pageShown: pageVisible || pageShows))
     }
 
     /// Main thread.

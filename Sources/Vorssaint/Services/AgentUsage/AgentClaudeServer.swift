@@ -17,7 +17,8 @@ enum AgentClaudeServer {
         let identity: ClaudeAccountProfile.Identity?
     }
     static let timeout: TimeInterval = 25
-    /// While the AI page is on screen a reading this old is asked again.
+    /// While a limit is on screen, on the AI page or the resting island, a
+    /// reading this old is asked again.
     static let freshness: TimeInterval = 60
     /// Otherwise Claude Code starts at most this often, as the Codex check does.
     static let backgroundFreshness: TimeInterval = 5 * 60
