@@ -695,7 +695,8 @@ private struct NotchAgentLimitRow: View {
         var parts = [label(window), text.usedShare(AgentFormat.percent(window.usedFraction)),
                      text.left(AgentFormat.percent(window.remainingFraction))]
         if let resets = AgentLimitSupport.displayedReset(window, now: now) {
-            parts.append(resets.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)))
+            parts.append(resets.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened)
+                .locale(AgentFormat.resetClock(locale))))
             if window.estimatedResetsAt != nil { parts.append(text.estimated) }
         }
         if let observed = observedAt, now.timeIntervalSince(observed) > 600 {

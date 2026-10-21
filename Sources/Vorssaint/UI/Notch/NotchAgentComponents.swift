@@ -696,7 +696,7 @@ struct NotchAgentRestingAmount: View {
                 if short {
                     Text(reset.short).minimumScaleFactor(0.8)
                 } else {
-                    // "Sat 3:33 PM" is wider than a 44-point wing leaves;
+                    // "Sat 15:33" is wider than a 44-point wing leaves;
                     // there it says "Sat".
                     ViewThatFits(in: .horizontal) {
                         Text(reset.full)

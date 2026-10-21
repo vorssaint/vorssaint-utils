@@ -83,9 +83,16 @@ enum AgentSessionPlaceTests {
         let sameDay = AgentFormat.resetTime(today, now: now, locale: locale, calendar: calendar)
         let thisWeek = AgentFormat.resetTime(saturday, now: now, locale: locale, calendar: calendar)
         let beyond = AgentFormat.resetTime(later, now: now, locale: locale, calendar: calendar)
-        suite.expect(!sameDay.isEmpty && !sameDay.contains("Oct") && !sameDay.contains("Wed"),
-                     "a reset later today reads as a clock time")
-        suite.expect(thisWeek.contains("Sat"), "a reset within the week names its day")
+        suite.expect(sameDay == "16:26", "a reset later today reads as a 24-hour clock time, even in a 12-hour region: \(sameDay)")
+        suite.expect(thisWeek.contains("Sat") && thisWeek.contains("15:33") && !thisWeek.contains("PM"),
+                     "a reset within the week names its day and its 24-hour time: \(thisWeek)")
+        let evening = calendar.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 22))!
+        let resting = NotchAgentSupport.restingReset(
+            AgentLimitWindow(id: "s", kind: .session, minutes: 300, scope: nil, usedPercent: 40, resetsAt: evening),
+            now: now, locale: locale, calendar: calendar)
+        suite.expect(resting?.full == "22:00" && resting?.short == "22:00"
+                        && AgentFormat.resetTime(evening, now: now, locale: locale, calendar: calendar) == "22:00",
+                     "the resting island and the open island name the same 24-hour time: \(String(describing: resting))")
         suite.expect(beyond.contains("Nov"), "a reset beyond the week names its date")
     }
 
