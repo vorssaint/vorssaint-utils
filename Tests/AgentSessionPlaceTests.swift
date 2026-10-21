@@ -12,6 +12,7 @@ enum AgentSessionPlaceTests {
         spending(suite)
         resetTime(suite)
         month(suite)
+        lifetime(suite)
     }
 
     private static func claudePlace(_ suite: TestSuite) {
@@ -127,5 +128,45 @@ enum AgentSessionPlaceTests {
         snapshot.claudeBlock = nil
         suite.expect(NotchAgentSupport.claudeSessionValue(snapshot, splitsBilling: false) == nil,
                      "with no window open there is no session to value")
+    }
+
+    private static func lifetime(_ suite: TestSuite) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        func snapshot(_ days: [(Int, Double, Double)]) -> AgentUsageSnapshot {
+            var snapshot = AgentUsageSnapshot()
+            for (day, opus, codex) in days {
+                snapshot.days.append(AgentBucket(start: calendar.date(from: DateComponents(year: 2026, month: 10, day: day))!))
+                var models: [String: AgentShare] = [:]
+                if opus > 0 {
+                    models["claude:Opus"] = AgentShare(id: "claude:Opus", name: "Opus", provider: .claude,
+                                                       totals: AgentTotals(tokens: AgentTokens(input: Int(opus)), cost: opus))
+                }
+                if codex > 0 {
+                    models["codex:GPT"] = AgentShare(id: "codex:GPT", name: "GPT", provider: .codex,
+                                                     totals: AgentTotals(tokens: AgentTokens(input: Int(codex)), cost: codex))
+                }
+                snapshot.dayModels.append(models)
+            }
+            return snapshot
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-ledger-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("agent-ledger.json")
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let ledger = AgentUsageLedger(url: url)
+        ledger.merge(snapshot([(1, 100, 10), (2, 50, 0)]), calendar: calendar)
+        // Day 1's logs are gone and day 2 lost a log; today keeps streaming.
+        ledger.merge(snapshot([(2, 20, 0), (3, 30, 5)]), calendar: calendar)
+        ledger.merge(snapshot([(2, 20, 0), (3, 40, 5)]), calendar: calendar)
+        let usage = ledger.usage(providers: [.claude, .codex])
+        suite.expect(usage.total.cost == 205 && usage.byProvider[.claude]?.cost == 190 && usage.byProvider[.codex]?.cost == 15,
+                     "the lifetime keeps days whose logs are gone and takes the latest of a growing day: \(usage.total.cost)")
+        suite.expect(usage.models.map(\.name) == ["Opus", "GPT"] && usage.models.first?.totals.cost == 190,
+                     "lifetime models add up every day, largest first")
+        suite.expect(ledger.usage(providers: [.codex]).total.cost == 15, "the lifetime counts only the agents asked for")
+        ledger.save()
+        suite.expect(AgentUsageLedger(url: url).usage(providers: [.claude, .codex]) == usage,
+                     "the lifetime survives a relaunch")
     }
 }

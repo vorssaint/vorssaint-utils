@@ -86,6 +86,8 @@ final class AgentUsageService: ObservableObject {
     private var readerCancellation: Cancellation?
     private var enabled: Set<AgentProvider> = []
     private var store = AgentUsageStore()
+    /// Every day's spending, kept after its logs are gone. Loaded on first use.
+    private lazy var ledger = AgentUsageLedger()
     private var cursors: [String: AgentLogCursor] = [:]
     private var watcher: AgentLogWatcher?
     private var watchedRoots: [AgentLogRoot] = []
@@ -359,6 +361,7 @@ final class AgentUsageService: ObservableObject {
     /// on `queue`.
     private func saveProgress() {
         guard readerSession >= 0 else { return }
+        ledger.save()
         let mark = progressMark
         lastSave = Date()
         guard mark != savedMark else { return }
@@ -649,7 +652,9 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        ledger.merge(next)
+        next.lifetime = ledger.usage(providers: enabled)
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {

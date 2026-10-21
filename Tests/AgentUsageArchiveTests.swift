@@ -443,6 +443,7 @@ enum AgentUsageArchiveSaveTests {
         var enabled: Set<AgentProvider> = [.claude]
         var store = AgentUsageStore()
         var cursors: [String: AgentLogCursor] = [:]
+        let ledger = AgentUsageLedger(url: nil)
     }
 
     static func run(_ suite: TestSuite) {
