@@ -66,23 +66,21 @@ enum NotchAgentRestingStatus: Equatable {
     case normal, low, almostOut
 }
 
-/// One account at rest: its session ring, its weekly bar and the window its
-/// number follows. A window switched off is nil and draws as an empty track.
+/// One account at rest: the limit "Limit to show" picks, which its ring
+/// fills and its number and reset time read.
 struct NotchAgentRestingMeter: Identifiable, Equatable {
     let provider: AgentProvider
-    let session: AgentLimitWindow?
-    let weekly: AgentLimitWindow?
-    /// The window the number beside the meter reads.
-    let amount: AgentLimitWindow
+    let window: AgentLimitWindow
 
     var id: String { provider.rawValue }
+}
 
-    /// The most spent of the windows shown, the one the number follows
-    /// unless "Limit to show" picks a shown window; nil while both are
-    /// switched off.
-    static func tightest(session: AgentLimitWindow?, weekly: AgentLimitWindow?) -> AgentLimitWindow? {
-        [session, weekly].compactMap { $0 }.max { $0.usedPercent < $1.usedPercent }
-    }
+/// When a resting limit renews, in the two lengths a wing has room for.
+struct NotchAgentRestingReset: Equatable {
+    /// "4:26 PM" within the day, "Sat 3:33 PM" further off.
+    let full: String
+    /// "4:26" or "Sat", for a narrow wing.
+    let short: String
 }
 
 struct NotchAgentTile: Identifiable, Equatable {
@@ -217,12 +215,6 @@ enum NotchAgentSupport {
         NotchAgentRestingLayout(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsRestingLayout) ?? "") ?? .single
     }
 
-    /// Which windows the meters fill outside Single.
-    static func restingWindows(in defaults: UserDefaults = .standard) -> (session: Bool, weekly: Bool) {
-        (defaults.object(forKey: DefaultsKey.notchAgentsRestingSession) as? Bool ?? true,
-         defaults.object(forKey: DefaultsKey.notchAgentsRestingWeekly) as? Bool ?? true)
-    }
-
     /// Accounts switched off in Show at rest.
     static func restingHidden(in defaults: UserDefaults = .standard) -> Set<AgentProvider> {
         parseRestingHidden(defaults.string(forKey: DefaultsKey.notchAgentsRestingHidden) ?? "")
@@ -279,85 +271,98 @@ enum NotchAgentSupport {
     }
 
     /// Every account that rests, in the order the person keeps them: switched
-    /// on, not left out at rest, and reporting a plan-wide window of a kind
-    /// shown. The number reads the window the focus picks while it is shown,
-    /// and the tighter shown window otherwise. With both kinds off, any
-    /// plan-wide window counts and the number follows the most used one.
+    /// on, not left out at rest, and reporting a plan-wide window. Each shows
+    /// the window "Limit to show" picks, or its most used one while the
+    /// account reports none of that kind.
     static func restingMeters(_ snapshot: AgentUsageSnapshot, providers: [AgentProvider],
-                              hidden: Set<AgentProvider>, session: Bool, weekly: Bool,
-                              focus: NotchAgentLimitFocus, now: Date) -> [NotchAgentRestingMeter] {
+                              hidden: Set<AgentProvider>, focus: NotchAgentLimitFocus,
+                              now: Date) -> [NotchAgentRestingMeter] {
         providers.compactMap { provider -> NotchAgentRestingMeter? in
             guard !hidden.contains(provider), let limits = snapshot.limits[provider] else { return nil }
             let planWide = limits.windows.filter { $0.scope == nil }.map { AgentLimitSupport.current($0, at: now) }
-            let sessionWindow = session ? planWide.first { $0.kind == .session } : nil
-            let weeklyWindow = weekly ? planWide.first { $0.kind == .weekly } : nil
-            let focused: AgentLimitWindow?
+            let kind: AgentLimitWindow.Kind?
             switch focus {
-            case .mostUsed: focused = nil
-            case .session: focused = sessionWindow
-            case .weekly: focused = weeklyWindow
+            case .mostUsed: kind = nil
+            case .session: kind = .session
+            case .weekly: kind = .weekly
             }
-            let amount = session || weekly
-                ? focused ?? NotchAgentRestingMeter.tightest(session: sessionWindow, weekly: weeklyWindow)
-                : planWide.max { $0.usedPercent < $1.usedPercent }
-            return amount.map { NotchAgentRestingMeter(provider: provider, session: sessionWindow, weekly: weeklyWindow, amount: $0) }
+            // Of two windows as spent, the one renewing later stops you longer.
+            let window = kind.flatMap { kind in planWide.first { $0.kind == kind } } ?? planWide.max {
+                $0.usedPercent != $1.usedPercent ? $0.usedPercent < $1.usedPercent
+                    : ($0.resetsAt ?? .distantPast) < ($1.resetsAt ?? .distantPast)
+            }
+            return window.map { NotchAgentRestingMeter(provider: provider, window: $0) }
         }
     }
 
-    /// Single's meter: today's resting allowance among the accounts that
-    /// rest, filled on the ring or the bar by its kind.
+    /// Single's meter: the limit closest to stopping you among the accounts
+    /// that rest, the same one the working strip's ring shows.
     static func singleRestingMeter(_ snapshot: AgentUsageSnapshot, hidden: Set<AgentProvider>,
                                    focus: NotchAgentLimitFocus, now: Date) -> NotchAgentRestingMeter? {
         var shown = snapshot
         shown.limits = snapshot.limits.filter { !hidden.contains($0.key) }
-        guard let limit = restingLimit(shown, focus: focus, now: now) else { return nil }
-        let weekly = limit.window.kind == .weekly
-        return NotchAgentRestingMeter(provider: limit.provider, session: weekly ? nil : limit.window,
-                                      weekly: weekly ? limit.window : nil, amount: limit.window)
+        return restingLimit(shown, focus: focus, now: now).map { NotchAgentRestingMeter(provider: $0.provider, window: $0.window) }
     }
 
     /// What a layout shows, in its order: Single's one meter, the first two
     /// for One per side, and for Rotate the tightest number first, then the
     /// rest in the person's order.
     static func restingSequence(_ snapshot: AgentUsageSnapshot, layout: NotchAgentRestingLayout,
-                                providers: [AgentProvider], hidden: Set<AgentProvider>, session: Bool, weekly: Bool,
+                                providers: [AgentProvider], hidden: Set<AgentProvider>,
                                 focus: NotchAgentLimitFocus, now: Date) -> [NotchAgentRestingMeter] {
         switch layout {
         case .single:
             return singleRestingMeter(snapshot, hidden: hidden, focus: focus, now: now).map { [$0] } ?? []
         case .split:
-            return Array(restingMeters(snapshot, providers: providers, hidden: hidden, session: session,
-                                       weekly: weekly, focus: focus, now: now).prefix(2))
+            return Array(restingMeters(snapshot, providers: providers, hidden: hidden, focus: focus, now: now).prefix(2))
         case .cycle:
-            var meters = restingMeters(snapshot, providers: providers, hidden: hidden, session: session,
-                                       weekly: weekly, focus: focus, now: now)
+            var meters = restingMeters(snapshot, providers: providers, hidden: hidden, focus: focus, now: now)
             // The first of the most spent, so a tie keeps the person's order.
-            if let tightest = meters.indices.max(by: { meters[$0].amount.usedPercent < meters[$1].amount.usedPercent
-                                                        || (meters[$0].amount.usedPercent == meters[$1].amount.usedPercent && $0 > $1) }) {
+            if let tightest = meters.indices.max(by: { meters[$0].window.usedPercent < meters[$1].window.usedPercent
+                                                        || (meters[$0].window.usedPercent == meters[$1].window.usedPercent && $0 > $1) }) {
                 meters.insert(meters.remove(at: tightest), at: 0)
             }
             return meters
         }
     }
 
-    /// What VoiceOver reads for the meters: each account's windows shown, as
-    /// left or used, with a word once one runs low. With both windows off,
-    /// the one its number follows.
+    /// When a resting limit renews: the clock time on the same day or within
+    /// twelve hours, the weekday and time within the week, the date beyond.
+    /// The short form drops AM or PM, or keeps only the weekday. "≈" marks a
+    /// time the island estimated; nil while the time is unknown.
+    static func restingReset(_ window: AgentLimitWindow, now: Date, locale: Locale,
+                             calendar: Calendar = .autoupdatingCurrent) -> NotchAgentRestingReset? {
+        guard let resets = AgentLimitSupport.displayedReset(window, now: now) else { return nil }
+        let mark = window.estimatedResetsAt == nil ? "" : "≈"
+        let style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+        let away = resets.timeIntervalSince(now)
+        if calendar.isDate(resets, inSameDayAs: now) || away < 12 * 3_600 {
+            return NotchAgentRestingReset(full: mark + resets.formatted(style.hour().minute()),
+                                          short: mark + resets.formatted(style.hour(.defaultDigits(amPM: .omitted)).minute()))
+        }
+        let full = AgentFormat.resetTime(resets, now: now, locale: locale, calendar: calendar)
+        return NotchAgentRestingReset(full: mark + full,
+                                      short: mark + (away < 6 * 86_400 ? resets.formatted(style.weekday(.abbreviated)) : full))
+    }
+
+    /// What VoiceOver reads for the meters: each account's limit, as left or
+    /// used, when it renews, and a word once it runs low.
     static func restingSpeech(_ meters: [NotchAgentRestingMeter], used: Bool, text: NotchAgentStrings,
-                              locale: Locale) -> String {
+                              locale: Locale, now: Date) -> String {
         meters.map { meter in
-            var windows = [meter.session.map { (text.session, $0) }, meter.weekly.map { (text.weekly, $0) }].compactMap { $0 }
-            if windows.isEmpty { windows = [(meter.amount.kind == .weekly ? text.weekly : text.session, meter.amount)] }
-            let readings = windows.map { name, window -> String in
-                let share = AgentFormat.percent(used ? window.usedFraction : window.remainingFraction, locale: locale)
-                let reading = text.restingWindow(name, used ? text.usedShare(share) : text.left(share))
-                switch restingStatus(usedFraction: window.usedFraction) {
-                case .normal: return reading
-                case .low: return reading + ", " + text.restingLow
-                case .almostOut: return reading + ", " + text.restingAlmostOut
-                }
+            let window = meter.window
+            let share = AgentFormat.percent(used ? window.usedFraction : window.remainingFraction, locale: locale)
+            var parts = [text.restingWindow(window.kind == .weekly ? text.weekly : text.session,
+                                            used ? text.usedShare(share) : text.left(share))]
+            if let resets = AgentLimitSupport.displayedReset(window, now: now) {
+                parts.append(text.restingResets(AgentFormat.resetTime(resets, now: now, locale: locale)))
             }
-            return meter.provider.displayName + ": " + readings.joined(separator: ", ")
+            switch restingStatus(usedFraction: window.usedFraction) {
+            case .normal: break
+            case .low: parts.append(text.restingLow)
+            case .almostOut: parts.append(text.restingAlmostOut)
+            }
+            return meter.provider.displayName + ": " + parts.joined(separator: ", ")
         }.joined(separator: "; ")
     }
 

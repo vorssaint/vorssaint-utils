@@ -3077,72 +3077,60 @@ enum NotchAgentTests {
         let codex = limits(.codex, [window(.session, 90, resetsIn: -60), window(.weekly, 40)])
         let opencode = limits(.opencode, [window(.session, 60)])
         let all = snapshot([.claude: claude, .codex: codex, .opencode: opencode])
-        func meters(_ snapshot: AgentUsageSnapshot, hidden: Set<AgentProvider> = [], session: Bool = true,
-                    weekly: Bool = true, focus: NotchAgentLimitFocus = .mostUsed) -> [NotchAgentRestingMeter] {
-            NotchAgentSupport.restingMeters(snapshot, providers: AgentProvider.allCases, hidden: hidden,
-                                            session: session, weekly: weekly, focus: focus, now: now)
+        func meters(_ snapshot: AgentUsageSnapshot, hidden: Set<AgentProvider> = [],
+                    focus: NotchAgentLimitFocus = .mostUsed) -> [NotchAgentRestingMeter] {
+            NotchAgentSupport.restingMeters(snapshot, providers: AgentProvider.allCases, hidden: hidden, focus: focus, now: now)
         }
         let shown = meters(all)
         suite.expect(shown.map(\.provider) == [.claude, .codex, .opencode],
                      "accounts rest in the order the person keeps them")
-        suite.expect(shown.first?.weekly?.usedPercent == 79 && shown.first?.amount.usedPercent == 79,
+        suite.expect(shown.first?.window.kind == .weekly && shown.first?.window.usedPercent == 79,
                      "a model's own allowance never stands for the week at rest")
-        suite.expect(shown[1].session?.usedPercent == 0 && shown[1].amount.usedPercent == 40,
-                     "a session that renewed rests as unspent, and the number follows the tighter window")
+        suite.expect(shown[1].window.kind == .weekly && shown[1].window.usedPercent == 40,
+                     "a session that renewed rests as unspent, so the week is the tighter limit")
         suite.expect(meters(all, hidden: [.claude]).map(\.provider) == [.codex, .opencode],
                      "an account left out at rest never rests")
         suite.expect(meters(snapshot([.claude: claude, .codex: codex], providers: [.codex, .copilot])).map(\.provider)
                         == [.codex],
                      "an agent switched off does not rest, and Copilot without limits stays out")
-        let weeklyOnly = meters(all, session: false)
-        suite.expect(weeklyOnly.map(\.provider) == [.claude, .codex] && weeklyOnly.allSatisfy { $0.session == nil },
-                     "with the session off, an account reporting only a session does not rest")
-        let neither = meters(all, session: false, weekly: false)
-        suite.expect(neither.count == 3 && neither.allSatisfy { $0.session == nil && $0.weekly == nil }
-                        && neither.map(\.amount.usedPercent) == [79, 40, 60],
-                     "with both windows off, the number follows each account's most used plan-wide window")
 
         // Claude's session is the tighter window and Codex's week is, so the
-        // most used numbers mix kinds until "Limit to show" picks one.
+        // most used limits mix kinds until "Limit to show" picks one.
         let mixed = snapshot([.claude: limits(.claude, [window(.session, 70), window(.weekly, 20)]),
                               .codex: limits(.codex, [window(.session, 10), window(.weekly, 50)])])
-        func amounts(_ shown: [NotchAgentRestingMeter]) -> [String] {
-            shown.map { "\($0.amount.kind.rawValue) \(Int($0.amount.usedPercent))" }
+        func shownLimits(_ shown: [NotchAgentRestingMeter]) -> [String] {
+            shown.map { "\($0.window.kind.rawValue) \(Int($0.window.usedPercent))" }
         }
-        suite.expect(amounts(meters(mixed)) == ["session 70", "weekly 50"],
-                     "Most used keeps each account's tighter window: \(amounts(meters(mixed)))")
-        suite.expect(amounts(meters(mixed, focus: .weekly)) == ["weekly 20", "weekly 50"],
-                     "Weekly gives every number the week, even where the session is tighter: "
-                        + "\(amounts(meters(mixed, focus: .weekly)))")
-        suite.expect(amounts(meters(mixed, focus: .session)) == ["session 70", "session 10"],
-                     "Session gives every number the session: \(amounts(meters(mixed, focus: .session)))")
-        suite.expect(meters(mixed, focus: .weekly).map(\.session) == meters(mixed).map(\.session)
-                        && meters(mixed, focus: .session).map(\.weekly) == meters(mixed).map(\.weekly),
-                     "the focus changes only the number, never what the ring and bar fill")
-        suite.expect(amounts(meters(mixed, weekly: false, focus: .weekly)) == ["session 70", "session 10"]
-                        && amounts(meters(mixed, session: false, focus: .session)) == ["weekly 20", "weekly 50"],
-                     "a focused window switched off at rest leaves the number on the tighter window shown")
+        suite.expect(shownLimits(meters(mixed)) == ["session 70", "weekly 50"],
+                     "Most used shows each account's tighter limit: \(shownLimits(meters(mixed)))")
+        suite.expect(shownLimits(meters(mixed, focus: .weekly)) == ["weekly 20", "weekly 50"],
+                     "Week gives every ring the week, even where the session is tighter: "
+                        + "\(shownLimits(meters(mixed, focus: .weekly)))")
+        suite.expect(shownLimits(meters(mixed, focus: .session)) == ["session 70", "session 10"],
+                     "Session gives every ring the session: \(shownLimits(meters(mixed, focus: .session)))")
         let weekOnly = snapshot([.claude: limits(.claude, [window(.session, 70), window(.weekly, 20)]),
                                  .opencode: limits(.opencode, [window(.weekly, 45), window(.session, 99, scope: "Opus")])])
-        suite.expect(amounts(meters(weekOnly, focus: .session)) == ["session 70", "weekly 45"],
+        suite.expect(shownLimits(meters(weekOnly, focus: .session)) == ["session 70", "weekly 45"],
                      "an account reporting no plan-wide window of the focused kind keeps its tighter one: "
-                        + "\(amounts(meters(weekOnly, focus: .session)))")
-        suite.expect(amounts(meters(mixed, session: false, weekly: false, focus: .weekly)) == ["session 70", "weekly 50"],
-                     "with both windows off, the number still follows each account's most used window")
+                        + "\(shownLimits(meters(weekOnly, focus: .session)))")
+        let tied = snapshot([.claude: limits(.claude, [window(.session, 50, resetsIn: 3_600),
+                                                       window(.weekly, 50, resetsIn: 86_400 * 3)])])
+        suite.expect(meters(tied).first?.window.kind == .weekly,
+                     "of two limits as spent, the one renewing later is the one that stops you longer")
         func rotation(_ focus: NotchAgentLimitFocus) -> [AgentProvider] {
             NotchAgentSupport.restingSequence(mixed, layout: .cycle, providers: AgentProvider.allCases, hidden: [],
-                                              session: true, weekly: true, focus: focus, now: now).map(\.provider)
+                                              focus: focus, now: now).map(\.provider)
         }
         suite.expect(rotation(.mostUsed) == [.claude, .codex] && rotation(.session) == [.claude, .codex]
                         && rotation(.weekly) == [.codex, .claude],
-                     "Rotate leads with the tightest number the focus shows")
+                     "Rotate leads with the tightest limit the focus shows")
         let split = NotchAgentSupport.restingSequence(mixed, layout: .split, providers: AgentProvider.allCases, hidden: [],
-                                                      session: true, weekly: true, focus: .weekly, now: now)
-        suite.expect(amounts(split) == ["weekly 20", "weekly 50"], "One per side's numbers follow the focus together")
+                                                      focus: .weekly, now: now)
+        suite.expect(shownLimits(split) == ["weekly 20", "weekly 50"], "One per side's rings follow the focus together")
 
         func sequence(_ layout: NotchAgentRestingLayout, hidden: Set<AgentProvider> = []) -> [AgentProvider] {
             NotchAgentSupport.restingSequence(all, layout: layout, providers: AgentProvider.allCases, hidden: hidden,
-                                              session: true, weekly: true, focus: .mostUsed, now: now).map(\.provider)
+                                              focus: .mostUsed, now: now).map(\.provider)
         }
         suite.expect(sequence(.split) == [.claude, .codex] && sequence(.cycle) == [.claude, .codex, .opencode]
                         && sequence(.single) == [.claude],
@@ -3150,8 +3138,10 @@ enum NotchAgentTests {
         suite.expect(sequence(.cycle, hidden: [.claude]) == [.opencode, .codex] && sequence(.single, hidden: [.claude]) == [.opencode],
                      "the tightest of the accounts that rest leads, and Single never picks one left out")
         let single = NotchAgentSupport.singleRestingMeter(all, hidden: [], focus: .session, now: now)
-        suite.expect(single?.provider == .opencode && single?.session?.usedPercent == 60 && single?.weekly == nil,
-                     "Single fills only the window the focus picks")
+        let working = NotchAgentSupport.focusedLimit(all.limits[.opencode], focus: .session, now: now)
+        suite.expect(single?.provider == .opencode && single?.window.kind == .session && single?.window.usedPercent == 60
+                        && single?.window == working,
+                     "Single shows the limit the focus picks, the one the working strip's ring shows")
         suite.expect(NotchAgentSupport.restingCycleIndex(at: Date(timeIntervalSinceReferenceDate: 0), count: 3) == 0
                         && NotchAgentSupport.restingCycleIndex(at: Date(timeIntervalSinceReferenceDate: 4), count: 3) == 1
                         && NotchAgentSupport.restingCycleIndex(at: Date(timeIntervalSinceReferenceDate: 13), count: 3) == 0,
@@ -3160,13 +3150,41 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.restingStatus(usedFraction: 0.799) == .normal
                         && NotchAgentSupport.restingStatus(usedFraction: 0.80) == .low
                         && NotchAgentSupport.restingStatus(usedFraction: 0.95) == .almostOut,
-                     "a window turns yellow at 80% used and red at 95%")
+                     "a limit turns yellow at 80% used and red at 95%")
+
+        // The reset time under every number: the clock time within the day,
+        // the weekday further off, the date beyond a week.
+        let locale = Locale(identifier: "en_US")
+        let soon = window(.session, 40, resetsIn: 3_600)
+        let soonReset = NotchAgentSupport.restingReset(soon, now: now, locale: locale)
+        suite.expect(soonReset.map { ($0.full.hasSuffix("AM") || $0.full.hasSuffix("PM")) && $0.full.hasPrefix($0.short)
+                                        && !$0.short.contains("M") } == true,
+                     "within the day the reset reads as a clock time, its short form without AM or PM: \(String(describing: soonReset))")
+        let week = window(.weekly, 40, resetsIn: 86_400 * 3)
+        let weekReset = NotchAgentSupport.restingReset(week, now: now, locale: locale)
+        let weekDate = now.addingTimeInterval(86_400 * 3)
+        suite.expect(weekReset?.full == AgentFormat.resetTime(weekDate, now: now, locale: locale)
+                        && weekReset?.short == weekDate.formatted(Date.FormatStyle().weekday(.abbreviated).locale(locale)),
+                     "later in the week the reset reads as the weekday and time, or the weekday alone: \(String(describing: weekReset))")
+        let far = NotchAgentSupport.restingReset(window(.other, 40, resetsIn: 86_400 * 20), now: now, locale: locale)
+        suite.expect(far != nil && far?.full == far?.short,
+                     "a reset beyond the week reads as its date in both lengths")
+        var estimated = window(.weekly, 40, resetsIn: 86_400 * 3)
+        estimated.estimatedResetsAt = now.addingTimeInterval(86_400 * 2)
+        let estimate = NotchAgentSupport.restingReset(estimated, now: now, locale: locale)
+        suite.expect(estimate?.full.hasPrefix("≈") == true && estimate?.short.hasPrefix("≈") == true,
+                     "an estimated reset is marked as one")
+        suite.expect(NotchAgentSupport.restingReset(window(.session, 40, resetsIn: -60), now: now, locale: locale) == nil
+                        && NotchAgentSupport.restingReset(AgentLimitWindow(id: "s", kind: .session, minutes: 300, scope: nil,
+                                                                           usedPercent: 40, resetsAt: nil),
+                                                          now: now, locale: locale) == nil,
+                     "a reset already past or never reported shows no time")
 
         let overrides = NotchAgentSupport.parseSimulatedRestingUsage("claude.weekly=0.86, codex.weekly=1.7,bad,copilot.x=1,claude.other=1")
         suite.expect(overrides.count == 2 && overrides[.claude]?[.weekly] == 0.86 && overrides[.codex]?[.weekly] == 1,
                      "stand-in usage skips anything malformed and stays within a whole window")
         let simulated = meters(NotchAgentSupport.applyingSimulation(all, overrides))
-        suite.expect(simulated.first?.weekly?.usedPercent == 86 && simulated[1].weekly?.usedPercent == 100
+        suite.expect(simulated.first?.window.usedPercent == 86 && simulated[1].window.usedPercent == 100
                         && all.limits[.claude]?.windows[1].usedPercent == 79,
                      "stand-in usage changes copies of the windows, never the snapshot")
         let domain = "com.vorssaint.tests.notch-agents-resting"
@@ -3179,15 +3197,18 @@ enum NotchAgentTests {
                      "only the Developer build reads stand-in usage")
 
         let text = FeatureStrings.notchAgents(.enUS)
-        let locale = Locale(identifier: "en_US")
-        let speech = NotchAgentSupport.restingSpeech(Array(simulated.prefix(2)), used: false, text: text, locale: locale)
-        suite.expect(speech == "Claude: Session: 70% left, Week: 14% left, low; Codex: Session: 100% left, Week: 0% left, almost out",
-                     "VoiceOver reads every window shown, with a word once one runs low: \(speech)")
+        let hour = AgentFormat.resetTime(now.addingTimeInterval(3_600), now: now, locale: locale)
+        let speech = NotchAgentSupport.restingSpeech(Array(simulated.prefix(2)), used: false, text: text, locale: locale, now: now)
+        suite.expect(speech == "Claude: Week: 14% left, resets \(hour), low; Codex: Week: 0% left, resets \(hour), almost out",
+                     "VoiceOver reads each limit shown, when it renews, and a word once it runs low: \(speech)")
+        let usedSpeech = NotchAgentSupport.restingSpeech([simulated[0]], used: true, text: text, locale: locale, now: now)
+        suite.expect(usedSpeech == "Claude: Week: " + text.usedShare("86%") + ", resets \(hour), low",
+                     "VoiceOver says used, though the island no longer draws the word: \(usedSpeech)")
         for (language, _) in LocalizationTests.languages {
             let strings = FeatureStrings.notchAgents(language)
             suite.expect(strings.restingFocusCaption.contains(strings.limitFocus)
-                            && strings.restingFocusCaption.contains(strings.restingSingle),
-                         "\(language.rawValue): the At rest caption names its own “Limit to show” and Single")
+                            && strings.restingResets("X").contains("X"),
+                         "\(language.rawValue): the At rest caption names its own “Limit to show”, and the reset is spoken")
         }
     }
 
@@ -3322,9 +3343,8 @@ enum NotchAgentTests {
         defaults.set(NotchAgentRestingLayout.cycle.rawValue, forKey: DefaultsKey.notchAgentsRestingLayout)
         suite.expect(NotchAgentSupport.restingLayout(in: defaults) == .cycle, "the chosen resting layout is kept")
         defaults.set("codex,unknown", forKey: DefaultsKey.notchAgentsRestingHidden)
-        suite.expect(NotchAgentSupport.restingHidden(in: defaults) == [.codex]
-                        && NotchAgentSupport.restingWindows(in: defaults) == (true, true),
-                     "agents left out at rest ignore unknown names, and both windows show by default")
+        suite.expect(NotchAgentSupport.restingHidden(in: defaults) == [.codex],
+                     "agents left out at rest ignore unknown names")
         defaults.set(false, forKey: DefaultsKey.notchAgentsFinishAlert)
         defaults.set(95.0, forKey: DefaultsKey.notchAgentsLimitThreshold)
         defaults.set(-4.0, forKey: DefaultsKey.notchAgentsDailyBudget)
@@ -3338,12 +3358,33 @@ enum NotchAgentTests {
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates,
-                    DefaultsKey.notchAgentsRestingLayout, DefaultsKey.notchAgentsRestingSession,
-                    DefaultsKey.notchAgentsRestingWeekly, DefaultsKey.notchAgentsRestingHidden]
+                    DefaultsKey.notchAgentsRestingLayout, DefaultsKey.notchAgentsRestingHidden]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,
                      "AI preferences travel in backups, with Agents opt-in and prices kept current when enabled")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchAgentsRestingSession] == nil
+                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsRestingWeekly] == nil,
+                     "the resting ring's retired switches are no longer settings")
+        // Whoever kept only the session ring or the weekly bar keeps that limit.
+        for (session, weekly, chosen, expected) in [(true as Bool?, false as Bool?, nil as String?, "session"),
+                                                    (false, nil, nil, "weekly"),
+                                                    (false, false, nil, "mostUsed"),
+                                                    (true, false, "weekly", "weekly"),
+                                                    (nil, nil, nil, "mostUsed")] {
+            let suiteName = "com.vorssaint.tests.resting-windows.\(UUID().uuidString)"
+            let migrated = UserDefaults(suiteName: suiteName)!
+            defer { migrated.removePersistentDomain(forName: suiteName) }
+            session.map { migrated.set($0, forKey: DefaultsKey.notchAgentsRestingSession) }
+            weekly.map { migrated.set($0, forKey: DefaultsKey.notchAgentsRestingWeekly) }
+            chosen.map { migrated.set($0, forKey: DefaultsKey.notchAgentsLimitFocus) }
+            Defaults.migrateRestingWindows(in: migrated)
+            suite.expect(NotchAgentSupport.limitFocus(in: migrated).rawValue == expected
+                            && migrated.object(forKey: DefaultsKey.notchAgentsRestingSession) == nil
+                            && migrated.object(forKey: DefaultsKey.notchAgentsRestingWeekly) == nil,
+                         "session \(String(describing: session)), week \(String(describing: weekly)), chosen "
+                            + "\(chosen ?? "none"): the resting ring shows \(expected)")
+        }
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.simulateRestingUsage)
                         && Defaults.registeredDefaults[DefaultsKey.simulateRestingUsage] == nil,
                      "the Developer build's stand-in usage never travels in backups")
