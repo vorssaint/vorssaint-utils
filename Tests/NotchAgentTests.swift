@@ -3157,9 +3157,8 @@ enum NotchAgentTests {
         let locale = Locale(identifier: "en_US")
         let soon = window(.session, 40, resetsIn: 3_600)
         let soonReset = NotchAgentSupport.restingReset(soon, now: now, locale: locale)
-        suite.expect(soonReset.map { ($0.full.hasSuffix("AM") || $0.full.hasSuffix("PM")) && $0.full.hasPrefix($0.short)
-                                        && !$0.short.contains("M") } == true,
-                     "within the day the reset reads as a clock time, its short form without AM or PM: \(String(describing: soonReset))")
+        suite.expect(soonReset.map { !$0.full.contains("M") && $0.full.contains(":") && $0.full == $0.short } == true,
+                     "within the day the reset reads as a 24-hour clock time in both lengths: \(String(describing: soonReset))")
         let week = window(.weekly, 40, resetsIn: 86_400 * 3)
         let weekReset = NotchAgentSupport.restingReset(week, now: now, locale: locale)
         let weekDate = now.addingTimeInterval(86_400 * 3)

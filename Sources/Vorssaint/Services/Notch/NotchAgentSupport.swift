@@ -83,9 +83,9 @@ struct NotchAgentRestingMeter: Identifiable, Equatable {
 
 /// When a resting limit renews, in the two lengths a wing has room for.
 struct NotchAgentRestingReset: Equatable {
-    /// "4:26 PM" within the day, "Sat 3:33 PM" further off.
+    /// "16:26" within the day, "Sat 15:33" further off.
     let full: String
-    /// "4:26" or "Sat", for a narrow wing.
+    /// "16:26" or "Sat", for a narrow wing.
     let short: String
 }
 
@@ -336,19 +336,19 @@ enum NotchAgentSupport {
         }
     }
 
-    /// When a resting limit renews: the clock time on the same day or within
-    /// twelve hours, the weekday and time within the week, the date beyond.
-    /// The short form drops AM or PM, or keeps only the weekday. "≈" marks a
-    /// time the island estimated; nil while the time is unknown.
+    /// When a resting limit renews: the 24-hour clock time on the same day or
+    /// within twelve hours, the weekday and time within the week, the date
+    /// beyond. The short form keeps only the weekday. "≈" marks a time the
+    /// island estimated; nil while the time is unknown.
     static func restingReset(_ window: AgentLimitWindow, now: Date, locale: Locale,
                              calendar: Calendar = .autoupdatingCurrent) -> NotchAgentRestingReset? {
         guard let resets = AgentLimitSupport.displayedReset(window, now: now) else { return nil }
         let mark = window.estimatedResetsAt == nil ? "" : "≈"
-        let style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+        let style = Date.FormatStyle(locale: AgentFormat.resetClock(locale), calendar: calendar, timeZone: calendar.timeZone)
         let away = resets.timeIntervalSince(now)
         if calendar.isDate(resets, inSameDayAs: now) || away < 12 * 3_600 {
-            return NotchAgentRestingReset(full: mark + resets.formatted(style.hour().minute()),
-                                          short: mark + resets.formatted(style.hour(.defaultDigits(amPM: .omitted)).minute()))
+            let clock = mark + resets.formatted(style.hour(.twoDigits(amPM: .omitted)).minute())
+            return NotchAgentRestingReset(full: clock, short: clock)
         }
         let full = AgentFormat.resetTime(resets, now: now, locale: locale, calendar: calendar)
         return NotchAgentRestingReset(full: mark + full,
@@ -748,16 +748,26 @@ enum AgentFormat {
         return .low
     }
 
-    /// When a limit renews, as a clock time: "4:26 PM" today, "Sat 3:33 PM"
+    /// When a limit renews, on a 24-hour clock: "16:26" today, "Sat 15:33"
     /// on a later day, "Oct 30" beyond a week.
     static func resetTime(_ date: Date, now: Date, locale: Locale, calendar: Calendar = .autoupdatingCurrent) -> String {
+        let style = Date.FormatStyle(locale: resetClock(locale), calendar: calendar, timeZone: calendar.timeZone)
         if calendar.isDate(date, inSameDayAs: now) {
-            return date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(locale))
+            return date.formatted(style.hour(.twoDigits(amPM: .omitted)).minute())
         }
         if date.timeIntervalSince(now) < 6 * 86_400 {
-            return date.formatted(Date.FormatStyle().weekday(.abbreviated).hour().minute().locale(locale))
+            return date.formatted(style.weekday(.abbreviated).hour(.twoDigits(amPM: .omitted)).minute())
         }
-        return date.formatted(Date.FormatStyle().month(.abbreviated).day().locale(locale))
+        return date.formatted(style.month(.abbreviated).day())
+    }
+
+    /// Reset times read on a 24-hour clock whatever the region's, so the
+    /// resting island's narrow wing, which has no room for AM or PM, and the
+    /// open island never seem to name different times.
+    static func resetClock(_ locale: Locale) -> Locale {
+        var components = Locale.Components(locale: locale)
+        components.hourCycle = .zeroToTwentyThree
+        return Locale(components: components)
     }
 
     static func cost(_ value: Double, locale: Locale = .autoupdatingCurrent) -> String {
