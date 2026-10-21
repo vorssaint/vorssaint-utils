@@ -17,6 +17,10 @@ struct NotchTopBarView: View {
     @ObservedObject private var agents = AgentUsageService.shared
     @ObservedObject private var clipboard = ClipboardHistoryService.shared
     @AppStorage(DefaultsKey.notchTopBarSecondaryClickToggles) private var secondaryClickToggles = true
+    // Read so the companion in the bar changes as soon as its look does.
+    @AppStorage(DefaultsKey.notchMascotStyle) private var mascotStyle = NotchMascotStyle.minimal.rawValue
+    @AppStorage(DefaultsKey.notchMascotShape) private var mascotShape = NotchMascotShape.ball.rawValue
+    @AppStorage(DefaultsKey.notchMascotPalette) private var mascotPalette = NotchMascotPalette.pearl.rawValue
 
     var body: some View {
         let items = NotchTopBarConfiguration.current()
@@ -80,6 +84,7 @@ struct NotchTopBarView: View {
 
     private func tint(_ item: NotchTopBarItem) -> Color {
         switch item {
+        case .keepAwake: return awake.isActive ? NotchTopBarPalette.awake : NotchTopBarPalette.amber
         case .microphone: return mic.isMuted ? NotchTopBarPalette.red : NotchTopBarPalette.green
         case .system: return (monitor.snapshot.cpuUsage ?? 0) > 0.8 ? NotchTopBarPalette.orange : NotchTopBarPalette.blue
         case .battery: return NotchTopBarPalette.battery(charge: charge, charging: charging)
@@ -102,8 +107,18 @@ struct NotchTopBarView: View {
 
     @ViewBuilder private func glyph(_ item: NotchTopBarItem, selected: Bool) -> some View {
         switch item {
+        case .agents:
+            // The companion, in the style and colour chosen for it.
+            NotchMascotView(look: NotchMascotLook(style: NotchMascotStyle(rawValue: mascotStyle) ?? .minimal,
+                                                  shape: NotchMascotShape(rawValue: mascotShape) ?? .ball,
+                                                  palette: NotchMascotPalette(rawValue: mascotPalette) ?? .pearl),
+                            size: 18, idles: false)
+                .frame(width: 18, height: 18)
+                // Its own view would otherwise take the button's clicks.
+                .allowsHitTesting(false)
         case .keepAwake:
-            Image(systemName: awake.isActive ? "cup.and.saucer.fill" : "cup.and.saucer")
+            // Awake, the Mac keeps an eye open, as Keep Awake's own eye icon does.
+            Image(systemName: awake.isActive ? "eye.fill" : "cup.and.saucer")
         case .music where music.playback?.isPlaying == true && !selected:
             NotchTopBarEqualizer()
         case .microphone:
