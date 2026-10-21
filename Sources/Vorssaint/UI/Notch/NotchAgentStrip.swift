@@ -192,7 +192,8 @@ private struct NotchAgentRestingContent: View {
     private static let gap: CGFloat = 1.5
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { context in
+        // Often enough that a renewal or a fresh check shows within seconds.
+        TimelineView(.periodic(from: .now, by: 10)) { context in
             content(now: context.date)
         }
     }
