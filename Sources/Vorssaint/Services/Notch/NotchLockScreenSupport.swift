@@ -33,6 +33,29 @@ enum NotchLockScreenSupport {
         NotchSupport.modules(in: defaults).contains(.music)
     }
 
+    /// The AI Agents page beside the player, with the AI section on: the
+    /// widget shows what the section's page shows.
+    static func showsAgents(in defaults: UserDefaults = .standard) -> Bool {
+        NotchAgentSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockScreenAgents)
+    }
+
+    /// The This Mac page left of the player. It needs no section of the
+    /// island: its readings come from the system monitor, power and calendar.
+    static func showsMac(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchLockScreenMac)
+    }
+
+    /// Events on the This Mac page read Busy instead of their titles.
+    static func hidesEventTitles(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchLockScreenMacHideEvents)
+    }
+
+    /// What the widget keeps from anyone at the Mac who has not unlocked it.
+    static func agentPrivacy(in defaults: UserDefaults = .standard) -> NotchAgentPrivacy {
+        NotchAgentPrivacy(hidesProjects: defaults.bool(forKey: DefaultsKey.notchLockScreenAgentsHideProjects),
+                          hidesAmounts: defaults.bool(forKey: DefaultsKey.notchLockScreenAgentsHideAmounts))
+    }
+
     /// The timer is suspended while locked, so a countdown that reaches its
     /// end there is read as finished rather than stuck at zero.
     static func timerFinished(_ session: NotchTimerSession, at now: TimeInterval) -> Bool {
@@ -95,13 +118,81 @@ enum NotchLockScreenLayout {
             && screen.width >= playerWidth + 32 && screen.height > 0
     }
 
-    /// The line of activities under the clock.
-    static func rowFrame(in screen: CGRect) -> CGRect? {
+    /// The AI Agents page: the open island's width, centred in the column
+    /// right of the player, from under the menu bar to near the bottom edge.
+    static let agentsWidth: CGFloat = 440
+    /// The least room kept clear on each side of the page in its column.
+    static let agentsMargin: CGFloat = 24
+    static let agentsTop: CGFloat = 48
+    static let agentsBottom: CGFloat = 24
+    /// The page's cards give way from the bottom; under this not enough
+    /// of them are left to be worth showing.
+    static let minimumAgentsHeight: CGFloat = 480
+
+    /// The line of activities under the clock. Beside a page in either
+    /// column it keeps to the room between the two columns' pages.
+    static func rowFrame(in screen: CGRect, besidePages: Bool = false) -> CGRect? {
         guard readable(screen) else { return nil }
-        let width = min(screen.width - 64, 1000)
+        var width = min(screen.width - 64, 1000)
+        if besidePages, let agents = agentsFrame(in: screen) {
+            width = min(width, ((agents.minX - screen.midX) * 2 - agentsMargin * 2).rounded(.down))
+        }
         let top = screen.maxY - clockBottom(screenHeight: screen.height) - rowGap
         guard top - rowHeight >= screen.minY + loginClearance else { return nil }
         return CGRect(x: (screen.midX - width / 2).rounded(), y: top - rowHeight, width: width, height: rowHeight)
+    }
+
+    /// The AI Agents page's room, or nil where the column is too narrow or
+    /// too short for it, as with a larger text setting.
+    static func agentsFrame(in screen: CGRect) -> CGRect? {
+        guard readable(screen) else { return nil }
+        let column = (screen.width - playerWidth) / 2
+        let height = screen.height - agentsTop - agentsBottom
+        guard column >= agentsWidth + agentsMargin * 2, height >= minimumAgentsHeight else { return nil }
+        let x = screen.midX + playerWidth / 2 + (column - agentsWidth) / 2
+        return CGRect(x: x.rounded(), y: screen.minY + agentsBottom, width: agentsWidth, height: height)
+    }
+
+    /// The This Mac page: the AI Agents page's mirror, centred in the column
+    /// left of the player, so the two columns stay in balance.
+    static func macFrame(in screen: CGRect) -> CGRect? {
+        guard let agents = agentsFrame(in: screen) else { return nil }
+        return CGRect(x: (screen.minX + screen.maxX - agents.maxX).rounded(), y: agents.minY,
+                      width: agents.width, height: agents.height)
+    }
+
+    /// The This Mac page's cards, top to bottom: battery, the four system
+    /// tiles in two rows, today's events, storage and accessories.
+    static let macSpacing: CGFloat = 10
+    static let macBattery: CGFloat = 152
+    static let macTileMax: CGFloat = 150
+    static let macTileMin: CGFloat = 112
+    static let macStorage: CGFloat = 118
+    static let macAccessories: CGFloat = 92
+    static let macCalendarMin: CGFloat = 110
+
+    /// How the This Mac page fills its height without scrolling. Today's
+    /// events take what the rest leave; short of room the tiles shrink, then
+    /// accessories give way, then storage. With the Calendar section off the
+    /// tiles take its room instead.
+    static func macPlan(height: CGFloat, calendar: Bool) -> NotchLockScreenMacPlan {
+        var plan = NotchLockScreenMacPlan(tile: macTileMax, calendar: 0, storage: true, accessories: true)
+        func rest(_ plan: NotchLockScreenMacPlan) -> CGFloat {
+            let cards = 3 + (calendar ? 1 : 0) + (plan.storage ? 1 : 0) + (plan.accessories ? 1 : 0)
+            return height - macBattery - plan.tile * 2 - (plan.storage ? macStorage : 0)
+                - (plan.accessories ? macAccessories : 0) - macSpacing * CGFloat(cards - 1)
+        }
+        guard calendar else {
+            plan.tile = max(macTileMin, plan.tile + rest(plan) / 2)
+            return plan
+        }
+        if rest(plan) < macCalendarMin {
+            plan.tile = max(macTileMin, plan.tile - (macCalendarMin - rest(plan)) / 2)
+        }
+        if rest(plan) < macCalendarMin { plan.accessories = false }
+        if rest(plan) < macCalendarMin { plan.storage = false }
+        plan.calendar = max(0, rest(plan)).rounded(.down)
+        return plan
     }
 
     /// The player's room: under the line of activities, over the login controls.
@@ -130,4 +221,11 @@ enum NotchLockScreenLayout {
     /// so it grows out to them around the island, which keeps its own size
     /// at the top of the window and leaves the extra room clear.
     static func islandFrame(around surface: CGRect) -> CGRect { surface.integral }
+}
+
+struct NotchLockScreenMacPlan: Equatable {
+    var tile: CGFloat
+    var calendar: CGFloat
+    var storage: Bool
+    var accessories: Bool
 }

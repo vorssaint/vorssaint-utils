@@ -39,6 +39,13 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
     var followsPeriod: Bool { self == .trend || self == .models || self == .projects }
 }
 
+/// What the AI page keeps back where anyone can read it, as on the lock
+/// screen: the folders agents work in, and what the work cost.
+struct NotchAgentPrivacy: Equatable {
+    var hidesProjects = false
+    var hidesAmounts = false
+}
+
 /// What the closed island shows beside the camera while an agent works.
 enum NotchAgentReadout: String, CaseIterable, Identifiable {
     case elapsed, tokens, cost, limit
@@ -658,6 +665,18 @@ enum NotchAgentSupport {
         let age = now.timeIntervalSince(limits.observedAt)
         if account { return age >= accountStaleness }
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
+    }
+
+    /// The rows of a page that never scrolls, as on the lock screen: the
+    /// lowest give way first, never Trend or a limits card, until the rest fit.
+    static func fitted(_ rows: [[NotchAgentTile]], height: CGFloat, width: CGFloat = .infinity,
+                       live: [AgentLiveSession] = []) -> [[NotchAgentTile]] {
+        var rows = rows
+        while contentHeight(rows, width: width, live: live) > height,
+              let index = rows.lastIndex(where: { !$0.contains { $0.card == .trend || $0.card == .limits } }) {
+            rows.remove(at: index)
+        }
+        return rows
     }
 
     static func contentHeight(_ rows: [[NotchAgentTile]], width: CGFloat = .infinity,

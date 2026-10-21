@@ -36,6 +36,7 @@ struct SettingsSearchState: Equatable {
             DefaultsKey.notchCommandBar, DefaultsKey.notchMascotVisits, DefaultsKey.monitorAlertCPU,
             DefaultsKey.monitorAlertCPUTemperature, DefaultsKey.monitorAlertDisk,
             DefaultsKey.monitorAlertBattery, DefaultsKey.monitorAlertBatteryTemperature,
+            DefaultsKey.notchLockScreen, DefaultsKey.notchLockScreenAgents, DefaultsKey.notchLockScreenMac,
         ].filter { defaults.bool(forKey: $0) })
     }
 
@@ -300,6 +301,11 @@ enum SettingsDirectory {
                   notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsClaude)),
             .init([notchEditor.activity, notchEditor.resting, notch.coverMenus, notchEditor.feedback, notch.inputSource,
                    notch.newTrack, lockScreen.title, lockScreen.sounds, lockScreen.show], notch: .activity),
+            .init([lockScreen.mac], notch: .activity, when: state.on(DefaultsKey.notchLockScreen)),
+            .init([lockScreen.hideEvents], notch: .activity,
+                  when: state.on(DefaultsKey.notchLockScreen) && state.on(DefaultsKey.notchLockScreenMac)),
+            .init([lockScreen.hideProjects, lockScreen.hideAmounts], feature: .notchAgents, notch: .activity,
+                  when: state.on(DefaultsKey.notchLockScreen) && state.on(DefaultsKey.notchLockScreenAgents)),
             .init([notchLowBattery.title], feature: .monitorPower, notch: .activity, when: batteryRest),
             .init([notchLowBattery.threshold, notchLowBattery.early, notchLowBattery.menuBar],
                   feature: .monitorPower, notch: .activity, when: tintedBattery),

@@ -52,7 +52,16 @@ enum NotchLockScreenTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchLockScreen] as? Bool == false
                      && Defaults.registeredDefaults[DefaultsKey.notchLockSounds] as? Bool == false,
                      "the lock screen and its sounds are both opt-in")
-        suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchLockScreen, DefaultsKey.notchLockSounds]),
+        suite.expect([DefaultsKey.notchLockScreenAgents, DefaultsKey.notchLockScreenAgentsHideProjects,
+                      DefaultsKey.notchLockScreenAgentsHideAmounts].allSatisfy { Defaults.registeredDefaults[$0] as? Bool == false },
+                     "the AI page on the lock screen and its privacy options are opt-in")
+        suite.expect([DefaultsKey.notchLockScreenMac, DefaultsKey.notchLockScreenMacHideEvents]
+                        .allSatisfy { Defaults.registeredDefaults[$0] as? Bool == false },
+                     "This Mac on the lock screen is opt-in and shows event titles until they are hidden")
+        suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchLockScreen, DefaultsKey.notchLockSounds,
+                                                                        DefaultsKey.notchLockScreenAgents,
+                                                                        DefaultsKey.notchLockScreenMac,
+                                                                        DefaultsKey.notchLockScreenMacHideEvents]),
                      "settings backups carry the lock screen preferences")
         let domain = "com.vorssaint.tests.notch-lock-screen"
         let defaults = UserDefaults(suiteName: domain)!
@@ -116,6 +125,60 @@ enum NotchLockScreenTests {
                          && player.height >= Layout.minimumPlayerHeight,
                          "every part stays on \(display), the player under the line with room to show")
         }
+        // The AI Agents page: the island's width, centred in the column
+        // right of the player, clear of the menu bar and the bottom edge.
+        let pro = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        if let agents = Layout.agentsFrame(in: pro), let player = Layout.playerFrame(in: pro),
+           let row = Layout.rowFrame(in: pro, besidePages: true) {
+            let column = (pro.width - Layout.playerWidth) / 2
+            suite.expect(agents.width == Layout.agentsWidth && agents.minX >= player.maxX + Layout.agentsMargin
+                         && pro.maxX - agents.maxX >= Layout.agentsMargin
+                         && abs(agents.midX - (pro.maxX - column / 2)) <= 0.5,
+                         "the AI page stands centred in the free column right of the player")
+            suite.expect(pro.maxY - agents.maxY == Layout.agentsTop && agents.minY - pro.minY == Layout.agentsBottom,
+                         "the AI page runs from under the menu bar to near the bottom edge")
+            suite.expect(row.maxX <= agents.minX - Layout.agentsMargin && abs(row.midX - pro.midX) <= 0.5,
+                         "beside the AI page the activities line keeps clear of it")
+        } else {
+            suite.expect(false, "a 14-inch display has room for the AI page")
+        }
+        for display in displays {
+            guard let agents = Layout.agentsFrame(in: display) else { continue }
+            suite.expect(display.contains(agents), "the AI page stays on \(display)")
+        }
+        suite.expect(Layout.agentsFrame(in: CGRect(x: 0, y: 0, width: 1352, height: 878)) == nil,
+                     "a column too narrow for the AI page leaves the lock screen as it is")
+        // This Mac mirrors the AI page in the column left of the player.
+        if let mac = Layout.macFrame(in: pro), let agents = Layout.agentsFrame(in: pro),
+           let player = Layout.playerFrame(in: pro) {
+            suite.expect(mac.size == agents.size && mac.minY == agents.minY
+                         && abs((mac.minX - pro.minX) - (pro.maxX - agents.maxX)) <= 0.5
+                         && mac.maxX <= player.minX - Layout.agentsMargin,
+                         "This Mac mirrors the AI page left of the player")
+        } else {
+            suite.expect(false, "a 14-inch display has room for This Mac")
+        }
+        suite.expect(Layout.macFrame(in: CGRect(x: 0, y: 0, width: 1352, height: 878)) == nil,
+                     "a column too narrow for This Mac leaves the lock screen as it is")
+        let roomy = Layout.macPlan(height: 886, calendar: true)
+        suite.expect(roomy.tile == Layout.macTileMax && roomy.storage && roomy.accessories
+                     && roomy.calendar >= Layout.macCalendarMin,
+                     "on a 14-inch display every card shows and today's events take the rest")
+        let tight = Layout.macPlan(height: 600, calendar: true)
+        suite.expect(tight.tile >= Layout.macTileMin && !tight.accessories,
+                     "short of room the tiles shrink and the accessories give way first")
+        for height in stride(from: CGFloat(480), through: 1100, by: 20) {
+            let plan = Layout.macPlan(height: height, calendar: true)
+            let cards = 3 + 1 + (plan.storage ? 1 : 0) + (plan.accessories ? 1 : 0)
+            let used = Layout.macBattery + plan.tile * 2 + plan.calendar + (plan.storage ? Layout.macStorage : 0)
+                + (plan.accessories ? Layout.macAccessories : 0) + Layout.macSpacing * CGFloat(cards - 1)
+            suite.expect(used <= height + 0.5, "This Mac never scrolls at \(height) points")
+        }
+        let noCalendar = Layout.macPlan(height: 886, calendar: false)
+        suite.expect(noCalendar.calendar == 0 && noCalendar.tile > Layout.macTileMax,
+                     "without the calendar the tiles take its room")
+        suite.expect(Layout.rowFrame(in: pro, besidePages: false)?.width == 1000,
+                     "without the AI page the activities line keeps its width")
         suite.expect(Layout.playerFrame(in: CGRect(x: 0, y: 0, width: 1024, height: 620)) == nil,
                      "a display too short for the player keeps the lock screen as it is")
         suite.expect(Layout.rowFrame(in: CGRect(x: 0, y: 0, width: 400, height: 956)) == nil

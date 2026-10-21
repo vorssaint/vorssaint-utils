@@ -14,6 +14,10 @@ final class NotchLockScreenModel: ObservableObject {
         var downloads = false
         var countdown = false
         var timeLeft = false
+        /// The AI Agents page beside the player.
+        var page = false
+        /// The This Mac page left of the player.
+        var mac = false
     }
 
     @Published var gates = Gates()
@@ -287,6 +291,48 @@ private extension View {
             .frame(width: NotchLockScreenLayout.paneWidth)
             .modifier(NotchLockScreenGlass(cornerRadius: 34))
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The open island's AI page beside the player, on the player's glass and
+/// the island's glass cards. Only its Trend period takes clicks; it never
+/// scrolls, and it keeps back what the person chose to hide.
+struct NotchLockScreenAgents: View {
+    let size: CGSize
+    let privacy: NotchAgentPrivacy
+    static let inset: CGFloat = 12
+
+    var body: some View {
+        NotchAgentsView(size: CGSize(width: size.width - Self.inset * 2, height: size.height - Self.inset * 2))
+            .environment(\.notchAgentsLockScreen, privacy)
+            .environment(\.notchGlassSurface, true)
+            // Only what the page marks private: amounts, when they are hidden.
+            .redacted(reason: .privacy)
+            .padding(Self.inset)
+            .foregroundStyle(.white)
+            .modifier(NotchLockScreenGlass(cornerRadius: 30))
+            .frame(width: size.width, height: size.height)
+            .environment(\.colorScheme, .dark)
+    }
+}
+
+/// The This Mac page left of the player, the AI page's mirror: the same
+/// glass, inset and cards. It takes no clicks at all.
+struct NotchLockScreenMac: View {
+    let size: CGSize
+    let hidesEventTitles: Bool
+
+    var body: some View {
+        NotchLockScreenMacPage(size: CGSize(width: size.width - NotchLockScreenAgents.inset * 2,
+                                            height: size.height - NotchLockScreenAgents.inset * 2),
+                               hidesEventTitles: hidesEventTitles)
+            .environment(\.notchGlassSurface, true)
+            .padding(NotchLockScreenAgents.inset)
+            .foregroundStyle(.white)
+            .modifier(NotchLockScreenGlass(cornerRadius: 30))
+            .frame(width: size.width, height: size.height)
+            .environment(\.colorScheme, .dark)
+            .allowsHitTesting(false)
     }
 }
 
