@@ -39,6 +39,7 @@ enum NotchAgentTests {
         AgentClaudeServerTests.run(suite)
         ClaudeAccountProfileTests.run(suite)
         AgentClaudeBillingTests.run(suite)
+        AgentSessionPlaceTests.run(suite)
         CodexAccountLimitsTests.run(suite)
         preferences(suite)
         limitUse(suite)
@@ -3295,8 +3296,14 @@ enum NotchAgentTests {
 
         defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
-        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .resets, .live, .models],
                      "the saved order ignores unknown and repeated cards and appends new ones")
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsCardOrder)
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsHiddenCards)
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.limits, .spend, .trend, .projects, .resets, .activity],
+                     "a new page leaves Now and Models out: sessions sit in the limits cards and models in Spending")
+        defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
+        defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
@@ -3367,10 +3374,12 @@ enum NotchAgentTests {
                      "cards pair in reading order, and charts and lone cards take the row")
         suite.expect(NotchAgentSupport.rows([limits, codex], width: 330) == [[limits], [codex]],
                      "a narrow island stacks every card")
-        suite.expect(NotchAgentCard.allCases.filter(\.followsPeriod) == [.spend, .trend, .models, .projects],
-                     "the period in the island's top row covers spending, the trend, models and projects")
+        suite.expect(NotchAgentCard.allCases.filter(\.followsPeriod) == [.trend, .projects, .models],
+                     "the period in the island's top row covers the trend, projects and models; spending is the month")
         suite.expect(NotchAgentSupport.contentHeight([[limits, codex], [trend]])
-                        == NotchAgentSupport.cardHeight + NotchAgentSupport.spacing + NotchAgentSupport.chartHeight
+                        == NotchAgentSupport.sessionCardHeight + NotchAgentSupport.spacing + NotchAgentSupport.chartHeight
+                        && NotchAgentSupport.height(of: [copilot]) == NotchAgentSupport.cardHeight
+                        && NotchAgentSupport.height(of: [spend]) == NotchAgentSupport.sessionCardHeight
                         && NotchAgentSupport.contentHeight([]) == 0,
                      "the page is as tall as its rows")
         let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 32,

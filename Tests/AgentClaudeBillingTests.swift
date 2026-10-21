@@ -95,8 +95,8 @@ enum AgentClaudeBillingTests {
                      "the split card takes a row of its own")
         suite.expect(NotchAgentSupport.height(of: rows[0], width: 600) == NotchAgentSupport.splitHeight
                         && NotchAgentSupport.height(of: rows[0], width: 300) == NotchAgentSupport.stackedSplitHeight
-                        && NotchAgentSupport.height(of: rows[1], width: 600) == NotchAgentSupport.cardHeight,
-                     "the split card stacks its halves, and grows, where cards do not pair")
+                        && NotchAgentSupport.height(of: rows[1], width: 600) == NotchAgentSupport.sessionCardHeight,
+                     "the split card stacks its halves, and grows, where cards do not pair; Codex keeps a row for its sessions")
         suite.expect(NotchAgentSupport.tiles(cards: [.limits], providers: [.claude]).first?.splitsBilling == false,
                      "without an API key Claude keeps its usual card")
     }
