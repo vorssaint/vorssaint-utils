@@ -541,10 +541,13 @@ final class AppVolumeMixer: ObservableObject {
             adjustment.volume = value
             systemOutputVolume = value
             // Many outputs still play faintly at a scalar of zero; macOS mutes
-            // there, so do the same.
+            // there, so do the same. A level the percent labels show as 0%
+            // counts: a key steps from the level the output reports, so a
+            // coarse step from a hair above one step lands just above zero.
             if systemOutputMuted != nil, muted == nil {
-                adjustment.muted = value == 0
-                systemOutputMuted = value == 0
+                let mutes = MixerRoutingSupport.mutesOutput(atVolume: value)
+                adjustment.muted = mutes
+                systemOutputMuted = mutes
             }
         }
         if let muted { adjustment.muted = muted; systemOutputMuted = muted }
@@ -752,7 +755,10 @@ final class AppVolumeMixer: ObservableObject {
         // A direct change starts the next key from its own level.
         lastOutputStep = nil
         if systemOutputVolume != clamped { systemOutputVolume = clamped }
-        if clamped > 0, systemOutputMuted == true { systemOutputMuted = false }
+        // The write above moved the mute switch with the level; the published
+        // state follows it on an output that has the switch.
+        let mutes = MixerRoutingSupport.mutesOutput(atVolume: clamped)
+        if systemOutputMuted != nil, systemOutputMuted != mutes { systemOutputMuted = mutes }
         return true
     }
 
@@ -1573,6 +1579,9 @@ final class AppVolumeMixer: ObservableObject {
         let uid: String
         let previousVolume: Float32
         let appliedVolume: Float32
+        /// The lowering also turned the output's mute on (silence was chosen),
+        /// so handing the speakers back turns it off again.
+        var mutedByLowering = false
     }
 
     private struct LoweredOutputState {
@@ -1618,18 +1627,24 @@ final class AppVolumeMixer: ObservableObject {
         let previousVolume = outputVolume(for: nextDefault.audioObjectID)
         if setOutputVolume(volume, for: nextDefault.audioObjectID) {
             state.lastAutomaticLoweredOutputUID = nextDefaultUID
-            if let previousVolume, previousVolume > volume {
+            let muted = MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(
+                lowerToPercent: lowerToPercent,
+                currentlyMuted: outputMuted(for: nextDefault.audioObjectID))
+                && setOutputMuted(true, for: nextDefault.audioObjectID)
+            if let previousVolume, previousVolume > volume || muted {
                 state.loweredOutput = LoweredOutput(uid: nextDefaultUID,
                                                     previousVolume: previousVolume,
-                                                    appliedVolume: volume)
+                                                    appliedVolume: volume,
+                                                    mutedByLowering: muted)
             }
         }
         return state
     }
 
-    /// Puts back the volume this feature lowered, as long as it is still the
-    /// value the app set: anything else means it was changed since, and that
-    /// choice wins. Returns what is left to restore later.
+    /// Puts back the volume this feature lowered, and the mute it set at zero,
+    /// as long as the volume is still the value the app set: anything else
+    /// means it was changed since, and that choice wins. Returns what is left
+    /// to restore later.
     private static func restoringLoweredOutputVolume(_ lowered: LoweredOutput?,
                                                      in devices: [MixerOutputDevice]) -> LoweredOutput? {
         guard let lowered else { return nil }
@@ -1641,6 +1656,11 @@ final class AppVolumeMixer: ObservableObject {
             appliedVolume: Double(lowered.appliedVolume),
             currentVolume: outputVolume(for: device.audioObjectID).map(Double.init)) else { return nil }
         _ = setOutputVolume(lowered.previousVolume, for: device.audioObjectID)
+        // A mute switched off since then was someone's choice, and one this
+        // feature did not set was never its to undo.
+        if lowered.mutedByLowering, outputMuted(for: device.audioObjectID) == true {
+            setOutputMuted(false, for: device.audioObjectID)
+        }
         return nil
     }
 
@@ -1661,6 +1681,13 @@ final class AppVolumeMixer: ObservableObject {
     /// one per notification.
     private func reconcileEngines(with apps: [MixerApp]) {
         let apps = Self.coalescingAppsWithDuplicateIDs(apps)
+        // Only while AirPlay is offered, so this never creates the manager.
+        if AirPlayRouteManager.isListed {
+            AirPlayRouteManager.shared.routedAudioChanged(active: apps.contains { app in
+                MixerRoutingSupport.playsOnAirPlay(isPlaying: app.isPlaying,
+                                                   effectiveOutputDeviceUID: app.effectiveOutputDeviceUID)
+            })
+        }
         var byId: [String: MixerApp] = [:]
         for app in apps {
             byId[app.id] = app
@@ -2232,12 +2259,14 @@ final class AppVolumeMixer: ObservableObject {
     @discardableResult
     static func setSystemOutputVolume(_ volume: Double) -> Bool {
         guard let device = defaultOutputDeviceID() else { return false }
-        let clamped = Float32(min(max(volume, 0), 1))
-        let applied = setOutputVolume(clamped, for: device)
+        let level = min(max(volume, 0), 1)
+        let applied = setOutputVolume(Float32(level), for: device)
         // Mute is a separate switch from the level, so asking for a volume
-        // while the Mac is muted would set a number nobody can hear. Asking
-        // for sound means asking for sound, which is what the volume keys do.
-        if clamped > 0 { setOutputMuted(false, for: device) }
+        // while the Mac is muted would set a number nobody can hear, and 0%
+        // without the switch still plays on some outputs. The switch follows
+        // the level, as the system's own volume keys do; an output without
+        // a settable mute element takes the level alone.
+        setOutputMuted(MixerRoutingSupport.mutesOutput(atVolume: level), for: device)
         return applied
     }
 

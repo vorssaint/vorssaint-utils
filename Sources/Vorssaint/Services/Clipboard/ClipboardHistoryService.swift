@@ -71,6 +71,13 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var quickLayout = ClipboardHistoryLayout.current()
 
     private var timer: Timer?
+    /// Entries age out with nothing new copied, so the retention window is
+    /// also checked on its own clock instead of only after each capture.
+    private var retentionTimer: Timer?
+    /// The entry open in the preview editor. Expiring it mid-edit would swap
+    /// the preview and throw the unsaved draft away, so the retention window
+    /// skips it until the editor lets go; the next trim then applies as usual.
+    var editingEntryID: UUID?
     private var lastChangeCount = 0
     /// The poll reads the pasteboard off the main thread: while a password
     /// prompt is up the pasteboard server can take seconds to answer, and a
@@ -312,7 +319,7 @@ final class ClipboardHistoryService: ObservableObject {
         var updated = entries.remove(at: index)
         let pinning = !updated.isPinned
         if updated.isPinned {
-            updated.pinnedAt = nil
+            updated = ClipboardHistoryEditing.unpinned(updated)
             entries.insert(updated, at: firstRecentIndex)
         } else {
             updated.pinnedAt = Date()
@@ -650,6 +657,12 @@ final class ClipboardHistoryService: ObservableObject {
         timer.tolerance = 0.25
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+        let retentionTimer = Timer(timeInterval: 3_600, repeats: true) { [weak self] _ in
+            self?.trimToLimit()
+        }
+        retentionTimer.tolerance = 600
+        RunLoop.main.add(retentionTimer, forMode: .common)
+        self.retentionTimer = retentionTimer
         isRunning = true
         ClipboardIgnoredApps.shared.setHistoryRunning(true)
         captureState.restart()
@@ -659,6 +672,8 @@ final class ClipboardHistoryService: ObservableObject {
     private func stop() {
         timer?.invalidate()
         timer = nil
+        retentionTimer?.invalidate()
+        retentionTimer = nil
         isRunning = false
         ClipboardIgnoredApps.shared.setHistoryRunning(false)
         captureState.invalidate()
@@ -934,7 +949,13 @@ final class ClipboardHistoryService: ObservableObject {
         let limit = Defaults.sanitizedClipboardHistoryLimit(
             UserDefaults.standard.integer(forKey: DefaultsKey.clipboardHistoryLimit)
         )
-        let trimmed = ClipboardHistoryEditing.retainedEntries(entries, recentLimit: limit)
+        let retentionDays = Defaults.sanitizedClipboardHistoryRetentionDays(
+            UserDefaults.standard.integer(forKey: DefaultsKey.clipboardHistoryRetentionDays)
+        )
+        let trimmed = ClipboardHistoryEditing.retainedEntries(entries,
+                                                              recentLimit: limit,
+                                                              retentionDays: retentionDays,
+                                                              ageExemptIDs: Set([editingEntryID].compactMap { $0 }))
         if trimmed != entries {
             entries = trimmed
             save()
@@ -1580,15 +1601,15 @@ final class ClipboardHistoryService: ObservableObject {
 
     private static func digitIndex(for keyCode: UInt16) -> Int? {
         switch Int(keyCode) {
-        case kVK_ANSI_1: return 0
-        case kVK_ANSI_2: return 1
-        case kVK_ANSI_3: return 2
-        case kVK_ANSI_4: return 3
-        case kVK_ANSI_5: return 4
-        case kVK_ANSI_6: return 5
-        case kVK_ANSI_7: return 6
-        case kVK_ANSI_8: return 7
-        case kVK_ANSI_9: return 8
+        case kVK_ANSI_1, kVK_ANSI_Keypad1: return 0
+        case kVK_ANSI_2, kVK_ANSI_Keypad2: return 1
+        case kVK_ANSI_3, kVK_ANSI_Keypad3: return 2
+        case kVK_ANSI_4, kVK_ANSI_Keypad4: return 3
+        case kVK_ANSI_5, kVK_ANSI_Keypad5: return 4
+        case kVK_ANSI_6, kVK_ANSI_Keypad6: return 5
+        case kVK_ANSI_7, kVK_ANSI_Keypad7: return 6
+        case kVK_ANSI_8, kVK_ANSI_Keypad8: return 7
+        case kVK_ANSI_9, kVK_ANSI_Keypad9: return 8
         default: return nil
         }
     }

@@ -14,6 +14,7 @@ struct ScreenshotEditorView: View {
 
     @State private var editingText = ""
     @FocusState private var textFieldFocused: Bool
+    @State private var expansionDragZoom: CGFloat?
     @State private var dragInFlight = false
     @State private var drag = ScreenshotSupport.EditorDrag()
     @State private var dragCanvasArea: CGSize?
@@ -21,6 +22,8 @@ struct ScreenshotEditorView: View {
     @State private var backdropPopoverShown = false
     @State private var watermarkPopoverShown = false
     @State private var hoveredTool: ScreenshotSupport.Tool?
+    @State private var railColumnHeight = CGFloat.infinity
+    @State private var footerHeight = ScreenshotSupport.editorWrappedFooterHeight
     @State private var toolOptionsShown = false
     @State private var sharing = false
     @State private var sharedRecord: ScreenshotShareRecord?
@@ -56,11 +59,13 @@ struct ScreenshotEditorView: View {
                     }
                     .scrollIndicators(.never)
                     .fixedSize(horizontal: true, vertical: false)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { railColumnHeight = $0 }
                     .padding(.leading, 10)
                     canvasArea
                 }
                 .padding(.top, 6)
                 bottomRow
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
                     .padding(.horizontal, 12)
                     .padding(.top, 6)
                     .padding(.bottom, 10)
@@ -70,6 +75,12 @@ struct ScreenshotEditorView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.tool)
         .animation(.easeOut(duration: 0.16), value: model.annotationShadowsEnabled)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.backdropStyle)
+        .onChange(of: model.tool) { old, new in
+            if old == .expandCanvas, new != .expandCanvas { expansionDragZoom = nil }
+        }
+        .onChange(of: model.expansionDraft) { _, draft in
+            if draft == nil, !model.expansionRejected { expansionDragZoom = nil }
+        }
         .onAppear { keyboard.start() }
         .onDisappear { keyboard.stop() }
         .sheet(item: $sharedRecord) { record in
@@ -153,12 +164,14 @@ struct ScreenshotEditorView: View {
     private static let canvasMargin: CGFloat = 14
 
     private func zoomFactor(available: CGSize) -> CGFloat {
+        if let expansionDragZoom { return expansionDragZoom }
         let zoom: CGFloat
         if let override = model.zoomOverride {
             zoom = override
         } else {
-            let width = max(available.width - Self.canvasMargin * 2, 80)
-            let height = max(available.height - Self.canvasMargin * 2, 80)
+            let margin: CGFloat = model.tool == .expandCanvas ? 64 : Self.canvasMargin
+            let width = max(available.width - margin * 2, 80)
+            let height = max(available.height - margin * 2, 80)
             let fit = min(width / max(contentPixelSize.width, 1),
                           height / max(contentPixelSize.height, 1))
             // Small captures grow to a practical editing size. This affects
@@ -209,21 +222,38 @@ struct ScreenshotEditorView: View {
                 appeared = true
             }
         }
+        .overlay(alignment: .topLeading) {
+            if model.tool == .expandCanvas {
+                // Both layers place themselves from the canvas's top left;
+                // the overlay's own stack would center them on each other.
+                ZStack(alignment: .topLeading) {
+                    // The grips straddle the capture's edge. Without a backdrop the
+                    // canvas ends there, so this takes presses and hover for the
+                    // grips' outer half; the canvas gesture below handles them.
+                    let reach = ScreenshotCanvasSupport.expansionGripReach
+                    Color.clear
+                        .frame(width: canvasSize.width + reach * 2, height: canvasSize.height + reach * 2)
+                        .contentShape(Rectangle())
+                        .offset(x: -reach, y: -reach)
+                    let draft = model.expansionDraft ?? CGRect(origin: .zero, size: model.imageSize)
+                    // The capture's own corners: the canvas clip alone, or the
+                    // rounded card drawn on a backdrop.
+                    ScreenshotCanvasExpansionPreview(originalSize: model.imageSize,
+                                                     draft: draft, fill: model.expansionFill,
+                                                     zoom: zoom, scale: model.scale,
+                                                     cardCornerRadius: model.showsBackdrop
+                                                         ? model.cardCornerPixels * zoom
+                                                         : outerRadius)
+                        .offset(x: (draft.minX + model.backdropPaddingPixels) * zoom,
+                                y: (draft.minY + model.backdropPaddingPixels) * zoom)
+                }
+            }
+        }
         .gesture(canvasGesture(zoom: zoom, available: available))
         .onContinuousHover { phase in
             switch phase {
             case .active(let location):
-                let point = imagePoint(from: location, zoom: zoom)
-                if model.tool != .select, model.selectedAnnotationOwns(point) {
-                    NSCursor.openHand.set()
-                } else if model.tool != .select {
-                    NSCursor.crosshair.set()
-                } else if model.wordIndex(at: point) != nil {
-                    // Recognized text under the cursor reads as text.
-                    NSCursor.iBeam.set()
-                } else {
-                    NSCursor.arrow.set()
-                }
+                updateHoverCursor(at: imagePoint(from: location, zoom: zoom))
             case .ended:
                 NSCursor.arrow.set()
             }
@@ -300,13 +330,26 @@ struct ScreenshotEditorView: View {
             }
         }
 
+        // The checkerboard shows where the picture is transparent. With a
+        // backdrop on, the export shows the backdrop there, and so does this.
+        let showsChecker = !model.showsBackdrop
+        if showsChecker {
+            cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)
+            cg.fill(imageRect)
+        }
+
         // Blur areas replace the pixels under them. With any on the canvas,
         // the capture and its annotations draw in a layer of their own, as
         // the exporter flattens them, so that never reaches the card's
-        // shadow or the backdrop. Without one, the layer is skipped, since
-        // it costs a canvas-sized buffer on every redraw.
-        let isolatesBlurAreas = model.annotations.contains { $0.tool == .pixelate }
-        if isolatesBlurAreas { cg.beginTransparencyLayer(auxiliaryInfo: nil) }
+        // shadow, the backdrop or the checkerboard. A spotlight dims only
+        // what is painted below it, so over the checkerboard it needs the
+        // layer too, or transparent parts the export keeps would darken here.
+        // Without either, the layer is skipped, since it costs a canvas-sized
+        // buffer on every redraw.
+        let isolatesContent = model.annotations.contains {
+            $0.tool == .pixelate || (showsChecker && $0.tool == .spotlight)
+        }
+        if isolatesContent { cg.beginTransparencyLayer(auxiliaryInfo: nil) }
         if let cardPath {
             cg.saveGState()
             cg.addPath(cardPath)
@@ -324,9 +367,10 @@ struct ScreenshotEditorView: View {
                                            imageSize: model.imageSize,
                                            scale: model.scale,
                                            annotationShadowsEnabled: model.annotationShadowsEnabled,
-                                           skippingText: model.editingTextID)
+                                           skippingText: model.editingTextID,
+                                           spotlightDimStrength: model.spotlightDimStrength)
         cg.restoreGState()
-        if isolatesBlurAreas { cg.endTransparencyLayer() }
+        if isolatesContent { cg.endTransparencyLayer() }
 
         cg.saveGState()
         enterImageSpace()
@@ -377,6 +421,7 @@ struct ScreenshotEditorView: View {
             .onChanged { value in
                 let point = imagePoint(from: value.location, zoom: zoom)
                 if !dragInFlight {
+                    if model.tool == .expandCanvas { expansionDragZoom = zoom }
                     dragInFlight = true
                     drag.begin(at: value.startLocation)
                     dragCanvasArea = available
@@ -391,10 +436,12 @@ struct ScreenshotEditorView: View {
                 drag.update(to: value.location)
             }
             .onEnded { value in
+                defer { expansionDragZoom = nil }
                 dragInFlight = false
                 dragCanvasArea = nil
                 let point = imagePoint(from: value.location, zoom: zoom)
                 drag.update(to: value.location)
+                if model.tool == .expandCanvas { model.continueDrag(to: point) }
                 let isTap = drag.isTap(for: model.tool)
                 if isTap, model.tool == .text || model.tool == .sticker || model.tool == .counter,
                    !CGRect(origin: .zero, size: model.imageSize).contains(point) {
@@ -413,6 +460,23 @@ struct ScreenshotEditorView: View {
     private func imagePoint(from viewPoint: CGPoint, zoom: CGFloat) -> CGPoint {
         let pad = model.backdropPaddingPixels
         return CGPoint(x: viewPoint.x / zoom - pad, y: viewPoint.y / zoom - pad)
+    }
+
+    private func updateHoverCursor(at point: CGPoint) {
+        // The same rule a press follows: a spotlight region offers only its
+        // handles and edge while its tool is active, and expanding the canvas
+        // never moves a mark.
+        if model.tool != .select, model.tool != .expandCanvas,
+           model.selectedAnnotationOwns(point, includingInterior: model.tool != .spotlight) {
+            NSCursor.openHand.set()
+        } else if model.tool != .select {
+            NSCursor.crosshair.set()
+        } else if model.wordIndex(at: point) != nil {
+            // Recognized text under the cursor reads as text.
+            NSCursor.iBeam.set()
+        } else {
+            NSCursor.arrow.set()
+        }
     }
 
     // MARK: - Crop loupe
@@ -533,7 +597,7 @@ struct ScreenshotEditorView: View {
     }
 
     private func counterBox(_ annotation: ScreenshotSupport.Annotation) -> CGRect {
-        let diameter = ScreenshotSupport.counterDiameter(for: model.imageSize, scale: 1)
+        let diameter = ScreenshotSupport.counterDiameter(for: annotation.renderReferenceSize ?? model.imageSize, scale: 1)
         return CGRect(x: annotation.rect.midX - diameter / 2,
                       y: annotation.rect.midY - diameter / 2,
                       width: diameter,
@@ -616,9 +680,16 @@ struct ScreenshotEditorView: View {
     }
 
     private var toolRail: some View {
-        VStack(spacing: 2) {
-            ForEach(orderedTools, id: \.self) { tool in
-                railButton(tool)
+        let tools = orderedTools
+        let layout = ScreenshotSupport.ToolRailLayout(
+            toolCount: tools.count,
+            height: ScreenshotSupport.toolRailHeight(column: railColumnHeight, footer: footerHeight))
+        return VStack(spacing: layout.spacing) {
+            ForEach(tools.prefix(layout.visibleTools), id: \.self) { tool in
+                railButton(tool, height: layout.rowHeight)
+            }
+            if layout.visibleTools < tools.count {
+                railOverflowMenu(Array(tools.dropFirst(layout.visibleTools)), height: layout.rowHeight)
             }
             Divider()
                 .frame(width: 22)
@@ -628,7 +699,7 @@ struct ScreenshotEditorView: View {
             } label: {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 13, weight: .medium))
-                    .frame(width: 33, height: 29)
+                    .frame(width: 33, height: layout.rowHeight)
                     .background(
                         RoundedRectangle(cornerRadius: 9, style: .continuous)
                             .fill(toolOptionsShown
@@ -656,21 +727,25 @@ struct ScreenshotEditorView: View {
         .shadow(color: .black.opacity(0.18), radius: 16, y: 5)
     }
 
-    private func railButton(_ tool: ScreenshotSupport.Tool) -> some View {
+    private func selectTool(_ tool: ScreenshotSupport.Tool) {
+        commitEditingTextIfNeeded()
+        model.tool = tool
+    }
+
+    private func railButton(_ tool: ScreenshotSupport.Tool, height: CGFloat) -> some View {
         let isActive = model.tool == tool
         let isHovered = hoveredTool == tool
         let shortcutLabel = ScreenshotSupport.Tool.shortcutLabel(
             for: tool, orderRaw: toolOrderRaw, bindingsRaw: bindingsRaw, enabled: toolShortcutsEnabled,
             capsLockOn: keyboard.capsLockOn)
         return Button {
-            commitEditingTextIfNeeded()
-            model.tool = tool
+            selectTool(tool)
         } label: {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: tool.screenshotSymbolName)
                     .font(.system(size: 13.5, weight: .medium))
                     .symbolEffect(.bounce, value: isActive)
-                    .frame(width: 33, height: 29)
+                    .frame(width: 33, height: height)
                 if let shortcutLabel {
                     Text(shortcutLabel)
                         .font(.system(size: 8, weight: .bold, design: .rounded))
@@ -700,6 +775,36 @@ struct ScreenshotEditorView: View {
             + (shortcutLabel.map { "  (\($0))" } ?? ""))
         .accessibilityLabel(tool.screenshotTitle(strings)
             + (shortcutLabel.map { "  (\($0))" } ?? ""))
+    }
+
+    /// The tools past the rail's last row, behind the chevron a toolbar shows
+    /// for items that do not fit. It stays lit while one of them is active.
+    private func railOverflowMenu(_ tools: [ScreenshotSupport.Tool], height: CGFloat) -> some View {
+        let holdsActive = tools.contains(model.tool)
+        return Menu {
+            ForEach(tools, id: \.self) { tool in
+                Toggle(isOn: Binding(get: { model.tool == tool }, set: { _ in selectTool(tool) })) {
+                    Label(tool.screenshotTitle(strings), systemImage: tool.screenshotSymbolName)
+                }
+            }
+        } label: {
+            Image(systemName: "chevron.forward.2")
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 33, height: height)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(holdsActive ? Color.accentColor.opacity(0.22) : .clear)
+                )
+                .foregroundStyle(holdsActive ? Color.accentColor : Color.secondary)
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        // A borderless menu draws its label as a small pop-up button; a
+        // plain one keeps the whole row as the target, like the other tools.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .screenshotSafeHelp(strings.moreTools)
+        .accessibilityLabel(strings.moreTools)
     }
 
     // MARK: - QR code (shown only when the capture holds one)
@@ -892,10 +997,23 @@ struct ScreenshotEditorView: View {
                   let selected = model.annotations.first(where: { $0.id == selectedID })
             else { return false }
             return selected.tool != .sticker
+                && selected.tool != .image
                 && selected.tool != .pixelate
-        case .sticker, .pixelate, .crop:
+                && selected.tool != .spotlight
+        case .sticker, .pixelate, .crop, .spotlight, .image, .expandCanvas:
             return false
         }
+    }
+
+    /// A picked region keeps the dim control, so its strength changes
+    /// without going back to the tool.
+    private var showsSpotlightControls: Bool {
+        if model.tool == .spotlight { return true }
+        guard model.tool == .select,
+              let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        return selected.tool == .spotlight
     }
 
     private var showsBlurControls: Bool {
@@ -990,10 +1108,54 @@ struct ScreenshotEditorView: View {
 
     @ViewBuilder
     private var contextualBar: some View {
-        if model.tool == .crop, model.cropDraft != nil {
+        if model.tool == .expandCanvas {
+            expansionControls
+        } else if model.tool == .crop, model.cropDraft != nil {
             cropBar
         } else {
             styleBar
+        }
+    }
+
+    @State private var expansionFillChoice = 0
+    @State private var expansionCustomColor = Color.white
+
+    private var expansionControls: some View {
+        HStack(spacing: 10) {
+            Picker(strings.colorLabel, selection: $expansionFillChoice) {
+                Text(strings.canvasFillWhite).tag(0)
+                Text(strings.canvasFillTransparent).tag(1)
+                Text(strings.canvasFillCustom).tag(2)
+            }
+            // The choices name themselves; the label stays for VoiceOver.
+            .labelsHidden()
+            .fixedSize()
+            .onChange(of: expansionFillChoice) { _, _ in updateExpansionFill() }
+            if expansionFillChoice == 2 {
+                // The fill picker beside it already names the custom color.
+                ColorPicker(strings.canvasFillCustom, selection: $expansionCustomColor, supportsOpacity: false)
+                    .labelsHidden()
+                    .onChange(of: expansionCustomColor) { _, _ in updateExpansionFill() }
+            }
+            let size = model.expansionDraft?.size ?? model.imageSize
+            Text("\(Int(size.width)) × \(Int(size.height)) px")
+                .font(.system(size: 11.5, weight: .medium).monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: Capsule(style: .continuous))
+        .shadow(color: .black.opacity(0.16), radius: 12, y: 3)
+    }
+
+    private func updateExpansionFill() {
+        switch expansionFillChoice {
+        case 1: model.expansionFill = .transparent
+        case 2:
+            let color = NSColor(expansionCustomColor).usingColorSpace(.sRGB) ?? .white
+            model.expansionFill = .color(red: Double(color.redComponent),
+                                        green: Double(color.greenComponent), blue: Double(color.blueComponent))
+        default: model.expansionFill = .white
         }
     }
 
@@ -1013,6 +1175,10 @@ struct ScreenshotEditorView: View {
                 if model.blurStyle.usesStrength {
                     blurLevelControl
                 }
+                Divider().frame(height: 16)
+            }
+            if showsSpotlightControls {
+                spotlightDimControl
                 Divider().frame(height: 16)
             }
             if showsColorControls {
@@ -1307,6 +1473,43 @@ struct ScreenshotEditorView: View {
             @unknown default: break
             }
         }
+    }
+
+    /// From leaving the outside untouched to turning it black, shaped like
+    /// the blur strength control beside it. A stepped slider would draw 21
+    /// tick marks, so it stays continuous and its value settles on 5% steps.
+    private var spotlightDimControl: some View {
+        let step: CGFloat = 0.05
+        return HStack(spacing: 5) {
+            // Daylight to night reads at 11 pt; sun.max and sun.min do not.
+            Image(systemName: "sun.max.fill")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Slider(value: spotlightDimValue, in: 0...1)
+                .controlSize(.mini)
+                .frame(width: 84)
+            Image(systemName: "moon.fill")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(height: 24)
+        .screenshotSafeHelp(strings.spotlightDimStrengthLabel)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(strings.spotlightDimStrengthLabel)
+        .accessibilityValue(Double(model.spotlightDimStrength)
+            .formatted(.percent.precision(.fractionLength(0))))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: spotlightDimValue.wrappedValue = model.spotlightDimStrength + step
+            case .decrement: spotlightDimValue.wrappedValue = model.spotlightDimStrength - step
+            @unknown default: break
+            }
+        }
+    }
+
+    private var spotlightDimValue: Binding<CGFloat> {
+        Binding(get: { model.spotlightDimStrength },
+                set: { model.spotlightDimStrength = ScreenshotSupport.steppedSpotlightDim($0) })
     }
 
     private func textSizeStepButton(up: Bool) -> some View {
@@ -1639,6 +1842,9 @@ extension ScreenshotSupport.Tool {
         case .pixelate: return "aqi.medium"
         case .redact: return "rectangle.fill"
         case .crop: return "crop"
+        case .spotlight: return "viewfinder"
+        case .image: return "photo"
+        case .expandCanvas: return "arrow.up.left.and.arrow.down.right"
         }
     }
 
@@ -1657,6 +1863,9 @@ extension ScreenshotSupport.Tool {
         case .pixelate: return strings.toolBlur
         case .redact: return strings.toolRedact
         case .crop: return strings.toolCrop
+        case .spotlight: return strings.toolSpotlight
+        case .image: return strings.pastedImage
+        case .expandCanvas: return strings.toolExpandCanvas
         }
     }
 }

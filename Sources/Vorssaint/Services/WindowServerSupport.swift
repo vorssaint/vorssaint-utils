@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreGraphics
 import Darwin
 import Foundation
@@ -13,6 +14,7 @@ enum TrafficLightButton {
 struct TrafficLightCandidate {
     let pid: pid_t
     let windowID: CGWindowID
+    let frame: CGRect
 }
 
 struct WindowServerWindowCandidate {
@@ -40,6 +42,19 @@ enum WindowServerSupport {
     /// The same list, reduced to what a pointer lookup needs.
     static func onScreenWindows() -> [MouseAppExceptionSupport.Window] {
         MouseAppExceptionSupport.windows(from: onScreenWindowInfo())
+    }
+
+    /// The window a click at `point` would reach, found the way AppKit routes
+    /// clicks: the window server's own hit test, which skips input-transparent
+    /// overlays and the parts of a window that let events through, such as
+    /// the Dock's screen-wide window away from the Dock. `point` is in
+    /// CoreGraphics coordinates, origin top-left. Main thread only.
+    static func receivingWindow(at point: CGPoint) -> CGWindowID? {
+        guard let primary = NSScreen.screens.first else { return nil }
+        let cocoaPoint = CGPoint(x: point.x, y: primary.frame.maxY - point.y)
+        let number = NSWindow.windowNumber(at: cocoaPoint, belowWindowWithWindowNumber: 0)
+        guard number > 0 else { return nil }
+        return CGWindowID(exactly: number)
     }
 
     static func bounds(from window: [String: Any]) -> CGRect? {
@@ -168,7 +183,7 @@ enum WindowServerSupport {
                   contains(point, inTrafficLightAreaOf: bounds, button: button) else {
                 return nil
             }
-            return TrafficLightCandidate(pid: ownerPID, windowID: CGWindowID(number))
+            return TrafficLightCandidate(pid: ownerPID, windowID: CGWindowID(number), frame: bounds)
         }
         return nil
     }
@@ -186,5 +201,22 @@ enum WindowServerSupport {
         case .zoom:
             return dx >= 42 && dx <= 104
         }
+    }
+
+    /// Whether a click is on the close button by its place alone, for when
+    /// Accessibility cannot point at the button. The close area above also
+    /// takes the minimize button, which only Accessibility tells apart, and a
+    /// minimize taken for a close quits the app (issue #3249). Every title
+    /// bar style insets the close button as far from the window's left edge
+    /// as from its top, its center 16 to 26 pt in, and puts the minimize
+    /// button 20 to 23 pt to its right on the same row (measured on macOS 27
+    /// with the current and the macOS 15 SDK, title bar and every toolbar
+    /// style). So a click counts only within 9 pt of that diagonal along its
+    /// row: 91 to 97 percent of the close button's dot, and never the 7 pt
+    /// dot of another button, the nearest of which starts 10.2 pt away.
+    static func contains(_ point: CGPoint, inCloseButtonOf bounds: CGRect) -> Bool {
+        let dx = point.x - bounds.minX
+        let dy = point.y - bounds.minY
+        return dx >= 0 && dy >= 0 && max(dx, dy) <= 35 && abs(dx - dy) <= 9
     }
 }

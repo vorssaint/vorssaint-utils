@@ -782,7 +782,7 @@ final class ScreenshotSelectionController {
                              pixelRect: CGRect?,
                              scale: CGFloat,
                              anchorRect: CGRect) {
-        panels.forEach { $0.orderOut(nil) }
+        retirePanels()
         Task { @MainActor [weak self] in
             guard let self else { return }
             try? await Task.sleep(nanoseconds: 120_000_000)
@@ -815,6 +815,18 @@ final class ScreenshotSelectionController {
         finish(.cancelled)
     }
 
+    /// A panel takes every press until its window is really gone, and AppKit
+    /// fades it out after `orderOut`, so a quick click or the first scroll
+    /// after a capture landed on the leaving panel. A session never shows its
+    /// panels again, so they let go of the mouse first. Set alone, the flag
+    /// reaches the window server only with the next commit, too late for a
+    /// panel already fading, so the flush sends it before the panels leave.
+    private func retirePanels() {
+        panels.forEach { $0.ignoresMouseEvents = true }
+        CATransaction.flush()
+        panels.forEach { $0.orderOut(nil) }
+    }
+
     deinit {
         // A session that goes away without ending would otherwise leave the
         // screen marked as taken and every capture feature dead until the app
@@ -844,7 +856,7 @@ final class ScreenshotSelectionController {
         // inert before they leave the screen: whatever arrives after this
         // point finds nothing left to act on.
         markCapturePending()
-        panels.forEach { $0.orderOut(nil) }
+        retirePanels()
         panels.removeAll()
         NSCursor.arrow.set()
         let completion = completion
@@ -900,10 +912,21 @@ private final class ScreenshotOverlayPanel: OverlayPanel {
         isOpaque = frozenImage != nil
         backgroundColor = frozenImage == nil ? .clear : .black
         hasShadow = false
+        // A frame change on this visible shielding window is scaled by the
+        // window server around the window's centre. The dim, and the still
+        // under it, then sit inside the display for a fraction of a second
+        // instead of covering its width and height.
+        animationBehavior = .none
         level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         hidesOnDeactivate = false
         acceptsMouseMovedEvents = true
+        // Live, the panel is clear, and with the controls in Dynamic Island it
+        // draws nothing over the desktop until a drag starts. Left at its
+        // default, a window hands a press on a fully transparent pixel to
+        // whatever is under it, so the desktop took the drag instead of the
+        // selection (#3005). Set explicitly, the panel takes every press.
+        ignoresMouseEvents = false
 
         // The frozen still sits in its own view UNDER the chrome: a backing
         // layer configured before the view joins a window can lose its
@@ -927,7 +950,23 @@ private final class ScreenshotOverlayPanel: OverlayPanel {
         view.autoresizingMask = [.width, .height]
         container.addSubview(view)
         overlayViewStorage = view
+        container.autoresizingMask = [.width, .height]
         contentView = container
+    }
+
+    /// Tool chrome lives in hosting views whose ideal size is a small bar.
+    /// Accepting that size pulls this window in from every edge.
+    override func setFrame(_ frameRect: NSRect, display displayFlag: Bool) {
+        super.setFrame(Self.frameCoveringScreen(screenFrame, insteadOf: frameRect), display: displayFlag)
+    }
+
+    private static func frameCoveringScreen(_ screen: NSRect, insteadOf requested: NSRect) -> NSRect {
+        guard !screen.isEmpty else { return requested }
+        let drifted = abs(requested.width - screen.width) > 1
+            || abs(requested.height - screen.height) > 1
+            || abs(requested.minX - screen.minX) > 1
+            || abs(requested.minY - screen.minY) > 1
+        return drifted ? screen : requested
     }
 
     /// New pixels for a tool that needs its own photograph, without the
@@ -1031,7 +1070,7 @@ private final class ScreenshotOverlayView: NSView {
         self.strings = strings
         self.purpose = purpose
         self.screenCaptureOptions = screenCaptureOptions
-        let host = PassThroughHostingView(rootView: CaptureGuideView(
+        let host = PassThroughHostingView(fixedFrameRootView: CaptureGuideView(
             strings: strings,
             purpose: purpose,
             offersScrollingCapture: controller.offersScrollingCapture,
@@ -1712,9 +1751,17 @@ private final class FullScreenControlHoverRelay {
 private final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     var passesThrough = true
     var acceptsFirstClick = false
+    /// The guide gets its frame from the overlay's layout. Its changing
+    /// ideal size must not resize the shielding window. Other hosts keep
+    /// intrinsic sizing, including the full-screen button measured by layout.
+    convenience init(fixedFrameRootView rootView: Content) {
+        self.init(rootView: rootView)
+        sizingOptions = []
+        safeAreaRegions = []
+        translatesAutoresizingMaskIntoConstraints = true
+    }
     /// Capture actions remain clickable while the Dynamic Island panel owns
-    /// key focus. Keep that policy attached to the interactive host itself so
-    /// a caller cannot accidentally forget one half of the setup.
+    /// key focus. Keep both parts of that policy on the interactive host.
     convenience init(interactiveRootView rootView: Content) {
         self.init(rootView: rootView)
         passesThrough = false
@@ -2000,9 +2047,10 @@ private struct UnifiedCaptureGuideContent: View {
         let hovered = hoveredTool == tool
         let title = tool.settingsTitle(l10n.s, language: l10n.language)
         return Button {
-            withAnimation(.easeOut(duration: 0.16)) {
-                options.select(tool)
-            }
+            // Animating this publishes the new tool through the hosting view
+            // that fills the display. That view then asks the window to adopt
+            // the bar's size, and the window server scales the request.
+            options.select(tool)
         } label: {
             VStack(spacing: 3) {
                 HStack(spacing: 6) {

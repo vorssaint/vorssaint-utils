@@ -33,6 +33,12 @@ enum MixerFeatureTests {
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 1)), 1, "100% plays the app untouched")
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 2)), 2, "the boost range keeps its ceiling")
         suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: -1)), 0, "a level below zero never plays")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: 0.456) == 46, "a volume shows as a rounded percent")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: 2) == 200, "a boosted volume shows above 100%")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: .infinity) == 0, "infinity shows as 0% instead of trapping")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: -.infinity) == 0, "negative infinity shows as 0%")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: .nan) == 0, "NaN shows as 0%")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: 1e300) == 100_000, "a huge finite volume cannot overflow")
         suite.expectClose(MixerRoutingSupport.volume(forGain: 0.25), 0.5,
                     "a saved gain moves to the slider position that plays it")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.appVolumesArePositions),
@@ -98,26 +104,69 @@ enum MixerFeatureTests {
         percentWindow.orderOut(nil)
         suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(35) == 35,
                "headphone disconnect volume preserves valid percentages")
-        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5)
-               == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
-               "headphone disconnect volume never drops below the audible floor")
-        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(0)
-               == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
-               "headphone disconnect protection lowers the speakers, it never silences them")
+        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5) == 0,
+               "headphone disconnect volume never drops below silence")
+        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(0) == 0,
+               "headphone disconnect volume can silence the speakers")
         suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(105) == 100,
                "headphone disconnect volume clamps high values")
+        suite.expect(MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 0,
+                                                                         currentlyMuted: false),
+               "silence chosen for a headphone disconnect also mutes the speakers")
+        suite.expect(!MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 5,
+                                                                          currentlyMuted: false),
+               "a low but audible headphone disconnect volume leaves the speakers unmuted")
+        suite.expect(!MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 0,
+                                                                          currentlyMuted: true),
+               "speakers muted before a headphone disconnect are not claimed by the lowering")
+        suite.expect(!MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 0,
+                                                                          currentlyMuted: nil),
+               "an output without a mute switch is only lowered")
+        suite.expect((Defaults.registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed] as? Bool) == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerHeadphonesDisconnectVolumePercent),
+               "silence becomes a saved choice only after the one-time migration, and both travel in a backup")
+        suite.expect(!SettingsBackupSupport.valueLooksRight(DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed, "true"),
+               "an imported silence marker must be a boolean")
         let headphonesSuite = "vorss.tests.mixer.headphones"
         if let silentHeadphoneVolume = UserDefaults(suiteName: headphonesSuite) {
+            let volumeKey = DefaultsKey.mixerHeadphonesDisconnectVolumePercent
+            let markerKey = DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed
             silentHeadphoneVolume.removePersistentDomain(forName: headphonesSuite)
-            silentHeadphoneVolume.set(0, forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+            silentHeadphoneVolume.set(0, forKey: volumeKey)
             Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
-            suite.expect(silentHeadphoneVolume.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
-                   == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey)
+                   == Defaults.defaultMixerHeadphonesDisconnectVolumePercent
+                   && silentHeadphoneVolume.bool(forKey: markerKey),
                    "a stored volume of zero from the first release of the option migrates to the default")
-            silentHeadphoneVolume.set(60, forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+            silentHeadphoneVolume.set(60, forKey: volumeKey)
             Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
-            suite.expect(silentHeadphoneVolume.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent) == 60,
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey) == 60,
                    "a volume the user chose is never migrated")
+            silentHeadphoneVolume.set(0, forKey: volumeKey)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey) == 0,
+                   "silence chosen after that migration is kept")
+            let kept = SettingsBackupSupport.sanitizedSettings(from: SettingsBackupSupport.payload(
+                appVersion: "3.4.1") { silentHeadphoneVolume.object(forKey: $0) }) ?? [:]
+            for key in SettingsBackupSupport.exportKeys() { silentHeadphoneVolume.removeObject(forKey: key) }
+            for (key, value) in kept { silentHeadphoneVolume.set(value, forKey: key) }
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey) == 0
+                   && silentHeadphoneVolume.bool(forKey: markerKey),
+                   "restoring a backup keeps a chosen silence instead of rewriting it")
+            for key in SettingsBackupSupport.exportKeys() { silentHeadphoneVolume.removeObject(forKey: key) }
+            silentHeadphoneVolume.set(0, forKey: volumeKey)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey)
+                   == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
+                   "an old backup with the accidental zero is still rewritten once")
+            silentHeadphoneVolume.removeObject(forKey: markerKey)
+            silentHeadphoneVolume.set(Defaults.legacyMixerHeadphonesDisconnectVolumeFloor, forKey: volumeKey)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey)
+                   == Defaults.legacyMixerHeadphonesDisconnectVolumeFloor,
+                   "the old floor of 10 percent was a real choice and stays where it was set")
             silentHeadphoneVolume.removePersistentDomain(forName: headphonesSuite)
         }
         suite.expect(Defaults.sanitizedAppOutputDeviceUID(" BuiltInSpeakerDevice ") == "BuiltInSpeakerDevice",
@@ -840,6 +889,11 @@ enum MixerFeatureTests {
                "a volume changed since the app lowered it is left alone")
         suite.expect(!MixerRoutingSupport.shouldRestoreOutputVolume(appliedVolume: 0.25, currentVolume: nil),
                "a volume that cannot be read is left alone")
+        suite.expect(MixerRoutingSupport.mutesOutput(atVolume: 0), "a level of zero mutes the output")
+        suite.expect(MixerRoutingSupport.mutesOutput(atVolume: 0.004),
+               "a level the percent labels show as 0% mutes the output")
+        suite.expect(!MixerRoutingSupport.mutesOutput(atVolume: 0.005) && !MixerRoutingSupport.mutesOutput(atVolume: 1),
+               "a level the percent labels show as 1% or more keeps the output audible")
         suite.expect(!MixerRoutingSupport.isHiddenFromMixer(
                     persistenceID: "com.apple.finder",
                     hiddenIDs: MixerRoutingSupport.hiddenRowIDs(hiddenApps: [:], showFinder: true)),
@@ -898,6 +952,8 @@ enum MixerFeatureTests {
                "Cubase is kept out of process-tap audio routing")
         suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.presonus.studioone6", name: "Studio One"),
                "Studio One is kept out of process-tap audio routing")
+        suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.fender.studioapp", name: "Studio Pro"),
+               "Studio Pro is kept out of process-tap audio routing")
         suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.spotify.client", name: "Spotify"),
                "music players remain eligible for process-tap audio routing")
         suite.expect(MixerRoutingSupport.effectiveDeviceUID(selectedUID: "ExternalDisplay",
@@ -1542,5 +1598,24 @@ enum MixerFeatureTests {
         suite.expect(MixerRender.sourceChannel(for: 1, sourceChannels: 1) == 0,
                "a single channel is copied to the right as well as the left")
 
+        // The panel is not compiled into this target. Pin the three attachment
+        // sites for this regression instead of trying to parse arbitrary SwiftUI.
+        let panel = (try? String(contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift",
+                                 encoding: .utf8)) ?? ""
+        func section(from start: String, to end: String) -> String {
+            guard let lower = panel.range(of: start),
+                  let upper = panel.range(of: end, range: lower.upperBound..<panel.endIndex) else { return "" }
+            return String(panel[lower.upperBound..<upper.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let rowList = section(from: "private var rowList: some View {", to: "private func updateArrangement")
+        suite.expect(!rowList.isEmpty && !rowList.contains(".help("),
+               "the mixer row does not replace its controls' tooltips with the reorder hint")
+        let icon = section(from: "ZStack(alignment: .bottomTrailing) {", to: "VStack(alignment: .leading, spacing: 5)")
+        let name = section(from: "Text(app.name)", to: "if isPinned {")
+        let hint = ".help(arrangementStrings.arrange)"
+        suite.expect(icon.contains("ResponsibleProcess.icon(for: app.ownerPid") && icon.hasSuffix(hint)
+                && !name.isEmpty && name.hasSuffix(hint)
+                && panel.components(separatedBy: hint).count == 3,
+               "the reorder hint remains on both the app icon and name")
     }
 }

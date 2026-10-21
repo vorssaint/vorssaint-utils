@@ -406,15 +406,39 @@ enum NotchPresentationProbe {
         exit(failures.isEmpty ? 0 : 1)
     }
 
+    /// Every flag `runAndExit` dispatches on, in the order it checks them.
+    enum Mode: String, CaseIterable {
+        case standard = "--notch-presentation-test"
+        case mediaLayout = "--media-layout"
+        case missionControl = "--mission-control"
+        case previewNotice = "--preview-notice"
+        case profileOnly = "--profile-only"
+        case quickAccessClicks = "--quick-access-clicks"
+    }
+
+    /// Any mode selects the probe on its own, so none of them falls through
+    /// to launching the whole app.
+    static func isRequested(by arguments: [String]) -> Bool {
+        Mode.allCases.contains { arguments.contains($0.rawValue) }
+    }
+
     static func runAndExit() -> Never {
-        if CommandLine.arguments.contains("--media-layout") { NotchMediaPresentationProbe.runAndExit() }
-        if CommandLine.arguments.contains("--mission-control") { runMissionControlAndExit() }
-        if let index = CommandLine.arguments.firstIndex(of: "--preview-notice"),
-           CommandLine.arguments.indices.contains(index + 1) {
-            previewNoticeAndExit(title: CommandLine.arguments[index + 1])
+        let arguments = CommandLine.arguments
+        for mode in Mode.allCases {
+            guard let index = arguments.firstIndex(of: mode.rawValue) else { continue }
+            switch mode {
+            case .standard: continue
+            case .mediaLayout: NotchMediaPresentationProbe.runAndExit()
+            case .missionControl: runMissionControlAndExit()
+            case .previewNotice:
+                guard arguments.indices.contains(index + 1) else {
+                    print("NOTCH PREVIEW FAILED: --preview-notice needs a title"); exit(1)
+                }
+                previewNoticeAndExit(title: arguments[index + 1])
+            case .profileOnly: runProfileAndExit()
+            case .quickAccessClicks: runQuickAccessClicksAndExit()
+            }
         }
-        if CommandLine.arguments.contains("--profile-only") { runProfileAndExit() }
-        if CommandLine.arguments.contains("--quick-access-clicks") { runQuickAccessClicksAndExit() }
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
         guard let screen = NSScreen.main else { print("NOTCH PROBE FAILED: no display"); exit(1) }

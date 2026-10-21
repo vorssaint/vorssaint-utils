@@ -2517,6 +2517,20 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.drawableDisplayIDs(
             onlineDisplayIDs: [1, 2], activeDisplayIDs: [1, 2, 9], virtualDisplayIDs: [2]) == [1],
                "only online active displays with a visible picture prevent recovery")
+        // Measured on a MacBook whose panel (1) mirrors an HDMI monitor (2)
+        // beside an extended one (3): the active list was [2, 3].
+        let mirrored = BrightnessSupport.participatingDisplayIDs(
+            activeDisplayIDs: [2, 3], mirrorSources: [1: 2])
+        suite.expect(mirrored == [1, 2, 3],
+               "a panel mirroring an active monitor keeps its controls")
+        suite.expect(BrightnessSupport.canDisableDisplay(
+            drawableDisplayIDs: BrightnessSupport.drawableDisplayIDs(
+                onlineDisplayIDs: [1, 2, 3], activeDisplayIDs: mirrored, virtualDisplayIDs: []),
+            target: 1),
+               "a mirroring panel is a drawable display its power button can switch off")
+        suite.expect(BrightnessSupport.participatingDisplayIDs(
+            activeDisplayIDs: [3], mirrorSources: [1: 2]) == [3],
+               "a display mirroring a source that is off shows no picture")
         suite.expect(BrightnessSupport.drawableDisplayIDs(
             onlineDisplayIDs: [2], activeDisplayIDs: [2], virtualDisplayIDs: [2]).isEmpty,
                "a virtual-only active display leaves the machine effectively headless")
