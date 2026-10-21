@@ -17,15 +17,12 @@ final class NotchLockScreenModel: ObservableObject {
     }
 
     @Published var gates = Gates()
-    /// Kept for the whole time the Mac stays locked, across the display
-    /// sleeping and waking, and cleared once it unlocks.
-    @Published var playedWhileLocked = false
     @Published var padlockOpen = false
 
+    /// Whatever Now Playing lists shows, paused or playing, so a song paused
+    /// before locking can be resumed from the lock screen.
     func showsMusic(_ playback: NotchPlayback?) -> Bool {
-        gates.music && playback.map {
-            NotchLockScreenSupport.showsMusic(isPlaying: $0.isPlaying, playedWhileLocked: playedWhileLocked)
-        } == true
+        gates.music && playback != nil
     }
 }
 
