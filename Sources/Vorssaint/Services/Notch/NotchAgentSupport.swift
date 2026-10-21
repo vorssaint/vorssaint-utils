@@ -7,7 +7,9 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity, resets
+    // The order is the page's default. Sessions now sit in the limits cards
+    // and models in Spending, so Now and Models come last, hidden at first.
+    case limits, spend, trend, projects, resets, activity, live, models
 
     var id: String { rawValue }
 
@@ -28,7 +30,7 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
     var fullWidth: Bool { self == .trend || self == .activity }
 
     /// Cards that cover the period chosen in the island's top row.
-    var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
+    var followsPeriod: Bool { self == .trend || self == .models || self == .projects }
 }
 
 /// What the closed island shows beside the camera while an agent works.
@@ -95,6 +97,11 @@ struct NotchAgentTile: Identifiable, Equatable {
     var splitsBilling = false
     var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "") }
     var fullWidth: Bool { card.fullWidth || splitsBilling }
+    /// Claude's and Codex's own limits cards keep a row for the sessions
+    /// they pay for, running or not, so the card never changes size.
+    var showsSessions: Bool {
+        card == .limits && accountID == nil && (provider == .claude || provider == .codex)
+    }
 }
 
 enum NotchAgentSupport {
@@ -140,8 +147,11 @@ enum NotchAgentSupport {
         return (stored + NotchAgentCard.allCases).filter { seen.insert($0).inserted }
     }
 
+    /// Cards a new page leaves out until the person shows them.
+    static let defaultHiddenCards = "live,models"
+
     static func hiddenCards(in defaults: UserDefaults = .standard) -> Set<NotchAgentCard> {
-        Set((defaults.string(forKey: DefaultsKey.notchAgentsHiddenCards) ?? "")
+        Set((defaults.string(forKey: DefaultsKey.notchAgentsHiddenCards) ?? defaultHiddenCards)
             .split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) })
     }
 
@@ -492,8 +502,10 @@ enum NotchAgentSupport {
     static let accountStaleness: TimeInterval = 10 * 60
     /// Claude's split card: the plan and the API key side by side, or one
     /// above the other where cards do not pair.
-    static let splitHeight: CGFloat = 118
-    static let stackedSplitHeight: CGFloat = 196
+    static let splitHeight: CGFloat = 178
+    static let stackedSplitHeight: CGFloat = 300
+    /// A limits card with its sessions' row under the meters.
+    static let sessionCardHeight: CGFloat = 156
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
@@ -549,7 +561,42 @@ enum NotchAgentSupport {
     static func height(of row: [NotchAgentTile], width: CGFloat = .infinity) -> CGFloat {
         if row.contains(where: \.splitsBilling) { return width >= pairWidth ? splitHeight : stackedSplitHeight }
         if row.contains(where: \.card.fullWidth) { return chartHeight }
-        return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
+        let height = row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
+        // Spending lists its top models under the total.
+        return row.contains { $0.showsSessions || $0.card == .spend } ? max(height, sessionCardHeight) : height
+    }
+
+    // MARK: Month
+
+    /// This calendar month's days from those the summary keeps, so a month's
+    /// first days are never mixed with the last one's.
+    static func monthDays(_ snapshot: AgentUsageSnapshot, now: Date,
+                          calendar: Calendar = .autoupdatingCurrent) -> [AgentBucket] {
+        let month = calendar.dateInterval(of: .month, for: now)?.start ?? calendar.startOfDay(for: now)
+        return snapshot.days.filter { $0.start >= month }
+    }
+
+    /// What Claude's plan covered this month at API prices: every Claude
+    /// response, less Claude Code's outside the app when an API key pays.
+    static func claudePlanMonth(_ snapshot: AgentUsageSnapshot, splitsBilling: Bool, now: Date,
+                                calendar: Calendar = .autoupdatingCurrent) -> Double {
+        monthDays(snapshot, now: now, calendar: calendar).reduce(0) { total, day in
+            total + (day.byProvider[.claude]?.cost ?? 0) - (splitsBilling ? day.claudeAPI.cost : 0)
+        }
+    }
+
+    /// Every agent's work this month at API prices.
+    static func monthTotal(_ snapshot: AgentUsageSnapshot, providers: [AgentProvider], now: Date,
+                           calendar: Calendar = .autoupdatingCurrent) -> Double {
+        monthDays(snapshot, now: now, calendar: calendar).reduce(0) { total, day in
+            total + providers.reduce(0) { $0 + (day.byProvider[$1]?.cost ?? 0) }
+        }
+    }
+
+    /// The open five-hour window's value: the Claude app's share when an API
+    /// key pays for Claude Code elsewhere. Nil once the window has closed.
+    static func claudeSessionValue(_ snapshot: AgentUsageSnapshot, splitsBilling: Bool) -> Double? {
+        (splitsBilling ? snapshot.claudeAppBlock : snapshot.claudeBlock)?.totals.cost
     }
 
     /// An account card's line in place of its windows while it has none, or
