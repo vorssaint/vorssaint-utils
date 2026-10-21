@@ -22,8 +22,16 @@ enum NotchCommandBarHeightTests {
     }
 
     static func run(_ suite: TestSuite) {
-        /// Lets the main queue run what was sent to its next turn.
-        func nextTurn() { RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.02)) }
+        /// Lets the main queue run everything sent to it so far, however busy the runner.
+        func nextTurn() {
+            var reached = false
+            DispatchQueue.main.async { reached = true }
+            let deadline = Date(timeIntervalSinceNow: 2)
+            while !reached && Date() < deadline {
+                RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.001))
+            }
+            suite.expect(reached, "the Command Bar height fixture drains the main queue")
+        }
         let service = Service()
         // Measured while SwiftUI draws the rows: the field alone, then the rows.
         service.updateCommandBarHeight(50)
