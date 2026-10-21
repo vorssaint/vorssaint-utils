@@ -16,6 +16,8 @@ enum NotchTopBarPalette {
     static let blue = Color(red: 0.039, green: 0.518, blue: 1)
     static let orange = Color(red: 1, green: 0.624, blue: 0.039)
     static let gray = Color(red: 0.596, green: 0.596, blue: 0.616)
+    /// Keep Awake while it is on: a bright red that reads from across the bar.
+    static let awake = Color(red: 1, green: 0.33, blue: 0.42)
 
     /// Each item's colour at rest, before its live state shifts it.
     static func tint(_ item: NotchTopBarItem) -> Color {
