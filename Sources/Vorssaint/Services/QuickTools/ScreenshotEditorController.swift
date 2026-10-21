@@ -16,7 +16,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// remembered between captures like the blur strength.
     @Published var spotlightDimStrength: CGFloat {
         didSet {
-            UserDefaults.standard.set(Double(spotlightDimStrength),
+            SettingsUserDefaults.standard.set(Double(spotlightDimStrength),
                                       forKey: DefaultsKey.screenshotSpotlightDim)
             refreshDirtyState()
         }
@@ -31,7 +31,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     @Published var editingTextID: UUID?
     @Published var tool: ScreenshotSupport.Tool {
         didSet {
-            UserDefaults.standard.set(tool.rawValue, forKey: DefaultsKey.screenshotLastTool)
+            SettingsUserDefaults.standard.set(tool.rawValue, forKey: DefaultsKey.screenshotLastTool)
             if oldValue == .expandCanvas, tool != .expandCanvas { cancelCanvasExpansion() }
             if tool != .select { clearTextSelection() }
             if tool != oldValue, tool != .select {
@@ -62,57 +62,57 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     @Published private(set) var qrReading: BarcodeDetector.Reading?
     @Published var color: ScreenshotSupport.ColorID {
         didSet {
-            UserDefaults.standard.set(color.rawValue, forKey: DefaultsKey.screenshotLastColor)
+            SettingsUserDefaults.standard.set(color.rawValue, forKey: DefaultsKey.screenshotLastColor)
             applyStyleToSelection()
         }
     }
     @Published var stroke: ScreenshotSupport.StrokeID {
         didSet {
-            UserDefaults.standard.set(stroke.rawValue, forKey: DefaultsKey.screenshotLastStroke)
+            SettingsUserDefaults.standard.set(stroke.rawValue, forKey: DefaultsKey.screenshotLastStroke)
             applyStyleToSelection()
         }
     }
     @Published var textSize: Int {
         didSet {
-            UserDefaults.standard.set(textSize, forKey: DefaultsKey.screenshotLastTextSize)
+            SettingsUserDefaults.standard.set(textSize, forKey: DefaultsKey.screenshotLastTextSize)
             applyStyleToSelection()
         }
     }
     @Published var blurLevel: Int {
         didSet {
-            UserDefaults.standard.set(blurLevel, forKey: DefaultsKey.screenshotLastBlurLevel)
+            SettingsUserDefaults.standard.set(blurLevel, forKey: DefaultsKey.screenshotLastBlurLevel)
             applyBlurToSelection()
         }
     }
     @Published var blurStyle: ScreenshotSupport.BlurStyleID {
         didSet {
-            UserDefaults.standard.set(blurStyle.rawValue, forKey: DefaultsKey.screenshotLastBlurStyle)
+            SettingsUserDefaults.standard.set(blurStyle.rawValue, forKey: DefaultsKey.screenshotLastBlurStyle)
             applyBlurToSelection()
         }
     }
     @Published var blurTextOnly: Bool {
         didSet {
-            UserDefaults.standard.set(blurTextOnly, forKey: DefaultsKey.screenshotLastBlurTextOnly)
+            SettingsUserDefaults.standard.set(blurTextOnly, forKey: DefaultsKey.screenshotLastBlurTextOnly)
             applyBlurToSelection()
         }
     }
     @Published var arrowStyle: ScreenshotSupport.ArrowStyleID {
         didSet {
-            UserDefaults.standard.set(arrowStyle.rawValue,
+            SettingsUserDefaults.standard.set(arrowStyle.rawValue,
                                       forKey: DefaultsKey.screenshotLastArrowStyle)
             applyStyleToSelection()
         }
     }
     @Published var sticker: ScreenshotSupport.StickerID {
         didSet {
-            UserDefaults.standard.set(sticker.rawValue,
+            SettingsUserDefaults.standard.set(sticker.rawValue,
                                       forKey: DefaultsKey.screenshotLastSticker)
             applyStickerToSelection()
         }
     }
     @Published var annotationShadowsEnabled: Bool {
         didSet {
-            UserDefaults.standard.set(annotationShadowsEnabled,
+            SettingsUserDefaults.standard.set(annotationShadowsEnabled,
                                       forKey: DefaultsKey.screenshotAnnotationShadows)
             refreshDirtyState()
         }
@@ -121,7 +121,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// corner sliders), persisted as JSON and applied live on the canvas.
     @Published var backdropStyle: ScreenshotSupport.BackdropStyle {
         didSet {
-            UserDefaults.standard.set(backdropStyle.encoded(),
+            SettingsUserDefaults.standard.set(backdropStyle.encoded(),
                                       forKey: DefaultsKey.screenshotBackdropStyle)
             reloadBackdropImageIfNeeded()
             refreshDirtyState()
@@ -130,7 +130,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// Custom backdrops the user chose to keep.
     @Published private(set) var backdropPresets: [ScreenshotSupport.BackdropStyle] {
         didSet {
-            UserDefaults.standard.set(
+            SettingsUserDefaults.standard.set(
                 ScreenshotSupport.encodedBackdropPresets(backdropPresets),
                 forKey: DefaultsKey.screenshotBackdropPresets)
         }
@@ -142,7 +142,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// backdrop and applied live on the canvas.
     @Published var watermarkStyle: ScreenshotSupport.WatermarkStyle {
         didSet {
-            UserDefaults.standard.set(watermarkStyle.encoded(),
+            SettingsUserDefaults.standard.set(watermarkStyle.encoded(),
                                       forKey: DefaultsKey.screenshotWatermarkStyle)
             reloadWatermarkImageIfNeeded()
             refreshDirtyState()
@@ -154,7 +154,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// Watermarks the user chose to keep.
     @Published private(set) var watermarkPresets: [ScreenshotSupport.WatermarkStyle] {
         didSet {
-            UserDefaults.standard.set(
+            SettingsUserDefaults.standard.set(
                 ScreenshotSupport.encodedWatermarkPresets(watermarkPresets),
                 forKey: DefaultsKey.screenshotWatermarkPresets)
         }
@@ -235,7 +235,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     init(image: CGImage, scale: CGFloat) {
         baseImage = image
         self.scale = scale
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         tool = ScreenshotSupport.Tool.startingTool(
             remembered: defaults.string(forKey: DefaultsKey.screenshotLastTool))
         color = ScreenshotSupport.ColorID.sanitized(
@@ -1306,7 +1306,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     func exportImage(withBackdrop: Bool = true) -> ScreenshotRenderer.Export? {
         ensureBlurSamplesForAnnotations()
-        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        let downscale = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         return ScreenshotRenderer.renderExport(
             baseImage: baseImage,
             annotations: annotations,
@@ -1385,7 +1385,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         // the hosting controller then maintains contentMinSize itself.
         let content = ScreenshotEditorView(model: model, controller: self)
             .frame(minWidth: minimumSize.width, minHeight: minimumSize.height)
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = [.minSize]
         let window = NSWindow(contentViewController: host)
         // One continuous surface: the canvas fills the window and the
@@ -1504,9 +1504,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             return true
         }
 
-        let orderRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder)
-        let bindingsRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolShortcuts)
-        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotToolShortcutsEnabled)
+        let orderRaw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder)
+        let bindingsRaw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.screenshotToolShortcuts)
+        let enabled = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenshotToolShortcutsEnabled)
         let number = event.characters?.first.flatMap { Int(String($0)) }
         if let tool = ScreenshotSupport.Tool.shortcutTool(
             keyCode: Int64(key), modifiers: GlobalShortcutModifiers(eventFlags: flags),
@@ -1609,7 +1609,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             // transmitting the capture, not only when the server answers.
             guard self.window != nil,
                   AppFeature.screenshot.isAvailable,
-                  UserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
+                  SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
                 completion(nil)
                 return
             }
@@ -1618,7 +1618,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                     pngData: data, duration: duration)
                 guard self.window != nil,
                       AppFeature.screenshot.isAvailable,
-                      UserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
+                      SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
                     try? await ScreenshotShareService.shared.delete(record)
                     completion(nil)
                     return

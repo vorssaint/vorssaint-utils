@@ -86,7 +86,7 @@ final class ScreenCaptureService: ObservableObject {
                                                         availableTools: availableTools) {
             cancelSelection()
         }
-        syncToolShortcuts(availableTools: availableTools, defaults: UserDefaults.standard)
+        syncToolShortcuts(availableTools: availableTools, defaults: SettingsUserDefaults.standard)
     }
 
     /// A tool's own shortcut opens the same chooser already on that mode. A
@@ -157,7 +157,7 @@ final class ScreenCaptureService: ObservableObject {
         let showsCaptureMenu = selected.showsCaptureMenu(fromShortcut: fromShortcut)
         let delay = selected == .screenshot
             ? ScreenshotSupport.sanitizedDelay(
-                UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
+                SettingsUserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
             : 0
         guard delay > 0 else {
             beginSelection(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
@@ -200,7 +200,7 @@ final class ScreenCaptureService: ObservableObject {
     private func startSelection(options: ScreenCaptureSelectionOptions) {
         guard selection == nil, !ScreenshotSelectionController.isSessionOnScreen,
               self.options === options else { return }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let policy = ScreenshotSupport.unifiedCapturePolicy(
             for: options.selectedTool,
             screenshotFreeze: defaults.bool(forKey: DefaultsKey.screenshotFreeze),

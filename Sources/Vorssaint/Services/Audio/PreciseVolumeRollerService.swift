@@ -31,7 +31,7 @@ final class PreciseVolumeRollerService: ObservableObject {
 
     func syncWithPreferences() {
         let wanted = AppFeature.mixer.isAvailable
-            && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+            && (SettingsUserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback))
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
@@ -121,7 +121,7 @@ final class PreciseVolumeRollerService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         if routeNotchVolume(nsEvent, event: event) { return nil }
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled),
+        guard SettingsUserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled),
               let volumePress = Self.volumePress(fromData1: nsEvent.data1) else {
             return Unmanaged.passUnretained(event)
         }
@@ -161,7 +161,7 @@ final class PreciseVolumeRollerService: ObservableObject {
             }
             return true
         }
-        let precise = UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+        let precise = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
         if precise, let direction = key.rollerDirection,
            !gate.accepts(direction, at: ProcessInfo.processInfo.systemUptime) { return true }
         feedbackStep &+= 1
@@ -169,7 +169,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         // Like macOS, the mute key clicks only when it unmutes. The toggle
         // follows the output's own reading, so its result decides that below.
         feedback = NotchVolumeKeyGate.playsFeedback(
-            setting: UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
+            setting: SettingsUserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
             option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift))
             ? (code, step, false, false) : nil
         let fine = precise || (event.flags.contains(.maskAlternate) && event.flags.contains(.maskShift))

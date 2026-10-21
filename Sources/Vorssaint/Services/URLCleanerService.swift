@@ -45,7 +45,7 @@ final class URLCleanerService: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
-        if AppFeature.urlCleaner.isAvailable, UserDefaults.standard.bool(forKey: DefaultsKey.urlCleanerEnabled) {
+        if AppFeature.urlCleaner.isAvailable, SettingsUserDefaults.standard.bool(forKey: DefaultsKey.urlCleanerEnabled) {
             start()
         } else {
             stop()
@@ -248,7 +248,7 @@ final class URLCleanerService: ObservableObject {
     }
 
     private static var rules: URLCleaning.Rules {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         return URLCleaning.rules(
             globalNames: defaults.string(forKey: DefaultsKey.urlCleanerCustomParameters),
             siteNames: defaults.string(forKey: DefaultsKey.urlCleanerSiteParameters),

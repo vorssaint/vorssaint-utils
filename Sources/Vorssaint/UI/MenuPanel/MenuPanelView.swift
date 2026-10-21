@@ -1035,7 +1035,7 @@ struct UtilitiesSection: View {
     /// combo that does nothing.
     private func shortcutHint(_ role: GlobalShortcutRole) -> String? {
         guard role.isAvailable(using: { $0.isAvailable }),
-              role.requiredEnableKeys.allSatisfy({ UserDefaults.standard.bool(forKey: $0) })
+              role.requiredEnableKeys.allSatisfy({ SettingsUserDefaults.standard.bool(forKey: $0) })
         else { return nil }
         return role.savedShortcut.displayString
     }
@@ -1744,7 +1744,7 @@ struct QuickControlsSection: View {
             // Only wheels that press keys for the user (shortcut or media
             // slices) or watch a side button involve Accessibility.
             let needsAccessibility = RadialMenuSupport.needsAccessibility(
-                RadialMenuSupport.decodeProfiles(UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles)))
+                RadialMenuSupport.decodeProfiles(SettingsUserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles)))
             PanelToggleRow(title: radialStrings.pageTitle,
                            caption: radialMenuEnabled && needsAccessibility && !permissions.accessibility
                                ? missingPermission(l10n.s.permissionAccessibility)
@@ -2488,6 +2488,12 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
         self.content = content()
     }
 
+    /// A nested hosting view does not inherit the outer SwiftUI environment, so
+    /// the settings store has to be re-applied here for `@AppStorage` to read it.
+    private var hostedContent: AnyView {
+        AnyView(content.defaultAppStorage(SettingsUserDefaults.standard))
+    }
+
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
@@ -2497,7 +2503,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
 
-        let host = HeightReportingHostingView(rootView: content)
+        let host = HeightReportingHostingView(rootView: hostedContent)
         host.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = host
         let clip = scroll.contentView
@@ -2515,7 +2521,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         scroll.scrollerStyle = .overlay
         guard let host = context.coordinator.host else { return }
-        host.rootView = content
+        host.rootView = hostedContent
         installReporter(on: host)               // re-bind to the latest measuredHeight
         let h = host.fittingSize.height          // catch content changes with no new layout pass
         if h > 1, abs(h - measuredHeight) > 0.5 {
@@ -2528,7 +2534,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     /// animation — so the popover tracks the real content height instead of a
     /// single stale reading taken when SwiftUI happened to re-run updateNSView.
     /// The 0.5pt guard also breaks the measure → resize → measure feedback loop.
-    private func installReporter(on host: HeightReportingHostingView<Content>) {
+    private func installReporter(on host: HeightReportingHostingView<AnyView>) {
         let binding = $measuredHeight
         host.onLayout = { [weak host] in
             guard let host else { return }
@@ -2539,7 +2545,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
-    final class Coordinator { var host: HeightReportingHostingView<Content>? }
+    final class Coordinator { var host: HeightReportingHostingView<AnyView>? }
 }
 
 /// An `NSHostingView` that fires `onLayout` after each AppKit layout pass. The

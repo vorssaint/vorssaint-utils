@@ -105,7 +105,7 @@ final class ScrollInverter: ObservableObject {
     /// features; its keys survive the hub uninstalling it.
     private static var linearScrollWanted: Bool {
         AppFeature.linearScroll.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.linearScrollEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.linearScrollEnabled)
     }
 
     /// Each list's source apps are tracked only while its feature is one the
@@ -242,7 +242,7 @@ final class ScrollInverter: ObservableObject {
                                               secondsSinceLastGesturePhase: secondsSinceGesturePhase)
         else { return Unmanaged.passUnretained(event) }
 
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let direction = ScrollDirectionPreferences(defaults: defaults)
         let directionApplies = direction.isEnabled
             && !MouseAppExceptions.shared.excludesPointerTarget(

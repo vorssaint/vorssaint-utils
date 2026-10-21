@@ -19,7 +19,7 @@ struct RadialMenuSettings: View {
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
 
     @State private var profiles: [RadialMenuProfile] = RadialMenuSupport.decodeProfiles(
-        UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
+        SettingsUserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
     @State private var selectedProfileID: UUID?
     /// The submenu being edited; empty means the root wheel.
     @State private var openSubmenuID: UUID?
@@ -496,7 +496,7 @@ struct RadialMenuSettings: View {
     }
 
     private func persist() {
-        UserDefaults.standard.set(RadialMenuSupport.encodeProfiles(profiles), forKey: DefaultsKey.radialMenuProfiles)
+        SettingsUserDefaults.standard.set(RadialMenuSupport.encodeProfiles(profiles), forKey: DefaultsKey.radialMenuProfiles)
         RadialMenuService.shared.syncWithPreferences()
     }
 

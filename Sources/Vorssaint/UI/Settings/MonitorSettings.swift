@@ -386,7 +386,8 @@ private struct MenuBarMetricTile: View {
 
     init(metric: MenuBarMetric) {
         self.metric = metric
-        _shown = AppStorage(wrappedValue: false, metric.defaultsKey)
+        _shown = AppStorage(
+            wrappedValue: false, metric.defaultsKey)
     }
 
     var body: some View {

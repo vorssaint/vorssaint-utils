@@ -96,7 +96,7 @@ final class BrightnessService: ObservableObject {
     /// display, so a key that moved it moves the slider.
     var islandSliderShowsFocusedDisplay: Bool {
         BrightnessSupport.sliderShowsFocusedDisplay(
-            controlEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled),
+            controlEnabled: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled),
             shown: displays.filter { $0.isActive && $0.method != nil }.map(\.id), focused: focusedDisplayID)
     }
 
@@ -419,7 +419,7 @@ final class BrightnessService: ObservableObject {
 
     func stepKeyboardLight(direction: Int) {
         guard AppFeature.brightness.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.keyboardBrightnessShortcutsEnabled),
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keyboardBrightnessShortcutsEnabled),
               direction != 0,
               let keyboardLightBridge,
               let current = keyboardLightLevel(using: keyboardLightBridge)
@@ -473,7 +473,7 @@ final class BrightnessService: ObservableObject {
 
     func syncWithPreferences() {
         let wanted = AppFeature.brightness.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled)
         if wanted { start() } else if running { stop() }
         syncKeyTap()
         syncKeyboardBrightnessHotkeys()
@@ -482,7 +482,7 @@ final class BrightnessService: ObservableObject {
 
     private func syncDisplayBrightnessHotkeys() {
         let enabled = running && AppFeature.brightness.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.displayBrightnessShortcutsEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.displayBrightnessShortcutsEnabled)
         let decrease = GlobalShortcutRole.displayBrightnessDecrease.savedShortcut
         let increase = GlobalShortcutRole.displayBrightnessIncrease.savedShortcut
         let decreaseConflicts = enabled && decrease.conflictsWithSystemShortcut
@@ -501,7 +501,7 @@ final class BrightnessService: ObservableObject {
 
     private func stepDisplayBrightness(delta: Double) {
         guard running, AppFeature.brightness.isAvailable, SessionActivity.shared.isActive,
-              UserDefaults.standard.bool(forKey: DefaultsKey.displayBrightnessShortcutsEnabled)
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.displayBrightnessShortcutsEnabled)
         else { return }
         let pointer = NSEvent.mouseLocation
         let pointerDisplay = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
@@ -509,21 +509,21 @@ final class BrightnessService: ObservableObject {
         let eligible = Set(displays.filter { $0.isActive && $0.method != nil
             && !pendingDisplayIDs.contains($0.id) }.map(\.id))
         guard let id = BrightnessSupport.shortcutDisplay(
-            followsPointer: UserDefaults.standard.bool(forKey: DefaultsKey.brightnessKeysEnabled),
+            followsPointer: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.brightnessKeysEnabled),
             pointerDisplay: pointerDisplay, primaryDisplay: CGMainDisplayID(), eligible: eligible),
               let method = displays.first(where: { $0.id == id })?.method else { return }
         step(id, method: method, delta: keyStep.limited(delta),
-             showOSD: UserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled))
+             showOSD: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled))
     }
 
     /// Read at each press, like the other key options.
     private var keyStep: BrightnessSupport.KeyStep {
-        .sanitized(UserDefaults.standard.string(forKey: DefaultsKey.brightnessKeyStep))
+        .sanitized(SettingsUserDefaults.standard.string(forKey: DefaultsKey.brightnessKeyStep))
     }
 
     private func syncKeyboardBrightnessHotkeys() {
         let enabled = AppFeature.brightness.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keyboardBrightnessShortcutsEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keyboardBrightnessShortcutsEnabled)
             && keyboardLightBridge != nil
         let decreaseShortcut = GlobalShortcutRole.keyboardBrightnessDecrease.savedShortcut
         let increaseShortcut = GlobalShortcutRole.keyboardBrightnessIncrease.savedShortcut
@@ -1102,7 +1102,7 @@ final class BrightnessService: ObservableObject {
     /// forced to quit, the only way left was to unplug the screen. The
     /// intention is written down instead, and honoured on the next start.
     private static func rememberDisplaySwitchedOff(_ id: CGDirectDisplayID, fingerprint: String?) {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         var fingerprints = defaults.dictionary(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
             as? [String: String] ?? [:]
         fingerprints[String(id)] = fingerprint
@@ -1119,7 +1119,7 @@ final class BrightnessService: ObservableObject {
     }
 
     private static func forgetDisplaySwitchedOff(_ id: CGDirectDisplayID) {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let stored = defaults.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
         let remaining = stored.filter { $0 != Int(id) }
         if remaining.isEmpty {
@@ -1143,10 +1143,10 @@ final class BrightnessService: ObservableObject {
     /// display work. A display that cannot be switched back on yet keeps its
     /// power-on control and is tried again when the screens wake.
     func restoreDisplaysLeftOff() {
-        let stored = UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
+        let stored = SettingsUserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
         guard !stored.isEmpty else { return }
         guard DisplayConfigurationBridge.configureEnabled != nil else { return }
-        let fingerprints = UserDefaults.standard.dictionary(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
+        let fingerprints = SettingsUserDefaults.standard.dictionary(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
             as? [String: String] ?? [:]
         for id in stored {
             // The list is plain numbers on disk and can arrive edited or
@@ -1184,7 +1184,7 @@ final class BrightnessService: ObservableObject {
 
     private func syncKeyTap() {
         guard !tapsAreSuspended() else { return }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let wantsKeyRouting = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
         // An island away in full screen, or set to stay hidden until hover
         // without showing activity, shows no notices while closed, so its
@@ -1505,7 +1505,7 @@ final class BrightnessService: ObservableObject {
                               to displayID: CGDirectDisplayID,
                               method: BrightnessDisplay.Method) {
         // The island shows the step on its own; the overlay needs its option.
-        let showOSD = UserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled)
+        let showOSD = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled)
         step(displayID, method: method, delta: keyStep.limited(press.delta), showOSD: showOSD)
     }
 
@@ -1681,7 +1681,7 @@ final class BrightnessService: ObservableObject {
         guard case .app(let ownedDelta) = owner
         else { return Unmanaged.passUnretained(event) }
 
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let followsPointer = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
         let showsOverlay = defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
         let keyStep = self.keyStep
@@ -2352,7 +2352,7 @@ final class BrightnessService: ObservableObject {
             if writeSucceeded, let osdLevel {
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.running,
-                          UserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled) else { return }
+                          SettingsUserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled) else { return }
                     self.stateLock.lock()
                     let current = self.rebuildGeneration
                     let latestWrite = self.writeSequence
@@ -2515,13 +2515,13 @@ final class BrightnessService: ObservableObject {
     }
 
     private func forcedSoftwarePaths() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(
+        Set(SettingsUserDefaults.standard.stringArray(
             forKey: DefaultsKey.brightnessForcedSoftwarePaths
         ) ?? [])
     }
 
     private func extendedDimmingPaths() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(
+        Set(SettingsUserDefaults.standard.stringArray(
             forKey: DefaultsKey.brightnessExtendedDimmingPaths
         ) ?? [])
     }
@@ -2540,7 +2540,7 @@ final class BrightnessService: ObservableObject {
         }
         stateLock.unlock()
         guard let pathKey else { return }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let stored = defaults.stringArray(forKey: DefaultsKey.brightnessExtendedDimmingPaths) ?? []
         let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
             stored, path: pathKey, isWriteOnly: preferred)
@@ -2570,7 +2570,7 @@ final class BrightnessService: ObservableObject {
         let pathKey = routes[id]?.ddcPathKey
         stateLock.unlock()
         guard let pathKey else { return }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let stored = defaults.stringArray(forKey: DefaultsKey.brightnessForcedSoftwarePaths) ?? []
         let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
             stored, path: pathKey, isWriteOnly: preferred)
@@ -2602,14 +2602,14 @@ final class BrightnessService: ObservableObject {
     }
 
     private func writeOnlyDDCPaths() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(
+        Set(SettingsUserDefaults.standard.stringArray(
             forKey: DefaultsKey.brightnessDDCWriteOnlyPaths
         ) ?? [])
     }
 
     private func rememberWriteOnlyDDCPath(_ path: String?) {
         guard let path else { return }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let stored = defaults.stringArray(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) ?? []
         let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
             stored, path: path, isWriteOnly: true)
@@ -2620,7 +2620,7 @@ final class BrightnessService: ObservableObject {
 
     private func forgetWriteOnlyDDCPath(_ path: String?) {
         guard let path else { return }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let stored = defaults.stringArray(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) ?? []
         let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
             stored, path: path, isWriteOnly: false)

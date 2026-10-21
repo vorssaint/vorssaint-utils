@@ -52,7 +52,7 @@ final class MouseClickDebounceService {
 
     func syncWithPreferences() {
         let wanted = AppFeature.mouseClickDebounce.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.mouseClickDebounceEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.mouseClickDebounceEnabled)
         let shouldRun = SessionActivitySupport.tapShouldRun(
             featureWanted: wanted,
             accessibilityGranted: AXIsProcessTrusted(),
@@ -61,7 +61,7 @@ final class MouseClickDebounceService {
         let nextConfig = MouseClickDebounceConfig(
             enabled: shouldRun,
             windowMilliseconds: Defaults.sanitizedMouseClickDebounceWindow(
-                UserDefaults.standard.integer(forKey: DefaultsKey.mouseClickDebounceWindowMs)
+                SettingsUserDefaults.standard.integer(forKey: DefaultsKey.mouseClickDebounceWindowMs)
             )
         )
         eventLock.withLock {

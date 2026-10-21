@@ -137,7 +137,7 @@ final class ScreenshotSelectionController {
     }
     fileprivate var loupeZoom: CGFloat {
         didSet {
-            UserDefaults.standard.set(Double(loupeZoom),
+            SettingsUserDefaults.standard.set(Double(loupeZoom),
                                       forKey: DefaultsKey.screenshotLoupeLastZoom)
             panels.forEach { $0.overlayView.needsDisplay = true }
         }
@@ -159,7 +159,7 @@ final class ScreenshotSelectionController {
     static func steppedLoupeNeedsRawWheel(optionPressed: Bool) -> Bool {
         guard activeSession?.loupeEnabled == true else { return false }
         return ScreenshotSupport.captureLoupeUsesSteppedZoom(
-            steppedByDefault: UserDefaults.standard.bool(
+            steppedByDefault: SettingsUserDefaults.standard.bool(
                 forKey: DefaultsKey.screenshotLoupeSteppedZoomByDefault),
             optionPressed: optionPressed)
     }
@@ -189,7 +189,7 @@ final class ScreenshotSelectionController {
         self.supportsScrollingCapture = supportsScrollingCapture
         self.requiresDraggedRegion = requiresDraggedRegion
         self.screenCaptureOptions = screenCaptureOptions
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         self.loupeZoom = ScreenshotSupport.captureLoupeInitialZoom(
             rememberLast: defaults.bool(forKey: DefaultsKey.screenshotLoupeRememberZoom),
             defaultZoom: CGFloat(defaults.double(forKey: DefaultsKey.screenshotLoupeDefaultZoom)),
@@ -287,7 +287,7 @@ final class ScreenshotSelectionController {
         panels.forEach { $0.orderFrontRegardless() }
         if screenCaptureOptions?.controlsInNotch != true { keyPanelUnderMouse()?.makeKey() }
         if isPickingColor
-            || UserDefaults.standard.bool(forKey: DefaultsKey.screenshotLoupeStartsOn) {
+            || SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenshotLoupeStartsOn) {
             // Opt-in: the session opens with the magnifier already up,
             // instead of waiting for the Z toggle.
             toggleLoupe()
@@ -297,7 +297,7 @@ final class ScreenshotSelectionController {
 
     private func screenCaptureToolDidChange() {
         if let activeTool {
-            let defaults = UserDefaults.standard
+            let defaults = SettingsUserDefaults.standard
             let nextPolicy = ScreenshotSupport.unifiedCapturePolicy(
                 for: activeTool,
                 screenshotFreeze: defaults.bool(forKey: DefaultsKey.screenshotFreeze),
@@ -1013,7 +1013,7 @@ private final class ScreenshotOverlayView: NSView {
     private var hoverPoint: CGPoint = .zero
     private var pointerIsInside = false
     private var hoveredWindow: ScreenshotSupport.PickableWindow?
-    private let highlightWindows = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotHighlightWindows)
+    private let highlightWindows = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenshotHighlightWindows)
     /// The value just copied with C, shown briefly in the loupe's info bar
     /// because the regular HUD sits under these shielding-level panels.
     private var copiedValue: String?
@@ -1231,7 +1231,7 @@ private final class ScreenshotOverlayView: NSView {
             super.scrollWheel(with: event)
             return
         }
-        let steppedByDefault = UserDefaults.standard.bool(
+        let steppedByDefault = SettingsUserDefaults.standard.bool(
             forKey: DefaultsKey.screenshotLoupeSteppedZoomByDefault)
         let stepped = ScreenshotSupport.captureLoupeUsesSteppedZoom(
             steppedByDefault: steppedByDefault,

@@ -921,7 +921,7 @@ private final class NotchQuickAccessContainer: NSView {
         self.canvas = canvas
         let motion = NotchQuickAccessMotion()
         self.motion = motion
-        quickView = NSHostingView(rootView: content(motion, canvas.backdropPresentation))
+        quickView = NSHostingView(rootView: AnyView(content(motion, canvas.backdropPresentation).defaultAppStorage(SettingsUserDefaults.standard)))
         quickView.sizingOptions = []
         quickView.wantsLayer = true
         quickView.isHidden = true

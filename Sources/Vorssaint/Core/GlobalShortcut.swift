@@ -239,7 +239,7 @@ struct GlobalShortcut: Equatable, Hashable {
                                                       modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
-        if let raw = UserDefaults.standard.string(forKey: key),
+        if let raw = SettingsUserDefaults.standard.string(forKey: key),
            let shortcut = GlobalShortcut(storageValue: raw) {
             return shortcut
         }
@@ -863,7 +863,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
 
     static func conflict(for shortcut: GlobalShortcut,
                          excluding role: GlobalShortcutRole?,
-                         isOn: (String) -> Bool = { UserDefaults.standard.bool(forKey: $0) },
+                         isOn: (String) -> Bool = { SettingsUserDefaults.standard.bool(forKey: $0) },
                          isAvailable: (AppFeature) -> Bool = { $0.isAvailable },
                          includeInactive: Bool = false,
                          radialMenuShortcuts: () -> [GlobalShortcut] = { RadialMenuSupport.profileShortcuts() })

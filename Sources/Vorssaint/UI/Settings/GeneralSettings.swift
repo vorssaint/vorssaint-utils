@@ -12,7 +12,7 @@ struct GeneralSettings: View {
     // Seeded from the stored choice so the switch does not flash off while
     // the status read is still on its way.
     @State private var loginRegistration: LaunchAtLoginSupport.Registration =
-        UserDefaults.standard.bool(forKey: DefaultsKey.launchAtLoginWanted) ? .enabled : .off
+        SettingsUserDefaults.standard.bool(forKey: DefaultsKey.launchAtLoginWanted) ? .enabled : .off
     @State private var loginError: String?
     @State private var loginPending = false
     @State private var loginRefreshID = UUID()

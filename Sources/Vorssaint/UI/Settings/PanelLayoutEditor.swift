@@ -170,7 +170,9 @@ private struct PanelSectionRow: View {
         self.onSelect = onSelect
         self.onHover = onHover
         self.onVisibilityChange = onVisibilityChange
-        _shown = AppStorage(wrappedValue: id.shownByDefault, id.visibilityKey)
+        _shown = AppStorage(
+            wrappedValue: id.shownByDefault, id.visibilityKey,
+            store: SettingsUserDefaults.standard)
     }
 
     var body: some View {

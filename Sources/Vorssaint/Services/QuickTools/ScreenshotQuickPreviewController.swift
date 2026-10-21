@@ -131,7 +131,7 @@ final class ScreenshotQuickPreviewController {
             finishShowing()
             return
         }
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.defaultAppStorage(SettingsUserDefaults.standard))
         let size = Self.size(showingLink: model.sharedRecord != nil)
         let panel = ScreenshotQuickPreviewPanel(
             contentRect: CGRect(origin: .zero, size: size),
@@ -319,7 +319,7 @@ final class ScreenshotQuickPreviewController {
         share(duration) { [weak self] record in
             guard let self, !self.closed,
                   AppFeature.screenshot.isAvailable,
-                  UserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
+                  SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
                 if let self, !self.closed {
                     self.model.sharing = false
                     self.scheduleAutoDismiss()
@@ -410,7 +410,7 @@ final class ScreenshotQuickPreviewController {
             pointer: pointer,
             screens: screens,
             fallback: NSScreen.pointerVisibleFrame)
-        let storedPosition = UserDefaults.standard.string(
+        let storedPosition = SettingsUserDefaults.standard.string(
             forKey: DefaultsKey.screenshotPreviewPosition) ?? ""
         let position = ScreenshotSupport.QuickPreviewPosition(rawValue: storedPosition)
             ?? .automatic

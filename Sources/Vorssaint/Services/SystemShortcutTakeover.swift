@@ -12,13 +12,13 @@ import Foundation
 enum SystemShortcutTakeover {
     private static let lock = NSLock()
     private static var suppressed: Set<Int32> = SystemShortcutTakeoverSupport.migratedMarker(
-        old: UserDefaults.standard.array(forKey: DefaultsKey.switcherNativeHotkeysSuppressed) as? [Int],
-        new: UserDefaults.standard.array(forKey: DefaultsKey.systemShortcutsSuppressed) as? [Int])
+        old: SettingsUserDefaults.standard.array(forKey: DefaultsKey.switcherNativeHotkeysSuppressed) as? [Int],
+        new: SettingsUserDefaults.standard.array(forKey: DefaultsKey.systemShortcutsSuppressed) as? [Int])
     static let switcherSource = "switcher"
     private static var wanted: [String: Set<Int32>] = [:]
     private static var claims: [String: GlobalShortcut] = [:]
     private static var takeOverKeys: Set<String> = Set(
-        UserDefaults.standard.stringArray(forKey: DefaultsKey.systemShortcutTakeOverKeys) ?? [])
+        SettingsUserDefaults.standard.stringArray(forKey: DefaultsKey.systemShortcutTakeOverKeys) ?? [])
     private static var wakeObserver: NSObjectProtocol?
 
     /// Raw-id callers (the switcher) say what they want under their own name.
@@ -50,7 +50,7 @@ enum SystemShortcutTakeover {
     static func setTakeOver(_ storageKey: String, _ on: Bool) {
         lock.lock()
         if on { takeOverKeys.insert(storageKey) } else { takeOverKeys.remove(storageKey) }
-        UserDefaults.standard.set(takeOverKeys.sorted(), forKey: DefaultsKey.systemShortcutTakeOverKeys)
+        SettingsUserDefaults.standard.set(takeOverKeys.sorted(), forKey: DefaultsKey.systemShortcutTakeOverKeys)
         lock.unlock()
         refresh(storageKey)
     }
@@ -137,7 +137,7 @@ enum SystemShortcutTakeover {
         lock.lock()
         defer { lock.unlock() }
         persist(suppressed)
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
+        SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
         guard let setEnabled = SymbolicHotKeys.setEnabled else { return }
         // A feature that claimed before recovery ran (keep-awake registers
         // first) is a source too; keeping only the switcher's ids would give
@@ -183,9 +183,9 @@ enum SystemShortcutTakeover {
 
     private static func persist(_ ids: Set<Int32>) {
         if ids.isEmpty {
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.systemShortcutsSuppressed)
+            SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.systemShortcutsSuppressed)
         } else {
-            UserDefaults.standard.set(ids.map(Int.init).sorted(), forKey: DefaultsKey.systemShortcutsSuppressed)
+            SettingsUserDefaults.standard.set(ids.map(Int.init).sorted(), forKey: DefaultsKey.systemShortcutsSuppressed)
         }
     }
 }

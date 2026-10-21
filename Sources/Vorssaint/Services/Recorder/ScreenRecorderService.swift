@@ -9,10 +9,10 @@ import CoreMedia
 /// preferences immediately, so the selection and Settings always start alike.
 final class RecorderSelectionAudioOptions: ObservableObject {
     @Published var systemAudio: Bool {
-        didSet { UserDefaults.standard.set(systemAudio, forKey: DefaultsKey.recorderSystemAudio) }
+        didSet { SettingsUserDefaults.standard.set(systemAudio, forKey: DefaultsKey.recorderSystemAudio) }
     }
     @Published var microphone: Bool {
-        didSet { UserDefaults.standard.set(microphone, forKey: DefaultsKey.recorderMicrophone) }
+        didSet { SettingsUserDefaults.standard.set(microphone, forKey: DefaultsKey.recorderMicrophone) }
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -95,7 +95,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         // permission, and it answers that with silence, not an error. The
         // stream's sound is written until the tap has proven itself.
         writesTapAudio = tap != nil
-            && UserDefaults.standard.bool(forKey: DefaultsKey.recorderSystemAudioTapVerified)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.recorderSystemAudioTapVerified)
         tap?.onSample = { [weak self] sampleBuffer in
             self?.appendTapSample(sampleBuffer)
         }
@@ -200,7 +200,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         // change, not by a missing permission, so this recording proves
         // nothing either way.
         if let tap, !tapReaderLost.value {
-            UserDefaults.standard.set(
+            SettingsUserDefaults.standard.set(
                 RecorderSupport.trustsSystemAudioTap(previously: writesTapAudio,
                                                      tapHeardSound: tap.heardSound,
                                                      streamHeardSound: streamHeardSound(against: tap)),
@@ -449,7 +449,7 @@ final class ScreenRecorderService: ObservableObject {
     private func startCountdown(for region: RecorderSupport.Region, generation: Int) {
         guard pendingStartIsAuthorized(generation), session == nil, !isFinishing else { return }
         let delay = ScreenshotSupport.sanitizedDelay(
-            UserDefaults.standard.integer(forKey: DefaultsKey.recorderCountdown))
+            SettingsUserDefaults.standard.integer(forKey: DefaultsKey.recorderCountdown))
         guard delay > 0 else {
             beginRecording(region: region, generation: generation)
             return
@@ -485,7 +485,7 @@ final class ScreenRecorderService: ObservableObject {
             QuickToolHUD.show(icon: "record.circle", message: strings.recordFailed)
             return
         }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let frameRate = RecorderSupport.sanitizedFrameRate(
             defaults.integer(forKey: DefaultsKey.recorderFrameRate))
         let capturesSystemAudio = defaults.bool(forKey: DefaultsKey.recorderSystemAudio)
@@ -705,7 +705,7 @@ final class ScreenRecorderService: ObservableObject {
     /// sound and format are decided, or goes straight to a file for whoever
     /// only wanted the raw recording.
     private func deliver(_ take: RecorderTakeStore.Take, reason: String?) {
-        if reason == nil, UserDefaults.standard.bool(forKey: DefaultsKey.recorderOpenEditor) {
+        if reason == nil, SettingsUserDefaults.standard.bool(forKey: DefaultsKey.recorderOpenEditor) {
             if openEditor(with: take) { return }
         }
         saveDirect(take, reason: reason)
@@ -734,7 +734,7 @@ final class ScreenRecorderService: ObservableObject {
                                 fileExtension: String) -> URL {
         let manager = FileManager.default
         var folder: URL?
-        let stored = UserDefaults.standard.string(forKey: DefaultsKey.recorderSaveFolder) ?? ""
+        let stored = SettingsUserDefaults.standard.string(forKey: DefaultsKey.recorderSaveFolder) ?? ""
         if !stored.isEmpty {
             let expanded = (stored as NSString).expandingTildeInPath
             var isDirectory: ObjCBool = false

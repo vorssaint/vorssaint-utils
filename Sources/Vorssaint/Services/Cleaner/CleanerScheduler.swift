@@ -25,7 +25,7 @@ final class CleanerScheduler: ObservableObject {
 
     func syncWithPreferences() {
         let frequency = CleanerSchedule.Frequency.sanitized(
-            UserDefaults.standard.string(forKey: DefaultsKey.cleanerScheduleFrequency) ?? "off")
+            SettingsUserDefaults.standard.string(forKey: DefaultsKey.cleanerScheduleFrequency) ?? "off")
         guard AppFeature.cleaner.isAvailable, frequency != .off else {
             stop()
             return
@@ -69,7 +69,7 @@ final class CleanerScheduler: ObservableObject {
     }
 
     private var settings: (frequency: CleanerSchedule.Frequency, hour: Int, minute: Int, weekday: Int) {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         return (CleanerSchedule.Frequency.sanitized(
                     defaults.string(forKey: DefaultsKey.cleanerScheduleFrequency) ?? "off"),
                 defaults.integer(forKey: DefaultsKey.cleanerScheduleHour),
@@ -81,7 +81,7 @@ final class CleanerScheduler: ObservableObject {
         let current = settings
         guard current.frequency != .off else { return }
 
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let lastRunStamp = defaults.double(forKey: DefaultsKey.cleanerLastAutoRun)
         let lastRun = lastRunStamp > 0 ? Date(timeIntervalSince1970: lastRunStamp) : nil
 
@@ -161,7 +161,7 @@ final class CleanerScheduler: ObservableObject {
     private func finishRun(freed: Int64, failed: Int) {
         runObserver = nil
         JunkCleaner.shared.reset()
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         defaults.set(Date().timeIntervalSince1970, forKey: DefaultsKey.cleanerLastAutoRun)
         defaults.set(freed, forKey: DefaultsKey.cleanerLastAutoFreed)
         defaults.set(failed, forKey: DefaultsKey.cleanerLastAutoFailed)
@@ -174,7 +174,7 @@ final class CleanerScheduler: ObservableObject {
     /// notifications are not allowed). Even a run that found nothing posts,
     /// so a fresh schedule gives proof of life on its first pass.
     private func notifyIfWanted(freed: Int64, failed: Int) {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.cleanerScheduleNotify) else { return }
+        guard SettingsUserDefaults.standard.bool(forKey: DefaultsKey.cleanerScheduleNotify) else { return }
         let strings = L10n.shared.s
         var sentences: [String] = []
         if freed > 0 {

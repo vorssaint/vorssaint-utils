@@ -125,7 +125,7 @@ struct ShortcutsSettings: View {
                     ForEach(WindowLayoutAction.shortcutActions) { action in
                         CentralWindowLayoutShortcutRow(
                             action: action,
-                            shortcutsEnabled: UserDefaults.standard.bool(
+                            shortcutsEnabled: SettingsUserDefaults.standard.bool(
                                 forKey: DefaultsKey.windowLayoutShortcutsEnabled),
                             showsSuperKeyAlternative: superKey.isRunning,
                             superKeyModifiers: superKey.modifiers,
@@ -220,7 +220,7 @@ struct ShortcutsSettings: View {
         let title = role.title(l10n.s)
         let featureTitle = role.feature.hubTitle(l10n.s, hub: hub)
         let active = role.requiredEnableKeys.allSatisfy {
-            UserDefaults.standard.bool(forKey: $0)
+            SettingsUserDefaults.standard.bool(forKey: $0)
         }
         return ShortcutPreferenceRow(
             role: role,
@@ -259,12 +259,12 @@ struct ShortcutsSettings: View {
     private func featureHasActiveShortcut(_ feature: AppFeature,
                                           roles: [GlobalShortcutRole]) -> Bool {
         if feature == .windowLayout,
-           UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled),
+           SettingsUserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled),
            WindowLayoutAction.shortcutActions.contains(where: { $0.savedShortcut != nil }) {
             return true
         }
         return roles.contains { role in
-            role.requiredEnableKeys.allSatisfy { UserDefaults.standard.bool(forKey: $0) }
+            role.requiredEnableKeys.allSatisfy { SettingsUserDefaults.standard.bool(forKey: $0) }
         }
     }
 
@@ -314,7 +314,7 @@ private struct RadialMenuShortcutsRow: View {
         let role = GlobalShortcutRole.radialMenu
         let shortcuts = RadialMenuSupport.profileShortcuts()
         let active = !shortcuts.isEmpty
-            && role.requiredEnableKeys.allSatisfy { UserDefaults.standard.bool(forKey: $0) }
+            && role.requiredEnableKeys.allSatisfy { SettingsUserDefaults.standard.bool(forKey: $0) }
         HStack(alignment: .top, spacing: 8) {
             ShortcutRowLabel(title: role.title(l10n.s),
                              symbolName: role.feature.symbolName,
@@ -363,7 +363,8 @@ private struct CentralWindowLayoutShortcutRow: View {
         _rawValue = AppStorage(
             wrappedValue: action.defaultShortcut?.storageValue
                 ?? WindowLayoutAction.clearedShortcutStorageValue,
-            action.shortcutKey
+            action.shortcutKey,
+            store: SettingsUserDefaults.standard
         )
     }
 

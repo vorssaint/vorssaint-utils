@@ -61,7 +61,7 @@ final class MonitorAlertService {
     }
 
     private func evaluate(_ snapshot: SystemSnapshot) {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         guard Self.anyEnabled(in: defaults) else {
             cpuUsageGate.reset()
             cpuTemperatureGate.reset()
@@ -194,7 +194,7 @@ final class MonitorAlertService {
     private func send(_ kind: MonitorAlertKind, title: String, body: String) {
         let now = Date()
         let minutes = Defaults.sanitizedMonitorAlertCooldown(
-            UserDefaults.standard.integer(forKey: DefaultsKey.monitorAlertCooldownMinutes)
+            SettingsUserDefaults.standard.integer(forKey: DefaultsKey.monitorAlertCooldownMinutes)
         )
         if let previous = lastSent[kind], now.timeIntervalSince(previous) < Double(minutes * 60) {
             return

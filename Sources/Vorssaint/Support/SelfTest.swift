@@ -94,11 +94,11 @@ enum SelfTest {
             warnings.append("no power metrics on this Mac")
         }
 
-        UserDefaults.standard.set("ok", forKey: "selftest")
-        if UserDefaults.standard.string(forKey: "selftest") != "ok" {
+        SettingsUserDefaults.standard.set("ok", forKey: "selftest")
+        if SettingsUserDefaults.standard.string(forKey: "selftest") != "ok" {
             failures.append("UserDefaults")
         }
-        UserDefaults.standard.removeObject(forKey: "selftest")
+        SettingsUserDefaults.standard.removeObject(forKey: "selftest")
 
         for style in KeepAwakeActiveIcon.allCases {
             guard let image = BlackHoleGlyph.activeImage(style: style, tint: .orange) else {

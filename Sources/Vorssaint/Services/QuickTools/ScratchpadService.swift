@@ -62,7 +62,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     func syncWithPreferences() {
         let available = AppFeature.scratchpad.isAvailable
         let enabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.scratchpadShortcutEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.scratchpadShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.scratchpadShortcut,
                                             fallback: .scratchpadDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
@@ -173,7 +173,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             flushSave()
             return true
         }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let defaultName = FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         let retention = ScratchpadRetention.sanitized(
             defaults.string(forKey: DefaultsKey.scratchpadRetention))
@@ -480,7 +480,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         panel.contentMinSize = NSSize(width: 280, height: 220)
         panel.minSize = NSSize(width: 280, height: 220)
         panel.delegate = self
-        let host = NSHostingController(rootView: ScratchpadView())
+        let host = NSHostingController(rootView: ScratchpadView().defaultAppStorage(SettingsUserDefaults.standard))
         // No preferred-size tracking: the pad is user-resizable and the view
         // fills whatever frame the panel has.
         host.sizingOptions = []
@@ -517,7 +517,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// apps. The choice is read at click time, so flipping it in Settings
     /// takes effect on an open pad.
     private var closesOnClickOutside: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.scratchpadCloseOnClickOutside)
+        SettingsUserDefaults.standard.bool(forKey: DefaultsKey.scratchpadCloseOnClickOutside)
     }
 
     /// The export dialog is a click outside the pad by geometry, so saving to

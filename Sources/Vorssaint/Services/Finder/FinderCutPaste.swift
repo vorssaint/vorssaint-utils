@@ -103,10 +103,10 @@ final class FinderCutPaste: ObservableObject {
     func syncWithPreferences() {
         let available = AppFeature.finderCutPaste.isAvailable
         cutPasteEnabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled)
-        showHUD = UserDefaults.standard.object(forKey: DefaultsKey.finderCutPasteShowHUD) as? Bool ?? true
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled)
+        showHUD = SettingsUserDefaults.standard.object(forKey: DefaultsKey.finderCutPasteShowHUD) as? Bool ?? true
         pasteImageAsFileEnabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.finderPasteImageAsFile)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.finderPasteImageAsFile)
         if SessionActivitySupport.tapShouldRun(featureWanted: cutPasteEnabled || pasteImageAsFileEnabled,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -771,7 +771,7 @@ final class FinderCutPaste: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: CutFeedbackView().environmentObject(self))
+        let host = NSHostingController(rootView: CutFeedbackView().environmentObject(self).defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

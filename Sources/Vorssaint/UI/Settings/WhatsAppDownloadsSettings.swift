@@ -652,7 +652,7 @@ struct WhatsAppDownloadsSettings: View {
     }
 
     private func enableAutomation(includeExisting: Bool) {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         defaults.set(includeExisting, forKey: DefaultsKey.whatsAppDownloadsIncludeExisting)
         defaults.set(Date().timeIntervalSince1970,
                      forKey: DefaultsKey.whatsAppDownloadsAutomaticStartDate)

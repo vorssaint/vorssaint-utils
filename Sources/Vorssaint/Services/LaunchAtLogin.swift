@@ -70,7 +70,7 @@ enum LaunchAtLogin {
 
     private static func setEnabledNow(_ enabled: Bool) throws {
         if enabled, locationIsUnstable { throw UnstableLocationError() }
-        UserDefaults.standard.set(enabled, forKey: DefaultsKey.launchAtLoginWanted)
+        SettingsUserDefaults.standard.set(enabled, forKey: DefaultsKey.launchAtLoginWanted)
         var failure: Error?
         do {
             if enabled {
@@ -94,7 +94,7 @@ enum LaunchAtLogin {
             // The stored intent must match what the user actually got;
             // keeping the failed wish would make the startup repair register
             // an item the UI showed as off.
-            UserDefaults.standard.set(isEnabled, forKey: DefaultsKey.launchAtLoginWanted)
+            SettingsUserDefaults.standard.set(isEnabled, forKey: DefaultsKey.launchAtLoginWanted)
             throw failure
         }
     }
@@ -106,7 +106,7 @@ enum LaunchAtLogin {
     }
 
     private static func repairNow() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         switch LaunchAtLoginSupport.startupAction(
             wanted: defaults.bool(forKey: DefaultsKey.launchAtLoginWanted),
             registration: registration,

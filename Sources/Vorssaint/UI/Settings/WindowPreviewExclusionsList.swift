@@ -11,7 +11,7 @@ struct WindowPreviewExclusionsList: View {
     init(key: String) {
         self.key = key
         _apps = State(initialValue: Defaults.sanitizedBundleIdentifierList(
-            UserDefaults.standard.stringArray(forKey: key) ?? []))
+            SettingsUserDefaults.standard.stringArray(forKey: key) ?? []))
     }
 
     private var text: WindowPreviewExclusionStrings {
@@ -32,7 +32,7 @@ struct WindowPreviewExclusionsList: View {
 
     private func save(_ bundleIDs: [String]) {
         let sanitized = Defaults.sanitizedBundleIdentifierList(bundleIDs)
-        UserDefaults.standard.set(sanitized, forKey: key)
+        SettingsUserDefaults.standard.set(sanitized, forKey: key)
         apps = sanitized
     }
 }

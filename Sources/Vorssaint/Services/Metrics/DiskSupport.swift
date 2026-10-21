@@ -66,7 +66,7 @@ enum DiskMenuBarStyle: String, CaseIterable {
     static let defaultsKey = DefaultsKey.menuBarDiskStyle
 
     static var current: DiskMenuBarStyle {
-        DiskMenuBarStyle(rawValue: UserDefaults.standard.string(forKey: defaultsKey) ?? "") ?? .percent
+        DiskMenuBarStyle(rawValue: SettingsUserDefaults.standard.string(forKey: defaultsKey) ?? "") ?? .percent
     }
 
     var showsPercentage: Bool { self == .percent }

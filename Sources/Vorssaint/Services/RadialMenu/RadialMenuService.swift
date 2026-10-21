@@ -98,7 +98,7 @@ final class RadialMenuService: ObservableObject {
     func syncWithPreferences() {
         // The trackpad tap is recognized by the middle click's contact reader.
         defer { MiddleClickService.shared.syncWithPreferences() }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let enabled = AppFeature.radialMenu.isAvailable
             && defaults.bool(forKey: DefaultsKey.radialMenuEnabled)
         guard enabled else {
@@ -156,7 +156,7 @@ final class RadialMenuService: ObservableObject {
     /// off, so it can tell a button this app cannot see from one that is
     /// simply set to something else.
     private func mouseTapWanted(profiles: [RadialMenuProfile]?) -> Bool {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         // Asked of the stored buttons alone when the caller has no profiles in
         // hand: this only needs to know whether any wheel is bound to a button,
         // and the full decode pays for every item and icon to answer it.
@@ -260,7 +260,7 @@ final class RadialMenuService: ObservableObject {
         if isReportingMouseButtons, type == .otherMouseDown {
             lastMouseButtonSeen = pressed
         }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let button = Int64(pressed)
         // Every press and release of every extra button lands here, so the
         // cheap question comes first: the wheels themselves are decoded only
@@ -324,7 +324,7 @@ final class RadialMenuService: ObservableObject {
     /// A four-finger tap: opens the wheel that claims it as a sticky session,
     /// or closes it, like a second press of its shortcut.
     func toggleFromTrackpad() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         guard AppFeature.radialMenu.isAvailable,
               defaults.bool(forKey: DefaultsKey.radialMenuEnabled),
               let profile = RadialMenuSupport.decodeProfiles(
@@ -342,7 +342,7 @@ final class RadialMenuService: ObservableObject {
     /// placement, exactly like a quick press of the shortcut.
     func presentPreview(for profile: RadialMenuProfile? = nil) {
         endSession()
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let profiles = RadialMenuSupport.decodeProfiles(
             defaults.data(forKey: DefaultsKey.radialMenuProfiles),
             defaults: defaults
@@ -352,7 +352,7 @@ final class RadialMenuService: ObservableObject {
     }
 
     private func beginSession(for profile: RadialMenuProfile, hold: Bool, heldButton: Int64? = nil) {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let items = availableItems(profile.items)
         guard !items.isEmpty else {
             NSSound.beep()
@@ -468,7 +468,7 @@ final class RadialMenuService: ObservableObject {
         // A try-it session can run with the feature off; nothing may stay
         // resident for it once the wheel closes.
         if !AppFeature.radialMenu.isAvailable
-            || !UserDefaults.standard.bool(forKey: DefaultsKey.radialMenuEnabled) {
+            || !SettingsUserDefaults.standard.bool(forKey: DefaultsKey.radialMenuEnabled) {
             panel = nil
         }
     }
@@ -919,7 +919,7 @@ final class RadialMenuService: ObservableObject {
         panel.hasShadow = false
         panel.acceptsMouseMovedEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        panel.contentViewController = NSHostingController(rootView: RadialMenuView())
+        panel.contentViewController = NSHostingController(rootView: RadialMenuView().defaultAppStorage(SettingsUserDefaults.standard))
         self.panel = panel
         return panel
     }

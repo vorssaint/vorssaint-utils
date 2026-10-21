@@ -69,7 +69,7 @@ final class ExtraBrightnessService: ObservableObject {
     func syncWithPreferences() {
         refreshSupported()
         let enabled = AppFeature.extraBrightness.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.extraBrightnessEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.extraBrightnessEnabled)
         if enabled, supported {
             start()
         } else if enabled {
@@ -239,7 +239,7 @@ final class ExtraBrightnessService: ObservableObject {
     private func handleScreenChange() {
         refreshSupported()
         let enabled = AppFeature.extraBrightness.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.extraBrightnessEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.extraBrightnessEnabled)
         guard enabled else {
             stop()
             return
@@ -471,7 +471,7 @@ final class ExtraBrightnessService: ObservableObject {
         for window in overlayWindows where !window.isVisible { window.orderFrontRegardless() }
         if let triggerWindow, !triggerWindow.isVisible { triggerWindow.orderFrontRegardless() }
         presentTrigger()
-        let level = Double(UserDefaults.standard.integer(forKey: DefaultsKey.extraBrightnessLevel)) / 100.0
+        let level = Double(SettingsUserDefaults.standard.integer(forKey: DefaultsKey.extraBrightnessLevel)) / 100.0
         let headroom = Double(screen.maximumExtendedDynamicRangeColorComponentValue)
         let potential = Double(screen.maximumPotentialExtendedDynamicRangeColorComponentValue)
         let engaged = headroom > ExtraBrightnessSupport.headroomThreshold

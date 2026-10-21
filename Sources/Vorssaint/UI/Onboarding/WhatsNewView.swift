@@ -58,7 +58,7 @@ struct UpdatePreviewView: View {
                     // Saved only on Update: ticking the box and then cancelling
                     // must not turn the next update into a silent install.
                     if skipNextTime {
-                        UserDefaults.standard.set(false, forKey: DefaultsKey.showReleaseNotesBeforeUpdate)
+                        SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.showReleaseNotesBeforeUpdate)
                     }
                     onUpdate()
                 }

@@ -41,7 +41,7 @@ final class ScreenTextService: ObservableObject {
 
     func receiveUnifiedCapture(_ capture: ScreenshotSelectionController.Capture) {
         recognize(capture.image,
-                  detectQRCodes: UserDefaults.standard.bool(
+                  detectQRCodes: SettingsUserDefaults.standard.bool(
                     forKey: DefaultsKey.screenOCRDetectQRCodes))
     }
 
@@ -64,7 +64,7 @@ final class ScreenTextService: ObservableObject {
         recognitionGeneration += 1
         let generation = recognitionGeneration
         let pasteboardChangeCount = NSPasteboard.general.changeCount
-        let removeLineBreaks = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks)
+        let removeLineBreaks = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks)
         let fallbackLanguages = MediaSupport.recognitionLanguages(for: L10n.shared.language.rawValue)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let outcome = ScreenTextService.outcome(for: ScreenTextService.recognitionImage(image),

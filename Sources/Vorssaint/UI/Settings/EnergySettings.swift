@@ -193,7 +193,7 @@ struct EnergySettings: View {
         return Button {
             defaultDuration = minutes
             // A chosen default is the newest pick, so the switch starts it.
-            UserDefaults.standard.set(false, forKey: DefaultsKey.keepAwakeSwitchUsesUntil)
+            SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.keepAwakeSwitchUsesUntil)
         } label: {
             Text(DurationPicker.title(for: minutes, l10n.s))
                 .font(.system(size: 11, weight: .medium))

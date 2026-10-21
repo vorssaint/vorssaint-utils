@@ -109,13 +109,13 @@ final class L10n: ObservableObject {
     static let shared = L10n()
 
     @Published var language: AppLanguage {
-        didSet { UserDefaults.standard.set(language.rawValue, forKey: DefaultsKey.language) }
+        didSet { SettingsUserDefaults.standard.set(language.rawValue, forKey: DefaultsKey.language) }
     }
 
     var s: Strings { Strings.localized(language) }
 
     private init() {
-        if let raw = UserDefaults.standard.string(forKey: DefaultsKey.language),
+        if let raw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.language),
            let saved = AppLanguage(rawValue: raw) {
             language = saved
         } else {

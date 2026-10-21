@@ -38,7 +38,7 @@ final class SnippetLibraryService: ObservableObject {
 
     func syncWithPreferences() {
         let enabled = AppFeature.textSnippets.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.snippetLibraryEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.snippetLibraryEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.snippetLibraryShortcut,
                                             fallback: .snippetLibraryDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
@@ -79,7 +79,7 @@ final class SnippetLibraryService: ObservableObject {
 
     private func reloadSnippets() {
         snippets = TextSnippetSupport.decode(
-            UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
+            SettingsUserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
     }
 
     // MARK: - Presentation
@@ -236,7 +236,7 @@ final class SnippetLibraryService: ObservableObject {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: SnippetLibraryView())
+        let host = NSHostingController(rootView: SnippetLibraryView().defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

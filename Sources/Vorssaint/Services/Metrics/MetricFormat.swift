@@ -259,7 +259,7 @@ enum MetricFormat {
     /// Only an explicit choice of bits reads as bits, so someone who never
     /// picked a unit keeps the bytes they always saw.
     static var networkSpeedInBits: Bool {
-        UserDefaults.standard.string(forKey: DefaultsKey.networkSpeedUnit) == NetworkSpeedUnit.bits.rawValue
+        SettingsUserDefaults.standard.string(forKey: DefaultsKey.networkSpeedUnit) == NetworkSpeedUnit.bits.rawValue
     }
 
     /// A network speed in the chosen unit. Used in the panel.

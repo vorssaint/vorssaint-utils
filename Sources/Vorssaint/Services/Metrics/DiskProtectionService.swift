@@ -23,10 +23,10 @@ final class DiskProtectionService: ObservableObject {
     }
 
     func reloadExclusions() {
-        let raw = UserDefaults.standard.stringArray(forKey: DefaultsKey.diskEjectExcludedVolumes) ?? []
+        let raw = SettingsUserDefaults.standard.stringArray(forKey: DefaultsKey.diskEjectExcludedVolumes) ?? []
         let sanitized = Defaults.sanitizedDiskExclusionList(raw)
         if raw != sanitized {
-            UserDefaults.standard.set(sanitized, forKey: DefaultsKey.diskEjectExcludedVolumes)
+            SettingsUserDefaults.standard.set(sanitized, forKey: DefaultsKey.diskEjectExcludedVolumes)
         }
         excludedVolumes = sanitized
     }
@@ -36,14 +36,14 @@ final class DiskProtectionService: ObservableObject {
         guard !trimmed.isEmpty else { return }
         guard !excludedVolumes.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else { return }
         let updated = Defaults.sanitizedDiskExclusionList(excludedVolumes + [trimmed])
-        UserDefaults.standard.set(updated, forKey: DefaultsKey.diskEjectExcludedVolumes)
+        SettingsUserDefaults.standard.set(updated, forKey: DefaultsKey.diskEjectExcludedVolumes)
         excludedVolumes = updated
     }
 
     func removeExcludedVolume(_ name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let updated = excludedVolumes.filter { $0.caseInsensitiveCompare(trimmed) != .orderedSame }
-        UserDefaults.standard.set(updated, forKey: DefaultsKey.diskEjectExcludedVolumes)
+        SettingsUserDefaults.standard.set(updated, forKey: DefaultsKey.diskEjectExcludedVolumes)
         excludedVolumes = updated
     }
 

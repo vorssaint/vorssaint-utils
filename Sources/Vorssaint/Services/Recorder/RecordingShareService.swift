@@ -50,7 +50,7 @@ final class RecordingShareService: ObservableObject {
     var endpoint: URL {
         RecordingSharingSupport.endpoint(
             bundleIdentifier: Bundle.main.bundleIdentifier,
-            developerOverride: UserDefaults.standard.string(
+            developerOverride: SettingsUserDefaults.standard.string(
                 forKey: DefaultsKey.screenshotSharingDeveloperEndpoint))
     }
 
@@ -76,7 +76,7 @@ final class RecordingShareService: ObservableObject {
     func createLink(artifact: RecorderExporter.ShareArtifact,
                     duration: RecordingShareDuration) async throws -> RecordingShareRecord {
         defer { artifact.discard() }
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.recorderSharingEnabled) else {
+        guard SettingsUserDefaults.standard.bool(forKey: DefaultsKey.recorderSharingEnabled) else {
             throw RecordingShareError.unavailable
         }
         let file = artifact.fileURL

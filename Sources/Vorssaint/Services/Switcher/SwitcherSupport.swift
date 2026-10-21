@@ -571,7 +571,7 @@ enum SwitcherSupport {
     }
 
     static var userMaxColumns: Int? {
-        sanitizedMaxColumns(UserDefaults.standard.integer(forKey: DefaultsKey.switcherMaxColumns))
+        sanitizedMaxColumns(SettingsUserDefaults.standard.integer(forKey: DefaultsKey.switcherMaxColumns))
     }
 
     /// The screen still wins: a cap wider than what fits never overflows it.

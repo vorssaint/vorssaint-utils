@@ -48,7 +48,7 @@ final class ClipboardIgnoredApps: ObservableObject {
     // MARK: - The list
 
     func reload() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let raw = defaults.stringArray(forKey: DefaultsKey.clipboardHistoryIgnoredApps) ?? []
         let sanitized = Defaults.sanitizedBundleIdentifierList(raw)
         if raw != sanitized {
@@ -61,13 +61,13 @@ final class ClipboardIgnoredApps: ObservableObject {
     func add(_ bundleID: String) {
         let bundleID = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !bundleID.isEmpty, !apps.contains(bundleID) else { return }
-        UserDefaults.standard.set(apps + [bundleID], forKey: DefaultsKey.clipboardHistoryIgnoredApps)
+        SettingsUserDefaults.standard.set(apps + [bundleID], forKey: DefaultsKey.clipboardHistoryIgnoredApps)
         reload()
     }
 
     func remove(_ bundleID: String) {
         guard apps.contains(bundleID) else { return }
-        UserDefaults.standard.set(apps.filter { $0 != bundleID },
+        SettingsUserDefaults.standard.set(apps.filter { $0 != bundleID },
                                   forKey: DefaultsKey.clipboardHistoryIgnoredApps)
         reload()
     }

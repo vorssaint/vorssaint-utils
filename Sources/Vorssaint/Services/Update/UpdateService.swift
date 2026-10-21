@@ -38,22 +38,22 @@ final class UpdateService: ObservableObject {
     private init() {}
 
     var autoCheckEnabled: Bool {
-        get { UserDefaults.standard.object(forKey: DefaultsKey.autoCheckUpdates) as? Bool ?? true }
+        get { SettingsUserDefaults.standard.object(forKey: DefaultsKey.autoCheckUpdates) as? Bool ?? true }
         set {
-            UserDefaults.standard.set(newValue, forKey: DefaultsKey.autoCheckUpdates)
+            SettingsUserDefaults.standard.set(newValue, forKey: DefaultsKey.autoCheckUpdates)
             configureAutomaticChecks()
         }
     }
 
     var includeBetaUpdates: Bool {
         get {
-            if let explicit = UserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) as? Bool {
+            if let explicit = SettingsUserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) as? Bool {
                 return explicit
             }
             return AppInfo.isBeta
         }
         set {
-            UserDefaults.standard.set(newValue, forKey: DefaultsKey.includeBetaUpdates)
+            SettingsUserDefaults.standard.set(newValue, forKey: DefaultsKey.includeBetaUpdates)
         }
     }
 
@@ -62,13 +62,13 @@ final class UpdateService: ObservableObject {
     /// Called at launch: checks shortly after start and then daily, if enabled.
     func startAutomaticChecks() {
         consumeInstallResult()
-        if AppInfo.isBeta && UserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) == nil {
-            UserDefaults.standard.set(true, forKey: DefaultsKey.includeBetaUpdates)
+        if AppInfo.isBeta && SettingsUserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) == nil {
+            SettingsUserDefaults.standard.set(true, forKey: DefaultsKey.includeBetaUpdates)
         }
         // The local dev build never auto-updates, but can simulate the
         // "update available" UI via the `simulateUpdate` default, for testing.
         if AppInfo.isDeveloperBuild {
-            if UserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
+            if SettingsUserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
                 let simulatedVersion = AppInfo.isBeta ? "9.9.9-beta.1" : "9.9.9"
                 state = .available(version: simulatedVersion)
                 availableNotes = ReleaseNotes.rawNotes(for: AppInfo.version)
@@ -103,7 +103,7 @@ final class UpdateService: ObservableObject {
         if AppInfo.isDeveloperBuild {
             // No real update target; reflect the simulation default so the
             // notification UI can be exercised locally.
-            if UserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
+            if SettingsUserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
                 state = .available(version: "9.9.9")
                 availableNotes = ReleaseNotes.rawNotes(for: AppInfo.version)
             } else {
@@ -327,7 +327,7 @@ final class UpdateService: ObservableObject {
         try? fm.removeItem(at: resultURL.appendingPathExtension("progress"))
 
         let appDirectory = (appPath as NSString).deletingLastPathComponent
-        let lastFailure = UserDefaults.standard.string(forKey: DefaultsKey.updateLastInstallFailure)
+        let lastFailure = SettingsUserDefaults.standard.string(forKey: DefaultsKey.updateLastInstallFailure)
         if fm.isWritableFile(atPath: appDirectory),
            !UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: lastFailure) {
             launchUserInstaller(appPath: appPath, dmgPath: dmgPath, pid: pid,
@@ -456,14 +456,14 @@ final class UpdateService: ObservableObject {
         guard let code = UpdateInstallerSupport.installFailureCode(fromMarker: marker) else {
             // The swap finished: this launch IS the new version, so any
             // remembered failure no longer applies.
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.updateLastInstallFailure)
+            SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.updateLastInstallFailure)
             return
         }
         // Remember the failing step so the next attempt can route around it
         // (copy/swap failures retry through the admin prompt), and check
         // again soon so the update offer comes right back instead of
         // looking silently dropped.
-        UserDefaults.standard.set(code, forKey: DefaultsKey.updateLastInstallFailure)
+        SettingsUserDefaults.standard.set(code, forKey: DefaultsKey.updateLastInstallFailure)
         let s = L10n.shared.s
         Notifier.post(title: s.updateNotifyTitle,
                       body: "\(s.updateInstallFailedBody) (\(code))")

@@ -106,7 +106,7 @@ final class AudioPriorityService: ObservableObject {
     // MARK: - Preference loading
 
     private func loadPreferences() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         outputPriorityEnabled = defaults.bool(forKey: DefaultsKey.audioPriorityOutputEnabled)
         inputPriorityEnabled = defaults.bool(forKey: DefaultsKey.audioPriorityInputEnabled)
         outputPriorityUIDs = Defaults.sanitizedAudioPriorityUIDs(
@@ -121,7 +121,7 @@ final class AudioPriorityService: ObservableObject {
 
     func setOutputPriorityEnabled(_ enabled: Bool) {
         let becameEnabled = enabled && !outputPriorityEnabled
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         defaults.set(enabled, forKey: DefaultsKey.audioPriorityOutputEnabled)
         outputPriorityEnabled = enabled
         mergeAvailableDevicesIntoPriorityLists()
@@ -134,7 +134,7 @@ final class AudioPriorityService: ObservableObject {
 
     func setInputPriorityEnabled(_ enabled: Bool) {
         let becameEnabled = enabled && !inputPriorityEnabled
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         defaults.set(enabled, forKey: DefaultsKey.audioPriorityInputEnabled)
         inputPriorityEnabled = enabled
         AudioInputDeviceManager.shared.setInputPriorityActive(enabled)
@@ -149,7 +149,7 @@ final class AudioPriorityService: ObservableObject {
     func setOutputPriorityUIDs(_ uids: [String]) {
         let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
         guard sanitized != outputPriorityUIDs else { return }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         if sanitized.isEmpty {
             defaults.removeObject(forKey: DefaultsKey.audioPriorityOutputUIDs)
         } else {
@@ -166,7 +166,7 @@ final class AudioPriorityService: ObservableObject {
     func setInputPriorityUIDs(_ uids: [String]) {
         let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
         guard sanitized != inputPriorityUIDs else { return }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         if sanitized.isEmpty {
             defaults.removeObject(forKey: DefaultsKey.audioPriorityInputUIDs)
         } else {
@@ -189,7 +189,7 @@ final class AudioPriorityService: ObservableObject {
         guard !allPriorityUIDs.isEmpty else {
             if !deviceNames.isEmpty {
                 deviceNames = [:]
-                UserDefaults.standard.removeObject(forKey: DefaultsKey.audioPriorityDeviceNames)
+                SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.audioPriorityDeviceNames)
             }
             return
         }
@@ -204,7 +204,7 @@ final class AudioPriorityService: ObservableObject {
         names = names.filter { allPriorityUIDs.contains($0.key) }
         if names != deviceNames {
             deviceNames = names
-            UserDefaults.standard.set(names, forKey: DefaultsKey.audioPriorityDeviceNames)
+            SettingsUserDefaults.standard.set(names, forKey: DefaultsKey.audioPriorityDeviceNames)
         }
     }
 
@@ -283,14 +283,14 @@ final class AudioPriorityService: ObservableObject {
         let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
         guard sanitized != outputPriorityUIDs else { return }
         outputPriorityUIDs = sanitized
-        UserDefaults.standard.set(sanitized, forKey: DefaultsKey.audioPriorityOutputUIDs)
+        SettingsUserDefaults.standard.set(sanitized, forKey: DefaultsKey.audioPriorityOutputUIDs)
     }
 
     private func storeInputPriorityUIDs(_ uids: [String]) {
         let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
         guard sanitized != inputPriorityUIDs else { return }
         inputPriorityUIDs = sanitized
-        UserDefaults.standard.set(sanitized, forKey: DefaultsKey.audioPriorityInputUIDs)
+        SettingsUserDefaults.standard.set(sanitized, forKey: DefaultsKey.audioPriorityInputUIDs)
     }
 
     /// Devices that are not connected now keep the plain hardware tier.

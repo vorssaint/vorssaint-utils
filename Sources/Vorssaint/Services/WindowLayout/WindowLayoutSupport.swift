@@ -216,7 +216,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
 
     /// The action's effective shortcut; nil when the user removed it.
     var savedShortcut: GlobalShortcut? {
-        Self.resolvedShortcut(storedValue: UserDefaults.standard.string(forKey: shortcutKey),
+        Self.resolvedShortcut(storedValue: SettingsUserDefaults.standard.string(forKey: shortcutKey),
                               defaultShortcut: defaultShortcut)
     }
 
@@ -330,11 +330,11 @@ enum WindowLayoutGaps {
     static let presets: [Int] = [0, 8, 16, 32, 64, 128]
 
     static var windowGap: CGFloat {
-        CGFloat(UserDefaults.standard.integer(forKey: DefaultsKey.windowLayoutWindowGap))
+        CGFloat(SettingsUserDefaults.standard.integer(forKey: DefaultsKey.windowLayoutWindowGap))
     }
 
     static var screenGap: CGFloat {
-        CGFloat(UserDefaults.standard.integer(forKey: DefaultsKey.windowLayoutScreenGap))
+        CGFloat(SettingsUserDefaults.standard.integer(forKey: DefaultsKey.windowLayoutScreenGap))
     }
 }
 
@@ -343,7 +343,7 @@ enum WindowLayoutMargin {
     static let percentRange = 0.0...25.0
 
     static var percent: Double {
-        sanitizedPercent(UserDefaults.standard.object(forKey: DefaultsKey.windowLayoutMarginPercent) as? Double
+        sanitizedPercent(SettingsUserDefaults.standard.object(forKey: DefaultsKey.windowLayoutMarginPercent) as? Double
             ?? defaultPercent)
     }
 
@@ -358,7 +358,7 @@ enum WindowLayoutMargin {
 /// pushing it onto the display beside it.
 enum WindowLayoutSideRepeat {
     static var cyclesThirds: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutSideRepeatCyclesThirds)
+        SettingsUserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutSideRepeatCyclesThirds)
     }
 }
 

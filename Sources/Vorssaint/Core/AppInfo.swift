@@ -27,7 +27,7 @@ enum AppInfo {
 
     /// True when the current version is a pre-release (e.g. 3.3.4-beta.1 or 3.3.4-rc.1).
     static var isBeta: Bool {
-        if isDeveloperBuild && UserDefaults.standard.bool(forKey: DefaultsKey.simulateBetaUI) {
+        if isDeveloperBuild && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.simulateBetaUI) {
             return true
         }
         let v = version.lowercased()

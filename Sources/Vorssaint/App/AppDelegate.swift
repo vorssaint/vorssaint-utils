@@ -113,7 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         statusController.onRightClick = { [weak self] button in
             if AppFeature.keepAwake.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRightClickToggle) {
+                && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRightClickToggle) {
                 KeepAwakeManager.shared.toggle()
             } else {
                 self?.showContextMenu(from: button)
@@ -200,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .sink { [weak self] _ in self?.installMainMenu() }
             .store(in: &cancellables)
 
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         // Whatever opens a window at startup waits for the next turn of the
         // run loop, so the menu bar icon is on screen first. A start that goes
         // wrong after this point then leaves the app reachable instead of
@@ -270,16 +270,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private static let healthyStartupSeconds: TimeInterval = 20
 
     private func beginStartupWatch() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         startupOfPreviousRunDidNotFinish = defaults.bool(forKey: DefaultsKey.startupDidNotFinish)
         defaults.set(true, forKey: DefaultsKey.startupDidNotFinish)
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.healthyStartupSeconds) {
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.startupDidNotFinish)
+            SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.startupDidNotFinish)
         }
     }
 
     private func endStartupWatch() {
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.startupDidNotFinish)
+        SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.startupDidNotFinish)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -464,7 +464,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // out, so the panel keeps the inset content there.
         popover.hasFullSizeContent = PanelSurface.popoverHostsFullSizeContent
         popover.delegate = self
-        let host = NSHostingController(rootView: MenuPanelView())
+        let host = NSHostingController(rootView: MenuPanelView().defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         popover.contentViewController = host
         AppAppearanceController.shared.follow(panel: popover)
@@ -1541,7 +1541,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             menu.addItem(uninstallItem)
         }
 
-        if AppFeature.shelf.isAvailable, UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) {
+        if AppFeature.shelf.isAvailable, SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) {
             let shelfItem = NSMenuItem(title: strings.shelfMenuItem,
                                        action: #selector(menuOpenShelf), keyEquivalent: "")
             shelfItem.target = self
@@ -1705,7 +1705,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             : nil) ?? NSScreen.withMouse
         let createdWindow = settingsWindow == nil
         if settingsWindow == nil {
-            let host = NSHostingController(rootView: SettingsView())
+            let host = NSHostingController(rootView: SettingsView().defaultAppStorage(SettingsUserDefaults.standard))
             // Empty on purpose: any automatic option here (.intrinsicContentSize,
             // .maxSize, .preferredContentSize) lets SwiftUI's content - which
             // varies wildly page to page, from a short toggle list to Kill
@@ -1730,8 +1730,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                                            height: SettingsWindowSupport.minContentHeight)
             let visible = targetScreen?.visibleFrame ?? NSScreen.pointerVisibleFrame
             let size = SettingsWindowSupport.initialContentSize(
-                savedWidth: UserDefaults.standard.double(forKey: DefaultsKey.settingsWindowWidth),
-                savedHeight: UserDefaults.standard.double(forKey: DefaultsKey.settingsWindowHeight),
+                savedWidth: SettingsUserDefaults.standard.double(forKey: DefaultsKey.settingsWindowWidth),
+                savedHeight: SettingsUserDefaults.standard.double(forKey: DefaultsKey.settingsWindowHeight),
                 availableHeight: Double(visible.height - 40))
             window.setContentSize(NSSize(width: size.width, height: size.height))
             window.isReleasedWhenClosed = false
@@ -1767,7 +1767,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         closePopover()
         let host = NSHostingController(rootView: FeedbackView(initialKind: kind) { [weak self] in
             self?.feedbackWindow?.close()
-        })
+        }.defaultAppStorage(SettingsUserDefaults.standard))
         if let window = feedbackWindow {
             window.contentViewController = host
         } else {
@@ -1854,7 +1854,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                   !self.popover.isShown, item.menu == nil, item.isVisible,
                   NSEvent.pressedMouseButtons == 0,
                   Date() < deadline,
-                  !UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
+                  !SettingsUserDefaults.standard.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
                   NSScreen.screens.map(\.frame) == screenFrames,
                   NSMenu.menuBarVisible(),
                   NSApp.currentSystemPresentationOptions.intersection(
@@ -1897,8 +1897,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // The button is an explicit "I want the icon back": neither hiding
         // option may immediately re-hide what the user just asked to see
         // (and then trip the "still hidden" alert).
-        UserDefaults.standard.set(false, forKey: DefaultsKey.menuBarHideIconWithMetrics)
-        UserDefaults.standard.set(false, forKey: DefaultsKey.notchHidesMenuBarIcon)
+        SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.menuBarHideIconWithMetrics)
+        SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.notchHidesMenuBarIcon)
         guard !isReshowingStatusItem else { return }
         isReshowingStatusItem = true
         statusController?.recreateStatusItem()
@@ -1924,7 +1924,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.reshowVerifyInterval) { [weak self] in
             guard let self else { return }
             // A later choice to hide the icon cancels the explicit recovery.
-            guard !UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
+            guard !SettingsUserDefaults.standard.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
                   !MenuBarSpacingSupport.islandHidesStatusIcon(
                     in: .standard, hiddenInFullscreen: self.statusController?.islandHiddenInFullscreen == true) else {
                 self.isReshowingStatusItem = false
@@ -2030,10 +2030,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let host = NSHostingController(rootView: OnboardingView(mode: mode) { [weak self] in
             self?.markOnboardingComplete()
             self?.onboardingWindow?.close()
-        })
+        }.defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
-        let isFirstRun = !UserDefaults.standard.bool(forKey: DefaultsKey.hasOnboarded)
+        let isFirstRun = !SettingsUserDefaults.standard.bool(forKey: DefaultsKey.hasOnboarded)
         window.title = mode.title(L10n.shared.s)
         window.styleMask = isFirstRun
             ? [.titled, .fullSizeContentView]
@@ -2068,7 +2068,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func brightnessSetupNeeded() -> Bool {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         return BrightnessUpdatePromptInfo.needsSetup(
             notchAvailable: AppFeature.notch.isAvailable,
             brightnessAvailable: AppFeature.brightness.isAvailable,
@@ -2078,7 +2078,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func queueBrightnessUpdatePromptIfNeeded(previousVersion: String?) {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         guard defaults.string(forKey: DefaultsKey.brightnessUpdatePromptState) == nil,
               !AppInfo.isDeveloperBuild,
               BrightnessUpdatePromptInfo.isUpgrade(appVersion: AppInfo.version,
@@ -2088,7 +2088,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showBrightnessUpdatePromptIfNeeded() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         guard !isTerminating,
               defaults.string(forKey: DefaultsKey.brightnessUpdatePromptState)
                 == BrightnessUpdatePromptInfo.pending else { return }
@@ -2117,7 +2117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private func showUpdateHighlightsIfNeeded() -> Bool {
         guard UpdateHighlightsInfo.shouldShow(
             appVersion: AppInfo.version,
-            lastSeenVersion: UserDefaults.standard.string(forKey: DefaultsKey.updateHighlightsSeenVersion)
+            lastSeenVersion: SettingsUserDefaults.standard.string(forKey: DefaultsKey.updateHighlightsSeenVersion)
         ) else { return false }
         showUpdateHighlights()
         return true
@@ -2133,7 +2133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         let host = NSHostingController(rootView: UpdateHighlightsView(
             onFinish: { [weak self] in self?.updateHighlightsWindow?.close() }
-        ))
+        ).defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         let window = NSPanel(contentViewController: host)
         window.title = L10n.shared.s.highlightsTitle
@@ -2180,7 +2180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func markUpdateHighlightsSeen() {
         guard let marker = UpdateHighlightsInfo.seenVersion(for: AppInfo.version) else { return }
-        UserDefaults.standard.set(marker,
+        SettingsUserDefaults.standard.set(marker,
                                   forKey: DefaultsKey.updateHighlightsSeenVersion)
     }
 
@@ -2192,18 +2192,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         guard !AppInfo.isDeveloperBuild else { return }
         let pending = WhatsNewInfo.pendingVersion(
             current: AppInfo.version, previous: previousVersion,
-            seen: UserDefaults.standard.string(forKey: DefaultsKey.whatsNewSeenVersion),
-            pending: UserDefaults.standard.string(forKey: DefaultsKey.whatsNewPendingVersion))
-        UserDefaults.standard.set(pending, forKey: DefaultsKey.whatsNewPendingVersion)
+            seen: SettingsUserDefaults.standard.string(forKey: DefaultsKey.whatsNewSeenVersion),
+            pending: SettingsUserDefaults.standard.string(forKey: DefaultsKey.whatsNewPendingVersion))
+        SettingsUserDefaults.standard.set(pending, forKey: DefaultsKey.whatsNewPendingVersion)
     }
 
     private func showWhatsNewIfNeeded() -> Bool {
         guard !isTerminating,
-              let previous = UserDefaults.standard.string(forKey: DefaultsKey.whatsNewPendingVersion)
+              let previous = SettingsUserDefaults.standard.string(forKey: DefaultsKey.whatsNewPendingVersion)
         else { return false }
         // Turned off in Settings, or nothing in the update touches what this
         // Mac uses: the update counts as read.
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.releaseNotesOnUpdate),
+        guard SettingsUserDefaults.standard.bool(forKey: DefaultsKey.releaseNotesOnUpdate),
               showWhatsNew(from: previous) else {
             markWhatsNewSeen()
             return false
@@ -2212,9 +2212,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func markWhatsNewSeen() {
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.whatsNewPendingVersion)
-        UserDefaults.standard.set(AppInfo.version, forKey: DefaultsKey.whatsNewSeenVersion)
-        UserDefaults.standard.set(WhatsNewInfo.knownFeaturesValue, forKey: DefaultsKey.whatsNewKnownFeatures)
+        SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.whatsNewPendingVersion)
+        SettingsUserDefaults.standard.set(AppInfo.version, forKey: DefaultsKey.whatsNewSeenVersion)
+        SettingsUserDefaults.standard.set(WhatsNewInfo.knownFeaturesValue, forKey: DefaultsKey.whatsNewKnownFeatures)
     }
 
     /// Opens What's New for the changes since `previous`. Returns false, and
@@ -2226,7 +2226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             window.makeKeyAndOrderFront(nil)
             return true
         }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let digest = ReleaseDigest.make(from: previous, to: AppInfo.version,
                                         changelog: ReleaseNotes.bundledChangelog() ?? "",
                                         includeUnreleased: includeUnreleased)
@@ -2263,7 +2263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             },
             onOpenSettings: { [weak self] in self?.openSettingsFromWhatsNew() },
             onFinish: { [weak self] in self?.whatsNewWindow?.close() }
-        ))
+        ).defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
         window.title = strings.tabReleaseNotes
@@ -2304,7 +2304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             UpdateShowcaseInfo.cleanupCache()
             return false
         }
-        guard UserDefaults.standard.string(forKey: DefaultsKey.updateShowcaseIntroVersion)
+        guard SettingsUserDefaults.standard.string(forKey: DefaultsKey.updateShowcaseIntroVersion)
                 != UpdateShowcaseInfo.releaseVersion else {
             UpdateShowcaseInfo.cleanupCache()
             return false
@@ -2325,7 +2325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self?.markUpdateShowcaseIntroSeen()
                 self?.updateShowcaseWindow?.close()
             }
-        ))
+        ).defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
         window.title = L10n.shared.s.updateShowcaseTitle
@@ -2351,7 +2351,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // version in this release series is a hotfix.
         guard SupportUpdateIntroInfo.shouldShow(
             appVersion: AppInfo.version,
-            lastSeenVersion: UserDefaults.standard.string(forKey: DefaultsKey.supportUpdateIntroVersion)
+            lastSeenVersion: SettingsUserDefaults.standard.string(forKey: DefaultsKey.supportUpdateIntroVersion)
         ) else { return false }
         showSupportUpdateIntro()
         return true
@@ -2370,7 +2370,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self?.supportIntroCanClose = true
                 self?.supportIntroWindow?.close()
             }
-        ))
+        ).defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         let window = NSPanel(contentViewController: host)
         window.title = L10n.shared.s.supportIntroTitle
@@ -2440,7 +2440,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             return
         }
         // The panel stays open, so its banner shows the download's progress.
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.showReleaseNotesBeforeUpdate) else {
+        guard SettingsUserDefaults.standard.bool(forKey: DefaultsKey.showReleaseNotesBeforeUpdate) else {
             if AppInfo.isDeveloperBuild {
                 // The Developer build never installs; say so instead of
                 // ignoring the click.
@@ -2460,7 +2460,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             onCancel: { [weak self] in
                 self?.updatePreviewWindow?.close()
             }
-        ))
+        ).defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
         window.title = L10n.shared.s.tabReleaseNotes
@@ -2513,8 +2513,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         guard let size = window.contentView?.frame.size else { return }
         guard SettingsWindowSupport.isValidContentSize(width: Double(size.width),
                                                       height: Double(size.height)) else { return }
-        UserDefaults.standard.set(Double(size.width), forKey: DefaultsKey.settingsWindowWidth)
-        UserDefaults.standard.set(Double(size.height), forKey: DefaultsKey.settingsWindowHeight)
+        SettingsUserDefaults.standard.set(Double(size.width), forKey: DefaultsKey.settingsWindowWidth)
+        SettingsUserDefaults.standard.set(Double(size.height), forKey: DefaultsKey.settingsWindowHeight)
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -2595,10 +2595,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// Marks both the first run and this version's feature tour as seen, so
     /// neither reappears on the next launch.
     private func markOnboardingComplete() {
-        UserDefaults.standard.set(true, forKey: DefaultsKey.hasOnboarded)
-        UserDefaults.standard.set(OnboardingInfo.currentFeatureSet, forKey: DefaultsKey.featuresOnboardingVersion)
-        UserDefaults.standard.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
-        UserDefaults.standard.set(BrightnessUpdatePromptInfo.handled,
+        SettingsUserDefaults.standard.set(true, forKey: DefaultsKey.hasOnboarded)
+        SettingsUserDefaults.standard.set(OnboardingInfo.currentFeatureSet, forKey: DefaultsKey.featuresOnboardingVersion)
+        SettingsUserDefaults.standard.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
+        SettingsUserDefaults.standard.set(BrightnessUpdatePromptInfo.handled,
                                   forKey: DefaultsKey.brightnessUpdatePromptState)
         markSupportUpdateIntroSeenIfCurrentUpdate()
         markUpdateShowcaseIntroSeenIfCurrentUpdate()
@@ -2607,11 +2607,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         markUpdateHighlightsSeen()
         // Nor treat the features it was just offered as new on the next
         // update, or a restored backup's older version as an update.
-        if UserDefaults.standard.string(forKey: DefaultsKey.whatsNewKnownFeatures) == nil {
-            UserDefaults.standard.set(WhatsNewInfo.knownFeaturesValue, forKey: DefaultsKey.whatsNewKnownFeatures)
+        if SettingsUserDefaults.standard.string(forKey: DefaultsKey.whatsNewKnownFeatures) == nil {
+            SettingsUserDefaults.standard.set(WhatsNewInfo.knownFeaturesValue, forKey: DefaultsKey.whatsNewKnownFeatures)
         }
-        UserDefaults.standard.set(
-            WhatsNewInfo.later(UserDefaults.standard.string(forKey: DefaultsKey.whatsNewSeenVersion), AppInfo.version),
+        SettingsUserDefaults.standard.set(
+            WhatsNewInfo.later(SettingsUserDefaults.standard.string(forKey: DefaultsKey.whatsNewSeenVersion), AppInfo.version),
             forKey: DefaultsKey.whatsNewSeenVersion)
         // Setup just picked the installed features; a beta adds the companion
         // for a Command Bar user now.
@@ -2624,7 +2624,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func markSupportUpdateIntroSeen() {
-        UserDefaults.standard.set(SupportUpdateIntroInfo.seenVersion,
+        SettingsUserDefaults.standard.set(SupportUpdateIntroInfo.seenVersion,
                                   forKey: DefaultsKey.supportUpdateIntroVersion)
     }
 
@@ -2634,7 +2634,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func markUpdateShowcaseIntroSeen() {
-        UserDefaults.standard.set(UpdateShowcaseInfo.releaseVersion,
+        SettingsUserDefaults.standard.set(UpdateShowcaseInfo.releaseVersion,
                                   forKey: DefaultsKey.updateShowcaseIntroVersion)
     }
 }
