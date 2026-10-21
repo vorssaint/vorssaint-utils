@@ -32,7 +32,6 @@ struct NotchAgentStrip: View {
         // walks the preferences for every font, inset and frame.
         let geometry = displayGeometry ?? service.compactActivityGeometry
         let working = working(live)
-        let tint = working.first?.tint ?? .white
         let budget = geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
         let mark = NotchAgentWorkingLayout(live, budget: budget)
         let textSize = NotchAgentSupport.stripTextSize(height: geometry.compactActivityContentHeight)
@@ -63,9 +62,10 @@ struct NotchAgentStrip: View {
                         NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
                             let text = reading(at: date, live: live)
                             Text(text)
-                                .font(.system(size: textSize, weight: .medium))
+                                .font(.system(size: textSize, weight: .semibold))
                                 .monospacedDigit()
-                                .foregroundStyle(tint)
+                                // White, so the only color is the agent's own.
+                                .foregroundStyle(.white)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.6)
                                 // A reading that gains a digit, like an hour

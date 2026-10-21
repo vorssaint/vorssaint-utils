@@ -469,7 +469,6 @@ private struct NotchAgentStripSample: View {
 
     var body: some View {
         NotchAgentReadoutTimeline(readout: readout) { date in
-            let working = usage.snapshot.live.first?.provider ?? provider
             // An example works in both places while nothing runs.
             let mark = NotchAgentWorkingLayout(usage.snapshot.live, budget: 16)
                 ?? NotchAgentWorkingLayout(provider: provider, terminal: 1, app: 1, budget: 16)
@@ -481,9 +480,9 @@ private struct NotchAgentStripSample: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Color.clear.frame(width: Self.camera)
                 Text(reading(at: date))
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 12, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(working.tint)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
