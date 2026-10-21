@@ -794,13 +794,13 @@ final class NotchService: ObservableObject {
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
         ]).width
         let reading = width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
-        // The marks on the other side, drawn as the strip draws them: two
-        // working agents share a smaller size, each in a frame wider than it.
-        let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
-        let mark = CGFloat(working > 1 ? 11 : 14)
-        let frame = mark * 1.45 + 1
-        let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
-            + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
+        // The mark on the other side, drawn as the strip draws it: the
+        // longest-working agent's ring and a badge for each place it works.
+        let budget = provisional.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
+        let layout = NotchAgentWorkingLayout(AgentUsageService.shared.snapshot.live, budget: budget)
+        let ring = layout?.ring ?? 14
+        let marks = (layout?.width ?? ring)
+            + provisional.compactActivityEdgeInset(boxHeight: ring, radius: ring / 2)
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 

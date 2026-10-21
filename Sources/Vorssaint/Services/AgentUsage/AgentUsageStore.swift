@@ -105,6 +105,15 @@ final class AgentUsageStore {
                     if !project.isEmpty { turn.project = project }
                     waiting[file] = turn
                 }
+            case .turnPlace(let place):
+                guard tracksTurns else { continue }
+                if var turn = turns[file] {
+                    turn.place = place
+                    turns[file] = turn
+                } else if var turn = waiting[file] {
+                    turn.place = place
+                    waiting[file] = turn
+                }
             case .turnActive(let date):
                 guard tracksTurns else { continue }
                 settled[file] = nil
@@ -254,6 +263,8 @@ final class AgentUsageStore {
         if !subagent {
             if !record.model.isEmpty { turn.model = record.model }
             if !record.project.isEmpty { turn.project = record.project }
+            // Each Claude response names the client it came from.
+            if record.provider == .claude { turn.place = record.claudeApp ? .app : .terminal }
         }
         turns[file] = turn
     }
