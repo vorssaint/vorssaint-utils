@@ -69,7 +69,8 @@ struct NotchAgentsView: View {
             } else {
                 let rows = rows
                 TimelineView(.periodic(from: .now, by: 10)) { context in
-                    if NotchAgentSupport.contentHeight(rows, width: size.width) > size.height + 0.5 {
+                    if NotchAgentSupport.contentHeight(rows, width: size.width, live: usage.snapshot.live)
+                        > size.height + 0.5 {
                         ScrollView { grid(rows, now: context.date) }
                             .scrollIndicators(.automatic)
                     } else {
@@ -110,7 +111,7 @@ struct NotchAgentsView: View {
                 HStack(spacing: NotchAgentSupport.spacing) {
                     ForEach(row) { tile in card(tile, now: now) }
                 }
-                .frame(height: NotchAgentSupport.height(of: row, width: size.width))
+                .frame(height: NotchAgentSupport.height(of: row, width: size.width, live: usage.snapshot.live))
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -496,8 +497,8 @@ private struct NotchAgentLimitsCard: View {
 }
 
 /// The sessions one place runs for an agent, under the limits that pay for
-/// them: one row tall whatever runs, scrolling past the first, and saying
-/// so when none does, so the card keeps its size.
+/// them: a row each, longest running first, and one row saying so when none
+/// does. The page grows the card to fit them.
 private struct NotchAgentSessionSlot: View {
     let provider: AgentProvider
     let place: AgentSessionPlace
@@ -509,7 +510,7 @@ private struct NotchAgentSessionSlot: View {
     let text: NotchAgentStrings
     @ObservedObject private var l10n = L10n.shared
 
-    static let rowHeight: CGFloat = 26
+    static let rowHeight = NotchAgentSupport.sessionRowHeight
 
     var body: some View {
         let places = FeatureStrings.notchAgentPlaces(l10n.language)
@@ -534,14 +535,10 @@ private struct NotchAgentSessionSlot: View {
                     .frame(height: Self.rowHeight)
             } else {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    ScrollView(.vertical) {
-                        VStack(spacing: 0) {
-                            ForEach(sessions) { row($0, now: context.date, places: places) }
-                        }
+                    VStack(spacing: 0) {
+                        ForEach(sessions) { row($0, now: context.date, places: places) }
                     }
-                    .scrollIndicators(sessions.count > 1 ? .visible : .hidden)
                 }
-                .frame(height: Self.rowHeight)
             }
         }
     }
@@ -598,8 +595,7 @@ private struct NotchAgentSessionRow: View {
 
     var body: some View {
         let working = snapshot.working(provider)
-        let terminal = working.filter { $0.place == .terminal }
-        let places: [AgentSessionPlace] = provider == .codex && terminal.isEmpty ? [.app] : [.app, .terminal]
+        let places = NotchAgentSupport.sessionPlaces(provider, live: snapshot.live)
         VStack(alignment: .leading, spacing: 6) {
             Rectangle().fill(.white.opacity(0.1)).frame(height: 1)
             HStack(alignment: .top, spacing: 12) {

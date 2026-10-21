@@ -3382,6 +3382,16 @@ enum NotchAgentTests {
                         && NotchAgentSupport.height(of: [spend]) == NotchAgentSupport.sessionCardHeight
                         && NotchAgentSupport.contentHeight([]) == 0,
                      "the page is as tall as its rows")
+        let started = Date(timeIntervalSince1970: 1_800_000_000)
+        let threeApps = (0..<3).map {
+            AgentLiveSession(id: "app-\($0)", provider: .claude, started: started, lastActivity: started,
+                             model: "claude-opus-4-1", project: "p\($0)", tokens: AgentTokens(), cost: 0, place: .app)
+        }
+        suite.expect(NotchAgentSupport.contentHeight([[limits, codex], [trend]], live: threeApps)
+                        == NotchAgentSupport.sessionCardHeight + 2 * NotchAgentSupport.sessionRowHeight
+                            + NotchAgentSupport.spacing + NotchAgentSupport.chartHeight
+                        && NotchAgentSupport.height(of: [copilot], live: threeApps) == NotchAgentSupport.cardHeight,
+                     "the page grows a row for every session past a slot's first, and only in the row whose card lists them")
         let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 32,
                                      cameraWidth: 185, layout: .spacious, compactSideRoom: 200)
         suite.expect(geometry.expandedSize(module: .agents, agentsHeight: 96).height

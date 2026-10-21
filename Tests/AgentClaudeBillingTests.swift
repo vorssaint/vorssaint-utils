@@ -99,5 +99,35 @@ enum AgentClaudeBillingTests {
                      "the split card stacks its halves, and grows, where cards do not pair; Codex keeps a row for its sessions")
         suite.expect(NotchAgentSupport.tiles(cards: [.limits], providers: [.claude]).first?.splitsBilling == false,
                      "without an API key Claude keeps its usual card")
+        sessionRows(suite, split: rows[0])
+    }
+
+    private static func sessionRows(_ suite: TestSuite, split: [NotchAgentTile]) {
+        func live(app: Int, terminal: Int) -> [AgentLiveSession] {
+            let now = Date(timeIntervalSince1970: 1_800_000_000)
+            return (0..<(app + terminal)).map {
+                AgentLiveSession(id: "claude-\($0)", provider: .claude, started: now.addingTimeInterval(TimeInterval($0) * 60),
+                                 lastActivity: now, model: "claude-opus-4-1", project: "p\($0)", tokens: AgentTokens(),
+                                 cost: 0, place: $0 < app ? .app : .terminal)
+            }
+        }
+        let row = NotchAgentSupport.sessionRowHeight
+        func height(app: Int, terminal: Int, width: CGFloat = 600) -> CGFloat {
+            NotchAgentSupport.height(of: split, width: width, live: live(app: app, terminal: terminal))
+        }
+        suite.expect(NotchAgentSupport.sessionRows(provider: .claude, place: .app, live: []) == 1
+                        && NotchAgentSupport.sessionRows(provider: .claude, place: .app, live: live(app: 1, terminal: 0)) == 1
+                        && NotchAgentSupport.sessionRows(provider: .claude, place: .app, live: live(app: 3, terminal: 0)) == 3,
+                     "a slot keeps one row with no session or one, and a row for each of three")
+        suite.expect(height(app: 0, terminal: 0) == NotchAgentSupport.splitHeight
+                        && height(app: 1, terminal: 1) == NotchAgentSupport.splitHeight
+                        && height(app: 3, terminal: 0) == NotchAgentSupport.splitHeight + 2 * row,
+                     "the split card keeps its size until a slot holds more than one session, then grows a row each")
+        suite.expect(height(app: 3, terminal: 1) == NotchAgentSupport.splitHeight + 2 * row
+                        && height(app: 1, terminal: 3) == height(app: 3, terminal: 1),
+                     "side by side, the fuller slot sets the card's height")
+        suite.expect(height(app: 3, terminal: 1, width: 300) == NotchAgentSupport.stackedSplitHeight + 2 * row
+                        && height(app: 3, terminal: 3, width: 300) == NotchAgentSupport.stackedSplitHeight + 4 * row,
+                     "stacked, both slots' extra rows add up")
     }
 }
