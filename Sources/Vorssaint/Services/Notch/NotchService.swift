@@ -395,6 +395,8 @@ final class NotchService: ObservableObject {
     /// The Command Bar open inside the island, in place of its pages.
     @Published private(set) var showingCommandBar = false
     @Published private var commandBarHeight: CGFloat?
+    /// The bar's height as SwiftUI measured it, until the next turn of the main loop.
+    private var measuredCommandBarHeight: CGFloat?
     private var musicTitleWork: DispatchWorkItem?
     private static let musicTitleDuration: TimeInterval = 4
     private var mirrors: [CGDirectDisplayID: NotchMirror] = [:]
@@ -5001,15 +5003,28 @@ extension NotchService {
     /// in its place, and the bar closes too.
     fileprivate func commandBarDidClose() {
         commandBarHeight = nil
+        measuredCommandBarHeight = nil
         CommandBarService.shared.islandDidClose()
     }
 
     func updateCommandBarHeight(_ height: CGFloat) {
         guard showingCommandBar, height.isFinite, height > 0 else { return }
         let measured = ceil(height)
-        guard commandBarHeight != measured else { return }
-        commandBarHeight = measured
-        refreshPresentation()
+        guard (measuredCommandBarHeight ?? commandBarHeight) != measured else { return }
+        let waiting = measuredCommandBarHeight != nil
+        measuredCommandBarHeight = measured
+        guard !waiting else { return }
+        // SwiftUI measures the bar while it draws the rows, and a resize asked
+        // for here reaches the screen only with them, tens of milliseconds
+        // later: the opening island then jumped back to where it had been.
+        // On the next turn of the main loop the resize goes out at once.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let measured = self.measuredCommandBarHeight else { return }
+            self.measuredCommandBarHeight = nil
+            guard self.showingCommandBar, self.commandBarHeight != measured else { return }
+            self.commandBarHeight = measured
+            self.refreshPresentation()
+        }
     }
 }
 
