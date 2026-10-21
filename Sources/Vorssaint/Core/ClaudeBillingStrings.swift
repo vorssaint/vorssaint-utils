@@ -45,7 +45,7 @@ extension FeatureStrings {
             subscription: "Subscription",
             api: "API",
             thisMonth: "This month",
-            credits: "Credits",
+            credits: "Available Credits",
             noLimits: "Sign in to Claude Code with your plan to see its limits.",
             addCredits: "Add your balance in Settings",
             billingTitle: "Claude billing",

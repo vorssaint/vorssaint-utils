@@ -686,12 +686,12 @@ private struct NotchAgentClaudeBillingCard: View {
                 HStack(spacing: 5) {
                     Text(billing.credits)
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.85))
+                        .foregroundStyle(Color.green)
                     Spacer(minLength: 2)
-                    Text("≈ " + AgentFormat.cost(max(0, left)))
+                    Text("~ " + AgentFormat.cost(max(0, left)))
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(tint == provider.tint ? Color.white : tint)
+                        .foregroundStyle(tint == provider.tint ? Color.green : tint)
                 }
                 NotchAgentMeter(value: fraction, tint: tint, height: 4)
             }
