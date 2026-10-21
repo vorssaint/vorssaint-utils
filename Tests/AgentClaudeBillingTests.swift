@@ -46,7 +46,8 @@ enum AgentClaudeBillingTests {
         let start = calendar.startOfDay(for: first)
         func day(_ offset: Int, claude: Double, codex: Double = 0) -> AgentBucket {
             var bucket = AgentBucket(start: calendar.date(byAdding: .day, value: offset, to: start)!)
-            bucket.byProvider[.claude] = AgentTotals(cost: claude)
+            bucket.byProvider[.claude] = AgentTotals(cost: claude + 20)
+            bucket.claudeAPI = AgentTotals(cost: claude)
             bucket.byProvider[.codex] = AgentTotals(cost: codex)
             return bucket
         }
@@ -62,8 +63,8 @@ enum AgentClaudeBillingTests {
         suite.expect(stored?.balance == 50 && stored?.baseline == 3 && stored?.since == entered,
                      "a balance keeps what its day had already spent")
         suite.expect(stored?.remaining(days: days, calendar: calendar) == 48,
-                     "only Claude's spending after the balance was entered is taken from it")
-        days[0].byProvider[.claude]?.cost = 4
+                     "only the API key's spending after the balance was entered is taken from it, never the Claude app's")
+        days[0].claudeAPI.cost = 4
         suite.expect(stored?.remaining(days: days, calendar: calendar) == 47,
                      "later spending on the day it was entered counts")
         suite.expect(stored?.remaining(days: Array(days.dropFirst()), calendar: calendar) == nil,
@@ -71,6 +72,14 @@ enum AgentClaudeBillingTests {
         suite.expect(AgentClaudeCredits(balance: 5, since: entered, baseline: 0)
                         .remainingFraction(days: days, calendar: calendar) == 0,
                      "an overspent balance reads as empty, never negative")
+        let records = [true, false].map {
+            AgentUsageRecord(provider: .claude, date: entered, model: "claude-opus-4-1", project: "", session: "",
+                             tokens: AgentTokens(), cost: $0 ? 7 : 2, savings: 0, claudeApp: $0)
+        }
+        let summary = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
+                                                 providers: [.claude], now: entered, calendar: calendar)
+        suite.expect(summary.days.last?.byProvider[.claude]?.cost == 9 && summary.days.last?.claudeAPI.cost == 2,
+                     "Claude Code in the Claude app counts toward Claude's total but not the API key's")
         AgentClaudeCredits.store(balance: 0, now: entered, days: days, in: defaults, calendar: calendar)
         suite.expect(AgentClaudeCredits.stored(in: defaults) == nil, "saving no balance clears it")
     }

@@ -80,9 +80,13 @@ struct AgentUsageRecord: Equatable {
     var savings: Double
     /// Whether cost was reported directly by the provider rather than derived from list pricing.
     var reportedCost: Bool = false
+    /// Claude Code inside the Claude app, which signs in with the plan; its
+    /// sessions in a terminal or an editor bill an API key when one is set.
+    var claudeApp: Bool = false
 
     init(provider: AgentProvider, date: Date, model: String, project: String, session: String,
-         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, reportedCost: Bool = false) {
+         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, reportedCost: Bool = false,
+         claudeApp: Bool = false) {
         self.provider = provider
         self.date = date
         self.model = model
@@ -93,6 +97,7 @@ struct AgentUsageRecord: Equatable {
         self.cost = cost
         self.savings = savings
         self.reportedCost = reportedCost
+        self.claudeApp = claudeApp
     }
 }
 

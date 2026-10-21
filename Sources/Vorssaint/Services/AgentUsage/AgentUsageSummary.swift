@@ -66,6 +66,9 @@ struct AgentPeriodUsage: Equatable {
 struct AgentBucket: Equatable, Identifiable {
     let start: Date
     var byProvider: [AgentProvider: AgentTotals] = [:]
+    /// Claude Code's sessions outside the Claude app, which an API key pays
+    /// for when one is set; a part of Claude's totals.
+    var claudeAPI = AgentTotals()
     var id: Date { start }
 
     var total: AgentTotals {
@@ -150,6 +153,7 @@ enum AgentUsageSummary {
             guard let first = starts.first, record.date >= first, record.date < tomorrow,
                   let day = index(of: record.date, in: starts) else { continue }
             days[day].byProvider[record.provider, default: AgentTotals()].add(record)
+            if record.provider == .claude, !record.claudeApp { days[day].claudeAPI.add(record) }
             if day == lastDay, let hour = index(of: record.date, in: hourStarts) {
                 hours[hour].byProvider[record.provider, default: AgentTotals()].add(record)
             }
@@ -378,6 +382,7 @@ final class AgentUsageSummaryCache {
             delta.unpriced -= previous.cost == nil ? 1 : 0
         }
         history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
+        if record.provider == .claude, !record.claudeApp { history!.days[day].claudeAPI += delta }
         if day == starts.count - 1, let hour = AgentUsageSummary.index(of: record.date, in: hourStarts) {
             history!.hours[hour].byProvider[record.provider, default: AgentTotals()] += delta
         }

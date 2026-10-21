@@ -94,15 +94,16 @@ struct AgentClaudeCredits: Equatable {
         }
     }
 
-    /// Claude's spend on the day `date` falls in.
+    /// The API key's spend on the day `date` falls in: Claude Code outside
+    /// the Claude app, whose own sessions the plan pays for.
     static func spent(on date: Date, days: [AgentBucket], calendar: Calendar = .autoupdatingCurrent) -> Double {
         let start = calendar.startOfDay(for: date)
-        return days.first { $0.start == start }?.byProvider[.claude]?.cost ?? 0
+        return days.first { $0.start == start }?.claudeAPI.cost ?? 0
     }
 
-    /// Claude's spend from the first day on, by the days the summary keeps.
+    /// The API key's spend from the first day on, by the days the summary keeps.
     static func spent(from start: Date, days: [AgentBucket]) -> Double {
-        days.reduce(0) { $1.start >= start ? $0 + ($1.byProvider[.claude]?.cost ?? 0) : $0 }
+        days.reduce(0) { $1.start >= start ? $0 + $1.claudeAPI.cost : $0 }
     }
 
     /// The balance less what Claude Code spent since it was entered; nil once
