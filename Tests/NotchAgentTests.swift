@@ -2326,6 +2326,26 @@ enum NotchAgentTests {
                         && steadyDay.claudeBlock?.end == AgentTimestamp.parse("2026-09-22T21:10:00Z"),
                      "a day of steady work keeps the window its first request placed, to the minute")
 
+        // A Team plan's session can renew before the chain's five hours are
+        // up: once the readings show it, the window leaves the earlier spend.
+        let renewed = AgentLimits(provider: .claude, windows: [
+            AgentLimitWindow(id: "claude.fh", kind: .session, minutes: 300, scope: nil, usedPercent: 0, resetsAt: nil,
+                             renewedAfter: AgentTimestamp.parse("2026-09-22T16:55:00Z")!)],
+            observedAt: evening, source: .claudeApp)
+        let teamDay = AgentUsageSummary.snapshot(records: steady, limits: [.claude: renewed], live: [], plans: [:],
+                                                 providers: [.claude], now: evening, calendar: kolkata)
+        suite.expect(teamDay.claudeBlock?.start == AgentTimestamp.parse("2026-09-22T17:10:00Z")
+                        && teamDay.claudeBlock?.totals.cost == 2,
+                     "a session the readings saw renew counts only what came after it")
+        let exact = AgentLimits(provider: .claude, windows: [
+            AgentLimitWindow(id: "claude.five_hour", kind: .session, minutes: 300, scope: nil, usedPercent: 10,
+                             resetsAt: AgentTimestamp.parse("2026-09-22T21:20:00Z")!)],
+            observedAt: evening, source: .account)
+        suite.expect(AgentUsageSummary.snapshot(records: steady, limits: [.claude: exact], live: [], plans: [:],
+                                                providers: [.claude], now: evening, calendar: kolkata)
+                        .claudeBlock?.start == AgentTimestamp.parse("2026-09-22T16:30:00Z"),
+                     "an exact renewal leaves out what came more than five hours before it")
+
         // A snapshot is made again only when time alone would change it.
         let noon = AgentTimestamp.parse("2026-09-22T12:00:00Z")!
         let hourOn = noon.addingTimeInterval(3600)
@@ -2861,6 +2881,15 @@ enum NotchAgentTests {
                         && AgentClaudeAppUsage.limits(from: samples, now: now, sessionStart: at("2026-09-23T13:40:00Z"))?
                         .windows.first?.resetsAt == at("2026-09-23T19:05:00Z"),
                      "Claude Code's first request places the session only inside the gap the readings leave")
+        let teamPlan = AgentClaudeAppUsage.samples(from: history([
+            ("2026-10-21T10:28:00Z", "o", ["fh": 16]), ("2026-10-21T10:43:00Z", "o", ["fh": 29]),
+            ("2026-10-21T10:58:00Z", "o", ["fh": 9]), ("2026-10-21T11:55:00Z", "o", ["fh": 19]),
+            ("2026-10-21T12:00:00Z", "o", ["fh": 0])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: Array(teamPlan.prefix(4)), now: at("2026-10-21T11:56:00Z"))?
+                        .windows.first?.renewedAfter == at("2026-10-21T10:43:00Z")
+                        && AgentClaudeAppUsage.limits(from: teamPlan, now: at("2026-10-21T12:01:00Z"))?
+                        .windows.first?.renewedAfter == at("2026-10-21T11:55:00Z"),
+                     "a drop or a zero marks the session's renewal after the reading before it")
         // Readings hours apart leave the start anywhere between them, and the
         // first one above zero is only the latest it can have been.
         let slept = AgentClaudeAppUsage.samples(from: history([

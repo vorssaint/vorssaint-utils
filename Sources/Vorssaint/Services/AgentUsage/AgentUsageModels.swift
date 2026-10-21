@@ -117,6 +117,9 @@ struct AgentLimitWindow: Equatable, Identifiable {
     let resetsAt: Date?
     /// A presentation estimate, never a deadline for clearing usage or alerts.
     var estimatedResetsAt: Date? = nil
+    /// A session's last reading from before it renewed, when the readings
+    /// show the renewal but not its time: nothing spent before it counts.
+    var renewedAfter: Date? = nil
 
     var usedFraction: Double { min(1, max(0, usedPercent / 100)) }
     var remainingFraction: Double { 1 - usedFraction }
@@ -136,6 +139,16 @@ struct AgentLimits: Equatable {
     var windows: [AgentLimitWindow]
     let observedAt: Date
     let source: Source
+
+    /// The earliest the open session can have begun, so its spend leaves out
+    /// earlier windows however the logs chain them. The app's renewal is the
+    /// latest the session can end, which would place its start too late.
+    func sessionStart(at now: Date) -> Date? {
+        guard let session = windows.first(where: { $0.kind == .session }) else { return nil }
+        if let renewed = session.renewedAfter { return renewed }
+        guard source != .claudeApp, let resets = session.resetsAt, let minutes = session.minutes else { return nil }
+        return resets <= now ? resets : resets.addingTimeInterval(-TimeInterval(minutes) * 60)
+    }
 }
 
 /// The subscription an account is on, when the agent's local files say.

@@ -205,8 +205,9 @@ enum AgentUsageSummary {
         snapshot.periods = periods
         snapshot.days = days
         snapshot.hours = hours
-        snapshot.claudeBlock = currentBlock(claude, now: now)
-        snapshot.claudeAppBlock = currentBlock(claude.filter(\.claudeApp), now: now)
+        let start = snapshot.limits[.claude]?.sessionStart(at: now)
+        snapshot.claudeBlock = currentBlock(claude, now: now, after: start)
+        snapshot.claudeAppBlock = currentBlock(claude.filter(\.claudeApp), now: now, after: start)
         return snapshot
     }
 
@@ -238,12 +239,15 @@ enum AgentUsageSummary {
 
     /// Windows start at the first request after the previous one ended and
     /// last five hours from that moment, the renewal time the provider's own
-    /// usage page shows.
-    static func currentBlock(_ records: [AgentUsageRecord], now: Date) -> AgentBlock? {
+    /// usage page shows. A plan whose limits renew otherwise, as a Team
+    /// plan's can, says so in its readings: nothing at or before `after`
+    /// belongs to the open window.
+    static func currentBlock(_ records: [AgentUsageRecord], now: Date, after: Date? = nil) -> AgentBlock? {
         var block: AgentBlock?
         // Sorting positions moves no strings: a day of records is thousands.
         for position in records.indices.sorted(by: { records[$0].date < records[$1].date }) {
             let record = records[position]
+            if let after, record.date <= after { continue }
             if let current = block, record.date < current.end {
                 block?.totals.add(record)
                 continue
@@ -357,8 +361,9 @@ final class AgentUsageSummaryCache {
             result.burnRate[provider]!.cost *= 2
             result.burnRate[provider]!.savings *= 2
         }
-        result.claudeBlock = AgentUsageSummary.currentBlock(claude, now: now)
-        result.claudeAppBlock = AgentUsageSummary.currentBlock(claude.filter(\.claudeApp), now: now)
+        let start = result.limits[.claude]?.sessionStart(at: now)
+        result.claudeBlock = AgentUsageSummary.currentBlock(claude, now: now, after: start)
+        result.claudeAppBlock = AgentUsageSummary.currentBlock(claude.filter(\.claudeApp), now: now, after: start)
         return result
     }
 
