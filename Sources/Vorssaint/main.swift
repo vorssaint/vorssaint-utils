@@ -3,8 +3,10 @@
 
 import AppKit
 
+KeyboardRemapGuard.runIfRequestedAndExit()
 SuperKeyMappingGuard.runIfRequestedAndExit()
 Defaults.register()
+KeyboardRemapService.recoverPendingAtLaunch()
 NotchControlItem.keyboardLightIsSupported = { BrightnessService.keyboardLightIsSupported }
 MouseAccelerationGuard.runIfRequestedAndExit()
 MouseAccelerationService.recoverPendingAtLaunch()
