@@ -376,9 +376,11 @@ enum NotchTests {
         }
     }
 
-    /// Each page takes the width it needs, up to the chosen one: the player
-    /// about 380 points between its sides, still wrapping the camera, the
-    /// home page its row of shortcuts, and lists the whole chosen width.
+    /// Under a preset each page takes the width it needs, up to the preset's:
+    /// the player about 380 points between its sides, still wrapping the
+    /// camera, the home page its row of shortcuts, and lists the whole width.
+    /// A width set by hand is the island's on every page, so a wider one
+    /// makes the player, the timer and the home page wider too.
     private static func pageWidthContracts(_ suite: TestSuite) {
         let screens: [(CGFloat, CGFloat)] = [(0, 0), (156, 28), (179, 32), (185, 37.5), (210, 37.5), (224, 37.5)]
         for (camera, top) in screens {
@@ -413,14 +415,47 @@ enum NotchTests {
         custom.pageContentWidth = NotchLayout.musicContentWidth
         suite.expect(custom.expandedWidth == 360 && custom.headerCameraGap == 0,
                      "a chosen width narrower than the player still limits it, and its row then sits below the camera")
+        var handSet = true, wraps = true
+        for (camera, top) in screens {
+            let preset = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: top,
+                                       cameraWidth: camera, layout: .spacious, silhouette: camera == 0 ? .capsule : .notch)
+                .page(.music, controls: [], sectionsButton: false)
+            for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 20) {
+                let base = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: top,
+                                         cameraWidth: camera, layout: .custom, customWidth: width,
+                                         silhouette: camera == 0 ? .capsule : .notch)
+                for module: NotchModule in [.music, .timer, .controls] {
+                    for sectionsButton in [false, true] {
+                        let page = base.page(module, controls: shortcuts, sectionsButton: sectionsButton)
+                        handSet = handSet && page.expandedWidth == CGFloat(width)
+                    }
+                }
+                // As wide as the preset's player or wider, it still wraps the camera.
+                let player = base.page(.music, controls: [], sectionsButton: false)
+                if CGFloat(width) >= preset.expandedWidth {
+                    wraps = wraps && player.headerCameraGap == preset.headerCameraGap
+                }
+            }
+        }
+        suite.expect(handSet, "a width set by hand is the island's on the player, the timer and the home page")
+        suite.expect(wraps, "a player set wider by hand wraps the camera as the preset's does")
+        // The Layout tab previews the home page at the width the island opens
+        // it at, never a preset's wider island around it.
+        let editor = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift", encoding: .utf8)) ?? ""
+        suite.expect(editor.contains("private var actualWidth: CGFloat { previewGeometry.expandedWidth }")
+                     && editor.contains("return geometry.page(.controls, controls: NotchSupport.controls(),"),
+                     "the Layout preview opens the home page as the island does")
     }
 
     /// Without a floating Explore button each page's row starts with the
-    /// island's own way to the sections. A page with a width of its own grows
-    /// by it beside a camera, up to the chosen width, so its controls keep
-    /// the room they have while the button floats; the home page's levels
-    /// keep their narrowest past it, or share the row below the camera; and
-    /// a level reading drops only its percentage where a side has no room.
+    /// island's own way to the sections, and the player's row ends with it
+    /// after its toggles. A page with a width of its own grows by it beside a
+    /// camera, up to the chosen width, so its controls keep the room they
+    /// have while the button floats; the player grows only when its toggles
+    /// leave no room, and never changes where it wraps the camera; the home
+    /// page's levels keep their narrowest past it, or share the row below the
+    /// camera; a page with nothing for the row still gets one for the button;
+    /// and a level reading drops only its percentage where a side has no room.
     private static func sectionsButtonContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1710, height: 1112)
         let home: [NotchControlItem] = [.volume, .brightness, .music, .mixer, .keepAwake, .timer, .calendar]
@@ -429,7 +464,8 @@ enum NotchTests {
         var sizes: [(NotchSize, Double)] = [(.compact, NotchSize.defaultWidth), (.spacious, NotchSize.defaultWidth)]
         sizes += stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 20).map { (.custom, $0) }
         var unchanged = true, widths = true, sides = true, levels = true, below = true, rows = true
-        var readings = true, player = true
+        var readings = true, player = true, reached = true, bare = true
+        var playerWraps = true, playerWidths = true, playerRow = true
         var narrowestPlayer = CGFloat.infinity
         var movedLevels = 0
         for camera: CGFloat in [0, 156, 170, 180, 185, 190, 200, 208, 210, 224] {
@@ -441,17 +477,51 @@ enum NotchTests {
                     let leading = base.page(module, controls: home, sectionsButton: true)
                     let floatingBand = NotchBand(geometry: floating, contentWidth: floating.contentWidth)
                     let band = NotchBand(geometry: leading, contentWidth: leading.contentWidth)
-                    unchanged = unchanged && !floatingBand.sectionsButton && floatingBand.leadingRoom == floatingBand.side
+                    unchanged = unchanged && !floatingBand.sectionsButton && !floatingBand.trailingSectionsButton
+                        && !floatingBand.pageSectionsButton && floatingBand.leadingRoom == floatingBand.side
                         && floating.expandedWidth == {
                             var plain = base
                             plain.pageTop = module.pageTop
                             plain.pageContentWidth = NotchLayout.naturalContentWidth(module, controls: home, within: base.contentWidth)
                             return plain.expandedWidth
                         }()
-                    // The player lays out its leading side itself, without the button.
-                    sides = sides && band.sectionsButton == (module.pageTop != .wrapsCamera)
+                    // The player lays out its leading side itself: its row ends
+                    // with the button, or the page shows it where the row cannot.
+                    let wraps = module.pageTop == .wrapsCamera
+                    sides = sides && band.sectionsButton == !wraps
+                        && (band.trailingSectionsButton || band.pageSectionsButton) == wraps
+                        && !(band.trailingSectionsButton && band.pageSectionsButton)
                         && band.leadingRoom == band.side - (band.sectionsButton ? button : 0)
-                    if band.besideCamera, band.sectionsButton, floating.pageContentWidth != nil {
+                    // Every page leads to the sections: from a row it has, or from the page.
+                    reached = reached && (band.pageSectionsButton || leading.headerRowHeight > 0)
+                    if module.pageTop == .none, !floatingBand.besideCamera {
+                        // A page with nothing for the row starts below the button's row,
+                        // keeping the content it has while the button floats.
+                        let content = { (page: NotchGeometry) -> CGFloat in page.contentSize(for: page.expandedSize(module: module)).height }
+                        bare = bare && floating.headerRowHeight == 0 && leading.headerRowHeight == NotchLayout.headerHeight
+                            && leading.pageTopInset == leading.headerTopInset + NotchLayout.headerHeight + NotchLayout.spacing
+                            && (size == .custom || content(leading) == content(floating))
+                    }
+                    if wraps {
+                        for count in 0...2 {
+                            var page = leading
+                            page.pageTrailingControls = count
+                            let row = NotchBand(geometry: page, contentWidth: page.contentWidth)
+                            let need: CGFloat = CGFloat(count) * button + 28
+                            let grew = page.expandedWidth - floating.expandedWidth
+                            let roomy = !floatingBand.besideCamera || floatingBand.side >= need
+                            // The button never changes whether the player wraps the camera.
+                            playerWraps = playerWraps && row.besideCamera == floatingBand.besideCamera
+                            // It grows only when the toggles leave no room, and only to hold it there.
+                            playerWidths = playerWidths
+                                && (roomy ? grew == 0 : grew == 0 || (grew <= button * 2 && row.trailingSectionsButton))
+                            // The row holds it where it fits after them, presets beside
+                            // common cameras included; elsewhere the page shows it.
+                            playerRow = playerRow && row.trailingSectionsButton != row.pageSectionsButton
+                                && (!row.trailingSectionsButton || row.side >= need)
+                                && (size == .custom || camera > 210 || !row.besideCamera || row.trailingSectionsButton)
+                        }
+                    } else if band.besideCamera, band.sectionsButton, floating.pageContentWidth != nil {
                         // Each side past the button keeps what a page's row keeps
                         // beside a camera, unless the chosen width stops the island.
                         widths = widths && leading.expandedWidth <= floating.expandedWidth + button * 2
@@ -494,17 +564,24 @@ enum NotchTests {
                 let music = base.page(.music, controls: home, sectionsButton: true)
                 let musicBand = NotchBand(geometry: music, contentWidth: music.contentWidth)
                 if musicBand.besideCamera {
-                    // Across from the cover the reading keeps its glyph and a meter.
+                    // Across from the cover the reading keeps its glyph and a
+                    // meter: a preset's player is only as wide as it needs, and
+                    // only a wider width set by hand leaves room for the percentage.
                     narrowestPlayer = min(narrowestPlayer, musicBand.side)
-                    player = player && musicBand.side < NotchLayout.levelReadingDetailWidth
+                    player = player && (size == .custom || musicBand.side < NotchLayout.levelReadingDetailWidth)
                         && musicBand.side - 18 - 8 >= 36
                 }
             }
         }
         suite.expect(unchanged, "with Explore floating the row and every page's width stay as they were")
-        suite.expect(sides, "every page but the player starts its row with the sections button, and its controls follow it")
+        suite.expect(sides, "every page but the player starts its row with the sections button, and its controls follow it; the player shows it itself")
+        suite.expect(reached, "every page leads to the sections without the floating Explore button")
+        suite.expect(bare, "a page with nothing for the row gets one for the sections button where no camera's row holds it")
         suite.expect(widths,
                      "a page with a width of its own grows by the sections button beside a camera, up to the chosen width; lists and full rows keep theirs")
+        suite.expect(playerWraps, "the sections button never changes where the player wraps the camera")
+        suite.expect(playerWidths, "the player grows by the sections button only when its toggles leave the row no room, and only to hold it there")
+        suite.expect(playerRow, "the player's row ends with the sections button where it fits after the toggles; elsewhere the page shows it")
         suite.expect(levels, "a level beside the camera keeps its narrowest past the sections button, or the levels share the row below")
         suite.expect(below && movedLevels > 0,
                      "a preset island grows by the row below the camera when the levels move there: \(movedLevels) islands")
@@ -512,6 +589,31 @@ enum NotchTests {
         suite.expect(readings, "every page's row but the player's keeps a level reading's percentage beside a camera")
         suite.expect(player && narrowestPlayer.isFinite,
                      "across from the player's cover a reading keeps its glyph and a meter at least 36 points long: \(narrowestPlayer)")
+    }
+
+    /// The views put the island's way to the sections where the band says:
+    /// every fallback of the row's trailing side ends a wrapping page's
+    /// controls with it, and the player shows it where the row does not.
+    private static func sectionsButtonPlacementContracts(_ suite: TestSuite) {
+        func source(_ path: String) -> String { (try? String(contentsOfFile: path, encoding: .utf8)) ?? "" }
+        let island = source("Sources/Vorssaint/UI/Notch/NotchView.swift")
+        let row = (island.components(separatedBy: "private func bandRow(").dropFirst().first ?? "")
+            .components(separatedBy: "private func updateControl(").first ?? ""
+        let fallbacks = row.components(separatedBy: "HStack(spacing: 6) {").count - 1
+        let ends = row.components(separatedBy: "items.trailing; trailingSections(band)").count - 1
+        suite.expect(fallbacks == 4 && ends == fallbacks
+                     && row.contains("if band.trailingSectionsButton { NotchSectionsButton(action: service.toggleSections) }"),
+                     "every fallback of the row's trailing side ends a wrapping page's controls with the sections button")
+        let player = source("Sources/Vorssaint/UI/Notch/NotchMusicView.swift")
+        let corners = player.components(separatedBy: "} corner: {").dropFirst().map { $0.components(separatedBy: "}").first ?? "" }
+        let cornersShowIt = corners.count == 2 && corners.allSatisfy { $0.contains("sectionsButton") }
+        let rowItems = (player.components(separatedBy: ".notchBand(trailing: {").dropFirst().first ?? "")
+            .components(separatedBy: "})").first ?? ""
+        suite.expect(player.contains("if band.pageSectionsButton { NotchSectionsButton(action: NotchService.shared.toggleSections) }")
+                     && cornersShowIt && player.contains("extraButtons; sectionsButton }")
+                     && player.contains("if band.besideCamera { sectionsButton }") && !rowItems.contains("sectionsButton")
+                     && player.contains(".overlay(alignment: .topLeading) { sectionsButton.frame(height: band.height) }"),
+                     "the player shows the sections button in its corners, its row of toggles, beside its bars and on the cover's side of the row while it is away, where the row does not")
     }
 
     /// The home page's rail never scrolls a tile it could show whole. Where
@@ -1592,6 +1694,7 @@ enum NotchTests {
         pageTopContracts(suite)
         pageWidthContracts(suite)
         sectionsButtonContracts(suite)
+        sectionsButtonPlacementContracts(suite)
         homeRailContracts(suite)
         homeRailRowContracts(suite)
         toolRailContracts(suite)
@@ -1862,6 +1965,15 @@ enum NotchTests {
         suite.expect(!NotchSupport.hidesUntilHover(in: defaults), "click to open does not hide the island until hover")
         defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
         suite.expect(NotchSupport.hidesUntilHover(in: defaults), "hidden until hover waits out of sight for the pointer")
+        suite.expect(NotchSupport.hidesNoticesUntilHover(in: defaults) && !NotchSupport.hiddenShowsActivity(in: defaults),
+               "hidden until hover keeps activity and notices out of sight by default")
+        defaults.set(true, forKey: DefaultsKey.notchHiddenShowsActivity)
+        suite.expect(NotchSupport.hiddenShowsActivity(in: defaults) && !NotchSupport.hidesNoticesUntilHover(in: defaults),
+               "a hidden island set to show activity takes notices while it waits for the pointer")
+        defaults.set(false, forKey: DefaultsKey.notchOpenOnHover)
+        suite.expect(!NotchSupport.hiddenShowsActivity(in: defaults), "showing activity only applies while hidden until hover")
+        defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
+        defaults.set(false, forKey: DefaultsKey.notchHiddenShowsActivity)
         defaults.set(false, forKey: DefaultsKey.notchOpenOnHover)
         suite.expect(!NotchSupport.hidesUntilHover(in: defaults), "an island that opens by click never waits for hover")
         defaults.set(false, forKey: DefaultsKey.notchHideUntilHover)
@@ -3127,6 +3239,49 @@ enum NotchTests {
                              "with every display chosen, the island that responds follows the pointer")
             }
         }
+        // The shape for displays without a notch shows only where the island can rest.
+        suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: .automatic, builtIn: [true, false],
+                                                              notched: [true, false], main: 1),
+               "automatic keeps a notched laptop's island off its monitor, even the main one")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .automatic, builtIn: [false],
+                                                             notched: [false], main: 0),
+               "automatic reaches the monitor once the lid closes")
+        suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [true, false],
+                                                              notched: [true, false], main: 1),
+               "the built-in choice keeps the island on its camera")
+        suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [false],
+                                                              notched: [false], main: 0),
+               "the built-in choice reaches no monitor while the lid is closed")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [true, false],
+                                                             notched: [false, false], main: 1),
+               "a built-in screen without a notch floats the island itself")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [false, false],
+                                                             notched: [false, false], main: 1, hasLid: false),
+               "a Mac without a lid keeps the built-in choice on its main display")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .main, builtIn: [true, false],
+                                                             notched: [true, false], main: 1)
+                     && !NotchSupport.reachesDisplayWithoutNotch(preference: .main, builtIn: [true, false],
+                                                                 notched: [true, false], main: 0),
+               "the main display choice reaches a monitor only when it has the menu bar")
+        for preference in [NotchDisplay.pointer, .all] {
+            suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: preference, builtIn: [true, false],
+                                                                 notched: [true, false], main: 0),
+                   "the pointer can take the island to a monitor: \(preference)")
+            suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: preference, builtIn: [true],
+                                                                  notched: [true], main: 0),
+                   "no display without a notch is reached when none is connected: \(preference)")
+        }
+        // Settings asks that rule with the displays connected now, and its
+        // button switches to every display (issue #1711).
+        let notchSettings = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/NotchSettings.swift",
+                                         encoding: .utf8)) ?? ""
+        let notchServiceSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchService.swift",
+                                              encoding: .utf8)) ?? ""
+        suite.expect(notchSettings.contains("if enabled, !NotchService.reachesDisplayWithoutNotch(NotchDisplay(rawValue: display) ?? .automatic) {")
+                     && notchSettings.contains("Button(text.showOnAllDisplays) { display = NotchDisplay.all.rawValue }")
+                     && notchServiceSource.contains("NotchSupport.reachesDisplayWithoutNotch(preference: preference, builtIn: layout.builtIn,")
+                     && notchServiceSource.contains("notched: layout.notched, main: layout.main, hasLid: hasLid)"),
+               "the Displays without a notch card offers All displays only while the chosen display keeps the island off them")
         suite.expect(NotchSupport.shouldReplace(.volume, with: .brightness), "continuous controls can replace each other")
         suite.expect(!NotchSupport.shouldReplace(.volume, with: .clipboard), "copy does not interrupt a volume adjustment")
         suite.expect(NotchSupport.shouldReplace(.battery, with: .capture), "a capture takes precedence over passive battery status")

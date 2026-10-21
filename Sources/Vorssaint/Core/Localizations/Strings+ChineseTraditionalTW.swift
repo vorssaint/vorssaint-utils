@@ -676,10 +676,13 @@ extension Strings {
         permissionRequest: "允許存取權限",
         permissionRestartNote: "允許後，macOS 可能會要求重新開啟 App。",
         secureInputTitle: "安全輸入已開啟",
-        secureInputHeldFormat: "%@ 正在佔用它，因此 Vorssaint 無法代你輸入。離開其密碼欄位或結束該 App 即可釋放。",
-        secureInputUnattributed: "沒有執行中的 App 佔用它。請登出後重新登入以清除。",
+        secureInputHeldFormat: "它開啟時 %@ 位於前景，可能正在佔用它，因此 Vorssaint 無法代你輸入。離開其密碼欄位或結束該 App 即可釋放。",
+        secureInputUnattributed: "無法確定佔用它的 App，因此 Vorssaint 無法代你輸入。離開已開啟的密碼欄位，或登出後重新登入即可清除。",
         secureInputUnidentified: "無法辨識佔用它的 App，因此 Vorssaint 無法代你輸入。",
         secureInputRevealFormat: "顯示 %@",
+        secureInputSwitcherHeldFormat: "它開啟時 %@ 位於前景，可能正在佔用它。在安全輸入關閉前，macOS 會對切換器隱藏你的按鍵，⌘Tab 會改為開啟 macOS 的切換器。離開其密碼欄位或結束該 App 即可釋放。",
+        secureInputSwitcherUnattributed: "無法確定佔用它的 App。在安全輸入關閉前，macOS 會對切換器隱藏你的按鍵，⌘Tab 會改為開啟 macOS 的切換器。離開已開啟的密碼欄位，或登出後重新登入即可清除。",
+        secureInputSwitcherUnidentified: "無法辨識佔用它的 App。在安全輸入關閉前，macOS 會對切換器隱藏你的按鍵，⌘Tab 會改為開啟 macOS 的切換器。",
 
         aboutDescription: "你的 Mac 實用工具中心。\n電源、系統監控、捲動與視窗切換器，全都在選單列中。",
         versionPrefix: "版本",
@@ -727,6 +730,7 @@ extension Strings {
 
         tabMonitor: "監控",
         monitorMenuBarSection: "在選單列中",
+        monitorMenuBarPreview: "選單列預覽",
         monitorMenuBarCaption: "選擇選單列中圖示旁顯示的內容。",
         monitorCombineTemperatures: "合併使用率和溫度",
         monitorCombineTemperaturesCaption: "同一項目的使用率和溫度都啟用時，在一個區塊中顯示。",

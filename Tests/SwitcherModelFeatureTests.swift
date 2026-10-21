@@ -90,15 +90,29 @@ enum SwitcherModelFeatureTests {
                     navigation = SwitcherScrollNavigation()
                     let fractions = [-0.25, -0.5, -0.5, -0.75]
                     let expected = [0, 0, inverted ? -1 : 1, inverted ? -1 : 1]
+                    // Scroll Direction's tap runs after the switcher's, so the
+                    // switcher turns the wheel itself.
+                    let direction = ScrollDirectionPreferences(
+                        isAvailable: { _ in true },
+                        boolFor: { [DefaultsKey.scrollInverterEnabled,
+                                    DefaultsKey.scrollInverterHorizontalEnabled].contains($0) && inverted },
+                        stringFor: { _ in nil })
                     for index in fractions.indices {
                         let sample = wheel(fixed: fractions[index], continuous: continuous, horizontal: horizontal,
                                            timestamp: 1_000_000_000 + UInt64(index) * 500_000_000)
-                        ScrollWheelSupport.applyDirection(to: sample, isContinuous: continuous,
-                            invertVertical: inverted, invertHorizontal: inverted, horizontalModifier: nil)
-                        suite.expect(navigation.selectionDelta(for: sample) == expected[index],
+                        suite.expect(navigation.selectionDelta(for: sample, direction: direction) == expected[index],
                             "fractional wheel movement retains its remainder across pauses and inversion: continuous=\(continuous), horizontal=\(horizontal), inverted=\(inverted), sample=\(index)")
+                        suite.expect(sample.getDoubleValueField(horizontal ? .scrollWheelEventFixedPtDeltaAxis2
+                                                                           : .scrollWheelEventFixedPtDeltaAxis1) == fractions[index],
+                            "turning the wheel for the switcher leaves the event other taps see untouched")
                     }
                 }
+                navigation = SwitcherScrollNavigation()
+                let reversed = ScrollDirectionPreferences(isAvailable: { _ in true },
+                    boolFor: { $0 == DefaultsKey.scrollInverterEnabled }, stringFor: { _ in nil })
+                let pad = event(-step, continuous: true, phase: .began)
+                suite.expect(navigation.selectionDelta(for: pad, direction: reversed) == 1,
+                             "Scroll Direction leaves a trackpad gesture alone in the switcher, as it does everywhere")
                 navigation = SwitcherScrollNavigation()
                 suite.expect(navigation.selectionDelta(for: wheel(line: -1, fixed: 0, continuous: continuous,
                                                                   horizontal: horizontal)) == 1,
@@ -141,7 +155,16 @@ enum SwitcherModelFeatureTests {
                          "\(path) yields scrolling to the open switcher")
         }
         suite.expect(!code("Sources/Vorssaint/Services/ScrollInverter.swift").contains("AppSwitcher.shared.scrollNavigationActive"),
-                     "scroll direction still transforms wheel events before they reach the open switcher")
+                     "scroll direction never stands aside for the open switcher")
+        // Both wheel taps run after the switcher's session tap, so it applies
+        // Scroll Direction itself, minus the apps excepted from it.
+        suite.expect(switcher.contains("scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil)")
+                && switcher.contains(".scrollDirection, at: event.location"),
+                     "the open switcher scrolls the way Scroll Direction turns the wheel, except where it is excepted")
+        // A remote screen posts its scroll below the HID stage, already
+        // turned the controlling computer's way.
+        suite.expect(switcher.contains("let directionApplies = direction.isEnabled\n                && ScrollWheelHIDStage.shared.passed(event)\n"),
+                     "the open switcher leaves a remote screen's scroll as it came")
     }
 
     static func run(_ suite: TestSuite) {
@@ -2067,10 +2090,10 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.4.2-beta.1",
+        suite.expect(plistVersion == "3.4.2-beta.2",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "102",
+        suite.expect(plistBuild == "103",
                "every app version needs its own incremented bundle build")
         suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.1",
                "the support prompt is prepared for the 3.4.1 stable release")
@@ -6207,21 +6230,52 @@ enum SwitcherModelFeatureTests {
             LiveSystemShortcut(id: 220, shortcut: GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave), modifiers: [.command, .shift]), enabled: true),
         ]
         suite.expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: true,
+                                               secureInputEnabled: false,
                                                appsShortcut: .switcherDefault,
                                                windowShortcut: .switcherWindowDefault,
                                                liveEntries: liveSwitcherEntries) == [1, 2, 27, 220],
                "the switcher asks the shared take-over for exactly its four ids, never the screenshot key")
         suite.expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: false,
+                                               secureInputEnabled: false,
                                                appsShortcut: .switcherDefault,
                                                windowShortcut: .switcherWindowDefault,
                                                liveEntries: liveSwitcherEntries).isEmpty,
                "without opt-in the switcher asks for nothing")
         suite.expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: true,
+                                               secureInputEnabled: false,
                                                appsShortcut: .switcherDefault,
                                                windowShortcut: .switcherWindowDefault,
                                                liveEntries: liveSwitcherEntries.filter { $0.id != 220 })
                == [1, 2, 27],
                "an id missing from the live table is never asked for")
+        suite.expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: true,
+                                               secureInputEnabled: true,
+                                               appsShortcut: .switcherDefault,
+                                               windowShortcut: .switcherWindowDefault,
+                                               liveEntries: liveSwitcherEntries).isEmpty,
+               "while Secure Event Input hides every key from the tap, ⌘Tab and ⌘` stay with macOS")
+        // That rule reaches macOS only through the switcher's two callers of
+        // the shared take-over, and stays right only while a watch tells the
+        // switcher about each change for exactly as long as it takes keys over.
+        let secureInputSwitcher = switcherSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        suite.expect(secureInputSwitcher.components(
+                         separatedBy: "secureInputEnabled: IsSecureEventInputEnabled()").count == 3,
+               "the live take-over and launch recovery both pass the secure input flag")
+        let secureInputChange = sourceBody(of: secureInputSwitcher,
+                                           from: "private func secureInputChanged(_ enabled: Bool) {",
+                                           to: "\n    private func ")
+        suite.expect(secureInputChange.contains("applyNativeHotkeySuppressionIfTapLive()")
+               && secureInputChange.contains("cancelSession()")
+               && secureInputChange.contains("restoreNativeHotkeys()"),
+               "secure input turning on gives the keys back and drops an open session, and turning off takes them again")
+        let secureInputSuspend = sourceBody(of: secureInputSwitcher, from: "func suspend() {",
+                                            to: "\n    }")
+        suite.expect(secureInputSuspend.contains("secureInputWatch.stop()")
+               && secureInputSwitcher.components(separatedBy: "secureInputWatch.stop()").count == 4
+               && secureInputSwitcher.components(separatedBy: "secureInputWatch.start()").count == 2,
+               "the secure input watch runs only while the switcher takes macOS's keys over")
 
         // The shared take-over works on raw WindowServer ids. Same transition
         // rule as the switcher had: suppress only what is enabled now, restore

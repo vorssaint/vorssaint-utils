@@ -311,6 +311,41 @@ enum SpaceWindowBridge {
         return SpaceHopSupport.windowsHiddenWithApp(windowTags: tags)
     }
 
+    /// Whether the window server holds the window minimized in the Dock, even
+    /// for an app Accessibility cannot read. False when the window query is
+    /// missing, and before macOS 26, where the tag has not been observed.
+    static func isMinimized(_ windowID: CGWindowID) -> Bool {
+        guard #available(macOS 26.0, *), let tags = windowTags(of: [windowID])?[windowID] else { return false }
+        return SpaceHopSupport.isMinimized(windowTags: tags)
+    }
+
+    // MARK: - Child windows
+
+    private typealias IteratorParentIDFunction = @convention(c) (CFTypeRef) -> UInt32
+    private static let iteratorParentID: IteratorParentIDFunction? = {
+        guard let symbol = symbol("SLSWindowIteratorGetParentID") else { return nil }
+        return unsafeBitCast(symbol, to: IteratorParentIDFunction.self)
+    }()
+
+    /// The window `windowID` is attached to as a child window, such as the
+    /// browser window under its address bar suggestions or the window a
+    /// popover hangs from. Accessibility lists a child window as one more
+    /// window of the app and cannot tell the two apart. Nil for a window
+    /// attached to nothing, and when the window server cannot answer.
+    static func parentWindowID(of windowID: CGWindowID) -> CGWindowID? {
+        guard connection != 0, let windowQuery, let iteratorParentID,
+              let query = windowQuery.query(connection, [NSNumber(value: windowID)] as CFArray,
+                                            0)?.takeRetainedValue(),
+              let iterator = windowQuery.windows(query)?.takeRetainedValue()
+        else { return nil }
+        while windowQuery.advance(iterator) {
+            guard windowQuery.windowID(iterator) == windowID else { continue }
+            let parentID = iteratorParentID(iterator)
+            return parentID == kCGNullWindowID ? nil : parentID
+        }
+        return nil
+    }
+
     // MARK: - Fronting a specific window
 
     private typealias SetFrontFunction =

@@ -1262,6 +1262,18 @@ enum ScreenshotFeatureTests {
         suite.expect(!fullScreenClickHost.passesThrough
                 && fullScreenClickHost.acceptsFirstMouse(for: nil),
                "the interactive full-screen host receives its first click while Dynamic Island owns key focus")
+        let buttonSize = fullScreenClickHost.fittingSize
+        suite.expect(buttonSize.width > 1 && buttonSize.height > 0,
+               "the full-screen button retains a measurable size instead of collapsing to one point")
+        let fixedGuideHost = PassThroughHostingView(fixedFrameRootView: Text("Screenshot"))
+        let guideFrame = CGRect(x: 100, y: 100, width: 620, height: 146)
+        fixedGuideHost.frame = guideFrame
+        for title in ["Record screen", "Pick color", "Screenshot"] {
+            fixedGuideHost.rootView = Text(title)
+            fixedGuideHost.layoutSubtreeIfNeeded()
+            suite.expect(fixedGuideHost.frame == guideFrame && fixedGuideHost.sizingOptions.isEmpty,
+                   "changing the capture guide leaves its assigned frame intact")
+        }
         suite.expect(ScreenshotSupport.offersRepeatLastRegion(isPickingColor: false,
                                                         storedRegionDisplayIsAvailable: true),
                "the repeat hint is offered once a region is stored on a display still in the session")
@@ -1274,6 +1286,11 @@ enum ScreenshotFeatureTests {
         let captureSelectionSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
             encoding: .utf8)) ?? ""
+        suite.expect(captureSelectionSource.contains(
+            "PassThroughHostingView(fixedFrameRootView: CaptureGuideView(")
+                && captureSelectionSource.contains(
+                    "PassThroughHostingView(interactiveRootView: FullScreenCaptureButton("),
+               "only the manually sized capture guide opts out of intrinsic hosting size")
         suite.expect(captureSelectionSource.contains(
             "override func mouseExited(with event: NSEvent) {\n        refreshPointerState()\n        refreshGuideVisibility()"),
                "system chrome cannot hide the capture chooser while the pointer remains on its display")

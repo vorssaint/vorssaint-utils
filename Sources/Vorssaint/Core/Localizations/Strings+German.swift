@@ -675,10 +675,13 @@ extension Strings {
         permissionRequest: "Zugriff erlauben",
         permissionRestartNote: "macOS bittet nach dem Erteilen möglicherweise darum, die App erneut zu öffnen.",
         secureInputTitle: "Sichere Eingabe ist aktiv",
-        secureInputHeldFormat: "%@ hält sie, daher kann Vorssaint nicht für dich tippen. Verlasse das Passwortfeld oder beende die App, um sie freizugeben.",
-        secureInputUnattributed: "Keine laufende App beansprucht sie. Melde dich ab und wieder an, um sie zurückzusetzen.",
+        secureInputHeldFormat: "%@ war die aktive App, als sie eingeschaltet wurde, und hält sie möglicherweise, daher kann Vorssaint nicht für dich tippen. Verlasse das Passwortfeld oder beende die App, um sie freizugeben.",
+        secureInputUnattributed: "Die App, die sie hält, lässt sich nicht bestimmen, daher kann Vorssaint nicht für dich tippen. Verlasse ein offenes Passwortfeld oder melde dich ab und wieder an, um sie zurückzusetzen.",
         secureInputUnidentified: "Die App, die sie hält, konnte nicht identifiziert werden, daher kann Vorssaint nicht für dich tippen.",
         secureInputRevealFormat: "%@ anzeigen",
+        secureInputSwitcherHeldFormat: "%@ war die aktive App, als sie eingeschaltet wurde, und hält sie möglicherweise. Solange die sichere Eingabe aktiv ist, verbirgt macOS deine Tastenanschläge vor dem Umschalter und ⌘Tab öffnet stattdessen den macOS-Umschalter. Verlasse das Passwortfeld oder beende die App, um sie freizugeben.",
+        secureInputSwitcherUnattributed: "Die App, die sie hält, lässt sich nicht bestimmen. Solange die sichere Eingabe aktiv ist, verbirgt macOS deine Tastenanschläge vor dem Umschalter und ⌘Tab öffnet stattdessen den macOS-Umschalter. Verlasse ein offenes Passwortfeld oder melde dich ab und wieder an, um sie zurückzusetzen.",
+        secureInputSwitcherUnidentified: "Die App, die sie hält, konnte nicht identifiziert werden. Solange die sichere Eingabe aktiv ist, verbirgt macOS deine Tastenanschläge vor dem Umschalter und ⌘Tab öffnet stattdessen den macOS-Umschalter.",
 
         aboutDescription: "Eine Werkzeugzentrale für deinen Mac.\nEnergie, Systemüberwachung, Scrollen und ein Fensterumschalter, direkt in der Menüleiste.",
         versionPrefix: "Version",
@@ -726,6 +729,7 @@ extension Strings {
 
         tabMonitor: "Überwachung",
         monitorMenuBarSection: "In der Menüleiste",
+        monitorMenuBarPreview: "Vorschau der Menüleiste",
         monitorMenuBarCaption: "Wähle, was neben dem Symbol in der Menüleiste erscheint.",
         monitorCombineTemperatures: "Auslastung und Temperatur kombinieren",
         monitorCombineTemperaturesCaption: "Wenn Auslastung und Temperatur desselben Elements aktiv sind, erscheinen sie in einem Block.",

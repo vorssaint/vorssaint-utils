@@ -167,6 +167,17 @@ struct NotchIconButton: View {
     }
 }
 
+/// The island's way to its sections, in its top row or on a page that
+/// lays out its own top, while nothing floating beside the island offers it.
+struct NotchSectionsButton: View {
+    let action: () -> Void
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        NotchIconButton(symbol: "square.grid.2x2", title: FeatureStrings.notch(l10n.language).sectionsTitle, action: action)
+    }
+}
+
 /// A short island puts the glyph beside its message; taller ones stack them.
 /// Actions, when a page has a next step to offer, follow the message.
 struct NotchEmptyView<Actions: View>: View {

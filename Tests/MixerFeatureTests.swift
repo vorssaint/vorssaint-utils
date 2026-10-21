@@ -834,6 +834,19 @@ enum MixerFeatureTests {
         suite.expect(framesGuard != nil && cycleCount != nil && framesGuard! < cycleCount!,
                "a cycle is counted only once the engine has handed the device audio")
 
+        // A refresh pass has to publish and reconcile the volumes resolved when it
+        // lands, not the ones captured when it was requested. The pass lives in a
+        // class the contracts cannot instantiate, so its body is read as text.
+        let applyBody = mixerBody
+            .range(of: "private func apply(_ snapshot: RefreshSnapshot, generation: Int) {")
+            .flatMap { start in
+                mixerBody.range(of: "\n    }\n", range: start.upperBound..<mixerBody.endIndex)
+                    .map { String(mixerBody[start.upperBound..<$0.lowerBound]) }
+            } ?? ""
+        suite.expect(appearsInOrder(applyBody, ["let next = applyingCurrentVolumes(to: readApps)", "apps = next",
+                                                "reconcileEngines(with: next)"]),
+                     "a refresh pass publishes and reconciles the current saved volumes, not the ones captured at request time")
+
         let identifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: "com.example.Player",
                                                            ownerPid: 501,
                                                            displayName: "Player")
@@ -1598,5 +1611,24 @@ enum MixerFeatureTests {
         suite.expect(MixerRender.sourceChannel(for: 1, sourceChannels: 1) == 0,
                "a single channel is copied to the right as well as the left")
 
+        // The panel is not compiled into this target. Pin the three attachment
+        // sites for this regression instead of trying to parse arbitrary SwiftUI.
+        let panel = (try? String(contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift",
+                                 encoding: .utf8)) ?? ""
+        func section(from start: String, to end: String) -> String {
+            guard let lower = panel.range(of: start),
+                  let upper = panel.range(of: end, range: lower.upperBound..<panel.endIndex) else { return "" }
+            return String(panel[lower.upperBound..<upper.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let rowList = section(from: "private var rowList: some View {", to: "private func updateArrangement")
+        suite.expect(!rowList.isEmpty && !rowList.contains(".help("),
+               "the mixer row does not replace its controls' tooltips with the reorder hint")
+        let icon = section(from: "ZStack(alignment: .bottomTrailing) {", to: "VStack(alignment: .leading, spacing: 5)")
+        let name = section(from: "Text(app.name)", to: "if isPinned {")
+        let hint = ".help(arrangementStrings.arrange)"
+        suite.expect(icon.contains("ResponsibleProcess.icon(for: app.ownerPid") && icon.hasSuffix(hint)
+                && !name.isEmpty && name.hasSuffix(hint)
+                && panel.components(separatedBy: hint).count == 3,
+               "the reorder hint remains on both the app icon and name")
     }
 }

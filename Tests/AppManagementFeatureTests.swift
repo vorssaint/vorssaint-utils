@@ -362,6 +362,30 @@ enum AppManagementFeatureTests {
                && !ExtraBrightnessSupport.canReuseSpaceWindows(
                    sameDisplay: true, overlayOnActiveSpace: true, triggerOnActiveSpace: false),
                "display changes and incomplete Space handoffs still rebuild the overlay pair")
+        for ebScreen in [CGRect(x: 0, y: 0, width: 1512, height: 982),
+                         CGRect(x: 0, y: 0, width: 1728, height: 1117),
+                         CGRect(x: -1800, y: 140, width: 1800, height: 1169)] {
+            let ebFrames = ExtraBrightnessSupport.overlayFrames(for: ebScreen)
+            let ebArea = ebFrames.reduce(CGFloat(0)) { $0 + $1.width * $1.height }
+            let ebOverlap = ebFrames.indices.contains { first in
+                ebFrames.indices.contains { second in
+                    first < second && !ebFrames[first].intersection(ebFrames[second]).isEmpty
+                }
+            }
+            suite.expect(ebFrames.reduce(CGRect.null) { $0.union($1) } == ebScreen
+                   && ebArea == ebScreen.width * ebScreen.height && !ebOverlap
+                   && ebFrames.allSatisfy { $0 == $0.integral },
+                   "the extra brightness overlay windows tile \(ebScreen) on whole points")
+            // AppKit reports a window above the main menu whose frame contains
+            // the screen's safe area (the screen below the camera housing) as a
+            // full screen window, which left only the wallpaper in Mission
+            // Control's desktop thumbnails (#3292). A generous 64 pt housing
+            // covers every notch.
+            let ebSafeArea = CGRect(x: ebScreen.minX, y: ebScreen.minY,
+                                    width: ebScreen.width, height: ebScreen.height - 64)
+            suite.expect(!ebFrames.contains { $0.contains(ebSafeArea) },
+                   "no extra brightness overlay window reads as a full screen window on \(ebScreen)")
+        }
         var ebFactor = 1.48
         var ebLow = 0
         for ebEngaged in [true, false, false, false, true, true] {
@@ -613,6 +637,23 @@ enum AppManagementFeatureTests {
         suite.expect(InstalledApps.installedApplications(roots: [listedRoot]).map(\.name) == ["Mimo"],
                "the application walk lists a wrapper once, not the bundle inside it")
         try? FileManager.default.removeItem(at: selectionFixture)
+        // While the Finder shows every extension, the file manager spells an
+        // app's name with its ".app" ("Google Chrome.app"). The lists read it
+        // without, as the application walk above already does.
+        suite.expect(InstalledApps.displayName(fromFinderName: "Google Chrome.app") == "Google Chrome",
+               "an app's name is shown without the .app the file manager adds while the Finder shows every extension")
+        suite.expect(InstalledApps.displayName(fromFinderName: "Calculadora") == "Calculadora",
+               "an app's name that carries no extension is shown as it is")
+        suite.expect(InstalledApps.displayName(fromFinderName: "Foo.App") == "Foo.App",
+               "only a lowercase .app at the end of a name is taken off, as the application walk does")
+        if InstalledApps.url(for: "com.apple.finder") != nil {
+            suite.expect(!InstalledApps.name(for: "com.apple.finder").hasSuffix(".app"),
+                   "an installed app is named without .app, whatever the Finder's setting for extensions")
+        }
+        suite.expect(InstalledApps.name(for: "/opt/game/runtime/bin/java", finderName: { _ in "java.app" }) == "java",
+               "an app is named from the file manager's name without its .app")
+        suite.expect(InstalledApps.name(for: "com.example.not-installed.app") == "com.example.not-installed.app",
+               "an identifier that names no installed app is shown as it is, even when it ends in .app")
         for path in ["Sources/Vorssaint/UI/Uninstall/UninstallerView.swift",
                      "Sources/Vorssaint/UI/MenuPanel/PanelUninstallerView.swift"] {
             let pickerSource = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
@@ -1411,6 +1452,113 @@ enum AppManagementFeatureTests {
                "AutoQuit treats Command W as a close request")
         suite.expect(!AutoQuitSupport.isCommandW(keyCode: 18, command: true, control: true),
                "AutoQuit does not treat Control number Space switching as a close request")
+
+        // Traffic light centers measured on macOS 27, in points from the
+        // window's top left: title bar, compact and unified toolbar, linked
+        // against the current SDK and stamped with the macOS 15 one. Expanded
+        // toolbars and full-size content repeat the title bar or the unified
+        // toolbar. Each dot is 7 pt in radius. Without Accessibility the
+        // click's place is all there is, and a minimize taken for the last
+        // close quit Premiere Pro with its project open (#3249).
+        let trafficLightLayouts: [(name: String, close: CGPoint, others: [CGPoint])] = [
+            ("title bar", CGPoint(x: 16, y: 16), [CGPoint(x: 39, y: 16), CGPoint(x: 62, y: 16)]),
+            ("compact toolbar", CGPoint(x: 19, y: 20), [CGPoint(x: 42, y: 20), CGPoint(x: 65, y: 20)]),
+            ("unified toolbar", CGPoint(x: 26, y: 26), [CGPoint(x: 49, y: 26), CGPoint(x: 72, y: 26)]),
+            ("macOS 15 title bar", CGPoint(x: 16, y: 14), [CGPoint(x: 36, y: 14), CGPoint(x: 56, y: 14)]),
+            ("macOS 15 compact toolbar", CGPoint(x: 19, y: 19), [CGPoint(x: 39, y: 19), CGPoint(x: 59, y: 19)]),
+            ("macOS 15 unified toolbar", CGPoint(x: 26, y: 26), [CGPoint(x: 46, y: 26), CGPoint(x: 66, y: 26)]),
+        ]
+        let trafficLightWindow = CGRect(x: -1200, y: 300, width: 800, height: 500)
+        func isOnCloseButton(_ point: CGPoint) -> Bool {
+            let click = CGPoint(x: trafficLightWindow.minX + point.x, y: trafficLightWindow.minY + point.y)
+            return WindowServerSupport.contains(click, inCloseButtonOf: trafficLightWindow)
+        }
+        // Plain loops and typed steps: Swift 6.0.3 cannot type-check nested
+        // stride closures with this arithmetic in time.
+        func dotPoints(around center: CGPoint, radius: CGFloat) -> [CGPoint] {
+            var points: [CGPoint] = []
+            var x: CGFloat = -radius
+            while x <= radius {
+                var y: CGFloat = -radius
+                while y <= radius {
+                    let distanceSquared: CGFloat = x * x + y * y
+                    if distanceSquared <= radius * radius {
+                        points.append(CGPoint(x: center.x + x, y: center.y + y))
+                    }
+                    y += 0.25
+                }
+                x += 0.25
+            }
+            return points
+        }
+        var otherButtonsTakenForClose: [String] = []
+        var closeButtonsMissed: [String] = []
+        for layout in trafficLightLayouts {
+            for other in layout.others where dotPoints(around: other, radius: 7).contains(where: isOnCloseButton) {
+                otherButtonsTakenForClose.append(layout.name)
+            }
+            let dot: [CGPoint] = dotPoints(around: layout.close, radius: 7)
+            let countedShare: Double = Double(dot.filter(isOnCloseButton).count) / Double(dot.count)
+            let centerCounts: Bool = dotPoints(around: layout.close, radius: 4).allSatisfy(isOnCloseButton)
+            if !centerCounts || countedShare < 0.9 {
+                closeButtonsMissed.append(layout.name)
+            }
+        }
+        suite.expect(otherButtonsTakenForClose.isEmpty,
+               "without Accessibility, a click on the minimize or zoom button is never taken for the close button (#3249): \(otherButtonsTakenForClose)")
+        suite.expect(closeButtonsMissed.isEmpty,
+               "without Accessibility, a click on the close button still counts in every title bar style: \(closeButtonsMissed)")
+        suite.expect(!isOnCloseButton(CGPoint(x: 8, y: 40)) && !isOnCloseButton(CGPoint(x: 40, y: 40))
+                && !isOnCloseButton(CGPoint(x: 16, y: -2)),
+               "a click below the traffic lights, or above the window, is not a close")
+        let trafficLightEntry: [String: Any] = [
+            kCGWindowBounds as String: ["X": NSNumber(value: Double(trafficLightWindow.minX)),
+                                        "Y": NSNumber(value: Double(trafficLightWindow.minY)),
+                                        "Width": NSNumber(value: Double(trafficLightWindow.width)),
+                                        "Height": NSNumber(value: Double(trafficLightWindow.height))] as [String: Any],
+            kCGWindowLayer as String: NSNumber(value: 0),
+            kCGWindowAlpha as String: NSNumber(value: 1.0),
+            kCGWindowOwnerPID as String: NSNumber(value: 1001),
+            kCGWindowNumber as String: NSNumber(value: 11),
+        ]
+        let minimizeClick = CGPoint(x: trafficLightWindow.minX + 39, y: trafficLightWindow.minY + 16)
+        let minimizeClickCandidate = WindowServerSupport.trafficLightCandidate(
+            in: [trafficLightEntry], at: minimizeClick, button: .close,
+            ownProcessID: 501, pidIsEligible: { _ in true })
+        suite.expect(minimizeClickCandidate?.frame == trafficLightWindow,
+               "a traffic light click carries the window's frame, so the close button's place can be judged")
+        suite.expect(AutoQuitSupport.isWindowButtonOtherThanClose(subrole: kAXMinimizeButtonSubrole)
+                && AutoQuitSupport.isWindowButtonOtherThanClose(subrole: kAXZoomButtonSubrole)
+                && AutoQuitSupport.isWindowButtonOtherThanClose(subrole: kAXFullScreenButtonSubrole),
+               "a click Accessibility names as the minimize, zoom or full screen button is never a close")
+        suite.expect(!AutoQuitSupport.isWindowButtonOtherThanClose(subrole: kAXCloseButtonSubrole)
+                && !AutoQuitSupport.isWindowButtonOtherThanClose(subrole: nil),
+               "the close button, or an element without a subrole, is left to the close button checks")
+        // One probe window's tags on macOS 27.2, read from another process:
+        // on screen, minimizing and minimized, then restored or closed with
+        // orderOut (the same tags). Then Terminal's minimized window, and a
+        // window hidden along with its app.
+        suite.expect(SpaceHopSupport.isMinimized(windowTags: 0x1300000100482201)
+                && SpaceHopSupport.isMinimized(windowTags: 0x1300000100480201)
+                && SpaceHopSupport.isMinimized(windowTags: 0x1300000100480001),
+               "a window minimizing or minimized into the Dock carries the window server's minimized tag")
+        suite.expect(!SpaceHopSupport.isMinimized(windowTags: 0x300000100482201)
+                && !SpaceHopSupport.isMinimized(windowTags: 0x300000100480201)
+                && !SpaceHopSupport.isMinimized(windowTags: 0x208100480201),
+               "a window on screen, restored, closed or hidden with its app does not count as minimized")
+        // The bridge's window query cannot run here, so its answer must go
+        // through that filter, and only on macOS 26 and later.
+        let minimizedBody = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "static func isMinimized(_ windowID: CGWindowID) -> Bool {\n")
+            .dropFirst().first?
+            .components(separatedBy: "\n    }\n").first?
+            .components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        suite.expect(minimizedBody == [
+            "guard #available(macOS 26.0, *), let tags = windowTags(of: [windowID])?[windowID] else { return false }",
+            "return SpaceHopSupport.isMinimized(windowTags: tags)"],
+               "the bridge reads a minimized window through the tested filter, only from macOS 26")
         suite.expect(AutoQuitSupport.shouldQuitAfterWindowCheck(hadWindows: true,
                                                           appIsTerminated: false,
                                                           appIsExcepted: false,
@@ -1557,6 +1705,7 @@ enum AppManagementFeatureTests {
         func windowListCheck(_ windows: [[String: Any]],
                              beforeQuit: Bool = true,
                              drawingForApp: Set<pid_t> = [],
+                             minimizedWindows: Set<CGWindowID> = [],
                              windowSpaces: [CGWindowID: [UInt64]] = [:],
                              visibleSpaces: Set<UInt64>? = [3])
             -> (keepsApp: Bool, drawLookups: [pid_t], spaceLookups: Int) {
@@ -1567,6 +1716,7 @@ enum AppManagementFeatureTests {
                 pid: appPID,
                 countsEverythingShown: beforeQuit,
                 processDrawsForApp: { drawLookups.append($0); return drawingForApp.contains($0) },
+                windowIsMinimized: { minimizedWindows.contains($0) },
                 visibleSpaces: { spaceLookups += 1; return visibleSpaces },
                 windowSpaces: { windowSpaces[$0] ?? [] })
             return (keepsApp, drawLookups, spaceLookups)
@@ -1605,6 +1755,17 @@ enum AppManagementFeatureTests {
         ], windowSpaces: [7: [3], 8: [3]])
         suite.expect(!hiddenWindowsCheck.keepsApp && hiddenWindowsCheck.spaceLookups == 1,
                "windows the app hid on the Space in front let it quit, and the Spaces showing are asked once")
+        // A minimized window sits off screen on the Space in front too, so for
+        // an app Accessibility cannot read, only the minimized tag keeps
+        // minimizing its last window from reading as closing it (#3249).
+        suite.expect(windowListCheck([listedWindow(id: 7, isOnScreen: false)],
+                                     minimizedWindows: [7], windowSpaces: [7: [3]]).keepsApp
+                && windowListCheck([listedWindow(id: 7, isOnScreen: false)], beforeQuit: false,
+                                   minimizedWindows: [7], windowSpaces: [7: [3]]).keepsApp,
+               "a window minimized into the Dock keeps its app running when Accessibility cannot see it (#3249)")
+        suite.expect(!windowListCheck([listedWindow(owner: otherAppPID, id: 7, isOnScreen: false)],
+                                      minimizedWindows: [7]).keepsApp,
+               "another app's minimized window does not keep this app running")
         suite.expect(!windowListCheck([listedWindow(layer: statusLayer, width: 220, height: 24)]).keepsApp
                 && !windowListCheck([listedWindow(owner: helperPID, layer: statusLayer, width: 220, height: 24)],
                                     drawingForApp: [helperPID]).keepsApp,
@@ -1729,6 +1890,7 @@ enum AppManagementFeatureTests {
             "kCGNullWindowID) as? [[String: Any]] else { return nil }",
             "countsEverythingShown: countsEverythingShown,",
             "processDrawsForApp: { Self.process($0, drawsFor: pid) },",
+            "windowIsMinimized: { SpaceWindowBridge.isMinimized($0) },",
             "visibleSpaces: { SpaceWindowBridge.topology()?.visibleSpaces },",
             "windowSpaces: { SpaceWindowBridge.spaces(of: $0) })",
             "guard ResponsibleProcess.owner(of: processID) == appPID else { return false }",
@@ -1739,6 +1901,24 @@ enum AppManagementFeatureTests {
         }
         suite.expect(missingShownWindowCode.isEmpty,
                "AutoQuit's quit check counts what the app and its helpers show on screen: missing \(missingShownWindowCode)")
+        // Accessibility cannot always confirm the close button, and the area
+        // that sends a click there also covers the minimize button. Every
+        // unconfirmed answer goes through the close button's place and the
+        // other-button check, both tested above, never straight to the app
+        // (#3249).
+        let unconfirmedCloseCode = [
+            "func unconfirmedClose() -> pid_t? {",
+            "guard WindowServerSupport.contains(point, inCloseButtonOf: candidate.frame) else { return nil }",
+            "if let element, Self.isOtherWindowButton(element) { return nil }",
+            "return AutoQuitSupport.isWindowButtonOtherThanClose(subrole: value as? String)",
+        ]
+        let missingUnconfirmedCloseCode = unconfirmedCloseCode.filter {
+            autoQuitServiceCodeLines(containing: $0).isEmpty
+        }
+        suite.expect(missingUnconfirmedCloseCode.isEmpty
+                && autoQuitServiceCodeLines(containing: "return candidate.pid").count == 1
+                && autoQuitServiceCodeLines(containing: "return unconfirmedClose()").count == 3,
+               "a traffic light click Accessibility cannot confirm counts as a close only on the close button's place: missing \(missingUnconfirmedCloseCode)")
 
         // Attaching to a watched app must never ask its application element for
         // a role. A Chromium app (Electron, and the browsers) answers that by

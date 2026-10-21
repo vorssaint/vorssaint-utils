@@ -675,10 +675,13 @@ extension Strings {
         permissionRequest: "Conceder acceso",
         permissionRestartNote: "macOS puede pedir que vuelvas a abrir la app tras concederlo.",
         secureInputTitle: "La entrada segura está activada",
-        secureInputHeldFormat: "%@ la está reteniendo, por lo que Vorssaint no puede escribir por ti. Sal de su campo de contraseña, o ciérrala, para liberarla.",
-        secureInputUnattributed: "Ninguna app en ejecución la reclama. Cierra la sesión y vuelve a iniciarla para borrarla.",
+        secureInputHeldFormat: "%@ era la app en primer plano cuando se activó y puede que la esté reteniendo, por lo que Vorssaint no puede escribir por ti. Sal de su campo de contraseña, o ciérrala, para liberarla.",
+        secureInputUnattributed: "No se puede saber qué app la está reteniendo, por lo que Vorssaint no puede escribir por ti. Sal de cualquier campo de contraseña abierto, o cierra la sesión y vuelve a iniciarla, para borrarla.",
         secureInputUnidentified: "No se ha podido identificar la app que la está reteniendo, por lo que Vorssaint no puede escribir por ti.",
         secureInputRevealFormat: "Mostrar %@",
+        secureInputSwitcherHeldFormat: "%@ era la app en primer plano cuando se activó y puede que la esté reteniendo. Mientras la entrada segura siga activada, macOS oculta al selector las teclas que pulsas y ⌘Tab abre el selector de macOS en su lugar. Sal de su campo de contraseña, o ciérrala, para liberarla.",
+        secureInputSwitcherUnattributed: "No se puede saber qué app la está reteniendo. Mientras la entrada segura siga activada, macOS oculta al selector las teclas que pulsas y ⌘Tab abre el selector de macOS en su lugar. Sal de cualquier campo de contraseña abierto, o cierra la sesión y vuelve a iniciarla, para borrarla.",
+        secureInputSwitcherUnidentified: "No se ha podido identificar la app que la está reteniendo. Mientras la entrada segura siga activada, macOS oculta al selector las teclas que pulsas y ⌘Tab abre el selector de macOS en su lugar.",
 
         aboutDescription: "Un centro de utilidades para tu Mac.\nEnergía, monitor del sistema, desplazamiento y un selector de ventanas, directamente en la barra de menús.",
         versionPrefix: "Versión",
@@ -726,6 +729,7 @@ extension Strings {
 
         tabMonitor: "Monitor",
         monitorMenuBarSection: "En la barra de menús",
+        monitorMenuBarPreview: "Vista previa de la barra de menús",
         monitorMenuBarCaption: "Elige qué aparece junto al icono en la barra de menús.",
         monitorCombineTemperatures: "Combinar uso y temperatura",
         monitorCombineTemperaturesCaption: "Cuando el uso y la temperatura del mismo elemento estén activos, se muestran en un solo bloque.",

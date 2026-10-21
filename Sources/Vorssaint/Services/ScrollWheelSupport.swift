@@ -74,15 +74,20 @@ struct ScrollWheelAxisDelta: Equatable {
 /// only when they carry no gesture phase at all (how some mouse drivers
 /// report their wheels).
 enum ScrollWheelSupport {
+    /// Both wheel taps share a stage and retain their head/tail ordering.
+    /// At this stage the event has its target process and window, which a
+    /// smooth glide must retain when posting directly to the receiving app.
+    /// It also sees remote screens' scroll, which both taps leave alone
+    /// (`ScrollWheelHIDStageLedger`).
+    static let tapLocation: CGEventTapLocation = .cgAnnotatedSessionEventTap
+
     /// How long after a gesture-phased event a phaseless continuous event is
     /// still attributed to the same touch device.
     static let touchGestureGraceSeconds: TimeInterval = 1.0
 
-    /// Marks the smooth glide so neither feature handles it twice. Events a
-    /// process posts come back through that same process's taps (measured at
-    /// every tap location), so without the mark the inverter would turn the
-    /// glide around again and cancel the flip smooth scrolling already
-    /// applied.
+    /// Marks a smooth glide so neither feature handles it twice if another
+    /// input tool reinjects the targeted frame into the global event stream.
+    /// Its direction and linear cap have already been applied.
     static let syntheticTag: Int64 = 0x564F5253  // "VORS"
     /// A redirected vertical wheel is not a physical side wheel. The session
     /// tap uses this marker to leave it out of side-wheel shortcut matching.
@@ -352,6 +357,64 @@ extension ScrollWheelSupport {
             event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: horizontal.point)
             event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: horizontal.fixedPoint)
         }
+    }
+}
+
+// MARK: - HID stage
+
+/// The wheel events that came in at the HID stage, told apart from those
+/// posted further down the event path.
+///
+/// Both wheel taps sit at the annotated stage, which also sees scroll posted
+/// at the session tap. That is where Screen Sharing, Apple Remote Desktop and
+/// VNC post the controlling computer's scrolling, trackpad included, as
+/// phaseless pixel events that read as a mouse wheel. Taps at the HID stage
+/// never saw them, so they were never turned, capped or smoothed here; the
+/// controlling computer already scrolled them its own way.
+///
+/// A hardware event carries source process id 0 and can only come in at the
+/// HID stage, so it always counts. A posted one counts when the HID tap noted
+/// its timestamp, which it keeps on its way down. Both readings are compared
+/// as nanoseconds: at the HID stage a hardware event reads in mach ticks, a
+/// posted one in nanoseconds (`EventTimestamp`, #1689). Events overtake one
+/// another between the stages, so the last few hundred are kept rather than
+/// only the newest.
+struct ScrollWheelHIDStageLedger {
+    static let capacity = 256
+    /// A posted event reads the same at both stages; the slack only covers
+    /// a rounding the system might do differently, and is far below the
+    /// time between two wheel events.
+    static let tolerance: UInt64 = 1_000
+
+    /// False while no HID tap is noting anything. Every event then counts as
+    /// having come through, so a tap that could not be created leaves the
+    /// wheel features working for local input rather than off.
+    var isWatching = false
+    private var timestamps = [UInt64](repeating: 0, count: capacity)
+    private var next = 0
+
+    /// `raw` is the timestamp as the tap reads it, in either unit.
+    mutating func note(_ raw: UInt64, nowTicks: UInt64 = mach_absolute_time(),
+                       timebase: EventTimestamp.Timebase = EventTimestamp.machTimebase) {
+        timestamps[next] = EventTimestamp.nanoseconds(raw: raw, nowTicks: nowTicks, timebase: timebase)
+        next = (next + 1) % Self.capacity
+    }
+
+    func passed(_ raw: UInt64, sourceProcessID: Int64, nowTicks: UInt64 = mach_absolute_time(),
+                timebase: EventTimestamp.Timebase = EventTimestamp.machTimebase) -> Bool {
+        guard isWatching else { return true }
+        guard sourceProcessID != 0 else { return true }
+        guard raw != 0 else { return false }
+        let nanoseconds = EventTimestamp.nanoseconds(raw: raw, nowTicks: nowTicks, timebase: timebase)
+        return timestamps.contains { noted in
+            noted != 0 && (noted >= nanoseconds ? noted - nanoseconds : nanoseconds - noted) <= Self.tolerance
+        }
+    }
+
+    mutating func reset() {
+        isWatching = false
+        timestamps = [UInt64](repeating: 0, count: Self.capacity)
+        next = 0
     }
 }
 

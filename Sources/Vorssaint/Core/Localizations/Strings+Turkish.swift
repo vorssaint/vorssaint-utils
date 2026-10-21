@@ -675,10 +675,13 @@ extension Strings {
         permissionRequest: "Erişim ver",
         permissionRestartNote: "macOS izin verdikten sonra uygulamayı yeniden açmanı isteyebilir.",
         secureInputTitle: "Güvenli giriş açık",
-        secureInputHeldFormat: "%@ bunu açık tutuyor, bu yüzden Vorssaint senin yerine yazamıyor. Serbest bırakmak için parola alanından çık ya da uygulamayı kapat.",
-        secureInputUnattributed: "Çalışan hiçbir uygulama bunu üstlenmiyor. Temizlemek için oturumu kapatıp yeniden aç.",
+        secureInputHeldFormat: "Açıldığında etkin uygulama %@ idi ve bunu o açık tutuyor olabilir, bu yüzden Vorssaint senin yerine yazamıyor. Serbest bırakmak için parola alanından çık ya da uygulamayı kapat.",
+        secureInputUnattributed: "Bunu açık tutan uygulama belirlenemiyor, bu yüzden Vorssaint senin yerine yazamıyor. Temizlemek için açık bir parola alanı varsa ondan çık ya da oturumu kapatıp yeniden aç.",
         secureInputUnidentified: "Bunu açık tutan uygulama belirlenemedi, bu yüzden Vorssaint senin yerine yazamıyor.",
         secureInputRevealFormat: "%@ uygulamasını göster",
+        secureInputSwitcherHeldFormat: "Açıldığında etkin uygulama %@ idi ve bunu o açık tutuyor olabilir. Güvenli giriş açık kaldıkça macOS bastığın tuşları değiştiriciden gizliyor ve ⌘Tab onun yerine macOS değiştiricisini açıyor. Serbest bırakmak için parola alanından çık ya da uygulamayı kapat.",
+        secureInputSwitcherUnattributed: "Bunu açık tutan uygulama belirlenemiyor. Güvenli giriş açık kaldıkça macOS bastığın tuşları değiştiriciden gizliyor ve ⌘Tab onun yerine macOS değiştiricisini açıyor. Temizlemek için açık bir parola alanı varsa ondan çık ya da oturumu kapatıp yeniden aç.",
+        secureInputSwitcherUnidentified: "Bunu açık tutan uygulama belirlenemedi. Güvenli giriş açık kaldıkça macOS bastığın tuşları değiştiriciden gizliyor ve ⌘Tab onun yerine macOS değiştiricisini açıyor.",
 
         aboutDescription: "Mac’in için bir yardımcı merkez.\nEnerji, sistem monitörü, kaydırma ve pencere değiştirici, doğrudan menü çubuğunda.",
         versionPrefix: "Sürüm",
@@ -726,6 +729,7 @@ extension Strings {
 
         tabMonitor: "Monitör",
         monitorMenuBarSection: "Menü çubuğunda",
+        monitorMenuBarPreview: "Menü çubuğu önizlemesi",
         monitorMenuBarCaption: "Menü çubuğunda simgenin yanında ne görüneceğini seç.",
         monitorCombineTemperatures: "Kullanımı ve sıcaklığı birleştir",
         monitorCombineTemperaturesCaption: "Aynı öğe için kullanım ve sıcaklık etkinse, bunları tek blokta göster.",

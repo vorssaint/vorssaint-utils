@@ -675,10 +675,13 @@ extension Strings {
         permissionRequest: "Accorder l’accès",
         permissionRestartNote: "macOS peut demander de rouvrir l’app après l’avoir accordée.",
         secureInputTitle: "La saisie sécurisée est activée",
-        secureInputHeldFormat: "%@ la maintient, Vorssaint ne peut donc pas saisir de texte à votre place. Quittez son champ de mot de passe, ou fermez l’app, pour la libérer.",
-        secureInputUnattributed: "Aucune app en cours d’exécution ne la revendique. Déconnectez-vous puis reconnectez-vous pour l’effacer.",
+        secureInputHeldFormat: "%@ était l’app au premier plan quand elle s’est activée et la maintient peut-être, Vorssaint ne peut donc pas saisir de texte à votre place. Quittez son champ de mot de passe, ou fermez l’app, pour la libérer.",
+        secureInputUnattributed: "Impossible de savoir quelle app la maintient, Vorssaint ne peut donc pas saisir de texte à votre place. Quittez tout champ de mot de passe ouvert, ou déconnectez-vous puis reconnectez-vous, pour l’effacer.",
         secureInputUnidentified: "L’app qui la maintient n’a pas pu être identifiée, Vorssaint ne peut donc pas saisir de texte à votre place.",
         secureInputRevealFormat: "Afficher %@",
+        secureInputSwitcherHeldFormat: "%@ était l’app au premier plan quand elle s’est activée et la maintient peut-être. Tant que la saisie sécurisée reste activée, macOS cache au sélecteur les touches que vous tapez et ⌘Tab ouvre le sélecteur de macOS à la place. Quittez son champ de mot de passe, ou fermez l’app, pour la libérer.",
+        secureInputSwitcherUnattributed: "Impossible de savoir quelle app la maintient. Tant que la saisie sécurisée reste activée, macOS cache au sélecteur les touches que vous tapez et ⌘Tab ouvre le sélecteur de macOS à la place. Quittez tout champ de mot de passe ouvert, ou déconnectez-vous puis reconnectez-vous, pour l’effacer.",
+        secureInputSwitcherUnidentified: "L’app qui la maintient n’a pas pu être identifiée. Tant que la saisie sécurisée reste activée, macOS cache au sélecteur les touches que vous tapez et ⌘Tab ouvre le sélecteur de macOS à la place.",
 
         aboutDescription: "Un centre d’utilitaires pour votre Mac.\nÉnergie, moniteur système, défilement et sélecteur de fenêtres, directement dans la barre des menus.",
         versionPrefix: "Version",
@@ -726,6 +729,7 @@ extension Strings {
 
         tabMonitor: "Moniteur",
         monitorMenuBarSection: "Dans la barre des menus",
+        monitorMenuBarPreview: "Aperçu de la barre des menus",
         monitorMenuBarCaption: "Choisissez ce qui apparaît à côté de l’icône dans la barre des menus.",
         monitorCombineTemperatures: "Combiner utilisation et température",
         monitorCombineTemperaturesCaption: "Quand l’utilisation et la température du même élément sont activées, elles s’affichent dans un seul bloc.",

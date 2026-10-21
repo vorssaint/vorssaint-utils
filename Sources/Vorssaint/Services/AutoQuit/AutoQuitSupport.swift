@@ -141,6 +141,13 @@ enum AutoQuitSupport {
         keyCode == commandWKeyCode && command && !control
     }
 
+    /// A click Accessibility names as one of these is never a close, wherever
+    /// it landed.
+    static func isWindowButtonOtherThanClose(subrole: String?) -> Bool {
+        guard let subrole else { return false }
+        return [kAXMinimizeButtonSubrole, kAXZoomButtonSubrole, kAXFullScreenButtonSubrole].contains(subrole)
+    }
+
     /// Phone is kept as a mandatory quit exception for Continuity calls, but on
     /// macOS builds without Phone.app a locked row would show the raw bundle
     /// id. Hide it from the settings list while leaving protection in place.
@@ -212,12 +219,16 @@ enum AutoQuitSupport {
     /// holds a window of the app at `pid` that the user has. The system
     /// lookups come in as closures so any list can be judged:
     /// `processDrawsForApp` says whether another process draws this app's own
-    /// interface, and `visibleSpaces` and `windowSpaces` answer the Space rule
-    /// for a normal window off screen.
+    /// interface, and `windowIsMinimized`, `visibleSpaces` and
+    /// `windowSpaces` judge a normal window off screen. A minimized window
+    /// sits off screen on the Space in front, exactly like a window the app
+    /// hid on close, so only the window server's minimized tag keeps it from
+    /// reading as closed when Accessibility cannot see it (issue #3249).
     static func windowListHasUserWindow(_ windows: [[String: Any]],
                                         pid: pid_t,
                                         countsEverythingShown: Bool,
                                         processDrawsForApp: (pid_t) -> Bool,
+                                        windowIsMinimized: (CGWindowID) -> Bool,
                                         visibleSpaces: () -> Set<UInt64>?,
                                         windowSpaces: (CGWindowID) -> [UInt64]) -> Bool {
         var shownSpaces: Set<UInt64>?
@@ -253,6 +264,7 @@ enum AutoQuitSupport {
             }
             guard role == .normalWindowOffScreen,
                   let windowID = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value else { continue }
+            if windowIsMinimized(CGWindowID(windowID)) { return true }
             // Asked once per check, and only when there is an off-screen window
             // to judge: the common case never pays for it.
             if !askedForVisibleSpaces {

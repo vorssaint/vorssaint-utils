@@ -12,19 +12,32 @@ struct SwitcherScrollNavigation {
     private var lastGesturePhaseTimestamp: CGEventTimestamp?
     private var wasMouseWheel: Bool?
 
-    mutating func selectionDelta(for event: CGEvent) -> Int {
-        guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
+    /// `direction` is Scroll Direction where it applies under the pointer.
+    /// Its tap turns the wheel around only after this one has consumed it,
+    /// so a mouse wheel is turned here to follow the way everything else
+    /// scrolls, as it did when that tap ran first.
+    mutating func selectionDelta(for input: CGEvent, direction: ScrollDirectionPreferences? = nil) -> Int {
+        guard input.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
             return 0
         }
         let traits = ScrollWheelEventTraits(
-            isContinuous: event.getIntegerValueField(.scrollWheelEventIsContinuous) != 0,
-            momentumPhase: event.getIntegerValueField(.scrollWheelEventMomentumPhase),
-            scrollPhase: event.getIntegerValueField(.scrollWheelEventScrollPhase),
-            scrollCount: event.getIntegerValueField(.scrollWheelEventScrollCount)
+            isContinuous: input.getIntegerValueField(.scrollWheelEventIsContinuous) != 0,
+            momentumPhase: input.getIntegerValueField(.scrollWheelEventMomentumPhase),
+            scrollPhase: input.getIntegerValueField(.scrollWheelEventScrollPhase),
+            scrollCount: input.getIntegerValueField(.scrollWheelEventScrollCount)
         )
         let phase = CGScrollPhase(rawValue: UInt32(truncatingIfNeeded: traits.scrollPhase))
         let isMouseWheel = ScrollWheelSupport.isMouseWheel(traits, secondsSinceLastGesturePhase:
-            lastGesturePhaseTimestamp.map { Double(event.timestamp &- $0) / 1_000_000_000 })
+            lastGesturePhaseTimestamp.map { Double(input.timestamp &- $0) / 1_000_000_000 })
+        var event = input
+        if isMouseWheel, let direction, direction.invertVertical || direction.invertHorizontal,
+           let turned = input.copy() {
+            ScrollWheelSupport.applyDirection(to: turned, isContinuous: traits.isContinuous,
+                                              invertVertical: direction.invertVertical,
+                                              invertHorizontal: direction.invertHorizontal,
+                                              horizontalModifier: nil)
+            event = turned
+        }
         if traits.scrollPhase != 0 || traits.momentumPhase != 0 {
             lastGesturePhaseTimestamp = event.timestamp
         }
@@ -522,6 +535,15 @@ struct SwitcherShortcutHints: Equatable {
 }
 
 enum SwitcherSupport {
+    /// Nobody sees a thumbnail while the displays sleep, the screen is locked
+    /// or another account is on screen, and capturing then only risks the
+    /// stall described on the capture queue (issue #1863).
+    static func screenIsInView(session: [String: Any]?, displaysAsleep: Bool) -> Bool {
+        SessionActivitySupport.isOnConsole(session)
+            && !KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: session)
+            && !displaysAsleep
+    }
+
     /// How long the shortcut must be held before the panel appears. A quick
     /// press can still switch directly without flashing the panel, while zero
     /// gives users who prefer immediate visual feedback an instant surface.
@@ -1791,10 +1813,18 @@ enum SwitcherSupport {
     /// table: the shared take-over speaks WindowServer ids, and reading the
     /// shortcut of each id from the table is what keeps a remapped key — or a
     /// neighbour such as the screenshot key — from being taken over by guess.
+    ///
+    /// Secure Event Input hides every key from event taps, the switcher's
+    /// included, while macOS still answers its own switcher keys (measured on
+    /// 27.2: a session tap saw no key while another process held it). Asking
+    /// for nothing then keeps ⌘Tab working instead of leaving it dead until
+    /// the app holding it lets go.
     static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
+                                secureInputEnabled: Bool,
                                 appsShortcut: GlobalShortcut,
                                 windowShortcut: GlobalShortcut,
                                 liveEntries: [LiveSystemShortcut]) -> Set<Int32> {
+        guard !secureInputEnabled else { return [] }
         let nativeShortcuts = Dictionary(
             liveEntries.compactMap { entry -> (SwitcherNativeSymbolicHotKey, GlobalShortcut)? in
                 SwitcherNativeSymbolicHotKey(rawValue: entry.id).map { ($0, entry.shortcut) }

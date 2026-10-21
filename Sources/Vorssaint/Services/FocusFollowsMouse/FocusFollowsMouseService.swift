@@ -186,6 +186,7 @@ final class FocusFollowsMouseService {
                     targetWindowID: target.windowID,
                     focusedWindowID: target.focusedWindowID,
                     focusedWindowBlocksTarget: target.focusedWindowBlocksTarget,
+                    focusedWindowSharesRoot: target.focusedWindowSharesRoot,
                     targetAppIsFrontmost: targetAppIsFrontmost) else {
                     self.finishEvaluation(evaluation, succeeded: true)
                     return
@@ -250,7 +251,17 @@ final class FocusFollowsMouseService {
                       windowID: windowID,
                       focusedWindowID: focusedWindowID,
                       focusedWindowBlocksTarget: focusedWindowID != nil && focusedWindowID != windowID
-                          && focusedWindowBlocks(windowID, in: application))
+                          && focusedWindowBlocks(windowID, in: application),
+                      focusedWindowSharesRoot: focusedWindowID.map {
+                          $0 != windowID && Self.rootWindowID(of: $0) == Self.rootWindowID(of: windowID)
+                      } ?? false)
+    }
+
+    /// Accessibility reports a child window as a window of its own, so the
+    /// window server names the window it is attached to.
+    private static func rootWindowID(of windowID: CGWindowID) -> CGWindowID {
+        FocusFollowsMouseSupport.rootWindowID(of: windowID,
+                                              parentWindowID: SpaceWindowBridge.parentWindowID(of:))
     }
 
     /// A sheet holds focus for the window it is attached to, and an app-modal
@@ -305,5 +316,6 @@ final class FocusFollowsMouseService {
         let windowID: CGWindowID
         let focusedWindowID: CGWindowID?
         let focusedWindowBlocksTarget: Bool
+        let focusedWindowSharesRoot: Bool
     }
 }

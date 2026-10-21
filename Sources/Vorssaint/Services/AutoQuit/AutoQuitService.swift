@@ -605,9 +605,9 @@ final class AutoQuitService: ObservableObject {
     /// the feature, and plenty of them do not destroy their window on close:
     /// they hide it, which leaves the app with no windows for Accessibility but
     /// a window record here. Those do not count. A window sitting on another
-    /// Space does. The check before a quit also counts whatever else the app
-    /// shows on screen (`countsEverythingShown`); see
-    /// `AutoQuitSupport.windowServerWindowRole`. The decision itself is
+    /// Space does, and so does a minimized one. The check before a quit also
+    /// counts whatever else the app shows on screen (`countsEverythingShown`);
+    /// see `AutoQuitSupport.windowServerWindowRole`. The decision itself is
     /// `AutoQuitSupport.windowListHasUserWindow`.
     private func hasWindowServerUserWindow(pid: pid_t, countsEverythingShown: Bool = false) -> Bool? {
         guard let info = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements],
@@ -617,6 +617,7 @@ final class AutoQuitService: ObservableObject {
             pid: pid,
             countsEverythingShown: countsEverythingShown,
             processDrawsForApp: { Self.process($0, drawsFor: pid) },
+            windowIsMinimized: { SpaceWindowBridge.isMinimized($0) },
             visibleSpaces: { SpaceWindowBridge.topology()?.visibleSpaces },
             windowSpaces: { SpaceWindowBridge.spaces(of: $0) })
     }
@@ -818,22 +819,38 @@ final class AutoQuitService: ObservableObject {
 
     private func closeButtonPID(at point: CGPoint, candidate: TrafficLightCandidate) -> pid_t? {
         guard candidate.pid != getpid(), observers[candidate.pid] != nil else { return nil }
-        guard let element = elementAt(point: point),
-              let window = Self.topLevelWindow(from: element)
-        else { return candidate.pid }
+        let element = elementAt(point: point)
+        // When Accessibility cannot confirm the close button, only the click's
+        // place can, and the area that sent it here also covers the minimize
+        // button (issue #3249). An element Accessibility does name as another
+        // window button settles it the other way.
+        func unconfirmedClose() -> pid_t? {
+            guard WindowServerSupport.contains(point, inCloseButtonOf: candidate.frame) else { return nil }
+            if let element, Self.isOtherWindowButton(element) { return nil }
+            return candidate.pid
+        }
+        guard let element, let window = Self.topLevelWindow(from: element) else { return unconfirmedClose() }
 
         var pid: pid_t = 0
         AXUIElementGetPid(window, &pid)
-        if pid == 0 { return candidate.pid }
+        if pid == 0 { return unconfirmedClose() }
         guard pid == candidate.pid else { return nil }
 
         guard Self.isStandardWindow(window),
               let closeButton = Self.windowAttribute(window, kAXCloseButtonAttribute as String),
               Self.boolAttribute(closeButton, kAXEnabledAttribute as String, default: true),
               let buttonFrame = Self.frame(of: closeButton)
-        else { return candidate.pid }
+        else { return unconfirmedClose() }
 
         return buttonFrame.insetBy(dx: -4, dy: -4).contains(point) ? pid : nil
+    }
+
+    private static func isOtherWindowButton(_ element: AXUIElement) -> Bool {
+        guard !isApplicationElement(element) else { return false }
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &value) == .success
+        else { return false }
+        return AutoQuitSupport.isWindowButtonOtherThanClose(subrole: value as? String)
     }
 
     private func elementAt(point: CGPoint) -> AXUIElement? {

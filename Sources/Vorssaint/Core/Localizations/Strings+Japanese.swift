@@ -675,10 +675,13 @@ extension Strings {
         permissionRequest: "アクセスを許可",
         permissionRestartNote: "許可後、macOS がアプリの再オープンを求めることがあります。",
         secureInputTitle: "セキュア入力がオンです",
-        secureInputHeldFormat: "%@ が保持しているため、Vorssaint が代わりに入力できません。パスワード欄からフォーカスを外すか、アプリを終了すると解除されます。",
-        secureInputUnattributed: "実行中のどのアプリも保持していません。ログアウトしてから再度ログインすると解除されます。",
+        secureInputHeldFormat: "オンになったときに最前面にあったのは %@ で、このアプリが保持している可能性があるため、Vorssaint が代わりに入力できません。パスワード欄からフォーカスを外すか、アプリを終了すると解除されます。",
+        secureInputUnattributed: "保持しているアプリを特定できないため、Vorssaint が代わりに入力できません。開いているパスワード欄からフォーカスを外すか、ログアウトしてから再度ログインすると解除されます。",
         secureInputUnidentified: "保持しているアプリを特定できないため、Vorssaint が代わりに入力できません。",
         secureInputRevealFormat: "%@ を表示",
+        secureInputSwitcherHeldFormat: "オンになったときに最前面にあったのは %@ で、このアプリが保持している可能性があります。セキュア入力がオンの間は、macOS がスイッチャーからキー入力を隠し、⌘Tab では代わりに macOS のスイッチャーが開きます。パスワード欄からフォーカスを外すか、アプリを終了すると解除されます。",
+        secureInputSwitcherUnattributed: "保持しているアプリを特定できません。セキュア入力がオンの間は、macOS がスイッチャーからキー入力を隠し、⌘Tab では代わりに macOS のスイッチャーが開きます。開いているパスワード欄からフォーカスを外すか、ログアウトしてから再度ログインすると解除されます。",
+        secureInputSwitcherUnidentified: "保持しているアプリを特定できません。セキュア入力がオンの間は、macOS がスイッチャーからキー入力を隠し、⌘Tab では代わりに macOS のスイッチャーが開きます。",
 
         aboutDescription: "あなたの Mac のためのユーティリティハブ。\n省エネルギー、システムモニタ、スクロール、ウインドウスイッチャーを、メニューバーから。",
         versionPrefix: "バージョン",
@@ -726,6 +729,7 @@ extension Strings {
 
         tabMonitor: "モニタ",
         monitorMenuBarSection: "メニューバー",
+        monitorMenuBarPreview: "メニューバーのプレビュー",
         monitorMenuBarCaption: "メニューバーのアイコンの横に表示する項目を選びます。",
         monitorCombineTemperatures: "使用率と温度をまとめる",
         monitorCombineTemperaturesCaption: "同じ項目の使用率と温度が有効な場合、1つのブロックにまとめて表示します。",

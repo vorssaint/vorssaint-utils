@@ -675,10 +675,13 @@ extension Strings {
         permissionRequest: "Concedi accesso",
         permissionRestartNote: "macOS potrebbe chiedere di riaprire l’app dopo la concessione.",
         secureInputTitle: "L’input sicuro è attivo",
-        secureInputHeldFormat: "%@ lo sta trattenendo, quindi Vorssaint non può digitare al posto tuo. Esci dal suo campo password, o chiudi l’app, per rilasciarlo.",
-        secureInputUnattributed: "Nessuna app in esecuzione lo rivendica. Esci e accedi di nuovo per azzerarlo.",
+        secureInputHeldFormat: "%@ era l’app in primo piano quando si è attivato e potrebbe trattenerlo, quindi Vorssaint non può digitare al posto tuo. Esci dal suo campo password, o chiudi l’app, per rilasciarlo.",
+        secureInputUnattributed: "Non è possibile sapere quale app lo stia trattenendo, quindi Vorssaint non può digitare al posto tuo. Chiudi qualsiasi campo password aperto, oppure esci e accedi di nuovo, per azzerarlo.",
         secureInputUnidentified: "Non è stato possibile identificare l’app che lo sta trattenendo, quindi Vorssaint non può digitare al posto tuo.",
         secureInputRevealFormat: "Mostra %@",
+        secureInputSwitcherHeldFormat: "%@ era l’app in primo piano quando si è attivato e potrebbe trattenerlo. Finché resta attivo, macOS nasconde al commutatore i tasti che premi e ⌘Tab apre invece il commutatore di macOS. Esci dal suo campo password, o chiudi l’app, per rilasciarlo.",
+        secureInputSwitcherUnattributed: "Non è possibile sapere quale app lo stia trattenendo. Finché resta attivo, macOS nasconde al commutatore i tasti che premi e ⌘Tab apre invece il commutatore di macOS. Chiudi qualsiasi campo password aperto, oppure esci e accedi di nuovo, per azzerarlo.",
+        secureInputSwitcherUnidentified: "Non è stato possibile identificare l’app che lo sta trattenendo. Finché resta attivo, macOS nasconde al commutatore i tasti che premi e ⌘Tab apre invece il commutatore di macOS.",
 
         aboutDescription: "Un centro di utilità per il tuo Mac.\nEnergia, monitoraggio del sistema, scorrimento e un commutatore di finestre, direttamente nella barra dei menu.",
         versionPrefix: "Versione",
@@ -726,6 +729,7 @@ extension Strings {
 
         tabMonitor: "Monitoraggio",
         monitorMenuBarSection: "Nella barra dei menu",
+        monitorMenuBarPreview: "Anteprima della barra dei menu",
         monitorMenuBarCaption: "Scegli cosa appare accanto all’icona nella barra dei menu.",
         monitorCombineTemperatures: "Combina uso e temperatura",
         monitorCombineTemperaturesCaption: "Quando uso e temperatura dello stesso elemento sono attivi, vengono mostrati in un solo blocco.",

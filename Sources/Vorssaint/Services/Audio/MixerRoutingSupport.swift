@@ -434,6 +434,14 @@ enum MixerRoutingSupport {
         uid == AirPlayRouteManager.airPlaySentinelUID
     }
 
+    /// Whether an app keeps the AirPlay stream from pausing for silence: it
+    /// is producing sound, and that sound goes to AirPlay now. An app that is
+    /// merely open does not count, nor does one set to AirPlay that plays on
+    /// the Mac while no speaker is picked.
+    static func playsOnAirPlay(isPlaying: Bool, effectiveOutputDeviceUID: String?) -> Bool {
+        isPlaying && effectiveOutputDeviceUID.map(isAirPlaySentinel) == true
+    }
+
     /// The item in an app's output menu that opens the system's speaker list
     /// for every app set to AirPlay, without changing this app's output.
     static let airPlaySpeakerChoiceID = "vorssaint.output.airplay.choose"

@@ -9,6 +9,7 @@ struct SwitcherSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var secureInput = SecureInputMonitor.shared
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherTakeOverSystemShortcuts) private var switcherTakeOverSystemShortcuts = false
@@ -29,6 +30,12 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherMaxColumns) private var switcherMaxColumns = 0
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
+    /// Only then does the macOS switcher on ⌘Tab need explaining: without the
+    /// take-over, or without the Accessibility grant the tap needs, it answers
+    /// anyway and keeps answering after secure input ends.
+    private var switcherReplacesSystemShortcuts: Bool {
+        switcherEngaged && switcherTakeOverSystemShortcuts && permissions.accessibility
+    }
     private var switcherWindowlessAppsSelection: Binding<String> {
         Binding(
             get: {
@@ -81,6 +88,7 @@ struct SwitcherSettings: View {
             .padding(22)
         }
         .toggleStyle(.switch)
+        .observesSecureInput(isActive: switcherReplacesSystemShortcuts)
     }
 
     // MARK: - App switcher
@@ -157,6 +165,13 @@ struct SwitcherSettings: View {
                         .onChange(of: switcherTakeOverSystemShortcuts) { _, _ in
                             AppSwitcher.shared.syncWithPreferences()
                         }
+                }
+                // Secure input hides every key from the switcher, which hands
+                // ⌘Tab back to macOS until it ends. Without a word here the
+                // macOS switcher looks like the replacement stopped working.
+                if switcherReplacesSystemShortcuts, secureInput.holder != .off {
+                    SecureInputRow(blocking: .switcher)
+                        .padding(.leading, settingsRowTextInset)
                 }
                 Text(String(format: l10n.s.switcherUsageHintFormat,
                             (GlobalShortcut(storageValue: switcherShortcutStorage) ?? .switcherDefault).displayString))

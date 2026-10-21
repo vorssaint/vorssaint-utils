@@ -77,6 +77,33 @@ enum LocalizationFeatureContractTests {
                    && !strings.secureInputUnattributed.isEmpty
                    && !strings.secureInputUnidentified.isEmpty,
                    "\(prefix) secure input copy is translated")
+            // The switcher's captions explain a macOS switcher on ⌘Tab, not
+            // typing, so each names the shortcut it is about.
+            expectFormat(strings.secureInputSwitcherHeldFormat, ["@"],
+                         "\(prefix) switcher secure input holder format")
+            suite.expect([strings.secureInputSwitcherHeldFormat, strings.secureInputSwitcherUnattributed,
+                          strings.secureInputSwitcherUnidentified].allSatisfy { $0.contains("⌘Tab") },
+                   "\(prefix) switcher secure input copy names ⌘Tab")
+            // macOS records the app that was active when secure input turned
+            // on, never the one holding it, so the switcher page gives the
+            // typing pages' advice for the same state and offers that app in
+            // the same words.
+            let advice = { (text: String) -> String in
+                text.components(separatedBy: CharacterSet(charactersIn: ".。"))
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .last { !$0.isEmpty } ?? ""
+            }
+            suite.expect(!advice(strings.secureInputHeldFormat).isEmpty
+                   && !advice(strings.secureInputUnattributed).isEmpty
+                   && strings.secureInputSwitcherHeldFormat.contains(advice(strings.secureInputHeldFormat))
+                   && strings.secureInputSwitcherUnattributed.contains(advice(strings.secureInputUnattributed)),
+                   "\(prefix) switcher secure input captions give the typing captions' advice")
+            if language == .enUS {
+                let attribution = strings.secureInputHeldFormat.components(separatedBy: ", so ").first ?? ""
+                suite.expect(attribution.contains("was the active app")
+                       && strings.secureInputSwitcherHeldFormat.hasPrefix(attribution),
+                       "the switcher page offers the recorded app as a lead, never as the holder")
+            }
             suite.expect(strings.quickToolsTab == strings.launcherName,
                    "\(prefix) Quick panel keeps the same name in Settings")
             expectFormat(strings.cutMovedPluralFormat, ["d"], "\(prefix) cut plural format")

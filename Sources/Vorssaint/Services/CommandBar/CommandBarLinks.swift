@@ -246,6 +246,15 @@ enum CommandBarLinks {
         return best.map { ($0.link, $0.argument) }
     }
 
+    /// Whether the text in the field will grow an answer row for this run of
+    /// this script. A row reached by part of its name never does: the answer
+    /// row needs the query to name the script itself (issue #3094).
+    static func queryShowsAnswer(for link: CommandBarLink, argument: String,
+                                 query: String, in links: [CommandBarLink]) -> Bool {
+        guard let match = matchingScriptLink(in: links, query: query) else { return false }
+        return match.link.id == link.id && match.argument == argument
+    }
+
     /// What a script printed, reduced to what the answer row shows: no
     /// wrapping whitespace, and empty output means nothing is ready yet.
     static func resultText(_ output: String) -> String? {

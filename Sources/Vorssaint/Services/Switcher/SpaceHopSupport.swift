@@ -99,6 +99,15 @@ enum SpaceHopSupport {
         return windowTags & hiddenWithAppTag != 0
     }
 
+    /// Minimizing a window into the Dock tags it from the start of the
+    /// animation until it is restored. A window its app closed or hid never
+    /// gets the tag, though both leave it off screen on the Space in front
+    /// (measured on macOS 27, issue #3249).
+    static func isMinimized(windowTags: UInt64) -> Bool {
+        let minimizedTag: UInt64 = 1 << 60
+        return windowTags & minimizedTag != 0
+    }
+
     /// The windows a window query's answer tags as hidden with their app. A
     /// window missing from the answer no longer exists, so it is never one.
     /// Every live window carries some tag, so an answer without any is one

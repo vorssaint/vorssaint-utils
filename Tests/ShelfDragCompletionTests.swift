@@ -30,7 +30,9 @@ enum ShelfDragCompletionContract {
         var pinned = false
         var heldDrag = false
         var closures = 0
+        var dragMoves: [CGPoint] = []
         func fileDragChanged(_ active: Bool, internalDrag: Bool) { heldDrag = active && internalDrag }
+        func shelfDragMoved(to point: CGPoint) { dragMoves.append(point) }
         func collapse() {
             precondition(!heldDrag, "release the drag before trying to collapse")
             closures += 1
@@ -92,6 +94,23 @@ enum ShelfDragCompletionTests {
             suite.expect(service.floatingClosures == (docked ? 0 : 1) && service.dockedClosures == (docked ? 1 : 0)
                    && notch.closures == 0 && service.removed.isEmpty,
                    "separate shelf completion retains its own close, pin and removal behavior")
+        }
+
+        // Only a tile dragged from the island tells it where the drag is, and
+        // only while the drag lasts.
+        for fromNotch in [false, true] {
+            Context.reset()
+            let service = Context.Service()
+            let notch = Context.NotchService.shared
+            let source = fromNotch ? notch.presentationWindow! : Context.Window()
+            if !fromNotch { service.panel = source; service.isVisible = true }
+            service.internalDragMoved(to: CGPoint(x: 1, y: 1))
+            service.beginInternalDrag(ids: [UUID()], from: source)
+            service.internalDragMoved(to: CGPoint(x: 2, y: 2))
+            service.completeInternalDrag(dropAccepted: false)
+            service.internalDragMoved(to: CGPoint(x: 3, y: 3))
+            suite.expect(notch.dragMoves == (fromNotch ? [CGPoint(x: 2, y: 2)] : []),
+                   "only a drag from the island, while it lasts, can move the island aside")
         }
 
         Context.reset()

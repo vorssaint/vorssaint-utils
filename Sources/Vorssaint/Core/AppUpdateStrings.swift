@@ -54,6 +54,8 @@ struct AppUpdateStrings {
     let removeRule: String
     let rulesHint: String
     let noVisibleUpdates: String
+    let uncomparableVersions: String
+    let uncomparableVersionsNote: String
 }
 
 extension FeatureStrings {
@@ -128,7 +130,9 @@ extension AppUpdateStrings {
         excludedApp: "Not checked until this rule is removed",
         removeRule: "Remove",
         rulesHint: "Skipping a version still allows newer releases. After removing an app exclusion, use Check now to refresh it.",
-        noVisibleUpdates: "No updates outside your rules"
+        noVisibleUpdates: "No updates outside your rules",
+        uncomparableVersions: "Versions not compared",
+        uncomparableVersionsNote: "No update is shown when an app’s own version can’t be compared with the catalog. Check for updates in the app itself."
     )
 
     static let ptBR = AppUpdateStrings(
@@ -180,7 +184,9 @@ extension AppUpdateStrings {
         excludedApp: "Não verificado até remover esta regra",
         removeRule: "Remover",
         rulesHint: "Ignorar uma versão não oculta versões mais novas. Após remover uma exclusão, use Verificar agora para atualizar a lista.",
-        noVisibleUpdates: "Nenhuma atualização fora das suas regras"
+        noVisibleUpdates: "Nenhuma atualização fora das suas regras",
+        uncomparableVersions: "Versões não comparadas",
+        uncomparableVersionsNote: "Nenhuma atualização é mostrada quando a versão informada pelo app não pode ser comparada com o catálogo. Procure atualizações no próprio app."
     )
 
     static let tr = AppUpdateStrings(
@@ -232,7 +238,9 @@ extension AppUpdateStrings {
         excludedApp: "Bu kural kaldırılana kadar denetlenmez",
         removeRule: "Kaldır",
         rulesHint: "Bir sürümü atlamak daha yeni sürümleri gizlemez. Uygulama hariç tutma kuralını kaldırdıktan sonra Şimdi denetle ile listeyi yenile.",
-        noVisibleUpdates: "Kurallarının dışında güncelleme yok"
+        noVisibleUpdates: "Kurallarının dışında güncelleme yok",
+        uncomparableVersions: "Sürümler karşılaştırılamadı",
+        uncomparableVersionsNote: "Bir uygulamanın kendi sürümü katalogla karşılaştırılamadığında güncelleme gösterilmez. Güncellemeleri uygulamanın kendisinden denetle."
     )
 
     static let ru = AppUpdateStrings(
@@ -284,7 +292,9 @@ extension AppUpdateStrings {
         excludedApp: "Не проверяется до удаления правила",
         removeRule: "Удалить",
         rulesHint: "Пропуск версии не скрывает новые выпуски. После удаления исключения нажмите «Проверить сейчас», чтобы обновить список.",
-        noVisibleUpdates: "Обновлений вне ваших правил нет"
+        noVisibleUpdates: "Обновлений вне ваших правил нет",
+        uncomparableVersions: "Не удалось сравнить версии",
+        uncomparableVersionsNote: "Обновление не показывается, если версию, которую сообщает приложение, нельзя сравнить с каталогом. Проверьте обновления в самом приложении."
     )
 
     static let es = AppUpdateStrings(
@@ -336,7 +346,9 @@ extension AppUpdateStrings {
         excludedApp: "No se comprueba hasta eliminar esta regla",
         removeRule: "Eliminar",
         rulesHint: "Omitir una versión no oculta versiones posteriores. Tras eliminar una exclusión, usa Buscar ahora para actualizar la lista.",
-        noVisibleUpdates: "No hay actualizaciones fuera de tus reglas"
+        noVisibleUpdates: "No hay actualizaciones fuera de tus reglas",
+        uncomparableVersions: "Versiones sin comparar",
+        uncomparableVersionsNote: "No se muestra ninguna actualización cuando la versión que indica la app no se puede comparar con el catálogo. Busca actualizaciones en la propia app."
     )
 
     static let sk = AppUpdateStrings(
@@ -388,7 +400,9 @@ extension AppUpdateStrings {
         excludedApp: "Nekontroluje sa do odstránenia pravidla",
         removeRule: "Odstrániť",
         rulesHint: "Preskočenie verzie neskryje novšie vydania. Po odstránení výnimky obnovte zoznam cez Skontrolovať teraz.",
-        noVisibleUpdates: "Žiadne aktualizácie mimo vašich pravidiel"
+        noVisibleUpdates: "Žiadne aktualizácie mimo vašich pravidiel",
+        uncomparableVersions: "Verzie neboli porovnané",
+        uncomparableVersionsNote: "Aktualizácia sa nezobrazí, keď verziu, ktorú aplikácia uvádza, nemožno porovnať s katalógom. Aktualizácie skontrolujte priamo v aplikácii."
     )
 
     static let de = AppUpdateStrings(
@@ -440,7 +454,9 @@ extension AppUpdateStrings {
         excludedApp: "Bis zum Entfernen dieser Regel nicht geprüft",
         removeRule: "Entfernen",
         rulesHint: "Eine übersprungene Version verbirgt keine neueren Versionen. Nach dem Entfernen eines App-Ausschlusses mit Jetzt prüfen aktualisieren.",
-        noVisibleUpdates: "Keine Updates außerhalb deiner Regeln"
+        noVisibleUpdates: "Keine Updates außerhalb deiner Regeln",
+        uncomparableVersions: "Versionen nicht verglichen",
+        uncomparableVersionsNote: "Es wird kein Update angezeigt, wenn sich die Version, die eine App meldet, nicht mit dem Katalog vergleichen lässt. Suche in der App selbst nach Updates."
     )
 
     static let fr = AppUpdateStrings(
@@ -492,7 +508,9 @@ extension AppUpdateStrings {
         excludedApp: "Non vérifiée jusqu’au retrait de cette règle",
         removeRule: "Retirer",
         rulesHint: "Ignorer une version ne masque pas les suivantes. Après avoir retiré une exclusion, utilisez Vérifier maintenant pour actualiser la liste.",
-        noVisibleUpdates: "Aucune mise à jour en dehors de vos règles"
+        noVisibleUpdates: "Aucune mise à jour en dehors de vos règles",
+        uncomparableVersions: "Versions non comparées",
+        uncomparableVersionsNote: "Aucune mise à jour n’est affichée lorsque la version indiquée par une app ne peut pas être comparée au catalogue. Recherchez les mises à jour dans l’app elle-même."
     )
 
     static let it = AppUpdateStrings(
@@ -544,7 +562,9 @@ extension AppUpdateStrings {
         excludedApp: "Non controllata finché la regola non viene rimossa",
         removeRule: "Rimuovi",
         rulesHint: "Saltare una versione non nasconde quelle successive. Dopo aver rimosso un’esclusione, usa Controlla ora per aggiornare l’elenco.",
-        noVisibleUpdates: "Nessun aggiornamento al di fuori delle tue regole"
+        noVisibleUpdates: "Nessun aggiornamento al di fuori delle tue regole",
+        uncomparableVersions: "Versioni non confrontate",
+        uncomparableVersionsNote: "Non viene mostrato alcun aggiornamento quando la versione indicata da un’app non si può confrontare con il catalogo. Cerca gli aggiornamenti nell’app stessa."
     )
 
     static let ja = AppUpdateStrings(
@@ -596,7 +616,9 @@ extension AppUpdateStrings {
         excludedApp: "このルールを削除するまで確認しません",
         removeRule: "削除",
         rulesHint: "バージョンをスキップしても新しいバージョンは表示されます。Appの除外を解除した後は「今すぐ確認」で更新してください。",
-        noVisibleUpdates: "ルールの対象外のアップデートはありません"
+        noVisibleUpdates: "ルールの対象外のアップデートはありません",
+        uncomparableVersions: "比較できないバージョン",
+        uncomparableVersionsNote: "Appが示すバージョンをカタログと比較できない場合、アップデートは表示されません。App自体でアップデートを確認してください。"
     )
 
     static let ko = AppUpdateStrings(
@@ -648,7 +670,9 @@ extension AppUpdateStrings {
         excludedApp: "이 규칙을 제거할 때까지 확인하지 않음",
         removeRule: "제거",
         rulesHint: "버전을 건너뛰어도 새 버전은 표시됩니다. 앱 제외를 해제한 후 지금 확인으로 목록을 새로 고치세요.",
-        noVisibleUpdates: "규칙 외의 업데이트가 없습니다"
+        noVisibleUpdates: "규칙 외의 업데이트가 없습니다",
+        uncomparableVersions: "비교할 수 없는 버전",
+        uncomparableVersionsNote: "앱이 표시하는 버전을 카탈로그와 비교할 수 없으면 업데이트가 표시되지 않습니다. 앱에서 직접 업데이트를 확인하세요."
     )
 
     static let zhHans = AppUpdateStrings(
@@ -700,7 +724,9 @@ extension AppUpdateStrings {
         excludedApp: "移除此规则前不检查",
         removeRule: "移除",
         rulesHint: "跳过某个版本不会隐藏更新版本。移除 App 排除规则后，请使用“立即检查”刷新列表。",
-        noVisibleUpdates: "规则之外没有更新"
+        noVisibleUpdates: "规则之外没有更新",
+        uncomparableVersions: "无法比较的版本",
+        uncomparableVersionsNote: "当 App 报告的版本无法与目录比较时，不会显示更新。请在 App 内检查更新。"
     )
 
     static let zhTW = AppUpdateStrings(
@@ -752,7 +778,9 @@ extension AppUpdateStrings {
         excludedApp: "移除此規則前不檢查",
         removeRule: "移除",
         rulesHint: "略過某個版本不會隱藏更新版本。移除 App 排除規則後，請使用「立即檢查」重新整理列表。",
-        noVisibleUpdates: "規則之外沒有更新"
+        noVisibleUpdates: "規則之外沒有更新",
+        uncomparableVersions: "無法比較的版本",
+        uncomparableVersionsNote: "當 App 回報的版本無法與目錄比較時，不會顯示更新。請在 App 內檢查更新。"
     )
 
     static let zhHK = AppUpdateStrings(
@@ -804,7 +832,9 @@ extension AppUpdateStrings {
         excludedApp: "移除呢條規則前唔會檢查",
         removeRule: "移除",
         rulesHint: "略過某個版本唔會隱藏更新版本。移除 App 排除規則後，請用「立即檢查」更新列表。",
-        noVisibleUpdates: "規則以外冇更新"
+        noVisibleUpdates: "規則以外冇更新",
+        uncomparableVersions: "無法比較嘅版本",
+        uncomparableVersionsNote: "當 App 回報嘅版本無法同目錄比較時，唔會顯示更新。請喺 App 入面檢查更新。"
     )
     static let uk = AppUpdateStrings(
         pageTitle: "Оновлення програм",
@@ -855,6 +885,8 @@ extension AppUpdateStrings {
         excludedApp: "Не перевіряється до видалення правила",
         removeRule: "Видалити",
         rulesHint: "Пропуск версії не приховує новіші випуски. Після видалення винятку натисніть «Перевірити зараз», щоб оновити список.",
-        noVisibleUpdates: "Немає оновлень поза вашими правилами"
+        noVisibleUpdates: "Немає оновлень поза вашими правилами",
+        uncomparableVersions: "Не вдалося порівняти версії",
+        uncomparableVersionsNote: "Оновлення не показується, якщо версію, яку повідомляє програма, не можна порівняти з каталогом. Перевірте оновлення в самій програмі."
     )
 }

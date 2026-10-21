@@ -1192,33 +1192,51 @@ struct PermissionRow: View {
 /// Secure Event Input blocks every synthetic keystroke. Typing a snippet
 /// trigger then does nothing at all, while the snippet library and the
 /// Command Bar's typing actions beep; none of the four paths says what is
-/// wrong or who is holding it. This row is the only place the app explains
-/// that, and it names the holder when the session can attribute it.
+/// wrong or who is holding it. It also hides every key from the switcher's
+/// tap, so the switcher hands ⌘Tab back to macOS for as long as it lasts and
+/// the macOS switcher shows up instead. This row is the only place the app
+/// explains either. macOS never names the holder, only the app that was
+/// active when it turned on, so the row offers that app as a lead rather than
+/// as the holder.
 ///
-/// Both call sites instantiate it only once secure input is on, and the
-/// snippets page waits for one of its own toggles as well, so the `.off`
-/// branch below is there to keep the switch exhaustive and for nothing else.
-/// What drives the feature is the polling demand on each page; see
+/// Every call site instantiates it only once secure input is on, and the
+/// snippets and switcher pages wait for their own toggles as well, so the
+/// `.off` branch below is there to keep the switch exhaustive and for nothing
+/// else. What drives the feature is the polling demand on each page; see
 /// `SecureInputObservation`.
 struct SecureInputRow: View {
+    /// What secure input blocks on the page showing the row, which is what
+    /// its caption has to explain.
+    enum Blocked {
+        /// Snippets and the Command Bar's typing actions.
+        case typing
+        /// The switcher's shortcuts, which macOS's own switcher then answers.
+        case switcher
+    }
+
+    var blocking: Blocked = .typing
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SecureInputMonitor.shared
 
     var body: some View {
+        let switcher = blocking == .switcher
         switch monitor.holder {
         case .off:
             EmptyView()
         case .app(let name, _):
-            row(caption: String(format: l10n.s.secureInputHeldFormat, name)) {
+            row(caption: String(format: switcher ? l10n.s.secureInputSwitcherHeldFormat
+                                                 : l10n.s.secureInputHeldFormat, name)) {
                 Button(String(format: l10n.s.secureInputRevealFormat, name)) {
                     monitor.revealHolder()
                 }
                 .controlSize(.small)
             }
         case .unattributed:
-            row(caption: l10n.s.secureInputUnattributed) { EmptyView() }
+            row(caption: switcher ? l10n.s.secureInputSwitcherUnattributed
+                                  : l10n.s.secureInputUnattributed) { EmptyView() }
         case .unknown:
-            row(caption: l10n.s.secureInputUnidentified) { EmptyView() }
+            row(caption: switcher ? l10n.s.secureInputSwitcherUnidentified
+                                  : l10n.s.secureInputUnidentified) { EmptyView() }
         }
     }
 

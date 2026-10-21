@@ -370,10 +370,13 @@ struct NotchView: View {
                 // fit their side, never pushing them under the camera; the menu
                 // offers the same actions either way.
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 6) { items.trailing; updateControl(band); pinMark }
-                    HStack(spacing: 6) { items.trailing; NotchUpdateControl(action: service.showUpdate, compact: true); pinMark }
-                    HStack(spacing: 6) { items.trailing; pinMark }
-                    HStack(spacing: 6) { items.trailing }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); updateControl(band); pinMark }
+                    HStack(spacing: 6) {
+                        items.trailing; trailingSections(band)
+                        NotchUpdateControl(action: service.showUpdate, compact: true); pinMark
+                    }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); pinMark }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band) }
                 }
             }
         }
@@ -388,6 +391,12 @@ struct NotchView: View {
         // Drawn here rather than in the page, the row's controls read the
         // island's language for their dates and numbers, as the page does.
         .environment(\.locale, l10n.language.formattingLocale())
+    }
+
+    /// A page that lays out its leading side itself ends its row with the
+    /// way to the sections, after its own controls, where they fit together.
+    @ViewBuilder private func trailingSections(_ band: NotchBand) -> some View {
+        if band.trailingSectionsButton { NotchSectionsButton(action: service.toggleSections) }
     }
 
     private func updateControl(_ band: NotchBand) -> some View {
@@ -417,7 +426,7 @@ struct NotchView: View {
         } else if band.sectionsButton {
             // Without the floating button, the sections stay one click away;
             // the row keeps it room before the page's own controls.
-            NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
+            NotchSectionsButton(action: service.toggleSections)
         }
     }
 
