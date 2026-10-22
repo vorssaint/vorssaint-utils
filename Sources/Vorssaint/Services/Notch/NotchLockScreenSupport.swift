@@ -73,6 +73,12 @@ enum NotchLockScreenSupport {
                           hidesAmounts: defaults.bool(forKey: DefaultsKey.notchLockScreenAgentsHideAmounts))
     }
 
+    /// The line's agent readout: the time worked in place of a cost the
+    /// person chose to hide.
+    static func lineReadout(_ readout: NotchAgentReadout, privacy: NotchAgentPrivacy) -> NotchAgentReadout {
+        readout == .cost && privacy.hidesAmounts ? .elapsed : readout
+    }
+
     /// The timer is suspended while locked, so a countdown that reaches its
     /// end there is read as finished rather than stuck at zero.
     static func timerFinished(_ session: NotchTimerSession, at now: TimeInterval) -> Bool {

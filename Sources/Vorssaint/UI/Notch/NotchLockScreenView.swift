@@ -20,6 +20,8 @@ final class NotchLockScreenModel: ObservableObject {
         var mac = false
         /// Events read Busy, as This Mac's own calendar shows them.
         var hidesEventTitles = false
+        /// What the AI options keep back, on the line as on the page.
+        var privacy = NotchAgentPrivacy()
     }
 
     @Published var gates = Gates()
@@ -429,7 +431,10 @@ struct NotchLockScreenActivities: View {
             }
         case .agents:
             let working = AgentProvider.allCases.filter { provider in usage.snapshot.live.contains { $0.provider == provider } }
-            let reading = NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
+            let reading = NotchAgentSupport.stripReading(usage.snapshot,
+                                                         readout: NotchLockScreenSupport.lineReadout(
+                                                            NotchAgentReadout(rawValue: readout) ?? .elapsed,
+                                                            privacy: model.gates.privacy),
                                                          display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
                                                          focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: date)
             // The agents and their reading only: a project's name stays off
