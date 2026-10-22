@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import EventKit
 import SwiftUI
 
 /// The This Mac page left of the lock screen's player: the battery, four
-/// system tiles with their temperatures, today's events, storage and the
-/// accessories' batteries, on the AI page's cards. Read-only, never
-/// scrolled, and nothing in it names a device, a disk or a network.
+/// system tiles with their temperatures, the calendar, and storage with the
+/// accessories' batteries, on the AI page's cards. Only the calendar takes
+/// input, and nothing in the page names a device, a disk or a network.
 struct NotchLockScreenMacPage: View {
     let size: CGSize
     let hidesEventTitles: Bool
+    let calendarView: NotchLockScreenCalendarView
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var keepAwake = KeepAwakeManager.shared
@@ -31,6 +31,7 @@ struct NotchLockScreenMacPage: View {
             NotchLockScreenPowerCard(power: snapshot.power, history: snapshot.systemPowerHistory,
                                      keepAwake: keepAwake.isActive, keepAwakeEnd: keepAwake.endDate)
                 .frame(height: Layout.macBattery)
+                .allowsHitTesting(false)
             HStack(spacing: Layout.macSpacing) {
                 NotchLockScreenMetricTile(
                     title: l10n.s.cpuLabel, symbol: "cpu", tint: .cyan,
@@ -46,21 +47,22 @@ struct NotchLockScreenMacPage: View {
                 }
             }
             .frame(height: plan.tile)
+            .allowsHitTesting(false)
             HStack(spacing: Layout.macSpacing) {
                 NotchLockScreenMemoryTile(snapshot: snapshot)
                 network(snapshot)
             }
             .frame(height: plan.tile)
+            .allowsHitTesting(false)
             if showsCalendar {
-                NotchLockScreenEventsCard(events: calendar.events, hidesTitles: hidesEventTitles,
-                                          access: permissions.calendarAccess)
+                NotchLockScreenCalendarCard(events: calendar.events, hidesTitles: hidesEventTitles,
+                                            access: permissions.calendarAccess, view: calendarView)
                     .frame(height: plan.calendar)
             }
             if plan.storage {
-                NotchLockScreenStorageCard(disk: snapshot.disk).frame(height: Layout.macStorage)
-            }
-            if plan.accessories {
-                NotchLockScreenAccessoriesCard(devices: snapshot.peripheralBatteries).frame(height: Layout.macAccessories)
+                NotchLockScreenStorageCard(disk: snapshot.disk, accessories: snapshot.peripheralBatteries)
+                    .frame(height: Layout.macStorage)
+                    .allowsHitTesting(false)
             }
         }
         .frame(width: size.width, height: size.height, alignment: .top)
@@ -140,9 +142,9 @@ private struct NotchLockScreenPowerCard: View {
                     }
                 }
                 if hasBattery {
-                    HStack(spacing: 16) {
+                    HStack(spacing: 14) {
                         ring(charge, tint: tint)
-                        VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: 2) {
                             headline
                             rows
                         }
@@ -184,15 +186,15 @@ private struct NotchLockScreenPowerCard: View {
     private func ring(_ charge: Int?, tint: Color) -> some View {
         let fraction = Double(charge ?? 0) / 100
         return ZStack {
-            Circle().stroke(.white.opacity(0.13), lineWidth: 7)
+            Circle().stroke(.white.opacity(0.13), lineWidth: 6)
             Circle().trim(from: 0, to: fraction)
-                .stroke(tint, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                .stroke(tint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text(charge.map { "\($0)%" } ?? notchLockScreenMissing)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .monospacedDigit()
         }
-        .frame(width: 72, height: 72)
+        .frame(width: 60, height: 60)
         .accessibilityElement(children: .combine)
     }
 
@@ -201,11 +203,11 @@ private struct NotchLockScreenPowerCard: View {
     @ViewBuilder private var headline: some View {
         let text = FeatureStrings.notchLockScreen(l10n.language)
         if let seconds = power?.timeRemainingSeconds, let time = BatteryTimeSupport.formatted(seconds: seconds) {
-            (Text(time).font(.system(size: 17, weight: .medium))
+            (Text(time).font(.system(size: 15, weight: .medium))
              + Text(" " + text.remaining).font(.system(size: 9.5, weight: .medium)).foregroundColor(.secondary))
                 .monospacedDigit()
         } else if let watts = power?.batteryWatts, power?.isCharging == true, watts > 0.5 {
-            (Text("+" + MetricFormat.watts(watts)).font(.system(size: 17, weight: .medium))
+            (Text("+" + MetricFormat.watts(watts)).font(.system(size: 15, weight: .medium))
              + Text(" " + l10n.s.powerCharging.lowercased(with: l10n.language.formattingLocale()))
                 .font(.system(size: 9.5, weight: .medium)).foregroundColor(.secondary))
                 .monospacedDigit()
@@ -221,8 +223,12 @@ private struct NotchLockScreenPowerCard: View {
         } else if let battery = power?.batteryWatts {
             row(s.powerBattery, MetricFormat.watts(battery))
         }
-        if let health = power?.healthPercent { row(s.powerHealth, "\(Int(health.rounded()))%") }
-        if let cycles = power?.cycleCount { row(s.powerCycles, "\(cycles)") }
+        // Health and cycles share a row, so the card stays short.
+        if let health = power?.healthPercent {
+            row(s.powerHealth, "\(Int(health.rounded()))%" + (power?.cycleCount.map { " · \($0)" } ?? ""))
+        } else if let cycles = power?.cycleCount {
+            row(s.powerCycles, "\(cycles)")
+        }
     }
 
     private func row(_ name: String, _ value: String) -> some View {
@@ -288,7 +294,7 @@ private struct NotchLockScreenMemoryTile: View {
             (Double(snapshot.memoryCached ?? 0), .white.opacity(0.35))
         ]
         NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 NotchAgentCardHeader(title: s.memorySection, symbol: "memorychip", tint: .blue) {
                     if let tint = pressureTint { NotchLockScreenPill(text: s.memoryPressure, tint: tint) }
                 }
@@ -305,10 +311,15 @@ private struct NotchLockScreenMemoryTile: View {
                 }
                 .frame(height: 6)
                 Spacer(minLength: 0)
-                VStack(spacing: 2) {
-                    legend(s.memoryCompressed, snapshot.memoryCompressed, tint: .blue.opacity(0.55))
-                    legend(s.memoryCachedFiles, snapshot.memoryCached, tint: .white.opacity(0.35))
-                    legend(s.memorySwapUsed, snapshot.memorySwapUsed, tint: .clear)
+                Grid(horizontalSpacing: 10, verticalSpacing: 2) {
+                    GridRow {
+                        legend(s.memoryCompressed, snapshot.memoryCompressed, tint: .blue.opacity(0.55))
+                        legend(s.memoryCachedFiles, snapshot.memoryCached, tint: .white.opacity(0.35))
+                    }
+                    GridRow {
+                        legend(s.memorySwapUsed, snapshot.memorySwapUsed, tint: .clear)
+                        Color.clear.frame(height: 0)
+                    }
                 }
             }
         }
@@ -337,106 +348,12 @@ private struct NotchLockScreenMemoryTile: View {
     }
 }
 
-/// Today from now on: the next event large, then the rest as lines.
-private struct NotchLockScreenEventsCard: View {
-    let events: [NotchCalendarEvent]
-    let hidesTitles: Bool
-    let access: EKAuthorizationStatus
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        let text = FeatureStrings.notchCalendar(l10n.language)
-        let locked = FeatureStrings.notchLockScreen(l10n.language)
-        TimelineView(.periodic(from: .now, by: 30)) { context in
-            let now = context.date
-            let today = NotchCalendarSupport.events(events, on: now).filter { !$0.allDay && $0.end > now }
-            NotchAgentCardChrome {
-                VStack(alignment: .leading, spacing: 8) {
-                    NotchAgentCardHeader(title: text.today, symbol: "calendar", tint: .red) {
-                        Text(now, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
-                            .font(.system(size: 9.5, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
-                    if access != .fullAccess {
-                        message(access == .denied || access == .restricted ? text.denied : text.permission)
-                    } else if let next = today.first {
-                        nextEvent(next, now: now, text: text)
-                        GeometryReader { proxy in
-                            VStack(alignment: .leading, spacing: 0) {
-                                ForEach(today.dropFirst().prefix(max(0, Int(proxy.size.height / 20)))) { event in
-                                    line(event, untitled: text.untitled)
-                                }
-                            }
-                        }
-                    } else {
-                        message(locked.nothingElse)
-                    }
-                }
-            }
-        }
-    }
-
-    private func message(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func title(_ event: NotchCalendarEvent, untitled: String) -> String {
-        hidesTitles ? FeatureStrings.notchLockScreen(l10n.language).busy
-            : NotchCalendarStrip.displayTitle(event, untitled: untitled)
-    }
-
-    private func nextEvent(_ event: NotchCalendarEvent, now: Date, text: NotchCalendarStrings) -> some View {
-        let ongoing = event.start <= now
-        return HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 1.5).fill(event.color.color).frame(width: 3, height: 30)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(ongoing ? text.ongoing : text.next)
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text(title(event, untitled: text.untitled))
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 6)
-            VStack(alignment: .trailing, spacing: 1) {
-                Text((ongoing ? event.end : event.start).formatted(.relative(presentation: .named)
-                    .locale(l10n.language.formattingLocale())))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.cyan)
-                Text(event.start, format: .dateTime.hour().minute()) + Text(" – ") + Text(event.end, format: .dateTime.hour().minute())
-            }
-            .font(.system(size: 9.5, weight: .medium))
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .accessibilityElement(children: .combine)
-    }
-
-    private func line(_ event: NotchCalendarEvent, untitled: String) -> some View {
-        HStack(spacing: 8) {
-            Circle().fill(event.color.color).frame(width: 5, height: 5)
-            Text(event.start, format: .dateTime.hour().minute())
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .frame(width: 58, alignment: .leading)
-            Text(title(event, untitled: untitled)).lineLimit(1)
-        }
-        .font(.system(size: 10, weight: .medium))
-        .frame(height: 20)
-    }
-}
-
 /// The built-in disk: free space, what fills it and how the drive is. An
 /// external drive is only counted, since its name could say whose it is.
+/// The accessories' batteries run along its foot.
 private struct NotchLockScreenStorageCard: View {
     let disk: DiskReading?
+    let accessories: [PeripheralBatteryDevice]
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
 
@@ -461,28 +378,64 @@ private struct NotchLockScreenStorageCard: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     Divider().overlay(.white.opacity(0.12))
-                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 3) {
+                    Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 3) {
                         GridRow {
                             detail(s.diskRead, builtIn?.readBytesPerSec.map(MetricFormat.bytesPerSec))
                             detail(s.diskWrite, builtIn?.writeBytesPerSec.map(MetricFormat.bytesPerSec))
+                            detail(s.diskHealth, builtIn?.smart?.healthPercent.map { "\($0)%" })
                         }
                         GridRow {
-                            detail(s.diskHealth, builtIn?.smart?.healthPercent.map { "\($0)%" })
                             detail(s.diskTemperature, builtIn?.smart?.temperatureCelsius.map {
                                 MetricFormat.temperature($0, unit: TemperatureUnit(rawValue: temperatureUnit) ?? .celsius)
                             })
-                        }
-                        GridRow {
                             detail(s.diskTotalWritten, (builtIn?.smart?.totalWrittenBytes ?? builtIn?.totalWrittenBytes)
                                 .map(MetricFormat.diskBytesPrecise))
                             detail(s.diskExternal, "\(externals)")
                         }
                     }
-                    .frame(width: 170, alignment: .leading)
+                    .frame(width: 200, alignment: .leading)
                 }
+                Divider().overlay(.white.opacity(0.1))
+                accessoryStrip
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// Each accessory by its kind alone, since a Bluetooth name can carry a
+    /// person's name.
+    private var accessoryStrip: some View {
+        let shown = Array(PeripheralBatterySupport.sorted(accessories).prefix(4))
+        return HStack(spacing: 12) {
+            Text(FeatureStrings.notchLockScreen(l10n.language).accessories.uppercased(with: l10n.language.formattingLocale()))
+                .font(.system(size: 8, weight: .semibold))
+                .tracking(0.5)
+                .foregroundStyle(.secondary)
+            if shown.isEmpty {
+                Text(l10n.s.peripheralBatteryNoDevices).foregroundStyle(.secondary)
+            }
+            ForEach(shown) { device in
+                HStack(spacing: 4) {
+                    Image(systemName: Self.symbol(device.kind)).font(.system(size: 9.5, weight: .semibold))
+                    Text("\(device.percent)%")
+                        .monospacedDigit()
+                        .foregroundStyle(device.percent <= 20 ? Color.red : .primary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 9.5, weight: .semibold))
+        .lineLimit(1)
+    }
+
+    static func symbol(_ kind: PeripheralBatteryKind) -> String {
+        switch kind {
+        case .keyboard: return "keyboard"
+        case .mouse: return "computermouse"
+        case .trackpad: return "rectangle.and.hand.point.up.left"
+        case .audio: return "headphones"
+        case .device: return "battery.100"
+        }
     }
 
     private func usage(_ device: DiskDeviceReading) -> some View {
@@ -520,62 +473,6 @@ private struct NotchLockScreenStorageCard: View {
                 .monospacedDigit()
         }
         .lineLimit(1)
-    }
-}
-
-/// Each accessory by its kind alone, since a Bluetooth name can carry a
-/// person's name.
-private struct NotchLockScreenAccessoriesCard: View {
-    let devices: [PeripheralBatteryDevice]
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        let shown = Array(PeripheralBatterySupport.sorted(devices).prefix(4))
-        NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 8) {
-                NotchAgentCardHeader(title: FeatureStrings.notchLockScreen(l10n.language).accessories,
-                                     symbol: "dot.radiowaves.left.and.right", tint: .secondary)
-                if shown.isEmpty {
-                    Text(l10n.s.peripheralBatteryNoDevices)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    HStack(spacing: 8) {
-                        ForEach(shown) { device in
-                            let tint: Color = device.percent <= 20 ? .red : .white
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack(spacing: 5) {
-                                    Image(systemName: Self.symbol(device.kind))
-                                        .font(.system(size: 10, weight: .semibold))
-                                    Spacer(minLength: 2)
-                                    Text("\(device.percent)%")
-                                        .font(.system(size: 10.5, weight: .semibold))
-                                        .monospacedDigit()
-                                        .foregroundStyle(tint)
-                                }
-                                NotchAgentMeter(value: Double(device.percent) / 100, tint: tint, height: 4)
-                                    .frame(height: 4)
-                            }
-                            .padding(8)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .accessibilityElement(children: .combine)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    static func symbol(_ kind: PeripheralBatteryKind) -> String {
-        switch kind {
-        case .keyboard: return "keyboard"
-        case .mouse: return "computermouse"
-        case .trackpad: return "rectangle.and.hand.point.up.left"
-        case .audio: return "headphones"
-        case .device: return "battery.100"
-        }
     }
 }
 

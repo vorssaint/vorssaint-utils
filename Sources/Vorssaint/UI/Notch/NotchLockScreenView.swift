@@ -295,8 +295,8 @@ private extension View {
 }
 
 /// The open island's AI page beside the player, on the player's glass and
-/// the island's glass cards. Only its Trend period takes clicks; it never
-/// scrolls, and it keeps back what the person chose to hide.
+/// the island's glass cards, without Trend. It takes no clicks, never
+/// scrolls, and keeps back what the person chose to hide.
 struct NotchLockScreenAgents: View {
     let size: CGSize
     let privacy: NotchAgentPrivacy
@@ -317,22 +317,22 @@ struct NotchLockScreenAgents: View {
 }
 
 /// The This Mac page left of the player, the AI page's mirror: the same
-/// glass, inset and cards. It takes no clicks at all.
+/// glass, inset and cards. Only its calendar takes input.
 struct NotchLockScreenMac: View {
     let size: CGSize
     let hidesEventTitles: Bool
+    let calendarView: NotchLockScreenCalendarView
 
     var body: some View {
         NotchLockScreenMacPage(size: CGSize(width: size.width - NotchLockScreenAgents.inset * 2,
                                             height: size.height - NotchLockScreenAgents.inset * 2),
-                               hidesEventTitles: hidesEventTitles)
+                               hidesEventTitles: hidesEventTitles, calendarView: calendarView)
             .environment(\.notchGlassSurface, true)
             .padding(NotchLockScreenAgents.inset)
             .foregroundStyle(.white)
             .modifier(NotchLockScreenGlass(cornerRadius: 30))
             .frame(width: size.width, height: size.height)
             .environment(\.colorScheme, .dark)
-            .allowsHitTesting(false)
     }
 }
 

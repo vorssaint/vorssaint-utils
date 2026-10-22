@@ -1006,6 +1006,7 @@ enum DefaultsKey {
     static let notchLockScreenAgentsHideAmounts = "notchLockScreenAgentsHideAmounts"
     static let notchLockScreenMac = "notchLockScreenMac" // This Mac: battery, system, calendar and storage left of the player
     static let notchLockScreenMacHideEvents = "notchLockScreenMacHideEvents"
+    static let notchLockScreenMacCalendarView = "notchLockScreenMacCalendarView" // NotchLockScreenCalendarView.rawValue
     // Companion: a small friend who rests in the closed island and is the Command Bar's face.
     static let notchMascotEnabled = "notchMascotEnabled"
     static let notchMascotVisits = "notchMascotVisits" // passes through the island now and then
@@ -1634,6 +1635,7 @@ enum Defaults {
         DefaultsKey.notchLockScreenAgentsHideAmounts: false,
         DefaultsKey.notchLockScreenMac: false,
         DefaultsKey.notchLockScreenMacHideEvents: false,
+        DefaultsKey.notchLockScreenMacCalendarView: NotchLockScreenCalendarView.day.rawValue,
         DefaultsKey.notchMascotEnabled: false,
         DefaultsKey.notchMascotVisits: true,
         DefaultsKey.notchMascotReactions: true,
