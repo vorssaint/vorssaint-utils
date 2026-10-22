@@ -194,8 +194,11 @@ struct RecorderEditDocument: Codable, Equatable {
         return next
     }
 
+    /// A video has no alpha, so the see-through margin only the screenshot
+    /// editor offers resolves to no backdrop here.
     var resolvedBackdrop: ScreenshotSupport.BackdropStyle {
-        ScreenshotSupport.BackdropStyle.decoded(backdrop)
+        let style = ScreenshotSupport.BackdropStyle.decoded(backdrop)
+        return style.kind == .transparent ? ScreenshotSupport.BackdropStyle() : style
     }
 
     var resolvedAspect: RecorderSupport.Aspect {

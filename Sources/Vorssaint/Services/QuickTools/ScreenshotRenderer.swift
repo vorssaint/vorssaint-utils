@@ -928,6 +928,16 @@ enum ScreenshotRenderer {
         /// 1 color = solid, 2 colors = gradient.
         case colors([(red: Double, green: Double, blue: Double)])
         case image(CGImage)
+        /// The margin, corners and shadow with nothing painted behind them.
+        case transparent
+
+        /// Whether a plate is painted that the blur slider could soften.
+        var paintsPlate: Bool {
+            switch self {
+            case .none, .transparent: return false
+            case .colors, .image: return true
+            }
+        }
     }
 
     /// A finished picture together with the pixels per point it was rendered
@@ -1070,7 +1080,7 @@ enum ScreenshotRenderer {
         else { return nil }
 
         drawFill(fill, in: context, size: CGSize(width: width, height: height))
-        if blurFactor > 0, let background = context.makeImage() {
+        if blurFactor > 0, fill.paintsPlate, let background = context.makeImage() {
             let blurred = blurredBackdrop(background, factor: blurFactor)
             context.clear(CGRect(x: 0, y: 0, width: width, height: height))
             context.draw(blurred, in: CGRect(x: 0, y: 0, width: width, height: height))
@@ -1117,7 +1127,7 @@ enum ScreenshotRenderer {
 
     private static func drawFill(_ fill: BackdropFill, in context: CGContext, size: CGSize) {
         switch fill {
-        case .none:
+        case .none, .transparent:
             break
         case .colors(let components):
             if components.count == 1, let single = components.first {

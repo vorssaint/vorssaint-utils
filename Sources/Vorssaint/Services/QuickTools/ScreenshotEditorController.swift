@@ -313,8 +313,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         case .image:
             guard let backdropImage else { return .none }
             return .image(backdropImage)
+        case .transparent:
+            return .transparent
         }
     }
+
+    /// A still exports as PNG, so it can keep the margin see-through.
+    var offersTransparentBackdrop: Bool { true }
 
     private func reloadBackdropImageIfNeeded() {
         guard backdropStyle.kind == .image, let path = backdropStyle.imagePath else {
@@ -369,7 +374,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// row; duplicates are ignored.
     func saveCurrentBackdropAsPreset() {
         let style = backdropStyle.sanitized()
-        guard style.kind != .none, style.kind != .preset else { return }
+        guard style.kind != .none, style.kind != .preset, style.kind != .transparent else { return }
         var snapshot = style
         // A preset is the look, not this capture's sliders.
         snapshot.padding = 0.5

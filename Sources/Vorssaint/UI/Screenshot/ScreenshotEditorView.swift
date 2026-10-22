@@ -197,10 +197,10 @@ struct ScreenshotEditorView: View {
         return ZStack {
             if model.showsBackdrop {
                 backdropFillView
-                    .scaleEffect(1 + CGFloat(model.backdropStyle.blur) * 0.08)
+                    .scaleEffect(1 + backdropBlurFactor * 0.08)
                     .blur(radius: ScreenshotSupport.backdropBlurRadius(
                         for: contentPixelSize,
-                        factor: CGFloat(model.backdropStyle.blur)) * zoom)
+                        factor: backdropBlurFactor) * zoom)
             }
             Canvas { context, size in
                 context.withCGContext { cg in
@@ -266,12 +266,20 @@ struct ScreenshotEditorView: View {
         }
     }
 
+    /// The exporter blurs only a painted plate, so the live layer does too.
+    private var backdropBlurFactor: CGFloat {
+        model.backdropFill.paintsPlate ? CGFloat(model.backdropStyle.blur) : 0
+    }
+
     /// The live backdrop layer, matching exactly what the exporter paints.
     @ViewBuilder
     private var backdropFillView: some View {
         switch model.backdropFill {
         case .none:
             EmptyView()
+        case .transparent:
+            // The export leaves the margin empty; the checkerboard says so.
+            BackdropCheckerboard()
         case .colors(let components):
             if components.count == 1, let single = components.first {
                 Color(.sRGB, red: single.red, green: single.green, blue: single.blue, opacity: 1)
@@ -1570,6 +1578,14 @@ struct ScreenshotEditorView: View {
                         .overlay(
                             RoundedRectangle(cornerRadius: 4.5, style: .continuous)
                                 .strokeBorder(.white.opacity(0.7), lineWidth: 1)
+                        )
+                case .transparent:
+                    BackdropCheckerboard()
+                        .frame(width: 21, height: 14)
+                        .clipShape(RoundedRectangle(cornerRadius: 4.5, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4.5, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.25), lineWidth: 1)
                         )
                 }
             }

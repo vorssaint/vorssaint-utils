@@ -620,6 +620,10 @@ enum RecorderFeatureTests {
         suite.expect(appliedPreset.backdrop == "style" && appliedPreset.zoomAmount == 2.4
                 && appliedPreset.texts.count == 2,
                "an editor preset changes the look without touching timeline edits")
+        let seeThrough = RecorderEditDocument(
+            backdrop: ScreenshotSupport.BackdropStyle(kind: .transparent).encoded())
+        suite.expect(seeThrough.resolvedBackdrop.kind == .none,
+               "a video has no alpha, so a transparent backdrop resolves to none")
 
         // MARK: Screen recorder motion
 

@@ -2579,8 +2579,10 @@ enum ScreenshotSupport {
     /// (one style in use, plus the user's saved presets). Colors are sRGB
     /// components so the codec stays pure and testable.
     struct BackdropStyle: Codable, Equatable {
+        /// `transparent` keeps the margin, corners and card shadow over an
+        /// empty plate, so the exported PNG carries alpha around the capture.
         enum Kind: String, Codable {
-            case none, preset, solid, gradient, image
+            case none, preset, solid, gradient, image, transparent
         }
 
         var kind: Kind
@@ -2648,6 +2650,10 @@ enum ScreenshotSupport {
             switch style.kind {
             case .none:
                 break
+            case .transparent:
+                style.presetID = nil
+                style.colors = nil
+                style.imagePath = nil
             case .preset:
                 guard let id = style.presetID, BackdropID(rawValue: id) != nil,
                       BackdropID(rawValue: id) != BackdropID.none

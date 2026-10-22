@@ -313,7 +313,7 @@ extension RecorderComposer {
                                  canvas: CGSize) {
         let bounds = CGRect(origin: .zero, size: canvas)
         switch style.kind {
-        case .none:
+        case .none, .transparent:
             context.setFillColor(CGColor(gray: 0, alpha: 1))
             context.fill(bounds)
         case .preset:

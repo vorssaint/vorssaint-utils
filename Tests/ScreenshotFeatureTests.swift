@@ -2918,6 +2918,55 @@ enum ScreenshotFeatureTests {
                                                colors: [[0, 2, -1], [0.5, 0.5, 0.5]])
                 .sanitized().colors?.first == [0, 1, 0],
                "gradient colors clamp component by component")
+        let transparentStyle = ScreenshotSupport.BackdropStyle(kind: .transparent, colors: [[1, 0, 0]],
+                                                               padding: 0.4, cornerRadius: 0.1)
+        let transparentRoundTrip = ScreenshotSupport.BackdropStyle.decoded(transparentStyle.encoded())
+        suite.expect(transparentRoundTrip.kind == .transparent && transparentRoundTrip.colors == nil
+                && transparentRoundTrip.padding == 0.4 && transparentRoundTrip.cornerRadius == 0.1,
+               "a transparent backdrop round-trips with its sliders and drops stray colors")
+        // The PNG keeps alpha, so the margin of a transparent backdrop has to
+        // reach the file empty, blur slider or not, while the capture stays
+        // opaque; a color backdrop fills the same pixel.
+        func alpha(of image: CGImage, x: Int, y: Int) -> UInt8? {
+            guard let context = CGContext(data: nil, width: image.width, height: image.height,
+                                          bitsPerComponent: 8, bytesPerRow: image.width * 4,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+                  let pixels = context.data
+            else { return nil }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            return pixels.load(fromByteOffset: (y * image.width + x) * 4 + 3, as: UInt8.self)
+        }
+        let cardContext = CGContext(data: nil, width: 400, height: 300, bitsPerComponent: 8,
+                                    bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        cardContext?.setFillColor(CGColor(gray: 0.5, alpha: 1))
+        cardContext?.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+        if let card = cardContext?.makeImage() {
+            func export(_ style: ScreenshotSupport.BackdropStyle,
+                        _ fill: ScreenshotRenderer.BackdropFill) -> CGImage? {
+                ScreenshotRenderer.renderExport(baseImage: card, annotations: [], blurSources: .none,
+                                                scale: 1, annotationShadowsEnabled: false,
+                                                watermark: ScreenshotSupport.WatermarkStyle(),
+                                                watermarkImage: nil, style: style, fill: fill,
+                                                downscaleTo1x: false)?.image
+            }
+            let margin = Int(ScreenshotSupport.backdropPadding(for: CGSize(width: 400, height: 300),
+                                                               factor: 1))
+            let seeThrough = export(ScreenshotSupport.BackdropStyle(kind: .transparent, padding: 1,
+                                                                    cornerRadius: 0.1, blur: 1),
+                                    .transparent)
+            suite.expect(seeThrough?.width == 400 + margin * 2 && seeThrough?.height == 300 + margin * 2,
+                   "a transparent backdrop still adds the margin the slider asks for")
+            suite.expect(seeThrough.flatMap { alpha(of: $0, x: 0, y: 0) } == 0
+                    && seeThrough.flatMap { alpha(of: $0, x: $0.width / 2, y: $0.height / 2) } == 255,
+                   "a transparent backdrop leaves the margin empty and the capture opaque")
+            let filled = export(ScreenshotSupport.BackdropStyle(kind: .solid, colors: [[1, 1, 1]],
+                                                                padding: 1),
+                                .colors([(red: 1, green: 1, blue: 1)]))
+            suite.expect(filled.flatMap { alpha(of: $0, x: 0, y: 0) } == 255,
+                   "a color backdrop fills the margin a transparent one leaves empty")
+        }
 
         let presetList = [solidStyle,
                           ScreenshotSupport.BackdropStyle(kind: .gradient,
