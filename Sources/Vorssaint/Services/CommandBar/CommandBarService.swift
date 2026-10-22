@@ -2313,7 +2313,7 @@ final class CommandBarService: ObservableObject {
     /// An app that is not running is launched and nothing else: there is
     /// nothing in front to hide, and the first press is a launch by
     /// definition. An app that is running but hidden is activated, because
-    /// `AppToggleSupport` reads `isHidden` before the press count, so no
+    /// `CommandBarRowShortcuts.toggleAction` reads `isHidden` before the press count, so no
     /// number of presses can leave a running app with no way back.
     private func toggleAppFromShortcut(_ app: InstalledApps.InstalledApp,
                                        stableKey key: String,
@@ -2328,9 +2328,9 @@ final class CommandBarService: ObservableObject {
         }
         let pid = running.processIdentifier
         let isFrontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
-        switch AppToggleSupport.action(forPress: press,
-                                       isFrontmost: isFrontmost,
-                                       isHidden: running.isHidden) {
+        switch CommandBarRowShortcuts.toggleAction(forPress: press,
+                                                   isFrontmost: isFrontmost,
+                                                   isHidden: running.isHidden) {
         case .activate:
             // Remember who was in front before this app took the screen, so
             // the press that hides it can hand the screen back there rather

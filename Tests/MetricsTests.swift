@@ -51,6 +51,7 @@ struct MetricsTests {
             ("app-toggle", {
                 AppToggleTests.run(suite)
                 AppShortcutToggleTests.run(suite)
+                QuickToolHotkeyIdentityTests.run(suite)
             }),
             ("media", { MediaFeatureTests.run(suite) }),
             ("mixer", {
