@@ -140,15 +140,15 @@ enum AppManagementFeatureTests {
         } else {
             suite.expect(false, "WhatsApp downloads migration suite can be created")
         }
-        suite.expect(DownloadRouter.matchesAgent("WhatsApp",
-                                        configured: DownloadRouter.decodedSources("WhatsApp"))
-                && DownloadRouter.matchesAgent(" whatsapp ",
-                                               configured: DownloadRouter.decodedSources("WhatsApp"))
-                && !DownloadRouter.matchesAgent("SomeBrowser",
-                                                 configured: DownloadRouter.decodedSources("WhatsApp"))
-                && !DownloadRouter.matchesAgent(nil,
-                                                configured: DownloadRouter.decodedSources("WhatsApp"))
-                && !DownloadRouter.matchesAgent("WhatsApp", configured: []),
+        suite.expect(WhatsAppDownloadSupport.matchesAgent("WhatsApp",
+                                        configured: WhatsAppDownloadSupport.decodedSources("WhatsApp"))
+                && WhatsAppDownloadSupport.matchesAgent(" whatsapp ",
+                                               configured: WhatsAppDownloadSupport.decodedSources("WhatsApp"))
+                && !WhatsAppDownloadSupport.matchesAgent("SomeBrowser",
+                                                 configured: WhatsAppDownloadSupport.decodedSources("WhatsApp"))
+                && !WhatsAppDownloadSupport.matchesAgent(nil,
+                                                configured: WhatsAppDownloadSupport.decodedSources("WhatsApp"))
+                && !WhatsAppDownloadSupport.matchesAgent("WhatsApp", configured: []),
                "only an explicitly configured quarantine agent is trusted")
         suite.expect(WhatsAppDownloadSupport.category(contentTypeIdentifier: "public.jpeg",
                                                  extension: "jpeg") == .image
