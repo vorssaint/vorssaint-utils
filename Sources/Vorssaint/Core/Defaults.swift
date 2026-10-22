@@ -1006,6 +1006,7 @@ enum DefaultsKey {
     static let notchLockScreenAgentsHideAmounts = "notchLockScreenAgentsHideAmounts"
     static let notchLockScreenMac = "notchLockScreenMac" // This Mac: system, accessories and battery left of the stage, the calendar on it
     static let notchLockScreenMacHideEvents = "notchLockScreenMacHideEvents"
+    static let notchLockScreenTileTone = "notchLockScreenTileTone" // the widgets' palette, chosen as Job profile
     static let notchLockWallpaper = "notchLockWallpaper" // the moon wallpaper, and what moves on it over the lock screen
     // Companion: a small friend who rests in the closed island and is the Command Bar's face.
     static let notchMascotEnabled = "notchMascotEnabled"
@@ -1635,6 +1636,7 @@ enum Defaults {
         DefaultsKey.notchLockScreenAgentsHideAmounts: false,
         DefaultsKey.notchLockScreenMac: false,
         DefaultsKey.notchLockScreenMacHideEvents: false,
+        DefaultsKey.notchLockScreenTileTone: "graphite",
         DefaultsKey.notchLockWallpaper: false,
         DefaultsKey.notchMascotEnabled: false,
         DefaultsKey.notchMascotVisits: true,
