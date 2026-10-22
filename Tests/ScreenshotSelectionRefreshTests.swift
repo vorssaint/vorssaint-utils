@@ -174,6 +174,7 @@ enum ScreenshotSelectionRefreshContract {
         var outcome: Outcome?
         var currentPointerLocation: CGPoint? = CGPoint(x: 23, y: 61)
         var requiresDraggedRegion = false
+        var windowOnly = false
         var captureExcludedWindowIDs: Set<CGWindowID> {
             ScreenshotCapturePolicy.protectedWindowIDs(
                 workflowWindowIDs: [12], contentWindowIDs: [11, 13],
@@ -285,10 +286,11 @@ enum ScreenshotSelectionRefreshContract {
                 expect(false, "keyboard confirmation returns the existing capture result for \(tool)")
             }
         }
-        for restricted in ["dragged region", "scrolling"] {
+        for restricted in ["dragged region", "scrolling", "window only"] {
             let c = Chooser(.screenshot)
             c.requiresDraggedRegion = restricted == "dragged region"
             c.scrollingCaptureEnabled = restricted == "scrolling"
+            c.windowOnly = restricted == "window only"
             c.confirmSelectionWithKeyboard()
             expect(c.outcome == nil, "keyboard confirmation preserves the \(restricted) restriction")
         }
@@ -319,6 +321,16 @@ enum ScreenshotSelectionRefreshContract {
             expect(other.outcome == nil,
                    "the full-screen control stays unavailable outside screenshot mode")
         }
+        let windowOnly = Chooser(.screenshot)
+        windowOnly.windowOnly = true
+        Chooser.lastRegion = (1, CGRect(x: 0, y: 0, width: 20, height: 20))
+        expect(windowOnly.acceptsWindowClick && !windowOnly.offersRepeatLastRegion
+               && !windowOnly.offersFullScreenCapture,
+               "a window-only surface takes window clicks and offers neither a repeated area nor the full screen")
+        windowOnly.repeatLastRegion()
+        windowOnly.captureFullScreenFromControl(on: windowOnly.panels[0])
+        expect(windowOnly.outcome == nil, "a window-only surface never confirms an area or a whole display")
+        Chooser.lastRegion = nil
         let scrolling = Chooser(.screenshot)
         scrolling.scrollingCaptureEnabled = true
         scrolling.captureFullScreenFromControl(on: scrolling.panels[0])

@@ -652,6 +652,11 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotSupport.isClick(from: CGPoint(x: 5, y: 5), to: CGPoint(x: 7, y: 8))
                 && !ScreenshotSupport.isClick(from: .zero, to: CGPoint(x: 12, y: 0)),
                "a tiny drag is a click, a real drag is not")
+        suite.expect(ScreenshotSupport.capturePointer(windowOnly: true, overControl: false) == .camera
+                && ScreenshotSupport.capturePointer(windowOnly: false, overControl: false) == .crosshair
+                && ScreenshotSupport.capturePointer(windowOnly: true, overControl: true) == .arrow
+                && ScreenshotSupport.capturePointer(windowOnly: false, overControl: true) == .arrow,
+               "picking a window shows a camera, an area the crosshair, the controls the arrow")
 
         let penSquare = [CGPoint(x: 100, y: 100), CGPoint(x: 180, y: 100),
                          CGPoint(x: 180, y: 180), CGPoint(x: 100, y: 180),
@@ -3663,6 +3668,14 @@ enum ScreenshotFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotFullScreenShortcut] as? String
                 == "control+option+command:20",
                "the full-screen shortcut sits beside screenshot selection")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotAreaShortcutEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.screenshotWindowShortcutEnabled] as? Bool == false,
+               "the area-only and window-only shortcuts ship off")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotAreaShortcut] as? String
+                == "control+option+command:19"
+                && Defaults.registeredDefaults[DefaultsKey.screenshotWindowShortcut] as? String
+                == "control+option+command:18",
+               "the area and window shortcuts continue the digit row down from full screen")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastCaptureShortcutEnabled]
                 as? Bool == false,
                "the latest screenshot editor shortcut ships off")
@@ -3743,6 +3756,13 @@ enum ScreenshotFeatureTests {
                 == [DefaultsKey.screenshotFullScreenShortcutEnabled]
                 && GlobalShortcutRole.screenshotFullScreen.feature == .screenshot,
                "the full-screen shortcut has its own opt-in gate")
+        suite.expect(GlobalShortcutRole.screenshotArea.requiredEnableKeys
+                == [DefaultsKey.screenshotAreaShortcutEnabled]
+                && GlobalShortcutRole.screenshotWindow.requiredEnableKeys
+                == [DefaultsKey.screenshotWindowShortcutEnabled]
+                && GlobalShortcutRole.screenshotArea.feature == .screenshot
+                && GlobalShortcutRole.screenshotWindow.feature == .screenshot,
+               "the area-only and window-only shortcuts each have their own opt-in gate")
         suite.expect(GlobalShortcutRole.screenshotLastCapture.requiredEnableKeys
                 == [DefaultsKey.screenshotLastCaptureShortcutEnabled]
                 && GlobalShortcutRole.screenshotLastCapture.feature == .screenshot,

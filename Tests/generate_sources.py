@@ -1637,7 +1637,7 @@ def main():
           + "final class Options { var controlsInNotch = true; var hasFocusedControl = false }\n"
           + "enum Outcome { case cancelled }\nvar screenCaptureOptions: Options? = Options()\n"
           + "var keyMonitor: Any?\nvar globalKeyMonitor: Any?\nvar spaceIsDown = false\n"
-          + "var acceptsWindowClick = true\nvar loupeAcceptsKeyboardActions = false\n"
+          + "var acceptsWindowClick = true\nvar windowOnly = false\nvar loupeAcceptsKeyboardActions = false\n"
           + "var actions: [String] = []\nvar draggingPanel: ScreenshotOverlayPanel?\n"
           + "var isPickingColor = false\nvar acceptsCaptureInput = true\n"
           + "var panels: [ScreenshotOverlayPanel] = []\nvar currentPointerLocation: CGPoint?\n"

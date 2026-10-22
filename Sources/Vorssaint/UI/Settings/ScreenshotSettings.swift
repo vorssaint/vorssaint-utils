@@ -11,6 +11,10 @@ struct ScreenshotCaptureSettings: View {
     @ObservedObject private var sharing = ScreenshotShareService.shared
     @AppStorage(DefaultsKey.screenshotFullScreenShortcutEnabled)
     private var fullScreenShortcutEnabled = false
+    @AppStorage(DefaultsKey.screenshotAreaShortcutEnabled)
+    private var areaShortcutEnabled = false
+    @AppStorage(DefaultsKey.screenshotWindowShortcutEnabled)
+    private var windowShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotLastCaptureShortcutEnabled)
     private var lastCaptureShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotClipboardShortcutEnabled)
@@ -86,6 +90,32 @@ struct ScreenshotCaptureSettings: View {
                     ScreenshotService.shared.syncWithPreferences()
                 }
                 if fullScreenShortcutEnabled, service.fullScreenShortcutRegistrationFailed {
+                    Text(l10n.s.shortcutUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Toggle(strings.areaShortcutTitle, isOn: $areaShortcutEnabled)
+                    .onChange(of: areaShortcutEnabled) { _, _ in
+                        ScreenshotService.shared.syncWithPreferences()
+                    }
+                ShortcutPreferenceRow(role: .screenshotArea,
+                                      isEnabled: areaShortcutEnabled) {
+                    ScreenshotService.shared.syncWithPreferences()
+                }
+                if areaShortcutEnabled, service.areaShortcutRegistrationFailed {
+                    Text(l10n.s.shortcutUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Toggle(strings.windowShortcutTitle, isOn: $windowShortcutEnabled)
+                    .onChange(of: windowShortcutEnabled) { _, _ in
+                        ScreenshotService.shared.syncWithPreferences()
+                    }
+                ShortcutPreferenceRow(role: .screenshotWindow,
+                                      isEnabled: windowShortcutEnabled) {
+                    ScreenshotService.shared.syncWithPreferences()
+                }
+                if windowShortcutEnabled, service.windowShortcutRegistrationFailed {
                     Text(l10n.s.shortcutUnavailable)
                         .font(.caption)
                         .foregroundStyle(.orange)

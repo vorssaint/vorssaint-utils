@@ -844,6 +844,18 @@ enum ScreenshotSupport {
         abs(end.x - origin.x) < clickDragThreshold && abs(end.y - origin.y) < clickDragThreshold
     }
 
+    /// The pointer the selection surface shows: the arrow over its clickable
+    /// controls, a camera while it picks a whole window, as the system's own
+    /// window capture does, and the crosshair while it picks an area.
+    enum CapturePointer: Equatable {
+        case arrow, crosshair, camera
+    }
+
+    static func capturePointer(windowOnly: Bool, overControl: Bool) -> CapturePointer {
+        if overControl { return .arrow }
+        return windowOnly ? .camera : .crosshair
+    }
+
     /// Whether the selection surface should still answer the pointer. Once a
     /// capture is on its way, or the session is over, every remaining event
     /// has to do nothing: the surface has already left the screen and the
