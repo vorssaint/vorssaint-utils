@@ -3,429 +3,300 @@
 
 import SwiftUI
 
-/// The This Mac page left of the lock screen's player: the battery, four
-/// system tiles with their temperatures, the calendar, and storage with the
-/// accessories' batteries, on the AI page's cards. Only the calendar takes
-/// input, and nothing in the page names a device, a disk or a network.
-struct NotchLockScreenMacPage: View {
+/// This Mac's rail left of the stage: CPU, GPU, Memory and Network as two
+/// big rings each, then the accessories' batteries and the Mac's own. It
+/// takes no input, and nothing in it names a device or a network.
+struct NotchLockScreenMacRail: View {
     let size: CGSize
-    let hidesEventTitles: Bool
-    let calendarView: NotchLockScreenCalendarView
+    /// Each of the four gauges' height; the rail gives them its spare room.
+    let gauge: CGFloat
     @ObservedObject private var monitor = SystemMonitor.shared
-    @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var keepAwake = KeepAwakeManager.shared
-    @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
+    /// Wi-Fi or Ethernet, looked up now and then rather than every frame.
+    @State private var connection: NotchLockScreenSystemInfo.Connection?
 
     private typealias Layout = NotchLockScreenLayout
+    private typealias Tile = NotchLockScreenTile
 
     var body: some View {
         let snapshot = monitor.snapshot
-        // With the Calendar section on the card stays, saying so when the
-        // app may not read calendars, rather than leaving a gap to explain.
-        let showsCalendar = NotchCalendarSupport.isEnabled()
-        let plan = Layout.macPlan(height: size.height, calendar: showsCalendar)
-        let text = FeatureStrings.notchLockScreen(l10n.language)
-        VStack(spacing: Layout.macSpacing) {
-            NotchLockScreenPowerCard(power: snapshot.power, history: snapshot.systemPowerHistory,
-                                     keepAwake: keepAwake.isActive, keepAwakeEnd: keepAwake.endDate)
-                .frame(height: Layout.macBattery)
-                .allowsHitTesting(false)
-            HStack(spacing: Layout.macSpacing) {
-                NotchLockScreenMetricTile(
-                    title: l10n.s.cpuLabel, symbol: "cpu", tint: .cyan,
-                    pill: snapshot.cpuTemperature.map(temperature), value: snapshot.cpuUsage.map(MetricFormat.percent),
-                    caption: text.inUse, bars: snapshot.cpuHistory.map { [$0] }, ceiling: 1, tints: [.cyan]) {
-                    fans(snapshot.fanSpeeds, text: text)
-                }
-                NotchLockScreenMetricTile(
-                    title: l10n.s.gpuLabel, symbol: "square.stack.3d.up", tint: .purple,
-                    pill: snapshot.gpuTemperature.map(temperature), value: snapshot.gpuUsage.map(MetricFormat.percent),
-                    caption: text.inUse, bars: snapshot.gpuHistory.map { [$0] }, ceiling: 1, tints: [.purple]) {
-                    EmptyView()
-                }
+        let text = FeatureStrings.notchLockScreenWidgets(l10n.language)
+        VStack(spacing: Layout.cardGap) {
+            HStack(spacing: Layout.cardGap) {
+                cpu(snapshot, text: text)
+                gpu(snapshot, text: text)
             }
-            .frame(height: plan.tile)
-            .allowsHitTesting(false)
-            HStack(spacing: Layout.macSpacing) {
-                NotchLockScreenMemoryTile(snapshot: snapshot)
-                network(snapshot)
+            .frame(height: gauge)
+            HStack(spacing: Layout.cardGap) {
+                memory(snapshot, text: text)
+                network(snapshot, text: text)
             }
-            .frame(height: plan.tile)
-            .allowsHitTesting(false)
-            if showsCalendar {
-                NotchLockScreenCalendarCard(events: calendar.events, hidesTitles: hidesEventTitles,
-                                            access: permissions.calendarAccess, view: calendarView)
-                    .frame(height: plan.calendar)
-            }
-            if plan.storage {
-                NotchLockScreenStorageCard(disk: snapshot.disk, accessories: snapshot.peripheralBatteries)
-                    .frame(height: Layout.macStorage)
-                    .allowsHitTesting(false)
-            }
+            .frame(height: gauge)
+            NotchLockScreenAccessoriesCard(devices: snapshot.peripheralBatteries)
+                .frame(height: Layout.accessoriesHeight)
+            NotchLockScreenBatteryCard(power: snapshot.power, keepAwake: keepAwake.isActive, keepAwakeEnd: keepAwake.endDate)
+                .frame(height: Layout.batteryHeight)
         }
         .frame(width: size.width, height: size.height, alignment: .top)
+        .allowsHitTesting(false)
         .environment(\.locale, l10n.language.formattingLocale())
-    }
-
-    private func temperature(_ celsius: Double) -> String {
-        MetricFormat.temperatureCompact(celsius, unit: TemperatureUnit(rawValue: temperatureUnit) ?? .celsius)
-    }
-
-    @ViewBuilder private func fans(_ speeds: [Double], text: NotchLockScreenStrings) -> some View {
-        if !speeds.isEmpty {
-            let average = Int((speeds.reduce(0, +) / Double(speeds.count)).rounded())
-            HStack(spacing: 4) {
-                Image(systemName: "fan").font(.system(size: 8.5, weight: .semibold))
-                Text(text.fans)
-                Spacer(minLength: 4)
-                Text(String(format: FeatureStrings.fanControl(l10n.language).rpmFormat, average)).monospacedDigit()
-            }
-            .font(.system(size: 9.5, weight: .medium))
-            .foregroundStyle(.secondary)
-        }
-    }
-
-    private func network(_ snapshot: SystemSnapshot) -> some View {
-        let down = snapshot.netDownHistory, up = snapshot.netUpHistory
-        let count = min(down.count, up.count)
-        let bars = (0..<count).map { [down[down.count - count + $0], up[up.count - count + $0]] }
-        let ceiling = max(1, bars.map { $0.reduce(0, +) }.max() ?? 1)
-        return NotchLockScreenMetricTile(
-            title: l10n.s.networkSection, symbol: "arrow.up.arrow.down", tint: .green, pill: nil,
-            value: snapshot.netDownBytesPerSec.map { MetricFormat.networkRate($0) },
-            caption: l10n.s.networkDownload.lowercased(with: l10n.language.formattingLocale()),
-            bars: bars, ceiling: ceiling, tints: [.green, .yellow]) {
-            if let rate = snapshot.netUpBytesPerSec {
-                HStack(spacing: 4) {
-                    Circle().fill(.yellow).frame(width: 5, height: 5)
-                    Text(l10n.s.networkUpload)
-                    Spacer(minLength: 4)
-                    Text(MetricFormat.networkRate(rate)).monospacedDigit()
-                }
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-/// A short reading for each card: a dash until the monitor has one.
-private let notchLockScreenMissing = "—"
-
-/// The battery, or on a Mac without one the power it draws, with Keep
-/// Awake underneath.
-private struct NotchLockScreenPowerCard: View {
-    let power: PowerReading?
-    let history: [Double]
-    let keepAwake: Bool
-    let keepAwakeEnd: Date?
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        let s = l10n.s
-        let island = FeatureStrings.notch(l10n.language)
-        let charge = power?.chargePercent
-        let hasBattery = power?.hasBattery ?? PowerSampler.hasInternalBattery
-        let tint: Color = power?.isCharging == true ? .green : (charge ?? 100) <= 20 ? .red : .white
-        NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 8) {
-                NotchAgentCardHeader(title: hasBattery ? s.powerBattery : s.powerSection,
-                                     symbol: hasBattery ? "battery.75percent" : "bolt", tint: tint) {
-                    if let status = status(island: island) {
-                        Text(status)
-                            .font(.system(size: 9, weight: .semibold))
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(tint.opacity(0.18), in: Capsule())
-                            .foregroundStyle(tint == .white ? Color.white.opacity(0.85) : tint)
-                    }
-                }
-                if hasBattery {
-                    HStack(spacing: 14) {
-                        ring(charge, tint: tint)
-                        VStack(alignment: .leading, spacing: 2) {
-                            headline
-                            rows
-                        }
-                    }
-                    .frame(maxHeight: .infinity)
-                } else {
-                    desktop.frame(maxHeight: .infinity)
-                }
-                Divider().overlay(.white.opacity(0.1))
-                HStack(spacing: 6) {
-                    Image(systemName: keepAwake ? "cup.and.saucer.fill" : "cup.and.saucer")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(keepAwake ? .cyan : .secondary)
-                    Text(s.keepAwakeTitle)
-                    Spacer(minLength: 4)
-                    Group {
-                        if keepAwake, let keepAwakeEnd {
-                            Text(s.keepAwakeUntilLabel + " ")
-                                + Text(keepAwakeEnd, format: .dateTime.hour().minute())
-                        } else {
-                            Text(keepAwake ? "∞" : notchLockScreenMissing)
-                        }
-                    }
-                    .foregroundStyle(keepAwake ? .cyan : .secondary)
-                    .monospacedDigit()
-                }
-                .font(.system(size: 10, weight: .semibold))
+        .task {
+            while !Task.isCancelled {
+                connection = NotchLockScreenSystemInfo.connection()
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
             }
         }
     }
 
-    private func status(island: NotchStrings) -> String? {
-        guard let power, power.hasBattery else { return power?.externalConnected == true ? l10n.s.powerPluggedIn : nil }
-        if power.isCharging { return l10n.s.powerCharging }
-        if !power.externalConnected { return (power.chargePercent ?? 100) <= 20 ? island.lowBattery : l10n.s.powerOnBattery }
-        return power.chargePercent == 100 ? island.charged : l10n.s.powerPluggedIn
+    // MARK: Gauges
+
+    private var unit: TemperatureUnit { TemperatureUnit(rawValue: temperatureUnit) ?? .celsius }
+
+    private func use(_ fraction: Double?, text: NotchLockScreenWidgetStrings) -> NotchLockScreenGauge.Ring {
+        guard let fraction else { return .missing(caption: text.inUse) }
+        return NotchLockScreenGauge.Ring(value: MetricFormat.percent(fraction), caption: text.inUse,
+                                         fill: fraction,
+                                         tint: Tile.color(NotchLockScreenSupport.loadLevel(fraction)))
     }
 
-    private func ring(_ charge: Int?, tint: Color) -> some View {
-        let fraction = Double(charge ?? 0) / 100
-        return ZStack {
-            Circle().stroke(.white.opacity(0.13), lineWidth: 6)
-            Circle().trim(from: 0, to: fraction)
-                .stroke(tint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            Text(charge.map { "\($0)%" } ?? notchLockScreenMissing)
-                .font(.system(size: 15, weight: .semibold))
-                .monospacedDigit()
-        }
-        .frame(width: 60, height: 60)
-        .accessibilityElement(children: .combine)
+    private func temperature(_ celsius: Double?, text: NotchLockScreenWidgetStrings) -> NotchLockScreenGauge.Ring {
+        guard let celsius else { return .missing(caption: text.temp) }
+        return NotchLockScreenGauge.Ring(value: MetricFormat.temperatureCompact(celsius, unit: unit), caption: text.temp,
+                                         fill: NotchLockScreenSupport.temperatureFill(celsius),
+                                         tint: Tile.color(NotchLockScreenSupport.temperatureLevel(celsius)))
     }
 
-    /// What the battery will do next: the time left on battery, or the power
-    /// going in while it charges.
-    @ViewBuilder private var headline: some View {
-        let text = FeatureStrings.notchLockScreen(l10n.language)
-        if let seconds = power?.timeRemainingSeconds, let time = BatteryTimeSupport.formatted(seconds: seconds) {
-            (Text(time).font(.system(size: 15, weight: .medium))
-             + Text(" " + text.remaining).font(.system(size: 9.5, weight: .medium)).foregroundColor(.secondary))
-                .monospacedDigit()
-        } else if let watts = power?.batteryWatts, power?.isCharging == true, watts > 0.5 {
-            (Text("+" + MetricFormat.watts(watts)).font(.system(size: 15, weight: .medium))
-             + Text(" " + l10n.s.powerCharging.lowercased(with: l10n.language.formattingLocale()))
-                .font(.system(size: 9.5, weight: .medium)).foregroundColor(.secondary))
-                .monospacedDigit()
-        }
+    /// The highest use the history holds.
+    private func peak(_ history: [Double], text: NotchLockScreenWidgetStrings) -> String {
+        history.max().map { String(format: text.peakFormat, MetricFormat.percent($0)) } ?? ""
     }
 
-    @ViewBuilder private var rows: some View {
-        let s = l10n.s
-        if let watts = power?.systemWatts { row(s.powerSystem, MetricFormat.watts(watts)) }
-        if power?.externalConnected == true, let adapter = power?.adapterWatts {
-            row(s.powerAdapter, MetricFormat.watts(adapter)
-                + (power?.adapterMaxWatts.map { " · " + String(format: s.powerAdapterMaxFormat, MetricFormat.watts($0)) } ?? ""))
-        } else if let battery = power?.batteryWatts {
-            row(s.powerBattery, MetricFormat.watts(battery))
-        }
-        // Health and cycles share a row, so the card stays short.
-        if let health = power?.healthPercent {
-            row(s.powerHealth, "\(Int(health.rounded()))%" + (power?.cycleCount.map { " · \($0)" } ?? ""))
-        } else if let cycles = power?.cycleCount {
-            row(s.powerCycles, "\(cycles)")
-        }
+    private func cpu(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings) -> some View {
+        let fans = snapshot.fanSpeeds
+        let footer = fans.isEmpty ? "" : String(format: text.fansFormat, String(
+            format: FeatureStrings.fanControl(l10n.language).rpmFormat,
+            Int((fans.reduce(0, +) / Double(fans.count)).rounded())))
+        return NotchLockScreenGauge(
+            title: l10n.s.cpuLabel, note: String(format: text.coresFormat, NotchLockScreenSystemInfo.cpuCores),
+            rings: [use(snapshot.cpuUsage, text: text), temperature(snapshot.cpuTemperature, text: text)],
+            footer: (footer, peak(snapshot.cpuHistory, text: text)), height: gauge)
     }
 
-    private func row(_ name: String, _ value: String) -> some View {
-        HStack(spacing: 6) {
-            Text(name).foregroundStyle(.secondary)
-            Spacer(minLength: 4)
-            Text(value).monospacedDigit()
-        }
-        .font(.system(size: 10, weight: .medium))
-        .lineLimit(1)
+    private func gpu(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings) -> some View {
+        let seconds = snapshot.gpuHistory.count * monitor.intervalSeconds
+        return NotchLockScreenGauge(
+            title: l10n.s.gpuLabel, note: NotchLockScreenSystemInfo.gpuCores.map { String(format: text.coresFormat, $0) } ?? "",
+            rings: [use(snapshot.gpuUsage, text: text), temperature(snapshot.gpuTemperature, text: text)],
+            footer: (seconds >= 60 ? String(format: text.lastMinutesFormat, seconds / 60) : "",
+                     peak(snapshot.gpuHistory, text: text)),
+            height: gauge)
     }
 
-    private var desktop: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(power?.systemWatts.map(MetricFormat.watts) ?? notchLockScreenMissing)
-                .font(.system(size: 22, weight: .medium))
-                .monospacedDigit()
-            NotchLockScreenBars(bars: history.map { [$0] }, ceiling: max(1, history.max() ?? 1), tints: [.green])
-        }
-    }
-}
-
-/// One system tile: its temperature in the corner, the reading, its recent
-/// history as bars and a footer line.
-private struct NotchLockScreenMetricTile<Footer: View>: View {
-    let title: String
-    let symbol: String
-    let tint: Color
-    let pill: String?
-    let value: String?
-    let caption: String
-    let bars: [[Double]]
-    let ceiling: Double
-    let tints: [Color]
-    @ViewBuilder let footer: Footer
-
-    var body: some View {
-        NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: title, symbol: symbol, tint: tint) {
-                    if let pill { NotchLockScreenPill(text: pill, tint: tint) }
-                }
-                NotchLockScreenReading(value: value, caption: caption)
-                NotchLockScreenBars(bars: bars, ceiling: ceiling, tints: tints)
-                footer
+    private func memory(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings) -> some View {
+        let used = snapshot.memoryUsed, total = snapshot.memoryTotal
+        let fraction = used.flatMap { used in total.flatMap { $0 > 0 ? Double(used) / Double($0) : nil } }
+        let pressure: NotchLockScreenGauge.Ring
+        if let level = Self.level(snapshot.memoryPressure) {
+            let (name, fill): (String, Double) = switch level {
+            case .good: (text.pressureLow, 1.0 / 3)
+            case .warning: (text.pressureMedium, 2.0 / 3)
+            case .critical: (text.pressureHigh, 1)
             }
+            pressure = NotchLockScreenGauge.Ring(value: name, caption: text.pressure, fill: fill, tint: Tile.color(level))
+        } else {
+            pressure = .missing(caption: text.pressure)
         }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct NotchLockScreenMemoryTile: View {
-    let snapshot: SystemSnapshot
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        let s = l10n.s
-        let text = FeatureStrings.notchLockScreen(l10n.language)
-        let total = Double(snapshot.memoryTotal ?? 0)
-        let parts: [(Double, Color)] = [
-            (Double(snapshot.memoryAppUsed ?? snapshot.memoryUsed ?? 0), .blue),
-            (Double(snapshot.memoryCompressed ?? 0), .blue.opacity(0.55)),
-            (Double(snapshot.memoryCached ?? 0), .white.opacity(0.35))
-        ]
-        NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 4) {
-                NotchAgentCardHeader(title: s.memorySection, symbol: "memorychip", tint: .blue) {
-                    if let tint = pressureTint { NotchLockScreenPill(text: s.memoryPressure, tint: tint) }
-                }
-                NotchLockScreenReading(value: snapshot.memoryUsed.map(MetricFormat.bytes),
-                                       caption: snapshot.memoryTotal.map { String(format: text.ofTotal, MetricFormat.bytes($0)) } ?? "")
-                GeometryReader { proxy in
-                    HStack(spacing: 2) {
-                        ForEach(parts.indices, id: \.self) { index in
-                            Capsule().fill(parts[index].1)
-                                .frame(width: total > 0 ? max(0, proxy.size.width * parts[index].0 / total - 2) : 0)
-                        }
-                        Capsule().fill(.white.opacity(0.13))
-                    }
-                }
-                .frame(height: 6)
-                Spacer(minLength: 0)
-                Grid(horizontalSpacing: 10, verticalSpacing: 2) {
-                    GridRow {
-                        legend(s.memoryCompressed, snapshot.memoryCompressed, tint: .blue.opacity(0.55))
-                        legend(s.memoryCachedFiles, snapshot.memoryCached, tint: .white.opacity(0.35))
-                    }
-                    GridRow {
-                        legend(s.memorySwapUsed, snapshot.memorySwapUsed, tint: .clear)
-                        Color.clear.frame(height: 0)
-                    }
-                }
-            }
-        }
-        .accessibilityElement(children: .combine)
+        let note = used.flatMap { used in total.map { MetricFormat.bytes(used) + " " + String(
+            format: FeatureStrings.notchLockScreen(l10n.language).ofTotal, MetricFormat.bytes($0)) } } ?? ""
+        return NotchLockScreenGauge(
+            title: l10n.s.memorySection, note: note, rings: [use(fraction, text: text), pressure],
+            footer: (snapshot.memoryCompressed.map { String(format: text.compressedFormat, MetricFormat.bytes($0)) } ?? "",
+                     snapshot.memorySwapUsed.map { String(format: text.swapFormat, MetricFormat.bytes($0)) } ?? ""),
+            height: gauge)
     }
 
-    /// Pressure as a color, the way Activity Monitor draws it.
-    private var pressureTint: Color? {
-        switch snapshot.memoryPressure {
-        case .normal: return .green
-        case .warning: return .yellow
-        case .critical: return .red
+    /// Pressure as the kernel reports it: Low, Medium and High in green,
+    /// yellow and red, as Activity Monitor draws it.
+    static func level(_ pressure: MemoryPressure) -> NotchLockScreenLevel? {
+        switch pressure {
+        case .normal: return .good
+        case .warning: return .warning
+        case .critical: return .critical
         case .unknown: return nil
         }
     }
 
-    private func legend(_ name: String, _ bytes: UInt64?, tint: Color) -> some View {
-        HStack(spacing: 5) {
-            RoundedRectangle(cornerRadius: 1.5).fill(tint).frame(width: 5, height: 5)
-            Text(name).foregroundStyle(.secondary)
-            Spacer(minLength: 4)
-            Text(bytes.map(MetricFormat.bytes) ?? notchLockScreenMissing).monospacedDigit()
+    /// Each direction's rate against the busiest the history holds, so the
+    /// rings move with the traffic whatever the line's speed.
+    private func network(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings) -> some View {
+        let peak = max(1, (snapshot.netDownHistory + snapshot.netUpHistory).max() ?? 1)
+        func rate(_ bytes: Double?, caption: String, tint: Color) -> NotchLockScreenGauge.Ring {
+            guard let bytes else { return .missing(caption: caption) }
+            let reading = MetricFormat.networkRate(bytes)
+            let parts = reading.split(separator: " ", maxSplits: 1).map(String.init)
+            return NotchLockScreenGauge.Ring(value: parts.first ?? reading, unit: parts.count > 1 ? parts[1] : nil,
+                                             caption: caption, fill: bytes / peak, tint: tint)
         }
-        .font(.system(size: 9.5, weight: .medium))
-        .lineLimit(1)
+        let total = snapshot.netTotalDown.flatMap { down in snapshot.netTotalUp.map { down &+ $0 } }
+        let top = snapshot.netDownHistory.max()
+        return NotchLockScreenGauge(
+            title: l10n.s.networkSection,
+            note: connection.map { $0 == .wifi ? text.wifi : text.ethernet } ?? "",
+            rings: [rate(snapshot.netDownBytesPerSec, caption: text.down, tint: Tile.down),
+                    rate(snapshot.netUpBytesPerSec, caption: text.up, tint: Tile.up)],
+            footer: (total.map { String(format: text.totalFormat, MetricFormat.bytes($0)) } ?? "",
+                     top.map { String(format: text.peakFormat, MetricFormat.networkRate($0)) } ?? ""),
+            height: gauge)
     }
 }
 
-/// The built-in disk: free space, what fills it and how the drive is. An
-/// external drive is only counted, since its name could say whose it is.
-/// The accessories' batteries run along its foot.
-private struct NotchLockScreenStorageCard: View {
-    let disk: DiskReading?
-    let accessories: [PeripheralBatteryDevice]
-    @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
+/// A gauge card: its name and a note, two big rings with their readings
+/// inside, and a footer line.
+struct NotchLockScreenGauge: View {
+    struct Ring {
+        var value: String
+        var unit: String?
+        var caption: String
+        var fill: Double
+        var tint: Color
+
+        init(value: String, unit: String? = nil, caption: String, fill: Double, tint: Color) {
+            self.value = value
+            self.unit = unit
+            self.caption = caption
+            self.fill = fill
+            self.tint = tint
+        }
+
+        /// A dash on the track until the monitor has a reading.
+        static func missing(caption: String) -> Ring {
+            Ring(value: "—", caption: caption, fill: 0, tint: .clear)
+        }
+    }
+
+    let title: String
+    let note: String
+    let rings: [Ring]
+    let footer: (String, String)
+    let height: CGFloat
+
+    /// The rings take what the card's other lines leave, within reason.
+    private var diameter: CGFloat { min(86, max(56, height - 98)) }
 
     var body: some View {
-        let s = l10n.s
-        let text = FeatureStrings.notchLockScreen(l10n.language)
-        let devices = disk?.devices ?? []
-        let builtIn = devices.first { $0.isInternal && $0.mountPath == "/" } ?? devices.first { $0.isInternal }
-        let externals = devices.filter { !$0.isInternal }.count
-        NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 8) {
-                NotchAgentCardHeader(title: s.diskStorageSettings, symbol: "internaldrive", tint: .secondary) {
-                    if let status = builtIn?.smart?.status, !status.isEmpty {
-                        NotchLockScreenPill(text: status, tint: .green)
-                    }
+        VStack(alignment: .leading, spacing: 7) {
+            NotchLockScreenSection(title: title) { Text(note) }
+            HStack {
+                ForEach(rings.indices, id: \.self) { index in
+                    if index > 0 { Spacer(minLength: 4) }
+                    ring(rings[index])
                 }
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        NotchLockScreenReading(value: builtIn.map { MetricFormat.diskBytes($0.freeBytes) },
-                                               caption: builtIn.map { String(format: text.freeOf, MetricFormat.diskBytes($0.totalBytes)) } ?? "")
-                        if let builtIn { usage(builtIn) }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Divider().overlay(.white.opacity(0.12))
-                    Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 3) {
-                        GridRow {
-                            detail(s.diskRead, builtIn?.readBytesPerSec.map(MetricFormat.bytesPerSec))
-                            detail(s.diskWrite, builtIn?.writeBytesPerSec.map(MetricFormat.bytesPerSec))
-                            detail(s.diskHealth, builtIn?.smart?.healthPercent.map { "\($0)%" })
-                        }
-                        GridRow {
-                            detail(s.diskTemperature, builtIn?.smart?.temperatureCelsius.map {
-                                MetricFormat.temperature($0, unit: TemperatureUnit(rawValue: temperatureUnit) ?? .celsius)
-                            })
-                            detail(s.diskTotalWritten, (builtIn?.smart?.totalWrittenBytes ?? builtIn?.totalWrittenBytes)
-                                .map(MetricFormat.diskBytesPrecise))
-                            detail(s.diskExternal, "\(externals)")
-                        }
-                    }
-                    .frame(width: 200, alignment: .leading)
-                }
-                Divider().overlay(.white.opacity(0.1))
-                accessoryStrip
             }
+            .frame(maxHeight: .infinity)
+            HStack {
+                Text(footer.0)
+                Spacer(minLength: 4)
+                Text(footer.1)
+            }
+            .font(.system(size: 10, weight: .semibold))
+            .monospacedDigit()
+            .foregroundStyle(NotchLockScreenTile.dim)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
         }
+        .lockScreenTile(horizontal: 17, vertical: 14)
         .accessibilityElement(children: .combine)
     }
 
-    /// Each accessory by its kind alone, since a Bluetooth name can carry a
-    /// person's name.
-    private var accessoryStrip: some View {
-        let shown = Array(PeripheralBatterySupport.sorted(accessories).prefix(4))
-        return HStack(spacing: 12) {
-            Text(FeatureStrings.notchLockScreen(l10n.language).accessories.uppercased(with: l10n.language.formattingLocale()))
-                .font(.system(size: 8, weight: .semibold))
-                .tracking(0.5)
-                .foregroundStyle(.secondary)
-            if shown.isEmpty {
-                Text(l10n.s.peripheralBatteryNoDevices).foregroundStyle(.secondary)
-            }
-            ForEach(shown) { device in
-                HStack(spacing: 4) {
-                    Image(systemName: Self.symbol(device.kind)).font(.system(size: 9.5, weight: .semibold))
-                    Text("\(device.percent)%")
+    private func ring(_ ring: Ring) -> some View {
+        let size = diameter * (ring.value.count > 4 ? 0.26 : 0.32)
+        return VStack(spacing: 5) {
+            NotchLockScreenRing(fill: ring.fill, tint: ring.tint, diameter: diameter) {
+                VStack(spacing: 2) {
+                    Text(ring.value)
+                        .font(NotchLockScreenTile.rounded(size))
+                        .tracking(-0.5)
                         .monospacedDigit()
-                        .foregroundStyle(device.percent <= 20 ? Color.red : .primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                    if let unit = ring.unit {
+                        Text(unit)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(NotchLockScreenTile.dim)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, diameter * 0.1)
+            }
+            Text(ring.caption.uppercased())
+                .font(.system(size: 9, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(NotchLockScreenTile.dim)
+                .lineLimit(1)
+        }
+    }
+}
+
+/// Up to four accessories' batteries as rings, each by its kind alone,
+/// since a Bluetooth name can carry a person's name.
+private struct NotchLockScreenAccessoriesCard: View {
+    let devices: [PeripheralBatteryDevice]
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let text = FeatureStrings.notchLockScreenWidgets(l10n.language)
+        let shown = Array(PeripheralBatterySupport.sorted(devices).prefix(4))
+        VStack(alignment: .leading, spacing: 8) {
+            NotchLockScreenSection(title: FeatureStrings.notchLockScreen(l10n.language).accessories,
+                                   symbol: "dot.radiowaves.left.and.right") {
+                if !devices.isEmpty { Text(String(format: text.connectedFormat, devices.count)) }
+            }
+            if shown.isEmpty {
+                Text(l10n.s.peripheralBatteryNoDevices)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(NotchLockScreenTile.dim)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                HStack(spacing: 8) {
+                    ForEach(0..<4, id: \.self) { index in
+                        if index < shown.count {
+                            accessory(shown[index], text: text)
+                        } else {
+                            Color.clear
+                        }
+                    }
+                }
+                .frame(maxHeight: .infinity)
+            }
+        }
+        .lockScreenTile(horizontal: 20, vertical: 12)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func accessory(_ device: PeripheralBatteryDevice, text: NotchLockScreenWidgetStrings) -> some View {
+        let level = NotchLockScreenSupport.chargeLevel(device.percent)
+        return VStack(spacing: 5) {
+            NotchLockScreenRing(fill: Double(device.percent) / 100, tint: NotchLockScreenTile.color(level),
+                                diameter: 60, lineWidth: 5.5) {
+                VStack(spacing: 0) {
+                    Image(systemName: Self.symbol(device.kind))
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("\(device.percent)%")
+                        .font(NotchLockScreenTile.rounded(14))
+                        .monospacedDigit()
+                        .foregroundStyle(level == .critical ? NotchLockScreenTile.light(.critical) : NotchLockScreenTile.text)
                 }
             }
-            Spacer(minLength: 0)
+            Text(Self.name(device.kind, text: text).uppercased())
+                .font(.system(size: 9, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(NotchLockScreenTile.dim)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .font(.system(size: 9.5, weight: .semibold))
-        .lineLimit(1)
+        .frame(maxWidth: .infinity)
     }
 
     static func symbol(_ kind: PeripheralBatteryKind) -> String {
@@ -438,108 +309,145 @@ private struct NotchLockScreenStorageCard: View {
         }
     }
 
-    private func usage(_ device: DiskDeviceReading) -> some View {
-        let total = Double(max(1, device.totalBytes))
-        let purgeable = Double(device.purgeableBytes ?? 0)
-        let used = Double(device.usedBytes)
-        return VStack(alignment: .leading, spacing: 4) {
-            GeometryReader { proxy in
-                HStack(spacing: 2) {
-                    Capsule().fill(.white.opacity(0.65)).frame(width: max(0, proxy.size.width * used / total - 2))
-                    Capsule().fill(.white.opacity(0.3)).frame(width: max(0, proxy.size.width * purgeable / total - 2))
-                    Capsule().fill(.white.opacity(0.13))
-                }
+    static func name(_ kind: PeripheralBatteryKind, text: NotchLockScreenWidgetStrings) -> String {
+        switch kind {
+        case .keyboard: return text.keyboard
+        case .mouse: return text.mouse
+        case .trackpad: return text.trackpad
+        case .audio: return text.headphones
+        case .device: return text.device
+        }
+    }
+}
+
+/// The battery: its charge in a ring, the time left in big numbers or the
+/// power going in, then what it draws, its health and Keep Awake. A Mac
+/// without one shows what the whole system draws.
+private struct NotchLockScreenBatteryCard: View {
+    let power: PowerReading?
+    let keepAwake: Bool
+    let keepAwakeEnd: Date?
+    @ObservedObject private var l10n = L10n.shared
+
+    private typealias Tile = NotchLockScreenTile
+
+    /// Keep Awake's own red, as its eye in the island.
+    private static let awake = Color(red: 1, green: 0x8A / 255, blue: 0x80 / 255)
+
+    var body: some View {
+        let s = l10n.s
+        let hasBattery = power?.hasBattery ?? PowerSampler.hasInternalBattery
+        VStack(alignment: .leading, spacing: 8) {
+            NotchLockScreenSection(title: hasBattery ? s.powerBattery : s.powerSection,
+                                   symbol: hasBattery ? "battery.75percent" : "bolt") {
+                if let badge = badge { NotchLockScreenBadge(text: badge.0, level: badge.1) }
             }
-            .frame(height: 6)
-            HStack(spacing: 8) {
-                Text(MetricFormat.diskBytes(device.usedBytes) + " " + l10n.s.diskUsed)
-                if let bytes = device.purgeableBytes, bytes > 0 {
-                    Text(MetricFormat.diskBytes(bytes) + " " + l10n.s.diskPurgeable)
-                }
-            }
-            .font(.system(size: 9.5, weight: .medium))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-        }
-    }
-
-    private func detail(_ name: String, _ value: String?) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(name)
-                .font(.system(size: 8.5, weight: .semibold))
-                .foregroundStyle(.secondary)
-            Text(value ?? notchLockScreenMissing)
-                .font(.system(size: 10, weight: .semibold))
-                .monospacedDigit()
-        }
-        .lineLimit(1)
-    }
-}
-
-private struct NotchLockScreenReading: View {
-    let value: String?
-    let caption: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(value ?? notchLockScreenMissing)
-                .font(.system(size: 20, weight: .medium))
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(caption)
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-    }
-}
-
-private struct NotchLockScreenPill: View {
-    let text: String
-    let tint: Color
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 9, weight: .semibold))
-            .monospacedDigit()
-            .lineLimit(1)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(tint.opacity(0.18), in: Capsule())
-            .foregroundStyle(tint)
-    }
-}
-
-/// Recent samples as bars, newest on the right; each bar stacks its parts
-/// from the bottom in `tints` order.
-private struct NotchLockScreenBars: View {
-    let bars: [[Double]]
-    let ceiling: Double
-    let tints: [Color]
-    static let count = 30
-
-    var body: some View {
-        let shown = Array(bars.suffix(Self.count))
-        GeometryReader { proxy in
-            HStack(alignment: .bottom, spacing: 2) {
-                ForEach(0..<Self.count, id: \.self) { index in
-                    let offset = index - (Self.count - shown.count)
-                    VStack(spacing: 1) {
-                        Spacer(minLength: 0)
-                        if offset >= 0 {
-                            ForEach(Array(shown[offset].enumerated().reversed()), id: \.offset) { part in
-                                RoundedRectangle(cornerRadius: 1.5)
-                                    .fill(tints[min(part.offset, tints.count - 1)])
-                                    .frame(height: max(1, proxy.size.height * min(1, part.element / max(ceiling, .leastNonzeroMagnitude))))
-                            }
-                        }
+            HStack(spacing: 16) {
+                if hasBattery {
+                    let charge = power?.chargePercent
+                    NotchLockScreenRing(fill: Double(charge ?? 0) / 100,
+                                        tint: charge.map { Tile.color(NotchLockScreenSupport.chargeLevel($0)) } ?? .clear,
+                                        diameter: 72, lineWidth: 7) {
+                        Text(charge.map { "\($0)%" } ?? "—")
+                            .font(Tile.rounded(21))
+                            .monospacedDigit()
                     }
-                    .frame(maxWidth: .infinity)
                 }
+                headline
+                    .frame(width: hasBattery ? 112 : 180, alignment: .leading)
+                Rectangle().fill(Tile.rule).frame(width: 1).frame(maxHeight: .infinity)
+                rows
+                    .frame(maxWidth: .infinity)
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .lockScreenTile(horizontal: 20, vertical: 12)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var level: NotchLockScreenLevel? { power?.chargePercent.map(NotchLockScreenSupport.chargeLevel) }
+
+    private var badge: (String, NotchLockScreenLevel?)? {
+        let s = l10n.s
+        let island = FeatureStrings.notch(l10n.language)
+        guard let power, power.hasBattery else { return power?.externalConnected == true ? (s.powerPluggedIn, nil) : nil }
+        if power.isCharging { return (s.powerCharging, .good) }
+        if !power.externalConnected {
+            return (power.chargePercent ?? 100) < 20 ? (island.lowBattery, .critical) : (s.powerOnBattery, nil)
+        }
+        return (power.chargePercent == 100 ? island.charged : s.powerPluggedIn, nil)
+    }
+
+    /// The time left at this rate, or the power going in while it charges.
+    private var headline: some View {
+        let text = FeatureStrings.notchLockScreenWidgets(l10n.language)
+        let big: String
+        let caption: String
+        if power?.hasBattery == false || (power == nil && !PowerSampler.hasInternalBattery) {
+            big = power?.systemWatts.map(MetricFormat.watts) ?? "—"
+            caption = l10n.s.powerSystem
+        } else if power?.isCharging == true, let watts = power?.batteryWatts, watts > 0.5 {
+            big = MetricFormat.watts(watts)
+            caption = l10n.s.powerCharging.lowercased(with: l10n.language.formattingLocale())
+        } else if let seconds = power?.timeRemainingSeconds, let time = BatteryTimeSupport.formatted(seconds: seconds) {
+            big = time
+            caption = text.leftAtRate
+        } else if power?.externalConnected == true {
+            // On power and not charging: held where it is, or full.
+            big = power?.chargePercent == 100 ? FeatureStrings.notch(l10n.language).charged : l10n.s.powerPluggedIn
+            caption = power?.adapterWatts.map(MetricFormat.watts) ?? ""
+        } else {
+            big = "—"
+            caption = text.leftAtRate
+        }
+        return VStack(alignment: .leading, spacing: 1) {
+            Text(big)
+                .font(Tile.rounded(28))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(caption)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Tile.dim)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+
+    private var rows: some View {
+        let s = l10n.s
+        let text = FeatureStrings.notchLockScreenWidgets(l10n.language)
+        return VStack(spacing: 5) {
+            if power?.isCharging == true || (power?.hasBattery == false && power?.externalConnected == true),
+               let adapter = power?.adapterWatts {
+                row(s.powerAdapter, MetricFormat.watts(adapter) + (power?.adapterMaxWatts.map {
+                    " " + String(format: FeatureStrings.notchLockScreen(l10n.language).ofTotal, MetricFormat.watts($0))
+                } ?? ""), tint: power?.hasBattery == true ? Tile.light(.good) : Tile.text)
+            } else if power?.hasBattery != false,
+                      let watts = power?.systemWatts ?? power?.batteryWatts.map(abs) {
+                row(text.using, MetricFormat.watts(watts), tint: level == .critical ? Tile.light(.critical) : Tile.text)
+            }
+            if let health = power?.healthPercent {
+                row(s.powerHealth, "\(Int(health.rounded()))%"
+                    + (power?.cycleCount.map { " · " + String(format: text.cyclesFormat, $0) } ?? ""), tint: Tile.text)
+            } else if let cycles = power?.cycleCount {
+                row(s.powerCycles, "\(cycles)", tint: Tile.text)
+            }
+            if keepAwake {
+                row(text.awakeUntil, keepAwakeEnd.map { $0.formatted(.dateTime.hour().minute()) } ?? "∞", tint: Self.awake)
             }
         }
-        .frame(maxHeight: .infinity)
-        .accessibilityHidden(true)
+    }
+
+    private func row(_ name: String, _ value: String, tint: Color) -> some View {
+        HStack(spacing: 6) {
+            Text(name).foregroundStyle(Tile.dim)
+            Spacer(minLength: 4)
+            Text(value).foregroundStyle(tint)
+        }
+        .font(.system(size: 10.5, weight: .semibold))
+        .monospacedDigit()
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
     }
 }

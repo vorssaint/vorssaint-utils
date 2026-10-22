@@ -85,7 +85,6 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLockScreenAgentsHideAmounts) private var lockScreenHidesAmounts = false
     @AppStorage(DefaultsKey.notchLockScreenMac) private var lockScreenMac = false
     @AppStorage(DefaultsKey.notchLockScreenMacHideEvents) private var lockScreenHidesEvents = false
-    @AppStorage(DefaultsKey.notchLockScreenMacCalendarView) private var lockScreenCalendarView = NotchLockScreenCalendarView.day.rawValue
     @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = false
@@ -655,7 +654,7 @@ struct NotchSettings: View {
             let locked = FeatureStrings.notchLockScreen(l10n.language)
             SettingsCard(title: locked.title) {
                 switchRow("lock.display", locked.show, caption: locked.showHint, isOn: $lockScreen)
-                // The AI page beside the player, and what it keeps back.
+                // The AI rail beside the stage, and what it keeps back.
                 if lockScreen, NotchAgentSupport.sectionShows() {
                     switchRow("sparkles", FeatureStrings.notchAgents(l10n.language).title, caption: locked.agentsHint,
                               isOn: $lockScreenAgents)
@@ -669,27 +668,13 @@ struct NotchSettings: View {
                         .padding(.leading, settingsRowTextInset)
                     }
                 }
-                // The machine itself left of the player, its calendar's titles
-                // and how much of the calendar it covers.
+                // The machine itself left of the stage, and its calendar's titles.
                 if lockScreen {
                     switchRow("laptopcomputer", locked.mac, caption: locked.macHint, isOn: $lockScreenMac)
                     if lockScreenMac {
-                        Group {
-                            switchRow("calendar.badge.minus", locked.hideEvents, caption: locked.hideEventsHint,
-                                      isOn: $lockScreenHidesEvents)
-                            SettingsRow(symbol: "calendar", title: locked.calendarView, caption: locked.calendarViewHint) {
-                                Picker(locked.calendarView, selection: $lockScreenCalendarView) {
-                                    Text(locked.dayView).tag(NotchLockScreenCalendarView.day.rawValue)
-                                    Text(locked.weekView).tag(NotchLockScreenCalendarView.week.rawValue)
-                                    Text(FeatureStrings.notchCalendar(l10n.language).month)
-                                        .tag(NotchLockScreenCalendarView.month.rawValue)
-                                }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
-                                .fixedSize()
-                            }
-                        }
-                        .padding(.leading, settingsRowTextInset)
+                        switchRow("calendar.badge.minus", locked.hideEvents, caption: locked.hideEventsHint,
+                                  isOn: $lockScreenHidesEvents)
+                            .padding(.leading, settingsRowTextInset)
                     }
                 }
                 switchRow("speaker.wave.2", locked.sounds, caption: locked.soundsHint, isOn: $lockSounds)
