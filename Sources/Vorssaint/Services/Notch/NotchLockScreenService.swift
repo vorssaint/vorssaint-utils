@@ -151,9 +151,14 @@ final class NotchLockScreenService {
                     window: frame.size, origin: CGPoint(x: surface.minX - frame.minX, y: frame.maxY - surface.maxY)))
             }
         }
+        if !scene.isEmpty { startSources(gates) }
+        // What moves on the moon wallpaper, over the still frame and under
+        // every widget: shown first, so the widgets are ordered over it.
+        if let live = NotchLockWallpaper.liveScene() {
+            scene.insert(Self.makePanel(frame: live.frame, content: NotchLockWallpaperLayer(scene: live.scene)), at: 0)
+        }
         let panels = scene + [island].compactMap { $0 }
         guard !panels.isEmpty else { space.close(); return }
-        if !scene.isEmpty { startSources(gates) }
         // Joined before they are first shown, the windows belong to this
         // Space alone and are drawn over the lock screen with it.
         for panel in panels { space.add(panel) }

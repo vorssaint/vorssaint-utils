@@ -16,6 +16,7 @@ enum NotchLockScreenTests {
         widgetContracts(suite)
         contentContracts(suite)
         soundContracts(suite)
+        wallpaperContracts(suite)
     }
 
     static func sessionContracts(_ suite: TestSuite) {
@@ -89,6 +90,13 @@ enum NotchLockScreenTests {
         suite.expect(NotchLockScreenSupport.showsMusic(in: defaults), "an island resting empty still shows music when locked")
         defaults.set(NotchModule.music.rawValue, forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchLockScreenSupport.showsMusic(in: defaults), "hiding the Music section hides the player")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchLockWallpaper] as? Bool == false
+                     && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchLockWallpaper),
+                     "the moon wallpaper is opt-in and travels with backups")
+        defaults.set(true, forKey: DefaultsKey.notchLockWallpaper)
+        suite.expect(!NotchLockScreenSupport.showsWallpaper(in: defaults), "the moon wallpaper moves only with the lock screen on")
+        defaults.set(true, forKey: DefaultsKey.notchLockScreen)
+        suite.expect(NotchLockScreenSupport.showsWallpaper(in: defaults), "with the lock screen on, it follows its own switch")
     }
 
     static func layoutContracts(_ suite: TestSuite) {
@@ -334,5 +342,52 @@ enum NotchLockScreenTests {
         suite.expect(lock != nil && unlock != nil && lock != unlock, "locking and unlocking each have their own sound")
         suite.expect([lock, unlock].allSatisfy { $0.map { FileManager.default.fileExists(atPath: $0.path) } == true },
                      "both sounds are files this Mac has")
+    }
+
+    /// The moon wallpaper's sky, the phase it shows and where anything may
+    /// move. Nothing here draws a whole frame or sets a desktop picture.
+    static func wallpaperContracts(_ suite: TestSuite) {
+        typealias Scene = NotchLockWallpaperScene
+        // A full moon: 25 January 2024, 17:54 UTC.
+        let full = Scene.phase(at: Date(timeIntervalSince1970: 1_706_205_240))
+        suite.expect(abs(full - 0.5) < 0.02, "a known full moon reads as full, got \(full)")
+        suite.expect(Scene.phase(at: Date(timeIntervalSince1970: 947_182_440)) < 0.001,
+                     "the reference new moon reads as new")
+        suite.expect(Scene.sun(phase: 0).z < -0.9 && Scene.sun(phase: 0.5).z > 0.9,
+                     "a new moon is lit from behind and a full one from the front")
+        suite.expect(Scene.sun(phase: 0.25).x > 0.9 && Scene.sun(phase: 0.75).x < -0.9,
+                     "it waxes on the right and wanes on the left")
+        suite.expect(Scene.earthshine(phase: 0) > Scene.earthshine(phase: 0.5),
+                     "earthshine is brightest at new moon")
+
+        // The built-in displays and their scaled sizes, in points.
+        let sizes: [(Double, Double)] = [(1470, 956), (1512, 982), (1728, 1117), (1800, 1169), (2056, 1329), (1280, 832)]
+        for (width, height) in sizes {
+            let scene = Scene(width: width, height: height, scale: 2)
+            let label = "\(Int(width))×\(Int(height))"
+            let moon = scene.moonCentre, r = scene.moonRadius
+            // The crest clears the rails, and the disc the login controls.
+            suite.expect(Double(moon.y) - r > scene.railBottom, "\(label): the moon crests under the rails")
+            let login = scene.systemZones.last!
+            let corner = (x: login.x + login.w, y: login.y + login.h)
+            var clearOfLogin = true
+            var y = login.y
+            while y <= corner.y {
+                let dx = corner.x - Double(moon.x), dy = y - Double(moon.y)
+                if (dx * dx + dy * dy).squareRoot() < r + Scene.moonFade { clearOfLogin = false }
+                y += 4
+            }
+            suite.expect(clearOfLogin, "\(label): the moon and its fade keep off the login controls")
+            suite.expect(Double(moon.x) - r < width - 120, "\(label): enough of the moon stays on the display")
+            let stars = scene.sparklingStars()
+            suite.expect(!stars.isEmpty, "\(label): some stars are bright enough to sparkle")
+            suite.expect(stars.allSatisfy { scene.isOpenSky($0.x, $0.y, clearance: 20) },
+                         "\(label): every sparkle is out in open sky")
+            for zone in scene.wells + scene.systemZones {
+                let centre = (x: zone.x + zone.w / 2, y: zone.y + zone.h / 2)
+                suite.expect(!scene.isOpenSky(centre.x, centre.y, clearance: 0),
+                             "\(label): nothing moves over a widget or the system's controls")
+            }
+        }
     }
 }
