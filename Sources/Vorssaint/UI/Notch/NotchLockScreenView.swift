@@ -18,6 +18,8 @@ final class NotchLockScreenModel: ObservableObject {
         var page = false
         /// The This Mac page left of the player.
         var mac = false
+        /// Events read Busy, as This Mac's own calendar shows them.
+        var hidesEventTitles = false
     }
 
     @Published var gates = Gates()
@@ -415,7 +417,8 @@ struct NotchLockScreenActivities: View {
                 let text = FeatureStrings.notchCalendar(l10n.language)
                 HStack(spacing: 7) {
                     Image(systemName: "calendar").foregroundStyle(countdown.event.color.color)
-                    Text(NotchCalendarStrip.displayTitle(countdown.event, untitled: text.untitled))
+                    Text(model.gates.hidesEventTitles ? FeatureStrings.notchLockScreen(l10n.language).busy
+                         : NotchCalendarStrip.displayTitle(countdown.event, untitled: text.untitled))
                         .frame(maxWidth: 240, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(NotchCalendarSupport.countdownText(until: countdown.target, now: date))
