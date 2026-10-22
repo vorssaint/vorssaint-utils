@@ -291,6 +291,12 @@ struct NotchView: View {
             .accessibilityAction(named: l10n.s.menuSettings) { service.openSettings() }
             .accessibilityAction(named: text.collapse) { service.collapse() }
             .padding(.top, geometry.pageTopInset - geometry.headerTopInset)
+            .overlay(alignment: .top) {
+                if geometry.topBarHeight > 0 {
+                    NotchTopBarView(service: service)
+                        .padding(.top, geometry.topBarOffset)
+                }
+            }
             .overlayPreferenceValue(NotchBandKey.self, alignment: .top) { items in
                 if geometry.headerRowHeight > 0 {
                     bandRow(items, band: band, wraps: wraps)
@@ -579,7 +585,10 @@ struct NotchView: View {
             case .calendar: NotchCalendarView(size: pageSize)
             case .controls: NotchControlsView(service: service, size: pageSize)
             case .mixer: NotchMixerView(size: pageSize)
-            case .music: NotchMusicView(size: pageSize, extrasHeight: service.geometry.musicExtrasHeight)
+            case .music:
+                NotchMusicView(size: pageSize, extrasHeight: service.geometry.musicExtrasHeight)
+                    // Below the top bar the player no longer sits beside the camera.
+                    .transformEnvironment(\.notchBand) { if service.geometry.topBarHeight > 0 { $0.besideCamera = false } }
             case .clipboard: NotchClipboardView(service: service, size: pageSize)
             case .captures:
                 if let capture = service.captureContent {
@@ -599,6 +608,9 @@ struct NotchView: View {
             case .scratchpad: NotchScratchpadView(service: service)
             case .agents: NotchAgentsView(size: pageSize)
             case .watch: NotchWatchView(size: pageSize)
+            case .keepAwake: NotchKeepAwakePage(size: pageSize)
+            case .microphone: NotchMicrophonePage(size: pageSize)
+            case .battery: NotchBatteryPage(size: pageSize)
             }
         }
     }
@@ -834,6 +846,9 @@ extension NotchModule: PanelOrderItem {
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .agents: return FeatureStrings.notchAgents(language).title
         case .watch: return FeatureStrings.notchWatch(language).title
+        case .keepAwake: return Strings.localized(language).keepAwakeTitle
+        case .microphone: return Strings.localized(language).micMuteName
+        case .battery: return Strings.localized(language).batteryLabel
         }
     }
 }

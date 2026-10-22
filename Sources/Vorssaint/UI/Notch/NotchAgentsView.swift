@@ -66,11 +66,6 @@ struct NotchAgentsView: View {
                         grid(rows, now: context.date)
                     }
                 }
-                // The period drives several cards, so it sits in the island's
-                // top row, beside the camera, while any of them shows.
-                .notchBand(leading: {
-                    if rows.joined().contains(where: { $0.card.followsPeriod }) { periodMenu }
-                })
             }
         }
         .frame(width: size.width, height: size.height, alignment: .top)
@@ -83,14 +78,6 @@ struct NotchAgentsView: View {
             guard !preview else { return }
             usage.pageDidDisappear()
             accounts.pageDidDisappear()
-        }
-    }
-
-    private var periodMenu: some View {
-        NotchMenuButton(title: text.period(chosenPeriod), items: AgentPeriod.allCases.map { option in
-            NotchMenuItem(title: text.period(option), checked: option == chosenPeriod) { period = option.rawValue }
-        }, cornerRadius: 9) {
-            NotchBandMenuLabel(title: text.period(chosenPeriod))
         }
     }
 
@@ -121,7 +108,7 @@ struct NotchAgentsView: View {
         case .live:
             NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
         case .trend:
-            NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
+            NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text) { period = $0.rawValue }
         case .models:
             NotchAgentShareCard(title: text.modelsCard, symbol: NotchAgentCard.models.symbol,
                                 shares: snapshot.usage(shown).models, byCost: snapshot.usage(shown).fullyPriced, text: text)
@@ -633,8 +620,11 @@ private struct NotchAgentTrendCard: View {
     let providers: [AgentProvider]
     let period: AgentPeriod
     let text: NotchAgentStrings
+    /// The card picks the period itself; the cards that follow it change too.
+    let choose: (AgentPeriod) -> Void
     @State private var hovered: Date?
     @Environment(\.locale) private var locale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var buckets: [AgentBucket] {
         period == .today ? snapshot.hours : Array(snapshot.days.suffix(period.days))
@@ -645,6 +635,7 @@ private struct NotchAgentTrendCard: View {
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
                 NotchAgentCardHeader(title: text.trendCard, symbol: NotchAgentCard.trend.symbol) {
+                    periodPicker
                     Text(caption(byCost: byCost))
                         .font(.system(size: 9.5, weight: .medium))
                         .monospacedDigit()
@@ -657,13 +648,41 @@ private struct NotchAgentTrendCard: View {
         }
     }
 
+    /// Today, 7 days and 30 days as small segments; the chosen one is filled.
+    private var periodPicker: some View {
+        HStack(spacing: 1) {
+            ForEach(AgentPeriod.allCases, id: \.self) { option in
+                let selected = option == period
+                Button {
+                    hovered = nil
+                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.2)) { choose(option) }
+                } label: {
+                    Text(text.period(option))
+                        .font(.system(size: 9.5, weight: selected ? .semibold : .medium))
+                        .foregroundStyle(selected ? .black : .white.opacity(0.6))
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 7)
+                        .frame(height: 17)
+                        .background(selected ? AnyShapeStyle(NotchTopBarPalette.clay) : AnyShapeStyle(.clear), in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 9, lifts: false))
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(1.5)
+        .background(.white.opacity(0.07), in: Capsule())
+    }
+
     private func caption(byCost: Bool) -> String {
         if let hovered, let bucket = buckets.first(where: { $0.start == hovered }) {
             // A pointed-at bar reads its tokens beside its cost.
             let tokens = byCost ? " · " + value(bucket.total, byCost: false) : ""
             return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost) + tokens
         }
-        return text.period(period) + " · " + value(snapshot.usage(period).total, byCost: byCost)
+        // The picker names the period, so the caption gives its total alone.
+        return value(snapshot.usage(period).total, byCost: byCost)
     }
 
     private func value(_ totals: AgentTotals, byCost: Bool) -> String {

@@ -812,6 +812,8 @@ enum NotchMusicExtrasTests {
         defaults.removePersistentDomain(forName: domain)
         defer { defaults.removePersistentDomain(forName: domain) }
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        // These checks cover the sections and the floating buttons.
+        defaults.set(NotchNavigationStyle.sideButtons.rawValue, forKey: DefaultsKey.notchNavigationStyle)
         for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         suite.expect(NotchLyricsSupport.isEnabled(in: defaults) && !NotchLyricsSupport.onlineEnabled(in: defaults)

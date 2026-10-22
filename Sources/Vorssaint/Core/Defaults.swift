@@ -914,6 +914,10 @@ enum DefaultsKey {
     static let notchOpensActivity = "notchOpensActivity"
     static let notchHiddenModules = "notchHiddenModules"
     static let notchModuleOrder = "notchModuleOrder"
+    static let notchNavigationStyle = "notchNavigationStyle"
+    static let notchTopBarOrder = "notchTopBarOrder"
+    static let notchTopBarHidden = "notchTopBarHidden"
+    static let notchTopBarSecondaryClickToggles = "notchTopBarSecondaryClickToggles"
     static let notchQuickAccessLayout = "notchQuickAccessLayout"
     static let notchQuickAccessSide = "notchQuickAccessSide"
     static let notchQuickAccessSecond = "notchQuickAccessSecond"
@@ -1510,6 +1514,10 @@ enum Defaults {
         DefaultsKey.notchOpensActivity: true,
         DefaultsKey.notchHiddenModules: "",
         DefaultsKey.notchModuleOrder: "",
+        DefaultsKey.notchNavigationStyle: NotchNavigationStyle.sideButtons.rawValue,
+        DefaultsKey.notchTopBarOrder: "",
+        DefaultsKey.notchTopBarHidden: "",
+        DefaultsKey.notchTopBarSecondaryClickToggles: true,
         DefaultsKey.notchQuickAccessLayout: Data(),
         DefaultsKey.notchVolume: true,
         DefaultsKey.notchInputSource: true,

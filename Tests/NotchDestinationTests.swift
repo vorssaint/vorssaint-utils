@@ -87,6 +87,7 @@ enum NotchDestinationContract {
     enum ShortcutCapture { static var isCapturing = false }
 
     class State {
+        func followTopBarStart() {}
         var acceptsUserInteraction = true
         func collapse() { expanded = false }
         var hiddenInFullscreen = false
@@ -156,6 +157,8 @@ enum NotchDestinationContract {
             NotchTimerService.shared = Timer()
         }
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        // These checks cover the sections and the floating buttons.
+        defaults.set(NotchNavigationStyle.sideButtons.rawValue, forKey: DefaultsKey.notchNavigationStyle)
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         let focus = Service()
