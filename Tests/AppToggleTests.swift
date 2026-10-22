@@ -25,9 +25,9 @@ enum AppToggleTests {
 
     /// The decision itself: visible means hide, hidden means bring it back.
     private static func finderKeyDecision(_ suite: TestSuite) {
-        suite.expect(AppToggleSupport.nextAction(isHidden: false) == .hide,
+        suite.expect(CommandBarRowShortcuts.toggleAction(isHidden: false) == .hide,
                      "a key pressed with Finder showing puts Finder away")
-        suite.expect(AppToggleSupport.nextAction(isHidden: true) == .activate,
+        suite.expect(CommandBarRowShortcuts.toggleAction(isHidden: true) == .activate,
                      "a key pressed with Finder away brings it back")
     }
 
@@ -36,7 +36,7 @@ enum AppToggleTests {
     private static func finderKeyStaysReversible(_ suite: TestSuite) {
         var hidden = false
         for press in 1...6 {
-            let action = AppToggleSupport.nextAction(isHidden: hidden)
+            let action = CommandBarRowShortcuts.toggleAction(isHidden: hidden)
             hidden = action == .hide
             suite.expect(hidden == (press % 2 == 1),
                          "press \(press) alternates the Finder key instead of latching one way")
@@ -46,7 +46,7 @@ enum AppToggleTests {
         // A remembered flag would still claim "we hid it" and hide a Finder
         // the person can already see; the live read hides it as asked, which
         // is the only outcome consistent with what is on screen.
-        let afterOutsideUnhide = AppToggleSupport.nextAction(isHidden: false)
+        let afterOutsideUnhide = CommandBarRowShortcuts.toggleAction(isHidden: false)
         suite.expect(afterOutsideUnhide == .hide,
                      "the Finder key reads isHidden live rather than a remembered flag")
     }
