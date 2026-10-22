@@ -11,6 +11,7 @@ final class SoundOutputSwitcher: ObservableObject {
 
     @Published private(set) var registrationFailed = false
     @Published private(set) var lastSwitchFailed = false
+    @Published private(set) var lastInputSwitchFailed = false
 
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
@@ -49,6 +50,36 @@ final class SoundOutputSwitcher: ObservableObject {
     func switchToNextOutput() -> Bool {
         let ok = AppVolumeMixer.shared.switchToNextSoundOutput(in: selectedDeviceUIDs())
         lastSwitchFailed = !ok
+        return ok
+    }
+
+    /// The microphones the input cycle steps through. Microphone UIDs have
+    /// the same shape as output UIDs, so the output list's sanitizer applies
+    /// here too; a second copy would only drift.
+    func selectedInputDeviceUIDs() -> [String] {
+        Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(
+            UserDefaults.standard.array(forKey: DefaultsKey.soundInputSwitcherDeviceUIDs) ?? []
+        )
+    }
+
+    func setSelectedInputDeviceUIDs(_ uids: [String]) {
+        let sanitized = Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(uids)
+        if sanitized.isEmpty {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.soundInputSwitcherDeviceUIDs)
+        } else {
+            UserDefaults.standard.set(sanitized, forKey: DefaultsKey.soundInputSwitcherDeviceUIDs)
+        }
+        lastInputSwitchFailed = false
+    }
+
+    /// Steps to the next selected microphone. Deliberately hotkey-less: one
+    /// hotkey is one `GlobalShortcutRole`, and sharing the output role's
+    /// combination would swing the microphone every time the speakers change.
+    /// Reach it from the command bar or the mixer panel instead.
+    @discardableResult
+    func switchToNextInput() -> Bool {
+        let ok = AudioInputDeviceManager.shared.switchToNextSoundInput(in: selectedInputDeviceUIDs())
+        lastInputSwitchFailed = !ok
         return ok
     }
 
@@ -109,5 +140,6 @@ final class SoundOutputSwitcher: ObservableObject {
         registeredShortcut = nil
         registrationFailed = false
         lastSwitchFailed = false
+        lastInputSwitchFailed = false
     }
 }

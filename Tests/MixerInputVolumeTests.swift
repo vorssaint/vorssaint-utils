@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import AudioToolbox
 import Combine
 import CoreAudio
@@ -43,6 +44,8 @@ enum MixerInputVolumeContract {
         static let micMuteSavedVolume = "legacyVolume"
         static let micMuteShortcutEnabled = "shortcutEnabled"
         static let micMuteShortcut = "shortcut"
+        static let micMuteWhileTypingEnabled = "micMuteWhileTypingEnabled"
+        static let micMuteWhileTypingUnmuteDelay = "micMuteWhileTypingUnmuteDelay"
     }
     enum Defaults { static func sanitizedPreferredInputDeviceUID(_ s: String?) -> String? { s } }
     enum UserDefaults {
@@ -63,6 +66,10 @@ enum MixerInputVolumeContract {
         init(id: Int) {}
         func sync(enabled: Bool, shortcut: GlobalShortcut, storageKey: String) -> Bool { true }
         func unregister() {}
+    }
+    final class Permissions {
+        static let shared = Permissions()
+        var accessibility = false
     }
     struct GlobalShortcut {
         static let micMuteDefault = GlobalShortcut()
