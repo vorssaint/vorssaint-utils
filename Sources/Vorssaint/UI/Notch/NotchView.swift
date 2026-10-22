@@ -370,13 +370,13 @@ struct NotchView: View {
                 // fit their side, never pushing them under the camera; the menu
                 // offers the same actions either way.
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 6) { items.trailing; trailingSections(band); updateControl(band); pinMark }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); updateControl(band); pinMark; appIconButton }
                     HStack(spacing: 6) {
                         items.trailing; trailingSections(band)
-                        NotchUpdateControl(action: service.showUpdate, compact: true); pinMark
+                        NotchUpdateControl(action: service.showUpdate, compact: true); pinMark; appIconButton
                     }
-                    HStack(spacing: 6) { items.trailing; trailingSections(band); pinMark }
-                    HStack(spacing: 6) { items.trailing; trailingSections(band) }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); pinMark; appIconButton }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); appIconButton }
                 }
             }
         }
@@ -401,6 +401,27 @@ struct NotchView: View {
 
     private func updateControl(_ band: NotchBand) -> some View {
         NotchUpdateControl(action: service.showUpdate, compact: band.besideCamera)
+    }
+
+    /// The app icon stays at the far end of the open island's top row, where
+    /// one click opens the main Settings window.
+    private var appIconButton: some View {
+        Button {
+            (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+        } label: {
+            Image(nsImage: NSApp.applicationIconImage
+                  ?? NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 18, height: 18)
+                .padding(5)
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 9))
+        .accessibilityLabel(l10n.s.menuSettings)
+        .accessibilityIdentifier("notch.openApp")
+        .help(l10n.s.menuSettings)
     }
 
     /// A kept-open island says so, and one click lets it go.
