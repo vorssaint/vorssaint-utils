@@ -175,7 +175,11 @@ enum NotchLockScreenTests {
                 + Layout.macSpacing * CGFloat(cards - 1)
             suite.expect(used <= height + 0.5, "This Mac's cards fit their page at \(height) points")
         }
-        suite.expect(NotchLockScreenSupport.calendarView(in: UserDefaults(suiteName: "lockscreen.calendar.\(UUID())")!) == .day
+        let calendarDomain = "com.vorssaint.tests.notch-lock-screen-calendar"
+        let calendarDefaults = UserDefaults(suiteName: calendarDomain)!
+        calendarDefaults.removePersistentDomain(forName: calendarDomain)
+        defer { calendarDefaults.removePersistentDomain(forName: calendarDomain) }
+        suite.expect(NotchLockScreenSupport.calendarView(in: calendarDefaults) == .day
                      && !NotchLockScreenCalendarView.day.readsMonth && NotchLockScreenCalendarView.week.readsMonth,
                      "the calendar opens on today, and only week and month read the month around it")
         let noCalendar = Layout.macPlan(height: 886, calendar: false)
