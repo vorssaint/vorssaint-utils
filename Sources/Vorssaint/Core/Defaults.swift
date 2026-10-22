@@ -686,7 +686,6 @@ enum DefaultsKey {
     static let screenshotSaveFolder = "screenshotSaveFolder"
     // An unattended pass that relocates a person's screenshots must never
     // start doing so merely because the app was updated.
-    static let screenshotArchiveAfterDays = "screenshotArchiveAfterDays"    // Int, 0 = off
     static let screenshotSaveSubfolder = "screenshotSaveSubfolder"
     static let screenshotFileNamePattern = "screenshotFileNamePattern"
     static let screenshotFileNumberStart = "screenshotFileNumberStart"
@@ -1911,7 +1910,6 @@ enum Defaults {
         DefaultsKey.screenshotFreeze: true,
         DefaultsKey.screenshotHideVorssaintWindows: true,
         DefaultsKey.screenshotSaveFolder: "",
-        DefaultsKey.screenshotArchiveAfterDays: 0,
         DefaultsKey.screenshotSaveSubfolder: "",
         DefaultsKey.screenshotFileNamePattern: "",
         DefaultsKey.screenshotFileNumberStart: 1,
