@@ -970,12 +970,11 @@ enum DefaultsKey {
     static let notchShowInCaptures = "notchShowInCaptures"
     static let notchLockScreen = "notchLockScreen" // music and live activities over the lock screen
     static let notchLockSounds = "notchLockSounds" // padlock sounds as the Mac locks and unlocks
-    static let notchLockScreenAgents = "notchLockScreenAgents" // the AI Agents page beside the lock screen's player
+    static let notchLockScreenAgents = "notchLockScreenAgents" // the AI rail right of the lock screen's stage
     static let notchLockScreenAgentsHideProjects = "notchLockScreenAgentsHideProjects"
     static let notchLockScreenAgentsHideAmounts = "notchLockScreenAgentsHideAmounts"
-    static let notchLockScreenMac = "notchLockScreenMac" // This Mac: battery, system, calendar and storage left of the player
+    static let notchLockScreenMac = "notchLockScreenMac" // This Mac: system, accessories and battery left of the stage, the calendar on it
     static let notchLockScreenMacHideEvents = "notchLockScreenMacHideEvents"
-    static let notchLockScreenMacCalendarView = "notchLockScreenMacCalendarView" // NotchLockScreenCalendarView.rawValue
     // Companion: a small friend who rests in the closed island and is the Command Bar's face.
     static let notchMascotEnabled = "notchMascotEnabled"
     static let notchMascotVisits = "notchMascotVisits" // passes through the island now and then
@@ -1594,7 +1593,6 @@ enum Defaults {
         DefaultsKey.notchLockScreenAgentsHideAmounts: false,
         DefaultsKey.notchLockScreenMac: false,
         DefaultsKey.notchLockScreenMacHideEvents: false,
-        DefaultsKey.notchLockScreenMacCalendarView: NotchLockScreenCalendarView.day.rawValue,
         DefaultsKey.notchMascotEnabled: false,
         DefaultsKey.notchMascotVisits: true,
         DefaultsKey.notchMascotReactions: true,
