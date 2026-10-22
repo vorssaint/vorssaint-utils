@@ -128,6 +128,7 @@ struct MetricsTests {
                 TextSnippetExpansionTests.run(suite)
                 QuickTogglesAlertTests.run(suite)
                 PortManagerRefreshTests.run(suite)
+                DefaultBrowserTests.run(suite)
             }),
             ("settings", {
                 SettingsFeatureTests.run(suite)
