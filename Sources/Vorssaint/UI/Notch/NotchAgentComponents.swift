@@ -164,16 +164,22 @@ func agentLimitTint(_ provider: AgentProvider, usedFraction: Double) -> Color {
     return provider.tint
 }
 
-/// A card on the AI page: the same surface as the island's system cards.
+/// A card on the AI page: the same surface as the island's system cards,
+/// and the widgets' glass tile on the lock screen.
 struct NotchAgentCardChrome<Content: View>: View {
     @ViewBuilder let content: Content
+    @Environment(\.notchAgentsLockScreen) private var lockScreen
 
     var body: some View {
-        content
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+        if lockScreen != nil {
+            content.lockScreenTile(horizontal: 17, vertical: 13)
+        } else {
+            content
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+        }
     }
 }
 
