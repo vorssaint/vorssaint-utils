@@ -22,14 +22,16 @@ enum WakeVolumeCapSupport {
     /// answer is to do nothing rather than clamp to silence: a stored zero
     /// once silenced the speakers on the headphone-disconnect path, and this
     /// ceiling inherits the same trap, so zero must never mean "write zero".
-    /// The floor is the headphone-disconnect floor, reused rather than
-    /// restated — one audible minimum for both protections, so they cannot
-    /// drift into disagreeing about what "too quiet to write" means.
+    /// The floor is this ceiling's own, not the headphone-disconnect one: that
+    /// floor is zero now, because a deliberate zero there mutes once and the
+    /// person asked for it, while this ceiling is written again on every
+    /// wake. The two protections answer different questions, so they keep
+    /// their own minimums rather than disagreeing about one.
     static func cappedVolume(currentPercent: Int,
                              ceilingPercent: Int,
                              isMuted: Bool) -> Int? {
         if isMuted { return nil }
-        guard ceilingPercent >= Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
+        guard ceilingPercent >= Defaults.minimumMixerWakeVolumeCapPercent,
               ceilingPercent <= 100 else { return nil }
         guard currentPercent > ceilingPercent else { return nil }
         return ceilingPercent
@@ -44,8 +46,8 @@ enum WakeVolumeCapSupport {
     /// arrive without going through the migration.
     static func sanitizedCeilingPercent(_ stored: Double) -> Int {
         guard stored.isFinite else { return Defaults.defaultMixerWakeVolumeCapPercent }
-        if stored < Double(Defaults.minimumMixerHeadphonesDisconnectVolumePercent) {
-            return Defaults.minimumMixerHeadphonesDisconnectVolumePercent
+        if stored < Double(Defaults.minimumMixerWakeVolumeCapPercent) {
+            return Defaults.minimumMixerWakeVolumeCapPercent
         }
         if stored > 100 { return 100 }
         return Int(stored)

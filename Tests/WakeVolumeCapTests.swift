@@ -31,8 +31,8 @@ enum WakeVolumeCapTests {
                      "a level above the ceiling comes down to exactly the ceiling")
         suite.expect(WakeVolumeCapSupport.cappedVolume(
                         currentPercent: 80,
-                        ceilingPercent: Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
-                        isMuted: false) == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
+                        ceilingPercent: Defaults.minimumMixerWakeVolumeCapPercent,
+                        isMuted: false) == Defaults.minimumMixerWakeVolumeCapPercent,
                      "a ceiling exactly at the audible floor still caps")
         suite.expect(WakeVolumeCapSupport.cappedVolume(currentPercent: 80,
                                                        ceilingPercent: 0,
@@ -40,7 +40,7 @@ enum WakeVolumeCapTests {
                      "a stored ceiling of zero declines instead of silencing the speakers")
         suite.expect(WakeVolumeCapSupport.cappedVolume(
                         currentPercent: 80,
-                        ceilingPercent: Defaults.minimumMixerHeadphonesDisconnectVolumePercent - 1,
+                        ceilingPercent: Defaults.minimumMixerWakeVolumeCapPercent - 1,
                         isMuted: false) == nil,
                      "a below-floor ceiling declines instead of writing a near-silent level")
         suite.expect(WakeVolumeCapSupport.cappedVolume(currentPercent: 80,
@@ -50,10 +50,10 @@ enum WakeVolumeCapTests {
         suite.expect(WakeVolumeCapSupport.sanitizedCeilingPercent(40) == 40,
                      "a valid stored ceiling passes through unchanged")
         suite.expect(WakeVolumeCapSupport.sanitizedCeilingPercent(0)
-                        == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
+                        == Defaults.minimumMixerWakeVolumeCapPercent,
                      "a stored zero sanitizes to the audible floor, never to silence")
         suite.expect(WakeVolumeCapSupport.sanitizedCeilingPercent(-20)
-                        == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
+                        == Defaults.minimumMixerWakeVolumeCapPercent,
                      "a negative stored ceiling sanitizes to the audible floor")
         for junk in [Double.nan, Double.infinity, -Double.infinity] {
             suite.expect(WakeVolumeCapSupport.sanitizedCeilingPercent(junk)
