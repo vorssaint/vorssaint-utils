@@ -146,8 +146,8 @@ enum NotchNavigationStyle: String, CaseIterable {
     case topBar, sideButtons
 
     static func current(in defaults: UserDefaults = .standard) -> NotchNavigationStyle {
-        // The registered default is the top bar; with none registered, as
-        // in tests, the island keeps the buttons it always had.
+        // The island keeps the buttons it always had until the top bar is
+        // chosen in Navigation.
         NotchNavigationStyle(rawValue: defaults.string(forKey: DefaultsKey.notchNavigationStyle) ?? "") ?? .sideButtons
     }
 }
