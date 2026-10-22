@@ -86,6 +86,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLockScreenMac) private var lockScreenMac = false
     @AppStorage(DefaultsKey.notchLockScreenMacHideEvents) private var lockScreenHidesEvents = false
     @AppStorage(DefaultsKey.notchLockWallpaper) private var lockWallpaper = false
+    @AppStorage(DefaultsKey.notchLockScreenTileTone) private var lockScreenTone = NotchLockScreenTile.Tone.graphite.rawValue
     @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = false
@@ -678,6 +679,26 @@ struct NotchSettings: View {
                         switchRow("calendar.badge.minus", locked.hideEvents, caption: locked.hideEventsHint,
                                   isOn: $lockScreenHidesEvents)
                             .padding(.leading, settingsRowTextInset)
+                    }
+                }
+                // The widgets' palette, named for the part of a company it suits.
+                if lockScreen {
+                    let tone = NotchLockScreenTile.Tone(rawValue: lockScreenTone) ?? .graphite
+                    SettingsRow(symbol: "paintpalette", title: locked.jobProfile, caption: locked.jobProfileHint) {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(tone.swatch)
+                                .overlay { Circle().strokeBorder(.white.opacity(0.25), lineWidth: 1) }
+                                .frame(width: 14, height: 14)
+                                .accessibilityHidden(true)
+                            Picker(locked.jobProfile, selection: $lockScreenTone) {
+                                ForEach(NotchLockScreenTile.Tone.allCases) { tone in
+                                    Text(locked.jobProfiles[tone.rawValue] ?? tone.rawValue).tag(tone.rawValue)
+                                }
+                            }
+                            .labelsHidden()
+                            .fixedSize()
+                        }
                     }
                 }
                 // Turned on, the still frame becomes the desktop picture.

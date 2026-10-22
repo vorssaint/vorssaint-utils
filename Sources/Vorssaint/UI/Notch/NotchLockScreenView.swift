@@ -120,7 +120,7 @@ struct NotchLockScreenGlass: ViewModifier {
                 }
             }
             .overlay {
-                shape.strokeBorder(.white.opacity(increased ? 0.45 : tile ? 0.14 : 0), lineWidth: tile ? 1 : 0.75)
+                shape.strokeBorder(.white.opacity(increased ? 0.45 : tile ? NotchLockScreenTile.edge : 0), lineWidth: tile ? 1 : 0.75)
                     .allowsHitTesting(false)
             }
     }

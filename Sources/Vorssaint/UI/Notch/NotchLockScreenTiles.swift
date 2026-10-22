@@ -4,17 +4,101 @@
 import AppKit
 import SwiftUI
 
-/// The lock screen widgets' look: glass tiles under a deep violet, type
-/// tinted like the clock, big numbers in SF Pro Rounded as the clock draws
-/// them, and section labels in small spaced capitals.
+/// The lock screen widgets' look: glass tiles under a tone, type tinted to
+/// match, big numbers in SF Pro Rounded as the clock draws them, and section
+/// labels in small spaced capitals.
 enum NotchLockScreenTile {
+    /// The tiles' palette, one for each part of a company, chosen as Job
+    /// profile under Lock Screen in Settings and read each time the widgets
+    /// draw. Each tints the glass and the type on it.
+    enum Tone: String, CaseIterable, Identifiable {
+        /// Engineering: neutral graphite, like a terminal.
+        case graphite
+        /// Product: the first deep violet.
+        case violet
+        /// Design: a light smoke that lets the wallpaper through.
+        case smoke
+        /// Executive: midnight navy under champagne type.
+        case midnight
+        /// Finance: a deep emerald.
+        case emerald
+        /// Sales: a deep crimson.
+        case crimson
+        /// Marketing: a warm sunset amber.
+        case sunset
+        /// Legal: walnut under parchment type.
+        case walnut
+        /// Customer Support: a calm teal.
+        case teal
+        /// People & HR: a soft rose.
+        case rose
+
+        var id: String { rawValue }
+
+        static var current: Tone {
+            UserDefaults.standard.string(forKey: DefaultsKey.notchLockScreenTileTone).flatMap(Tone.init) ?? .graphite
+        }
+
+        /// The tint's color, in 0–255, and how much of the glass it covers.
+        var tint: (red: Double, green: Double, blue: Double, opacity: Double) {
+            switch self {
+            case .graphite: return (14, 14, 16, 0.50)
+            case .violet: return (28, 24, 58, 0.42)
+            case .smoke: return (0, 0, 0, 0.26)
+            case .midnight: return (10, 16, 34, 0.58)
+            case .emerald: return (8, 38, 28, 0.52)
+            case .crimson: return (58, 12, 22, 0.48)
+            case .sunset: return (66, 26, 8, 0.46)
+            case .walnut: return (36, 26, 18, 0.55)
+            case .teal: return (6, 40, 44, 0.50)
+            case .rose: return (54, 20, 40, 0.46)
+            }
+        }
+
+        /// The type's color, in 0–255.
+        var ink: (red: Double, green: Double, blue: Double) {
+            switch self {
+            case .graphite, .smoke: return (255, 255, 255)
+            case .violet: return (240, 238, 255)
+            case .midnight: return (246, 236, 214)
+            case .emerald: return (232, 246, 238)
+            case .crimson: return (255, 236, 238)
+            case .sunset: return (255, 240, 228)
+            case .walnut: return (244, 236, 222)
+            case .teal: return (230, 248, 248)
+            case .rose: return (255, 236, 246)
+            }
+        }
+
+        /// The tint brightened for Settings, where it shows on its own.
+        var swatch: Color {
+            let (red, green, blue, _) = tint
+            let top = max(red, green, blue)
+            guard top > 0 else { return Color(white: 0.32) }
+            let scale = max(1, 120 / top)
+            return Color(red: red * scale / 255, green: green * scale / 255, blue: blue * scale / 255)
+        }
+
+        func ink(_ opacity: Double) -> Color {
+            Color(red: ink.red / 255, green: ink.green / 255, blue: ink.blue / 255).opacity(opacity)
+        }
+    }
+
     static let cornerRadius: CGFloat = 28
-    static let tint = Color(red: 28 / 255, green: 24 / 255, blue: 58 / 255).opacity(0.42)
+    static var tint: Color {
+        let (red, green, blue, opacity) = Tone.current.tint
+        return Color(red: red / 255, green: green / 255, blue: blue / 255).opacity(opacity)
+    }
     /// The tint without the wallpaper under it, for Reduce Transparency.
-    static let solid = Color(red: 24 / 255, green: 21 / 255, blue: 46 / 255)
-    static let text = Color(red: 240 / 255, green: 238 / 255, blue: 1).opacity(0.96)
-    static let dim = Color(red: 222 / 255, green: 218 / 255, blue: 250 / 255).opacity(0.72)
-    static let label = Color(red: 222 / 255, green: 218 / 255, blue: 250 / 255).opacity(0.70)
+    static var solid: Color {
+        let (red, green, blue, _) = Tone.current.tint
+        return Color(red: (red * 0.85 + 20) / 255, green: (green * 0.85 + 20) / 255, blue: (blue * 0.85 + 20) / 255)
+    }
+    /// The tiles' edge.
+    static var edge: Double { Tone.current == .smoke ? 0.10 : 0.14 }
+    static var text: Color { Tone.current.ink(0.96) }
+    static var dim: Color { Tone.current.ink(0.70) }
+    static var label: Color { Tone.current.ink(0.64) }
     static let track = Color.white.opacity(0.12)
     static let rule = Color.white.opacity(0.12)
     /// Speed is neither good nor bad, so the network keeps out of the
@@ -61,7 +145,7 @@ extension View {
 struct NotchLockScreenSection<Accessory: View>: View {
     let title: String
     var symbol: String?
-    var symbolTint: Color = NotchLockScreenTile.label
+    var symbolTint: Color? = nil
     @ViewBuilder var accessory: Accessory
     @ObservedObject private var l10n = L10n.shared
 
@@ -70,7 +154,7 @@ struct NotchLockScreenSection<Accessory: View>: View {
             if let symbol {
                 Image(systemName: symbol)
                     .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(symbolTint)
+                    .foregroundStyle(symbolTint ?? NotchLockScreenTile.label)
             }
             Text(title.uppercased(with: l10n.language.formattingLocale()))
                 .font(.system(size: 10, weight: .bold))
@@ -88,7 +172,7 @@ struct NotchLockScreenSection<Accessory: View>: View {
 }
 
 extension NotchLockScreenSection where Accessory == EmptyView {
-    init(title: String, symbol: String? = nil, symbolTint: Color = NotchLockScreenTile.label) {
+    init(title: String, symbol: String? = nil, symbolTint: Color? = nil) {
         self.init(title: title, symbol: symbol, symbolTint: symbolTint) { EmptyView() }
     }
 }
