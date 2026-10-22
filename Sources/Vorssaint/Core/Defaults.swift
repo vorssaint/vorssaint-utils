@@ -2692,17 +2692,19 @@ enum Defaults {
         return min(max(volume, 0), 2)
     }
 
-<<<<<<< HEAD
     /// The volume the speakers are set to when headphones disconnect. At zero
     /// the lowering also turns their mute on, because the bottom of the level
     /// range is still faintly audible on some speakers. The default stays
     /// audible, so turning the option on does not mute them until zero is chosen.
     static let minimumMixerHeadphonesDisconnectVolumePercent = 0
     /// The level a wake may leave the speakers at. It guards against a room
-    /// that was loud when the lid came down, and it shares the disconnect
-    /// floor below rather than minting a second one: both features write the
-    /// speakers without being asked, and they must not disagree about what
-    /// counts as too quiet to write.
+    /// that was loud when the lid came down, and it needs a floor of its own:
+    /// the disconnect floor above is zero now, because a deliberate zero there
+    /// mutes once and the person asked for it. This ceiling is written again
+    /// on every wake, so a stored zero would silence the Mac over and over
+    /// with no way back except finding this setting.
+    static let minimumMixerWakeVolumeCapPercent = 10
+    /// The level a wake leaves the speakers at when nothing else is stored.
     static let defaultMixerWakeVolumeCapPercent = 50
 
     /// The disconnect option shipped with a stored 0, and the trap is the same
@@ -2712,16 +2714,10 @@ enum Defaults {
     /// the way before it is ever read.
     static func migrateSilentWakeVolumeCap(in defaults: UserDefaults) {
         guard let stored = defaults.object(forKey: DefaultsKey.mixerWakeVolumeCapPercent) as? Int,
-              stored < Defaults.minimumMixerHeadphonesDisconnectVolumePercent else { return }
+              stored < minimumMixerWakeVolumeCapPercent else { return }
         defaults.set(defaultMixerWakeVolumeCapPercent,
                      forKey: DefaultsKey.mixerWakeVolumeCapPercent)
     }
-
-    /// The volume the speakers are set to when headphones disconnect. It is a
-    /// protection against a sudden blast, not a mute, so it never goes low
-    /// enough to leave the sound inaudible.
-    static let minimumMixerHeadphonesDisconnectVolumePercent = 10
->>>>>>> 3a5532dc (feat(mixer): mute system sound from one hotkey)
     static let defaultMixerHeadphonesDisconnectVolumePercent = 25
     /// The stepper used to stop here. Anything stored below it comes from the
     /// first release, where an untouched control saved 0.
