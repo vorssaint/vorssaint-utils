@@ -12,6 +12,8 @@ enum NotchLockScreenTests {
         sessionContracts(suite)
         preferenceContracts(suite)
         layoutContracts(suite)
+        islandContracts(suite)
+        widgetContracts(suite)
         contentContracts(suite)
         soundContracts(suite)
     }
@@ -94,104 +96,168 @@ enum NotchLockScreenTests {
         // Measured on the lock screen of a 1470 by 956 point display: the
         // clock ends 236 points from the top, the login controls take 218.
         let measured = CGRect(x: 0, y: 0, width: 1470, height: 956)
-        if let row = Layout.rowFrame(in: measured), let player = Layout.playerFrame(in: measured) {
+        let full = Layout.scene(in: measured, calendar: true, mac: true, ai: true)
+        if let row = full.row, let player = full.player, let calendar = full.calendar {
             suite.expect(measured.maxY - row.maxY >= 236 + 12 && measured.maxY - row.maxY <= 236 + 30,
                          "the activities read as a line just under the clock")
-            suite.expect(player.minY - measured.minY >= 218 + 24, "the player clears the name, picture, password field and hint")
-            suite.expect(player.maxY < row.minY && player.height >= 400,
-                         "the player has the room between the line and the login controls")
-            suite.expect(Layout.paneWidth < Layout.playerWidth, "the pane leaves room around it for the cover's glow")
-            suite.expect(abs(row.midX - measured.midX) <= 0.5 && abs(player.midX - measured.midX) <= 0.5,
-                         "the line and the player stand centered under the clock")
+            suite.expect(player.minY - measured.minY >= 218 + 24, "the stage clears the name, picture, password field and hint")
+            suite.expect(calendar.maxY <= row.minY - Layout.stageGap && calendar.minY == player.maxY + Layout.stageGap,
+                         "the calendar sits under the line and over the player")
         } else {
-            suite.expect(false, "the measured display has room for the lock screen scene")
+            suite.expect(false, "the measured display has room for the line, the calendar and the player")
         }
-        let displays = [
-            CGRect(x: 0, y: 0, width: 1280, height: 800), CGRect(x: 0, y: 0, width: 1512, height: 982),
-            CGRect(x: 0, y: 0, width: 1728, height: 1117), CGRect(x: 1470, y: -86, width: 1920, height: 1080),
-            CGRect(x: -2560, y: 0, width: 2560, height: 1440), CGRect(x: 0, y: 0, width: 3008, height: 1692),
-            CGRect(x: 0, y: 1117, width: 1080, height: 1920),
+
+        // The six built-in displays, two of them at a larger text setting.
+        let builtIns = [
+            CGRect(x: 0, y: 0, width: 1280, height: 832), CGRect(x: 0, y: 0, width: 1352, height: 878),
+            CGRect(x: 0, y: 0, width: 1470, height: 956), CGRect(x: 0, y: 0, width: 1512, height: 982),
+            CGRect(x: 0, y: 0, width: 1710, height: 1112), CGRect(x: 0, y: 0, width: 1728, height: 1117),
         ]
-        for display in displays {
-            guard let row = Layout.rowFrame(in: display), let player = Layout.playerFrame(in: display) else {
-                suite.expect(false, "a \(Int(display.width))x\(Int(display.height)) display has room for the scene")
+        for display in builtIns {
+            let name = "\(Int(display.width))x\(Int(display.height))"
+            let scene = Layout.scene(in: display, calendar: true, mac: true, ai: true)
+            guard let row = scene.row, let calendar = scene.calendar else {
+                suite.expect(false, "a \(name) display has room for the line and the calendar")
                 continue
             }
             // A hair under the clock's edge is floating point, not overlap.
             let clock = Layout.clockBottom(screenHeight: display.height) - 0.001
-            suite.expect(display.maxY - row.maxY >= clock && player.minY - display.minY == Layout.loginClearance,
-                         "the scene keeps the clock's and the login controls' room on \(display)")
-            suite.expect(display.contains(row) && display.contains(player) && player.maxY <= row.minY
-                         && player.height >= Layout.minimumPlayerHeight,
-                         "every part stays on \(display), the player under the line with room to show")
+            suite.expect(display.maxY - row.maxY >= clock, "the line keeps the clock's room on \(name)")
+            suite.expect(calendar.width == Layout.stageWidth && abs(calendar.midX - display.midX) <= 0.5
+                         && calendar.maxY <= row.minY - Layout.stageGap && calendar.height >= Layout.calendarMinimum,
+                         "the stage stands 460 points wide and centred under the line on \(name)")
+            if let player = scene.player, let fit = scene.playerFit {
+                suite.expect(player.minY - display.minY == Layout.loginClearance && player.height == fit.height
+                             && player.width == Layout.stageWidth && calendar.minY == player.maxY + Layout.stageGap,
+                             "the player ends 250 points from the bottom, 10 under the calendar, on \(name)")
+            } else {
+                suite.expect(calendar.minY - display.minY == Layout.loginClearance,
+                             "without the player the calendar keeps the stage's foot on \(name)")
+            }
+            let column = (display.width - Layout.stageWidth) / 2
+            guard column >= Layout.railWidth + Layout.railMargin * 2 else {
+                suite.expect(scene.mac == nil && scene.aiCards == nil && scene.agents == nil && scene.streak == nil,
+                             "a column under 488 points keeps both rails off on \(name)")
+                continue
+            }
+            guard let mac = scene.mac, let cards = scene.aiCards, let agents = scene.agents, let streak = scene.streak else {
+                suite.expect(false, "a \(name) display has room for both rails")
+                continue
+            }
+            suite.expect(mac.width == Layout.railWidth && cards.width == Layout.railWidth
+                         && abs(mac.midX - (display.minX + column / 2)) <= 0.5
+                         && abs(cards.midX - (display.maxX - column / 2)) <= 0.5,
+                         "each rail stands 440 points wide, centred in its free column, on \(name)")
+            suite.expect(display.maxY - mac.maxY == Layout.railTop && display.maxY - cards.maxY == Layout.railTop,
+                         "both rails start 72 points from the top on \(name)")
+            suite.expect(mac.minY - display.minY == Layout.loginClearance && streak.minY - display.minY == Layout.loginClearance,
+                         "both rails end level with the player on \(name)")
+            suite.expect(mac.height == scene.gauge * 2 + Layout.accessoriesHeight + Layout.batteryHeight + Layout.cardGap * 3
+                         && scene.gauge >= Layout.gaugeMinimum,
+                         "This Mac's gauges, Accessories and Battery fill its rail on \(name)")
+            suite.expect(agents.minY == streak.maxY + Layout.cardGap && cards.minY == agents.maxY + Layout.cardGap
+                         && cards.height == Layout.claudeHeight + Layout.cardGap + Layout.pairHeight
+                         && streak.height == Layout.streakHeight && agents.height >= Layout.agentsMinimum,
+                         "Claude, the pair, Agents at work and Streak stack 16 apart on \(name)")
+            suite.expect(mac.maxX + Layout.railMargin <= calendar.minX && cards.minX - Layout.railMargin >= calendar.maxX
+                         && row.minX >= mac.maxX + Layout.railMargin && row.maxX <= cards.minX - Layout.railMargin,
+                         "the stage and the line keep clear of the rails on \(name)")
+            suite.expect([mac, cards, agents, streak, calendar, row].allSatisfy(display.contains),
+                         "every part stays on \(name)")
         }
-        // The AI Agents page: the island's width, centred in the column
-        // right of the player, clear of the menu bar and the bottom edge.
+
+        // The 14-inch, as the board draws it: the gauges 180 tall, Agents at
+        // work 202, and the calendar what the stage leaves over the player.
         let pro = CGRect(x: 0, y: 0, width: 1512, height: 982)
-        if let agents = Layout.agentsFrame(in: pro), let player = Layout.playerFrame(in: pro),
-           let row = Layout.rowFrame(in: pro, besidePages: true) {
-            let column = (pro.width - Layout.playerWidth) / 2
-            suite.expect(agents.width == Layout.agentsWidth && agents.minX >= player.maxX + Layout.agentsMargin
-                         && pro.maxX - agents.maxX >= Layout.agentsMargin
-                         && abs(agents.midX - (pro.maxX - column / 2)) <= 0.5,
-                         "the AI page stands centred in the free column right of the player")
-            suite.expect(pro.maxY - agents.maxY == Layout.agentsTop && agents.height == Layout.pageHeight
-                         && agents.minY - pro.minY >= Layout.agentsBottom,
-                         "the AI page starts level with the date and stops short, leaving wallpaper under it")
-            suite.expect(row.maxX <= agents.minX - Layout.agentsMargin && abs(row.midX - pro.midX) <= 0.5,
-                         "beside the AI page the activities line keeps clear of it")
+        let proScene = Layout.scene(in: pro, calendar: true, mac: true, ai: true)
+        suite.expect(proScene.gauge == 180 && proScene.agents?.height == 202 && proScene.playerFit == .regular
+                     && proScene.mac?.minX == 43 && proScene.aiCards?.minX == 1029 && proScene.calendar?.height == 231,
+                     "the 14-inch lays out as the board: gauges 180, Agents at work 202, the player at its compact fit")
+        let air = Layout.scene(in: CGRect(x: 0, y: 0, width: 1470, height: 956), calendar: true, mac: true, ai: true)
+        suite.expect(air.gauge == 167 && air.agents?.height == 176,
+                     "a shorter display takes its room back from the gauges and Agents at work first")
+        let sixteen = Layout.scene(in: CGRect(x: 0, y: 0, width: 1728, height: 1117), calendar: true, mac: true, ai: true)
+        suite.expect(sixteen.gauge > 180 && (sixteen.agents?.height ?? 0) > 202,
+                     "a taller display gives its extra height to the gauges and Agents at work")
+
+        // Fallbacks.
+        let larger = Layout.scene(in: CGRect(x: 0, y: 0, width: 1352, height: 878), calendar: true, mac: true, ai: true)
+        suite.expect(larger.player == nil && larger.calendar?.height == 334 && larger.mac == nil && larger.aiCards == nil,
+                     "the 14-inch at Larger Text shows the calendar alone, with the rails off")
+        let short = Layout.scene(in: CGRect(x: 0, y: 0, width: 1512, height: 930), calendar: true, mac: true, ai: true)
+        suite.expect(short.playerFit == .short && short.player?.height == Layout.shortPlayerHeight
+                     && (short.calendar?.height ?? 0) >= Layout.calendarMinimum,
+                     "a short stage drops the player to its 150 fit before the calendar goes")
+        let low = Layout.scene(in: CGRect(x: 0, y: 0, width: 1512, height: 700), calendar: true, mac: true, ai: true)
+        suite.expect(low.player == nil && low.calendar == nil && low.row != nil,
+                     "a stage too short for the calendar leaves the lock screen to the line")
+        let squat = Layout.scene(in: CGRect(x: 0, y: 0, width: 1512, height: 900), calendar: true, mac: true, ai: true)
+        suite.expect(squat.mac == nil && squat.aiCards == nil && squat.calendar != nil,
+                     "a rail too short for its cards' least heights stays off")
+        let wide = CGRect(x: -2560, y: 0, width: 2560, height: 1440)
+        let big = Layout.scene(in: wide, calendar: true, mac: true, ai: true)
+        if let mac = big.mac, let cards = big.aiCards, let calendar = big.calendar {
+            suite.expect(big.gauge == Layout.gaugeMaximum && big.agents?.height == Layout.agentsMaximum
+                         && mac.minY - wide.minY == Layout.loginClearance && wide.maxY - mac.maxY > Layout.railTop
+                         && wide.maxY - cards.maxY > Layout.railTop,
+                         "on a large display the rails stop growing and keep their foot level with the player")
+            suite.expect(calendar.height == Layout.calendarMaximum && wide.contains(mac) && wide.contains(cards),
+                         "on a large display the calendar stops growing and every part stays on it")
         } else {
-            suite.expect(false, "a 14-inch display has room for the AI page")
+            suite.expect(false, "a large display has room for every part")
         }
-        for display in displays {
-            guard let agents = Layout.agentsFrame(in: display) else { continue }
-            suite.expect(display.contains(agents), "the AI page stays on \(display)")
-        }
-        suite.expect(Layout.agentsFrame(in: CGRect(x: 0, y: 0, width: 1352, height: 878)) == nil,
-                     "a column too narrow for the AI page leaves the lock screen as it is")
-        // This Mac mirrors the AI page in the column left of the player.
-        if let mac = Layout.macFrame(in: pro), let agents = Layout.agentsFrame(in: pro),
-           let player = Layout.playerFrame(in: pro) {
-            suite.expect(mac.size == agents.size && mac.minY == agents.minY
-                         && abs((mac.minX - pro.minX) - (pro.maxX - agents.maxX)) <= 0.5
-                         && mac.maxX <= player.minX - Layout.agentsMargin,
-                         "This Mac mirrors the AI page left of the player")
-        } else {
-            suite.expect(false, "a 14-inch display has room for This Mac")
-        }
-        suite.expect(Layout.macFrame(in: CGRect(x: 0, y: 0, width: 1352, height: 878)) == nil,
-                     "a column too narrow for This Mac leaves the lock screen as it is")
-        let roomy = Layout.macPlan(height: Layout.pageHeight - 24, calendar: true)
-        suite.expect(roomy.tile == Layout.macTileMax && roomy.storage
-                     && roomy.calendar >= Layout.macCalendarMin,
-                     "at the page's full height every card shows and the calendar takes the rest")
-        let tight = Layout.macPlan(height: 560, calendar: true)
-        suite.expect(tight.tile >= Layout.macTileMin && tight.tile < Layout.macTileMax,
-                     "short of room the tiles shrink first")
-        for height in stride(from: CGFloat(456), through: 1100, by: 20) {
-            let plan = Layout.macPlan(height: height, calendar: true)
-            let cards = 3 + 1 + (plan.storage ? 1 : 0)
-            let used = Layout.macBattery + plan.tile * 2 + plan.calendar + (plan.storage ? Layout.macStorage : 0)
-                + Layout.macSpacing * CGFloat(cards - 1)
-            suite.expect(used <= height + 0.5, "This Mac's cards fit their page at \(height) points")
-        }
-        let calendarDomain = "com.vorssaint.tests.notch-lock-screen-calendar"
-        let calendarDefaults = UserDefaults(suiteName: calendarDomain)!
-        calendarDefaults.removePersistentDomain(forName: calendarDomain)
-        defer { calendarDefaults.removePersistentDomain(forName: calendarDomain) }
-        suite.expect(NotchLockScreenSupport.calendarView(in: calendarDefaults) == .day
-                     && !NotchLockScreenCalendarView.day.readsMonth && NotchLockScreenCalendarView.week.readsMonth,
-                     "the calendar opens on today, and only week and month read the month around it")
-        let noCalendar = Layout.macPlan(height: 886, calendar: false)
-        suite.expect(noCalendar.calendar == 0 && noCalendar.tile > Layout.macTileMax,
-                     "without the calendar the tiles take its room")
-        suite.expect(Layout.rowFrame(in: pro, besidePages: false)?.width == 1000,
-                     "without the AI page the activities line keeps its width")
-        suite.expect(Layout.playerFrame(in: CGRect(x: 0, y: 0, width: 1024, height: 620)) == nil,
-                     "a display too short for the player keeps the lock screen as it is")
-        suite.expect(Layout.rowFrame(in: CGRect(x: 0, y: 0, width: 400, height: 956)) == nil
-                     && Layout.playerFrame(in: CGRect(x: 0, y: 0, width: CGFloat.nan, height: 956)) == nil,
+        let noMac = Layout.scene(in: pro, calendar: true, mac: false, ai: true)
+        suite.expect(noMac.mac == nil && noMac.calendar == nil && noMac.aiCards != nil && noMac.player != nil,
+                     "with This Mac off neither its rail nor the calendar shows")
+        let noCalendar = Layout.scene(in: pro, calendar: false, mac: true, ai: false)
+        suite.expect(noCalendar.calendar == nil && noCalendar.mac != nil && noCalendar.aiCards == nil,
+                     "without the Calendar section the stage holds the player alone")
+        suite.expect(Layout.scene(in: pro, calendar: true, mac: false, ai: false).row?.width == 1000,
+                     "without the rails the activities line keeps its width")
+        suite.expect(Layout.scene(in: CGRect(x: 0, y: 0, width: 400, height: 956), calendar: true, mac: true, ai: true)
+                        == NotchLockScreenScene()
+                     && Layout.scene(in: CGRect(x: 0, y: 0, width: CGFloat.nan, height: 956), calendar: true, mac: true, ai: true)
+                        == NotchLockScreenScene(),
                      "a narrow or unreadable display keeps the lock screen as it is")
+
+        typealias Support = NotchLockScreenSupport
+        suite.expect(Support.loadLevel(0.49) == .good && Support.loadLevel(0.5) == .warning
+                     && Support.loadLevel(0.79) == .warning && Support.loadLevel(0.8) == .critical,
+                     "use is green under 50%, yellow from 50 to 80%, red above")
+        suite.expect(Support.temperatureLevel(69.9) == .good && Support.temperatureLevel(70) == .warning
+                     && Support.temperatureLevel(84.9) == .warning && Support.temperatureLevel(85) == .critical,
+                     "temperature is green under 70 °C, yellow from 70 to 85, red above")
+        suite.expect(Support.chargeLevel(100) == .good && Support.chargeLevel(50) == .good
+                     && Support.chargeLevel(49) == .warning && Support.chargeLevel(20) == .warning
+                     && Support.chargeLevel(19) == .critical && Support.chargeLevel(0) == .critical,
+                     "charge is green from 50%, yellow from 20%, red under it")
+        suite.expect(Support.temperatureFill(54) == 0.54 && Support.temperatureFill(120) == 1
+                     && Support.ringFill(1.4) == 1 && Support.ringFill(-1) == 0 && Support.ringFill(.nan) == 0,
+                     "a ring is full at 100% or 100 °C and never runs past it")
+    }
+
+    static func widgetContracts(_ suite: TestSuite) {
+        typealias Support = NotchLockScreenSupport
+        suite.expect(Support.dayWindow(count: 6, upcoming: 2, fits: 4) == 1..<5,
+                     "the calendar keeps the last event past above the next one")
+        suite.expect(Support.dayWindow(count: 6, upcoming: 0, fits: 4) == 0..<4
+                     && Support.dayWindow(count: 3, upcoming: 1, fits: 4) == 0..<3,
+                     "with nothing past the calendar starts at the next event, and a short day shows it all")
+        suite.expect(Support.dayWindow(count: 6, upcoming: 5, fits: 4) == 2..<6
+                     && Support.dayWindow(count: 6, upcoming: 2, fits: 0) == 0..<0,
+                     "near the day's end the calendar reaches back rather than leave rows empty")
+        let today = Support.streak([true, true, false, true, true, true])
+        suite.expect(today.current == 3 && today.best == 3, "a streak counts the days in a row ending today")
+        let waiting = Support.streak([true, true, true, true, false])
+        suite.expect(waiting.current == 4 && waiting.best == 4, "a day not yet used leaves yesterday's streak standing")
+        let broken = Support.streak([true, true, true, false, false])
+        suite.expect(broken.current == 0 && broken.best == 3 && Support.streak([]) == (0, 0),
+                     "a day missed before today breaks the streak, and the best run stays")
+    }
+
+    static func islandContracts(_ suite: TestSuite) {
+        typealias Layout = NotchLockScreenLayout
+        let measured = CGRect(x: 0, y: 0, width: 1470, height: 956)
         // The fit a person sets moves the island's camera. The locked island
         // is drawn at exactly the fitted camera's height and the music strip's
         // size, even when the fit leaves half a point or the width is odd; only

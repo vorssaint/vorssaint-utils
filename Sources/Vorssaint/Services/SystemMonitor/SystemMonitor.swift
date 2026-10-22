@@ -142,7 +142,8 @@ final class SystemMonitor: ObservableObject {
 
     private let queue = DispatchQueue(label: "com.vorssaint.utils.system-monitor", qos: .utility)
     private var timer: Timer?
-    private var intervalSeconds = 2
+    /// Seconds between samples, which sets how long the histories reach back.
+    private(set) var intervalSeconds = 2
     private var panelClients = 0
     private var menuPanelNeeds: SystemMonitorPanelNeeds = .none
     private var notchVisible = false

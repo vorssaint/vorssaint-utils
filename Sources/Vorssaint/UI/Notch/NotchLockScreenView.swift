@@ -14,10 +14,12 @@ final class NotchLockScreenModel: ObservableObject {
         var downloads = false
         var countdown = false
         var timeLeft = false
-        /// The AI Agents page beside the player.
+        /// The AI rail right of the stage.
         var page = false
-        /// The This Mac page left of the player.
+        /// This Mac's rail left of the stage.
         var mac = false
+        /// The calendar on the stage, over the player.
+        var calendar = false
         /// Events read Busy, as This Mac's own calendar shows them.
         var hidesEventTitles = false
         /// What the AI options keep back, on the line as on the page.
@@ -90,27 +92,35 @@ struct NotchLockScreenIsland: View {
 /// it and bends at its edges, and smoked just enough for white type over any
 /// photo: the glass the island itself takes when it is set to glass. Before
 /// macOS 26 the frosted panel of the app's floating surfaces stands in, and
-/// Reduce Transparency makes it solid.
-private struct NotchLockScreenGlass: ViewModifier {
+/// Reduce Transparency makes it solid. The widgets' tiles take the same
+/// glass under their own tint, with an edge.
+struct NotchLockScreenGlass: ViewModifier {
     let cornerRadius: CGFloat
+    /// The tiles' tint and edge in place of the player's smoke.
+    var tile = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let increased = contrast == .increased
         content
             .background {
                 if reduceTransparency {
-                    shape.fill(Color(white: 0.12))
+                    shape.fill(tile ? NotchLockScreenTile.solid : Color(white: 0.12))
                 } else {
                     ZStack {
                         glass(shape)
-                        shape.fill(.black.opacity(contrast == .increased ? 0.5 : 0.24))
+                        if tile {
+                            shape.fill(NotchLockScreenTile.tint.opacity(increased ? 0.7 : 1))
+                        } else {
+                            shape.fill(.black.opacity(increased ? 0.5 : 0.24))
+                        }
                     }
                 }
             }
             .overlay {
-                shape.strokeBorder(.white.opacity(contrast == .increased ? 0.45 : 0), lineWidth: 0.75)
+                shape.strokeBorder(.white.opacity(increased ? 0.45 : tile ? 0.14 : 0), lineWidth: tile ? 1 : 0.75)
                     .allowsHitTesting(false)
             }
     }
@@ -152,11 +162,12 @@ private struct NotchLockScreenMaterial: NSViewRepresentable {
     }
 }
 
-/// The song in the middle of the lock screen, on one pane of Liquid Glass:
-/// the cover, its title, a timeline that seeks and the player's own buttons.
-/// A smaller display takes a smaller cover, then lays it beside the title.
+/// The song on the stage under the calendar, on one pane of Liquid Glass:
+/// the cover beside its title and the player's own buttons, then a timeline
+/// that seeks. A short stage takes a smaller cover.
 struct NotchLockScreenPlayer: View {
     @ObservedObject var model: NotchLockScreenModel
+    let fit: NotchLockScreenPlayerFit
     let size: CGSize
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
@@ -171,12 +182,8 @@ struct NotchLockScreenPlayer: View {
         let shown = model.showsMusic(music.playback)
         ZStack {
             if shown, let playback = music.playback {
-                ViewThatFits(in: .vertical) {
-                    player(playback, artwork: 112)
-                    player(playback, artwork: 84)
-                    compact(playback)
-                }
-                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
+                player(playback)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
             }
         }
         .frame(width: size.width, height: size.height)
@@ -195,48 +202,32 @@ struct NotchLockScreenPlayer: View {
         }
     }
 
-    private func player(_ playback: NotchPlayback, artwork: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            cover(size: artwork, playback: playback)
-                .padding(.bottom, 14)
-            Text(playback.track.title ?? text.mediaNowPlaying)
-                .font(.system(size: 18, weight: .bold))
-                .lineLimit(1)
-            if let artist = playback.track.artist ?? playback.track.album {
-                Text(artist)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(1)
-                    .padding(.top, 2)
-            }
-            NotchMusicTimeline(playback: playback, service: music, tint: accent)
-                .padding(.top, 16)
-            transport(playback)
-        }
-        .pane()
-    }
-
-    /// A short display lays the cover beside the title, as the island's own
-    /// player does.
-    private func compact(_ playback: NotchPlayback) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                cover(size: 52, playback: playback)
+    private func player(_ playback: NotchPlayback) -> some View {
+        let regular = fit == .regular
+        return VStack(spacing: regular ? 11 : 8) {
+            HStack(spacing: regular ? 15 : 12) {
+                cover(size: regular ? 84 : 56, playback: playback)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(playback.track.title ?? text.mediaNowPlaying)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: regular ? 17 : 15, weight: .bold))
                     if let artist = playback.track.artist ?? playback.track.album {
-                        Text(artist).font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.72))
+                        Text(artist)
+                            .font(.system(size: regular ? 13 : 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.72))
                     }
+                    transport(playback)
+                        .padding(.top, regular ? 4 : 0)
                 }
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             NotchMusicTimeline(playback: playback, service: music, tint: accent)
-                .padding(.top, 12)
-            transport(playback)
         }
-        .pane()
+        .foregroundStyle(.white)
+        .padding(.horizontal, 22)
+        .padding(.vertical, regular ? 18 : 14)
+        .frame(width: size.width, height: size.height)
+        .modifier(NotchLockScreenGlass(cornerRadius: NotchLockScreenTile.cornerRadius))
     }
 
     private func cover(size: CGFloat, playback: NotchPlayback) -> some View {
@@ -249,17 +240,18 @@ struct NotchLockScreenPlayer: View {
     /// The player's own buttons, never a permission prompt: a request made
     /// here would open behind the lock screen, where no one can answer it.
     private func transport(_ playback: NotchPlayback) -> some View {
-        HStack(spacing: 46) {
+        HStack(spacing: fit == .regular ? 26 : 18) {
             if !music.lacksTrackSkipping(.previous) {
-                button("backward.fill", size: 22, title: text.mediaPrevious, command: .previous, playback: playback)
+                button("backward.fill", size: 20, title: text.mediaPrevious, command: .previous, playback: playback)
             }
-            button((requestedPlaying ?? playback.isPlaying) ? "pause.fill" : "play.fill", size: 30,
+            button((requestedPlaying ?? playback.isPlaying) ? "pause.fill" : "play.fill", size: 24,
                    title: text.mediaPlayPause, command: .toggle, playback: playback)
             if !music.lacksTrackSkipping(.next) {
-                button("forward.fill", size: 22, title: text.mediaNext, command: .next, playback: playback)
+                button("forward.fill", size: 20, title: text.mediaNext, command: .next, playback: playback)
             }
         }
-        .frame(height: 46)
+        .padding(.leading, -12)
+        .frame(height: 40)
     }
 
     private func button(_ symbol: String, size: CGFloat, title: String, command: NotchMusicService.Command,
@@ -276,67 +268,12 @@ struct NotchLockScreenPlayer: View {
                 .foregroundStyle(.white)
                 .contentTransition(.symbolEffect(.replace))
                 .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: symbol)
-                .frame(width: 48, height: 44)
-                .contentShape(RoundedRectangle(cornerRadius: 14))
+                .frame(width: 44, height: 40)
+                .contentShape(RoundedRectangle(cornerRadius: 12))
         }
-        .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+        .buttonStyle(NotchButtonStyle(cornerRadius: 12))
         .disabled(!music.canPerform(command))
         .accessibilityLabel(title)
-    }
-}
-
-private extension View {
-    /// The player's pane, as wide as the timeline needs and no wider.
-    func pane() -> some View {
-        foregroundStyle(.white)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 26)
-            .padding(.vertical, 20)
-            .frame(width: NotchLockScreenLayout.paneWidth)
-            .modifier(NotchLockScreenGlass(cornerRadius: 34))
-            .fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-/// The open island's AI page beside the player, on the player's glass and
-/// the island's glass cards, without Trend. It takes no clicks, never
-/// scrolls, and keeps back what the person chose to hide.
-struct NotchLockScreenAgents: View {
-    let size: CGSize
-    let privacy: NotchAgentPrivacy
-    static let inset: CGFloat = 12
-
-    var body: some View {
-        NotchAgentsView(size: CGSize(width: size.width - Self.inset * 2, height: size.height - Self.inset * 2))
-            .environment(\.notchAgentsLockScreen, privacy)
-            .environment(\.notchGlassSurface, true)
-            // Only what the page marks private: amounts, when they are hidden.
-            .redacted(reason: .privacy)
-            .padding(Self.inset)
-            .foregroundStyle(.white)
-            .modifier(NotchLockScreenGlass(cornerRadius: 30))
-            .frame(width: size.width, height: size.height)
-            .environment(\.colorScheme, .dark)
-    }
-}
-
-/// The This Mac page left of the player, the AI page's mirror: the same
-/// glass, inset and cards. Only its calendar takes input.
-struct NotchLockScreenMac: View {
-    let size: CGSize
-    let hidesEventTitles: Bool
-    let calendarView: NotchLockScreenCalendarView
-
-    var body: some View {
-        NotchLockScreenMacPage(size: CGSize(width: size.width - NotchLockScreenAgents.inset * 2,
-                                            height: size.height - NotchLockScreenAgents.inset * 2),
-                               hidesEventTitles: hidesEventTitles, calendarView: calendarView)
-            .environment(\.notchGlassSurface, true)
-            .padding(NotchLockScreenAgents.inset)
-            .foregroundStyle(.white)
-            .modifier(NotchLockScreenGlass(cornerRadius: 30))
-            .frame(width: size.width, height: size.height)
-            .environment(\.colorScheme, .dark)
     }
 }
 
@@ -375,10 +312,11 @@ struct NotchLockScreenActivities: View {
         let gates = model.gates
         return NotchLockScreenSupport.activities(
             timer: gates.timer && timer.session.hasSession,
-            calendar: calendar.countdown.map {
+            // The stage's calendar and the AI rail say these themselves.
+            calendar: !gates.calendar && calendar.countdown.map {
                 ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date, leadTime: calendar.countdownLeadTime)
             } == true,
-            agents: gates.agents && !usage.snapshot.live.isEmpty,
+            agents: !gates.page && gates.agents && !usage.snapshot.live.isEmpty,
             downloads: gates.downloads && downloads.items.contains { $0.active && !$0.completed })
     }
 
