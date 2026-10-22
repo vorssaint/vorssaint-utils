@@ -105,7 +105,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
     @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = true
     @AppStorage(DefaultsKey.notchQuickAccessLayout) private var accessData = Data()
-    @AppStorage(DefaultsKey.notchNavigationStyle) private var navigationStyle = NotchNavigationStyle.topBar.rawValue
+    @AppStorage(DefaultsKey.notchNavigationStyle) private var navigationStyle = NotchNavigationStyle.sideButtons.rawValue
     @State private var tab = NotchSettingsTab.layout
     @State private var selectedModule = NotchModule.controls
     @State private var draggingModule: NotchModule?

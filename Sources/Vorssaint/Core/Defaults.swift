@@ -1605,7 +1605,7 @@ enum Defaults {
         DefaultsKey.notchOpensActivity: true,
         DefaultsKey.notchHiddenModules: "",
         DefaultsKey.notchModuleOrder: "",
-        DefaultsKey.notchNavigationStyle: NotchNavigationStyle.topBar.rawValue,
+        DefaultsKey.notchNavigationStyle: NotchNavigationStyle.sideButtons.rawValue,
         DefaultsKey.notchTopBarOrder: "",
         DefaultsKey.notchTopBarHidden: "",
         DefaultsKey.notchTopBarSecondaryClickToggles: true,
