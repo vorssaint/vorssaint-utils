@@ -175,6 +175,7 @@ enum ReleaseChangeAliases {
         case .connectedDevices: return ["connected devices", "usb devices"]
         case .fanControl: return ["fan control", "fan curves", "fan curve", "fan speed", "fan speeds",
             "cooling curve"]
+        case .teleprompter: return ["teleprompter", "prompter", "speech recognition", "word tracking", "remote prompter"]
         }
     }
 

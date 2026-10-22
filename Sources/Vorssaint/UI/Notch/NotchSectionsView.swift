@@ -148,6 +148,7 @@ struct NotchSectionsView: View {
         case .music: return .pink
         case .calendar: return .red
         case .timer: return .orange
+        case .teleprompter: return .indigo
         default: return .white.opacity(0.85)
         }
     }

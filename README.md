@@ -151,6 +151,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Copy text from screen.** Recognize text offline from any screen area, or read a QR code.
 - **Color picker.** Copy a screen color as HEX, RGB, HSL or SwiftUI code.
 - **Media tools.** Compress and edit videos, batch-convert images, add watermarks, make GIFs and extract text, all locally.
+- **Teleprompter.** Voice-activated, word-tracking teleprompter HUD and Dynamic Island overlay with presentation notes (.pptx) extraction and wireless remote prompter server.
 
 ### App management
 
@@ -244,6 +245,8 @@ Vorssaint is free and will stay that way. If it earned its place in your menu ba
 ## Acknowledgements
 
 - App icon designed by [@divisionseven](https://github.com/divisionseven)
+- Teleprompter integration and port by [@aman-patel-1](https://github.com/aman-patel-1), adapted from [Textream](https://github.com/f/textream) by [@f](https://github.com/f) (Fatih Kadir Akın) and [@semihkislar](https://github.com/semihkislar) (Semih Kislar); see the [MIT license notice](THIRD_PARTY_NOTICES.md#textream)
+- OpenDyslexic font family designed by [Abbie Gonzalez](https://opendyslexic.org), SIL Open Font License
 
 ## License
 

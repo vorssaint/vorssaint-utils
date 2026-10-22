@@ -108,6 +108,7 @@ final class NotchService: ObservableObject {
 
     @Published private(set) var geometry = NotchGeometry(
         screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 0, cameraWidth: 0)
+    @Published private(set) var teleprompterSurfaceSize: CGSize?
     @Published private(set) var expanded = false
     @Published private(set) var showsKeyboardFocus = false
     /// True when macOS refused the island's own shortcut, so Settings can say so.
@@ -177,6 +178,11 @@ final class NotchService: ObservableObject {
     private var shelfDragExitWork: DispatchWorkItem?
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var subscriptions = Set<AnyCancellable>()
+    private var teleprompterActivityIsRunning = false
+    private var teleprompterFocusNotchEnabled = true
+    private var teleprompterPreviewIsActive = false
+    private var teleprompterHideFromScreenSharing = true
+    private var teleprompterSubscriptionGeneration: UInt64 = 0
     private var eventMonitors: [Any] = []
     private var screenEdgeClickMonitors: [Any] = []
     private var screenEdgePressArea: CGRect?
@@ -215,6 +221,8 @@ final class NotchService: ObservableObject {
     /// opened on, from the menu bar for instance, has nothing behind it and
     /// closes like the menu panel.
     private var detailHasPage = false
+    private var teleprompterCameFromSections = false
+    private var teleprompterPreviousModule: NotchModule?
     /// What a page shows over its own content, such as the mixer's options or
     /// the month grid, and how to close it; Escape closes it before the page.
     private var pageLayers: [NotchModule: () -> Void] = [:]
@@ -226,6 +234,7 @@ final class NotchService: ObservableObject {
     private var keepsWorkingSurface: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
             || NotchLyricsService.shared.isImporting
+            || (expanded && selected == .teleprompter && (teleprompterActivityIsRunning || teleprompterPreviewIsActive))
             // Like the lyrics chooser, these panels stand beside the island
             // instead of hanging from it; a click in them is not a click away.
             || (expanded && MediaWorkspaceView.panelModalActive)
@@ -517,6 +526,10 @@ final class NotchService: ObservableObject {
         NotchKeepAwakeSupport.showsActivity() && KeepAwakeManager.shared.isActive
     }
 
+    var hasTeleprompterActivity: Bool {
+        modules.contains(.teleprompter) && teleprompterActivityIsRunning
+    }
+
     var compactActivity: NotchCompactActivity? {
         // A new song waiting for its notice is not drawn yet.
         activitySelection.current(available: awaitsTrackNotice ? compactActivities.filter { $0 != .music } : compactActivities)
@@ -525,7 +538,8 @@ final class NotchService: ObservableObject {
     var compactActivities: [NotchCompactActivity] {
         NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, downloads: hasDownloadActivity,
                                       agents: hasAgentActivity, calendar: hasCalendarActivity,
-                                      music: hasMusicActivity, keepAwake: hasKeepAwakeActivity)
+                                      music: hasMusicActivity, keepAwake: hasKeepAwakeActivity,
+                                      teleprompter: hasTeleprompterActivity)
     }
 
     var showsCompactActivityPicker: Bool {
@@ -641,6 +655,8 @@ final class NotchService: ObservableObject {
         case .timer:
             return geometry.compactTimerGeometry(showsDownloads: companion == .downloads,
                                                  wing: timerStripWing(for: companion, in: geometry))
+        case .teleprompter:
+            return geometry.compactTimerGeometry(showsDownloads: false, wing: teleprompterStripWing(in: geometry))
         case .downloads:
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
@@ -723,6 +739,18 @@ final class NotchService: ObservableObject {
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
         ]).width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
         return max(reading, companionMarkWidth(companion, in: provisional)) + NotchTimerSupport.stripCameraGap
+    }
+
+    private func teleprompterStripWing(in geometry: NotchGeometry) -> CGFloat {
+        let provisional = geometry.compactTimerGeometry(showsDownloads: false,
+                                                        wing: NotchTimerSupport.stripWingRange.lowerBound)
+        let size = NotchTimerSupport.stripTextSize(height: provisional.compactActivityContentHeight)
+        let reading = ("00:00" as NSString).size(withAttributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+        ]).width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        return max(reading, NotchTimerSupport.stripIconSize(height: provisional.compactActivityContentHeight)
+                   + provisional.compactActivityEdgeInset(boxHeight: 13, radius: 6.5))
+            + NotchTimerSupport.stripCameraGap
     }
 
     /// The width of the mark at a strip's left end, the timer's own without a
@@ -867,6 +895,14 @@ final class NotchService: ObservableObject {
         result.requiresFullWidthHeader = selected == .captures && captureActions != nil
             && !showingSections && !showingAppPanel && selectedMetric == nil
         result.pageTop = expandedPageTop
+        if selected == .teleprompter, !showingSections, !showingAppPanel,
+           selectedMetric == nil, let surfaceSize = teleprompterSurfaceSize {
+            // Teleprompter dimensions size the whole island while it is
+            // running or shown in its Settings preview.
+            result.layout = .custom
+            result.customWidth = surfaceSize.width
+            result.customHeight = surfaceSize.height
+        }
         if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
         // Under a preset each page takes the width it needs, up to the
         // preset's; the gallery, details and the empty island keep the chosen
@@ -879,6 +915,11 @@ final class NotchService: ObservableObject {
             result.sectionsButtonInRow = false
         }
         return result
+    }
+
+    func setTeleprompterSurfaceSize(_ size: CGSize?) {
+        guard teleprompterSurfaceSize != size else { return }
+        teleprompterSurfaceSize = size
     }
     /// The gallery keeps its search in the top row and a detail its way
     /// back; with no sections the island shows only how to add them.
@@ -1027,6 +1068,8 @@ final class NotchService: ObservableObject {
             return layout.musicSurface(title: named
                                         ? playback?.track.title ?? FeatureStrings.radialMenu(language).mediaNowPlaying : nil,
                                        geometry: geometry)
+        case .teleprompter:
+            return layout.teleprompterSurface(geometry: geometry)
         case .timer:
             let timer = NotchTimerService.shared
             return layout.timerSurface(reading: NotchTimerSupport.compactText(for: timer.session, at: timer.now,
@@ -1405,6 +1448,10 @@ final class NotchService: ObservableObject {
         let closesCommandBar = showingCommandBar
         let changesPresentation = !expanded || selected != destination || closesCommandBar
             || showingAppPanel != appPanel || selectedMetric != metric || showingSections != sections
+        if changesPresentation, destination == .teleprompter {
+            teleprompterCameFromSections = showingSections
+            teleprompterPreviousModule = showingSections ? nil : selected
+        }
         if changesPresentation, destination == .tools, !appPanel, !sections, metric == nil {
             QuickLauncherService.shared.prepareForPresentation()
         }
@@ -1743,6 +1790,24 @@ final class NotchService: ObservableObject {
         }
     }
 
+    /// Return from the teleprompter to the surface it was opened from. When
+    /// it came from Explore, keep the gallery open; when it replaced another
+    /// page, restore that page instead of jumping to a default destination.
+    func backFromTeleprompter() {
+        guard selected == .teleprompter else { toggleSections(); return }
+        if teleprompterCameFromSections {
+            teleprompterCameFromSections = false
+            teleprompterPreviousModule = nil
+            toggleSections()
+        } else if let previous = teleprompterPreviousModule, modules.contains(previous) {
+            teleprompterCameFromSections = false
+            teleprompterPreviousModule = nil
+            open(previous)
+        } else {
+            toggleSections()
+        }
+    }
+
     private var sectionRowLimits: (rows: Int, visible: Int) {
         let count = filteredSections.count
         return (NotchSectionPaging.rows(count: count, columns: geometry.sectionColumns), geometry.sectionRows(count: count))
@@ -1870,6 +1935,7 @@ final class NotchService: ObservableObject {
             case .calendar: select(.calendar)
             case .commandBar: perform { CommandBarService.shared.show() }
             case .scratchpad: openScratchpad()
+            case .teleprompter: select(.teleprompter)
             case .volume, .brightness, .keyboardLight: select(.controls)
             }
         }
@@ -2585,6 +2651,7 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
+        applyScreenCaptureVisibility()
         // A notice with a new reading, or the music strip naming its song,
         // fits its new width in place.
         let fitsInPlace = noticeFitsInPlace && notice != nil && !noticeExpanded
@@ -2670,9 +2737,12 @@ final class NotchService: ObservableObject {
         }
         var presented = expanded ? expandedGeometry : geometry
         presented.surfaceShift = surfaceShift
+        let isFocusedTeleprompter = selected == .teleprompter
+            && teleprompterActivityIsRunning && teleprompterFocusNotchEnabled
         windowHost?.present(size: size, geometry: presented, animated: animated,
                             transitionContent: contentTransition,
-                            quickAccess: expanded && captureControls == nil && !showingCommandBar && !access.buttons.isEmpty
+                            quickAccess: expanded && captureControls == nil && !showingCommandBar
+                                && !isFocusedTeleprompter && !access.buttons.isEmpty
                                 ? access : nil,
                             revealFromHidden: !hiddenInFullscreen && captureControls == nil
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
@@ -3074,7 +3144,7 @@ final class NotchService: ObservableObject {
                 mirror.model.timerOutline = activity == .timer
                 mirror.host.setOutline(enabled: outline, color: activity == .timer ? .systemOrange : .white)
             }
-            let sharing: NSWindow.SharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
+            let sharing = screenCaptureSharingType
             if mirror.host.panel.sharingType != sharing { mirror.host.panel.sharingType = sharing }
             let revealing = !mirror.model.shown
             let previous = mirror.model.activity
@@ -3437,8 +3507,23 @@ final class NotchService: ObservableObject {
                 },
                 update: { [weak self] in self?.updateFileDrop(at: $0) == true }))
         } else { windowHost?.setFileDropActions(nil) }
-        panel?.sharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
+        panel?.sharingType = screenCaptureSharingType
         updateFullscreenVisibility(displayID: screen.notchDisplayID)
+    }
+
+    private var screenCaptureSharingType: NSWindow.SharingType {
+        let protectTeleprompter = selected == .teleprompter
+            && teleprompterHideFromScreenSharing
+            && (teleprompterActivityIsRunning || teleprompterPreviewIsActive)
+        return NotchSupport.showsInCaptures() && !protectTeleprompter ? .readOnly : .none
+    }
+
+    private func applyScreenCaptureVisibility() {
+        let sharing = screenCaptureSharingType
+        if panel?.sharingType != sharing { panel?.sharingType = sharing }
+        for mirror in mirrors.values where mirror.host.panel.sharingType != sharing {
+            mirror.host.panel.sharingType = sharing
+        }
     }
 
     /// The island's geometry on a display, before its menus are measured.
@@ -3880,6 +3965,10 @@ final class NotchService: ObservableObject {
 
     private func bindEvents() {
         subscriptions.removeAll()
+        teleprompterSubscriptionGeneration &+= 1
+        let teleprompterGeneration = teleprompterSubscriptionGeneration
+        teleprompterActivityIsRunning = false
+        teleprompterPreviewIsActive = false
         if modules.contains(.timer) {
             NotchTimerService.shared.$session.removeDuplicates().receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
@@ -3887,6 +3976,45 @@ final class NotchService: ObservableObject {
                     self?.objectWillChange.send()
                     self?.refreshPresentation()
                 }.store(in: &subscriptions)
+        }
+        if modules.contains(.teleprompter) {
+            // The prompter service is MainActor isolated. Defer access to its
+            // publisher until on that actor, while keeping the strip's cached
+            // activity state safe to read from Notch layout calculations.
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.teleprompterSubscriptionGeneration == teleprompterGeneration,
+                      self.modules.contains(.teleprompter) else { return }
+                let prompter = TeleprompterService.shared
+                self.teleprompterActivityIsRunning = prompter.isRunning
+                self.teleprompterFocusNotchEnabled = prompter.focusNotchMode
+                self.teleprompterPreviewIsActive = prompter.isPreviewingInNotch
+                self.teleprompterHideFromScreenSharing = prompter.hideFromScreenSharing
+                prompter.$isRunning.combineLatest(prompter.$focusNotchMode,
+                                                   prompter.$hideFromScreenSharing)
+                    .removeDuplicates { previous, current in
+                        previous.0 == current.0 && previous.1 == current.1
+                            && previous.2 == current.2
+                    }
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] isRunning, focusNotchEnabled, hideFromScreenSharing in
+                        guard let self else { return }
+                        self.teleprompterActivityIsRunning = isRunning
+                        self.teleprompterFocusNotchEnabled = focusNotchEnabled
+                        self.teleprompterHideFromScreenSharing = hideFromScreenSharing
+                        self.objectWillChange.send()
+                        self.refreshPresentation()
+                    }.store(in: &self.subscriptions)
+                prompter.$isPreviewingInNotch
+                    .removeDuplicates()
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] isPreviewing in
+                        guard let self else { return }
+                        self.teleprompterPreviewIsActive = isPreviewing
+                        self.objectWillChange.send()
+                        self.refreshPresentation()
+                    }.store(in: &self.subscriptions)
+            }
         }
         if modules.contains(.watch) {
             // The strip resizes with its reading, and when the area turns

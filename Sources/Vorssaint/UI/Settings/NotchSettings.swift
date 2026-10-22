@@ -106,6 +106,7 @@ struct NotchSettings: View {
     @State private var selectedModule = NotchModule.controls
     @State private var draggingModule: NotchModule?
     @State private var draggingControl: NotchControlItem?
+    @State private var scrollToPrivacyCard = false
     @State private var preferredPlayers: [NotchPreferredPlayer.Choice]?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -177,6 +178,8 @@ struct NotchSettings: View {
         .onChange(of: tab) { _, _ in draggingModule = nil; draggingControl = nil }
         .onAppear(perform: consumeModuleHint)
         .onChange(of: router.notchModule) { _, _ in consumeModuleHint() }
+        .onAppear(perform: consumePrivacyHint)
+        .onChange(of: router.notchPrivacySettingsRequested) { _, _ in consumePrivacyHint() }
         .onAppear(perform: consumeCompanionHint)
         .onChange(of: router.notchCompanion) { _, _ in consumeCompanionHint() }
         // Uninstalled while its tab shows, the companion leaves the page to the layout.
@@ -193,17 +196,36 @@ struct NotchSettings: View {
     }
 
     private var pageScroll: some View {
-        ScrollView {
-            Group {
-                switch tab {
-                case .layout: layoutPage
-                case .content: EmptyView()
-                case .activity: activityPage
-                case .behavior: behaviorPage
-                case .companion: EmptyView()
-                }
-            }.padding(.bottom, 22)
-        }.id(tab)
+        ScrollViewReader { reader in
+            ScrollView {
+                Group {
+                    switch tab {
+                    case .layout: layoutPage
+                    case .content: EmptyView()
+                    case .activity: activityPage
+                    case .behavior: behaviorPage
+                    case .companion: EmptyView()
+                    }
+                }.padding(.bottom, 22)
+            }
+            .id(tab)
+            .onChange(of: tab) { _, newTab in
+                scrollToPrivacy(using: reader, when: newTab)
+            }
+            .onChange(of: scrollToPrivacyCard) { _, shouldScroll in
+                if shouldScroll { scrollToPrivacy(using: reader, when: tab) }
+            }
+        }
+    }
+
+    private func scrollToPrivacy(using reader: ScrollViewProxy, when selectedTab: NotchSettingsTab) {
+        guard scrollToPrivacyCard, selectedTab == .behavior else { return }
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                reader.scrollTo("notch-screen-sharing-privacy", anchor: .bottom)
+            }
+            scrollToPrivacyCard = false
+        }
     }
 
     /// A section of the island can ask for its own options; the hint is one-shot.
@@ -212,6 +234,13 @@ struct NotchSettings: View {
         router.notchModule = nil
         selectedModule = module
         tab = .content
+    }
+
+    private func consumePrivacyHint() {
+        guard router.notchPrivacySettingsRequested else { return }
+        router.notchPrivacySettingsRequested = false
+        scrollToPrivacyCard = true
+        tab = .behavior
     }
 
     private func sync() {
@@ -392,7 +421,7 @@ struct NotchSettings: View {
 
     /// The mixer, the system page and the tools arrange themselves in the island.
     private func hasOptions(_ module: NotchModule) -> Bool {
-        ![.mixer, .system, .tools].contains(module)
+        ![.mixer, .system, .tools, .teleprompter].contains(module)
     }
 
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
@@ -528,7 +557,7 @@ struct NotchSettings: View {
         case .watch:
             NotchWatchSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())
-        case .mixer, .system, .tools:
+        case .mixer, .system, .tools, .teleprompter:
             EmptyView()
         }
     }
@@ -721,6 +750,7 @@ struct NotchSettings: View {
             SettingsCard(title: editor.privacy) {
                 switchRow("camera.viewfinder", text.showInCaptures, isOn: $showInCaptures)
             }
+            .id("notch-screen-sharing-privacy")
         }
     }
 
@@ -863,6 +893,7 @@ struct NotchSettings: View {
         case .scratchpad: return .scratchpad
         case .agents: return .notchAgents
         case .watch: return .notchWatch
+        case .teleprompter: return .teleprompter
         }
     }
 
