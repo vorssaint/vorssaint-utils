@@ -553,7 +553,11 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/SustainedAlertGate.swift
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutSupport.swift
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift
+        Sources/Vorssaint/Services/WindowLayout/WindowStickyEdgeSupport.swift
+        Sources/Vorssaint/Services/WindowLayout/WindowStickyEchoSupport.swift
+        Sources/Vorssaint/Services/WindowLayout/WindowStickySmoothing.swift
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift
+        Sources/Vorssaint/Core/WindowStickySnapStrings.swift
         Sources/Vorssaint/Core/PointerDisplayStrings.swift
         Sources/Vorssaint/Core/GraphScaleStrings.swift
         Sources/Vorssaint/Core/NotchLowBatteryStrings.swift

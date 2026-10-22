@@ -5250,6 +5250,9 @@ enum SwitcherModelFeatureTests {
                "App Switcher use history toggles back after two consecutive switcher uses")
 
         WindowFocusHistoryTests.run { suite.expect($0, $1) }
+        WindowStickyEdgeTests.run { suite.expect($0, $1) }
+        WindowStickyEchoTests.run { suite.expect($0, $1) }
+        WindowStickySmoothingTests.run { suite.expect($0, $1) }
 
         // Issue #388: the switcher put the app the user had just used far down
         // the list. The order used to come from a history that only the

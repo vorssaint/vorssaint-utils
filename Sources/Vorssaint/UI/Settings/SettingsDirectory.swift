@@ -281,6 +281,7 @@ enum SettingsDirectory {
                                                          FeatureStrings.windowLayout(language).edgeSnapEnable,
                                                          FeatureStrings.windowLayout(language).gestureEnable,
                                                          FeatureStrings.windowLayout(language).gestureResize,
+                                                         WindowStickySnapStrings.localized(language).title,
                                                          FeatureStrings.windowLayoutIgnoredApps(language).listTitle]),
                                         (.windowMaximizer,
                                          [s.windowMaximizeName,

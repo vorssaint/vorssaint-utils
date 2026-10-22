@@ -137,6 +137,10 @@ final class WindowLayoutService: ObservableObject {
 
         let hadGestureTap = gestureTap != nil
         let hadEdgeSnapTap = edgeSnapTap != nil
+        // Observation only, so it is not tied to the app-ignore list.
+        WindowStickySnapService.shared.sync(
+            wanted: available && trusted && WindowStickySnapService.isEnabled)
+
         let wantsGesture = gestureEnabled && inputAllowed
         wantsGesture ? startGestureTap() : stopGestureTap()
 
@@ -180,6 +184,7 @@ final class WindowLayoutService: ObservableObject {
         unregisterDirectionalHotkey()
         stopGestureTap()
         stopEdgeSnapTap()
+        WindowStickySnapService.shared.stop()
         if let ignoredAppsActivationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(ignoredAppsActivationObserver)
             self.ignoredAppsActivationObserver = nil
@@ -243,6 +248,7 @@ final class WindowLayoutService: ObservableObject {
             }
             if setFrame(previous, on: target.window, windowKey: target.key) {
                 lastActions.removeValue(forKey: target.key)
+                WindowStickySnapService.shared.layoutReleased(target.window)
                 return finish(.success(restored: true))
             }
             frameHistory.record(previous, for: target.key)
@@ -268,6 +274,7 @@ final class WindowLayoutService: ObservableObject {
             // means maximize" rule would still be looking at whatever the
             // window did before it went full screen.
             if applied {
+                WindowStickySnapService.shared.layoutReleased(target.window)
                 if isFullScreen {
                     lastActions.removeValue(forKey: target.key)
                 } else {
@@ -298,6 +305,7 @@ final class WindowLayoutService: ObservableObject {
                         on: target.window,
                         windowKey: target.key) {
                 lastActions[target.key] = action
+                WindowStickySnapService.shared.layoutPlaced(target.window)
                 return finish(.success(restored: false))
             }
             frameHistory.discardLatest(for: target.key)
@@ -389,6 +397,7 @@ final class WindowLayoutService: ObservableObject {
                     windowKey: target.key,
                     cyclePress: cyclePress) {
             lastActions[target.key] = effectiveAction
+            WindowStickySnapService.shared.layoutPlaced(target.window)
             return finish(.success(restored: false))
         }
         frameHistory.discardLatest(for: target.key)
@@ -2540,7 +2549,7 @@ final class WindowLayoutService: ObservableObject {
         return WindowGestureTarget(window: window, app: app, frame: frame)
     }
 
-    private func canSetFrame(on window: AXUIElement) -> Bool {
+    func canSetFrame(on window: AXUIElement) -> Bool {
         canSetPosition(on: window) && canSetSize(on: window)
     }
 

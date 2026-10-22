@@ -503,6 +503,7 @@ enum DefaultsKey {
     static let windowLayoutScreenGap = "windowLayoutScreenGap" // px between a snapped window and the visible frame edge
     static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // per-edge percentage for margin maximize
     static let windowLayoutSideRepeatCyclesThirds = "windowLayoutSideRepeatCyclesThirds" // repeated Left/Right cycles half, 2/3, 1/3 on the same display
+    static let windowStickySnapEnabled = "windowStickySnapEnabled" // placed neighbours share a resized edge
     static let windowLayoutIgnoredApps = "windowLayoutIgnoredApps" // apps that temporarily disable window layout while focused
     static let panelCollapsedSections = "panelCollapsedSections"
     static let panelCollapsedResetVersion = "panelCollapsedResetVersion"
@@ -1645,6 +1646,7 @@ enum Defaults {
         DefaultsKey.windowLayoutScreenGap: 0,
         DefaultsKey.windowLayoutMarginPercent: 5.0,
         DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
+        DefaultsKey.windowStickySnapEnabled: false,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,
