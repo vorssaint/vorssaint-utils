@@ -45,6 +45,11 @@ enum NotchLockScreenSupport {
         defaults.bool(forKey: DefaultsKey.notchLockScreenMac)
     }
 
+    /// The moon wallpaper moves only over the lock screen it belongs to.
+    static func showsWallpaper(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockWallpaper)
+    }
+
     /// Events read Busy instead of their titles, with no locations.
     static func hidesEventTitles(in defaults: UserDefaults = .standard) -> Bool {
         defaults.bool(forKey: DefaultsKey.notchLockScreenMacHideEvents)

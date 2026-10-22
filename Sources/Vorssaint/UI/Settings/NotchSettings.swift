@@ -85,6 +85,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLockScreenAgentsHideAmounts) private var lockScreenHidesAmounts = false
     @AppStorage(DefaultsKey.notchLockScreenMac) private var lockScreenMac = false
     @AppStorage(DefaultsKey.notchLockScreenMacHideEvents) private var lockScreenHidesEvents = false
+    @AppStorage(DefaultsKey.notchLockWallpaper) private var lockWallpaper = false
     @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = false
@@ -678,6 +679,12 @@ struct NotchSettings: View {
                                   isOn: $lockScreenHidesEvents)
                             .padding(.leading, settingsRowTextInset)
                     }
+                }
+                // Turned on, the still frame becomes the desktop picture.
+                // Turned off, it stays there, without what moves on it.
+                if lockScreen {
+                    switchRow("moon.stars", locked.wallpaper, caption: locked.wallpaperHint, isOn: $lockWallpaper)
+                        .onChange(of: lockWallpaper) { _, on in if on { NotchLockWallpaper.apply() } }
                 }
                 switchRow("speaker.wave.2", locked.sounds, caption: locked.soundsHint, isOn: $lockSounds)
             }
