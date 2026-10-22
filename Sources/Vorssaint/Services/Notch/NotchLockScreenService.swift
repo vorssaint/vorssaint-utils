@@ -114,7 +114,7 @@ final class NotchLockScreenService {
             agents: NotchAgentSupport.showsLiveActivity(),
             downloads: NotchSupport.routes(.download), countdown: NotchCalendarSupport.showsCountdown(),
             timeLeft: NotchCalendarSupport.showsTimeLeft(), page: frames.agents != nil,
-            mac: frames.mac != nil)
+            mac: frames.mac != nil, hidesEventTitles: NotchLockScreenSupport.hidesEventTitles())
         if model.gates != gates { model.gates = gates }
         calendarView = NotchLockScreenSupport.calendarView()
         var scene: [NotchLockScreenPanel] = []
