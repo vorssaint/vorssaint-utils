@@ -475,7 +475,8 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.omp, ".omp/agent/sessions")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
