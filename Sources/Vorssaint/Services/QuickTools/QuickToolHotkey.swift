@@ -36,6 +36,15 @@ final class QuickToolHotkey {
         }
         unregister()
         Self.installSharedHandlerIfNeeded()
+        // A second tool claiming an id another one already holds would
+        // replace it in the lookup table, and the first tool's unregister
+        // would then take the second's entry with it: one of the two would
+        // answer to a press meant for the other. The ids are hand-assigned,
+        // so a repeat is a mistake in the tree rather than something to
+        // recover from at runtime, and the second claim is refused instead.
+        if let existing = Self.instances[hotKeyID], existing !== self {
+            return false
+        }
         Self.instances[hotKeyID] = self
         let id = EventHotKeyID(signature: 0x5655_5154, id: hotKeyID) // 'VUQT'
         var ref: EventHotKeyRef?

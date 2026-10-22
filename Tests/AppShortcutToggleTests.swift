@@ -19,13 +19,13 @@ enum AppShortcutToggleTests {
         private(set) var count = 0
         /// What each press asked for, in order, so a replay can be compared
         /// against the presses that produced it.
-        private(set) var outcomes: [AppToggleAction] = []
+        private(set) var outcomes: [CommandBarRowShortcuts.AppToggleAction] = []
 
         mutating func press(frontmost: Bool? = nil, hidden: Bool? = nil) {
             count += 1
             if let frontmost { self.frontmost = frontmost }
             if let hidden { self.hidden = hidden }
-            let action = AppToggleSupport.action(forPress: count,
+            let action = CommandBarRowShortcuts.toggleAction(forPress: count,
                                                  isFrontmost: self.frontmost,
                                                  isHidden: self.hidden)
             switch action {
@@ -77,7 +77,7 @@ enum AppShortcutToggleTests {
     /// which would leave an app with no key that brings it back.
     private static func hiddenAppAlwaysComesBack(_ suite: TestSuite) {
         for press in 1...12 {
-            let action = AppToggleSupport.action(forPress: press,
+            let action = CommandBarRowShortcuts.toggleAction(forPress: press,
                                                  isFrontmost: true,
                                                  isHidden: true)
             suite.expect(action == .activate,
@@ -122,7 +122,7 @@ enum AppShortcutToggleTests {
     /// hits every time they press a key for a background app.
     private static func pressOnABackgroundAppBringsItForward(_ suite: TestSuite) {
         for press in 1...6 {
-            let action = AppToggleSupport.action(forPress: press,
+            let action = CommandBarRowShortcuts.toggleAction(forPress: press,
                                                  isFrontmost: false,
                                                  isHidden: false)
             suite.expect(action == .activate,
