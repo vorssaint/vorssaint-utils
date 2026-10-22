@@ -174,6 +174,21 @@ enum NotchLockScreenPlayerFit: Equatable {
     }
 }
 
+/// A rail widget and where it stands.
+struct NotchLockScreenPlacement: Equatable {
+    var widget: NotchLockScreenWidget
+    var frame: CGRect
+}
+
+/// Rail widgets that share one window: a run of widgets that let clicks
+/// through, or one widget that takes the pointer. Each widget's frame is
+/// inside the window, from its top left.
+struct NotchLockScreenPanelPlan: Equatable {
+    var frame: CGRect
+    var widgets: [NotchLockScreenPlacement]
+    var interactive: Bool
+}
+
 /// Where everything goes on one display. A part with no room is nil.
 struct NotchLockScreenScene: Equatable {
     /// The line of activities under the clock.
@@ -181,14 +196,42 @@ struct NotchLockScreenScene: Equatable {
     var calendar: CGRect?
     var player: CGRect?
     var playerFit: NotchLockScreenPlayerFit?
-    /// This Mac's rail left of the stage, and the height of its four gauges.
+    /// This Mac's rail left of the stage and the AI rail right of it, each
+    /// around the widgets it shows.
     var mac: CGRect?
-    var gauge: CGFloat = 0
-    /// The AI rail right of the stage: Claude with Codex and Lifetime under
-    /// it, Agents at work, and Streak. Only the last two take the pointer.
-    var aiCards: CGRect?
-    var agents: CGRect?
-    var streak: CGRect?
+    var ai: CGRect?
+    /// The rails' widgets, This Mac's then AI's, each rail top to bottom.
+    var widgets: [NotchLockScreenPlacement] = []
+
+    func frame(of widget: NotchLockScreenWidget) -> CGRect? {
+        widgets.first { $0.widget == widget }?.frame
+    }
+
+    /// The rails' windows: each run of widgets that let clicks through
+    /// shares one, and each widget that takes the pointer has its own, so
+    /// no two windows overlap.
+    var panels: [NotchLockScreenPanelPlan] {
+        var runs: [[NotchLockScreenPlacement]] = []
+        for placed in widgets {
+            if let last = runs.last?.last, last.widget.place == placed.widget.place,
+               !last.widget.takesPointer, !placed.widget.takesPointer {
+                runs[runs.count - 1].append(placed)
+            } else {
+                runs.append([placed])
+            }
+        }
+        return runs.map { run in
+            let frame = run.dropFirst().reduce(run[0].frame) { $0.union($1.frame) }
+            return NotchLockScreenPanelPlan(
+                frame: frame,
+                widgets: run.map {
+                    NotchLockScreenPlacement(widget: $0.widget, frame: CGRect(
+                        x: $0.frame.minX - frame.minX, y: frame.maxY - $0.frame.maxY,
+                        width: $0.frame.width, height: $0.frame.height))
+                },
+                interactive: run[0].widget.takesPointer)
+        }
+    }
 }
 
 /// macOS draws the lock screen's date, clock and login controls in one window
@@ -196,9 +239,9 @@ struct NotchLockScreenScene: Equatable {
 /// 27 the date and clock end 236 points from the top of a 956-point display,
 /// and the name, picture, password field and hint take the lowest 218.
 /// Activities read as a line under the clock. The stage under it holds the
-/// calendar over Now Playing, and a rail stands in each free column beside
+/// calendar and Now Playing, and a rail stands in each free column beside
 /// it: This Mac on the left, AI on the right, both ending level with the
-/// player.
+/// stage's foot. Each shows the widgets the person keeps, in their order.
 enum NotchLockScreenLayout {
     /// A taller display draws a larger clock.
     static func clockBottom(screenHeight: CGFloat) -> CGFloat { max(236, screenHeight * 0.247) }
@@ -247,62 +290,151 @@ enum NotchLockScreenLayout {
     static let agentsMaximum: CGFloat = 360
     static let streakHeight: CGFloat = 150
 
+    /// A widget's least and greatest height in a rail; most have one height.
+    static func heights(of widget: NotchLockScreenWidget) -> ClosedRange<CGFloat> {
+        switch widget {
+        case .cpu, .gpu, .memory, .network: return gaugeMinimum...gaugeMaximum
+        case .accessories: return accessoriesHeight...accessoriesHeight
+        case .battery: return batteryHeight...batteryHeight
+        case .claude: return claudeHeight...claudeHeight
+        case .codex, .lifetime: return pairHeight...pairHeight
+        case .agents: return agentsMinimum...agentsMaximum
+        case .streak: return streakHeight...streakHeight
+        case .calendar: return calendarMinimum...calendarMaximum
+        case .nowPlaying: return shortPlayerHeight...playerHeight
+        }
+    }
+
     private static func readable(_ screen: CGRect) -> Bool {
         [screen.minX, screen.minY, screen.width, screen.height].allSatisfy(\.isFinite)
             && screen.width >= stageWidth + 32 && screen.height > 0
     }
 
     /// Everything on `screen`, with This Mac (the calendar and the left
-    /// rail) and the AI rail where they are on.
-    static func scene(in screen: CGRect, calendar: Bool, mac: Bool, ai: Bool) -> NotchLockScreenScene {
+    /// rail) and the AI rail where they are on, showing what `widgets` keeps.
+    static func scene(in screen: CGRect, calendar: Bool, mac: Bool, ai: Bool,
+                      widgets: NotchLockScreenWidgets = .initial) -> NotchLockScreenScene {
         var scene = NotchLockScreenScene()
         guard readable(screen) else { return scene }
-        let rails = railColumns(in: screen)
-        if mac, let rails, let gauge = gaugeHeight(railHeight: rails.left.height) {
-            let height = gauge * 2 + fixedMacHeight
-            scene.mac = CGRect(x: rails.left.minX, y: rails.left.minY, width: railWidth, height: height)
-            scene.gauge = gauge
+        if let rails = railColumns(in: screen) {
+            // A rail whose widgets are all hidden is off, as with its switch.
+            if mac, let placed = rail(widgets.shown(in: .mac), in: rails.left) {
+                scene.mac = bounds(placed)
+                scene.widgets += placed
+            }
+            if ai, let placed = rail(widgets.shown(in: .ai), in: rails.right) {
+                scene.ai = bounds(placed)
+                scene.widgets += placed
+            }
         }
-        if ai, let rails, let agents = agentsHeight(railHeight: rails.right.height) {
-            let bottom = rails.right.minY
-            scene.streak = CGRect(x: rails.right.minX, y: bottom, width: railWidth, height: streakHeight)
-            scene.agents = CGRect(x: rails.right.minX, y: bottom + streakHeight + cardGap, width: railWidth, height: agents)
-            let top = bottom + streakHeight + cardGap + agents + cardGap
-            scene.aiCards = CGRect(x: rails.right.minX, y: top, width: railWidth,
-                                   height: claudeHeight + cardGap + pairHeight)
-        }
-        scene.row = rowFrame(in: screen, besideRails: scene.mac != nil || scene.aiCards != nil)
+        scene.row = rowFrame(in: screen, besideRails: scene.mac != nil || scene.ai != nil)
         guard let row = scene.row else { return scene }
         let bottom = screen.minY + loginClearance
         let stage = row.minY - stageGap - bottom
         let x = (screen.midX - stageWidth / 2).rounded()
+        let order = widgets.shown(in: .stage).filter { $0 != .calendar || calendar && mac }
+        let showsCalendar = order.contains(.calendar)
+        // The calendar comes first: the player keeps its least height clear,
+        // dropping to its shorter fit before it leaves the stage.
+        let reserved = showsCalendar ? calendarMinimum + stageGap : 0
         let fit: NotchLockScreenPlayerFit?
-        if stage >= calendarMinimum + stageGap + playerHeight {
+        if !order.contains(.nowPlaying) {
+            fit = nil
+        } else if stage >= reserved + playerHeight {
             fit = .regular
-        } else if stage >= calendarMinimum + stageGap + shortPlayerHeight {
+        } else if stage >= reserved + shortPlayerHeight {
             fit = .short
         } else {
             fit = nil
         }
-        if let fit {
+        let playerOnTop = order.first == .nowPlaying
+        var foot = bottom
+        if let fit, !playerOnTop || !showsCalendar {
             scene.player = CGRect(x: x, y: bottom, width: stageWidth, height: fit.height)
-            scene.playerFit = fit
+            foot += fit.height + stageGap
         }
-        if calendar && mac {
-            let above = fit.map { bottom + $0.height + stageGap } ?? bottom
-            let height = min(calendarMaximum, (row.minY - stageGap - above).rounded(.down))
+        scene.playerFit = fit
+        if showsCalendar {
+            let above = playerOnTop ? fit.map { $0.height + stageGap } ?? 0 : 0
+            let height = min(calendarMaximum, (row.minY - stageGap - foot - above).rounded(.down))
             if height >= calendarMinimum {
-                // A tall stage keeps the calendar on the player, the room
-                // above it left to the wallpaper.
-                scene.calendar = CGRect(x: x, y: above, width: stageWidth, height: height)
+                // A tall stage keeps the calendar and the player together at
+                // its foot, the room above them left to the wallpaper.
+                scene.calendar = CGRect(x: x, y: foot, width: stageWidth, height: height)
+                if playerOnTop, let fit {
+                    scene.player = CGRect(x: x, y: foot + height + stageGap, width: stageWidth, height: fit.height)
+                }
+            } else if playerOnTop, let fit {
+                scene.player = CGRect(x: x, y: bottom, width: stageWidth, height: fit.height)
             }
         }
         return scene
     }
 
-    /// Accessories and Battery under the gauges, with the gaps between all.
-    private static var fixedMacHeight: CGFloat { accessoriesHeight + batteryHeight + cardGap * 3 }
-    private static var fixedAIHeight: CGFloat { claudeHeight + pairHeight + streakHeight + cardGap * 3 }
+    /// One rail's widgets, top to bottom, in its column `room`: a half card
+    /// shares its row with the half card right after it, or widens to the
+    /// whole rail alone. A rail too short for that keeps every widget by
+    /// pairing each lone half card with the next one, in the first one's
+    /// place, so an order alone never takes a widget off. The cards with a
+    /// range of heights share what the others leave, up to their greatest,
+    /// and the rail stands on the stage's foot, leaving any room over to the
+    /// wallpaper above it. Nil when nothing shows or even the least heights
+    /// do not fit.
+    static func rail(_ widgets: [NotchLockScreenWidget], in room: CGRect) -> [NotchLockScreenPlacement]? {
+        stack(rows(widgets, compact: false), in: room) ?? stack(rows(widgets, compact: true), in: room)
+    }
+
+    /// The rows `widgets` make: compact, a half card waits across whole ones
+    /// for its partner; otherwise only the very next card can be one.
+    static func rows(_ widgets: [NotchLockScreenWidget], compact: Bool) -> [[NotchLockScreenWidget]] {
+        var rows: [[NotchLockScreenWidget]] = []
+        var waiting: Int?
+        for widget in widgets {
+            if widget.isHalf, let index = waiting {
+                rows[index].append(widget)
+                waiting = nil
+            } else {
+                rows.append([widget])
+                if widget.isHalf { waiting = rows.count - 1 } else if !compact { waiting = nil }
+            }
+        }
+        return rows
+    }
+
+    private static func stack(_ rows: [[NotchLockScreenWidget]], in room: CGRect) -> [NotchLockScreenPlacement]? {
+        guard !rows.isEmpty else { return nil }
+        // Two half cards side by side take the taller of their heights.
+        let ranges = rows.map { row in
+            row.dropFirst().reduce(heights(of: row[0])) { range, widget in
+                let other = heights(of: widget)
+                return max(range.lowerBound, other.lowerBound)...max(range.upperBound, other.upperBound)
+            }
+        }
+        let gaps = cardGap * CGFloat(rows.count - 1)
+        let fixed = ranges.filter { $0.lowerBound == $0.upperBound }.reduce(0) { $0 + $1.lowerBound }
+        let stretching = ranges.filter { $0.lowerBound < $0.upperBound }
+        let share = stretching.isEmpty ? 0 : (room.height - fixed - gaps) / CGFloat(stretching.count)
+        guard fixed + gaps <= room.height, stretching.allSatisfy({ share >= $0.lowerBound }) else { return nil }
+        let heights = ranges.map { $0.lowerBound == $0.upperBound ? $0.lowerBound : min($0.upperBound, share) }
+        var top = room.minY + heights.reduce(0, +) + gaps
+        var placed: [NotchLockScreenPlacement] = []
+        for (row, height) in zip(rows, heights) {
+            let y = top - height
+            if row.count == 2 {
+                placed.append(NotchLockScreenPlacement(widget: row[0], frame: CGRect(x: room.minX, y: y, width: halfCard, height: height)))
+                placed.append(NotchLockScreenPlacement(widget: row[1], frame: CGRect(x: room.minX + halfCard + cardGap, y: y,
+                                                                                     width: halfCard, height: height)))
+            } else {
+                placed.append(NotchLockScreenPlacement(widget: row[0], frame: CGRect(x: room.minX, y: y, width: railWidth, height: height)))
+            }
+            top = y - cardGap
+        }
+        return placed
+    }
+
+    private static func bounds(_ placed: [NotchLockScreenPlacement]) -> CGRect? {
+        placed.first.map { first in placed.dropFirst().reduce(first.frame) { $0.union($1.frame) } }
+    }
 
     /// The left and right rails' room: centred in the columns beside the
     /// stage, from `railTop` down to the player's foot. Nil where a column
@@ -317,18 +449,6 @@ enum NotchLockScreenLayout {
         guard height > 0 else { return nil }
         return (CGRect(x: screen.minX + inset, y: bottom, width: railWidth, height: height),
                 CGRect(x: screen.maxX - inset - railWidth, y: bottom, width: railWidth, height: height))
-    }
-
-    /// Each gauge's height in a rail of `railHeight`, or nil where even the
-    /// shortest gauges leave no room for the rest.
-    static func gaugeHeight(railHeight: CGFloat) -> CGFloat? {
-        let gauge = (railHeight - fixedMacHeight) / 2
-        return gauge >= gaugeMinimum ? min(gaugeMaximum, gauge) : nil
-    }
-
-    static func agentsHeight(railHeight: CGFloat) -> CGFloat? {
-        let agents = railHeight - fixedAIHeight
-        return agents >= agentsMinimum ? min(agentsMaximum, agents) : nil
     }
 
     /// The line of activities under the clock. Beside a rail it keeps to

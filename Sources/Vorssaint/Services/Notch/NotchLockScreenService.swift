@@ -71,7 +71,7 @@ final class NotchLockScreenService {
     }
 
     /// Where each part goes on the displays as they are now.
-    private static func frames(ai: Bool, mac: Bool) -> Frames {
+    private static func frames() -> Frames {
         var frames = Frames()
         // macOS draws the clock and the password field on the main display.
         let main = CGMainDisplayID()
@@ -79,7 +79,9 @@ final class NotchLockScreenService {
             // With the Calendar section on the card stays, saying so when the
             // app may not read calendars, rather than leaving a gap to explain.
             frames.scene = NotchLockScreenLayout.scene(in: screen, calendar: NotchCalendarSupport.isEnabled(),
-                                                       mac: mac, ai: ai)
+                                                       mac: NotchLockScreenSupport.showsMac(),
+                                                       ai: NotchLockScreenSupport.showsAgents(),
+                                                       widgets: .stored())
         }
         // The island's own reading of its camera, with the fit the person set.
         let geometry = NotchService.shared.geometry
@@ -96,19 +98,21 @@ final class NotchLockScreenService {
     private func show(closingPadlock: Bool) {
         guard space == nil,
               let space = NotchOverlaySpace(absoluteLevel: NotchLockScreenSupport.spaceLevel) else { return }
-        let frames = Self.frames(ai: NotchLockScreenSupport.showsAgents(), mac: NotchLockScreenSupport.showsMac())
+        let frames = Self.frames()
         let layout = frames.scene
         // Settled before any view reads it, so a padlock about to close is
         // drawn open from its first frame.
         padlockWork?.cancel()
         model.padlockOpen = closingPadlock
+        var widgets = Set(layout.widgets.map(\.widget))
+        if layout.calendar != nil { widgets.insert(.calendar) }
+        if layout.player != nil { widgets.insert(.nowPlaying) }
         let gates = NotchLockScreenModel.Gates(
             music: NotchLockScreenSupport.showsMusic(), timer: NotchTimerSupport.isEnabled(),
             agents: NotchAgentSupport.showsLiveActivity(),
             downloads: NotchSupport.routes(.download), countdown: NotchCalendarSupport.showsCountdown(),
-            timeLeft: NotchCalendarSupport.showsTimeLeft(), page: layout.aiCards != nil,
-            mac: layout.mac != nil, calendar: layout.calendar != nil, hidesEventTitles: NotchLockScreenSupport.hidesEventTitles(),
-            privacy: NotchLockScreenSupport.agentPrivacy())
+            timeLeft: NotchCalendarSupport.showsTimeLeft(), widgets: widgets,
+            hidesEventTitles: NotchLockScreenSupport.hidesEventTitles(), privacy: NotchLockScreenSupport.agentPrivacy())
         if model.gates != gates { model.gates = gates }
         let privacy = gates.privacy
         var scene: [NotchLockScreenPanel] = []
@@ -126,19 +130,17 @@ final class NotchLockScreenService {
             scene.append(Self.makePanel(frame: frame, content: NotchLockScreenCalendarCard(
                 hidesTitles: gates.hidesEventTitles, size: frame.size)))
         }
-        if let frame = layout.mac {
-            scene.append(Self.makePanel(frame: frame, content: NotchLockScreenMacRail(size: frame.size, gauge: layout.gauge)))
-        }
-        if let frame = layout.aiCards {
-            scene.append(Self.makePanel(frame: frame, content: NotchLockScreenAICards(size: frame.size, privacy: privacy)))
-        }
-        if let frame = layout.agents {
-            scene.append(Self.makePanel(frame: frame, interactive: true,
-                                        content: NotchLockScreenAgentsAtWork(size: frame.size, privacy: privacy)))
-        }
-        if let frame = layout.streak {
-            scene.append(Self.makePanel(frame: frame, interactive: true,
-                                        content: NotchLockScreenStreak(size: frame.size, privacy: privacy)))
+        for panel in layout.panels {
+            let content: AnyView
+            switch panel.widgets.first?.widget {
+            case .agents: content = AnyView(NotchLockScreenAgentsAtWork(size: panel.frame.size, privacy: privacy))
+            case .streak: content = AnyView(NotchLockScreenStreak(size: panel.frame.size, privacy: privacy))
+            case let widget? where widget.place == .mac:
+                content = AnyView(NotchLockScreenMacRail(size: panel.frame.size, widgets: panel.widgets))
+            default:
+                content = AnyView(NotchLockScreenAICards(size: panel.frame.size, widgets: panel.widgets, privacy: privacy))
+            }
+            scene.append(Self.makePanel(frame: panel.frame, interactive: panel.interactive, content: content))
         }
         if let frame = layout.row {
             scene.append(Self.makePanel(frame: frame, content: NotchLockScreenActivities(model: model, size: frame.size)))
@@ -183,21 +185,29 @@ final class NotchLockScreenService {
         // login controls and the camera; the scene and the padlock follow.
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-                guard let self, self.space != nil,
-                      Self.frames(ai: NotchLockScreenSupport.showsAgents(), mac: NotchLockScreenSupport.showsMac())
-                        != self.shownFrames
-                else { return }
+                guard let self, self.space != nil, Self.frames() != self.shownFrames else { return }
                 self.hide(unlocking: false, stopsSources: false)
                 self.show(closingPadlock: false)
             }
     }
 
-    /// Everything This Mac's rail reads from the system monitor: memory
-    /// brings its pressure, the GPU its temperature. The feature hub still
+    /// What This Mac's widgets read from the system monitor, only for those
+    /// shown: memory brings its pressure, the GPU its temperature, and
+    /// accessories are polled only for their card. The feature hub still
     /// gates each family, as it does for every surface.
-    static let macNeeds = SystemMonitorPanelNeeds(
-        network: true, power: true, cpu: true, gpu: true, memory: true, battery: true,
-        peripheralBattery: true, cpuTemperature: true, gpuTemperature: true, fanSpeed: true)
+    static func macNeeds(_ widgets: Set<NotchLockScreenWidget>) -> SystemMonitorPanelNeeds {
+        SystemMonitorPanelNeeds(
+            network: widgets.contains(.network), power: widgets.contains(.battery), cpu: widgets.contains(.cpu),
+            gpu: widgets.contains(.gpu), memory: widgets.contains(.memory), battery: widgets.contains(.battery),
+            peripheralBattery: widgets.contains(.accessories), cpuTemperature: widgets.contains(.cpu),
+            gpuTemperature: widgets.contains(.gpu), fanSpeed: widgets.contains(.cpu))
+    }
+
+    /// Claude's and Codex's cards count as the AI page shown, so their limits
+    /// refresh as they do in the open island.
+    private static func showsLimits(_ gates: NotchLockScreenModel.Gates) -> Bool {
+        gates.widgets.contains(.claude) || gates.widgets.contains(.codex)
+    }
 
     private func startSources(_ gates: NotchLockScreenModel.Gates) {
         if gates.music { NotchMusicService.shared.start() }
@@ -207,22 +217,16 @@ final class NotchLockScreenService {
             NotchCalendarService.shared.syncWithPreferences()
         }
         if gates.agents || gates.page { AgentUsageService.shared.syncWithPreferences() }
-        // The page counts as the AI page shown, so limits refresh as they do
-        // in the open island.
-        if gates.page {
-            AgentUsageService.shared.pageDidAppear()
-            CodexProfileLimitsService.shared.pageDidAppear()
-        }
-        if gates.mac { SystemMonitor.shared.setLockScreenNeeds(Self.macNeeds) }
+        if Self.showsLimits(gates) { AgentUsageService.shared.pageDidAppear() }
+        if gates.widgets.contains(.codex) { CodexProfileLimitsService.shared.pageDidAppear() }
+        if gates.mac { SystemMonitor.shared.setLockScreenNeeds(Self.macNeeds(gates.widgets)) }
     }
 
     private func hide(unlocking: Bool, stopsSources: Bool) {
         // Before the island returns on unlocking, so an AI page it opens on
         // reports itself shown after the lock screen's rail has left.
-        if space != nil, model.gates.page {
-            AgentUsageService.shared.pageDidDisappear()
-            CodexProfileLimitsService.shared.pageDidDisappear()
-        }
+        if space != nil, Self.showsLimits(model.gates) { AgentUsageService.shared.pageDidDisappear() }
+        if space != nil, model.gates.widgets.contains(.codex) { CodexProfileLimitsService.shared.pageDidDisappear() }
         // The island takes the monitor back with its own needs as it returns.
         if space != nil, model.gates.mac { SystemMonitor.shared.setLockScreenNeeds(.none) }
         if stopsSources, !scene.isEmpty {

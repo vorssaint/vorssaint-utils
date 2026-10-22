@@ -14,16 +14,20 @@ final class NotchLockScreenModel: ObservableObject {
         var downloads = false
         var countdown = false
         var timeLeft = false
-        /// The AI rail right of the stage.
-        var page = false
-        /// This Mac's rail left of the stage.
-        var mac = false
-        /// The calendar on the stage, over the player.
-        var calendar = false
+        /// The widgets with room on the rails and the stage. The player is
+        /// among them whether or not the Music section has it to show.
+        var widgets: Set<NotchLockScreenWidget> = []
         /// Events read Busy, as This Mac's own calendar shows them.
         var hidesEventTitles = false
         /// What the AI options keep back, on the line as on the page.
         var privacy = NotchAgentPrivacy()
+
+        /// The AI rail right of the stage.
+        var page: Bool { widgets.contains { $0.place == .ai } }
+        /// This Mac's rail left of the stage.
+        var mac: Bool { widgets.contains { $0.place == .mac } }
+        /// The calendar on the stage.
+        var calendar: Bool { widgets.contains(.calendar) }
     }
 
     @Published var gates = Gates()
@@ -312,11 +316,11 @@ struct NotchLockScreenActivities: View {
         let gates = model.gates
         return NotchLockScreenSupport.activities(
             timer: gates.timer && timer.session.hasSession,
-            // The stage's calendar and the AI rail say these themselves.
+            // The stage's calendar and Agents at work say these themselves.
             calendar: !gates.calendar && calendar.countdown.map {
                 ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date, leadTime: calendar.countdownLeadTime)
             } == true,
-            agents: !gates.page && gates.agents && !usage.snapshot.live.isEmpty,
+            agents: !gates.widgets.contains(.agents) && gates.agents && !usage.snapshot.live.isEmpty,
             downloads: gates.downloads && downloads.items.contains { $0.active && !$0.completed })
     }
 

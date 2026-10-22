@@ -12,6 +12,7 @@ enum NotchLockScreenTests {
         sessionContracts(suite)
         preferenceContracts(suite)
         layoutContracts(suite)
+        widgetChoiceContracts(suite)
         islandContracts(suite)
         widgetContracts(suite)
         contentContracts(suite)
@@ -144,14 +145,17 @@ enum NotchLockScreenTests {
             }
             let column = (display.width - Layout.stageWidth) / 2
             guard column >= Layout.railWidth + Layout.railMargin * 2 else {
-                suite.expect(scene.mac == nil && scene.aiCards == nil && scene.agents == nil && scene.streak == nil,
+                suite.expect(scene.mac == nil && scene.ai == nil && scene.widgets.isEmpty,
                              "a column under 488 points keeps both rails off on \(name)")
                 continue
             }
-            guard let mac = scene.mac, let cards = scene.aiCards, let agents = scene.agents, let streak = scene.streak else {
+            guard let mac = scene.mac, let claude = scene.frame(of: .claude), let codex = scene.frame(of: .codex),
+                  let lifetime = scene.frame(of: .lifetime), let agents = scene.frame(of: .agents),
+                  let streak = scene.frame(of: .streak), let gauge = scene.frame(of: .cpu)?.height else {
                 suite.expect(false, "a \(name) display has room for both rails")
                 continue
             }
+            let cards = claude.union(codex).union(lifetime)
             suite.expect(mac.width == Layout.railWidth && cards.width == Layout.railWidth
                          && abs(mac.midX - (display.minX + column / 2)) <= 0.5
                          && abs(cards.midX - (display.maxX - column / 2)) <= 0.5,
@@ -160,11 +164,13 @@ enum NotchLockScreenTests {
                          "both rails start 72 points from the top on \(name)")
             suite.expect(mac.minY - display.minY == Layout.loginClearance && streak.minY - display.minY == Layout.loginClearance,
                          "both rails end level with the player on \(name)")
-            suite.expect(mac.height == scene.gauge * 2 + Layout.accessoriesHeight + Layout.batteryHeight + Layout.cardGap * 3
-                         && scene.gauge >= Layout.gaugeMinimum,
+            suite.expect(mac.height == gauge * 2 + Layout.accessoriesHeight + Layout.batteryHeight + Layout.cardGap * 3
+                         && gauge >= Layout.gaugeMinimum,
                          "This Mac's gauges, Accessories and Battery fill its rail on \(name)")
             suite.expect(agents.minY == streak.maxY + Layout.cardGap && cards.minY == agents.maxY + Layout.cardGap
                          && cards.height == Layout.claudeHeight + Layout.cardGap + Layout.pairHeight
+                         && codex.minY == lifetime.minY && codex.width == Layout.halfCard
+                         && lifetime.minX == codex.maxX + Layout.cardGap
                          && streak.height == Layout.streakHeight && agents.height >= Layout.agentsMinimum,
                          "Claude, the pair, Agents at work and Streak stack 16 apart on \(name)")
             suite.expect(mac.maxX + Layout.railMargin <= calendar.minX && cards.minX - Layout.railMargin >= calendar.maxX
@@ -178,19 +184,20 @@ enum NotchLockScreenTests {
         // work 202, and the calendar what the stage leaves over the player.
         let pro = CGRect(x: 0, y: 0, width: 1512, height: 982)
         let proScene = Layout.scene(in: pro, calendar: true, mac: true, ai: true)
-        suite.expect(proScene.gauge == 180 && proScene.agents?.height == 202 && proScene.playerFit == .regular
-                     && proScene.mac?.minX == 43 && proScene.aiCards?.minX == 1029 && proScene.calendar?.height == 231,
+        suite.expect(proScene.frame(of: .cpu)?.height == 180 && proScene.frame(of: .agents)?.height == 202
+                     && proScene.playerFit == .regular && proScene.mac?.minX == 43 && proScene.ai?.minX == 1029
+                     && proScene.calendar?.height == 231,
                      "the 14-inch lays out as the board: gauges 180, Agents at work 202, the player at its compact fit")
         let air = Layout.scene(in: CGRect(x: 0, y: 0, width: 1470, height: 956), calendar: true, mac: true, ai: true)
-        suite.expect(air.gauge == 167 && air.agents?.height == 176,
+        suite.expect(air.frame(of: .cpu)?.height == 167 && air.frame(of: .agents)?.height == 176,
                      "a shorter display takes its room back from the gauges and Agents at work first")
         let sixteen = Layout.scene(in: CGRect(x: 0, y: 0, width: 1728, height: 1117), calendar: true, mac: true, ai: true)
-        suite.expect(sixteen.gauge > 180 && (sixteen.agents?.height ?? 0) > 202,
+        suite.expect((sixteen.frame(of: .cpu)?.height ?? 0) > 180 && (sixteen.frame(of: .agents)?.height ?? 0) > 202,
                      "a taller display gives its extra height to the gauges and Agents at work")
 
         // Fallbacks.
         let larger = Layout.scene(in: CGRect(x: 0, y: 0, width: 1352, height: 878), calendar: true, mac: true, ai: true)
-        suite.expect(larger.player == nil && larger.calendar?.height == 334 && larger.mac == nil && larger.aiCards == nil,
+        suite.expect(larger.player == nil && larger.calendar?.height == 334 && larger.mac == nil && larger.ai == nil,
                      "the 14-inch at Larger Text shows the calendar alone, with the rails off")
         let short = Layout.scene(in: CGRect(x: 0, y: 0, width: 1512, height: 930), calendar: true, mac: true, ai: true)
         suite.expect(short.playerFit == .short && short.player?.height == Layout.shortPlayerHeight
@@ -200,12 +207,13 @@ enum NotchLockScreenTests {
         suite.expect(low.player == nil && low.calendar == nil && low.row != nil,
                      "a stage too short for the calendar leaves the lock screen to the line")
         let squat = Layout.scene(in: CGRect(x: 0, y: 0, width: 1512, height: 900), calendar: true, mac: true, ai: true)
-        suite.expect(squat.mac == nil && squat.aiCards == nil && squat.calendar != nil,
+        suite.expect(squat.mac == nil && squat.ai == nil && squat.calendar != nil,
                      "a rail too short for its cards' least heights stays off")
         let wide = CGRect(x: -2560, y: 0, width: 2560, height: 1440)
         let big = Layout.scene(in: wide, calendar: true, mac: true, ai: true)
-        if let mac = big.mac, let cards = big.aiCards, let calendar = big.calendar {
-            suite.expect(big.gauge == Layout.gaugeMaximum && big.agents?.height == Layout.agentsMaximum
+        if let mac = big.mac, let cards = big.ai, let calendar = big.calendar {
+            suite.expect(big.frame(of: .cpu)?.height == Layout.gaugeMaximum
+                         && big.frame(of: .agents)?.height == Layout.agentsMaximum
                          && mac.minY - wide.minY == Layout.loginClearance && wide.maxY - mac.maxY > Layout.railTop
                          && wide.maxY - cards.maxY > Layout.railTop,
                          "on a large display the rails stop growing and keep their foot level with the player")
@@ -215,10 +223,10 @@ enum NotchLockScreenTests {
             suite.expect(false, "a large display has room for every part")
         }
         let noMac = Layout.scene(in: pro, calendar: true, mac: false, ai: true)
-        suite.expect(noMac.mac == nil && noMac.calendar == nil && noMac.aiCards != nil && noMac.player != nil,
+        suite.expect(noMac.mac == nil && noMac.calendar == nil && noMac.ai != nil && noMac.player != nil,
                      "with This Mac off neither its rail nor the calendar shows")
         let noCalendar = Layout.scene(in: pro, calendar: false, mac: true, ai: false)
-        suite.expect(noCalendar.calendar == nil && noCalendar.mac != nil && noCalendar.aiCards == nil,
+        suite.expect(noCalendar.calendar == nil && noCalendar.mac != nil && noCalendar.ai == nil,
                      "without the Calendar section the stage holds the player alone")
         suite.expect(Layout.scene(in: pro, calendar: true, mac: false, ai: false).row?.width == 1000,
                      "without the rails the activities line keeps its width")
@@ -242,6 +250,196 @@ enum NotchLockScreenTests {
         suite.expect(Support.temperatureFill(54) == 0.54 && Support.temperatureFill(120) == 1
                      && Support.ringFill(1.4) == 1 && Support.ringFill(-1) == 0 && Support.ringFill(.nan) == 0,
                      "a ring is full at 100% or 100 °C and never runs past it")
+    }
+
+    /// Which widgets show and in what order: the saved choice, what each
+    /// place shows, and how the rails and the stage close up around a
+    /// widget hidden or moved.
+    static func widgetChoiceContracts(_ suite: TestSuite) {
+        typealias Layout = NotchLockScreenLayout
+        typealias Widgets = NotchLockScreenWidgets
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchLockScreenWidgetOrder] as? String == ""
+                     && Defaults.registeredDefaults[DefaultsKey.notchLockScreenHiddenWidgets] as? String == ""
+                     && SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchLockScreenWidgetOrder,
+                                                                           DefaultsKey.notchLockScreenHiddenWidgets]),
+                     "the widgets' order and hidden set start empty and travel with backups")
+        let domain = "com.vorssaint.tests.notch-lock-screen-widgets"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let fresh = Widgets.stored(in: defaults)
+        suite.expect(fresh == .initial && Widgets.initial.hidden.isEmpty
+                     && Widgets.initial.order == NotchLockScreenWidget.allCases,
+                     "with nothing saved every widget shows, in the order the lock screen first had")
+        suite.expect(Widgets.initial.shown(in: .mac) == [.cpu, .gpu, .memory, .network, .accessories, .battery]
+                     && Widgets.initial.shown(in: .stage) == [.calendar, .nowPlaying]
+                     && Widgets.initial.shown(in: .ai) == [.claude, .codex, .lifetime, .agents, .streak],
+                     "This Mac, the stage and the AI rail each list their own widgets, top to bottom")
+
+        // Decoding.
+        let odd = Widgets(order: "streak,sundial,cpu,cpu,,claude", hidden: "gone,battery,battery")
+        suite.expect(odd.order(in: .ai) == [.streak, .claude, .codex, .lifetime, .agents]
+                     && odd.order(in: .mac) == [.cpu, .gpu, .memory, .network, .accessories, .battery]
+                     && odd.order.count == NotchLockScreenWidget.allCases.count,
+                     "unknown and repeated entries drop out, and a widget the order misses joins the end of its place")
+        suite.expect(odd.hidden == [.battery] && odd.shown(in: .mac).last == .accessories,
+                     "a removed widget in the hidden set is ignored, and a hidden one leaves its place's list")
+
+        // Round trips.
+        let chosen = Widgets.initial.arranging([.battery, .network, .cpu, .gpu, .memory, .accessories])
+            .showing(.lifetime, false).showing(.gpu, false).moving(.nowPlaying, by: -1)
+        suite.expect(Widgets(order: chosen.encodedOrder, hidden: chosen.encodedHidden) == chosen
+                     && chosen.encodedHidden == "gpu,lifetime",
+                     "a saved order and hidden set read back as they were, the hidden set in display order")
+        chosen.save(in: defaults)
+        suite.expect(Widgets.stored(in: defaults) == chosen, "the choice saved in preferences reads back the same")
+        suite.expect(Widgets(order: Widgets.initial.encodedOrder, hidden: "") == .initial
+                     && Widgets.initial.showing(.gpu, false).showing(.gpu, true) == .initial,
+                     "the first order reads back as itself, and showing a hidden widget restores it")
+
+        // Reordering stays within a place.
+        let reversed = Widgets.initial.arranging([.streak, .agents, .lifetime, .codex, .claude])
+        suite.expect(reversed.order(in: .ai) == [.streak, .agents, .lifetime, .codex, .claude]
+                     && reversed.order(in: .mac) == Widgets.initial.order(in: .mac)
+                     && reversed.order(in: .stage) == Widgets.initial.order(in: .stage),
+                     "arranging one place leaves the others as they were")
+        suite.expect(Widgets.initial.arranging([.cpu, .claude]) == .initial
+                     && Widgets.initial.arranging([.claude, .codex]) == .initial
+                     && Widgets.initial.arranging([.claude, .claude, .codex, .lifetime, .agents]) == .initial
+                     && Widgets.initial.arranging([]) == .initial,
+                     "an arrangement mixing places, missing widgets or repeating one changes nothing")
+        suite.expect(Widgets.initial.moving(.gpu, by: -1).order(in: .mac).prefix(2) == [.gpu, .cpu]
+                     && Widgets.initial.moving(.calendar, by: 1).order(in: .stage) == [.nowPlaying, .calendar]
+                     && Widgets.initial.moving(.cpu, by: -1) == .initial
+                     && Widgets.initial.moving(.battery, by: 1) == .initial
+                     && Widgets.initial.moving(.streak, by: 1) == .initial,
+                     "VoiceOver's moves swap neighbours within a place and stop at either end")
+
+        // The rails close up.
+        let pro = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        guard let rails = Layout.railColumns(in: pro) else {
+            suite.expect(false, "the 14-inch has room for both rails")
+            return
+        }
+        func scene(_ widgets: Widgets, in screen: CGRect = pro) -> NotchLockScreenScene {
+            Layout.scene(in: screen, calendar: true, mac: true, ai: true, widgets: widgets)
+        }
+        func hiding(_ hidden: [NotchLockScreenWidget]) -> Widgets { Widgets(order: [], hidden: Set(hidden)) }
+        /// Each rail's rows 16 apart, top to bottom, with no hole between them.
+        func packed(_ scene: NotchLockScreenScene, _ place: NotchLockScreenWidget.Place) -> Bool {
+            let frames = scene.widgets.filter { $0.widget.place == place }.map(\.frame)
+            let rows = Dictionary(grouping: frames, by: \.minY).values.map { $0[0] }.sorted { $0.minY > $1.minY }
+            return zip(rows, rows.dropFirst()).allSatisfy { $0.minY == $1.maxY + Layout.cardGap }
+                && rows.last?.minY == rails.left.minY
+        }
+        suite.expect(scene(fresh) == Layout.scene(in: pro, calendar: true, mac: true, ai: true),
+                     "with nothing chosen the lock screen lays out exactly as before")
+        let noMac = scene(hiding(NotchLockScreenWidget.Place.mac.widgets))
+        suite.expect(noMac.mac == nil && !noMac.widgets.contains { $0.widget.place == .mac }
+                     && noMac.ai != nil && noMac.calendar != nil,
+                     "hiding every This Mac widget takes its rail off and keeps the calendar on the stage")
+        let bare = scene(hiding(NotchLockScreenWidget.Place.mac.widgets + NotchLockScreenWidget.Place.ai.widgets))
+        let off = Layout.scene(in: pro, calendar: true, mac: false, ai: false)
+        suite.expect(bare.mac == nil && bare.ai == nil && bare.widgets.isEmpty && bare.row == off.row
+                     && bare.row?.width == 1000 && bare.player == off.player,
+                     "with every rail widget hidden the line widens as with both rails switched off")
+        let noAI = scene(hiding(NotchLockScreenWidget.Place.ai.widgets))
+        suite.expect(noAI.ai == nil && noAI.mac == scene(.initial).mac,
+                     "hiding every AI widget takes the AI rail off and leaves This Mac's as it was")
+
+        let roomy = scene(hiding([.accessories]))
+        suite.expect(roomy.frame(of: .cpu)?.height == 251 && roomy.mac?.height == rails.left.height
+                     && packed(roomy, .mac),
+                     "a hidden card gives its height to the gauges, with no hole where it stood")
+        let tall = scene(hiding([.accessories, .battery]))
+        suite.expect(tall.frame(of: .cpu)?.height == Layout.gaugeMaximum && packed(tall, .mac)
+                     && (tall.mac?.maxY ?? .infinity) < rails.left.maxY,
+                     "gauges stop at their tallest, the rail standing on the stage's foot with the room over it left open")
+        let quiet = scene(hiding([.agents]))
+        suite.expect(quiet.ai?.height == Layout.claudeHeight + Layout.pairHeight + Layout.streakHeight + Layout.cardGap * 2
+                     && packed(quiet, .ai),
+                     "without Agents at work the AI rail is its fixed cards, standing on the stage's foot")
+        suite.expect([roomy, tall, quiet, scene(.initial)].allSatisfy { scene in
+            scene.widgets.allSatisfy { rails.left.contains($0.frame) || rails.right.contains($0.frame) }
+        }, "every widget stays inside its rail's column")
+
+        // Half cards pair in order and widen alone.
+        let lone = scene(hiding([.lifetime, .gpu]))
+        suite.expect(lone.frame(of: .codex)?.width == Layout.railWidth && lone.frame(of: .cpu)?.width == Layout.halfCard
+                     && lone.frame(of: .memory)?.minY == lone.frame(of: .cpu)?.minY
+                     && lone.frame(of: .memory)?.minX == rails.left.minX + Layout.halfCard + Layout.cardGap
+                     && lone.frame(of: .network)?.width == Layout.railWidth && packed(lone, .mac),
+                     "a half card pairs with the next one shown, and one left alone widens to the whole rail")
+        let parted = Widgets.initial.arranging([.claude, .codex, .agents, .lifetime, .streak])
+        let wide = CGRect(x: 0, y: 0, width: 2560, height: 1440)
+        let apart = scene(parted, in: wide)
+        if let codex = apart.frame(of: .codex), let lifetime = apart.frame(of: .lifetime), let agents = apart.frame(of: .agents) {
+            suite.expect(codex.width == Layout.railWidth && lifetime.width == Layout.railWidth
+                         && lifetime.height == Layout.pairHeight && codex.minY > agents.maxY && lifetime.maxY < agents.minY,
+                         "with room, Codex and Lifetime moved apart each take a whole row where they were put")
+        } else {
+            suite.expect(false, "a large display has room for Codex and Lifetime apart")
+        }
+        let short = scene(parted)
+        suite.expect(short.ai == scene(.initial).ai && short.frame(of: .lifetime) == scene(.initial).frame(of: .lifetime)
+                     && short.frame(of: .agents) == scene(.initial).frame(of: .agents),
+                     "a rail too short for Codex and Lifetime apart pairs them again rather than lose a card")
+        let between = scene(Widgets.initial.arranging([.cpu, .accessories, .gpu, .memory, .network, .battery]))
+        if let cpu = between.frame(of: .cpu), let gpu = between.frame(of: .gpu), let accessories = between.frame(of: .accessories),
+           let memory = between.frame(of: .memory) {
+            suite.expect(cpu.minY == gpu.minY && cpu.height == 180 && accessories.maxY + Layout.cardGap == cpu.minY
+                         && memory.maxY + Layout.cardGap == accessories.minY && packed(between, .mac),
+                         "on the 14-inch a gauge parted from its partner by a whole card pairs with the next gauge, in its place")
+        } else {
+            suite.expect(false, "the 14-inch keeps every This Mac card with Accessories between the gauges")
+        }
+        let swapped = scene(Widgets.initial.arranging([.claude, .lifetime, .codex, .agents, .streak]))
+        suite.expect(swapped.frame(of: .lifetime)?.minX == rails.right.minX
+                     && swapped.frame(of: .codex)?.minX == rails.right.minX + Layout.halfCard + Layout.cardGap,
+                     "a pair keeps the order chosen, left to right")
+        let squat = CGRect(x: 0, y: 0, width: 1512, height: 900)
+        suite.expect(scene(.initial, in: squat).mac == nil && scene(hiding([.accessories]), in: squat).mac != nil,
+                     "a rail too short for every card shows once a hidden card leaves the rest room")
+
+        // The stage.
+        let flipped = scene(Widgets.initial.moving(.nowPlaying, by: -1))
+        if let calendar = flipped.calendar, let player = flipped.player, let row = flipped.row {
+            suite.expect(calendar.minY == pro.minY + Layout.loginClearance && calendar.height == 231
+                         && player.minY == calendar.maxY + Layout.stageGap && player.maxY <= row.minY - Layout.stageGap
+                         && flipped.playerFit == .regular,
+                     "with Now Playing first it stands over the calendar, which takes the stage's foot")
+        } else {
+            suite.expect(false, "the 14-inch has room for the player over the calendar")
+        }
+        let silent = scene(hiding([.nowPlaying]))
+        suite.expect(silent.player == nil && silent.playerFit == nil
+                     && silent.calendar?.minY == pro.minY + Layout.loginClearance
+                     && silent.calendar?.height == Layout.calendarMaximum,
+                     "a hidden player gives the calendar the stage's foot and its room")
+        let larger = CGRect(x: 0, y: 0, width: 1352, height: 878)
+        let noCalendar = scene(hiding([.calendar]), in: larger)
+        suite.expect(noCalendar.calendar == nil && noCalendar.playerFit == .regular
+                     && noCalendar.player?.minY == larger.minY + Layout.loginClearance,
+                     "with the calendar hidden the player takes the room it kept for it, even at Larger Text")
+        suite.expect(scene(hiding([.calendar, .nowPlaying])).calendar == nil && scene(hiding([.calendar, .nowPlaying])).player == nil,
+                     "a stage with both widgets hidden stays empty")
+
+        // Windows.
+        let panels = scene(.initial).panels
+        suite.expect(panels.map { $0.widgets.map(\.widget) }
+                        == [Array(NotchLockScreenWidget.Place.mac.widgets), [.claude, .codex, .lifetime], [.agents], [.streak]]
+                     && panels.map(\.interactive) == [false, false, true, true]
+                     && panels.first?.frame == scene(.initial).mac,
+                     "read-only widgets in a row share a window; Agents at work and Streak each have their own")
+        let split = scene(Widgets.initial.arranging([.claude, .agents, .codex, .lifetime, .streak])).panels
+        suite.expect(split.map { $0.widgets.map(\.widget) } == [Array(NotchLockScreenWidget.Place.mac.widgets), [.claude], [.agents],
+                                                                 [.codex, .lifetime], [.streak]],
+                     "a widget that takes the pointer splits the read-only run around it")
+        suite.expect(split.allSatisfy { panel in
+            panel.widgets.allSatisfy { CGRect(origin: .zero, size: panel.frame.size).contains($0.frame) }
+                && panel.widgets.first?.frame.minY == 0
+        } && split.indices.allSatisfy { i in split.indices.allSatisfy { j in i == j || !split[i].frame.intersects(split[j].frame) } },
+                     "each window holds its widgets from its top left, and no two windows overlap")
     }
 
     static func widgetContracts(_ suite: TestSuite) {
