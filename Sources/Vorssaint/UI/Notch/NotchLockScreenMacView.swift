@@ -4,12 +4,14 @@
 import SwiftUI
 
 /// This Mac's rail left of the stage: CPU, GPU, Memory and Network as two
-/// big rings each, then the accessories' batteries and the Mac's own. It
-/// takes no input, and nothing in it names a device or a network.
+/// big rings each, the accessories' batteries and the Mac's own, as many as
+/// are shown and where the layout puts them. It takes no input, and nothing
+/// in it names a device or a network.
 struct NotchLockScreenMacRail: View {
     let size: CGSize
-    /// Each of the four gauges' height; the rail gives them its spare room.
-    let gauge: CGFloat
+    /// Each widget's frame from the rail's top left. The gauges take the
+    /// rail's spare height, and one without a partner its whole width.
+    let widgets: [NotchLockScreenPlacement]
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var keepAwake = KeepAwakeManager.shared
     @ObservedObject private var l10n = L10n.shared
@@ -23,30 +25,39 @@ struct NotchLockScreenMacRail: View {
     var body: some View {
         let snapshot = monitor.snapshot
         let text = FeatureStrings.notchLockScreenWidgets(l10n.language)
-        VStack(spacing: Layout.cardGap) {
-            HStack(spacing: Layout.cardGap) {
-                cpu(snapshot, text: text)
-                gpu(snapshot, text: text)
+        ZStack(alignment: .topLeading) {
+            ForEach(widgets, id: \.widget) { placed in
+                card(placed.widget, size: placed.frame.size, snapshot: snapshot, text: text)
+                    .frame(width: placed.frame.width, height: placed.frame.height)
+                    .padding(.leading, placed.frame.minX)
+                    .padding(.top, placed.frame.minY)
             }
-            .frame(height: gauge)
-            HStack(spacing: Layout.cardGap) {
-                memory(snapshot, text: text)
-                network(snapshot, text: text)
-            }
-            .frame(height: gauge)
-            NotchLockScreenAccessoriesCard(devices: snapshot.peripheralBatteries)
-                .frame(height: Layout.accessoriesHeight)
-            NotchLockScreenBatteryCard(power: snapshot.power, keepAwake: keepAwake.isActive, keepAwakeEnd: keepAwake.endDate)
-                .frame(height: Layout.batteryHeight)
         }
-        .frame(width: size.width, height: size.height, alignment: .top)
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
         .allowsHitTesting(false)
         .environment(\.locale, l10n.language.formattingLocale())
-        .task {
+        .task(id: widgets.contains { $0.widget == .network }) {
+            // Only the Network card names the connection.
+            guard widgets.contains(where: { $0.widget == .network }) else { return }
             while !Task.isCancelled {
                 connection = NotchLockScreenSystemInfo.connection()
                 try? await Task.sleep(nanoseconds: 30_000_000_000)
             }
+        }
+    }
+
+    @ViewBuilder private func card(_ widget: NotchLockScreenWidget, size: CGSize, snapshot: SystemSnapshot,
+                                   text: NotchLockScreenWidgetStrings) -> some View {
+        let wide = size.width > Layout.halfCard
+        switch widget {
+        case .cpu: cpu(snapshot, text: text, height: size.height, wide: wide)
+        case .gpu: gpu(snapshot, text: text, height: size.height, wide: wide)
+        case .memory: memory(snapshot, text: text, height: size.height, wide: wide)
+        case .network: network(snapshot, text: text, height: size.height, wide: wide)
+        case .accessories: NotchLockScreenAccessoriesCard(devices: snapshot.peripheralBatteries)
+        case .battery:
+            NotchLockScreenBatteryCard(power: snapshot.power, keepAwake: keepAwake.isActive, keepAwakeEnd: keepAwake.endDate)
+        default: EmptyView()
         }
     }
 
@@ -73,7 +84,8 @@ struct NotchLockScreenMacRail: View {
         history.max().map { String(format: text.peakFormat, MetricFormat.percent($0)) } ?? ""
     }
 
-    private func cpu(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings) -> some View {
+    private func cpu(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings, height: CGFloat,
+                     wide: Bool) -> some View {
         let fans = snapshot.fanSpeeds
         let footer = fans.isEmpty ? "" : String(format: text.fansFormat, String(
             format: FeatureStrings.fanControl(l10n.language).rpmFormat,
@@ -81,20 +93,22 @@ struct NotchLockScreenMacRail: View {
         return NotchLockScreenGauge(
             title: l10n.s.cpuLabel, note: String(format: text.coresFormat, NotchLockScreenSystemInfo.cpuCores),
             rings: [use(snapshot.cpuUsage, text: text), temperature(snapshot.cpuTemperature, text: text)],
-            footer: (footer, peak(snapshot.cpuHistory, text: text)), height: gauge)
+            footer: (footer, peak(snapshot.cpuHistory, text: text)), height: height, wide: wide)
     }
 
-    private func gpu(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings) -> some View {
+    private func gpu(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings, height: CGFloat,
+                     wide: Bool) -> some View {
         let seconds = snapshot.gpuHistory.count * monitor.intervalSeconds
         return NotchLockScreenGauge(
             title: l10n.s.gpuLabel, note: NotchLockScreenSystemInfo.gpuCores.map { String(format: text.coresFormat, $0) } ?? "",
             rings: [use(snapshot.gpuUsage, text: text), temperature(snapshot.gpuTemperature, text: text)],
             footer: (seconds >= 60 ? String(format: text.lastMinutesFormat, seconds / 60) : "",
                      peak(snapshot.gpuHistory, text: text)),
-            height: gauge)
+            height: height, wide: wide)
     }
 
-    private func memory(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings) -> some View {
+    private func memory(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings, height: CGFloat,
+                        wide: Bool) -> some View {
         let used = snapshot.memoryUsed, total = snapshot.memoryTotal
         let fraction = used.flatMap { used in total.flatMap { $0 > 0 ? Double(used) / Double($0) : nil } }
         let pressure: NotchLockScreenGauge.Ring
@@ -114,7 +128,7 @@ struct NotchLockScreenMacRail: View {
             title: l10n.s.memorySection, note: note, rings: [use(fraction, text: text), pressure],
             footer: (snapshot.memoryCompressed.map { String(format: text.compressedFormat, MetricFormat.bytes($0)) } ?? "",
                      snapshot.memorySwapUsed.map { String(format: text.swapFormat, MetricFormat.bytes($0)) } ?? ""),
-            height: gauge)
+            height: height, wide: wide)
     }
 
     /// Pressure as the kernel reports it: Low, Medium and High in green,
@@ -130,7 +144,8 @@ struct NotchLockScreenMacRail: View {
 
     /// Each direction's rate against the busiest the history holds, so the
     /// rings move with the traffic whatever the line's speed.
-    private func network(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings) -> some View {
+    private func network(_ snapshot: SystemSnapshot, text: NotchLockScreenWidgetStrings, height: CGFloat,
+                         wide: Bool) -> some View {
         let peak = max(1, (snapshot.netDownHistory + snapshot.netUpHistory).max() ?? 1)
         func rate(_ bytes: Double?, caption: String, tint: Color) -> NotchLockScreenGauge.Ring {
             guard let bytes else { return .missing(caption: caption) }
@@ -148,7 +163,7 @@ struct NotchLockScreenMacRail: View {
                     rate(snapshot.netUpBytesPerSec, caption: text.up, tint: Tile.up)],
             footer: (total.map { String(format: text.totalFormat, MetricFormat.bytes($0)) } ?? "",
                      top.map { String(format: text.peakFormat, MetricFormat.networkRate($0)) } ?? ""),
-            height: gauge)
+            height: height, wide: wide)
     }
 }
 
@@ -181,6 +196,9 @@ struct NotchLockScreenGauge: View {
     let rings: [Ring]
     let footer: (String, String)
     let height: CGFloat
+    /// The whole rail wide, with no gauge beside it: each ring centred in
+    /// its half rather than pushed to the card's edges.
+    var wide = false
 
     /// The rings take what the card's other lines leave, within reason.
     private var diameter: CGFloat { min(86, max(56, height - 98)) }
@@ -188,10 +206,14 @@ struct NotchLockScreenGauge: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             NotchLockScreenSection(title: title) { Text(note) }
-            HStack {
+            HStack(spacing: wide ? 0 : nil) {
                 ForEach(rings.indices, id: \.self) { index in
-                    if index > 0 { Spacer(minLength: 4) }
-                    ring(rings[index])
+                    if wide {
+                        ring(rings[index]).frame(maxWidth: .infinity)
+                    } else {
+                        if index > 0 { Spacer(minLength: 4) }
+                        ring(rings[index])
+                    }
                 }
             }
             .frame(maxHeight: .infinity)

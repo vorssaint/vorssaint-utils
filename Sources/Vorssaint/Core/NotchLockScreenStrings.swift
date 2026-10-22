@@ -40,6 +40,17 @@ struct NotchLockScreenStrings {
     let accessories: String
     /// "of 36 GB", after the amount used.
     let ofTotal: String
+    /// Which widgets show, and in what order within each place.
+    let widgets: String
+    let widgetsHint: String
+    /// The stage between the two rails, as a group of widgets.
+    let center: String
+    /// The Lifetime card, named in full where it stands on its own.
+    let lifetimeSpending: String
+    /// Beside a group or widget whose switch above is off.
+    let turnedOffAbove: String
+    /// "Needs the Music section", with the section's name.
+    let needsSectionFormat: String
 }
 
 extension FeatureStrings {
@@ -82,7 +93,13 @@ extension FeatureStrings {
             busy: "Busy",
             nothingElse: "Nothing else today",
             accessories: "Accessories",
-            ofTotal: "of %@")
+            ofTotal: "of %@",
+            widgets: "Widgets",
+            widgetsHint: "Drag to reorder within a group. Uncheck a widget to hide it, and the others take its room. Half-width widgets share a row when they are next to each other, and with the next one when the rail is too short.",
+            center: "Center",
+            lifetimeSpending: "Lifetime spending",
+            turnedOffAbove: "Turned off above",
+            needsSectionFormat: "Needs the %@ section")
         case .ptBR: return NotchLockScreenStrings(
             title: "Tela Bloqueada",
             show: "Mostrar na Tela Bloqueada",
@@ -120,7 +137,13 @@ extension FeatureStrings {
             busy: "Ocupado",
             nothingElse: "Nada mais hoje",
             accessories: "Acessórios",
-            ofTotal: "de %@")
+            ofTotal: "de %@",
+            widgets: "Widgets",
+            widgetsHint: "Arraste para reordenar dentro de um grupo. Desmarque um widget para ocultá-lo, e os outros ocupam o espaço dele. Widgets de meia largura dividem uma linha quando ficam lado a lado, e com o seguinte quando a coluna é curta demais.",
+            center: "Centro",
+            lifetimeSpending: "Gastos desde sempre",
+            turnedOffAbove: "Desativado acima",
+            needsSectionFormat: "Requer a seção %@")
         case .es: return NotchLockScreenStrings(
             title: "Pantalla de bloqueo",
             show: "Mostrar en la pantalla de bloqueo",
@@ -158,7 +181,13 @@ extension FeatureStrings {
             busy: "Ocupado",
             nothingElse: "Nada más hoy",
             accessories: "Accesorios",
-            ofTotal: "de %@")
+            ofTotal: "de %@",
+            widgets: "Widgets",
+            widgetsHint: "Arrastra para ordenar dentro de un grupo. Desmarca un widget para ocultarlo y los demás ocuparán su espacio. Los widgets de media anchura comparten fila cuando están juntos, y con el siguiente cuando la columna es demasiado corta.",
+            center: "Centro",
+            lifetimeSpending: "Gasto de siempre",
+            turnedOffAbove: "Desactivado arriba",
+            needsSectionFormat: "Requiere la sección %@")
         case .sk: return NotchLockScreenStrings(
             title: "Zamknutá obrazovka",
             show: "Zobraziť na zamknutej obrazovke",
@@ -196,7 +225,13 @@ extension FeatureStrings {
             busy: "Obsadené",
             nothingElse: "Dnes už nič",
             accessories: "Príslušenstvo",
-            ofTotal: "z %@")
+            ofTotal: "z %@",
+            widgets: "Widgety",
+            widgetsHint: "Presunutím zmeníte poradie v rámci skupiny. Zrušením fajky widget skryjete a ostatné zaberú jeho miesto. Widgety s polovičnou šírkou sa delia o riadok, keď sú vedľa seba, a s nasledujúcim, keď je stĺpec príliš nízky.",
+            center: "Stred",
+            lifetimeSpending: "Celkové výdavky",
+            turnedOffAbove: "Vypnuté vyššie",
+            needsSectionFormat: "Vyžaduje sekciu %@")
         case .de: return NotchLockScreenStrings(
             title: "Sperrbildschirm",
             show: "Auf dem Sperrbildschirm zeigen",
@@ -234,7 +269,13 @@ extension FeatureStrings {
             busy: "Belegt",
             nothingElse: "Heute nichts mehr",
             accessories: "Zubehör",
-            ofTotal: "von %@")
+            ofTotal: "von %@",
+            widgets: "Widgets",
+            widgetsHint: "Zum Sortieren innerhalb einer Gruppe ziehen. Entferne das Häkchen, um ein Widget auszublenden; die übrigen nehmen seinen Platz ein. Halb breite Widgets teilen sich eine Zeile, wenn sie aufeinander folgen, und mit dem nächsten, wenn die Spalte zu kurz ist.",
+            center: "Mitte",
+            lifetimeSpending: "Gesamtausgaben",
+            turnedOffAbove: "Oben ausgeschaltet",
+            needsSectionFormat: "Benötigt den Bereich %@")
         case .fr: return NotchLockScreenStrings(
             title: "Écran verrouillé",
             show: "Afficher sur l’écran verrouillé",
@@ -272,7 +313,13 @@ extension FeatureStrings {
             busy: "Occupé",
             nothingElse: "Plus rien aujourd’hui",
             accessories: "Accessoires",
-            ofTotal: "sur %@")
+            ofTotal: "sur %@",
+            widgets: "Widgets",
+            widgetsHint: "Glissez pour réordonner au sein d’un groupe. Décochez un widget pour le masquer ; les autres prennent sa place. Les widgets demi-largeur partagent une ligne lorsqu’ils se suivent, et avec le suivant lorsque la colonne est trop courte.",
+            center: "Centre",
+            lifetimeSpending: "Dépenses depuis le début",
+            turnedOffAbove: "Désactivé plus haut",
+            needsSectionFormat: "Nécessite la section %@")
         case .it: return NotchLockScreenStrings(
             title: "Schermata di blocco",
             show: "Mostra nella schermata di blocco",
@@ -310,7 +357,13 @@ extension FeatureStrings {
             busy: "Occupato",
             nothingElse: "Nient’altro oggi",
             accessories: "Accessori",
-            ofTotal: "di %@")
+            ofTotal: "di %@",
+            widgets: "Widget",
+            widgetsHint: "Trascina per riordinare all’interno di un gruppo. Deseleziona un widget per nasconderlo e gli altri ne occupano lo spazio. I widget a mezza larghezza condividono una riga quando sono vicini, e con il successivo quando la colonna è troppo bassa.",
+            center: "Centro",
+            lifetimeSpending: "Spesa da sempre",
+            turnedOffAbove: "Disattivato sopra",
+            needsSectionFormat: "Richiede la sezione %@")
         case .ru: return NotchLockScreenStrings(
             title: "Экран блокировки",
             show: "Показывать на экране блокировки",
@@ -348,7 +401,13 @@ extension FeatureStrings {
             busy: "Занят",
             nothingElse: "Сегодня больше ничего",
             accessories: "Аксессуары",
-            ofTotal: "из %@")
+            ofTotal: "из %@",
+            widgets: "Виджеты",
+            widgetsHint: "Перетащите для сортировки внутри группы. Снимите флажок, чтобы скрыть виджет, и остальные займут его место. Виджеты в половину ширины делят строку, если стоят рядом, а если колонка слишком низкая, то со следующим.",
+            center: "Центр",
+            lifetimeSpending: "Расходы за всё время",
+            turnedOffAbove: "Выключено выше",
+            needsSectionFormat: "Нужен раздел «%@»")
         case .tr: return NotchLockScreenStrings(
             title: "Kilitli Ekran",
             show: "Kilitli Ekranda göster",
@@ -386,7 +445,13 @@ extension FeatureStrings {
             busy: "Meşgul",
             nothingElse: "Bugün başka bir şey yok",
             accessories: "Aksesuarlar",
-            ofTotal: "/ %@")
+            ofTotal: "/ %@",
+            widgets: "Widget’lar",
+            widgetsHint: "Grup içinde sıralamak için sürükleyin. Bir widget’ı gizlemek için işaretini kaldırın; diğerleri yerini alır. Yarım genişlikteki widget’lar yan yana geldiğinde aynı satırı paylaşır; sütun çok kısaysa bir sonrakiyle paylaşır.",
+            center: "Orta",
+            lifetimeSpending: "Tüm zamanların harcaması",
+            turnedOffAbove: "Yukarıda kapalı",
+            needsSectionFormat: "%@ bölümü gerekir")
         case .ja: return NotchLockScreenStrings(
             title: "ロック画面",
             show: "ロック画面に表示",
@@ -424,7 +489,13 @@ extension FeatureStrings {
             busy: "予定あり",
             nothingElse: "今日の予定はもうありません",
             accessories: "アクセサリ",
-            ofTotal: "/ %@")
+            ofTotal: "/ %@",
+            widgets: "ウィジェット",
+            widgetsHint: "ドラッグしてグループ内で並べ替えます。チェックを外したウィジェットは表示されず、その場所をほかのウィジェットが使います。半分幅のウィジェットは隣り合うと同じ行に並び、列の高さが足りないときは次の半分幅ウィジェットと並びます。",
+            center: "中央",
+            lifetimeSpending: "累計の支出",
+            turnedOffAbove: "上でオフになっています",
+            needsSectionFormat: "「%@」セクションが必要です")
         case .ko: return NotchLockScreenStrings(
             title: "잠금 화면",
             show: "잠금 화면에 표시",
@@ -462,7 +533,13 @@ extension FeatureStrings {
             busy: "바쁨",
             nothingElse: "오늘은 더 이상 없음",
             accessories: "액세서리",
-            ofTotal: "/ %@")
+            ofTotal: "/ %@",
+            widgets: "위젯",
+            widgetsHint: "드래그하여 그룹 안에서 순서를 바꾸세요. 체크를 해제하면 위젯이 숨겨지고 나머지 위젯이 그 자리를 채웁니다. 절반 너비 위젯은 이웃하면 한 줄을 나눠 쓰고, 열이 너무 짧으면 다음 절반 너비 위젯과 나눠 씁니다.",
+            center: "가운데",
+            lifetimeSpending: "전체 기간 지출",
+            turnedOffAbove: "위에서 꺼짐",
+            needsSectionFormat: "%@ 섹션이 필요합니다")
         case .zhHans: return NotchLockScreenStrings(
             title: "锁屏",
             show: "在锁屏上显示",
@@ -500,7 +577,13 @@ extension FeatureStrings {
             busy: "忙碌",
             nothingElse: "今天没有其他日程",
             accessories: "配件",
-            ofTotal: "/ %@")
+            ofTotal: "/ %@",
+            widgets: "小组件",
+            widgetsHint: "拖动以在分组内排序。取消勾选某个小组件即可隐藏它，其余小组件会占用它的空间。半宽小组件相邻时共用一行；栏位太矮时，会与下一个半宽小组件共用一行。",
+            center: "中间",
+            lifetimeSpending: "累计花费",
+            turnedOffAbove: "已在上方关闭",
+            needsSectionFormat: "需要“%@”分区")
         case .zhTW: return NotchLockScreenStrings(
             title: "鎖定畫面",
             show: "在鎖定畫面上顯示",
@@ -538,7 +621,13 @@ extension FeatureStrings {
             busy: "忙碌",
             nothingElse: "今天沒有其他行程",
             accessories: "配件",
-            ofTotal: "/ %@")
+            ofTotal: "/ %@",
+            widgets: "小工具",
+            widgetsHint: "拖移以在群組內排序。取消勾選某個小工具即可隱藏它，其餘小工具會使用它的空間。半寬小工具相鄰時共用一列；欄位太矮時，會與下一個半寬小工具共用一列。",
+            center: "中間",
+            lifetimeSpending: "累計花費",
+            turnedOffAbove: "已在上方關閉",
+            needsSectionFormat: "需要「%@」區域")
         case .zhHK: return NotchLockScreenStrings(
             title: "鎖定畫面",
             show: "在鎖定畫面上顯示",
@@ -576,7 +665,13 @@ extension FeatureStrings {
             busy: "忙碌",
             nothingElse: "今天沒有其他行程",
             accessories: "配件",
-            ofTotal: "/ %@")
+            ofTotal: "/ %@",
+            widgets: "小工具",
+            widgetsHint: "拖移以在群組內排序。取消勾選某個小工具即可隱藏它，其餘小工具會使用它的空間。半闊小工具相鄰時共用一行；欄位太矮時，會與下一個半闊小工具共用一行。",
+            center: "中間",
+            lifetimeSpending: "累計花費",
+            turnedOffAbove: "已在上方關閉",
+            needsSectionFormat: "需要「%@」區域")
         case .uk: return NotchLockScreenStrings(
             title: "Замкнений екран",
             show: "Показувати на замкненому екрані",
@@ -614,7 +709,13 @@ extension FeatureStrings {
             busy: "Зайнято",
             nothingElse: "Сьогодні більше нічого",
             accessories: "Аксесуари",
-            ofTotal: "з %@")
+            ofTotal: "з %@",
+            widgets: "Віджети",
+            widgetsHint: "Перетягуйте, щоб змінити порядок у межах групи. Зніміть позначку, щоб сховати віджет, і решта займе його місце. Віджети завширшки в половину ділять рядок, якщо стоять поруч, а якщо колонка надто низька, то з наступним.",
+            center: "Центр",
+            lifetimeSpending: "Витрати за весь час",
+            turnedOffAbove: "Вимкнено вище",
+            needsSectionFormat: "Потрібен розділ «%@»")
         }
     }
 }

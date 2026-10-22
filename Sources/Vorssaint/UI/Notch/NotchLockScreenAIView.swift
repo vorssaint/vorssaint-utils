@@ -18,18 +18,20 @@ private extension AgentProvider {
 /// What the AI rail covers: the two agents with plan limits.
 private let notchLockScreenAgents: [AgentProvider] = [.claude, .codex]
 
-/// The top of the AI rail: Claude's limits and what its API key spent,
-/// then Codex's limits beside the lifetime spending. They take no input.
+/// The AI rail's read-only cards: Claude's limits and what its API key
+/// spent, Codex's limits and the lifetime spending, as many as are shown and
+/// where the layout puts them. Codex and Lifetime share a row when they
+/// stand together. They take no input.
 struct NotchLockScreenAICards: View {
     let size: CGSize
+    /// Each card's frame from the panel's top left.
+    let widgets: [NotchLockScreenPlacement]
     let privacy: NotchAgentPrivacy
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     // Read so a billing choice made before locking draws the right card.
     @AppStorage(DefaultsKey.notchAgentsClaudeBilling) private var billing = AgentClaudeBilling.automatic.rawValue
-
-    private typealias Layout = NotchLockScreenLayout
 
     /// Whether an API key pays for Claude Code, which splits Claude's card.
     private var claudeUsesAPI: Bool {
@@ -42,29 +44,33 @@ struct NotchLockScreenAICards: View {
         let shown = NotchAgentLimitDisplay(rawValue: display) ?? .remaining
         TimelineView(.periodic(from: .now, by: 10)) { context in
             let snapshot = usage.snapshot
-            VStack(spacing: Layout.cardGap) {
-                Group {
-                    if claudeUsesAPI {
-                        NotchAgentClaudeBillingCard(snapshot: snapshot, now: context.date, display: shown, text: text,
-                                                    wide: true, showsSessions: false)
-                    } else {
-                        NotchAgentLimitsCard(provider: .claude, snapshot: snapshot, now: context.date, display: shown,
-                                             text: text)
+            ZStack(alignment: .topLeading) {
+                ForEach(widgets, id: \.widget) { placed in
+                    Group {
+                        switch placed.widget {
+                        case .claude where claudeUsesAPI:
+                            NotchAgentClaudeBillingCard(snapshot: snapshot, now: context.date, display: shown, text: text,
+                                                        wide: true, showsSessions: false)
+                        case .claude, .codex:
+                            NotchAgentLimitsCard(provider: placed.widget == .claude ? .claude : .codex, snapshot: snapshot,
+                                                 now: context.date, display: shown, text: text)
+                        case .lifetime:
+                            NotchLockScreenLifetimeCard(snapshot: snapshot, hidesAmounts: privacy.hidesAmounts)
+                        default:
+                            EmptyView()
+                        }
                     }
+                    .frame(width: placed.frame.width, height: placed.frame.height)
+                    .padding(.leading, placed.frame.minX)
+                    .padding(.top, placed.frame.minY)
                 }
-                .frame(height: Layout.claudeHeight)
-                HStack(spacing: Layout.cardGap) {
-                    NotchAgentLimitsCard(provider: .codex, snapshot: snapshot, now: context.date, display: shown, text: text)
-                    NotchLockScreenLifetimeCard(snapshot: snapshot, hidesAmounts: privacy.hidesAmounts)
-                }
-                .frame(height: Layout.pairHeight)
             }
         }
         .environment(\.notchAgentsLockScreen, privacy)
         .environment(\.notchGlassSurface, true)
         // Only what the cards mark private: amounts, when they are hidden.
         .redacted(reason: .privacy)
-        .frame(width: size.width, height: size.height, alignment: .top)
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
         .allowsHitTesting(false)
         .environment(\.locale, l10n.language.formattingLocale())
     }
