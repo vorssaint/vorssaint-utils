@@ -24,8 +24,11 @@ final class WindowPreviewProvider {
     private var lastTouched: [CGWindowID: TimeInterval] = [:]
     private static let cacheLimit = 48
     /// Upper bound on the bytes the thumbnail cache may hold; the count limit
-    /// alone would allow ~160 MB of big-window thumbnails.
-    private static let cacheByteBudget = 64 * 1024 * 1024
+    /// alone would allow ~160 MB of big-window thumbnails. 32 MB keeps every
+    /// card warm across invocations of a normal desktop while halving the
+    /// ceiling on 8–16 GB machines, where this is the app's largest
+    /// always-resident cache.
+    private static let cacheByteBudget = 32 * 1024 * 1024
     private var captureTask: Task<Void, Never>?
     private var warmTask: Task<Void, Never>?
     private var activationToken: NSObjectProtocol?

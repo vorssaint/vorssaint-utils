@@ -1626,11 +1626,13 @@ final class ClipboardHistoryService: ObservableObject {
 enum ClipboardImageStore {
     /// Explicit limits: NSCache only sheds under system memory pressure, so
     /// without them a history full of screenshots quietly holds every decoded
-    /// thumbnail at once.
+    /// thumbnail at once. The cost bound is the real working budget: it keeps
+    /// the panel's visible rows alive while capping the ceiling on 8–16 GB
+    /// machines.
     private static let thumbnails: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 120
-        cache.totalCostLimit = 48 * 1024 * 1024
+        cache.totalCostLimit = 32 * 1024 * 1024
         return cache
     }()
 
