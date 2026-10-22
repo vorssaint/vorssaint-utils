@@ -134,24 +134,6 @@ final class MicMuteService: ObservableObject {
         if available {
             if !applyInFlight { isMuted = wantsMute }
             reapplyIfNeeded()
-        } else {
-            // Switching the feature off must not strand a muted microphone
-            // with no control left to unmute it.
-            if wantsMute || hasOutstandingClaims {
-                if wantsMute {
-                    apply(muted: false, announce: false)
-                } else {
-                    reapplyIfNeeded()
-                }
-            if wantsMute {
-                apply(muted: true, announce: false)
-            } else if hasOutstandingClaims {
-                // A device this app silenced and never got to release: it
-                // was away at the unmute, or the app went down. Its level
-                // comes back now if it is here, else when it returns.
-                apply(muted: false, announce: false)
-            }
-            isMuted = wantsMute
             syncTypingMonitor(wanted: typingWanted)
         } else {
             // Switching the feature off must not strand a muted microphone
@@ -164,7 +146,11 @@ final class MicMuteService: ObservableObject {
                 UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteActive)
                 mutedByTyping = false
             } else if wantsMute || hasOutstandingClaims {
-                apply(muted: false, announce: false)
+                if wantsMute {
+                    apply(muted: false, announce: false)
+                } else {
+                    reapplyIfNeeded()
+                }
                 UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteActive)
             }
             isMuted = false
@@ -250,13 +236,13 @@ final class MicMuteService: ObservableObject {
         applyInFlight = false
         reapplyPending = false
         wantsMute = false
+        mutedByTyping = false
+        stopTypingMonitor()
         halQueue.sync {
             if mustRestore || self.hasOutstandingClaims { _ = self.sweep(muted: false) }
             self.removeDeviceListeners()
         }
-        mutedByTyping = false
-        stopTypingMonitor()
-        _ = halQueue.sync { Self.sweep(muted: false) }
+
         defaults.set(false, forKey: DefaultsKey.micMuteActive)
         isMuted = false
         inputVolumeLock.withLock {
@@ -1059,6 +1045,7 @@ final class MicMuteService: ObservableObject {
         installedListeners.removeAll()
     }
 
+
     /// The controls an app can move to raise gain again while we are muted.
     /// The virtual main volume is a master-only control; mute and per-channel
     /// volume are watched on every input element we write.
@@ -1115,6 +1102,9 @@ final class MicMuteService: ObservableObject {
                                               listenerClient)
         }
         deviceListeners.removeAll()
+    }
+
+
     // MARK: - Mute while typing
 
     /// The stored wait behind the debounce, sanitized so a corrupt preference
