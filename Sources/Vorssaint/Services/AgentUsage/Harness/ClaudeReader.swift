@@ -88,7 +88,8 @@ struct ClaudeReader: AgentHarnessReader {
             let priced = AgentPricing.cost(billable, model: model)
             entries.append(.usage(key: key, record: AgentUsageRecord(
                 provider: .claude, date: date, model: model, project: state.project, session: state.session,
-                tokens: billable.tokens, cost: priced.cost, savings: priced.savings), billable: billable))
+                tokens: billable.tokens, cost: priced.cost, savings: priced.savings,
+                claudeApp: json["entrypoint"] as? String == "claude-desktop"), billable: billable))
         }
         // A subagent's own ending is not the end of the turn it serves.
         guard json["isSidechain"] as? Bool != true else { return entries }

@@ -1810,6 +1810,8 @@ enum NotchTests {
             defaults.set(value, forKey: key)
         }
         for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
+        // These checks cover the sections and the floating buttons.
+        defaults.set(NotchNavigationStyle.sideButtons.rawValue, forKey: DefaultsKey.notchNavigationStyle)
         let firstInstall = "com.vorssaint.tests.notch-new-\(UUID().uuidString)"
         let fresh = UserDefaults(suiteName: firstInstall)!
         defer { fresh.removePersistentDomain(forName: firstInstall) }
@@ -2041,6 +2043,36 @@ enum NotchTests {
         suite.expect(!NotchSupport.routes(.microphone, in: defaults), "a removed microphone mute announces nothing in the island")
         defaults.set(true, forKey: AppFeature.micMute.availabilityKey)
         defaults.set(false, forKey: DefaultsKey.notchTrackChange)
+        defaults.set(NotchNavigationStyle.topBar.rawValue, forKey: DefaultsKey.notchNavigationStyle)
+        suite.expect(NotchQuickAccessConfiguration.current(in: defaults).buttons.isEmpty,
+               "the top bar replaces the floating buttons")
+        suite.expect(NotchQuickAccessConfiguration.stored(in: defaults).buttons.count == NotchQuickAccessConfiguration.initial.buttons.count,
+               "the floating buttons keep their layout while the top bar shows")
+        let bar = NotchTopBarConfiguration.stored(in: defaults)
+        suite.expect(bar.order == NotchTopBarItem.allCases && bar.order.last == .settings,
+               "a fresh top bar runs from AI Agents to Settings")
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchCalendarEnabled)
+        suite.expect(NotchSupport.modules(in: defaults).first == .agents,
+               "with the top bar the island starts on AI Agents")
+        suite.expect(NotchSupport.modules(in: defaults).contains(.keepAwake),
+               "the top bar's own pages join the island")
+        defaults.set(NotchNavigationStyle.sideButtons.rawValue, forKey: DefaultsKey.notchNavigationStyle)
+        suite.expect(!NotchSupport.modules(in: defaults).contains(where: \.isTopBarOnly),
+               "without the top bar its own pages stay out of the sections")
+        let reorderedBar = NotchTopBarConfiguration(order: [.settings, .music, .music, .agents], hidden: [.settings, .clipboard])
+        suite.expect(reorderedBar.order.first == .music && reorderedBar.order.last == .settings
+                     && Set(reorderedBar.order).count == NotchTopBarItem.allCases.count && !reorderedBar.hidden.contains(.settings),
+               "a saved top bar drops repeats, keeps every item and ends with Settings, which cannot hide")
+        suite.expect(!reorderedBar.shown(in: defaults).contains(.clipboard), "a hidden item leaves the top bar")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
+        suite.expect(!NotchTopBarConfiguration.current(in: defaults).contains(.agents),
+               "an item whose page is off leaves the top bar")
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsEnabled)
+        defaults.removeObject(forKey: DefaultsKey.notchCalendarEnabled)
+        for key in [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchCalendarEnabled] {
+            if let value = Defaults.registeredDefaults[key] { defaults.set(value, forKey: key) }
+        }
         let initialLayout = NotchQuickAccessConfiguration.current(in: defaults)
         suite.expect(initialLayout.buttons.filter { $0.side == .left }.compactMap(\.action) == [.explore, .module(.timer)]
                && initialLayout.buttons.filter { $0.side == .right }.compactMap(\.action) == [.settings, .module(.mixer)]
@@ -3510,6 +3542,8 @@ enum NotchTests {
         defaults.removePersistentDomain(forName: "com.vorssaint.tests.notch-calendar")
         defer { defaults.removePersistentDomain(forName: "com.vorssaint.tests.notch-calendar") }
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        // These checks cover the sections and the floating buttons.
+        defaults.set(NotchNavigationStyle.sideButtons.rawValue, forKey: DefaultsKey.notchNavigationStyle)
         for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "calendar starts off")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)

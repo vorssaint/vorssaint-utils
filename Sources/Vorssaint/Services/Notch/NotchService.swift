@@ -123,6 +123,11 @@ final class NotchService: ObservableObject {
     @Published private(set) var captureSelectionInProgress = false
     @Published var pinned = false
     @Published private(set) var selected: NotchModule = .controls
+    /// The top bar's first page as last read, so the island moves to it only
+    /// when it changes rather than on every preference sync.
+    private var startingModule: NotchModule?
+    /// When the top bar's clipboard last showed its page, which its badge counts from.
+    var clipboardSeenAt = Date()
     @Published private(set) var showingAppPanel = false
     @Published private(set) var showingSections = false
     @Published private(set) var sectionQuery = ""
@@ -764,16 +769,16 @@ final class NotchService: ObservableObject {
             AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
             display: NotchAgentSupport.limitDisplay(), focus: NotchAgentSupport.limitFocus(), now: Date()))
         let width = (shape as NSString).size(withAttributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .semibold)
         ]).width
         let reading = width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
-        // The marks on the other side, drawn as the strip draws them: two
-        // working agents share a smaller size, each in a frame wider than it.
-        let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
-        let mark = CGFloat(working > 1 ? 11 : 14)
-        let frame = mark * 1.45 + 1
-        let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
-            + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
+        // The mark on the other side, drawn as the strip draws it: the
+        // longest-working agent's ring and the badges on it.
+        let budget = provisional.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
+        let layout = NotchAgentWorkingLayout(AgentUsageService.shared.snapshot.live, budget: budget)
+        let ring = layout?.ring ?? 14
+        let marks = (layout?.width ?? ring)
+            + provisional.compactActivityEdgeInset(boxHeight: ring, radius: ring / 2)
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
@@ -805,7 +810,10 @@ final class NotchService: ObservableObject {
     /// buttons are not read for it, so a preview reads them as it draws.
     func previewGeometry(for module: NotchModule) -> NotchGeometry {
         var result = geometry.page(module, controls: NotchSupport.controls(),
-                                   sectionsButton: !NotchQuickAccessConfiguration.current().actions.contains(.explore))
+                                   sectionsButton: NotchNavigationStyle.current() == .sideButtons
+                                       && !NotchQuickAccessConfiguration.current().actions.contains(.explore))
+        result.topBarHeight = NotchNavigationStyle.current() == .topBar ? NotchLayout.topBarHeight : 0
+        if result.topBarHeight > 0, result.pageTop == .wrapsCamera { result.pageTop = .row }
         if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
         return result
     }
@@ -856,8 +864,9 @@ final class NotchService: ObservableObject {
         let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty) }
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
-            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts),
-            width: width))
+            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
+                                    claudeUsesAPI: AgentClaudeBilling.usesAPI()),
+            width: width), width: width, live: usage.live)
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
@@ -882,7 +891,10 @@ final class NotchService: ObservableObject {
     /// back; with no sections the island shows only how to add them.
     private var expandedPageTop: NotchPageTop {
         if showingSections || showingAppPanel || selectedMetric != nil { return .row }
-        return modules.isEmpty ? .none : selected.pageTop
+        guard !modules.isEmpty else { return .none }
+        // The top bar sits between the camera and the page, so no page wraps it.
+        if geometry.topBarHeight > 0, selected.pageTop == .wrapsCamera { return .row }
+        return selected.pageTop
     }
     /// A detail's title, the app panel's, or the island's own with no sections.
     var detailTitle: String {
@@ -1209,9 +1221,19 @@ final class NotchService: ObservableObject {
     private func refreshModules() {
         let updated = NotchSupport.modules()
         if modules != updated { modules = updated }
+        followTopBarStart()
         let selection = modules.contains(selected) ? selected : modules.first ?? .controls
         if selected != selection { selected = selection }
         if let selectedMetric, !metricIsAvailable(selectedMetric) { self.selectedMetric = nil }
+    }
+
+    /// The top bar's first page, AI Agents unless reordered, is where the
+    /// island starts, and where it lands when the bar is turned on.
+    private func followTopBarStart() {
+        let leads = NotchNavigationStyle.current() == .topBar ? modules.first : nil
+        guard leads != startingModule else { return }
+        startingModule = leads
+        if let leads, !expanded { selected = leads }
     }
 
     private func metricIsAvailable(_ metric: MetricDetailKind) -> Bool {
@@ -3403,7 +3425,10 @@ final class NotchService: ObservableObject {
         next.quickAccessBottomInset = access.hasBottom ? NotchQuickAccessLayout.gutter : 0
         // Read with the floating buttons rather than on every layout pass,
         // which would decode them each time.
-        next.sectionsButtonInRow = !access.actions.contains(.explore)
+        let topBar = NotchNavigationStyle.current() == .topBar
+        // The top bar lists the pages itself, so the row needs no way to them.
+        next.sectionsButtonInRow = !topBar && !access.actions.contains(.explore)
+        next.topBarHeight = topBar ? NotchLayout.topBarHeight : 0
         if next != geometry { menuSpaceGeneration += 1; geometry = next }
         // A new camera or bar, such as a notch fit being adjusted, measures the
         // menus again at once rather than leaving the wings off until the timer.
@@ -3958,10 +3983,12 @@ final class NotchService: ObservableObject {
         }
         if modules.contains(.agents) {
             // Only what changes the island's size or strip: a turn starting or
-            // ending, the first read landing, which agents have cards, and
-            // which are working, since each one's mark widens the strip.
+            // ending, the first read landing, which agents have cards, which
+            // are working, since each one's mark widens the strip, and how
+            // many sessions each card lists, a row each on the AI page.
             AgentUsageService.shared.$snapshot
-                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider))) }
+                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider)),
+                        $0.live.map { "\($0.provider.rawValue).\($0.place)" }.sorted()) }
                 .removeDuplicates(by: ==)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
@@ -4263,10 +4290,25 @@ final class NotchService: ObservableObject {
         if needs, AppFeature.monitorDisk.isAvailable { detailNeeds.disk = true }
         if needs, AppFeature.fanControl.isAvailable { detailNeeds.fanSpeed = true }
         if needs, AppFeature.connectedDevices.isAvailable { detailNeeds.connectedDevices = true }
+        addTopBarMonitorNeeds(&detailNeeds)
         SystemMonitor.shared.setNotchDetailNeeds(detailNeeds)
         if needs != notchNeedsMonitor {
             notchNeedsMonitor = needs
             SystemMonitor.shared.setNotchVisible(needs)
+        }
+    }
+
+    /// The battery page reads the Power card; the top bar's battery and
+    /// System icons show the charge and the load on any page.
+    private func addTopBarMonitorNeeds(_ needs: inout SystemMonitorPanelNeeds) {
+        let pageOpen = expanded && selectedMetric == nil && !showingAppPanel && !showingSections && !showingCommandBar
+        if pageOpen, selected == .battery, modules.contains(.battery) {
+            needs = needs.merging(SystemMonitorPanelNeeds(power: true, powerCard: true, battery: true,
+                                                          peripheralBattery: true, batteryTemperature: true))
+        }
+        if expanded, geometry.topBarHeight > 0 {
+            if modules.contains(.battery) { needs.battery = true; needs.power = true }
+            if modules.contains(.system), AppFeature.monitorCPU.isAvailable { needs.cpu = true }
         }
     }
 

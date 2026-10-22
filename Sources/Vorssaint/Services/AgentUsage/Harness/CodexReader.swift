@@ -9,6 +9,14 @@ import Foundation
 struct CodexReader: AgentHarnessReader {
     var provider: AgentProvider { .codex }
 
+    /// The client that started a thread names itself: the desktop app as
+    /// "Codex Desktop", or "codex_work_desktop" in a workspace. Anything else,
+    /// like `codex_cli_rs`, is the command line.
+    static func isApp(originator: String?) -> Bool {
+        guard let originator = originator?.lowercased() else { return false }
+        return originator.contains("desktop")
+    }
+
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         guard let kind = AgentLogParser.firstType(line) else { return [] }
         switch kind.name {
@@ -29,6 +37,7 @@ struct CodexReader: AgentHarnessReader {
             state.codexHeaderRead = true
             if !id.isEmpty { state.session = AgentLogParser.native(id) }
             if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = AgentLogParser.projectName(cwd) }
+            state.codexApp = Self.isApp(originator: payload["originator"] as? String)
             // Subagents, reviews and memory tasks Codex starts itself name
             // `subagent` or `internal`; a person's thread names its client.
             let source = payload["source"] as? [String: Any]
@@ -102,7 +111,8 @@ struct CodexReader: AgentHarnessReader {
             return []
         case "task_started":
             state.turnOpen = true
-            return [.turnBegan(AgentLogParser.seconds(payload["started_at"]) ?? date)]
+            return [.turnBegan(AgentLogParser.seconds(payload["started_at"]) ?? date),
+                    .turnPlace(state.codexApp ? .app : .terminal)]
         case "task_complete", "turn_aborted":
             let open = state.turnOpen
             state.turnOpen = false
