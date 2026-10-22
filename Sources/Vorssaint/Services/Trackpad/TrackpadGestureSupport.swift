@@ -82,10 +82,15 @@ enum TrackpadGestureRoute: Equatable {
     case dropped
 }
 
+/// What macOS does with a gesture set in Trackpad, More Gestures.
+enum TrackpadSystemAction: Equatable {
+    case spaces, missionControl, appExpose, launchpad, showDesktop
+}
+
 /// Where in System Settings a gesture macOS already uses can be freed.
 enum TrackpadSystemClaim: Equatable {
-    /// Trackpad, More Gestures.
-    case moreGestures
+    /// Trackpad, More Gestures, and what macOS does with the gesture.
+    case moreGestures(TrackpadSystemAction)
     /// Trackpad, Point & Click, Look up & data detectors.
     case lookUp
     /// Accessibility, Pointer Control, Trackpad Options, dragging style.
@@ -346,10 +351,11 @@ enum TrackpadGestureSupport {
     /// answers its four-finger swipes with five fingers as well.
     static func systemClaims(_ settings: TrackpadSystemGestureSettings) -> [TrackpadGesture: TrackpadSystemClaim] {
         var claims: [TrackpadGesture: TrackpadSystemClaim] = [:]
-        func claim(_ kind: TrackpadGestureKind, _ fingers: Int, _ value: Int?, when enabled: Bool = true) {
+        func claim(_ kind: TrackpadGestureKind, _ fingers: Int, _ value: Int?,
+                   _ action: TrackpadSystemAction, when enabled: Bool = true) {
             guard enabled, (value ?? 2) != 0,
                   let gesture = TrackpadGesture(kind: kind, fingers: fingers) else { return }
-            claims[gesture] = .moreGestures
+            claims[gesture] = .moreGestures(action)
         }
         let missionControl = settings.missionControlGesture ?? true
         let appExpose = settings.appExposeGesture ?? false
@@ -360,14 +366,14 @@ enum TrackpadGestureSupport {
             (4, settings.fourFingerHorizontalSwipe, settings.fourFingerVerticalSwipe),
             (5, settings.fourFingerHorizontalSwipe, settings.fourFingerVerticalSwipe),
         ] {
-            claim(.swipeLeft, fingers, horizontal)
-            claim(.swipeRight, fingers, horizontal)
-            claim(.swipeUp, fingers, vertical, when: missionControl)
-            claim(.swipeDown, fingers, vertical, when: appExpose)
+            claim(.swipeLeft, fingers, horizontal, .spaces)
+            claim(.swipeRight, fingers, horizontal, .spaces)
+            claim(.swipeUp, fingers, vertical, .missionControl, when: missionControl)
+            claim(.swipeDown, fingers, vertical, .appExpose, when: appExpose)
         }
         for (fingers, pinch) in [(4, settings.fourFingerPinch), (5, settings.fiveFingerPinch)] {
-            claim(.pinchIn, fingers, pinch, when: launchpad)
-            claim(.pinchOut, fingers, pinch, when: showDesktop)
+            claim(.pinchIn, fingers, pinch, .launchpad, when: launchpad)
+            claim(.pinchOut, fingers, pinch, .showDesktop, when: showDesktop)
         }
         if (settings.threeFingerTap ?? 0) != 0, let tap = TrackpadGesture(kind: .tap, fingers: 3) {
             claims[tap] = .lookUp

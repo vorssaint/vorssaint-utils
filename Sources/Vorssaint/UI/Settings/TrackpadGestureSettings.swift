@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
-/// The trackpad gestures card on the Mouse page: the switch, one row per
-/// gesture with the action it runs and why a gesture may be taken, and the
-/// apps gestures leave alone. Actions are edited with the radial menu's own
-/// action editor, so both offer the same catalog.
+/// The trackpad gestures card on the Mouse page: the switch, one finger
+/// count at a time with the action each gesture runs and what macOS does
+/// with it, and the apps gestures leave alone. Actions are edited with the
+/// radial menu's own action editor, so both offer the same catalog.
 struct TrackpadGesturesSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -14,6 +15,7 @@ struct TrackpadGesturesSection: View {
     @ObservedObject private var touch = TrackpadTouchService.shared
     @AppStorage(DefaultsKey.trackpadGesturesEnabled) private var enabled = false
     @AppStorage(DefaultsKey.trackpadGestureMappings) private var mappingsData: Data?
+    @State private var fingers = 3
     @State private var editing: GestureEdit?
 
     private struct GestureEdit: Identifiable {
@@ -21,12 +23,6 @@ struct TrackpadGesturesSection: View {
         let item: RadialMenuItem
         let isNew: Bool
         var id: String { gesture.key }
-    }
-
-    private struct RowNote {
-        let text: String
-        let warning: Bool
-        let offersFeatures: Bool
     }
 
     private var text: TrackpadGestureStrings { FeatureStrings.trackpadGestures(l10n.language) }
@@ -49,13 +45,16 @@ struct TrackpadGesturesSection: View {
             }
             if enabled {
                 let current = mappings
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
                     if touch.touchDeviceMissing {
                         caption(l10n.s.middleClickNoTrackpad, color: .orange)
                     }
-                    ForEach([3, 4, 5], id: \.self) { fingers in
-                        fingerGroup(fingers, mappings: current)
+                    HStack(spacing: 8) {
+                        ForEach([3, 4, 5], id: \.self) { count in
+                            fingerChip(count, mappings: current)
+                        }
                     }
+                    fingerGroup(fingers, mappings: current)
                 }
                 .padding(.leading, settingsRowTextInset)
                 MouseExceptionsList(scope: .trackpadGestures)
@@ -72,43 +71,79 @@ struct TrackpadGesturesSection: View {
         }
     }
 
-    // MARK: - Rows
+    // MARK: - Groups
+
+    /// One chip per finger count, with how many of its gestures run an action.
+    private func fingerChip(_ count: Int, mappings: [TrackpadGesture: TriggerAction]) -> some View {
+        let selected = fingers == count
+        let mapped = mappings.keys.filter {
+            $0.fingers == count && ($0.kind != .tap || service.reservations[count] == nil)
+        }.count
+        let title = mapped > 0 ? "\(fingerTitle(count)) · \(mapped)" : fingerTitle(count)
+        return SettingsChip(title: title,
+                            symbol: selected ? "\(count).circle.fill" : "\(count).circle",
+                            selected: selected) { fingers = count }
+    }
 
     private func fingerGroup(_ fingers: Int, mappings: [TrackpadGesture: TriggerAction]) -> some View {
         let gestures = TrackpadGesture.all.filter { $0.fingers == fingers }
         // Three-finger drag takes the whole group; saying so once beats
-        // repeating it under every row.
+        // tagging every row.
         let dragTakesAll = gestures.allSatisfy { service.systemClaims[$0] == .threeFingerDrag }
-        return VStack(alignment: .leading, spacing: 6) {
+        let tagged = !dragTakesAll && gestures.contains { systemName(service.systemClaims[$0]) != nil }
+        return VStack(alignment: .leading, spacing: 8) {
             Text(fingerTitle(fingers))
                 .font(.subheadline.weight(.medium))
             if dragTakesAll {
                 caption(text.claimedThreeFingerDrag, color: .orange)
             }
-            ForEach(gestures, id: \.key) { gesture in
-                gestureRow(gesture, action: mappings[gesture], groupNoteShown: dragTakesAll)
+            VStack(spacing: 0) {
+                ForEach(Array(gestures.enumerated()), id: \.element.key) { index, gesture in
+                    if index > 0 { Divider() }
+                    gestureRow(gesture, action: mappings[gesture], showsClaim: !dragTakesAll)
+                }
+            }
+            if tagged {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Image(systemName: "apple.logo")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    caption(text.systemFootnote, color: .secondary)
+                    Button(text.openTrackpadSettings, action: openTrackpadSettings)
+                        .buttonStyle(.link)
+                        .font(.caption)
+                }
             }
         }
     }
 
+    // MARK: - Rows
+
     private func gestureRow(_ gesture: TrackpadGesture, action: TriggerAction?,
-                            groupNoteShown: Bool) -> some View {
+                            showsClaim: Bool) -> some View {
         let owner = gesture.kind == .tap ? service.reservations[gesture.fingers] : nil
-        let note = rowNote(gesture, action: action, owner: owner, groupNoteShown: groupNoteShown)
-        return VStack(alignment: .leading, spacing: 3) {
+        let problem = owner == nil ? action.flatMap(TriggerActionRunner.unavailability) : nil
+        let claimName = showsClaim && owner == nil ? systemName(service.systemClaims[gesture]) : nil
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Image(systemName: gesture.kind.symbolName)
                     .foregroundStyle(.secondary)
                     .frame(width: 18)
                 Text(kindTitle(gesture.kind))
                 Spacer(minLength: 12)
-                actionMenu(gesture, action: action)
-                    .disabled(owner != nil)
+                if let claimName {
+                    systemTag(claimName, overridden: action != nil)
+                }
+                if let owner {
+                    ownerValue(owner)
+                } else {
+                    actionMenu(gesture, action: action)
+                }
             }
-            if let note {
-                caption(note.text, color: note.warning ? .orange : .secondary)
+            if let problem {
+                caption(problemText(problem), color: .orange)
                     .padding(.leading, 26)
-                if note.offersFeatures {
+                if case .featureMissing = problem {
                     Button(text.openFeatures) {
                         SettingsRouter.shared.page = .features
                     }
@@ -118,32 +153,34 @@ struct TrackpadGesturesSection: View {
                 }
             }
         }
+        .padding(.vertical, 6)
     }
 
-    /// One explanation per row, the most useful first: a tap another feature
-    /// owns, then an action that cannot run, then a gesture macOS also uses.
-    private func rowNote(_ gesture: TrackpadGesture, action: TriggerAction?,
-                         owner: TrackpadTapOwner?, groupNoteShown: Bool) -> RowNote? {
-        switch owner {
-        case .middleClick?:
-            return RowNote(text: text.ownedByMiddleClick, warning: false, offersFeatures: false)
-        case .radialMenu?:
-            return RowNote(text: text.ownedByRadialMenu, warning: false, offersFeatures: false)
-        case nil:
-            break
-        }
-        if let action, let problem = TriggerActionRunner.unavailability(action) {
-            switch problem {
-            case .featureMissing:
-                return RowNote(text: text.unavailableFeature, warning: true, offersFeatures: true)
-            case .targetMissing:
-                return RowNote(text: text.unavailableTarget, warning: true, offersFeatures: false)
-            case .systemShortcutOff:
-                return RowNote(text: text.unavailableShortcut, warning: true, offersFeatures: false)
+    /// What macOS does with the gesture: a quiet mark while the gesture is
+    /// free here, a warning once an action here runs on top of it.
+    private func systemTag(_ name: String, overridden: Bool) -> some View {
+        Label(overridden ? String(format: text.systemAlso, name) : "macOS · \(name)",
+              systemImage: overridden ? "exclamationmark.triangle.fill" : "apple.logo")
+            .font(.caption)
+            .foregroundStyle(overridden ? Color.orange : .secondary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background((overridden ? Color.orange : Color.secondary).opacity(0.12), in: Capsule())
+            .lineLimit(1)
+    }
+
+    /// A tap another feature owns, named with a way to its own settings.
+    private func ownerValue(_ owner: TrackpadTapOwner) -> some View {
+        let feature: AppFeature = owner == .middleClick ? .middleClick : .radialMenu
+        return HStack(spacing: 6) {
+            Text(owner == .middleClick ? l10n.s.middleClickSection : radialText.pageTitle)
+                .foregroundStyle(.secondary)
+            Button(text.change) {
+                SettingsRouter.shared.request(feature.settingsDestination, sidebarFeature: feature)
             }
+            .buttonStyle(.link)
         }
-        guard !groupNoteShown, let claim = service.systemClaims[gesture] else { return nil }
-        return RowNote(text: claimText(claim), warning: action != nil, offersFeatures: false)
+        .help(owner == .middleClick ? text.ownedByMiddleClick : text.ownedByRadialMenu)
     }
 
     private func actionMenu(_ gesture: TrackpadGesture, action: TriggerAction?) -> some View {
@@ -170,15 +207,14 @@ struct TrackpadGesturesSection: View {
                 }
             }
             // The window action most asked of a swipe (issue #967), one click
-            // away instead of behind the action editor.
-            if AppFeature.windowLayout.isAvailable {
-                Section {
-                    Button {
-                        store(TrackpadGestureMappingSupport.windowLayout(.minimize), for: gesture)
-                    } label: {
-                        Label(WindowLayoutAction.minimize.title(FeatureStrings.windowLayout(l10n.language)),
-                              systemImage: WindowLayoutAction.minimize.symbolName)
-                    }
+            // away instead of behind the action editor. Without Window Layout
+            // the row says so and offers the Features page.
+            Section {
+                Button {
+                    store(TrackpadGestureMappingSupport.windowLayout(.minimize), for: gesture)
+                } label: {
+                    Label(WindowLayoutAction.minimize.title(FeatureStrings.windowLayout(l10n.language)),
+                          systemImage: WindowLayoutAction.minimize.symbolName)
                 }
             }
             Divider()
@@ -206,6 +242,12 @@ struct TrackpadGesturesSection: View {
         TrackpadGestureService.shared.syncWithPreferences()
         if let action, TrackpadGestureMappingSupport.needsAccessibility(action), !permissions.accessibility {
             permissions.requestAccessibility()
+        }
+    }
+
+    private func openTrackpadSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Trackpad-Settings.extension") {
+            NSWorkspace.shared.open(url)
         }
     }
 
@@ -261,11 +303,31 @@ struct TrackpadGesturesSection: View {
         }
     }
 
-    private func claimText(_ claim: TrackpadSystemClaim) -> String {
+    private func problemText(_ problem: TriggerActionUnavailability) -> String {
+        switch problem {
+        case .featureMissing: return text.unavailableFeature
+        case .targetMissing: return text.unavailableTarget
+        case .systemShortcutOff: return text.unavailableShortcut
+        }
+    }
+
+    /// The name of what macOS does with a gesture, nil when macOS leaves it
+    /// free or three-finger drag takes the whole group.
+    private func systemName(_ claim: TrackpadSystemClaim?) -> String? {
         switch claim {
-        case .moreGestures: return text.claimedMoreGestures
-        case .lookUp: return text.claimedLookUp
-        case .threeFingerDrag: return text.claimedThreeFingerDrag
+        case .moreGestures(let action)?:
+            switch action {
+            case .spaces: return text.systemSpaces
+            case .missionControl: return text.missionControl
+            case .appExpose: return text.appExpose
+            // macOS 26 replaced Launchpad with Apps under the same gesture.
+            case .launchpad:
+                return ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26
+                    ? text.systemApps : "Launchpad"
+            case .showDesktop: return text.systemShowDesktop
+            }
+        case .lookUp?: return text.systemLookUp
+        case .threeFingerDrag?, nil: return nil
         }
     }
 }

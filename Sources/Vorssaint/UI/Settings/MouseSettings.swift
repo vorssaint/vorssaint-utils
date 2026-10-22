@@ -563,26 +563,10 @@ struct MouseSettings: View {
     }
 
     private func tapChip(_ fingers: Int, title: String, symbol: String) -> some View {
-        let selected = middleClickTapFingers == fingers
-        return Button {
+        SettingsChip(title: title, symbol: symbol, selected: middleClickTapFingers == fingers) {
             middleClickTapFingers = fingers
             MiddleClickService.shared.syncWithPreferences()
-        } label: {
-            Label(title, systemImage: symbol)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(selected ? Color.accentColor : .primary)
-                .padding(.horizontal, 10)
-                .frame(height: 28)
-                .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06),
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1)
-                }
-                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func activeBadge(_ text: String) -> some View {
