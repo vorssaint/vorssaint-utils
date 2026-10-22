@@ -11,9 +11,6 @@ struct NotchAgentsView: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchSettingsPreview) private var preview
     @Environment(\.notchAgentsLockScreen) private var lockScreen
-    /// The lock screen's own Trend period. It starts from the island's and
-    /// is never saved, so the island keeps its own.
-    @State private var lockedPeriod: AgentPeriod?
     @AppStorage(DefaultsKey.notchAgentsPeriod) private var period = AgentPeriod.today.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
@@ -55,17 +52,19 @@ struct NotchAgentsView: View {
                                             codexAccounts: codexAccounts.map(\.id),
                                             claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id,
                                             claudeUsesAPI: claudeUsesAPI)
-        // Projects are only their names.
+        // Projects are only their names. Trend is left to the island, so the
+        // lock screen's page takes no clicks and can be shorter.
         if lockScreen?.hidesProjects == true { tiles.removeAll { $0.card == .projects } }
+        if lockScreen != nil { tiles.removeAll { $0.card == .trend } }
         let rows = NotchAgentSupport.rows(tiles, width: size.width)
         return lockScreen == nil ? rows : NotchAgentSupport.fitted(rows, height: size.height, width: size.width,
                                                                    live: usage.snapshot.live)
     }
 
-    /// What Trend grows by on the lock screen, which never scrolls: the
-    /// height the other cards leave.
-    private func trendGrowth(_ rows: [[NotchAgentTile]]) -> CGFloat {
-        guard lockScreen != nil, rows.joined().contains(where: { $0.card == .trend }) else { return 0 }
+    /// What Activity grows by on the lock screen, which never scrolls: the
+    /// height the other cards leave. Its map widens to fill it.
+    private func activityGrowth(_ rows: [[NotchAgentTile]]) -> CGFloat {
+        guard lockScreen != nil, rows.joined().contains(where: { $0.card == .activity }) else { return 0 }
         return max(0, size.height - NotchAgentSupport.contentHeight(rows, width: size.width, live: usage.snapshot.live))
     }
 
@@ -112,17 +111,17 @@ struct NotchAgentsView: View {
     }
 
     private func grid(_ rows: [[NotchAgentTile]], now: Date) -> some View {
-        let growth = trendGrowth(rows)
+        let growth = activityGrowth(rows)
         return VStack(spacing: NotchAgentSupport.spacing) {
             ForEach(rows, id: \.first?.id) { row in
                 HStack(spacing: NotchAgentSupport.spacing) {
-                    // On the lock screen only Trend's period takes clicks.
+                    // On the lock screen the page takes no clicks.
                     ForEach(row) { tile in
-                        card(tile, now: now).allowsHitTesting(lockScreen == nil || tile.card == .trend)
+                        card(tile, now: now).allowsHitTesting(lockScreen == nil)
                     }
                 }
                 .frame(height: NotchAgentSupport.height(of: row, width: size.width, live: usage.snapshot.live)
-                       + (row.contains { $0.card == .trend } ? growth : 0))
+                       + (row.contains { $0.card == .activity } ? growth : 0))
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -149,12 +148,7 @@ struct NotchAgentsView: View {
         case .live:
             NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
         case .trend:
-            if lockScreen == nil {
-                NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text) { period = $0.rawValue }
-            } else {
-                NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: lockedPeriod ?? shown,
-                                    text: text) { lockedPeriod = $0 }
-            }
+            NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text) { period = $0.rawValue }
         case .models:
             NotchAgentShareCard(title: text.modelsCard, symbol: NotchAgentCard.models.symbol,
                                 shares: snapshot.usage(shown).models, byCost: showsCost(snapshot.usage(shown)), text: text)

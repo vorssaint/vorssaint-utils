@@ -135,8 +135,9 @@ enum NotchLockScreenTests {
                          && pro.maxX - agents.maxX >= Layout.agentsMargin
                          && abs(agents.midX - (pro.maxX - column / 2)) <= 0.5,
                          "the AI page stands centred in the free column right of the player")
-            suite.expect(pro.maxY - agents.maxY == Layout.agentsTop && agents.minY - pro.minY == Layout.agentsBottom,
-                         "the AI page runs from under the menu bar to near the bottom edge")
+            suite.expect(pro.maxY - agents.maxY == Layout.agentsTop && agents.height == Layout.pageHeight
+                         && agents.minY - pro.minY >= Layout.agentsBottom,
+                         "the AI page starts level with the date and stops short, leaving wallpaper under it")
             suite.expect(row.maxX <= agents.minX - Layout.agentsMargin && abs(row.midX - pro.midX) <= 0.5,
                          "beside the AI page the activities line keeps clear of it")
         } else {
@@ -160,20 +161,23 @@ enum NotchLockScreenTests {
         }
         suite.expect(Layout.macFrame(in: CGRect(x: 0, y: 0, width: 1352, height: 878)) == nil,
                      "a column too narrow for This Mac leaves the lock screen as it is")
-        let roomy = Layout.macPlan(height: 886, calendar: true)
-        suite.expect(roomy.tile == Layout.macTileMax && roomy.storage && roomy.accessories
+        let roomy = Layout.macPlan(height: Layout.pageHeight - 24, calendar: true)
+        suite.expect(roomy.tile == Layout.macTileMax && roomy.storage
                      && roomy.calendar >= Layout.macCalendarMin,
-                     "on a 14-inch display every card shows and today's events take the rest")
-        let tight = Layout.macPlan(height: 600, calendar: true)
-        suite.expect(tight.tile >= Layout.macTileMin && !tight.accessories,
-                     "short of room the tiles shrink and the accessories give way first")
-        for height in stride(from: CGFloat(480), through: 1100, by: 20) {
+                     "at the page's full height every card shows and the calendar takes the rest")
+        let tight = Layout.macPlan(height: 560, calendar: true)
+        suite.expect(tight.tile >= Layout.macTileMin && tight.tile < Layout.macTileMax,
+                     "short of room the tiles shrink first")
+        for height in stride(from: CGFloat(456), through: 1100, by: 20) {
             let plan = Layout.macPlan(height: height, calendar: true)
-            let cards = 3 + 1 + (plan.storage ? 1 : 0) + (plan.accessories ? 1 : 0)
+            let cards = 3 + 1 + (plan.storage ? 1 : 0)
             let used = Layout.macBattery + plan.tile * 2 + plan.calendar + (plan.storage ? Layout.macStorage : 0)
-                + (plan.accessories ? Layout.macAccessories : 0) + Layout.macSpacing * CGFloat(cards - 1)
-            suite.expect(used <= height + 0.5, "This Mac never scrolls at \(height) points")
+                + Layout.macSpacing * CGFloat(cards - 1)
+            suite.expect(used <= height + 0.5, "This Mac's cards fit their page at \(height) points")
         }
+        suite.expect(NotchLockScreenSupport.calendarView(in: UserDefaults(suiteName: "lockscreen.calendar.\(UUID())")!) == .day
+                     && !NotchLockScreenCalendarView.day.readsMonth && NotchLockScreenCalendarView.week.readsMonth,
+                     "the calendar opens on today, and only week and month read the month around it")
         let noCalendar = Layout.macPlan(height: 886, calendar: false)
         suite.expect(noCalendar.calendar == 0 && noCalendar.tile > Layout.macTileMax,
                      "without the calendar the tiles take its room")

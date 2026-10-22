@@ -35,6 +35,10 @@ final class NotchLockScreenService {
     private var padlockWork: DispatchWorkItem?
     private var shownFrames = Frames()
     private var wasLocked = false
+    /// This Mac's calendar view, settled as the scene shows.
+    private var calendarView = NotchLockScreenCalendarView.day
+    /// Whether the scene asked the calendar for the month around today.
+    private var readsMonth = false
 
     private init() {}
 
@@ -112,6 +116,7 @@ final class NotchLockScreenService {
             timeLeft: NotchCalendarSupport.showsTimeLeft(), page: frames.agents != nil,
             mac: frames.mac != nil)
         if model.gates != gates { model.gates = gates }
+        calendarView = NotchLockScreenSupport.calendarView()
         var scene: [NotchLockScreenPanel] = []
         // Without the Music section there is no player to show or to click.
         if gates.music, let frame = frames.player {
@@ -119,17 +124,18 @@ final class NotchLockScreenService {
             scene.append(Self.makePanel(frame: frame, interactive: true,
                                         content: NotchLockScreenPlayer(model: model, size: frame.size)))
         }
-        // The page takes clicks only on its Trend period; the rest of it, and
-        // the room around it, pass them to the lock screen beneath.
+        // Read-only throughout, so every click passes to the lock screen.
         if gates.page, let frame = frames.agents {
-            scene.append(Self.makePanel(frame: frame, interactive: true,
+            scene.append(Self.makePanel(frame: frame,
                                         content: NotchLockScreenAgents(size: frame.size,
                                                                        privacy: NotchLockScreenSupport.agentPrivacy())))
         }
-        // Read-only throughout, so every click passes to the lock screen.
+        // Only the calendar takes input: it scrolls, and in the month a day
+        // can be picked. The rest of the page passes clicks to the lock screen.
         if gates.mac, let frame = frames.mac {
-            scene.append(Self.makePanel(frame: frame, content: NotchLockScreenMac(
-                size: frame.size, hidesEventTitles: NotchLockScreenSupport.hidesEventTitles())))
+            scene.append(Self.makePanel(frame: frame, interactive: true, content: NotchLockScreenMac(
+                size: frame.size, hidesEventTitles: NotchLockScreenSupport.hidesEventTitles(),
+                calendarView: calendarView)))
         }
         if let frame = frames.row {
             scene.append(Self.makePanel(frame: frame, content: NotchLockScreenActivities(model: model, size: frame.size)))
@@ -190,6 +196,12 @@ final class NotchLockScreenService {
         if gates.countdown || gates.timeLeft || gates.mac || !NotchCalendarSupport.chosenCountdowns().isEmpty {
             NotchCalendarService.shared.syncWithPreferences()
         }
+        // The week and month reach back before today; the island's own
+        // Calendar page takes the month back as it opens after unlocking.
+        if gates.mac, calendarView.readsMonth {
+            NotchCalendarService.shared.showMonth(Date())
+            readsMonth = true
+        }
         if gates.agents || gates.page { AgentUsageService.shared.syncWithPreferences() }
         // The page counts as the AI page shown, so limits refresh as they do
         // in the open island.
@@ -209,6 +221,10 @@ final class NotchLockScreenService {
         }
         // The island takes the monitor back with its own needs as it returns.
         if space != nil, model.gates.mac { SystemMonitor.shared.setLockScreenNeeds(.none) }
+        if readsMonth {
+            NotchCalendarService.shared.showMonth(nil)
+            readsMonth = false
+        }
         if stopsSources, !scene.isEmpty {
             NotchMusicService.shared.stop()
             NotchDownloadService.shared.stop()

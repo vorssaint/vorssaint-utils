@@ -12,6 +12,18 @@ enum NotchLockScreenActivity: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// How much of the calendar the This Mac page's card covers. The card keeps
+/// its height in each, and what does not fit scrolls inside it.
+enum NotchLockScreenCalendarView: String, CaseIterable, Identifiable {
+    case day, week, month
+
+    var id: String { rawValue }
+
+    /// Week and month reach back before today, past what the island reads
+    /// for its countdowns, so they read the month grid around today.
+    var readsMonth: Bool { self != .day }
+}
+
 enum NotchLockScreenSupport {
     /// The Space level macOS gives the notifications it shows over the lock
     /// screen, one step above the lock screen's own 300. A window in a Space
@@ -48,6 +60,11 @@ enum NotchLockScreenSupport {
     /// Events on the This Mac page read Busy instead of their titles.
     static func hidesEventTitles(in defaults: UserDefaults = .standard) -> Bool {
         defaults.bool(forKey: DefaultsKey.notchLockScreenMacHideEvents)
+    }
+
+    static func calendarView(in defaults: UserDefaults = .standard) -> NotchLockScreenCalendarView {
+        defaults.string(forKey: DefaultsKey.notchLockScreenMacCalendarView)
+            .flatMap(NotchLockScreenCalendarView.init(rawValue:)) ?? .day
     }
 
     /// What the widget keeps from anyone at the Mac who has not unlocked it.
@@ -119,12 +136,14 @@ enum NotchLockScreenLayout {
     }
 
     /// The AI Agents page: the open island's width, centred in the column
-    /// right of the player, from under the menu bar to near the bottom edge.
+    /// right of the player, level with the date and no taller than
+    /// `pageHeight`, so the wallpaper shows under it on a tall display.
     static let agentsWidth: CGFloat = 440
     /// The least room kept clear on each side of the page in its column.
     static let agentsMargin: CGFloat = 24
-    static let agentsTop: CGFloat = 48
+    static let agentsTop: CGFloat = 72
     static let agentsBottom: CGFloat = 24
+    static let pageHeight: CGFloat = 750
     /// The page's cards give way from the bottom; under this not enough
     /// of them are left to be worth showing.
     static let minimumAgentsHeight: CGFloat = 480
@@ -147,10 +166,10 @@ enum NotchLockScreenLayout {
     static func agentsFrame(in screen: CGRect) -> CGRect? {
         guard readable(screen) else { return nil }
         let column = (screen.width - playerWidth) / 2
-        let height = screen.height - agentsTop - agentsBottom
+        let height = min(pageHeight, screen.height - agentsTop - agentsBottom)
         guard column >= agentsWidth + agentsMargin * 2, height >= minimumAgentsHeight else { return nil }
         let x = screen.midX + playerWidth / 2 + (column - agentsWidth) / 2
-        return CGRect(x: x.rounded(), y: screen.minY + agentsBottom, width: agentsWidth, height: height)
+        return CGRect(x: x.rounded(), y: screen.maxY - agentsTop - height, width: agentsWidth, height: height)
     }
 
     /// The This Mac page: the AI Agents page's mirror, centred in the column
@@ -162,25 +181,26 @@ enum NotchLockScreenLayout {
     }
 
     /// The This Mac page's cards, top to bottom: battery, the four system
-    /// tiles in two rows, today's events, storage and accessories.
+    /// tiles in two rows, the calendar, and storage with the accessories'
+    /// batteries along its foot.
     static let macSpacing: CGFloat = 10
-    static let macBattery: CGFloat = 152
-    static let macTileMax: CGFloat = 150
-    static let macTileMin: CGFloat = 112
-    static let macStorage: CGFloat = 118
-    static let macAccessories: CGFloat = 92
-    static let macCalendarMin: CGFloat = 110
+    static let macBattery: CGFloat = 130
+    static let macTileMax: CGFloat = 110
+    static let macTileMin: CGFloat = 96
+    static let macStorage: CGFloat = 128
+    /// The calendar scrolls inside its card, so it needs only room for a
+    /// header and a few lines; the rest of the page's height goes to it.
+    static let macCalendarMin: CGFloat = 150
 
-    /// How the This Mac page fills its height without scrolling. Today's
-    /// events take what the rest leave; short of room the tiles shrink, then
-    /// accessories give way, then storage. With the Calendar section off the
-    /// tiles take its room instead.
+    /// How the This Mac page fills its height. The calendar takes what the
+    /// rest leave; short of room the tiles shrink, then storage gives way.
+    /// With the Calendar section off the tiles take its room instead.
     static func macPlan(height: CGFloat, calendar: Bool) -> NotchLockScreenMacPlan {
-        var plan = NotchLockScreenMacPlan(tile: macTileMax, calendar: 0, storage: true, accessories: true)
+        var plan = NotchLockScreenMacPlan(tile: macTileMax, calendar: 0, storage: true)
         func rest(_ plan: NotchLockScreenMacPlan) -> CGFloat {
-            let cards = 3 + (calendar ? 1 : 0) + (plan.storage ? 1 : 0) + (plan.accessories ? 1 : 0)
+            let cards = 3 + (calendar ? 1 : 0) + (plan.storage ? 1 : 0)
             return height - macBattery - plan.tile * 2 - (plan.storage ? macStorage : 0)
-                - (plan.accessories ? macAccessories : 0) - macSpacing * CGFloat(cards - 1)
+                - macSpacing * CGFloat(cards - 1)
         }
         guard calendar else {
             plan.tile = max(macTileMin, plan.tile + rest(plan) / 2)
@@ -189,7 +209,6 @@ enum NotchLockScreenLayout {
         if rest(plan) < macCalendarMin {
             plan.tile = max(macTileMin, plan.tile - (macCalendarMin - rest(plan)) / 2)
         }
-        if rest(plan) < macCalendarMin { plan.accessories = false }
         if rest(plan) < macCalendarMin { plan.storage = false }
         plan.calendar = max(0, rest(plan)).rounded(.down)
         return plan
@@ -227,5 +246,4 @@ struct NotchLockScreenMacPlan: Equatable {
     var tile: CGFloat
     var calendar: CGFloat
     var storage: Bool
-    var accessories: Bool
 }
