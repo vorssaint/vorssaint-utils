@@ -219,4 +219,194 @@ enum WhatsAppDownloadSupport {
               now >= today else { return false }
         return lastRun < today
     }
+
+    /// One file the organizer placed, with everything needed to tell whether
+    /// the person has touched it since. The property names and their order
+    /// are the persisted JSON keys, so cases may be appended but never
+    /// renamed.
+    struct Record: Codable, Equatable {
+        let digest: String
+        let destinationPath: String
+        let originalName: String
+        let size: Int64
+        let organizedAt: Date
+    }
+
+    /// One reversible step of an organizer pass: a move that can be put
+    /// back, or a trash that can be emptied from the trash.
+    struct UndoTransaction: Codable {
+        enum ActionKind: String, Codable { case move, trash }
+        struct Action: Codable {
+            let kind: ActionKind
+            let currentPath: String
+            let restorePath: String?
+        }
+
+        let id: UUID
+        let actions: [Action]
+        let recordsBefore: [Record]
+        let recordsAfter: [Record]
+        let createdAt: Date
+    }
+
+    /// The undo transaction is the most expensive correctness property in
+    /// this subsystem, and it is expensive because undo destroys work:
+    /// restoring a pass means overwriting whatever sits at the organized path
+    /// today, so it is only safe while every file that pass wrote is provably
+    /// still that file. The organizer owns the moving; the deciding does not.
+    /// Keeping these rules pure and here is what lets the destructive
+    /// boundary be exercised by tests that never touch a real Downloads
+    /// folder.
+    static func recordMap(_ records: [Record]) -> [String: Record] {
+        Dictionary(records.map { ($0.destinationPath, $0) },
+                   uniquingKeysWith: { _, latest in latest })
+    }
+
+    /// The paths whose record a transaction actually changed. Only a
+    /// difference counts: a record the transaction wrote and then wrote back
+    /// identically involved nothing and must not block the undo.
+    static func affectedRecordPaths(_ transaction: UndoTransaction) -> Set<String> {
+        let before = recordMap(transaction.recordsBefore)
+        let after = recordMap(transaction.recordsAfter)
+        return Set(before.keys).union(after.keys).filter { before[$0] != after[$0] }
+    }
+
+    /// Whether undo may proceed. A record that changed since the transaction
+    /// was written means the person moved or replaced the file themselves,
+    /// and restoring would destroy that; the whole transaction is refused
+    /// rather than partly applied, because a half-undone pass leaves the
+    /// records describing files that no longer exist.
+    static func recordsAllowUndo(_ transaction: UndoTransaction,
+                                 current: [Record]) -> Bool {
+        let expected = recordMap(transaction.recordsAfter)
+        let current = recordMap(current)
+        return affectedRecordPaths(transaction).allSatisfy { current[$0] == expected[$0] }
+    }
+
+    static func recordsAfterUndo(_ transaction: UndoTransaction,
+                                 current: [Record]) -> [Record] {
+        let before = recordMap(transaction.recordsBefore)
+        var result = recordMap(current)
+        for path in affectedRecordPaths(transaction) {
+            result[path] = before[path]
+        }
+        return result.values.sorted { $0.organizedAt < $1.organizedAt }
+    }
+
+    /// Finds the record that makes a freshly downloaded file a duplicate.
+    /// Records that share the digest but whose file is gone or no longer has
+    /// those bytes are dropped and the search continues, so a stale record
+    /// cannot hide the real duplicate further down the list - and equally a
+    /// record that merely claims the digest is not treated as a duplicate,
+    /// because acting on one would trash a file the person still has.
+    static func firstValidRecordIndex(digest: String,
+                                      records: inout [Record],
+                                      isIntact: (Record) -> Bool) -> Int? {
+        var index = 0
+        while index < records.count {
+            guard records[index].digest == digest else {
+                index += 1
+                continue
+            }
+            guard isIntact(records[index]) else {
+                records.remove(at: index)
+                continue
+            }
+            return index
+        }
+        return nil
+    }
+
+    /// The folder a candidate should be moved into, or nil when it must be
+    /// left exactly where it is.
+    static func destination(for candidate: DownloadCandidate,
+                            configured: [String],
+                            extensionWhitelist: Set<String>?) -> URL? {
+        guard matchesAgent(candidate.agent, configured: configured) else { return nil }
+        if let extensionWhitelist {
+            guard extensionWhitelist.contains(
+                candidate.url.pathExtension.lowercased()) else { return nil }
+        }
+        let destination = candidate.destination.standardizedFileURL
+        // Routing a file into the folder it already sits in is not a route.
+        // Allowing it would report a move that never happened and burn an
+        // undo transaction on a no-op.
+        guard destination.path
+            != candidate.url.deletingLastPathComponent().standardizedFileURL.path else {
+            return nil
+        }
+        return destination
+    }
+
+    /// Whether the app macOS attributed a download to is one the person chose
+    /// to route.
+    ///
+    /// An empty `configured` list matches nothing, and that refusal is the
+    /// load-bearing part of this function: "no source configured" has to mean
+    /// "nothing moves", never "everything moves". A list that defaulted to
+    /// matching all would make a cleared preference look like an instruction
+    /// to tidy the whole Downloads folder.
+    ///
+    /// Quarantine agent names arrive padded and inconsistently cased, so both
+    /// sides are trimmed and compared without case before anything is trusted.
+    static func matchesAgent(_ value: String?, configured: [String]) -> Bool {
+        guard let value else { return false }
+        let candidate = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty else { return false }
+        return configured.contains { entry in
+            entry.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(candidate) == .orderedSame
+        }
+    }
+
+    /// Splits a stored comma-joined list. Order is first-seen order because
+    /// it is the order the person typed, and a repeated entry differing only
+    /// in case is one entry, not two.
+    static func splitList(_ raw: String?) -> [String] {
+        guard let raw else { return [] }
+        var seen = Set<String>()
+        var entries: [String] = []
+        for piece in raw.split(separator: ",", omittingEmptySubsequences: false) {
+            let entry = piece.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !entry.isEmpty else { continue }
+            guard seen.insert(entry.lowercased()).inserted else { continue }
+            entries.append(entry)
+        }
+        return entries
+    }
+
+    /// The source list the person chose to route.
+    static func decodedSources(_ raw: String?) -> [String] {
+        splitList(raw)
+    }
+
+    /// The apps the cleanup may touch.
+    ///
+    /// The cleanup is destructive, so its scope is fixed here rather than
+    /// read from a preference the person sets for a different reason: the
+    /// routing list says where a download is moved to, and letting it also
+    /// say what may be trashed would widen a destructive policy with nobody
+    /// asking for it.
+    static let cleanupSources = ["WhatsApp"]
+
+    /// Decodes the extension filter, where nil means "no extension rule".
+    ///
+    /// A string that holds nothing but separators decodes to nil as well: a
+    /// whitelist of zero extensions would reject every file, turning a blank
+    /// preference into a silently dead feature instead of an absent one.
+    static func decodedExtensionWhitelist(_ raw: String?) -> Set<String>? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let extensions = splitList(raw).map { $0.lowercased() }
+        guard !extensions.isEmpty else { return nil }
+        return Set(extensions)
+    }
+}
+
+/// A received file the organizer has been handed but not yet acted on: where
+/// it is, which app macOS attributed the download to, and where the chosen
+/// layout would put it.
+struct DownloadCandidate: Equatable {
+    let url: URL
+    let agent: String?
+    let destination: URL
 }
