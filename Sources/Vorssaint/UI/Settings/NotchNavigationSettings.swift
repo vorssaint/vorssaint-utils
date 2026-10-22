@@ -9,7 +9,7 @@ extension NotchTopBarItem: PanelOrderItem {}
 /// island's top, or the circles floating beside it, and what the bar holds.
 struct NotchNavigationSettings: View {
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.notchNavigationStyle) private var style = NotchNavigationStyle.topBar.rawValue
+    @AppStorage(DefaultsKey.notchNavigationStyle) private var style = NotchNavigationStyle.sideButtons.rawValue
     @AppStorage(DefaultsKey.notchTopBarOrder) private var order = ""
     @AppStorage(DefaultsKey.notchTopBarHidden) private var hidden = ""
     @AppStorage(DefaultsKey.notchTopBarSecondaryClickToggles) private var secondaryClickToggles = true
@@ -17,7 +17,7 @@ struct NotchNavigationSettings: View {
     /// Leads to the Layout tab, where the side buttons are arranged.
     let showLayout: () -> Void
     private var text: NotchNavigationStrings { NotchNavigationStrings.localized(l10n.language) }
-    private var chosen: NotchNavigationStyle { NotchNavigationStyle(rawValue: style) ?? .topBar }
+    private var chosen: NotchNavigationStyle { NotchNavigationStyle(rawValue: style) ?? .sideButtons }
 
     private var configuration: NotchTopBarConfiguration {
         NotchTopBarConfiguration(order: order.split(separator: ",").compactMap { NotchTopBarItem(rawValue: String($0)) },
