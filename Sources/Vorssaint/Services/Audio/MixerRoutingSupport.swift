@@ -181,6 +181,59 @@ enum MixerRoutingSupport {
         return Int((min(max(volume, -1000), 1000) * 100).rounded())
     }
 
+    /// The slider position after the scroll wheel moved by `delta`, where a
+    /// positive delta is up (louder). A wheel notch moves 5%, the step of the
+    /// accessibility actions; a trackpad reports many small point deltas, so
+    /// those move 0.5% per point. A zero or non-numeric delta changes nothing,
+    /// and a current level that is not a number restarts from silence rather
+    /// than trapping later on its percentage.
+    static func scrolledVolume(from volume: Double, delta: Double, precise: Bool,
+                               maximum: Double) -> Double {
+        guard maximum.isFinite, maximum > 0 else { return volume.isFinite ? volume : 0 }
+        let start = min(max(volume.isFinite ? volume : 0, 0), maximum)
+        guard delta.isFinite, delta != 0 else { return start }
+        let step = precise ? 0.005 : 0.05
+        return min(max(start + delta * step, 0), maximum)
+    }
+
+    /// Decides, per slider, whether a scroll event belongs to it. A trackpad
+    /// gesture belongs to the slider it began on until it ends, so fingers
+    /// drifting over or off a slider neither move the volume by accident nor
+    /// hand the gesture back to the panel. Its momentum follows the same
+    /// owner. A plain wheel event has no gesture and is decided on its own.
+    struct ScrollGesture {
+        enum Phase { case wheel, began, changed, ended, momentum, momentumEnded }
+        enum Decision { case pass, consume, apply }
+
+        private var owned = false
+        private var momentumOwned = false
+
+        mutating func decide(_ phase: Phase, inside: Bool, enabled: Bool) -> Decision {
+            switch phase {
+            case .wheel:
+                return inside && enabled ? .apply : .pass
+            case .began:
+                owned = inside && enabled
+                momentumOwned = false
+                return owned ? .apply : .pass
+            case .changed:
+                guard owned else { return .pass }
+                return enabled ? .apply : .consume
+            case .ended:
+                let wasOwned = owned
+                owned = false
+                momentumOwned = wasOwned
+                return wasOwned ? (enabled ? .apply : .consume) : .pass
+            case .momentum:
+                return momentumOwned ? .consume : .pass
+            case .momentumEnded:
+                let wasOwned = momentumOwned
+                momentumOwned = false
+                return wasOwned ? .consume : .pass
+            }
+        }
+    }
+
     static func isUnity(_ volume: Double) -> Bool {
         abs(volume - 1) < 0.005
     }

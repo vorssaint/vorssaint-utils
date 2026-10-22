@@ -1352,10 +1352,20 @@ private struct MixerVolumeSlider: View {
     let maximum: Double
     let accessibilityLabel: String
 
+    @Environment(\.isEnabled) private var isEnabled
+
     private var activeTint: Color { isBoosting ? boostTint : normalTint }
     private var percentage: Int { MixerRoutingSupport.displayPercent(forVolume: value) }
 
     var body: some View {
+        sliderBody
+            .background(MixerScrollWheelCatcher(isEnabled: isEnabled) { delta, precise in
+                value = MixerRoutingSupport.scrolledVolume(from: value, delta: delta,
+                                                           precise: precise, maximum: maximum)
+            })
+    }
+
+    private var sliderBody: some View {
         Group {
 #if compiler(>=6.2)
             if #available(macOS 26.0, *), glassEnabled {
@@ -1493,3 +1503,79 @@ private struct LiquidGlassMixerSlider: View {
     }
 }
 #endif
+
+/// Turns the scroll wheel over a mixer slider into volume changes. The view
+/// never takes clicks; a local monitor claims wheel events that land inside
+/// its bounds so the panel behind the slider does not scroll as well.
+private struct MixerScrollWheelCatcher: NSViewRepresentable {
+    let isEnabled: Bool
+    let onScroll: (_ delta: Double, _ precise: Bool) -> Void
+
+    func makeNSView(context: Context) -> CatcherView {
+        let view = CatcherView()
+        view.onScroll = onScroll
+        view.isEnabled = isEnabled
+        return view
+    }
+
+    func updateNSView(_ view: CatcherView, context: Context) {
+        view.onScroll = onScroll
+        view.isEnabled = isEnabled
+    }
+
+    static func dismantleNSView(_ view: CatcherView, coordinator: ()) {
+        view.stopMonitoring()
+    }
+
+    final class CatcherView: NSView {
+        var onScroll: ((Double, Bool) -> Void)?
+        var isEnabled = true
+        private var gesture = MixerRoutingSupport.ScrollGesture()
+        private var monitor: Any?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            stopMonitoring()
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                self?.handle(event) ?? event
+            }
+        }
+
+        func stopMonitoring() {
+            guard let monitor else { return }
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+
+        private func handle(_ event: NSEvent) -> NSEvent? {
+            guard let window, event.window === window, !isHiddenOrHasHiddenAncestor else { return event }
+            let inside = bounds.contains(convert(event.locationInWindow, from: nil))
+            let phase: MixerRoutingSupport.ScrollGesture.Phase
+            if !event.momentumPhase.isEmpty {
+                phase = event.momentumPhase.isDisjoint(with: [.ended, .cancelled]) ? .momentum : .momentumEnded
+            } else if event.phase.isEmpty {
+                phase = .wheel
+            } else if event.phase.isDisjoint(with: [.began, .mayBegin]) == false {
+                phase = .began
+            } else if event.phase.isDisjoint(with: [.ended, .cancelled]) == false {
+                phase = .ended
+            } else {
+                phase = .changed
+            }
+            switch gesture.decide(phase, inside: inside, enabled: isEnabled) {
+            case .pass:
+                return event
+            case .consume:
+                return nil
+            case .apply:
+                onScroll?(Double(event.scrollingDeltaY), event.hasPreciseScrollingDeltas)
+                return nil
+            }
+        }
+
+        deinit { stopMonitoring() }
+    }
+}
