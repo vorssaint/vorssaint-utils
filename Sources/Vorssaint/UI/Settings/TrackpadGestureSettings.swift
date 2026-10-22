@@ -66,6 +66,7 @@ struct TrackpadGesturesSection: View {
                              item: edit.item,
                              isNew: edit.isNew,
                              allowsSubmenu: false,
+                             targetsOnly: true,
                              save: { store(.item($0), for: edit.gesture) },
                              delete: edit.isNew ? nil : { store(nil, for: edit.gesture) })
         }
@@ -183,46 +184,77 @@ struct TrackpadGesturesSection: View {
         .help(owner == .middleClick ? text.ownedByMiddleClick : text.ownedByRadialMenu)
     }
 
+    /// Suggestions for the gesture's direction first, then every action by
+    /// family, then the actions that need a target picked in the editor.
     private func actionMenu(_ gesture: TrackpadGesture, action: TriggerAction?) -> some View {
         let accessibilityName = kindTitle(gesture.kind) + ", " + text.actionLabel
+        let windowText = FeatureStrings.windowLayout(l10n.language)
+        let suggested = TrackpadGestureMappingSupport.suggestions(for: gesture.kind)
+            .filter { TriggerActionRunner.unavailability($0) == nil }
+        let tools = RadialMenuTool.allCases.filter { $0.isRunnable() }
+        let mainLayouts = Self.layoutGroups.flatMap { $0 }
         return Menu {
             Button(text.noAction) { store(nil, for: gesture) }
-            Section {
-                ForEach(MouseNavigationDirection.allCases, id: \.self) { direction in
-                    Button {
-                        store(.backForward(direction), for: gesture)
-                    } label: {
-                        Label(backForwardTitle(direction),
-                              systemImage: direction == .back ? "chevron.left" : "chevron.right")
+            if !suggested.isEmpty {
+                Section(text.suggested) {
+                    ForEach(Array(suggested.enumerated()), id: \.offset) { _, choice in
+                        choiceButton(choice, for: gesture)
                     }
-                }
-            }
-            Section(text.navigationSection) {
-                ForEach(SpaceNavigation.allCases) { navigation in
-                    Button {
-                        store(.navigation(navigation), for: gesture)
-                    } label: {
-                        Label(navigationTitle(navigation), systemImage: navigation.symbolName)
-                    }
-                }
-            }
-            // The window action most asked of a swipe (issue #967), one click
-            // away instead of behind the action editor. Without Window Layout
-            // the row says so and offers the Features page.
-            Section {
-                Button {
-                    store(TrackpadGestureMappingSupport.windowLayout(.minimize), for: gesture)
-                } label: {
-                    Label(WindowLayoutAction.minimize.title(FeatureStrings.windowLayout(l10n.language)),
-                          systemImage: WindowLayoutAction.minimize.symbolName)
                 }
             }
             Divider()
-            Button(text.otherAction) {
-                if case .item(let item)? = action {
-                    editing = GestureEdit(gesture: gesture, item: item, isNew: false)
-                } else {
-                    editing = GestureEdit(gesture: gesture, item: RadialMenuItem(kind: .shortcut), isNew: true)
+            submenu(text.categoryNavigation, symbol: "arrow.left.arrow.right") {
+                ForEach(MouseNavigationDirection.allCases, id: \.self) { direction in
+                    choiceButton(.backForward(direction), for: gesture)
+                }
+            }
+            // Window Layout missing still lists these: the row then says so
+            // and offers the Features page.
+            submenu(windowText.title, symbol: AppFeature.windowLayout.symbolName) {
+                ForEach(Array(Self.layoutGroups.enumerated()), id: \.offset) { index, group in
+                    if index > 0 { Divider() }
+                    ForEach(group) { layout in
+                        choiceButton(TrackpadGestureMappingSupport.windowLayout(layout), for: gesture)
+                    }
+                }
+                Divider()
+                submenu(text.moreLayouts, symbol: "square.grid.3x3") {
+                    ForEach(WindowLayoutAction.allCases.filter { !mainLayouts.contains($0) }) { layout in
+                        choiceButton(TrackpadGestureMappingSupport.windowLayout(layout), for: gesture)
+                    }
+                }
+            }
+            submenu(text.navigationSection, symbol: "rectangle.3.group") {
+                ForEach(SpaceNavigation.allCases) { navigation in
+                    choiceButton(.navigation(navigation), for: gesture)
+                }
+            }
+            submenu(radialText.kindMedia, symbol: "playpause") {
+                ForEach(RadialMenuMediaKey.allCases) { key in
+                    choiceButton(.item(RadialMenuItem(kind: .media, payload: key.rawValue)), for: gesture)
+                }
+            }
+            if !tools.isEmpty {
+                submenu(radialText.kindTool, symbol: "wrench.and.screwdriver") {
+                    ForEach(tools) { tool in
+                        choiceButton(.item(RadialMenuItem(kind: .tool, payload: tool.rawValue)), for: gesture)
+                    }
+                }
+            }
+            if AppFeature.quickToggles.isAvailable {
+                submenu(FeatureStrings.quickToggles(l10n.language).pageTitle, symbol: "switch.2") {
+                    ForEach(RadialMenuQuickToggle.allCases) { toggle in
+                        choiceButton(.item(RadialMenuItem(kind: .quickToggle, payload: toggle.rawValue)),
+                                     for: gesture)
+                    }
+                }
+            }
+            Divider()
+            ForEach(Self.editedKinds, id: \.self) { kind in
+                Button {
+                    edit(kind, for: gesture, current: action)
+                } label: {
+                    Label(editedTitle(kind) + "…", systemImage: RadialMenuItem(kind: kind).defaultSymbolName)
                 }
             }
         } label: {
@@ -231,6 +263,43 @@ struct TrackpadGesturesSection: View {
         }
         .fixedSize()
         .accessibilityLabel(accessibilityName)
+    }
+
+    /// The window layouts listed first, in groups; the rest sit one level down.
+    private static let layoutGroups: [[WindowLayoutAction]] = [
+        [.minimize, .maximize, .fullScreen, .center, .restore],
+        [.leftHalf, .rightHalf, .topHalf, .bottomHalf],
+        [.previousDisplay, .nextDisplay],
+    ]
+
+    /// Actions whose target is picked in the editor sheet.
+    private static let editedKinds: [RadialMenuItem.Kind] = [.shortcut, .app, .file, .url]
+
+    private func submenu<Content: View>(_ title: String, symbol: String,
+                                        @ViewBuilder content: () -> Content) -> some View {
+        Menu {
+            content()
+        } label: {
+            Label(title, systemImage: symbol)
+        }
+    }
+
+    private func choiceButton(_ choice: TriggerAction, for gesture: TrackpadGesture) -> some View {
+        Button {
+            store(choice, for: gesture)
+        } label: {
+            Label(actionTitle(choice), systemImage: actionSymbol(choice))
+        }
+    }
+
+    /// Opens the editor on the gesture's own action when it is of that kind,
+    /// on a new one otherwise.
+    private func edit(_ kind: RadialMenuItem.Kind, for gesture: TrackpadGesture, current action: TriggerAction?) {
+        if case .item(let item)? = action, item.kind == kind {
+            editing = GestureEdit(gesture: gesture, item: item, isNew: false)
+        } else {
+            editing = GestureEdit(gesture: gesture, item: RadialMenuItem(kind: kind), isNew: true)
+        }
     }
 
     // MARK: - Storage
@@ -300,6 +369,23 @@ struct TrackpadGesturesSection: View {
         case .navigation(let navigation)?: return navigationTitle(navigation)
         case .backForward(let direction)?: return backForwardTitle(direction)
         case .item(let item)?: return item.displayName(radialText)
+        }
+    }
+
+    private func actionSymbol(_ action: TriggerAction) -> String {
+        switch action {
+        case .navigation(let navigation): return navigation.symbolName
+        case .backForward(let direction): return direction == .back ? "chevron.left" : "chevron.right"
+        case .item(let item): return item.defaultSymbolName
+        }
+    }
+
+    private func editedTitle(_ kind: RadialMenuItem.Kind) -> String {
+        switch kind {
+        case .app: return radialText.kindApp
+        case .file: return radialText.kindFile
+        case .url: return radialText.kindURL
+        default: return radialText.kindShortcut
         }
     }
 

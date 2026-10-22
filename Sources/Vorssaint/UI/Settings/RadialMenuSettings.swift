@@ -799,6 +799,9 @@ struct RadialItemEditor: View {
     @State var item: RadialMenuItem
     let isNew: Bool
     let allowsSubmenu: Bool
+    /// Only the actions with a target to pick, and no name or icon: the
+    /// gesture menu lists every other action itself and draws no slice.
+    var targetsOnly = false
     var openChildren: (() -> Void)? = nil
     let save: (RadialMenuItem) -> Void
     let delete: (() -> Void)?
@@ -861,18 +864,20 @@ struct RadialItemEditor: View {
                     Text(text.kindFile).tag(RadialMenuItem.Kind.file)
                     Text(text.kindURL).tag(RadialMenuItem.Kind.url)
                     Text(text.kindShortcut).tag(RadialMenuItem.Kind.shortcut)
-                    if !availableTools.isEmpty {
+                    if !targetsOnly, !availableTools.isEmpty {
                         Text(text.kindTool).tag(RadialMenuItem.Kind.tool)
                     }
-                    if !availableQuickToggles.isEmpty {
+                    if !targetsOnly, !availableQuickToggles.isEmpty {
                         Text(FeatureStrings.quickToggles(l10n.language).pageTitle)
                             .tag(RadialMenuItem.Kind.quickToggle)
                     }
-                    if AppFeature.windowLayout.isAvailable {
+                    if !targetsOnly, AppFeature.windowLayout.isAvailable {
                         Text(FeatureStrings.windowLayout(l10n.language).title)
                             .tag(RadialMenuItem.Kind.windowLayout)
                     }
-                    Text(text.kindMedia).tag(RadialMenuItem.Kind.media)
+                    if !targetsOnly {
+                        Text(text.kindMedia).tag(RadialMenuItem.Kind.media)
+                    }
                     if allowsSubmenu {
                         Text(text.kindSubmenu).tag(RadialMenuItem.Kind.submenu)
                     }
@@ -880,9 +885,11 @@ struct RadialItemEditor: View {
 
                 payloadEditor
 
-                TextField(text.nameLabel, text: $item.name, prompt: Text(text.automaticLabel))
+                if !targetsOnly {
+                    TextField(text.nameLabel, text: $item.name, prompt: Text(text.automaticLabel))
 
-                RadialSymbolPicker(text: text, item: $item)
+                    RadialSymbolPicker(text: text, item: $item)
+                }
             }
             .formStyle(.columns)
 

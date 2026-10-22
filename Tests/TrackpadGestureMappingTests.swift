@@ -111,5 +111,16 @@ enum TrackpadGestureMappingTests {
         suite.expect(unavailability(.item(RadialMenuItem(kind: .windowLayout, payload: WindowLayoutAction.allCases[0].rawValue)),
                                     available: []) == .featureMissing(.windowLayout),
                      "a window layout needs the window layout feature")
+        suite.expect(TrackpadGestureKind.allCases.allSatisfy { kind in
+            let suggested = TrackpadGestureMappingSupport.suggestions(for: kind)
+            return !suggested.isEmpty && suggested.allSatisfy { TrackpadGestureMappingSupport.sanitized($0) != nil }
+        }, "every gesture suggests actions that can all be stored")
+        var swipeDownFirst: WindowLayoutAction?
+        if case .item(let item)? = TrackpadGestureMappingSupport.suggestions(for: .swipeDown).first {
+            swipeDownFirst = item.windowLayoutAction
+        }
+        suite.expect(TrackpadGestureMappingSupport.suggestions(for: .swipeLeft).first == .backForward(.back)
+                        && swipeDownFirst == .minimize,
+                     "a swipe left suggests Back first and a swipe down Minimize first")
     }
 }

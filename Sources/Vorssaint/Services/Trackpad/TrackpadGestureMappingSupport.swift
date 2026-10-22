@@ -78,6 +78,30 @@ enum TrackpadGestureMappingSupport {
         .item(RadialMenuItem(kind: .windowLayout, payload: action.rawValue))
     }
 
+    /// The few actions that fit a gesture's direction, offered first in its
+    /// menu: sideways moves back, forward or across Spaces, up grows and
+    /// down shrinks, a pinch gathers and a spread opens up.
+    static func suggestions(for kind: TrackpadGestureKind) -> [TriggerAction] {
+        switch kind {
+        case .swipeLeft:
+            return [.backForward(.back), .navigation(.spaceLeft), windowLayout(.leftHalf)]
+        case .swipeRight:
+            return [.backForward(.forward), .navigation(.spaceRight), windowLayout(.rightHalf)]
+        case .swipeUp:
+            return [windowLayout(.maximize), .navigation(.missionControl), windowLayout(.fullScreen)]
+        case .swipeDown:
+            return [windowLayout(.minimize), .navigation(.appExpose), windowLayout(.restore)]
+        case .pinchIn:
+            return [windowLayout(.restore), windowLayout(.center), .navigation(.appExpose)]
+        case .pinchOut:
+            return [windowLayout(.maximize), windowLayout(.fullScreen), .navigation(.missionControl)]
+        case .tap:
+            return [.item(RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.playPause.rawValue)),
+                    .item(RadialMenuItem(kind: .tool, payload: RadialMenuTool.commandBar.rawValue)),
+                    .item(RadialMenuItem(kind: .tool, payload: RadialMenuTool.screenshot.rawValue))]
+        }
+    }
+
     /// Keeps an action only when it can run. Item payloads are validated and
     /// normalized exactly as for a wheel slice.
     static func sanitized(_ action: TriggerAction) -> TriggerAction? {
