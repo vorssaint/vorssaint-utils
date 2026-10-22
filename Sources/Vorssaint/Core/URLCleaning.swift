@@ -52,7 +52,31 @@ enum URLCleaning {
             "shareredid", "share_id", "exsource", "app_version", "app_platform",
             "apptime", "appuid",
         ],
+        // Search position, recommendation widgets and the search that led to
+        // the product. `th` and `psc` stay: they pick the variant on the page.
+        "amazon.com": [
+            "ref", "ref_", "crid", "dib", "dib_tag", "keywords", "qid", "sprefix", "sr", "srs",
+            "content-id", "_encoding", "pd_rd_i", "pd_rd_p", "pd_rd_r", "pd_rd_w", "pd_rd_wg",
+            "pf_rd_i", "pf_rd_m", "pf_rd_p", "pf_rd_r", "pf_rd_s", "pf_rd_t",
+        ],
     ]
+
+    /// Sites that run one copy of themselves per country with the same
+    /// parameters. Each regional domain reads the rules of the key it maps
+    /// to, so Settings shows one row for Amazon rather than twenty identical
+    /// ones, and switching a name off there applies to every storefront.
+    private static let siteAliases: [String: String] = Dictionary(uniqueKeysWithValues: [
+        "amazon.ae", "amazon.ca", "amazon.cn", "amazon.co.jp", "amazon.co.uk", "amazon.com.au",
+        "amazon.com.be", "amazon.com.br", "amazon.com.mx", "amazon.com.tr", "amazon.de",
+        "amazon.eg", "amazon.es", "amazon.fr", "amazon.ie", "amazon.in", "amazon.it",
+        "amazon.nl", "amazon.pl", "amazon.sa", "amazon.se", "amazon.sg",
+    ].map { ($0, "amazon.com") })
+
+    /// Amazon serves a product at `/dp/<ASIN>` whatever comes before it. The
+    /// title in front only repeats the page, so it goes; `/gp/product/` is
+    /// left spelled as it is, since cleaning only ever deletes.
+    private static let amazonProductPath = try? NSRegularExpression(
+        pattern: #"^/[^/]+(/(?:dp|gp/product)/[A-Z0-9]{10}/?)$"#)
 
     /// A cleaned link and the names taken out of it, so every surface that
     /// cleans can say what it removed instead of only that something changed.
@@ -151,28 +175,64 @@ enum URLCleaning {
         // a query delimiter inside a Character.
         let scalars = trimmed.unicodeScalars
         let fragmentStart = scalars.firstIndex(of: "#") ?? scalars.endIndex
-        guard let queryStart = scalars[..<fragmentStart].firstIndex(of: "?") else {
-            return Result(url: trimmed, removed: [])
-        }
-        let query = scalars[scalars.index(after: queryStart)..<fragmentStart]
+        let queryStart = scalars[..<fragmentStart].firstIndex(of: "?")
+        let siteKeys = Self.siteKeys(matching: host, rules: rules)
+        let matcher = Self.matcher(siteKeys: siteKeys, rules: rules)
         var removed: [String] = []
-        let matcher = Self.matcher(for: host, rules: rules)
-        let kept = query.split(separator: "&", omittingEmptySubsequences: false)
-            .filter { pair in
-                let name = Self.decodedName(ofRawPair: pair)
-                guard matcher.matches(name) else { return true }
-                if !removed.contains(name) { removed.append(name) }
-                return false
+        let head = String(scalars[..<(queryStart ?? fragmentStart)])
+        let cleanedHead = siteKeys.contains("amazon.com")
+            ? Self.cleanedAmazonHead(head, matcher: matcher, removed: &removed)
+            : head
+
+        var tail = String(scalars[(queryStart ?? fragmentStart)...])
+        if let queryStart {
+            let query = scalars[scalars.index(after: queryStart)..<fragmentStart]
+            var removedFromQuery = false
+            let kept = query.split(separator: "&", omittingEmptySubsequences: false)
+                .filter { pair in
+                    let name = Self.decodedName(ofRawPair: pair)
+                    guard matcher.matches(name) else { return true }
+                    removedFromQuery = true
+                    if !removed.contains(name) { removed.append(name) }
+                    return false
+                }
+            if removedFromQuery {
+                let survivingQuery = kept.map { String($0) }.joined(separator: "&")
+                tail = (kept.isEmpty ? "" : "?" + survivingQuery) + String(scalars[fragmentStart...])
             }
-        guard !removed.isEmpty else {
+        }
+        guard cleanedHead != head || !removed.isEmpty else {
             return Result(url: trimmed, removed: [])
         }
+        return Result(url: cleanedHead + tail, removed: removed)
+    }
 
-        let survivingQuery = kept.map { String($0) }.joined(separator: "&")
-        let url = String(scalars[..<queryStart])
-            + (kept.isEmpty ? "" : "?" + survivingQuery)
-            + String(scalars[fragmentStart...])
-        return Result(url: url, removed: removed)
+    /// Takes Amazon's trailing `/ref=…` segment and a product's title out of
+    /// the path. The segment is the `ref` parameter spelled into the path, so
+    /// it answers to the same rule. The title is not a tracker and is not
+    /// reported: when it is all a link carries, the automatic rewrite leaves
+    /// the copy alone, as it does any copy with nothing to remove.
+    private static func cleanedAmazonHead(_ head: String, matcher: Matcher, removed: inout [String]) -> String {
+        let scalars = head.unicodeScalars
+        guard let authority = head.range(of: "://"),
+              let pathStart = scalars[authority.upperBound...].firstIndex(of: "/") else {
+            return head
+        }
+        let origin = String(scalars[..<pathStart])
+        var path = String(scalars[pathStart...])
+
+        if let lastSlash = path.unicodeScalars.lastIndex(of: "/"),
+           path.unicodeScalars[path.unicodeScalars.index(after: lastSlash)...].starts(with: "ref=".unicodeScalars),
+           matcher.matches("ref") {
+            // A path of only the segment keeps its slash.
+            path = lastSlash == path.unicodeScalars.startIndex ? "/" : String(path.unicodeScalars[..<lastSlash])
+            removed.append("ref")
+        }
+        if let product = amazonProductPath?.firstMatch(in: path, range: NSRange(path.startIndex..., in: path)),
+           let kept = Range(product.range(at: 1), in: path) {
+            path = String(path[kept])
+        }
+        return origin + path
     }
 
     static func ruleGroups(rules: Rules) -> [RuleGroup] {
@@ -273,13 +333,13 @@ enum URLCleaning {
         }
     }
 
-    private static func matcher(for host: String, rules: Rules) -> Matcher {
+    private static func matcher(siteKeys: [String], rules: Rules) -> Matcher {
         let disabledGlobally = rules.disabled[allSites] ?? []
         var names = trackedParameters.filter {
             !$0.hasPrefix("utm_") && !disabledGlobally.contains($0)
         }
         names.formUnion((rules.added[allSites] ?? []).subtracting(disabledGlobally))
-        for site in siteKeys(matching: host, rules: rules) {
+        for site in siteKeys {
             let disabled = rules.disabled[site] ?? []
             names.formUnion((hostParameters[site] ?? []).filter { !disabled.contains($0) })
             names.formUnion((rules.added[site] ?? []).subtracting(disabled))
@@ -288,11 +348,17 @@ enum URLCleaning {
     }
 
     /// Site rules are additive: `open.spotify.com` picks up the `spotify.com`
-    /// set, and a host that matches nothing keeps only the global rules.
+    /// set, and a host that matches nothing keeps only the global rules. A
+    /// regional domain also picks up the set it is an alias of.
     private static func siteKeys(matching host: String, rules: Rules) -> [String] {
         let normalized = host.lowercased()
+        func matches(_ site: String) -> Bool {
+            !site.isEmpty && (normalized == site || normalized.hasSuffix("." + site))
+        }
+        let aliased = siteAliases.filter { matches($0.key) }.map(\.value)
         return Set(hostParameters.keys).union(rules.added.keys).union(rules.disabled.keys)
-            .filter { !$0.isEmpty && (normalized == $0 || normalized.hasSuffix("." + $0)) }
+            .filter(matches)
+            .union(aliased)
             .sorted()
     }
 
