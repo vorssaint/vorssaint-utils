@@ -341,7 +341,10 @@ private struct NotchAgentLimitsCard: View {
         let windows = windows
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: (account?.name ?? accountName).map { provider.displayName + " · " + $0 }
+                // A profile is often named after its owner, and an account
+                // shows its email, so the lock screen keeps it to the agent's name.
+                NotchAgentCardHeader(title: (account?.name ?? accountName)
+                                        .flatMap { lockScreen == nil ? provider.displayName + " · " + $0 : nil }
                                         ?? provider.displayName,
                                      symbol: provider.symbol, tint: provider.tint, provider: provider) {
                     HStack(spacing: 4) {
