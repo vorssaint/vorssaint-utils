@@ -172,6 +172,7 @@ struct MetricsTests {
             }),
             ("app-updates", {
                 AppUpdateHandoffTests.run(suite)
+                HermesInstalledVersionTests.run(suite)
                 AppUpdatesContract.run(suite)
                 AppUpdateRulesContract.run(suite)
             }),
