@@ -9,6 +9,7 @@
 
 /* macOS Microphone permission prompt. */
 "NSMicrophoneUsageDescription" = "Vorssaint nahráva váš mikrofón len vtedy, keď ho zapnete pre nahrávanie obrazovky. Zvuk ostáva na vašom Macu, pokiaľ sa nerozhodnete vytvoriť dočasný odkaz.";
+"NSSpeechRecognitionUsageDescription" = "Vorssaint rozpoznáva diktovanie na tomto Macu iba keď je aktívne hlasové písanie. Zvuk ostáva iba na vašom Macu a neposiela sa na server.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint zobrazuje vašu kameru len v okne náhľadu, ktoré otvoríte, aby ste pred hovorom videli, ako vyzeráte. Nič sa nenahráva a nič neopustí váš Mac.";
