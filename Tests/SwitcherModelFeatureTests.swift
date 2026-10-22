@@ -695,6 +695,10 @@ enum SwitcherModelFeatureTests {
                "an app with a window on the visible Space cannot travel by being activated, so the move is asked for right away")
         suite.expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: false) == .waitForActivationTravel,
                "an app with no window on the visible Space travels on activation, so that travel is waited on")
+        suite.expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: true, directRaiseSucceeded: true) == .waitForActivationTravel,
+               "when direct window raise succeeded, macOS travels to the Space on its own so that travel is waited on (issue #2210)")
+        suite.expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: false, directRaiseSucceeded: true) == .waitForActivationTravel,
+               "direct window raise always waits for activation travel")
         // Issue #1733: every arrival pulse raised the target again, so a window
         // that the first pulse already left focused and in front flickered.
         suite.expect(SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: true,

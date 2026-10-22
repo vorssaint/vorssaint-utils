@@ -97,16 +97,37 @@ final class SpaceHop {
     private func start() {
         if app.isHidden { app.unhide() }
         SpaceWindowBridge.frontWindow(windowID, ownerPID: windowOwnerPID)
+
+        // Attempt direct cross-Space window raise via Accessibility (Issue #2210).
+        // When successful, macOS slides directly to the target window's Space without
+        // stepping through intermediate desktops via synthetic shortcuts.
+        let axApp = AXUIElementCreateApplication(windowOwnerPID)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        let axWindow = AXWindowResolver.element(for: windowID, in: axApp, pid: windowOwnerPID)
+        var directRaiseSucceeded = false
+        if let axWindow {
+            AXUIElementSetAttributeValue(axApp, kAXMainWindowAttribute as CFString, axWindow)
+            AXUIElementSetAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, axWindow)
+            AXUIElementSetAttributeValue(axWindow, kAXMainAttribute as CFString, kCFBooleanTrue)
+            AXUIElementSetAttributeValue(axWindow, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+            directRaiseSucceeded = (AXUIElementPerformAction(axWindow, kAXRaiseAction as CFString) == .success)
+        }
+
         // Activating every window would drag the app's windows on the current
         // Space forward too; when the app has one here, activate quietly and
-        // let the travel decide what comes up.
+        // let the travel decide what comes up. If direct raise succeeded for an app
+        // already on the current space, skip activation so the origin space's window
+        // does not override the target window's raise.
         let appIsAlreadyHere = appHasWindowOnVisibleSpace()
-        ActivationHandoff.yield(to: app)
-        if !app.activate(from: NSRunningApplication.current,
-                         options: appIsAlreadyHere ? [] : [.activateAllWindows]) {
-            app.activate(options: appIsAlreadyHere ? [] : [.activateAllWindows])
+        if !directRaiseSucceeded || !appIsAlreadyHere {
+            ActivationHandoff.yield(to: app)
+            if !app.activate(from: NSRunningApplication.current,
+                             options: appIsAlreadyHere ? [] : [.activateAllWindows]) {
+                app.activate(options: appIsAlreadyHere ? [] : [.activateAllWindows])
+            }
         }
-        switch SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: appIsAlreadyHere) {
+        switch SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: appIsAlreadyHere,
+                                         directRaiseSucceeded: directRaiseSucceeded) {
         case .moveASpace:
             stepWithSpaceShortcut()
         case .waitForActivationTravel:

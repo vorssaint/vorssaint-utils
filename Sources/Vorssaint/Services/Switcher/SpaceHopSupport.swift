@@ -24,8 +24,12 @@ enum SpaceHopSupport {
     /// window where the user is already looking. With one there, activating
     /// just raises that window, so waiting for a travel that cannot happen is
     /// pure delay and the hop asks for the move immediately (issue #422).
-    static func firstStage(appHasWindowOnVisibleSpace: Bool) -> FirstStage {
-        appHasWindowOnVisibleSpace ? .moveASpace : .waitForActivationTravel
+    /// However, when direct window raise succeeded via Accessibility, the window server
+    /// directly initiates travel to the target Space without synthetic shortcuts (issue #2210).
+    static func firstStage(appHasWindowOnVisibleSpace: Bool,
+                           directRaiseSucceeded: Bool = false) -> FirstStage {
+        if directRaiseSucceeded { return .waitForActivationTravel }
+        return appHasWindowOnVisibleSpace ? .moveASpace : .waitForActivationTravel
     }
 
     /// Whether an arrival pulse should run the focus pass again (issue #1733).

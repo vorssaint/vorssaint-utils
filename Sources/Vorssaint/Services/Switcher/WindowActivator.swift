@@ -218,7 +218,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility, let windowID = item.windowID else { return }
         let app = AXUIElementCreateApplication(item.windowOwnerPID)
         AXUIElementSetMessagingTimeout(app, 0.35)
-        guard let window = axElement(windowID: windowID, in: app),
+        guard let window = axElement(windowID: windowID, in: app, pid: item.windowOwnerPID),
               !boolAttribute(window, "AXFullScreen", default: true),
               minimizedState(of: window) == false else { return }
         var positionValue: CFTypeRef?
@@ -251,7 +251,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return nil }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return nil }
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return nil }
         return minimizedState(of: axWindow)
     }
 
@@ -267,7 +267,7 @@ enum WindowActivator {
               pid != ProcessInfo.processInfo.processIdentifier else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return false }
         var origin = origin
         guard let value = AXValueCreate(.cgPoint, &origin) else { return false }
         return AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute as CFString, value) == .success
@@ -324,7 +324,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return false }
         if minimizedState(of: axWindow) == minimized { return true }
 
         let setResult = AXUIElementSetAttributeValue(axWindow,
@@ -358,7 +358,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(windowOwnerPID)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp),
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: windowOwnerPID),
               let closeButton = elementAttribute(axWindow, kAXCloseButtonAttribute as String),
               boolAttribute(closeButton, kAXEnabledAttribute as String, default: true)
         else { return false }
@@ -690,7 +690,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return false }
 
         var minimized: CFTypeRef?
         if AXUIElementCopyAttributeValue(axWindow, kAXMinimizedAttribute as CFString, &minimized) == .success,
@@ -726,8 +726,8 @@ enum WindowActivator {
         let targetApp = AXUIElementCreateApplication(targetWindowOwnerPID)
         AXUIElementSetMessagingTimeout(sourceApp, 0.35)
         AXUIElementSetMessagingTimeout(targetApp, 0.35)
-        guard let sourceWindow = axElement(windowID: sourceWindowID, in: sourceApp),
-              let targetWindow = axElement(windowID: targetWindowID, in: targetApp) else { return false }
+        guard let sourceWindow = axElement(windowID: sourceWindowID, in: sourceApp, pid: sourceWindowOwnerPID ?? sourcePID),
+              let targetWindow = axElement(windowID: targetWindowID, in: targetApp, pid: targetWindowOwnerPID) else { return false }
 
         var sourceMinimized: CFTypeRef?
         if AXUIElementCopyAttributeValue(sourceWindow, kAXMinimizedAttribute as CFString, &sourceMinimized) == .success,
@@ -749,7 +749,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return false }
 
         var minimized: CFTypeRef?
         if AXUIElementCopyAttributeValue(axWindow, kAXMinimizedAttribute as CFString, &minimized) == .success,
@@ -803,18 +803,8 @@ enum WindowActivator {
                     windowOwnerPID: windowOwnerPID)
     }
 
-    private static func axElement(windowID: CGWindowID, in axApp: AXUIElement) -> AXUIElement? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value) == .success,
-              let axWindows = value as? [AXUIElement]
-        else { return nil }
-
-        for axWindow in axWindows {
-            if AXWindowResolver.windowID(for: axWindow) == windowID {
-                return axWindow
-            }
-        }
-        return nil
+    private static func axElement(windowID: CGWindowID, in axApp: AXUIElement, pid: pid_t? = nil) -> AXUIElement? {
+        AXWindowResolver.element(for: windowID, in: axApp, pid: pid)
     }
 
     fileprivate static func axElementForMinimizeRestore(windowID: CGWindowID, in axApp: AXUIElement) -> AXUIElement? {
