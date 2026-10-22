@@ -48,6 +48,7 @@ struct WhatsAppDownloadStrings {
     static func localized(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
@@ -108,6 +109,49 @@ extension WhatsAppDownloadStrings {
         notificationFormat: "%1$d files (%2$@) moved to the Trash. %3$d failed.",
         scanFailed: "Downloads could not be scanned. Check Files & Folders in System Settings.",
         manageButton: "Manage…"
+    )
+
+    static let pl = WhatsAppDownloadStrings(
+        title: "Pobieranie WhatsApp",
+        hubDescription: "Kontroluje pliki WhatsApp w Pobranych plikach",
+        intro: "Znajduje pliki, które według systemu macOS pochodzą z WhatsApp. Zawartość plików i czaty nigdy nie są odczytywane.",
+        automatic: "Oczyść automatycznie",
+        automaticCaption: "Sprawdza raz dziennie i wysyła do Kosza pasujące pliki starsze niż limit.",
+        folder: "Obserwowany folder",
+        accessReady: "Dostęp do folderu Pobrane jest przyznany",
+        accessDenied: "Vorssaint nie może uzyskać dostępu do plików do pobrania. Zezwól na to w Plikach i folderach.",
+        fileTypes: "Typy plików",
+        allTypes: "Wszystko",
+        image: "Obrazy",
+        video: "Filmy",
+        audio: "Notatki dźwiękowe i głosowe",
+        document: "Dokumenty",
+        archive: "Archiwa",
+        other: "Inny",
+        retention: "Zachowaj dla",
+        retentionCaption: "Ostatnio edytowane pliki ponownie czekają przez cały okres.",
+        daysFormat: "%d dni",
+        manualIntro: "Skanuj w dowolnym momencie. Początkowy wybór jest zgodny z Twoimi typami i limitem wieku; możesz przejrzeć każdy potwierdzony plik.",
+        noFiles: "W Pobranych plikach nie znaleziono potwierdzonych plików WhatsApp.",
+        resultsFormat: "%1$d potwierdzone pliki · %2$@",
+        selectRules: "Wybierz według moich zasad",
+        cleanSelectedFormat: "Przenieś %1$d do Kosza · %2$@",
+        keep: "Zachowaj",
+        manageAgain: "Zarządzaj ponownie",
+        activity: "Aktywność",
+        neverRun: "Żadne czyszczenie nie zostało jeszcze uruchomione.",
+        lastRunFormat: "Ostatnie czyszczenie %@: Pliki %d · %@ · %d nie powiodło się",
+        nextRunFormat: "Następna automatyczna kontrola %@.",
+        firstTitle: "A co z istniejącymi plikami?",
+        firstMessageFormat: "Istniejące pliki %d już pasują do Twoich reguł. Wybierz, czy automatyzacja może nimi zarządzać, czy tylko przyszłymi plikami do pobrania.",
+        futureOnly: "Tylko przyszłe pliki do pobrania",
+        includeExisting: "Dołącz istniejące pliki",
+        trashNote: "Pliki są przenoszone do Kosza i można je odzyskać, dopóki go nie opróżnisz.",
+        localNote: "Sprawdzane są tylko metadane pliku lokalnego. Vorssaint nigdy nie czyta czatów ani zawartości plików.",
+        notificationTitle: "Sprzątanie WhatsAppa",
+        notificationFormat: "Pliki %1$d (%2$@) zostały przeniesione do Kosza. Błąd %3$d.",
+        scanFailed: "Nie można przeskanować pobranych plików. Sprawdź pliki i foldery w Ustawieniach systemu.",
+        manageButton: "Zarządzaj…"
     )
 
     static let es = WhatsAppDownloadStrings(
@@ -503,6 +547,13 @@ extension WhatsAppDownloadStrings {
             firstMessageFormat: uk.firstMessageFormat, localNote: uk.localNote,
             notificationFormat: uk.notificationFormat, scanFailed: uk.scanFailed, manageButton: uk.manageButton)
         case .enUS: return OperationalStrings(
+            automaticCaption: enUS.automaticCaption, retentionCaption: enUS.retentionCaption,
+            manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,
+            selectRules: enUS.selectRules, cleanSelectedFormat: enUS.cleanSelectedFormat,
+            lastRunFormat: enUS.lastRunFormat, nextRunFormat: enUS.nextRunFormat,
+            firstMessageFormat: enUS.firstMessageFormat, localNote: enUS.localNote,
+            notificationFormat: enUS.notificationFormat, scanFailed: enUS.scanFailed, manageButton: enUS.manageButton)
+        case .pl: return OperationalStrings(
             automaticCaption: enUS.automaticCaption, retentionCaption: enUS.retentionCaption,
             manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,
             selectRules: enUS.selectRules, cleanSelectedFormat: enUS.cleanSelectedFormat,

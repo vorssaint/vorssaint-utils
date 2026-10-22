@@ -78,6 +78,7 @@ extension FeatureStrings {
     static func snippets(_ language: AppLanguage) -> SnippetFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -300,6 +301,74 @@ extension SnippetFeatureStrings {
         soundCaption: "A short system sound plays each time a typed trigger expands.",
         soundPickerLabel: "Sound",
         soundUnavailable: "Sound unavailable"
+    )
+
+    static let pl = SnippetFeatureStrings(
+        pageTitle: "Fragmenty tekstu",
+        hubDescription: "Krótkie wyzwalacze rozwijają się do pełnego tekstu",
+        enable: "Rozwijaj fragmenty podczas pisania",
+        enableCaption: "Wpisz wyzwalacz w dowolnej aplikacji, aby zastąpić go pełnym tekstem. Wszystkie dane pozostają na Macu.",
+        addButton: "Dodaj fragment",
+        newTitle: "Nowy fragment",
+        editTitle: "Edytuj fragment",
+        nameLabel: "Nazwa",
+        namePlaceholder: "Osobisty e-mail",
+        triggerLabel: "Wyzwalacz",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Tekst",
+        replacementPlaceholder: "mojemail@example.com",
+        expansionLabel: "Rozwiń",
+        expansionImmediate: "Natychmiast",
+        expansionDelimiter: "Po spacji, Tab lub Enter",
+        variablesHint: "Zmienne: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Stają się datą, godziną i skopiowanym tekstem w momencie rozwinięcia.",
+        emptyList: "Nie ma jeszcze fragmentów. Dodaj pierwszy.",
+        duplicateTrigger: "Inny fragment tekstu już korzysta z tego wyzwalacza.",
+        triggerTooShort: "Wyzwalacz wymaga co najmniej 2 znaków.",
+        deleteButton: "Usuń",
+        saveButton: "Zapisz",
+        manageButton: "Zarządzaj fragmentami",
+        ignoreCaseLabel: "Ignoruj wielkość liter",
+        libraryTitle: "Menu fragmentów tekstu",
+        libraryToggle: "Otwórz fragmenty z menu",
+        libraryCaption: "Skrót otwiera menu z możliwością przeszukiwania. Wybranie fragmentu powoduje wpisanie go dokładnie tam, gdzie znajduje się kursor.",
+        librarySearchPlaceholder: "Szukaj fragmentów",
+        libraryNoResults: "Żaden fragment nie pasuje do wyszukiwania.",
+        libraryEmpty: "Jeszcze nic do pokazania. Dodaj fragmenty lub włącz opcję „Pokaż w szybkim menu” dla najczęściej używanych.",
+        libraryFooterHint: "↩ wstawia · esc zamyka",
+        folderLabel: "Folder",
+        folderPlaceholder: "Praca",
+        showInLibraryLabel: "Pokaż w szybkim menu",
+        variablesFormatCaption: "Format po dwukropku określa ich wygląd, np. {{date:yyyy-MM-dd}}. Część -tz(...) ustawia strefę czasową, np. {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Format po dwukropku określa ich wygląd, np. {{date:yyyy-MM-dd}}, lub użyj powyższego przycisku daty/godziny. Część -tz(...) ustawia strefę czasową, np. {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Wstaw datę/godzinę",
+        dateTimeEditButton: "Edytuj datę/godzinę",
+        dateTimeTypeLabel: "Typ",
+        dateTimeKindDate: "Data",
+        dateTimeKindTime: "Czas",
+        dateTimeKindDateTime: "Data i czas",
+        dateTimeStyleLabel: "Styl",
+        dateTimeStyleShort: "Krótki",
+        dateTimeStyleMedium: "Średni",
+        dateTimeStyleLong: "Długi",
+        dateTimeStyleFull: "Pełny",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Własne",
+        dateTimeStyleLocaleNote: "Nazwany styl zapisuje format używany obecnie w regionie Twojego komputera Mac.",
+        dateTimeTimezoneLabel: "Strefa czasowa",
+        dateTimeTimezoneDeviceDefault: "Urządzenie domyślne",
+        dateTimeTimezoneValid: "Prawidłowa strefa czasowa",
+        dateTimeTimezoneInvalid: "Nierozpoznana strefa czasowa",
+        dateTimeTimezoneClear: "Wyczyść strefę czasową",
+        dateTimeTimezoneSearchPlaceholder: "Wyszukaj strefy czasowe",
+        dateTimePatternLabel: "Wzór",
+        dateTimePreviewLabel: "Podgląd",
+        dateTimeConfirmInsert: "Wstaw",
+        dateTimeConfirmUpdate: "Zaktualizuj",
+        soundToggle: "Odtwórz dźwięk po rozwinięciu wyzwalacza",
+        soundCaption: "Po rozwinięciu wpisanego wyzwalacza odtwarzany jest krótki dźwięk systemowy.",
+        soundPickerLabel: "Dźwięk",
+        soundUnavailable: "Dźwięk niedostępny"
     )
 
     static let ptBR = SnippetFeatureStrings(

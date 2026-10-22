@@ -38,6 +38,7 @@ struct WhatsAppOrganizerStrings {
     static func localized(_ language: AppLanguage) -> WhatsAppOrganizerStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
@@ -88,6 +89,39 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "WhatsApp organization",
         notificationFormat: "%1$d files organized. %2$d duplicate downloads handled. %3$d failed.",
         privacyNote: "To identify exact duplicates, file bytes are read locally only while calculating a cryptographic digest. Contents and chats are never stored or uploaded."
+    )
+
+    static let pl = WhatsAppOrganizerStrings(
+        title: "Automatyczna organizacja",
+        experimental: "Eksperymentalny",
+        description: "Przenosi stabilne pliki do pobrania WhatsApp do dedykowanego folderu i dokładnie wykrywa powtarzające się pobrania.",
+        enabled: "Organizuj automatycznie",
+        enabledCaption: "WhatsApp może ponownie pobrać przeniesiony plik. Vorssaint nie może zapobiec pobieraniu przez sieć, ale może wykryć i odrzucić identyczną dodatkową kopię.",
+        destination: "Folder docelowy",
+        chooseFolder: "Wybierz…",
+        useDefault: "Użyj folderu Pobrane/WhatsApp",
+        invalidDestination: "Wybierz folder inny niż sam Pobrane.",
+        organization: "Struktura folderów",
+        flat: "Brak podfolderów",
+        byType: "Według typu pliku",
+        byMonth: "Według roku i miesiąca",
+        delay: "Opóźnienie przed przesunięciem",
+        minutesFormat: "%d minut",
+        duplicateAction: "Gdy ten sam plik zostanie pobrany ponownie",
+        trashDuplicate: "Przenieś nową kopię do Kosza",
+        keepBoth: "Zachowaj obie kopie",
+        replaceExisting: "Wymień zorganizowaną kopię",
+        duplicateCaption: "Duplikaty są potwierdzane prywatnym skrótem SHA-256. Uporządkowana kopia jest ponownie sprawdzana przed odrzuceniem kolejnej kopii.",
+        organizeNow: "Uporządkuj teraz odpowiednie pliki",
+        undo: "Cofnij ostatnią organizację",
+        waiting: "Obserwowanie folderu Pobrane",
+        working: "Porządkowanie plików WhatsApp…",
+        resultFormat: "%1$d przeniesiony · %2$d duplikaty · %3$d nie powiodło się",
+        lastRunFormat: "Ostatnia organizacja %@: %d przeniesiona · %d duplikaty · %d nie powiodło się",
+        neverRun: "Nie uruchomiono jeszcze żadnej organizacji.",
+        notificationTitle: "Organizacja WhatsApp",
+        notificationFormat: "Zorganizowane pliki %1$d. Obsługa zduplikowanych pobrań %2$d. Błąd %3$d.",
+        privacyNote: "Aby zidentyfikować dokładne duplikaty, bajty plików są odczytywane lokalnie tylko podczas obliczania podsumowania kryptograficznego. Treści i czaty nigdy nie są przechowywane ani przesyłane."
     )
 
     static let es = WhatsAppOrganizerStrings(
