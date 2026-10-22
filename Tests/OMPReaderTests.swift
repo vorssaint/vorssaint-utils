@@ -13,6 +13,7 @@ enum OMPReaderTests {
         runWithoutUsage(suite)
         runUnknownKind(suite)
         runZeroCost(suite)
+        runReportedCostSurvives(suite)
     }
 
     /// A log line as OMP writes it: a `message` object with a usage block
@@ -97,5 +98,44 @@ enum OMPReaderTests {
                      "the tokens of a free reply are still counted")
         suite.expect(record.reportedCost == false,
                      "a recorded zero stays an estimate, so a price learned later still applies")
+    }
+
+    /// A cost the provider reported is the one the person paid, so it has to
+    /// survive the session growing.
+    ///
+    /// A session's totals grow as the session goes on, and the record is
+    /// read again each time. A price list that has not caught up with the
+    /// model must not replace the figure the provider reported, or the cost
+    /// of a session disappears the moment it gets a second reply.
+    private static func runReportedCostSurvives(_ suite: TestSuite) {
+        let store = AgentUsageStore()
+        let now = Date()
+        let model = "muse-spark-1.3-contributor-free"
+
+        func record(tokens: AgentTokens, cost: Double) -> AgentUsageRecord {
+            AgentUsageRecord(provider: .omp, date: now, model: model, project: "project",
+                             session: "s-1", tokens: tokens, cost: cost, savings: 0,
+                             reportedCost: true)
+        }
+
+        store.apply([.usage(key: "omp:m1", record: record(tokens: AgentTokens(input: 100, output: 20),
+                                                           cost: 0.5),
+                             billable: AgentBillable(tokens: AgentTokens(input: 100, output: 20)))],
+                    file: "omp", provider: .omp, tracksTurns: false, modified: now, now: now)
+        store.apply([.usage(key: "omp:m1", record: record(tokens: AgentTokens(input: 300, output: 60),
+                                                           cost: 0.9),
+                             billable: AgentBillable(tokens: AgentTokens(input: 300, output: 60)))],
+                    file: "omp", provider: .omp, tracksTurns: false, modified: now, now: now)
+
+        guard let stored = store.records.first else {
+            suite.expect(false, "the reported cost is kept on the record")
+            return
+        }
+        suite.expect(stored.tokens.input == 300 && stored.tokens.output == 60,
+                     "a session that grew is counted at its larger totals")
+        suite.expect(stored.cost == 0.9,
+                     "the cost the provider reported survives the session growing")
+        suite.expect(stored.reportedCost,
+                     "a reported cost stays reported, so a later price list leaves it alone")
     }
 }

@@ -32,6 +32,14 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
 
     /// Whether the provider records a plan allowance in its local logs.
     var reportsLimits: Bool { self != .copilot }
+
+    /// Whether the provider charges its own prices, so a cost it reported
+    /// stands even for a model the price list does not know.
+    ///
+    /// OpenCode and OMP both report what a reply cost. Their figure is the
+    /// one the person paid, so a list price that has not caught up yet must
+    /// not replace it.
+    var reportsOwnCost: Bool { self == .opencode || self == .omp }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes
