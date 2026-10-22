@@ -988,9 +988,10 @@ def main():
           + "@Published var state: State = .idle\n}\n"
           + "final class L10n: ObservableObject {\nstatic let shared = L10n()\n@Published var language = AppLanguage.enUS\n"
           + declaration("Sources/Vorssaint/Core/Localization.swift", "    var s: Strings")
-          + "}\nfinal class Service: State {\n"
+          + "}\nfinal class Service: ServiceState {\n"
           + declaration(notch, "    func showUpdate()")
           + "}\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchComponents.swift", "struct NotchButtonStyle:")
           + declaration(update_view, "struct NotchUpdateControl:")
           + "}\n")
     write("UpdateAdminInstall.swift", "import Foundation\n\nextension UpdateAdminInstallContract {\n"

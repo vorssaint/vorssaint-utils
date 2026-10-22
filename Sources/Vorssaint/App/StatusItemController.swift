@@ -365,7 +365,7 @@ final class StatusItemController {
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
         let signal = updateAvailable || micBadgeActive
         let islandHides = MenuBarSpacingSupport.islandHidesStatusIcon(
-            in: defaults, hiddenInFullscreen: islandHiddenInFullscreen) && !signal
+            in: defaults, hiddenInFullscreen: islandHiddenInFullscreen, micBadgeActive: micBadgeActive)
         let hidden = islandHides || MenuBarSpacingSupport.shouldHideStatusIcon(
             optionEnabled: optionEnabled,
             separateMetrics: separateMetrics,
@@ -527,8 +527,8 @@ final class StatusItemController {
                 updateAvailable = false
             }
             let signal = updateAvailable || renderedMicBadgeActive
-            let glyphHidden = (MenuBarSpacingSupport.islandHidesStatusIcon(
-                in: defaults, hiddenInFullscreen: islandHiddenInFullscreen) && !signal)
+            let glyphHidden = MenuBarSpacingSupport.islandHidesStatusIcon(
+                in: defaults, hiddenInFullscreen: islandHiddenInFullscreen, micBadgeActive: renderedMicBadgeActive)
                 || MenuBarSpacingSupport.shouldHideStatusIcon(
                     optionEnabled: defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
                     separateMetrics: separateMetrics,

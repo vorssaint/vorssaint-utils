@@ -12,7 +12,7 @@ enum NotchUpdateTests {
         var previews = 0
         func showUpdatePreview() { previews += 1 }
     }
-    class State {
+    class ServiceState {
         var running = true
         var suspended = false
         var expanded = false
@@ -67,28 +67,32 @@ enum NotchUpdateTests {
     }
 
     private static func layout(_ suite: TestSuite) {
-        // The compact control shares the narrowest wing beside the camera
+        // The bell shares the narrowest wing beside the camera
         // with the header menu. The menu, its indicator and the spacing
         // between them take 44 points.
         let wing = narrowestCameraWing()
         suite.expect(wing.isFinite && wing > 44, "some island layout places the header beside the camera")
-        let samples: [UpdateService.State] = [.available(version: "3.4.0-beta.3"),
+        let samples: [UpdateService.State] = [.idle, .checking, .upToDate, .failed("offline"),
+                                             .available(version: "3.4.0-beta.3"),
                                              .available(version: "3.4.0"), .downloading(progress: nil),
                                              .downloading(progress: 0.63), .installing]
         for language in AppLanguage.allCases {
             L10n.shared.language = language
             for state in samples {
                 UpdateService.shared.state = state
-                for compact in [false, true] {
-                    let host = NSHostingView(rootView: NotchUpdateControl(action: {}, compact: compact)
-                        .environment(\.colorScheme, .dark))
-                    host.layoutSubtreeIfNeeded()
-                    let size = host.fittingSize
-                    let maximumWidth: CGFloat = compact ? wing - 44 : 150
-                    suite.expect(size.width.isFinite && size.width > 0 && size.width <= maximumWidth
-                           && size.height > 0 && size.height <= NotchLayout.headerHeight,
-                           "\(language.rawValue) update action and progress fit the \(compact ? "camera wing" : "full header") budget (\(size))")
-                }
+                let control = NotchUpdateControl(action: {})
+                let offered: Bool
+                if case .available = state { offered = true } else { offered = false }
+                suite.expect(control.hasOffer == offered,
+                       "only an available update adds an unread badge")
+                let host = NSHostingView(rootView: control
+                    .environment(\.colorScheme, .dark))
+                host.layoutSubtreeIfNeeded()
+                let size = host.fittingSize
+                let maximumWidth: CGFloat = wing - 44
+                suite.expect(size.width.isFinite && size.width > 0 && size.width <= maximumWidth
+                       && size.height > 0 && size.height <= NotchLayout.headerHeight,
+                       "\(language.rawValue) update bell and progress fit beside the camera (\(size))")
             }
         }
     }

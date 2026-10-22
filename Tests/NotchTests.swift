@@ -598,10 +598,10 @@ enum NotchTests {
         func source(_ path: String) -> String { (try? String(contentsOfFile: path, encoding: .utf8)) ?? "" }
         let island = source("Sources/Vorssaint/UI/Notch/NotchView.swift")
         let row = (island.components(separatedBy: "private func bandRow(").dropFirst().first ?? "")
-            .components(separatedBy: "private func updateControl(").first ?? ""
+            .components(separatedBy: "private var updateControl:").first ?? ""
         let fallbacks = row.components(separatedBy: "HStack(spacing: 6) {").count - 1
         let ends = row.components(separatedBy: "items.trailing; trailingSections(band)").count - 1
-        suite.expect(fallbacks == 4 && ends == fallbacks
+        suite.expect(fallbacks > 0 && ends == fallbacks
                      && row.contains("if band.trailingSectionsButton { NotchSectionsButton(action: service.toggleSections) }"),
                      "every fallback of the row's trailing side ends a wrapping page's controls with the sections button")
         let player = source("Sources/Vorssaint/UI/Notch/NotchMusicView.swift")

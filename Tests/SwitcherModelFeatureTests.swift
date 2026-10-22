@@ -2719,6 +2719,9 @@ enum SwitcherModelFeatureTests {
             islandDefaults.set(true, forKey: DefaultsKey.notchHidesMenuBarIcon)
             suite.expect(MenuBarSpacingSupport.islandHidesStatusIcon(in: islandDefaults),
                    "a running island takes the icon's place when asked")
+            suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(
+                in: islandDefaults, micBadgeActive: true),
+                   "a muted microphone still returns the menu bar icon")
             islandDefaults.set(true, forKey: DefaultsKey.notchHideInFullscreen)
             suite.expect(!MenuBarSpacingSupport.islandHidesStatusIcon(
                 in: islandDefaults, hiddenInFullscreen: true),

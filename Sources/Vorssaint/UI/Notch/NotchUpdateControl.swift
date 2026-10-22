@@ -3,64 +3,73 @@
 
 import SwiftUI
 
-/// The same offer and progress as the menu panel, kept inside the island's
-/// existing header so it cannot displace or resize the active tool.
+/// A fixed-size update inbox in the island's header. An offer adds a badge;
+/// checking, downloading and installing keep their progress in the same slot.
 struct NotchUpdateControl: View {
     @ObservedObject private var updates = UpdateService.shared
     let action: () -> Void
-    var compact = false
     @ObservedObject private var l10n = L10n.shared
 
-    @ViewBuilder var body: some View {
+    var hasOffer: Bool {
+        if case .available = updates.state { return true }
+        return false
+    }
+
+    private var busy: Bool {
         switch updates.state {
-        case let .available(version):
-            let tint: Color = UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease == true ? .orange : .blue
-            let title = "\(l10n.s.updateBannerTitle), \(l10n.s.versionPrefix) \(version)"
-            Button(action: action) {
-                Group {
-                    if compact {
-                        Image(systemName: "arrow.down.circle.fill")
-                    } else {
-                        Label(l10n.s.updateBannerAction, systemImage: "arrow.down.circle.fill")
-                    }
-                }
-                .font(.system(size: 11, weight: .semibold))
-                .lineLimit(1)
-            }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
-            .controlSize(.small)
-            .tint(tint)
-            .fixedSize()
-            .help(title)
-            .accessibilityLabel(title)
-            .accessibilityHint(l10n.s.updateBannerAction)
-        case let .downloading(progress):
-            progressIndicator(title: l10n.s.updateDownloading, fraction: progress)
-        case .installing:
-            progressIndicator(title: l10n.s.updateInstalling)
-        default:
-            EmptyView()
+        case .checking, .downloading, .installing: return true
+        default: return false
         }
     }
 
-    private func progressIndicator(title: String, fraction: Double? = nil) -> some View {
-        HStack(spacing: 5) {
-            ProgressView().controlSize(.small)
-            if !compact {
-                if let fraction {
-                    Text(fraction, format: .percent.precision(.fractionLength(0)))
-                        .monospacedDigit()
-                } else {
-                    Text(title).lineLimit(1).truncationMode(.tail)
-                }
-            }
+    private var title: String {
+        switch updates.state {
+        case let .available(version):
+            return "\(l10n.s.updateBannerTitle), \(l10n.s.versionPrefix) \(version)"
+        case .downloading: return l10n.s.updateDownloading
+        case .installing: return l10n.s.updateInstalling
+        default: return l10n.s.updatesSection
         }
-        .font(.system(size: 10, weight: .medium))
-        .frame(maxWidth: compact ? nil : 110)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "bell")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(hasOffer ? 0.9 : 0.55))
+                .frame(width: 28, height: 28)
+                .overlay(alignment: .topTrailing) {
+                    if hasOffer {
+                        Circle()
+                            .fill(.blue)
+                            .frame(width: 7, height: 7)
+                            .overlay(Circle().strokeBorder(.black, lineWidth: 1))
+                            .padding(3)
+                            .accessibilityHidden(true)
+                    } else if busy {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .scaleEffect(0.6)
+                            .frame(width: 10, height: 10)
+                            .padding(1)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 9))
+        .disabled(busy)
+        .fixedSize()
         .help(title)
-        .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
-        .accessibilityValue(fraction.map { $0.formatted(.percent.precision(.fractionLength(0))) } ?? "")
+        .accessibilityValue(progressValue)
+        .accessibilityIdentifier("notch.updates")
+    }
+
+    private var progressValue: String {
+        if case let .downloading(progress?) = updates.state {
+            return progress.formatted(.percent.precision(.fractionLength(0)))
+        }
+        return ""
     }
 }

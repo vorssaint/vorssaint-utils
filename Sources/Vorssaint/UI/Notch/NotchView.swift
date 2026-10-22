@@ -370,13 +370,8 @@ struct NotchView: View {
                 // fit their side, never pushing them under the camera; the menu
                 // offers the same actions either way.
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 6) { items.trailing; trailingSections(band); updateControl(band); pinMark }
-                    HStack(spacing: 6) {
-                        items.trailing; trailingSections(band)
-                        NotchUpdateControl(action: service.showUpdate, compact: true); pinMark
-                    }
-                    HStack(spacing: 6) { items.trailing; trailingSections(band); pinMark }
-                    HStack(spacing: 6) { items.trailing; trailingSections(band) }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); pinMark; updateControl }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); updateControl }
                 }
             }
         }
@@ -399,8 +394,17 @@ struct NotchView: View {
         if band.trailingSectionsButton { NotchSectionsButton(action: service.toggleSections) }
     }
 
-    private func updateControl(_ band: NotchBand) -> some View {
-        NotchUpdateControl(action: service.showUpdate, compact: band.besideCamera)
+    private var updateControl: some View {
+        NotchUpdateControl {
+            if updateOffered {
+                service.showUpdate()
+            } else {
+                service.perform {
+                    SettingsRouter.shared.request(FeatureSettingsDestination(.about))
+                    (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+                }
+            }
+        }
     }
 
     /// A kept-open island says so, and one click lets it go.
