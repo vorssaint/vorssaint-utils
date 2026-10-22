@@ -236,6 +236,12 @@ enum NotchLockScreenTests {
                         == [.agents, .downloads],
                      "only live activities are read out")
 
+        let hidden = NotchAgentPrivacy(hidesProjects: false, hidesAmounts: true)
+        suite.expect(NotchLockScreenSupport.lineReadout(.cost, privacy: hidden) == .elapsed
+                     && NotchLockScreenSupport.lineReadout(.cost, privacy: NotchAgentPrivacy()) == .cost
+                     && NotchLockScreenSupport.lineReadout(.tokens, privacy: hidden) == .tokens,
+                     "with amounts hidden the line reads the time worked instead of the cost")
+
         var countdown = NotchTimerSession()
         countdown.start(mode: .timer, minutes: 5, now: 100)
         suite.expect(!NotchLockScreenSupport.timerFinished(countdown, at: 399)
