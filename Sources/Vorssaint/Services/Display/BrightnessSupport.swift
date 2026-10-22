@@ -95,9 +95,9 @@ enum BrightnessSupport {
         return min(max(level, 0), 1)
     }
 
-    static func steppedKeyboardLightLevel(current: Float, direction: Int) -> Float {
+    static func steppedKeyboardLightLevel(current: Float, direction: Int, fine: Bool = false) -> Float {
         guard current.isFinite else { return 0 }
-        let step = direction < 0 ? -keyboardLightStep : keyboardLightStep
+        let step = (direction < 0 ? -keyboardLightStep : keyboardLightStep) / (fine ? 4 : 1)
         return min(max(current + step, 0), 1)
     }
 
@@ -483,11 +483,11 @@ enum BrightnessSupport {
         return BrightnessKeyEvent(delta: delta, isKeyDown: state == 10, isRepeat: (raw & 0x1) != 0)
     }
 
-    static func isKeyboardLightPress(subtype: Int, data1: Int) -> Bool {
+    static func isKeyboardLightEvent(subtype: Int, data1: Int) -> Bool {
         guard subtype == 8 else { return false }
         let raw = UInt32(truncatingIfNeeded: data1)
-        // Native illumination up, down and toggle. Key-up is always left alone.
-        return (21...23).contains((raw >> 16) & 0xFFFF) && ((raw >> 8) & 0xFF) == 10
+        let state = (raw >> 8) & 0xff
+        return (21...23).contains((raw >> 16) & 0xFFFF) && (state == 10 || state == 11)
     }
 
     /// Keyboards other than the built-in one do not send brightness as a
