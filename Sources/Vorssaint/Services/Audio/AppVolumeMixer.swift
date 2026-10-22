@@ -1321,7 +1321,7 @@ final class AppVolumeMixer: ObservableObject {
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
         applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
 
-        guard let next = snapshot.apps else {
+        guard let readApps = snapshot.apps else {
             if !apps.isEmpty {
                 apps = []
             }
@@ -1335,6 +1335,9 @@ final class AppVolumeMixer: ObservableObject {
             subscribeToRunningChanges(of: object)
         }
 
+        // The pass resolved volumes from a copy captured when it was requested,
+        // and a write made while it read the HAL is newer than that copy.
+        let next = applyingCurrentVolumes(to: readApps)
         guard audioEnvironmentChanged || next != apps else { return }
         if apps != next {
             apps = next
@@ -1938,6 +1941,19 @@ final class AppVolumeMixer: ObservableObject {
 
     private func storedRoute(for identity: MixerRowIdentity, saved: [String: String]) -> String? {
         Self.storedRoute(for: identity, saved: saved, session: sessionRoutes)
+    }
+
+    /// Main thread. A refresh pass resolves volumes from the copy it captured
+    /// when it was requested, and `setVolume` can write while the pass is still
+    /// reading the HAL. Resolving them again at publish time keeps that newer
+    /// write from being reverted; everything else in a row stays as read.
+    private func applyingCurrentVolumes(to rows: [MixerApp]) -> [MixerApp] {
+        let saved = savedVolumes()
+        return rows.map { row in
+            var row = row
+            row.volume = row.isBypassed ? 1 : (storedVolume(for: row.identity, saved: saved) ?? 1)
+            return row
+        }
     }
 
     private func persistVolume(_ volume: Double, for app: MixerApp) {

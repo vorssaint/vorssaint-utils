@@ -561,6 +561,8 @@ enum NotchMusicExtrasTests {
     }
 
     static func run(_ suite: TestSuite) {
+        NotchBrowserArtworkLifecycleTests.run(suite)
+        NotchMusicArtworkReplyTests.run(suite)
         artistIdentity(suite)
         preferredPlayer(suite)
         preferredPlayerLoading(suite)

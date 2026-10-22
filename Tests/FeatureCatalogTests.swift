@@ -762,21 +762,44 @@ enum FeatureCatalogTests {
                "both feature pickers refuse an unsupported install from the same rule")
         suite.expect(featureHubSource.contains("installableCount"),
                "the hub counts against what this Mac can install, so install-all can finish")
+        // The first top-level member opened by `declaration`, with comment lines
+        // and whitespace dropped, so a layout check reads structure only.
+        func compactMember(_ declaration: String, in source: String) -> String {
+            let code = source
+                .components(separatedBy: declaration).dropFirst().first?
+                .components(separatedBy: "\n    }\n").first ?? ""
+            return code.split(separator: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined()
+                .filter { !$0.isWhitespace }
+        }
         // Issue #2270: nested in the page's plain stack, the lazy stack resized
         // it as group cards came into view and could keep redoing its layout
         // until Settings froze. A source check on the page's `content` with
         // comment lines dropped: it keeps that structure from coming back, not
         // the scrolling itself, which only a scroll run shows.
-        let hubContentCode = featureHubSource
-            .components(separatedBy: "private var content: some View {").dropFirst().first?
-            .components(separatedBy: "\n    }\n").first ?? ""
-        let compactHubContent = hubContentCode.split(separator: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined()
-            .filter { !$0.isWhitespace }
+        let compactHubContent = compactMember("private var content: some View {", in: featureHubSource)
         suite.expect(compactHubContent.components(separatedBy: "LazyVStack(").count == 2
                 && compactHubContent.contains("ScrollView{LazyVStack("),
                "the hub's one lazy stack is its scroll view's own content, never nested in another stack")
+        // A lazy stack on the Monitor page re-measures and re-anchors its rows
+        // without settling once the Bars options make the menu bar card taller,
+        // which hangs Settings on the first scroll. The same kind of source
+        // check: it keeps the eager stack and the preview above the scroll
+        // view, not the scrolling itself.
+        let monitorSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/MonitorSettings.swift",
+            encoding: .utf8)) ?? ""
+        let compactMonitorBody = compactMember("var body: some View {", in: monitorSettingsSource)
+        let monitorPreviewAboveScroll: Bool = {
+            guard let preview = compactMonitorBody.range(of: "MenuBarMetricsPreview()"),
+                  let scroll = compactMonitorBody.range(of: "ScrollView{VStack(") else { return false }
+            return preview.upperBound <= scroll.lowerBound
+        }()
+        suite.expect(compactMonitorBody.hasPrefix("VStack(spacing:0){")
+                && monitorPreviewAboveScroll
+                && !compactMonitorBody.contains("LazyVStack("),
+               "the Monitor page lays its rows out eagerly, with the live preview above its scroll view")
         suite.expect(AppFeature.diskImageInstaller.group == .clipboardFiles
                 && AppFeature.diskImageInstaller.enabledKeys.isEmpty
                 && AppFeature.diskImageInstaller.permissions == [.appManagement]

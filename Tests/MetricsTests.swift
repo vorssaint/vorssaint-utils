@@ -154,7 +154,10 @@ struct MetricsTests {
                 StorageFeatureTests.run(suite)
                 ScratchpadStoreContractTests.run(suite)
             }),
-            ("quit-protection", { QuitProtectionHUD.progressChecks(suite) }),
+            ("quit-protection", {
+                QuitProtectionHUD.progressChecks(suite)
+                QuitProtectionRoutingContract.QuitProtectionService.routingChecks(suite)
+            }),
             ("scratchpad", { ScratchpadMarkTests.run { suite.expect($0, $1) } }),
             ("recording", {
                 RecorderPreparationTests.run(suite)

@@ -920,6 +920,7 @@ struct Strings {
     // MARK: Settings — monitor / menu bar metrics
     let tabMonitor: String
     let monitorMenuBarSection: String
+    let monitorMenuBarPreview: String
     let monitorMenuBarCaption: String
     let monitorCombineTemperatures: String
     let monitorCombineTemperaturesCaption: String
@@ -2045,6 +2046,7 @@ extension Strings {
 
         tabMonitor: "Monitor",
         monitorMenuBarSection: "Na barra de menus",
+        monitorMenuBarPreview: "Prévia da barra de menus",
         monitorMenuBarCaption: "Escolha o que aparece ao lado do ícone na barra de menus.",
         monitorCombineTemperatures: "Combinar uso e temperatura",
         monitorCombineTemperaturesCaption: "Quando uso e temperatura do mesmo item estiverem ativos, mostra tudo em um bloco só.",
@@ -2220,11 +2222,11 @@ extension Strings {
         shortcutsPageTitle: "Atalhos de teclado",
         settingsSearchPlaceholder: "Buscar ajustes",
         donateHeading: "Ajude o Vorssaint a continuar crescendo",
-        donateMessage: "O Vorssaint é gratuito, independente e desenvolvido no meu tempo livre. Se você quiser contribuir financeiramente, o Buy Me a Coffee ajuda diretamente a manter o desenvolvimento avançando.",
+        donateMessage: "O Vorssaint continua de graça, local e sem anúncios ou coleta de dados de uso. Se ele te ajuda, o Buy Me a Coffee é a única forma de apoiar seu desenvolvimento financeiramente.",
         donateButton: "Apoiar no Buy Me a Coffee",
         donateThanks: "Obrigado por estar aqui. 🖤",
         supportIntroTitle: "Ajude o Vorssaint a continuar crescendo",
-        supportIntroMessage: "Se você quiser apoiar financeiramente o desenvolvimento, o Buy Me a Coffee é o único lugar para fazer isso.",
+        supportIntroMessage: "O Vorssaint continua de graça, local e sem anúncios ou coleta de dados de uso. Se ele te ajuda, o Buy Me a Coffee é a única forma de apoiar seu desenvolvimento financeiramente.",
         supportIntroStarButton: "Dar uma estrela no GitHub",
         supportIntroStarMessage: "Apoio financeiro nunca é esperado. Dar uma estrela no GitHub ajuda mais pessoas a encontrar o Vorssaint e faz uma diferença enorme no desenvolvimento.",
         supportIntroStarHint: "Uma estrela no GitHub também ajuda mais pessoas a conhecer o Vorssaint e significa muito.",
@@ -3156,6 +3158,7 @@ extension Strings {
 
         tabMonitor: "Monitor",
         monitorMenuBarSection: "In the menu bar",
+        monitorMenuBarPreview: "Menu bar preview",
         monitorMenuBarCaption: "Choose what appears next to the icon in the menu bar.",
         monitorCombineTemperatures: "Combine usage and temperature",
         monitorCombineTemperaturesCaption: "When usage and temperature for the same item are enabled, show them in one block.",
@@ -3331,11 +3334,11 @@ extension Strings {
         shortcutsPageTitle: "Keyboard shortcuts",
         settingsSearchPlaceholder: "Search settings",
         donateHeading: "Help Vorssaint keep growing",
-        donateMessage: "Vorssaint is free, independent and built in my spare time. If you would like to contribute financially, Buy Me a Coffee directly helps me keep development moving forward.",
+        donateMessage: "Vorssaint stays free and local, with no ads or usage tracking. If it helps you, Buy Me a Coffee is the only way to help fund its development.",
         donateButton: "Support on Buy Me a Coffee",
         donateThanks: "Thank you for being here. 🖤",
         supportIntroTitle: "Help Vorssaint keep growing",
-        supportIntroMessage: "If you would like to support development financially, Buy Me a Coffee is the one place to do it.",
+        supportIntroMessage: "Vorssaint stays free and local, with no ads or usage tracking. If it helps you, Buy Me a Coffee is the only way to help fund its development.",
         supportIntroStarButton: "Star Vorssaint on GitHub",
         supportIntroStarMessage: "Financial support is never expected. A star on GitHub helps more people discover Vorssaint and makes a real difference to its development.",
         supportIntroStarHint: "A star on GitHub also helps more people find Vorssaint, and it means a lot.",

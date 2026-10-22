@@ -53,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var updatePreviewWindow: NSWindow?
     private var whatsNewWindow: NSWindow?
     private var whatsNewIsReview = false
+    private var updateWindowsKeepingAppRegular = Set<ObjectIdentifier>()
+    private var settingsFloatsForWhatsNew = false
 
     // MARK: - Lifecycle
 
@@ -218,10 +220,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             // `--preview-whats-new [version]`: the post-update window for an
             // update from that version (this one by default), with the
             // changelog's unreleased notes on top. Nothing is marked as seen.
-            if let flag = CommandLine.arguments.firstIndex(of: "--preview-whats-new") {
+            // `--preview-stable-update` previews the same flow with the next
+            // stable version on its cover, without changing the app version.
+            let stablePreview = CommandLine.arguments.firstIndex(of: "--preview-stable-update")
+            if let flag = stablePreview ?? CommandLine.arguments.firstIndex(of: "--preview-whats-new") {
                 let next = CommandLine.arguments.dropFirst(flag + 1).first
                 let previous = next.flatMap { $0.hasPrefix("-") ? nil : $0 } ?? AppInfo.version
-                self.showWhatsNew(from: previous, includeUnreleased: true, isReview: true)
+                self.showWhatsNew(from: previous, includeUnreleased: true, isReview: true,
+                                  previewVersion: stablePreview == nil ? nil : SupportUpdateIntroInfo.releaseVersion)
                 return
             }
             #endif
@@ -358,6 +364,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let requester = ReopenRequestSupport.currentSender()
         guard ReopenRequestSupport.isPersonOpeningApp(requester) else {
             Self.menuBarLog.log("reopen ignored from \(ReopenRequestSupport.logName(requester), privacy: .public)")
+            return false
+        }
+        if let window = supportIntroWindow ?? whatsNewWindow {
+            sender.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
             return false
         }
         guard !flag else { return true }
@@ -2220,16 +2231,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// Opens What's New for the changes since `previous`. Returns false, and
     /// opens nothing, when none of them concern this Mac's features.
     @discardableResult
-    func showWhatsNew(from previous: String, includeUnreleased: Bool = false, isReview: Bool = false) -> Bool {
+    func showWhatsNew(from previous: String, includeUnreleased: Bool = false, isReview: Bool = false,
+                      previewVersion: String? = nil) -> Bool {
         if let window = whatsNewWindow {
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
             return true
         }
         let defaults = UserDefaults.standard
-        let digest = ReleaseDigest.make(from: previous, to: AppInfo.version,
-                                        changelog: ReleaseNotes.bundledChangelog() ?? "",
-                                        includeUnreleased: includeUnreleased)
+        var digest = ReleaseDigest.make(from: previous, to: AppInfo.version,
+                                       changelog: ReleaseNotes.bundledChangelog() ?? "",
+                                       includeUnreleased: includeUnreleased)
+        if isReview, let previewVersion {
+            // Keep this build's beta and unreleased notes in the preview;
+            // the stable changelog has not been assembled yet.
+            digest = ReleaseDigest(previousVersion: digest.previousVersion, version: previewVersion,
+                                   versions: digest.versions, summary: digest.summary, changes: digest.changes)
+        }
         let strings = L10n.shared.s
         let language = L10n.shared.language
         let hub = FeatureStrings.hub(language)
@@ -2273,6 +2291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.isReleasedWhenClosed = false
         window.isRestorable = false
         window.delegate = self
+        keepUpdateWindowReachable(window)
         centerIntroWindow(window)
         whatsNewIsReview = isReview
         whatsNewWindow = window
@@ -2293,10 +2312,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         DispatchQueue.main.async { [weak self] in
             guard let self, let window = self.whatsNewWindow, window.isVisible else { return }
             self.positionTourBesideSettings(window)
-            if let settings = self.settingsWindow, !window.frame.intersects(settings.frame) {
-                window.orderFront(nil)
+            if let settings = self.settingsWindow {
+                if window.frame.intersects(settings.frame) {
+                    // On a narrow display, the controls must remain clickable
+                    // even though the tour floats above ordinary windows.
+                    settings.level = .floating
+                    self.settingsFloatsForWhatsNew = true
+                    settings.orderFront(nil)
+                } else {
+                    self.restoreSettingsLevelAfterWhatsNew()
+                    window.orderFront(nil)
+                }
             }
         }
+    }
+
+    private func keepUpdateWindowReachable(_ window: NSWindow) {
+        window.level = .floating
+        window.hidesOnDeactivate = false
+        window.canHide = false
+        window.collectionBehavior.remove(.ignoresCycle)
+        window.collectionBehavior.insert(.participatesInCycle)
+        if updateWindowsKeepingAppRegular.insert(ObjectIdentifier(window)).inserted {
+            WindowActivationPolicy.retain()
+        }
+    }
+
+    private func restoreSettingsLevelAfterWhatsNew() {
+        guard settingsFloatsForWhatsNew else { return }
+        settingsWindow?.level = .normal
+        settingsFloatsForWhatsNew = false
     }
 
     private func showUpdateShowcaseIntroIfNeeded() -> Bool {
@@ -2387,6 +2432,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.delegate = self
         supportIntroCanClose = false
         supportIntroIsReview = isReview
+        keepUpdateWindowReachable(window)
         centerIntroWindow(window)
         supportIntroWindow = window
         NSApp.activate(ignoringOtherApps: true)
@@ -2524,7 +2570,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+        let releasesActivation = updateWindowsKeepingAppRegular.remove(ObjectIdentifier(window)) != nil
+        defer {
+            if releasesActivation {
+                // The next intro is queued below. Let it retain activation
+                // first so the Dock icon does not disappear during the handoff.
+                DispatchQueue.main.async { WindowActivationPolicy.release() }
+            }
+        }
         if window === settingsWindow {
+            restoreSettingsLevelAfterWhatsNew()
             // Covers size changes that end without a live resize (zoom).
             saveSettingsWindowSize(window)
             if settingsKeepsAppRegular {
@@ -2577,12 +2632,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             finishedUpdateIntro = true
         }
         if window === whatsNewWindow {
+            restoreSettingsLevelAfterWhatsNew()
             whatsNewWindow = nil
             let isReview = whatsNewIsReview
             whatsNewIsReview = false
-            guard !isTerminating, !isReview else { return }
+            guard !isTerminating else { return }
+            if isReview {
+                DispatchQueue.main.async { [weak self] in self?.showSupportUpdateIntro(isReview: true) }
+                return
+            }
             markWhatsNewSeen()
-            finishedUpdateIntro = true
+            // Done, Escape and the window's close button all arrive here.
+            // The stable invitation follows the changelog before older tours.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if !AppInfo.isBeta, self.showSupportUpdateIntroIfNeeded() { return }
+                self.presentUpdateIntros()
+            }
+            return
         }
         if window === updatePreviewWindow {
             updatePreviewWindow = nil

@@ -256,13 +256,20 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             return
         }
 
-        let start = revealing ? canvas.surfaceSize(of: previousPath) : canvas.visibleSize ?? canvas.surfaceSize(of: previousPath)
+        let drawn = revealing ? canvas.surfaceSize(of: previousPath) : canvas.visibleSize ?? canvas.surfaceSize(of: previousPath)
         // Only a width change eases steadily; anything that also grows taller
         // keeps the island's usual springs.
-        let steady = steady && start.height == size.height
+        let steady = steady && drawn.height == size.height
         // Each frame's centre, from the new one, even when only the shift changes.
         let startOffset = startShift - geometry.surfaceShift
-        let motion = NotchMotion.frames(from: start, to: size, steady: steady, offset: startOffset)
+        // A resize under way whose target moves on the way it was going
+        // carries on at its speed. Started again from where it was drawn, it
+        // stalled; and asked for while SwiftUI drew new content, it reached the
+        // screen only with that content and began from where it had been.
+        let carried = isAnimating && !revealing && !steady && !withdrawing && startOffset == 0
+            ? canvas.carriedMotion(to: size, at: CACurrentMediaTime()) : nil
+        let start = carried?.start ?? drawn
+        let motion = carried?.frames() ?? NotchMotion.frames(from: start, to: size, steady: steady, offset: startOffset)
         let offsets = motion.keyTimes.map {
             $0 == 1 ? 0 : NotchMotion.offset(at: motion.duration * $0, from: start, to: size, start: startOffset, steady: steady)
         }
@@ -270,6 +277,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         var envelope = NotchMotion.envelope(from: start, to: size)
         let reach = zip(motion.sizes, offsets).map { $0.width + 2 * abs($1) }.max() ?? 0
         envelope.width = max(envelope.width, reach.rounded(.up))
+        let tallest = motion.sizes.map(\.height).max() ?? 0
+        envelope.height = max(envelope.height, tallest.rounded(.up))
         if !revealing {
             envelope = CGSize(width: max(envelope.width, canvas.bounds.width), height: max(envelope.height, canvas.bounds.height))
         }
@@ -313,14 +322,21 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         animation.keyTimes = motion.keyTimes.map { NSNumber(value: $0) }
         animation.calculationMode = .linear
         animation.duration = motion.duration
-        if withdrawing {
+        if let carried {
+            // Timed from the moment it was taken, however long content drawn
+            // in the same pass keeps it off the screen.
+            animation.beginTime = carried.begin
+            animation.fillMode = .backwards
+        } else if withdrawing {
             animation.beginTime = CACurrentMediaTime() + NotchQuickAccessLayout.withdrawalDuration
             animation.fillMode = .backwards
         }
         animation.delegate = self
         animation.setValue(generation, forKey: "notchGeneration")
         isAnimating = true
-        canvas.animate(animation, from: paths.first, motion: (start, size), steady: steady, offset: startOffset)
+        canvas.animate(animation, from: paths.first, motion: carried ?? NotchMotionTimeline(
+            from: start, to: size, begin: animation.beginTime > 0 ? animation.beginTime : CACurrentMediaTime(),
+            steady: steady, offset: startOffset))
         CATransaction.commit()
         // The window already has its new frame; its layers go out at once,
         // not at the end of this turn of the run loop, so the screen never
@@ -1328,16 +1344,22 @@ private final class NotchCanvas: NSView {
 
     /// The resize the silhouette is running, to draw the material for the
     /// frame about to be shown rather than the one already on screen.
-    private var motionTimeline: (begin: CFTimeInterval, from: CGSize, to: CGSize, steady: Bool, offset: CGFloat)?
-    var motionProbeStart: CGSize? { motionTimeline?.from }
+    private var motionTimeline: NotchMotionTimeline?
+    var motionProbeStart: CGSize? { motionTimeline?.start }
 
-    func animate(_ animation: CAAnimation, from: CGPath?, motion: (from: CGSize, to: CGSize)? = nil, steady: Bool = false,
-                 offset: CGFloat = 0) {
+    /// The running resize headed for `size` from `time` on, as Core Animation
+    /// times it, or nil when it has not reached the screen or cannot carry on.
+    func carriedMotion(to size: CGSize, at time: CFTimeInterval) -> NotchMotionTimeline? {
+        // The motion is stamped with the moment it reached the screen.
+        guard let timeline = motionTimeline, let began = silhouette.animation(forKey: Self.motionKey)?.beginTime,
+              began > 0, began <= time else { return nil }
+        return timeline.rebased(to: began).continued(to: size, at: time)
+    }
+
+    func animate(_ animation: CAAnimation, from: CGPath?, motion: NotchMotionTimeline? = nil) {
         motionStart = nil
         motionStartOffset = 0
-        motionTimeline = motion.map {
-            (animation.beginTime > 0 ? animation.beginTime : CACurrentMediaTime(), $0.from, $0.to, steady, offset)
-        }
+        motionTimeline = motion
         silhouette.path = silhouettePath(for: contentSize)
         silhouetteSize = contentSize
         edge.path = silhouette.path
@@ -1391,12 +1413,8 @@ private final class NotchCanvas: NSView {
     fileprivate func advanceBackdrop(to target: CFTimeInterval) {
         backdropTicks += 1
         guard let timeline = motionTimeline else { synchronizeBackdrop(); return }
-        let elapsed = max(0, target - timeline.begin)
-        let size = NotchMotion.size(at: elapsed, from: timeline.from, to: timeline.to,
-                                    steady: timeline.steady)
-        let offset = NotchMotion.offset(at: elapsed, from: timeline.from, to: timeline.to, start: timeline.offset,
-                                       steady: timeline.steady)
-        setBackdropContour(inCanvas(silhouettePath(for: size, offset: offset)))
+        let time = max(target, timeline.begin)
+        setBackdropContour(inCanvas(silhouettePath(for: timeline.size(at: time), offset: timeline.offset(at: time))))
     }
 
     /// The size shown while a resize is being prepared, before its motion.

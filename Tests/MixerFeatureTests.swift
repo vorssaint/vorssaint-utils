@@ -61,6 +61,24 @@ enum MixerFeatureTests {
             let restored = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
             suite.expectClose(restored["com.example.quiet"] ?? -1, 0.5,
                         "a backup restored from before the change is converted on the next launch")
+            curveDefaults.set(["com.example.quiet": 0.5, "com.example.boosted": 1.5], forKey: DefaultsKey.appVolumes)
+            let exported = SettingsBackupSupport.payload(appVersion: "test") { curveDefaults.object(forKey: $0) }
+            let exportedSettings = exported[SettingsBackupSupport.settingsKey] as? [String: Any] ?? [:]
+            let exportedVolumes = exportedSettings[DefaultsKey.appVolumes] as? [String: Double] ?? [:]
+            suite.expectClose(exportedVolumes["com.example.quiet"] ?? -1, 0.25,
+                        "a backup saves app volumes as the gains 3.4.1 plays, at the same loudness")
+            suite.expect(exportedVolumes["com.example.boosted"] == 1.5
+                   && exportedSettings[DefaultsKey.appVolumesArePositions] == nil,
+                   "a backup keeps boosted levels and leaves the position marker out")
+            let imported = SettingsBackupSupport.sanitizedSettings(from: exported) ?? [:]
+            for key in SettingsBackupSupport.keysToClear(whenImporting: imported) {
+                curveDefaults.removeObject(forKey: key)
+            }
+            for (key, value) in imported { curveDefaults.set(value, forKey: key) }
+            Defaults.migrateAppVolumesToPositions(in: curveDefaults)
+            let reimported = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            suite.expectClose(reimported["com.example.quiet"] ?? -1, 0.5,
+                        "importing that backup here puts the sliders back where they were")
             curveDefaults.removePersistentDomain(forName: curveSuite)
         }
         suite.expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "40",
@@ -833,6 +851,19 @@ enum MixerFeatureTests {
         let cycleCount = afterMissedTap.range(of: "cycles.increment()")?.lowerBound
         suite.expect(framesGuard != nil && cycleCount != nil && framesGuard! < cycleCount!,
                "a cycle is counted only once the engine has handed the device audio")
+
+        // A refresh pass has to publish and reconcile the volumes resolved when it
+        // lands, not the ones captured when it was requested. The pass lives in a
+        // class the contracts cannot instantiate, so its body is read as text.
+        let applyBody = mixerBody
+            .range(of: "private func apply(_ snapshot: RefreshSnapshot, generation: Int) {")
+            .flatMap { start in
+                mixerBody.range(of: "\n    }\n", range: start.upperBound..<mixerBody.endIndex)
+                    .map { String(mixerBody[start.upperBound..<$0.lowerBound]) }
+            } ?? ""
+        suite.expect(appearsInOrder(applyBody, ["let next = applyingCurrentVolumes(to: readApps)", "apps = next",
+                                                "reconcileEngines(with: next)"]),
+                     "a refresh pass publishes and reconciles the current saved volumes, not the ones captured at request time")
 
         let identifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: "com.example.Player",
                                                            ownerPid: 501,

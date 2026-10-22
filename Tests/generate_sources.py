@@ -91,6 +91,15 @@ def main():
           + declaration(recorder, "    func captureEngine(_ engine: RecorderCaptureEngine,\n")
           + "}\n}\n")
     watch = "Sources/Vorssaint/Services/Notch/NotchWatchService.swift"
+    artwork = "Sources/Vorssaint/Services/Notch/NotchBrowserArtwork.swift"
+    write("NotchBrowserArtworkLifecycle.swift", "import Foundation\n"
+          + "extension NotchBrowserArtworkLifecycleTests {\nfinal class Service: Fixture {\n"
+          + "".join(declaration(artwork, prefix).replace("    private ", "    ", 1)
+                    for prefix in ["    private struct Lookup {", "    func artwork(", "    func request(",
+                                   "    func cancel()", "    private func accepts(", "    private func load(",
+                                   "    private func attempt(", "    private func retry(",
+                                   "    private func store(", "    private func finish(", "    private func download("])
+          + "}\n}\n")
     write("NotchWatchChoice.swift", "import AppKit\nimport Foundation\n"
           + "extension NotchWatchChoiceTests {\nfinal class Service: Fixture {\n"
           + declaration(watch, "    func chooseArea()")
@@ -189,7 +198,8 @@ def main():
               "    func windowShouldClose(", "    func windowWillClose(", "    private func markOnboardingComplete()",
               "    private func markSupportUpdateIntroSeenIfCurrentUpdate()", "    private func markSupportUpdateIntroSeen()",
               "    private func queueWhatsNewIfNeeded(", "    private func showWhatsNewIfNeeded()",
-              "    private func markWhatsNewSeen()"])
+              "    private func markWhatsNewSeen()", "    private func keepUpdateWindowReachable(",
+              "    private func restoreSettingsLevelAfterWhatsNew()"])
           + "}\n}\n")
     write("PostUpdateStatusItemRecovery.swift", "import AppKit\nimport Foundation\n"
           + "extension PostUpdateStatusItemRecoveryTests {\nfinal class Host: Fixture {\n"
@@ -296,6 +306,13 @@ def main():
                     .replace("private func", "func", 1) for prefix in [
                         "    func commitEdits(", "    private func flushSave(", "    private func save(",
                         "    func createPad("])
+          + "}\n}\n")
+    write("WallpaperPicker.swift", "import AppKit\nimport Foundation\nimport UniformTypeIdentifiers\n"
+          + "extension WallpaperPickerContract {\nfinal class Service: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Wallpaper/WallpaperService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    func addImages(", "    func addFolder(", "    private func present(",
+                        "    private func bringForward("])
           + "}\n}\n")
     write("MusicLaunchBlockerLifecycle.swift", "import AppKit\nimport Foundation\n"
           + "extension MusicLaunchBlockerContract {\nfinal class Service: Fixture {\n"
@@ -680,6 +697,7 @@ def main():
               "    private static func runningAddress(",
               "    private static func storedVolume(", "    private static func storedRoute(",
               "    private func storedVolume(", "    private func storedRoute(",
+              "    private func applyingCurrentVolumes(",
               "    private func appNeedsEngine(", "    private func rowMayBeTapped(",
               "    private func applyOutputRoute(", "    func setOutputDeviceUID(",
               "    func switchToNextSoundOutput(", "    func setUniversalOutputDeviceUID(",
@@ -1119,6 +1137,10 @@ def main():
           + "}\n}\n")
     write("NotchKeyMonitor.swift", "import Foundation\nextension NotchKeyMonitorTests {\nfinal class Service: State {\n"
           + declaration(notch, "    private func installEventMonitors()").replace("private func", "func", 1)
+          + "}\n}\n")
+    write("NotchCommandBarHeight.swift", "import Foundation\nextension NotchCommandBarHeightTests {\nfinal class Service: State {\n"
+          + declaration(notch, "    fileprivate func commandBarDidClose()").replace("fileprivate func", "func", 1)
+          + declaration(notch, "    func updateCommandBarHeight(")
           + "}\n}\n")
     write("NotchPresentationRefresh.swift", "import AppKit\nimport Foundation\nimport Combine\nimport SwiftUI\n"
           + "extension NotchPresentationRefreshContract {\nfinal class Service: State {\n"
@@ -1694,6 +1716,14 @@ def main():
           + "}\n}\n")
 
     music = "Sources/Vorssaint/Services/Notch/NotchMusicService.swift"
+    write("NotchMusicArtworkReply.swift", "import AppKit\n"
+          + "extension NotchMusicArtworkReplyTests {\nfinal class Service: Fixture {\n"
+          + declaration(music, "    private struct Reading {").replace("private struct", "struct", 1)
+          + "func makeReader() -> NotchMusicPipeReader {\nlet requested = generation\n"
+          + "var playerArtwork: Data?\nvar cachedArtwork: Data?\nvar cachedImage: NSImage?\n"
+          + "var cachedTint: NotchArtworkTint?\n"
+          + declaration(music, "        let reader = NotchMusicPipeReader {")
+          + "return reader\n}\n}\n}\n")
     write("NotchMusicControls.swift", "import AppKit\n\nextension NotchMusicCommandContract {\n"
           + "final class Service {\ntypealias Command = NotchPlaybackCommand\n"
           + "var playback: NotchPlayback?\nvar generation = UUID()\nvar queueRequest: UUID?\n"
@@ -2123,8 +2153,15 @@ def main():
                         "    private func syncPolling(").replace("private func", "func", 1)
           + "}\n}\n")
 
-    # Same-file extensions can exercise the private AppKit content view without
-    # widening the production interface or presenting an application window.
+    # Same-file extensions exercise private routing and AppKit content without
+    # widening production interfaces or presenting an application window.
+    service = "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift"
+    checks = "Tests/Fixtures/QuitProtectionRoutingChecks.swift"
+    write("QuitProtectionRouting.swift", "import AppKit\nimport ApplicationServices\nimport Combine\n"
+          + "extension QuitProtectionRoutingContract {\n"
+          + declaration(service, "final class QuitProtectionService:")
+          + "}\n" + f'#sourceLocation(file: {json.dumps(checks)}, line: 1)\n'
+          + (ROOT / checks).read_text() + "\n#sourceLocation()\n")
     hud = "Sources/Vorssaint/UI/QuitProtection/QuitProtectionHUD.swift"
     checks = "Tests/Fixtures/QuitProtectionHUDChecks.swift"
     write("QuitProtectionHUDBodies.swift",

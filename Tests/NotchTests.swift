@@ -1722,6 +1722,7 @@ enum NotchTests {
         NotchUpdateTests.run(suite)
         NotchCaptureKeyboardTests.run(suite)
         NotchKeyMonitorTests.run(suite)
+        NotchCommandBarHeightTests.run(suite)
         NotchDownloadProgressTests.run(suite)
         NotchSliderEditingTests.run(suite)
         NotchFileToolsTests.run(suite)
@@ -3031,6 +3032,72 @@ enum NotchTests {
                        && margin >= 0 && margin == margin.rounded(),
                        "a reserved window keeps whole, equal margins so the settled island does not shift a pixel")
             }
+        }
+        // The Command Bar's island opens toward its field, and its rows,
+        // measured on the way, move the target further down.
+        do {
+            let field = CGSize(width: 616, height: roomy.collapsed.height + 76)
+            let rows = CGSize(width: 616, height: 666)
+            let opening = NotchMotionTimeline(from: roomy.collapsed, to: field, begin: 10)
+            suite.expect((0...60).allSatisfy { step in
+                             let time = Double(step) / 100
+                             let size = opening.size(at: 10 + time)
+                             let expected = NotchMotion.size(at: time, from: roomy.collapsed, to: field)
+                             return abs(size.width - expected.width) < 0.001 && abs(size.height - expected.height) < 0.001
+                         },
+                         "a motion begun once moves exactly as the island's springs always have")
+            let retarget = 10.07, frame = 1.0 / 60
+            if let carried = opening.continued(to: rows, at: retarget) {
+                let before = opening.size(at: retarget - frame), at = opening.size(at: retarget)
+                let after = carried.size(at: retarget + frame)
+                let restarted = NotchMotion.size(at: frame, from: at, to: rows)
+                // What each side gained over the frame before the new target
+                // and the frame after it, carried on or started again from rest.
+                let widthBefore: CGFloat = at.width - before.width, widthAfter: CGFloat = after.width - at.width
+                let heightBefore: CGFloat = at.height - before.height, heightAfter: CGFloat = after.height - at.height
+                let restartedWidth: CGFloat = restarted.width - at.width, restartedHeight: CGFloat = restarted.height - at.height
+                suite.expect(carried.start == at && carried.size(at: retarget) == at,
+                             "a target moving on carries the island on from where it is")
+                suite.expect(abs(widthAfter - widthBefore) < widthBefore / 4 && widthAfter > restartedWidth * 2,
+                             "the width keeps its speed, where starting again from rest stalled it")
+                suite.expect((0...50).allSatisfy {
+                                 let time = retarget + Double($0) / 100
+                                 return carried.size(at: time).width == opening.size(at: time).width
+                             },
+                             "a side whose target stays put keeps its own motion")
+                suite.expect(heightAfter > restartedHeight + heightBefore / 2,
+                             "a side whose target moves further keeps its speed as the new pull starts")
+                let frames = carried.frames()
+                suite.expect(frames.sizes.first == at && frames.sizes.last == rows && frames.keyTimes.first == 0
+                             && frames.keyTimes.last == 1 && frames.keyTimes.count == frames.sizes.count,
+                             "a carried motion starts on screen and ends exactly at its new target")
+                suite.expect(frames.duration > 0.1 && frames.duration < 1,
+                             "a carried motion settles within the time its surroundings wait for it: \(frames.duration)")
+                let lowest = CGSize(width: at.width - 0.001, height: at.height - 0.001)
+                let farthest = CGSize(width: rows.width + NotchMotion.overshootLimit, height: rows.height + NotchMotion.overshootLimit)
+                suite.expect(frames.sizes.allSatisfy {
+                                 $0.width >= lowest.width && $0.height >= lowest.height
+                                     && $0.width <= farthest.width && $0.height <= farthest.height
+                             },
+                             "a carried motion never goes back and swings no farther than the room kept around the island")
+            } else {
+                suite.expect(false, "a taller target while opening carries the motion on")
+            }
+            suite.expect(opening.continued(to: roomy.collapsed, at: retarget) == nil
+                         && opening.continued(to: CGSize(width: 616, height: field.height - 20), at: retarget) == nil,
+                         "a motion turning back starts again from where it is drawn")
+            suite.expect(NotchMotionTimeline(from: idle, to: roomy.notice, begin: 0, steady: true)
+                             .continued(to: roomy.expanded, at: 0.05) == nil
+                         && NotchMotionTimeline(from: idle, to: roomy.notice, begin: 0, offset: 40)
+                             .continued(to: roomy.expanded, at: 0.05) == nil,
+                         "a width easing without a swing, or a centre on its way, starts again as it always has")
+            let late = opening.rebased(to: 10.02)
+            suite.expect(late.begin == 10.02 && (0...40).allSatisfy { step in
+                             let time = 10 + Double(step) / 100
+                             let shifted = late.size(at: time + 0.02), original = opening.size(at: time)
+                             return abs(shifted.width - original.width) < 0.001 && abs(shifted.height - original.height) < 0.001
+                         },
+                         "a motion that reached the screen late is timed from when it did")
         }
         func near(_ value: CGFloat, _ expected: CGFloat) -> Bool { abs(value - expected) < 0.000_1 }
         let closing = NotchGlassFade.plan(from: 200, to: 32, endsInGlass: false, current: 1)
