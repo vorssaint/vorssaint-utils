@@ -22,8 +22,8 @@ struct NotchMusicView: View {
     /// The cover's own colour, used for the moving parts that belong to this
     /// track. Neutral covers keep them white.
     private var accent: Color { service.artworkTint?.color ?? .white }
-    private var showsLyrics: Bool { lyricsEnabled && AppFeature.notchLyrics.isAvailable }
-    private var showsQueue: Bool { queueEnabled && AppFeature.notchQueue.isAvailable }
+    private var showsLyrics: Bool { service.playback?.isAudioOnly != true && lyricsEnabled && AppFeature.notchLyrics.isAvailable }
+    private var showsQueue: Bool { service.playback?.isAudioOnly != true && queueEnabled && AppFeature.notchQueue.isAvailable }
     private var openExtra: MusicExtra? {
         guard service.playback != nil else { return nil }
         switch extra {
@@ -119,7 +119,8 @@ struct NotchMusicView: View {
         NotchService.shared.setMusicDetailsVisible(openExtra != nil)
         // Escape closes lyrics or the queue before the island.
         NotchService.shared.setPageLayer(.music, close: openExtra == nil ? nil : { extra = nil })
-        NotchLyricsService.shared.update(playback: service.playback, visible: extra == .lyrics)
+        NotchLyricsService.shared.update(playback: service.playback?.isAudioOnly == true ? nil : service.playback,
+                                         visible: openExtra == .lyrics)
         service.setQueueVisible(extra == .queue)
     }
 
@@ -270,15 +271,17 @@ struct NotchMusicView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .lineLimit(1)
                         .help(playback.track.title ?? text.mediaNowPlaying)
-                    Text(service.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
-                         : playback.track.artist ?? playback.track.album ?? text.mediaNowPlaying)
-                        .font(.system(size: 13))
-                        .foregroundStyle(service.commandFailed ? .orange : .secondary)
-                        .lineLimit(1)
+                    if !playback.isAudioOnly {
+                        Text(service.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
+                             : playback.track.artist ?? playback.track.album ?? text.mediaNowPlaying)
+                            .font(.system(size: 13))
+                            .foregroundStyle(service.commandFailed ? .orange : .secondary)
+                            .lineLimit(1)
+                    }
                 }
             } accessory: {
                 // Which player the buttons drive, by its icon, when there is a choice.
-                if service.sources.count > 1 || !service.sourceIsAutomatic {
+                if !service.sources.isEmpty || !service.sourceIsAutomatic {
                     sourceMenu(playback)
                 }
                 // Quiet beside the song, as the timeline's times are. The
@@ -290,8 +293,10 @@ struct NotchMusicView: View {
                 extraButtons
                 sectionsButton
             }
-            NotchMusicTimeline(playback: playback, service: service, tint: accent, timesBeside: true)
-                .padding(.top, NotchLayout.musicHeadSpacing)
+            if !playback.isAudioOnly {
+                NotchMusicTimeline(playback: playback, service: service, tint: accent, timesBeside: true)
+                    .padding(.top, NotchLayout.musicHeadSpacing)
+            }
             transportRow {
                 if !preview && shuffle.isOffered { shuffleButton }
             } middle: { slot in
@@ -516,7 +521,11 @@ private struct NotchMusicTransport: View {
     private var showsPlaying: Bool { requestedPlaying ?? playback.isPlaying }
 
     var body: some View {
-        if !playback.canSendCommandsDirectly, service.automationAvailability?.access != .granted {
+        if playback.isAudioOnly {
+            Button(FeatureStrings.notchMusicExtras(l10n.language).openPlayer) {
+                RadialNowPlayingApplication.open(playback.track)
+            }.buttonStyle(.plain)
+        } else if !playback.canSendCommandsDirectly, service.automationAvailability?.access != .granted {
             HStack(spacing: 10) {
                 toggleButton
                 if service.automationAvailability?.access == .consent {
