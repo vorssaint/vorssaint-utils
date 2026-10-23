@@ -281,6 +281,10 @@ final class FeatureRuntime: ObservableObject {
             MediaService.shared.cancel()
             ScreenRecorderService.shared.closeEditors(ownedBy: .mediaTools)
         },
+        .diskAnalyzer: {
+            guard !AppFeature.diskAnalyzer.isAvailable else { return }
+            DiskAnalyzerWindowController.shared.suspend()
+        },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
         .finderRename: { FinderRenameService.shared.syncWithPreferences() },

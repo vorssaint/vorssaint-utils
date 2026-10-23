@@ -423,6 +423,15 @@ enum CommandBarCatalog {
                 shortcut: roleShortcut(.scratchpad),
                 run: { _ in afterBeat { ScratchpadService.shared.show() } }))
         }
+        if AppFeature.diskAnalyzer.isAvailable {
+            let strings = FeatureStrings.diskAnalyzer(language)
+            entries.append(CommandBarEntry(
+                id: "action.diskAnalyzer",
+                title: strings.title,
+                subtitle: area(.diskAnalyzer, under: strings.title),
+                icon: .symbol(AppFeature.diskAnalyzer.symbolName),
+                run: { _ in afterBeat { DiskAnalyzerWindowController.shared.show() } }))
+        }
         if AppFeature.cameraPreview.isAvailable {
             entries.append(CommandBarEntry(
                 id: "action.cameraPreview",
