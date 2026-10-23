@@ -251,6 +251,9 @@ enum DefaultsKey {
     // Set only while Vorssaint owes a Bluetooth restore, so a Mac shut down
     // while asleep still gets it back on the next launch.
     static let bluetoothSleepRestorePending = "bluetoothSleepRestorePending"
+    static let displayScalingEnabled = "displayScalingEnabled"
+    // Smallest flexible size, as a percent of the panel's native width.
+    static let displayScalingMinimumPercent = "displayScalingMinimumPercent"
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let musicBlockPlayReplacement = "musicBlockPlayReplacement" // play after Play/Pause opens the replacement
@@ -1362,6 +1365,8 @@ enum Defaults {
         DefaultsKey.bluetoothSleepEnabled: false,
         DefaultsKey.bluetoothSleepRestoreOnWake: true,
         DefaultsKey.bluetoothSleepRestorePending: false,
+        DefaultsKey.displayScalingEnabled: false,
+        DefaultsKey.displayScalingMinimumPercent: DisplayScalingSupport.defaultMinimumPercent,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.musicBlockPlayReplacement: true,
@@ -2437,6 +2442,12 @@ enum Defaults {
 
     static func sanitizedDefaultDuration(_ minutes: Int) -> Int {
         allowedDurations.contains(minutes) ? minutes : 0
+    }
+
+    static let allowedDisplayScalingMinimumPercents = [30, 40, 50, 60, 70]
+
+    static func sanitizedDisplayScalingMinimumPercent(_ percent: Int) -> Int {
+        allowedDisplayScalingMinimumPercents.contains(percent) ? percent : DisplayScalingSupport.defaultMinimumPercent
     }
 
     static func sanitizedBatteryLimit(_ percent: Int) -> Int {

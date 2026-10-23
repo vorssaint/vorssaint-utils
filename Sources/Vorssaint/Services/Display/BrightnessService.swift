@@ -889,6 +889,41 @@ final class BrightnessService: ObservableObject {
         return CGCompleteDisplayConfiguration(configuration, .forAppOnly) == .success ? .success : .failed
     }
 
+    /// Switches an external display off and straight back on, the way
+    /// unplugging it would, so WindowServer reads its display override again.
+    /// **Main thread only.** Unlike `toggleDisplay` this may take the only
+    /// screen, because it never leaves it off: the "on" half follows within
+    /// seconds and is retried until the display is active again. The
+    /// transaction is app-only, so macOS undoes it if the app dies in between,
+    /// and the switched-off journal brings it back on the next start too.
+    static func cycleDisplay(_ id: CGDirectDisplayID, completion: @escaping (Bool) -> Void) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard CGDisplayIsBuiltin(id) == 0, DisplayConfigurationBridge.configureEnabled != nil else {
+            completion(false)
+            return
+        }
+        rememberDisplaySwitchedOff(id, fingerprint: restorationDisplayFingerprint(id))
+        guard configureDisplay(id, enabled: false) == .success else {
+            forgetDisplaySwitchedOff(id)
+            completion(false)
+            return
+        }
+        func switchOn(attempt: Int) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 1.5 : 1)) {
+                if configureDisplay(id, enabled: true) == .success || CGDisplayIsActive(id) != 0 {
+                    forgetDisplaySwitchedOff(id)
+                    completion(true)
+                } else if attempt < 5 {
+                    switchOn(attempt: attempt + 1)
+                } else {
+                    log.error("display \(id) did not come back after a cycle; left to the restore journal")
+                    completion(false)
+                }
+            }
+        }
+        switchOn(attempt: 0)
+    }
+
     static func lidClosed() -> Bool? {
         let service = IOServiceGetMatchingService(kIOMainPortDefault,
                                                   IOServiceMatching("IOPMrootDomain"))

@@ -16,7 +16,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Files and Folders | Yes | Monitoring downloads in a folder you choose |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
-| Administrator (one time) | Yes | Password free closed lid toggling |
+| Administrator (one time) | Yes | Password free closed lid toggling, and installing or removing flexible scaling sizes |
 | Automation | Yes | Finder actions, Homebrew Terminal handoff and supported music playback controls |
 | App Management | Yes | App installs, updates and removal |
 
@@ -143,6 +143,8 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 **If you say no.** Closed lid mode still works. macOS just asks for your administrator password each time you turn it on or off.
 
 **Optional.** Yes, and it is a one time choice. The rule is limited to `pmset disablesleep` and nothing else, and it goes away on its own when you uninstall Vorssaint or reset things from Settings under Advanced.
+
+**Flexible scaling.** Installing HiDPI sizes for an external display writes one display override file to `/Library/Displays/Contents/Resources/Overrides`, which only an administrator can change, so macOS asks for your password each time you install, update or remove sizes. Nothing stays elevated afterward. The file applies to every display of that model. An override another app placed there is moved aside rather than deleted, and comes back when you remove Vorssaint's sizes; uninstalling Vorssaint from Settings removes its overrides too.
 
 ## Automation
 

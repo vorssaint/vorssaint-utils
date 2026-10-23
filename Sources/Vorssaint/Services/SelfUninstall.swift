@@ -99,6 +99,12 @@ enum SelfUninstall {
                         stop(L10n.shared.s.advancedClearFailed, sleepRestored: true)
                         return
                     }
+                    // Display overrides outlive the bundle, so they go while the
+                    // app can still ask for the password to remove them.
+                    guard removeDisplayOverridesIfPresent() else {
+                        stop(L10n.shared.s.advancedUninstallFailedBody, sleepRestored: true)
+                        return
+                    }
                     // The helper must be safely removed before permissions go;
                     // a failure here keeps the app's existing grants intact.
                     let fanHelperWasRegistered = FanControlService.hasRegisteredHelperForRemoval
@@ -234,6 +240,17 @@ enum SelfUninstall {
         let verification = Shell.run("/usr/bin/pmset", ["-g"])
         return verification.status == 0
             && !SudoersSupport.sleepDisabled(inPmsetOutput: verification.output)
+    }
+
+    private static func removeDisplayOverridesIfPresent() -> Bool {
+        let semaphore = DispatchSemaphore(value: 0)
+        var removed = false
+        DisplayScalingService.removeAllForUninstall { succeeded in
+            removed = succeeded
+            semaphore.signal()
+        }
+        semaphore.wait()
+        return removed
     }
 
     private static func removeSudoersRuleIfPresent(then: @escaping (Bool) -> Void) {
