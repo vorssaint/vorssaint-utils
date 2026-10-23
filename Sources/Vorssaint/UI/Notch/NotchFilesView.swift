@@ -262,6 +262,7 @@ struct NotchFilesView: View {
     private func toolTitle(_ tool: MediaTool) -> String {
         switch tool {
         case .videoCompressor: return l10n.s.mediaToolVideo
+        case .audioConverter: return FeatureStrings.mediaAudio(l10n.language).tool
         case .gifMaker: return l10n.s.mediaToolGIF
         case .imageCompressor: return l10n.s.mediaToolImage
         case .textExtractor: return l10n.s.mediaToolText
