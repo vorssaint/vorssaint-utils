@@ -536,6 +536,21 @@ def main():
           + "".join(declaration(cleaner, prefix).replace("private static", "static", 1) for prefix in [
               "    private static func pollPasteboard(", "    private static func writeToPasteboard("])
           + "}\n")
+    write("CommandBarFeatureNames.swift", "import Foundation\nextension AppFeature {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift", "    func hubTitle(")
+          + "}\n")
+    write("CommandBarCatalogBuild.swift", "import Foundation\n"
+          + "extension CommandBarFeatureTests.CatalogBuildHost {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                        "    static func build(")
+          + "}\n")
+    write("CommandBarCatalogSearch.swift", "import AppKit\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                        "struct CommandBarEntry:")
+          + "enum CommandBarCatalogSearch {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                        "    static func includingEnglishNames(")
+          + "}\n")
     write("CommandBarCopyAnswer.swift", "import Foundation\n"
           + "extension CommandBarFeatureTests.CopyAnswerHost {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
