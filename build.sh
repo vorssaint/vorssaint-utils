@@ -275,6 +275,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchWatchSupport.swift
         Sources/Vorssaint/Core/NotchMascotStrings.swift
         Sources/Vorssaint/Services/Notch/NotchMascotSupport.swift
+        Sources/Vorssaint/Core/NotchCompanionStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchCompanionPack.swift
+        Sources/Vorssaint/Services/Notch/NotchCompanionLibrary.swift
+        Sources/Vorssaint/Services/Notch/NotchCompanionGenerator.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarDropletMotion.swift
         Sources/Vorssaint/Services/Notch/NotchFileToolsSupport.swift
         Sources/Vorssaint/Services/Notch/NotchDownloadSupport.swift
@@ -677,6 +681,9 @@ mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
+# The companion skill, which the app installs into Codex to draw characters.
+mkdir -p "$STAGE/Contents/Resources/CompanionSkill"
+cp -R Tools/skills/vorssaint-companion/. "$STAGE/Contents/Resources/CompanionSkill/"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"

@@ -36,6 +36,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchMascotStyle) private var mascotStyle = NotchMascotStyle.minimal.rawValue
     @AppStorage(DefaultsKey.notchMascotShape) private var mascotShape = NotchMascotShape.ball.rawValue
     @AppStorage(DefaultsKey.notchMascotPalette) private var mascotPalette = NotchMascotPalette.pearl.rawValue
+    @AppStorage(DefaultsKey.notchMascotCharacter) private var mascotCharacter = ""
     @AppStorage(DefaultsKey.notchMascotSide) private var mascotSide = NotchMascotSide.left.rawValue
     @AppStorage(DefaultsKey.notchDisplay) private var display = NotchDisplay.automatic.rawValue
     @AppStorage(DefaultsKey.notchSilhouette) private var silhouette = NotchSilhouette.capsule.rawValue
@@ -919,7 +920,8 @@ struct NotchSettings: View {
     private var restingMascot: some View {
         let look = NotchMascotLook(style: NotchMascotStyle(rawValue: mascotStyle) ?? .minimal,
                                    shape: NotchMascotShape(rawValue: mascotShape) ?? .ball,
-                                   palette: NotchMascotPalette(rawValue: mascotPalette) ?? .pearl)
+                                   palette: NotchMascotPalette(rawValue: mascotPalette) ?? .pearl,
+                                   character: mascotCharacter)
         let right = NotchMascotSide(rawValue: mascotSide) == .right
         return HStack(spacing: 14) {
             if right { Color.clear.frame(width: 12, height: 12) }
