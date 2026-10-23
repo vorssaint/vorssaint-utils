@@ -231,10 +231,27 @@ struct MetricsTests {
             groups.forEach { print($0.0) }
             exit(0)
         }
+        // Registered defaults and values written through UserDefaults.standard
+        // are visible to every suite a later test opens, so one group's
+        // leftovers decide another's "never set" checks. Each group starts
+        // from the state the runner started with, and a group that leaves
+        // either behind is named so the leak can be traced.
+        let defaults = Foundation.UserDefaults.standard
+        let processDomain = ProcessInfo.processInfo.processName
+        let registration = defaults.volatileDomain(forName: Foundation.UserDefaults.registrationDomain)
+        let registrationKeys = Set(registration.keys)
         // notch-music is a focused subset already executed by notch. Running it
         // twice in an unfiltered pass also repeats stateful adapter fixtures.
         for (name, body) in groups where (selected.isEmpty && name != "notch-music") || selected.contains(name) {
             suite.run(name, body)
+            let leftRegistered = Set(defaults.volatileDomain(forName: Foundation.UserDefaults.registrationDomain).keys)
+                .subtracting(registrationKeys)
+            let leftWritten = defaults.persistentDomain(forName: processDomain) ?? [:]
+            if !leftRegistered.isEmpty || !leftWritten.isEmpty {
+                print("  note: \(name) left \(leftRegistered.count) registered and \(leftWritten.count) written defaults; reset")
+            }
+            defaults.setVolatileDomain(registration, forName: Foundation.UserDefaults.registrationDomain)
+            defaults.removePersistentDomain(forName: processDomain)
         }
         suite.finish()
     }
