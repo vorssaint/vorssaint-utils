@@ -162,7 +162,7 @@ def main():
                         "    private func held(", "    private func releaseTime(", "    private func eventTime(",
                         "    private func finishLeftPress(", "    private func newerPress(",
                         "    private var primaryScreenHeight:", "    private func appKitPoint(",
-                        "    private func onButton("])
+                        "    private func onButton(", "    private func finishUnseenRelease("])
           + "}\nfinal class ControllerHost: ControllerFixture {\n"
           + declaration("Sources/Vorssaint/App/StatusItemController.swift", "    @objc private func clicked(")
             .replace("@objc private ", "")

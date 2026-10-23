@@ -25,8 +25,7 @@ enum StatusItemGestureAdapterTests {
         var timestamp: TimeInterval
         var modifierFlags: AppKit.NSEvent.ModifierFlags = []
         var window: Window?
-        /// Where the event happened, in display coordinates. Unset, the
-        /// adapter falls back to the live pointer.
+        /// The event's own location, in display coordinates.
         var cgEvent: CGEvent?
     }
 
@@ -104,6 +103,7 @@ enum StatusItemGestureAdapterTests {
     class Fixture {
         static let releaseWatchInterval: TimeInterval = 0.04
         static let lateActionWindow: TimeInterval = 2
+        static let sameEventSlack: TimeInterval = 0.001
         var owner: Owner? = Owner()
         var gesture = StatusItemGesture()
         var settings = StatusItemGesture.Settings(middle: .keepAwake, hold: .screenshot)
@@ -619,6 +619,18 @@ extension StatusItemGestureAdapterTests {
         host.timer?.fire()
         suite.expect(host.results == [.quick(.keepAwake), .quick(.screenshot)],
                      "a monitored left hold starting on the top row works with release-time button actions")
+        // A press counts over the bar's height above the button, never beside it.
+        let above = Host()
+        NSEvent.mouseLocation = CGPoint(x: 120, y: 316)
+        NSEvent.pressedMouseButtons = 1
+        above.observe(NSEvent(type: .leftMouseDown, timestamp: 345))
+        suite.expect(above.gesture.watchesForRelease, "a press above the button's top edge is still on the icon")
+        above.cancel()
+        NSEvent.pressedMouseButtons = 0
+        let beside = Host()
+        beside.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 103))
+        beside.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 103))
+        suite.expect(beside.results.isEmpty, "a middle click just beside the icon is not on it")
         NSEvent.mouseLocation = CGPoint(x: 120, y: 300)
         for number in [0, 99] {
             WindowServerSupport.receivingWindowNumber = number
@@ -1291,6 +1303,7 @@ extension StatusItemGestureAdapterTests {
         Permissions.shared.accessibility = false
         Permissions.shared.accessibility = true
         host.handleMiddleTap(type: .tapDisabledByUserInput, event: middleEvent(.otherMouseUp, x: 120))
+        host.syncMiddleTap() // what the notice defers to the main queue
         suite.expect(host.middleTap == nil && host.installations == 1,
                      "syncs, grant changes and disabled notices stay suspended")
         host.owner?.gestureTapSuspended = false
@@ -1299,24 +1312,22 @@ extension StatusItemGestureAdapterTests {
         Permissions.shared.accessibility = false
     }
 
-    /// A monitored event can be handled after the pointer moved on. Where the
-    /// event itself happened decides, and so does the press for its action.
+    /// A press is claimed where the pointer is: AppKit places a status item
+    /// press through the item's window, which macOS 27 can leave stranded
+    /// away from the drawn icon. A release, which can be handled after the
+    /// pointer moved on, counts where the press was last seen held.
     private static func testQueuedEventLocation(_ suite: TestSuite) {
         let point = CGPoint(x: 120, y: 300)
         let away = CGPoint(x: 120, y: 200)
-        func at(_ location: CGPoint) -> CGEvent {
-            CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp,
-                    mouseCursorPosition: CGPoint(x: location.x, y: 800 - location.y), mouseButton: .left)!
-        }
         let monitored = Host()
         NSEvent.mouseLocation = point
         NSEvent.pressedMouseButtons = 1
-        monitored.observe(NSEvent(type: .leftMouseDown, timestamp: 940, cgEvent: at(point)))
+        monitored.observe(NSEvent(type: .leftMouseDown, timestamp: 940))
         NSEvent.pressedMouseButtons = 0
         NSEvent.mouseLocation = away
-        monitored.observe(NSEvent(timestamp: 940.1, cgEvent: at(point)))
+        monitored.observe(NSEvent(timestamp: 940.1))
         suite.expect(monitored.results == [.single(point)],
-                     "a queued release on the icon counts where it happened")
+                     "a queued release counts where the press was held, not where the pointer went")
 
         let acted = Host()
         NSEvent.mouseLocation = point
@@ -1328,15 +1339,25 @@ extension StatusItemGestureAdapterTests {
         suite.expect(acted.buttonClick(NSEvent(timestamp: 950.1)) && acted.results == [.single(point)],
                      "the button's own action finishes its press wherever the pointer went")
 
-        let dragged = Host()
+        // The item's frame is stranded far from where the icon is drawn and
+        // clicked: the press is refused, and the normal click still runs.
+        let controller = ControllerHost()
+        let stranded = Host()
+        controller.gestureHandler = stranded
+        stranded.frame = CGRect(x: 805, y: 288, width: 30, height: 24)
+        // AppKit places the relayed press inside the item's window.
+        let relayed = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,
+                              mouseCursorPosition: CGPoint(x: 820, y: 500), mouseButton: .left)
         NSEvent.mouseLocation = point
         NSEvent.pressedMouseButtons = 1
-        dragged.observe(NSEvent(type: .leftMouseDown, timestamp: 960))
-        NSEvent.mouseLocation = point
-        dragged.observe(NSEvent(type: .leftMouseDragged, timestamp: 960.2, cgEvent: at(away)))
-        suite.expect(!dragged.gesture.isActive, "a queued drag off the icon cancels where it happened")
-        NSEvent.mouseLocation = point
+        stranded.observe(NSEvent(type: .leftMouseDown, timestamp: 960, cgEvent: relayed))
+        ProcessInfo.processInfo.systemUptime = 960
+        NSApp.currentEvent = NSEvent(timestamp: 960, cgEvent: relayed)
+        controller.clicked()
+        suite.expect(!stranded.gesture.isActive && stranded.timer == nil && controller.leftClicks == 1,
+                     "a stranded frame refuses the press and the panel still opens")
         NSEvent.pressedMouseButtons = 0
+        NSApp.currentEvent = nil
     }
 
     /// Which time a release is judged by: the release action's own, or the
@@ -1344,16 +1365,40 @@ extension StatusItemGestureAdapterTests {
     private static func testReleaseTimeSources(_ suite: TestSuite) {
         let point = CGPoint(x: 120, y: 300)
         // A release action carries its exact time, even when the event source
-        // already records a later click's release.
+        // already records a later press and its release.
+        let controller = ControllerHost()
         let exact = Host()
+        controller.gestureHandler = exact
         NSEvent.mouseLocation = point
         NSEvent.pressedMouseButtons = 1
         exact.observe(NSEvent(type: .leftMouseDown, timestamp: 970))
         NSEvent.pressedMouseButtons = 0
-        CGEventSource.releasedAt = 970.7
-        ProcessInfo.processInfo.systemUptime = 970.8
-        _ = exact.buttonClick(NSEvent(timestamp: 970.1))
-        suite.expect(exact.results == [.single(point)], "a release action's own time decides")
+        CGEventSource.pressedAt = 970.8
+        CGEventSource.releasedAt = 970.9
+        ProcessInfo.processInfo.systemUptime = 971
+        NSApp.currentEvent = NSEvent(timestamp: 970.7)
+        controller.clicked()
+        suite.expect(exact.results == [.quick(.screenshot)] && controller.leftClicks == 0,
+                     "a release action's own time decides")
+
+        // A press-time action delivered late, after a newer press and its
+        // release: nothing past the press itself is assumed.
+        let late = ControllerHost()
+        let stalled = Host()
+        late.gestureHandler = stalled
+        NSEvent.pressedMouseButtons = 1
+        stalled.observe(NSEvent(type: .leftMouseDown, timestamp: 975))
+        NSEvent.pressedMouseButtons = 0
+        CGEventSource.pressedAt = 975.6
+        CGEventSource.releasedAt = 975.7
+        ProcessInfo.processInfo.systemUptime = 975.8
+        NSApp.currentEvent = NSEvent(timestamp: 975)
+        late.clicked()
+        suite.expect(stalled.results == [.single(point)] && late.leftClicks == 0,
+                     "a later press's release never stretches this click into a hold")
+        NSApp.currentEvent = nil
+        CGEventSource.pressedAt = nil
+        CGEventSource.releasedAt = nil
 
         // The press's own down is not a newer press.
         let own = Host()
@@ -1386,22 +1431,39 @@ extension StatusItemGestureAdapterTests {
     }
 
     /// A second press can begin before a tick saw the first come up. The
-    /// first ends as the click it was, and the second starts on its own.
+    /// first ends as the click it was, and the second starts on its own. A
+    /// right click or a modified press right after a release does the same.
     private static func testSecondPress(_ suite: TestSuite) {
         let point = CGPoint(x: 120, y: 300)
         let host = Host()
         NSEvent.mouseLocation = point
         NSEvent.pressedMouseButtons = 1
         host.observe(NSEvent(type: .leftMouseDown, timestamp: 1000))
+        ProcessInfo.processInfo.systemUptime = 1000
+        _ = host.buttonClick(NSEvent(timestamp: 1000))
         host.observe(NSEvent(type: .leftMouseDown, timestamp: 1000.03))
+        ProcessInfo.processInfo.systemUptime = 1000.03
+        _ = host.buttonClick(NSEvent(timestamp: 1000.03))
         suite.expect(host.results == [.single(point)] && host.gesture.watchesForRelease,
                      "the first press opens the panel and the second is watched")
-        _ = host.buttonClick(NSEvent(timestamp: 1000.02))
-        suite.expect(host.results == [.single(point)], "the first press's late action stays its own")
         NSEvent.pressedMouseButtons = 0
         ProcessInfo.processInfo.systemUptime = 1000.1
         host.timer?.fire()
         suite.expect(host.results == [.single(point), .single(point)], "the second press has its own outcome")
+
+        for (type, flags) in [(AppKit.NSEvent.EventType.rightMouseDown, AppKit.NSEvent.ModifierFlags()),
+                              (.leftMouseDown, .command)] {
+            let next = Host()
+            NSEvent.pressedMouseButtons = 1
+            next.observe(NSEvent(type: .leftMouseDown, timestamp: 1010))
+            ProcessInfo.processInfo.systemUptime = 1010
+            _ = next.buttonClick(NSEvent(timestamp: 1010))
+            NSEvent.pressedMouseButtons = type == .rightMouseDown ? 0 : 1
+            next.observe(NSEvent(type: type, timestamp: 1010.03, modifierFlags: flags))
+            suite.expect(next.results == [.single(point)] && !next.gesture.isActive,
+                         "a click released just before a \(type == .rightMouseDown ? "right click" : "⌘ press") keeps its outcome")
+        }
+        NSEvent.pressedMouseButtons = 0
     }
 
     /// The panel anchors at the click. A release in the slack around the icon

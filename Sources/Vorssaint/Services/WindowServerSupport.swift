@@ -98,8 +98,9 @@ enum WindowServerSupport {
     }
 
     /// Whether a window is the menu bar itself. Where the system draws the
-    /// bar (macOS 27), status items have no window of their own, and a click
-    /// on one lands on this window, which no app owns.
+    /// bar (macOS 27), status items have no window of their own: the hit test
+    /// names this window, which no app owns, over the empty bar and other
+    /// apps' items, and often no window at all over this app's own.
     static func isMenuBar(windowID: CGWindowID) -> Bool {
         guard let infos = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID)
                 as? [[String: Any]],
