@@ -669,7 +669,7 @@ private struct ScreenshotQuickPreviewView: View {
     private var preview: some View {
         VStack(spacing: 10) {
             Button {
-                perform(.edit)
+                perform(.copy)
             } label: {
                 Image(decorative: image, scale: 1)
                     .resizable()
@@ -686,8 +686,8 @@ private struct ScreenshotQuickPreviewView: View {
             }
             .buttonStyle(.plain)
             .onDrag(dragItem)
-            .screenshotSafeHelp(strings.editButton)
-            .accessibilityLabel(strings.editButton)
+            .screenshotSafeHelp(strings.copyButton)
+            .accessibilityLabel(strings.copyButton)
             .overlay(alignment: .topLeading) {
                 if showsDismissButton { thumbnailDismissButton }
             }
