@@ -152,6 +152,14 @@ extension AppFeature {
              .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .wallpaper, .fanControl,
              .diskImageInstaller, .killProcess, .portManager:
             return .idle
+        // Clicks and scrolls always; keys only while a key sound is on.
+        case .inputSounds:
+            let defaults = UserDefaults.standard
+            return defaults.bool(forKey: DefaultsKey.inputSoundsKeyboard)
+                || defaults.bool(forKey: DefaultsKey.inputSoundsTypingCombo)
+                ? .inputs : .mouse
+        // Pointer moves are only followed while the spotlight shows.
+        case .clickHighlight: return .mouse
         case .appUpdates:
             // The list is on demand; only a background schedule keeps a timer.
             return AppUpdatesSupport.CheckFrequency.sanitized(
