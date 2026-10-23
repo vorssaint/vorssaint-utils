@@ -2154,11 +2154,29 @@ def main():
                     for prefix in ["    private func start(", "    private func read(", "    private func filesChanged("])
           + "}\n}\n")
 
+    write("AgentPageGeometry.swift", "import Foundation\n"
+          + "extension NotchAgentTests {\nfinal class GeometryHost: GeometryFixture {\n"
+          + declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", "    private func agentsContentHeight(")
+            .replace("private func", "func", 1)
+            .replace("AgentUsageService.shared.snapshot", "snapshot")
+            .replace("CodexProfileLimitsService.shared.states", "states")
+            .replace("NotchAgentSupport.providers()", "NotchAgentSupport.providers(in: defaults)")
+            .replace("NotchAgentSupport.showsCodexAccounts()", "NotchAgentSupport.showsCodexAccounts(in: defaults)")
+            .replace("NotchAgentSupport.cards()", "NotchAgentSupport.cards(in: defaults)")
+          + "}\n}\n")
+
+    write("WeeklyCodexForward.swift", "import Foundation\n"
+          + "extension CodexAccountLimitsTests {\nfinal class WeeklyForwardHost: WeeklyForwardFixture {\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchAgentsView.swift",
+                        "    private func forwardWeeklyCodex(").replace("private func", "func", 1)
+          + "}\n}\n")
+
     write("AgentClaudeServerService.swift", "import Foundation\n"
           + "extension AgentClaudeServerTests {\nfinal class Host: Fixture {\n"
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
                     .replace("private func", "func", 1)
-                    for prefix in ["    private func readClaudeApp(", "    private func checkLimits(",
+                    for prefix in ["    func pageDidAppear(", "    func pageDidDisappear(",
+                                   "    private func readClaudePlan(", "    private func readClaudeApp(", "    private func acceptClaudeAccount(", "    private func checkLimits(",
                                    "    private func reportRenewals(", "    private func claudeLimitsDue(",
                                    "    private func noteClaudeCheck(", "    private func networkChanged("])
           + "}\n}\n")

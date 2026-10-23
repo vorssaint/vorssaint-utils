@@ -38,11 +38,53 @@ enum NotchAgentTests {
         AgentClaudeServerTests.run(suite)
         CodexAccountLimitsTests.run(suite)
         preferences(suite)
+        weeklyGeometry(suite)
         limitUse(suite)
         agentDefaults(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
         NotchAgentAnimationTests.run { suite.expect($0, $1) }
+        AgentWeeklyUsageTests.run(suite)
+        AgentCodexResetForecastTests.run(suite)
+        suite.expect(NotchAgentCard(rawValue: "weekly") != nil,
+                     "weekly usage is a selectable AI agents card")
+    }
+
+    class GeometryFixture {
+        var snapshot = AgentUsageSnapshot(loaded: true)
+        var states: [CodexProfileLimitsState] = []
+        let defaults: UserDefaults
+        init(defaults: UserDefaults) { self.defaults = defaults }
+    }
+
+    private static func weeklyGeometry(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.weekly-geometry." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let host = GeometryHost(defaults: defaults)
+        defaults.set(NotchAgentCard.allCases.filter { $0 != .weekly }.map(\.rawValue).joined(separator: ","),
+                     forKey: DefaultsKey.notchAgentsHiddenCards)
+        for provider in AgentProvider.allCases { defaults.set(false, forKey: NotchAgentSupport.key(for: provider)) }
+        defaults.set(true, forKey: DefaultsKey.notchAgentsClaude)
+        suite.expect(host.agentsContentHeight(width: 424) == 500,
+                     "a Claude Weekly card without local logs receives its full page height")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsClaude)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsCodex)
+        host.states = [CodexProfileLimitsState(profile: CodexAccountProfile(
+            id: CodexProfileLimitsService.weeklyProfileID, name: "Codex", directory: CodexProfileLimitsService.defaultDirectory))]
+        suite.expect(host.agentsContentHeight(width: 424) == 640,
+                     "a Codex Weekly-only transient home without logs receives its full page height")
+        defaults.set(true, forKey: DefaultsKey.notchAgentsClaude)
+        suite.expect(host.agentsContentHeight(width: 424) == 1140 + NotchAgentSupport.spacing,
+                     "both Weekly providers without logs receive two full-height rows")
+        defaults.set(NotchAgentCard.allCases.map(\.rawValue).joined(separator: ","), forKey: DefaultsKey.notchAgentsHiddenCards)
+        suite.expect(host.agentsContentHeight(width: 424) == 0,
+                     "hiding every card cannot leave a virtual Codex profile contributing page height")
+        defaults.set(NotchAgentCard.allCases.filter { $0 != .limits }.map(\.rawValue).joined(separator: ","),
+                     forKey: DefaultsKey.notchAgentsHiddenCards)
+        host.snapshot.loaded = false
+        suite.expect(host.agentsContentHeight(width: 424) == nil,
+                     "a transient Weekly profile never bypasses the log-loading placeholder as a saved account")
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -3074,8 +3116,10 @@ enum NotchAgentTests {
         func used(page: Bool) -> Bool { NotchAgentSupport.limitsInUse(pageShown: page, in: defaults) }
         let alerts = used(page: false)
         defaults.set(false, forKey: DefaultsKey.notchAgentsLimitAlert)
-        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        defaults.set("limits,weekly", forKey: DefaultsKey.notchAgentsHiddenCards)
         let unused = !used(page: false) && !used(page: true)
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        let weekly = !used(page: false) && used(page: true)
         defaults.set("", forKey: DefaultsKey.notchAgentsHiddenCards)
         let card = !used(page: false) && used(page: true)
         defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
@@ -3084,8 +3128,8 @@ enum NotchAgentTests {
         defaults.set(false, forKey: DefaultsKey.notchAgentsLiveActivity)
         let liveOff = !used(page: false)
         defaults.set(NotchIdleContent.agents.rawValue, forKey: DefaultsKey.notchIdleContent)
-        suite.expect(alerts && unused && card && readout && liveOff && used(page: false),
-                     "limits are in use for their alerts, a live limit reading, the resting island or the page's Limits card, and only then")
+        suite.expect(alerts && unused && weekly && card && readout && liveOff && used(page: false),
+                     "limits are in use for alerts, live limits, resting limits or the visible Limits and Weekly cards")
     }
 
     private static func preferences(_ suite: TestSuite) {
@@ -3120,7 +3164,7 @@ enum NotchAgentTests {
 
         defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
-        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets, .weekly],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")

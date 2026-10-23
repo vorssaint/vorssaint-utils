@@ -7,7 +7,7 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity, resets
+    case limits, spend, live, trend, models, projects, activity, resets, weekly
 
     var id: String { rawValue }
 
@@ -21,11 +21,12 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
         case .projects: return "folder"
         case .activity: return "square.grid.3x3.fill"
         case .resets: return "arrow.counterclockwise.circle"
+        case .weekly: return "chart.xyaxis.line"
         }
     }
 
     /// Charts need the island's width; everything else pairs up.
-    var fullWidth: Bool { self == .trend || self == .activity }
+    var fullWidth: Bool { self == .trend || self == .activity || self == .weekly }
 
     /// Cards that cover the period chosen in the island's top row.
     var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
@@ -87,6 +88,14 @@ enum NotchAgentSupport {
         AgentProvider.allCases.filter {
             defaults.object(forKey: key(for: $0)) as? Bool ?? true
         }
+    }
+
+    /// Geometry and rendering use the same providers, including quota-only
+    /// Weekly cards before any local log has been written.
+    static func visibleProviders(_ enabled: [AgentProvider], seen: Set<AgentProvider>,
+                                 hasCodexAccounts: Bool, showsWeekly: Bool) -> [AgentProvider] {
+        enabled.filter { seen.contains($0) || ($0 == .codex && hasCodexAccounts)
+            || (showsWeekly && ($0 == .claude || $0 == .codex)) }
     }
 
     static func key(for provider: AgentProvider) -> String {
@@ -206,7 +215,7 @@ enum NotchAgentSupport {
         limitThreshold(in: defaults) != nil
             || (showsLiveActivity(in: defaults) && readout(in: defaults) == .limit)
             || NotchSupport.idleContent(in: defaults) == .agents
-            || (pageShown && !hiddenCards(in: defaults).contains(.limits))
+            || (pageShown && (!hiddenCards(in: defaults).contains(.limits) || !hiddenCards(in: defaults).contains(.weekly)))
     }
 
     // MARK: Strip
@@ -275,6 +284,8 @@ enum NotchAgentSupport {
             // the card names once others have cards.
             case .resets: return providers.contains(.codex)
                 ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
+            case .weekly: return providers.filter { $0 == .claude || $0 == .codex }
+                .map { NotchAgentTile(card: .weekly, provider: $0) }
             default: return [NotchAgentTile(card: card, provider: nil)]
             }
         }
@@ -303,6 +314,7 @@ enum NotchAgentSupport {
     }
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
+        if let weekly = row.first(where: { $0.card == .weekly }) { return weekly.provider == .codex ? 640 : 500 }
         if row.contains(where: \.card.fullWidth) { return chartHeight }
         return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
     }

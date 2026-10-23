@@ -26,14 +26,15 @@ struct NotchAgentsView: View {
     /// card's place, so none while that card is hidden.
     private var codexAccounts: [CodexProfileLimitsState] {
         _ = (codex, hiddenCards)
-        return NotchAgentSupport.showsCodexAccounts() ? accounts.states : []
+        return NotchAgentSupport.showsCodexAccounts()
+            ? accounts.states.filter { $0.id != CodexProfileLimitsService.weeklyProfileID } : []
     }
 
-    /// Only agents that left something on this Mac, or whose accounts were
-    /// added, get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
-            .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty) }
+        let enabled = [claude ? AgentProvider.claude : nil, codex ? .codex : nil,
+                       opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        return NotchAgentSupport.visibleProviders(enabled, seen: usage.snapshot.seen,
+            hasCodexAccounts: !codexAccounts.isEmpty, showsWeekly: NotchAgentSupport.cards().contains(.weekly))
     }
 
     private var rows: [[NotchAgentTile]] {
@@ -77,13 +78,26 @@ struct NotchAgentsView: View {
         .environment(\.locale, l10n.language.formattingLocale())
         .onAppear {
             usage.pageDidAppear(preview: preview)
-            accounts.pageDidAppear(preview: preview)
+            accounts.pageDidAppear(preview: preview, includeWeekly: true)
+            if !preview { forwardWeeklyCodex(accounts.states) }
         }
         .onDisappear {
             guard !preview else { return }
             usage.pageDidDisappear()
             accounts.pageDidDisappear()
         }
+        .onChange(of: accounts.states) { _, states in
+            guard !preview else { return }
+            forwardWeeklyCodex(states)
+        }
+    }
+
+    private func forwardWeeklyCodex(_ states: [CodexProfileLimitsState]) {
+        // A recreated transient home has no reading yet. Only a definitive
+        // account failure can invalidate the previously selected history.
+        guard let state = states.first(where: { CodexProfileLimitsService.isDefaultHome($0.profile) }),
+              state.limits != nil || state.failure == .needsSignIn || state.failure == .invalidProfile else { return }
+        usage.noteWeeklyCodexLimits(state.limits)
     }
 
     private var periodMenu: some View {
@@ -132,6 +146,28 @@ struct NotchAgentsView: View {
             NotchAgentActivityCard(snapshot: snapshot, text: text)
         case .resets:
             NotchAgentResetsCard(now: now, text: text, showsDefaultAccount: tile.namesDefaultAccount)
+        case .weekly:
+            if let provider = tile.provider {
+                NotchAgentWeeklyCard(provider: provider, cycle: usage.weeklyUsage.current(provider), now: now,
+                                     historyFailed: usage.weeklyHistoryFailed,
+                                     strings: AgentWeeklyStrings.localized(l10n.language), text: text,
+                                     status: weeklyStatus(provider))
+            }
+        }
+    }
+
+    private func weeklyStatus(_ provider: AgentProvider) -> String? {
+        if provider == .claude { return usage.claudeAccountFailure.map { text.claudeCode($0) } }
+        let state = accounts.states.first { CodexProfileLimitsService.isDefaultHome($0.profile) }
+        let strings = FeatureStrings.codexAccounts(l10n.language)
+        return state?.failure.map { failure in
+            switch failure {
+            case .missingCLI: return text.resetsNeedCodex
+            case .needsSignIn: return strings.signIn
+            case .outdated: return strings.update
+            case .invalidProfile: return strings.folderProblem
+            case .unavailable, .cancelled: return strings.failed
+            }
         }
     }
 

@@ -44,6 +44,12 @@ enum AgentUsageReadTests {
         }
     }
 
+    enum AgentWeeklyUsageFile {
+        static var saved = AgentWeeklyUsage()
+        static var url: URL? { nil }
+        static func load(from url: URL?) -> (history: AgentWeeklyUsage, failed: Bool) { (saved, false) }
+    }
+
     final class Cancellation {
         var isCancelled = false
     }
@@ -60,6 +66,8 @@ enum AgentUsageReadTests {
     }
 
     class Fixture {
+        var weeklyHistory = AgentWeeklyUsage()
+        var weeklySaveFailed = false
         static let horizon = TimeInterval(AgentUsageSnapshot.dayCount) * 86_400
         let queue = Queue()
         var home = FileManager.default.temporaryDirectory
@@ -104,6 +112,20 @@ enum AgentUsageReadTests {
         do { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
         catch { suite.expect(false, "the streaming fixture creates its folder: \(error)"); return }
         let now = Date()
+        defer { AgentWeeklyUsageFile.saved = AgentWeeklyUsage() }
+        for provider in [AgentProvider.claude, .codex] {
+            let window = AgentLimitWindow(id: "week", kind: .weekly, minutes: 10_080, scope: nil,
+                usedPercent: 25, resetsAt: now.addingTimeInterval(3600))
+            AgentWeeklyUsageFile.saved.record(AgentLimits(provider: provider, windows: [window], observedAt: now,
+                source: .account, accountScope: "previous-account"), now: now)
+        }
+        let starting = Host()
+        starting.home = folder.appendingPathComponent("no-profile")
+        starting.start(session: 1, providers: [.claude, .codex], cancellation: Cancellation())
+        suite.expect(starting.weeklyHistory.current(.claude) == nil && starting.weeklyHistory.current(.codex) == nil
+                     && starting.weeklyHistory.cycles.count == 2,
+                     "startup preserves observations but suspends both saved account plans until identity is revalidated")
+        AgentWeeklyUsageFile.saved = AgentWeeklyUsage()
         let timestamp = now.timeIntervalSince1970
         let cases: [(AgentProvider, [String])] = [
             (.claude, [
