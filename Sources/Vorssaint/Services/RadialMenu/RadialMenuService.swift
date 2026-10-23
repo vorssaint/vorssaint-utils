@@ -111,6 +111,10 @@ final class RadialMenuService: ObservableObject {
             defaults.data(forKey: DefaultsKey.radialMenuProfiles),
             defaults: defaults
         )
+        // Read ahead, so the first wheel already shows its shortcuts by name.
+        if profiles.contains(where: { RadialMenuSupport.containsAppleShortcut($0.items) }) {
+            RadialAppleShortcutCatalog.shared.refresh()
+        }
 
         for hotkey in hotkeys.values { hotkey.unregister() }
         hotkeys.removeAll()
@@ -371,6 +375,11 @@ final class RadialMenuService: ObservableObject {
             nowPlaying.refresh { [weak self] state in self?.nowPlayingState = state }
         } else {
             nowPlayingState = .nothingPlaying
+        }
+        // A shortcut renamed since the last read gets its new name while the
+        // wheel is open.
+        if RadialMenuSupport.containsAppleShortcut(items) {
+            RadialAppleShortcutCatalog.shared.refresh()
         }
 
         let shortcut = GlobalShortcut(storageValue: profile.shortcut) ?? .radialMenuDefault
@@ -743,6 +752,18 @@ final class RadialMenuService: ObservableObject {
         case .shortcut:
             if let shortcut = GlobalShortcut(storageValue: item.payload) {
                 postWhenModifiersReleased(attempt: 0) { Self.postShortcut(shortcut) }
+            }
+        case .appleShortcut:
+            // Shortcuts and scripts get the same beat as the tools, so the
+            // wheel is gone before they show, type or capture anything.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                Shell.runInBackground(RadialMenuSupport.shortcutsToolPath, ["run", item.payload],
+                                      timeout: RadialMenuSupport.appleShortcutTimeout)
+            }
+        case .script:
+            let path = (item.payload as NSString).expandingTildeInPath
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                Shell.runInBackground(path, [])
             }
         case .media:
             if let key = item.mediaKey {

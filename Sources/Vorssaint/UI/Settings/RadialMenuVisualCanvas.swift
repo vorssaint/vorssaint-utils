@@ -310,7 +310,7 @@ struct RadialMenuVisualCanvas: View {
                     .foregroundStyle(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
-                Text(kindLabel(for: item))
+                Text(item.kindTitle(text))
                     .font(.system(size: 8, weight: .medium))
                     .foregroundStyle(.white.opacity(0.6))
             }
@@ -354,20 +354,6 @@ struct RadialMenuVisualCanvas: View {
             .shadow(color: profileColor.opacity(0.6), radius: 10, y: 4)
             .position(dragPosition)
             .allowsHitTesting(false)
-        }
-    }
-
-    private func kindLabel(for item: RadialMenuItem) -> String {
-        switch item.kind {
-        case .app: return text.kindApp
-        case .file: return text.kindFile
-        case .url: return text.kindURL
-        case .shortcut: return text.kindShortcut
-        case .tool: return text.kindTool
-        case .quickToggle: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
-        case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
-        case .media: return text.kindMedia
-        case .submenu: return text.kindSubmenu
         }
     }
 }

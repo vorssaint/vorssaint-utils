@@ -226,12 +226,13 @@ enum RadialMenuProfilePreset: String, CaseIterable, Identifiable {
     }
 }
 
-/// One action on the wheel. `payload` carries the target: an app or file path,
-/// a link, tool, media or window-layout identifier, or a shortcut storage
-/// value. Submenus keep their actions in `children`.
+/// One action on the wheel. `payload` carries the target: an app, file or
+/// script path, a link, tool, media or window-layout identifier, a shortcut
+/// storage value, or the identifier of a shortcut from the Shortcuts app.
+/// Submenus keep their actions in `children`.
 struct RadialMenuItem: Codable, Identifiable, Equatable {
     enum Kind: String, Codable, CaseIterable {
-        case app, file, url, shortcut, tool, quickToggle, windowLayout, media, submenu
+        case app, file, url, shortcut, appleShortcut, script, tool, quickToggle, windowLayout, media, submenu
     }
 
     var id = UUID()
@@ -266,6 +267,8 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
         case .file: return "folder"
         case .url: return "link"
         case .shortcut: return "command"
+        case .appleShortcut: return "square.2.layers.3d"
+        case .script: return "terminal"
         case .tool: return tool?.symbolName ?? "wrench.and.screwdriver"
         case .quickToggle: return quickToggle?.symbolName ?? "togglepower"
         case .windowLayout: return windowLayoutAction?.symbolName ?? AppFeature.windowLayout.symbolName
@@ -336,6 +339,13 @@ private struct FailableRadialMenuItem: Decodable {
     init(from decoder: Decoder) throws {
         value = try? RadialMenuItem(from: decoder)
     }
+}
+
+/// A shortcut from the Shortcuts app, as its command line tool lists it. A
+/// slice keeps only the identifier, so renaming the shortcut does not break it.
+struct RadialAppleShortcut: Identifiable, Equatable {
+    let id: String
+    let name: String
 }
 
 /// Vorssaint tools a slice can trigger. Raw values persist inside the items
@@ -672,9 +682,10 @@ enum RadialMenuSupport {
     /// disagree about what belongs on a wheel.
     static func isValidPayload(_ item: RadialMenuItem) -> Bool {
         switch item.kind {
-        case .app, .file: return !item.payload.isEmpty
+        case .app, .file, .script: return !item.payload.isEmpty
         case .url: return normalizedURL(item.payload) != nil
         case .shortcut: return GlobalShortcut(storageValue: item.payload) != nil
+        case .appleShortcut: return UUID(uuidString: item.payload) != nil
         case .tool: return item.tool != nil
         case .quickToggle: return item.quickToggle != nil
         case .windowLayout: return item.windowLayoutAction != nil
@@ -948,6 +959,34 @@ enum RadialMenuSupport {
         items.contains { item in
             item.kind == .windowLayout
                 || (item.kind == .submenu && usesWindowLayout(item.children))
+        }
+    }
+
+    static func containsAppleShortcut(_ items: [RadialMenuItem]) -> Bool {
+        items.contains { item in
+            item.kind == .appleShortcut
+                || (item.kind == .submenu && containsAppleShortcut(item.children))
+        }
+    }
+
+    /// The command line tool macOS ships for the Shortcuts app.
+    static let shortcutsToolPath = "/usr/bin/shortcuts"
+
+    /// A shortcut may stop to ask for input or offer a menu, and the person
+    /// answering it is not a stuck command. The tool is still bounded, so one
+    /// that never returns does not hold a thread for good.
+    static let appleShortcutTimeout: TimeInterval = 60
+
+    /// Reads `shortcuts list --show-identifiers`: one "Name (IDENTIFIER)" per
+    /// line. The identifier is the last parenthesized part, so a name with
+    /// parentheses of its own stays whole; a line without one is skipped.
+    static func appleShortcuts(fromList output: String) -> [RadialAppleShortcut] {
+        output.split(whereSeparator: \.isNewline).compactMap { line in
+            guard line.hasSuffix(")"), let open = line.lastIndex(of: "(") else { return nil }
+            let identifier = String(line[line.index(after: open) ..< line.index(before: line.endIndex)])
+            let name = line[..<open].trimmingCharacters(in: .whitespaces)
+            guard UUID(uuidString: identifier) != nil, !name.isEmpty else { return nil }
+            return RadialAppleShortcut(id: identifier, name: name)
         }
     }
 }

@@ -1456,11 +1456,7 @@ enum CommandBarCatalog {
     /// screen — not the bar, not a result to copy. A failure beeps, the way
     /// an app shortcut that would not open does.
     static func runScriptDirectly(_ link: CommandBarLink) {
-        let path = (link.destination as NSString).expandingTildeInPath
-        DispatchQueue.global(qos: .userInitiated).async {
-            let (status, _) = Shell.run(path, [], maxOutputBytes: 64 * 1024)
-            if status != 0 { DispatchQueue.main.async { NSSound.beep() } }
-        }
+        Shell.runInBackground((link.destination as NSString).expandingTildeInPath, [])
     }
 
     /// Return pressed before a script's debounced run has answered yet: runs
