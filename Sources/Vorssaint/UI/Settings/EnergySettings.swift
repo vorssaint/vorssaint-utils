@@ -61,6 +61,10 @@ struct EnergySettings: View {
                     extraBrightnessCard
                         .settingsSectionAnchor(.extraBrightness, cornerRadius: 16)
                 }
+                if (focus == nil || focus == .ambientLight), AppFeature.ambientLight.isAvailable {
+                    AmbientLightSettingsCard()
+                        .settingsSectionAnchor(.ambientLight, cornerRadius: 16)
+                }
                 if (focus == nil || focus == .bluetoothSleep), AppFeature.bluetoothSleep.isAvailable {
                     bluetoothCard
                         .settingsSectionAnchor(.bluetoothSleep, cornerRadius: 16)
@@ -102,6 +106,7 @@ struct EnergySettings: View {
         case .keepAwake: return l10n.s.keepAwakeTitle
         case .brightness: return FeatureStrings.brightness(l10n.language).pageTitle
         case .extraBrightness: return l10n.s.extraBrightnessName
+        case .ambientLight: return FeatureStrings.ambientLight(l10n.language).title
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).pageTitle
         default: return l10n.s.tabEnergy
         }
@@ -112,6 +117,7 @@ struct EnergySettings: View {
         case .keepAwake: return FeatureStrings.hub(l10n.language).descKeepAwake
         case .brightness: return FeatureStrings.brightness(l10n.language).hubDescription
         case .extraBrightness: return FeatureStrings.hub(l10n.language).descExtraBrightness
+        case .ambientLight: return FeatureStrings.ambientLight(l10n.language).description
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).hubDescription
         default: return FeatureStrings.settingsPages(l10n.language).energyDescription
         }

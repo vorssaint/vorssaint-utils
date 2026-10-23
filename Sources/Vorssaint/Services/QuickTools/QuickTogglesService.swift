@@ -50,7 +50,7 @@ final class QuickTogglesService: ObservableObject {
     /// Current system appearance, read from the same WindowServer switch the
     /// toggle flips; nil when the symbol is unavailable.
     var systemAppearanceIsDark: Bool? {
-        Self.appearanceTheme?.get()
+        SystemAppearance.isDark
     }
 
     var desktopIconsShown: Bool {
@@ -69,12 +69,11 @@ final class QuickTogglesService: ObservableObject {
     /// guarded; without it the row reports the failure instead of crashing.
     func toggleDarkMode() {
         guard available, beginRun(.darkMode) else { return }
-        guard let theme = Self.appearanceTheme else {
+        guard let dark = SystemAppearance.isDark else {
             finishRun(.darkMode, state: .failed)
             return
         }
-        theme.set(!theme.get())
-        finishRun(.darkMode, state: nil)
+        finishRun(.darkMode, state: SystemAppearance.setDark(!dark) ? nil : .failed)
     }
 
     // MARK: - Trash
@@ -370,20 +369,5 @@ final class QuickTogglesService: ObservableObject {
         guard let handle = dlopen(path, RTLD_LAZY),
               let symbol = dlsym(handle, "SACLockScreenImmediate") else { return nil }
         return unsafeBitCast(symbol, to: (@convention(c) () -> Int32).self)
-    }()
-
-    private typealias AppearanceGet = @convention(c) () -> Bool
-    private typealias AppearanceSet = @convention(c) (Bool) -> Void
-
-    /// The WindowServer's appearance switch (SkyLight), resolved once and
-    /// guarded like the lock above. Stable across many macOS releases; if it
-    /// ever leaves, toggleDarkMode degrades to a visible failure.
-    private static let appearanceTheme: (get: AppearanceGet, set: AppearanceSet)? = {
-        let path = "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight"
-        guard let handle = dlopen(path, RTLD_LAZY),
-              let getSymbol = dlsym(handle, "SLSGetAppearanceThemeLegacy"),
-              let setSymbol = dlsym(handle, "SLSSetAppearanceThemeLegacy") else { return nil }
-        return (unsafeBitCast(getSymbol, to: AppearanceGet.self),
-                unsafeBitCast(setSymbol, to: AppearanceSet.self))
     }()
 }

@@ -312,6 +312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             BrightnessService.shared.restoreDisplaysBeforeTermination()
         }
         ExtraBrightnessService.shared.stop()
+        if AppFeature.ambientLight.isAvailable { AmbientLightService.shared.stop() }
         ProcessUsageService.shared.stopNetworkMonitoring(force: true)
         URLCleanerService.shared.stop()
         FocusFollowsMouseService.shared.stop()

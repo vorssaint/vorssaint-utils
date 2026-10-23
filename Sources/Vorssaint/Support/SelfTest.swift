@@ -196,6 +196,13 @@ enum SelfTest {
 /// the sensor mapping to a new chip generation.
 enum SensorDump {
     static func runAndExit() -> Never {
+        let light = AmbientLightSensor()
+        if let lux = light.readLux() {
+            print("ambient light: \(lux) lux")
+        } else {
+            print("ambient light: unavailable")
+        }
+        light.close()
         guard let smc = SMCClient() else {
             print("AppleSMC unavailable")
             exit(1)

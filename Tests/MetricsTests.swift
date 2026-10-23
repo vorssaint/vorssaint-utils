@@ -136,6 +136,7 @@ struct MetricsTests {
                 MonitorTokenTests.run(suite)
             }),
             ("feature-hub-layout", { FeatureHubLayoutTests.run(suite) }),
+            ("ambient-light", { AmbientLightTests.run(suite) }),
             ("display-restoration", {
                 DisplayRestorationTests.run(suite)
                 BrightnessStepTests.run(suite)
