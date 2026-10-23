@@ -180,20 +180,21 @@ struct StatusItemGesture {
 
     mutating func leftUp(at point: CGPoint, time: TimeInterval, settings: Settings) -> [Result] {
         guard contains(point) else { cancel(); return [] }
+        guard watchesForRelease else { return [] }
+        // The watcher turns the press into a long press at the threshold,
+        // but a release that beats it is still judged on its own timing.
+        let result: Result = holds(releasedAt: time, settings: settings) ? .quick(settings.hold) : .single(point)
+        phase = .idle
+        return [result]
+    }
+
+    /// Whether a release at `time` commits the long press.
+    func holds(releasedAt time: TimeInterval, settings: Settings) -> Bool {
+        guard settings.hold != .none else { return false }
         switch phase {
-        case .held:
-            phase = .idle
-            return settings.hold == .none ? [] : [.quick(settings.hold)]
-        case .pressed(_, let at):
-            phase = .idle
-            // The watcher turns the press into a long press at the threshold,
-            // but a release that beats it is still judged on its own timing.
-            if settings.hold != .none && time - at >= Settings.holdInterval {
-                return [.quick(settings.hold)]
-            }
-            return [.single(point)]
-        default:
-            return []
+        case .held: return true
+        case .pressed(_, let at): return time - at >= Settings.holdInterval
+        case .idle, .middlePressed: return false
         }
     }
 
