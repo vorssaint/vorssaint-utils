@@ -256,6 +256,27 @@ enum SettingsBackupSupport {
         return result
     }
 
+    /// The settings file kept in step with the preferences (issue #497):
+    /// `$XDG_CONFIG_HOME/vorssaint/settings.plist`, or `~/.config` in its
+    /// place when the variable is unset, empty or relative, as the XDG spec
+    /// asks. The Developer build keeps its own folder so it never rewrites
+    /// the official app's file.
+    static func configFileURL(environment: [String: String],
+                              home: URL,
+                              isDeveloperBuild: Bool) -> URL {
+        var base = home.appendingPathComponent(".config", isDirectory: true)
+        if let xdg = environment["XDG_CONFIG_HOME"], xdg.hasPrefix("/") {
+            base = URL(fileURLWithPath: xdg, isDirectory: true)
+        }
+        var folder = "vorssaint"
+        if isDeveloperBuild {
+            folder += "-dev"
+        }
+        return base
+            .appendingPathComponent(folder, isDirectory: true)
+            .appendingPathComponent("settings.plist")
+    }
+
     static func formatVersion(from payload: [String: Any]) -> Int? {
         if let intValue = payload[formatVersionKey] as? Int {
             return intValue

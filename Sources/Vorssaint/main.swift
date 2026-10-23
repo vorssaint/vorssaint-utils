@@ -4,6 +4,7 @@
 import AppKit
 
 SuperKeyMappingGuard.runIfRequestedAndExit()
+SettingsBackup.loadConfigFile()
 Defaults.register()
 NotchControlItem.keyboardLightIsSupported = { BrightnessService.keyboardLightIsSupported }
 MouseAccelerationGuard.runIfRequestedAndExit()
@@ -29,6 +30,7 @@ if NotchPresentationProbe.isRequested(by: CommandLine.arguments) {
 }
 #endif
 
+SettingsBackup.startMirroringConfigFile()
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

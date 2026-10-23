@@ -70,10 +70,16 @@ enum SettingsBackup {
         return SettingsBackupSupport.sanitizedSettings(from: payload)
     }
 
-    /// Clears the exportable keys (unset ones fall back to their registered
-    /// defaults), writes the file's values and relaunches.
+    /// Writes the file's values and relaunches.
     static func applyAndRelaunch(settings: [String: Any]) {
         ScratchpadService.shared.prepareForSettingsRestore()
+        apply(settings: settings)
+        FeatureRuntime.shared.relaunchApp()
+    }
+
+    /// Clears the exportable keys (unset ones fall back to their registered
+    /// defaults) and writes the file's values.
+    private static func apply(settings: [String: Any]) {
         let defaults = UserDefaults.standard
         let localRecorderPresets = defaults.data(forKey: DefaultsKey.recorderEditorPresets)
         let localWatermark = defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle)
@@ -121,6 +127,81 @@ enum SettingsBackup {
                 restored: defaults.stringArray(forKey: DefaultsKey.windowLayoutIgnoredApps) ?? [],
                 carried: windowLayoutPaths), forKey: DefaultsKey.windowLayoutIgnoredApps)
         }
-        FeatureRuntime.shared.relaunchApp()
+    }
+
+    // MARK: - Settings file (issue #497)
+
+    private static var pendingConfigFileWrite: DispatchWorkItem?
+
+    /// nil for the bare binary (`--selftest`), whose preferences are not the app's.
+    private static var configFileURL: URL? {
+        guard Bundle.main.bundleIdentifier != nil else { return nil }
+        return SettingsBackupSupport.configFileURL(
+            environment: ProcessInfo.processInfo.environment,
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            isDeveloperBuild: AppInfo.isDeveloperBuild)
+    }
+
+    /// Applies the settings file when it differs from the preferences. Runs
+    /// before the defaults are registered and migrated, so the file's values
+    /// go through the same migrations as an imported backup after its relaunch.
+    static func loadConfigFile() {
+        guard let url = configFileURL,
+              FileManager.default.fileExists(atPath: url.path),
+              let settings = readSettings(at: url) else { return }
+        let defaults = UserDefaults.standard
+        let availability = AppFeature.availabilityDefaults
+        // Nothing is registered yet, so fall back to the registered values the
+        // file was written with; otherwise every launch would look like a change.
+        let current = SettingsBackupSupport.payload(appVersion: AppInfo.version) {
+            defaults.object(forKey: $0) ?? Defaults.registeredDefaults[$0] ?? availability[$0]
+        }
+        guard NSDictionary(dictionary: settings)
+                != NSDictionary(dictionary: SettingsBackupSupport.sanitizedSettings(from: current) ?? [:])
+        else { return }
+        apply(settings: settings)
+    }
+
+    /// Writes the settings file now and again shortly after each change, so it
+    /// always holds what Export settings would.
+    static func startMirroringConfigFile() {
+        guard configFileURL != nil else { return }
+        writeConfigFile()
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
+                                               object: nil, queue: .main) { _ in
+            pendingConfigFileWrite?.cancel()
+            let work = DispatchWorkItem { writeConfigFile() }
+            pendingConfigFileWrite = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
+                                               object: nil, queue: .main) { _ in
+            pendingConfigFileWrite?.cancel()
+            writeConfigFile()
+        }
+    }
+
+    /// Follows a symlink so a dotfiles link stays a link, and leaves alone a
+    /// read-only file (a Nix store link) or one that does not parse, so a
+    /// hand edit with a typo is not overwritten before it can be fixed.
+    private static func writeConfigFile() {
+        guard let url = configFileURL?.resolvingSymlinksInPath() else { return }
+        let defaults = UserDefaults.standard
+        let payload = SettingsBackupSupport.payload(appVersion: AppInfo.version) {
+            defaults.object(forKey: $0)
+        }
+        let fileManager = FileManager.default
+        let existing = try? Data(contentsOf: url)
+        guard let data = try? PropertyListSerialization.data(fromPropertyList: payload,
+                                                             format: .xml,
+                                                             options: 0),
+              data != existing else { return }
+        if existing != nil {
+            guard fileManager.isWritableFile(atPath: url.path),
+                  readSettings(at: url) != nil else { return }
+        }
+        try? fileManager.createDirectory(at: url.deletingLastPathComponent(),
+                                         withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
     }
 }
