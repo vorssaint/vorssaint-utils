@@ -333,8 +333,45 @@ enum WindowLayoutGaps {
         CGFloat(UserDefaults.standard.integer(forKey: DefaultsKey.windowLayoutWindowGap))
     }
 
+    /// Stored by an edge override that follows the single screen gap.
+    static let sameAsScreenGap = -1
+
     static var screenGap: CGFloat {
         CGFloat(UserDefaults.standard.integer(forKey: DefaultsKey.windowLayoutScreenGap))
+    }
+
+    /// The screen gap per edge: each override that is set wins over the single
+    /// screen gap, every other edge keeps following it.
+    static var screenInsets: ScreenGapInsets { screenInsets(in: .standard) }
+
+    static func screenInsets(in defaults: UserDefaults) -> ScreenGapInsets {
+        func override(_ key: String) -> Int? {
+            let value = defaults.integer(forKey: key)
+            return value < 0 ? nil : value
+        }
+        return ScreenGapInsets(all: defaults.integer(forKey: DefaultsKey.windowLayoutScreenGap),
+                               top: override(DefaultsKey.windowLayoutScreenGapTop),
+                               bottom: override(DefaultsKey.windowLayoutScreenGapBottom),
+                               left: override(DefaultsKey.windowLayoutScreenGapLeft),
+                               right: override(DefaultsKey.windowLayoutScreenGapRight))
+    }
+}
+
+/// How far a snapped window stays from each edge of the visible frame.
+struct ScreenGapInsets: Equatable {
+    var top: CGFloat
+    var bottom: CGFloat
+    var left: CGFloat
+    var right: CGFloat
+
+    static let zero = ScreenGapInsets(all: 0)
+
+    /// `all` for every edge that has no override (nil follows `all`).
+    init(all: Int, top: Int? = nil, bottom: Int? = nil, left: Int? = nil, right: Int? = nil) {
+        self.top = CGFloat(max(0, top ?? all))
+        self.bottom = CGFloat(max(0, bottom ?? all))
+        self.left = CGFloat(max(0, left ?? all))
+        self.right = CGFloat(max(0, right ?? all))
     }
 }
 
@@ -536,7 +573,7 @@ enum WindowLayoutGeometry {
                      current: CGRect,
                      visibleFrame: CGRect,
                      windowGap: CGFloat = 0,
-                     screenGap: CGFloat = 0,
+                     screenInsets: ScreenGapInsets = .zero,
                      marginPercent: Double = WindowLayoutMargin.defaultPercent) -> CGRect {
         // Only placements that tile against the screen edge take the screen
         // gap. The exempt actions keep their own geometry: margin maximize's
@@ -547,21 +584,31 @@ enum WindowLayoutGeometry {
         case .marginMaximize, .center, .restore, .previousDisplay, .nextDisplay, .fullScreen:
             frame = visibleFrame
         default:
-            frame = screenGapFrame(visibleFrame, screenGap: screenGap)
+            frame = screenGapFrame(visibleFrame, insets: screenInsets)
         }
         let rect = ungappedRect(for: action, current: current, visibleFrame: frame,
                                marginPercent: marginPercent)
         return windowGapped(rect, for: action, in: frame, windowGap: windowGap)
     }
 
-    /// The visible frame pulled in by the screen gap on every side. The inset
-    /// keeps at least 80pt of layout space per axis, so an oversized gap on a
-    /// small display degrades instead of inverting the frame.
-    static func screenGapFrame(_ visibleFrame: CGRect, screenGap: CGFloat) -> CGRect {
-        guard screenGap > 0 else { return visibleFrame }
-        let dx = min(screenGap, max(0, (visibleFrame.width - 80) / 2))
-        let dy = min(screenGap, max(0, (visibleFrame.height - 80) / 2))
-        return visibleFrame.insetBy(dx: dx, dy: dy)
+    /// The visible frame pulled in by the screen gap on each side. The insets
+    /// keep at least 80pt of layout space per axis, so an oversized gap on a
+    /// small display degrades instead of inverting the frame; when an axis
+    /// has to give, both of its sides shrink in proportion.
+    static func screenGapFrame(_ visibleFrame: CGRect, insets: ScreenGapInsets) -> CGRect {
+        func fitted(_ first: CGFloat, _ second: CGFloat, length: CGFloat) -> (CGFloat, CGFloat) {
+            let room = max(0, length - 80)
+            let total = first + second
+            guard total > room else { return (first, second) }
+            let scale = room / total
+            return (first * scale, second * scale)
+        }
+        let (left, right) = fitted(insets.left, insets.right, length: visibleFrame.width)
+        let (bottom, top) = fitted(insets.bottom, insets.top, length: visibleFrame.height)
+        return CGRect(x: visibleFrame.minX + left,
+                      y: visibleFrame.minY + bottom,
+                      width: visibleFrame.width - left - right,
+                      height: visibleFrame.height - top - bottom)
     }
 
     /// Shaves half the window gap off every edge a placement shares with a

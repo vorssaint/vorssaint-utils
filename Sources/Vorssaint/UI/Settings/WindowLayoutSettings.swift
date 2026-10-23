@@ -24,8 +24,13 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
     @AppStorage(DefaultsKey.windowLayoutWindowGap) private var windowGap = 0
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
+    @AppStorage(DefaultsKey.windowLayoutScreenGapTop) private var screenGapTop = WindowLayoutGaps.sameAsScreenGap
+    @AppStorage(DefaultsKey.windowLayoutScreenGapBottom) private var screenGapBottom = WindowLayoutGaps.sameAsScreenGap
+    @AppStorage(DefaultsKey.windowLayoutScreenGapLeft) private var screenGapLeft = WindowLayoutGaps.sameAsScreenGap
+    @AppStorage(DefaultsKey.windowLayoutScreenGapRight) private var screenGapRight = WindowLayoutGaps.sameAsScreenGap
     @AppStorage(DefaultsKey.windowLayoutMarginPercent) private var marginPercent = WindowLayoutMargin.defaultPercent
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
+    @State private var edgeGapsExpanded: Bool?
     @State private var directionalError: String?
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
@@ -126,6 +131,12 @@ struct WindowLayoutSettings: View {
                 Section(text.gapsSection) {
                     gapPicker(text.windowGap, selection: $windowGap)
                     gapPicker(text.screenGap, selection: $screenGap)
+                    DisclosureGroup(text.edgeGaps, isExpanded: edgeGapsBinding) {
+                        gapPicker(text.gapTop, selection: $screenGapTop, allowsSame: true)
+                        gapPicker(text.gapBottom, selection: $screenGapBottom, allowsSame: true)
+                        gapPicker(text.gapLeft, selection: $screenGapLeft, allowsSame: true)
+                        gapPicker(text.gapRight, selection: $screenGapRight, allowsSame: true)
+                    }
                     Text(text.gapsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -282,8 +293,23 @@ struct WindowLayoutSettings: View {
 
     /// The gaps take effect on the next placement — the engine reads them
     /// per apply — so the pickers need no service sync.
-    private func gapPicker(_ title: String, selection: Binding<Int>) -> some View {
+    /// Starts open when any edge has an override, so a differing edge is
+    /// never hidden behind a collapsed group.
+    private var edgeGapsBinding: Binding<Bool> {
+        Binding(
+            get: {
+                edgeGapsExpanded ?? [screenGapTop, screenGapBottom, screenGapLeft, screenGapRight]
+                    .contains { $0 != WindowLayoutGaps.sameAsScreenGap }
+            },
+            set: { edgeGapsExpanded = $0 })
+    }
+
+    private func gapPicker(_ title: String, selection: Binding<Int>,
+                           allowsSame: Bool = false) -> some View {
         Picker(title, selection: selection) {
+            if allowsSame {
+                Text(text.gapSameAsScreen).tag(WindowLayoutGaps.sameAsScreenGap)
+            }
             ForEach(WindowLayoutGaps.presets, id: \.self) { value in
                 Text(gapPresetTitle(value)).tag(value)
             }
