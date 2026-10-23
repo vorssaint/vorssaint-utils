@@ -3917,6 +3917,25 @@ enum NotchTests {
                "a repeating all-day occurrence keeps its local day")
         suite.expect(link(ended, identifier: "", recurring: false) == nil,
                "an appointment without an identifier falls back to opening Calendar itself")
+        func meeting(_ texts: String?...) -> String? { NotchCalendarSupport.meetingURL(in: texts)?.absoluteString }
+        suite.expect(meeting(nil, "Room 4", "Join: https://acme.zoom.us/j/123456789?pwd=abc\nhttps://zoom.us/support")
+               == "https://acme.zoom.us/j/123456789?pwd=abc",
+               "a Zoom invitation in the notes is found")
+        suite.expect(meeting("https://meet.google.com/abc-defg-hij", nil, "https://acme.zoom.us/j/1")
+               == "https://meet.google.com/abc-defg-hij",
+               "the event's own URL wins over links in the notes")
+        suite.expect(meeting(nil, "https://teams.microsoft.com/l/meetup-join/19%3ameeting", nil)
+               == "https://teams.microsoft.com/l/meetup-join/19%3ameeting",
+               "a Teams link in the location is found")
+        suite.expect(meeting(nil, nil, "Help: https://zoom.us/support https://meet.google.com/ https://evilzoom.us/j/1 http://meet.google.com/abc")
+               == nil,
+               "help pages, look-alike hosts and plain http are not calls")
+        let zoomLink = URL(string: "https://acme.zoom.us/j/123456789?pwd=abc&uname=x")!
+        suite.expect(NotchCalendarSupport.joinURL(zoomLink, zoomInstalled: true).absoluteString
+               == "zoommtg://acme.zoom.us/join?action=join&confno=123456789&pwd=abc",
+               "Zoom joins in the app, keeping only the passcode")
+        suite.expect(NotchCalendarSupport.joinURL(zoomLink, zoomInstalled: false) == zoomLink,
+               "without Zoom installed the link opens in the browser")
     }
 
 }
