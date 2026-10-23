@@ -88,6 +88,15 @@ struct StatusItemGesture {
         return frame.insetBy(dx: -4, dy: -8)
     }
 
+    /// Where a press on the icon may start: its own columns, over the whole
+    /// height of the bar. The bar is taller than the button (on macOS 27 a
+    /// 22 pt button sits 3 pt below the screen's top row), and a pointer
+    /// thrown to the top of the screen still presses the icon under it.
+    static func pressArea(of frame: CGRect?) -> CGRect? {
+        guard let frame, frame.width > 0, frame.height > 0 else { return nil }
+        return frame.insetBy(dx: 0, dy: -8)
+    }
+
     /// Display coordinates (origin at the top left of the primary display)
     /// mapped to AppKit screen coordinates (origin at its bottom left).
     ///
@@ -98,19 +107,18 @@ struct StatusItemGesture {
         CGPoint(x: displayPoint.x, y: primaryHeight - displayPoint.y)
     }
 
-    /// Whether a click at `point` belongs to the button's frame, expanded by
-    /// `inset` so a release just off the edge is still the same click.
+    /// Whether a click at `point` belongs to `frame`: the button, or one of
+    /// the areas around it.
     ///
     /// This is the adapter's "swallow the event or run the normal click"
     /// decision, so it lives here as a pure predicate: an unknown or empty
     /// frame claims nothing, and the caller then runs the original click
     /// instead of losing it.
-    static func claims(_ point: CGPoint, frame: CGRect?, inset: CGFloat = 0) -> Bool {
+    static func claims(_ point: CGPoint, frame: CGRect?) -> Bool {
         guard let frame, frame.width > 0, frame.height > 0 else { return false }
-        let hitFrame = frame.insetBy(dx: -inset, dy: -inset)
         // The screen's top row reports maxY, which CGRect.contains excludes.
-        return point.x >= hitFrame.minX && point.x < hitFrame.maxX
-            && point.y >= hitFrame.minY && point.y <= hitFrame.maxY
+        return point.x >= frame.minX && point.x < frame.maxX
+            && point.y >= frame.minY && point.y <= frame.maxY
     }
 
     enum Result: Equatable {
@@ -144,6 +152,12 @@ struct StatusItemGesture {
         case .pressed, .held: return true
         case .idle, .middlePressed: return false
         }
+    }
+
+    /// True while a middle press waits for its release.
+    var awaitsMiddleRelease: Bool {
+        if case .middlePressed = phase { return true }
+        return false
     }
 
     /// The only deadline this machine has: when a held press becomes a long

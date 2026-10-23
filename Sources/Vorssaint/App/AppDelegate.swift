@@ -671,6 +671,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         lastStatusClick = (NSEvent.mouseLocation, Date())
     }
 
+    /// Lets a permission reset take the menu bar icon's middle-click tap down
+    /// with the other input taps, and bring it back after.
+    func suspendStatusItemGestureTap() { statusController?.suspendGestureTap() }
+    func resumeStatusItemGestureTap() { statusController?.resumeGestureTap() }
+
     private var freshStatusClick: NSPoint? {
         guard let click = lastStatusClick,
               (0...StatusItemAnchorSupport.statusClickFreshness)

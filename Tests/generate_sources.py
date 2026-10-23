@@ -159,7 +159,10 @@ def main():
                         "    private func screenPoint(", "    private func point(",
                         "    private func observe(", "    private func emit(",
                         "    private func schedule(", "    private func observeRelease(",
-                        "    private func held(", "    private func releaseTime(", "    private func eventTime("])
+                        "    private func held(", "    private func releaseTime(", "    private func eventTime(",
+                        "    private func finishLeftPress(", "    private func newerPress(",
+                        "    private var primaryScreenHeight:", "    private func appKitPoint(",
+                        "    private func onButton("])
           + "}\nfinal class ControllerHost: ControllerFixture {\n"
           + declaration("Sources/Vorssaint/App/StatusItemController.swift", "    @objc private func clicked(")
             .replace("@objc private ", "")

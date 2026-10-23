@@ -11,6 +11,9 @@ final class StatusItemController {
     var onDelayedLeftClick: ((NSPoint) -> Void)?
     var onQuickAction: ((StatusItemQuickAction) -> Void)?
     private var gestureHandler: StatusItemGestureHandler?
+    /// Set while a permission reset or an uninstall has input taps down:
+    /// nothing may bring the middle-click tap back until it ends.
+    private(set) var gestureTapSuspended = false
     /// Receives the button that was clicked, so a menu can open from it
     /// while the main item is out of the bar.
     var onRightClick: ((NSStatusBarButton?) -> Void)?
@@ -140,6 +143,7 @@ final class StatusItemController {
             button.target = self
             button.action = #selector(clicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.setAccessibilityIdentifier(StatusItemGestureHandler.mainButtonIdentifier)
         }
         refresh()
         syncMonitorMode()
@@ -472,6 +476,20 @@ final class StatusItemController {
     }
 
     private func cancelGesture() { gestureHandler?.cancel() }
+
+    /// Takes the middle-click tap down before a permission reset, the way the
+    /// other input taps are. MUST run on the main thread.
+    func suspendGestureTap() {
+        gestureTapSuspended = true
+        syncGestureMonitor()
+    }
+
+    /// Ends that suspension once the reset is over, or did not happen, and
+    /// lets the saved settings and the grant decide again.
+    func resumeGestureTap() {
+        gestureTapSuspended = false
+        syncGestureMonitor()
+    }
 
     /// The item a right-click menu opens from: the main one while it is in
     /// the bar, otherwise the item that was clicked. A menu set on an item
