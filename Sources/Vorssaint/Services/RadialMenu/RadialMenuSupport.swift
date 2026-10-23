@@ -6,6 +6,7 @@ import CoreGraphics
 import Foundation
 import ImageIO
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Accent colors available for radial menu profiles.
 enum RadialMenuColor: String, Codable, CaseIterable, Identifiable {
@@ -282,6 +283,156 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
 
     var effectiveSymbolName: String {
         symbolName.isEmpty ? defaultSymbolName : symbolName
+    }
+
+    /// What resting on this slice shows beside the wheel, if anything. The
+    /// slice itself still runs as before; the peek only adds a way in.
+    var peek: RadialMenuPeek? {
+        switch kind {
+        case .tool: return tool == .clipboardHistory ? .clipboardHistory : nil
+        // Any file slice may be a folder; only reading it can tell, so a
+        // plain file's peek finds nothing to list and never opens.
+        case .file: return .folder(path: payload)
+        default: return nil
+        }
+    }
+}
+
+/// Live content a slice can show in a panel beside the wheel while the
+/// pointer rests on it.
+enum RadialMenuPeek: Equatable {
+    case clipboardHistory
+    /// What a folder slice holds, to open, pick, copy or drag out.
+    case folder(path: String)
+}
+
+/// One thing inside a folder the peek lists.
+struct RadialFolderEntry: Equatable, Identifiable {
+    let url: URL
+    let name: String
+    /// A folder the list can go into. Packages, such as apps, are files.
+    let isFolder: Bool
+    /// When it arrived in the folder, Finder's Date Added, or else when it
+    /// last changed.
+    let date: Date
+    let size: Int?
+    let contentType: UTType?
+    let typeDescription: String?
+
+    var id: URL { url }
+}
+
+/// Reads one folder for the peek. Only ever reads: nothing here moves,
+/// renames or deletes, and hidden files stay hidden.
+enum RadialFolderListing {
+    enum Result: Equatable {
+        case entries([RadialFolderEntry])
+        /// The path is a file, a package or gone: there is no list to show.
+        case notAFolder
+        /// A folder the app may not read, such as Downloads before the
+        /// person allowed it.
+        case unreadable
+    }
+
+    private static let keys: [URLResourceKey] = [
+        .isDirectoryKey, .isPackageKey, .localizedNameKey, .addedToDirectoryDateKey,
+        .contentModificationDateKey, .fileSizeKey, .contentTypeKey, .localizedTypeDescriptionKey,
+    ]
+
+    static func read(_ folder: URL, limit: Int, fileManager: FileManager = .default) -> Result {
+        let values = try? folder.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+        guard values?.isDirectory == true, values?.isPackage != true else { return .notAFolder }
+        guard let urls = try? fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys,
+                                                              options: [.skipsHiddenFiles]) else {
+            return .unreadable
+        }
+        return .entries(Array(sorted(urls.compactMap(entry(for:))).prefix(limit)))
+    }
+
+    static func entry(for url: URL) -> RadialFolderEntry? {
+        guard let values = try? url.resourceValues(forKeys: Set(keys)) else { return nil }
+        let isFolder = values.isDirectory == true && values.isPackage != true
+        return RadialFolderEntry(url: url,
+                                 name: values.localizedName ?? url.lastPathComponent,
+                                 isFolder: isFolder,
+                                 date: values.addedToDirectoryDate ?? values.contentModificationDate ?? .distantPast,
+                                 size: isFolder ? nil : values.fileSize,
+                                 contentType: values.contentType,
+                                 typeDescription: values.localizedTypeDescription)
+    }
+
+    /// Folders first, then the newest arrivals, so the download that just
+    /// landed is at the top; ties read in Finder's name order.
+    static func sorted(_ entries: [RadialFolderEntry]) -> [RadialFolderEntry] {
+        entries.sorted { first, second in
+            if first.isFolder != second.isFolder { return first.isFolder }
+            if first.date != second.date { return first.date > second.date }
+            return first.name.localizedStandardCompare(second.name) == .orderedAscending
+        }
+    }
+}
+
+/// Where the folder peek is, and the files picked on the way. Picks are kept
+/// across folders, like a basket, until the peek closes.
+struct RadialFolderBrowser: Equatable {
+    struct Step: Equatable {
+        let url: URL
+        let name: String
+    }
+
+    let root: Step
+    /// The folders gone into below the root, outermost first.
+    var trail: [Step] = []
+    /// Picked files, in the order they were picked.
+    private(set) var basket: [URL] = []
+
+    static let basketLimit = 100
+
+    init(root: URL, name: String) {
+        self.root = Step(url: root, name: name)
+    }
+
+    var current: URL { (trail.last ?? root).url }
+    var canGoUp: Bool { !trail.isEmpty }
+    /// The header's path, from the folder on the wheel down.
+    var pathNames: [String] { ([root] + trail).map(\.name) }
+
+    mutating func enter(_ entry: RadialFolderEntry) {
+        guard entry.isFolder else { return }
+        trail.append(Step(url: entry.url, name: entry.name))
+    }
+
+    mutating func goUp() {
+        if !trail.isEmpty { trail.removeLast() }
+    }
+
+    func isPicked(_ url: URL) -> Bool {
+        basket.contains(url)
+    }
+
+    mutating func toggle(_ url: URL) {
+        if let index = basket.firstIndex(of: url) {
+            basket.remove(at: index)
+        } else if basket.count < Self.basketLimit {
+            basket.append(url)
+        }
+    }
+
+    mutating func clearBasket() {
+        basket.removeAll()
+    }
+
+    /// What a drag takes, as in Finder: grabbing a picked file takes every
+    /// picked file, grabbing any other takes that one alone.
+    func dragged(grabbing url: URL) -> [URL] {
+        basket.contains(url) ? basket : [url]
+    }
+
+    /// What ⌘C copies: the picked files, or the row the pointer is on when
+    /// nothing is picked.
+    func copied(highlighted: URL?) -> [URL] {
+        if !basket.isEmpty { return basket }
+        return highlighted.map { [$0] } ?? []
     }
 }
 
@@ -1002,6 +1153,133 @@ enum RadialMenuGeometry {
         guard itemCount > 0 else { return (0, 1) }
         let theta = 2 * .pi * CGFloat(index) / CGFloat(itemCount)
         return (sin(theta), cos(theta))
+    }
+}
+
+/// The peek's size and place, points, in screen coordinates (y grows
+/// upward). Every row has one fixed height, so the service can tell which
+/// row the pointer is on from the panel's frame alone, without asking the
+/// view.
+enum RadialMenuPeekLayout {
+    static let width: CGFloat = 340
+    static let padding: CGFloat = 8
+    static let headerHeight: CGFloat = 28
+    static let rowHeight: CGFloat = 40
+    /// Under the rows, the whole of the entry the pointer is on, so a long
+    /// text or a picture can be read before it is pasted.
+    static let previewHeight: CGFloat = 116
+    /// Rows on screen at once; the rest scroll by whole rows, so the layout
+    /// alone still says which entry is under the pointer.
+    static let visibleRows = 7
+    /// Entries listed at most. The history window keeps the full history.
+    static let maxEntries = 50
+    /// Things listed at most in one folder, the newest first.
+    static let maxFolderEntries = 200
+    /// The folder list's bar of picked files, between the rows and the
+    /// preview.
+    static let basketHeight: CGFloat = 34
+    /// The header's back arrow and the bar's clear button, measured from
+    /// their own ends.
+    static let backButtonWidth: CGFloat = 34
+    static let clearButtonWidth: CGFloat = 30
+    /// How far the pointer travels with the button down before a press on
+    /// the folder list becomes a drag, the same as on the Shelf.
+    static let dragThreshold: CGFloat = 4
+    /// Between the wheel's rim and the panel.
+    static let gap: CGFloat = 14
+    static let screenMargin: CGFloat = 12
+    /// How long the pointer rests on a slice before its peek opens: long
+    /// enough that a flick across the wheel never opens one on the way past.
+    static let dwell: TimeInterval = 0.35
+
+    /// The folder list always takes its full height, with or without a
+    /// basket, so the panel holds still while it moves between folders.
+    static func height(rowCount: Int, basket: Bool = false) -> CGFloat {
+        padding * 2 + headerHeight + previewHeight + (basket ? basketHeight : 0)
+            + rowHeight * CGFloat(min(max(rowCount, 0), visibleRows))
+    }
+
+    static func backButtonFrame(in frame: CGRect) -> CGRect {
+        CGRect(x: frame.minX + padding, y: frame.maxY - padding - headerHeight,
+               width: backButtonWidth, height: headerHeight)
+    }
+
+    /// The bar under a full set of rows, as the folder list has.
+    static func basketFrame(in frame: CGRect) -> CGRect {
+        let rowsBottom = frame.maxY - padding - headerHeight - rowHeight * CGFloat(visibleRows)
+        return CGRect(x: frame.minX + padding, y: rowsBottom - basketHeight,
+                      width: frame.width - padding * 2, height: basketHeight)
+    }
+
+    static func clearButtonFrame(in frame: CGRect) -> CGRect {
+        let bar = basketFrame(in: frame)
+        return CGRect(x: bar.maxX - clearButtonWidth, y: bar.minY, width: clearButtonWidth, height: bar.height)
+    }
+
+    /// Beside the wheel on the side the slice points to and level with it,
+    /// so the pointer leaves the slice straight toward the panel. A side that
+    /// would run off the screen gives way to the other one; the panel never
+    /// covers the wheel it belongs to unless the screen is too small for both.
+    static func frame(wheelCenter: CGPoint, direction: (dx: CGFloat, dyUp: CGFloat),
+                      rowCount: Int, basket: Bool = false, visibleFrame: CGRect) -> CGRect {
+        let size = CGSize(width: width, height: height(rowCount: rowCount, basket: basket))
+        let reach = RadialMenuLayout.wheelDiameter / 2 + gap
+        let rightX = wheelCenter.x + reach
+        let leftX = wheelCenter.x - reach - size.width
+        let fitsRight = rightX + size.width <= visibleFrame.maxX - screenMargin
+        let fitsLeft = leftX >= visibleFrame.minX + screenMargin
+        let x: CGFloat
+        if direction.dx >= 0 {
+            x = fitsRight || !fitsLeft ? rightX : leftX
+        } else {
+            x = fitsLeft || !fitsRight ? leftX : rightX
+        }
+        let y = wheelCenter.y + direction.dyUp * reach - size.height / 2
+        return CGRect(x: min(max(x, visibleFrame.minX + screenMargin),
+                             visibleFrame.maxX - screenMargin - size.width),
+                      y: min(max(y, visibleFrame.minY + screenMargin),
+                             visibleFrame.maxY - screenMargin - size.height),
+                      width: size.width, height: size.height)
+    }
+
+    /// The entry under a point, counted from the top of the whole list, nil
+    /// over the header, the preview or outside.
+    static func row(at point: CGPoint, in frame: CGRect, rowCount: Int, firstVisibleRow: Int) -> Int? {
+        guard frame.contains(point) else { return nil }
+        let fromTop = frame.maxY - point.y - padding - headerHeight
+        guard fromTop >= 0 else { return nil }
+        let onScreen = Int(fromTop / rowHeight)
+        guard onScreen < visibleRows else { return nil }
+        let index = firstVisibleRow + onScreen
+        return index < rowCount ? index : nil
+    }
+
+    /// The arrow keys walk the rows and stop at either end; the first press
+    /// enters from the side it points to.
+    static func movedRow(_ current: Int?, by delta: Int, rowCount: Int) -> Int? {
+        guard rowCount > 0 else { return nil }
+        guard let current else { return delta > 0 ? 0 : rowCount - 1 }
+        return min(max(current + delta, 0), rowCount - 1)
+    }
+
+    /// The top row after scrolling, kept so the last row never rises past the
+    /// bottom of the list.
+    static func scrolledFirstRow(_ first: Int, by rows: Int, rowCount: Int) -> Int {
+        min(max(first + rows, 0), max(rowCount - visibleRows, 0))
+    }
+
+    /// The top row that brings `row` on screen with the least movement, so
+    /// the arrow keys scroll the list as they walk past its edge.
+    static func firstRow(revealing row: Int, from first: Int, rowCount: Int) -> Int {
+        let wanted = row < first ? row : (row >= first + visibleRows ? row - visibleRows + 1 : first)
+        return scrolledFirstRow(wanted, by: 0, rowCount: rowCount)
+    }
+
+    /// While a peek is open, a pointer past the wheel's rim is on its way to
+    /// the panel, so it keeps the slice it came from instead of arming every
+    /// direction it crosses. Back on the ring it points as usual again.
+    static func holdsHighlight(pointerDistance: CGFloat) -> Bool {
+        pointerDistance > RadialMenuLayout.wheelDiameter / 2
     }
 }
 

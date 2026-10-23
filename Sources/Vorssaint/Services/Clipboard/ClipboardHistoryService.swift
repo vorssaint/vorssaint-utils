@@ -1298,16 +1298,32 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func rememberPasteTarget() {
+        pasteTargetApp = Self.frontmostPasteTarget()
+    }
+
+    private static func frontmostPasteTarget() -> NSRunningApplication? {
         let ownBundleID = Bundle.main.bundleIdentifier
         guard let app = NSWorkspace.shared.frontmostApplication,
               app.bundleIdentifier != ownBundleID,
               app.activationPolicy == .regular,
               !app.isTerminated
-        else {
-            pasteTargetApp = nil
-            return
+        else { return nil }
+        return app
+    }
+
+    /// Pastes an entry into the app in front, for surfaces that never take
+    /// the keyboard from it (the radial menu's peek). Like a pick in the
+    /// window, the paste waits for the write, and an app that cannot take
+    /// one is left with the entry on its clipboard.
+    func paste(_ entry: ClipboardHistoryEntry) {
+        let target = Self.frontmostPasteTarget()
+        copy(entry) { [weak self] copied in
+            guard copied else {
+                NSSound.beep()
+                return
+            }
+            self?.pasteIntoPreviousApp(target)
         }
-        pasteTargetApp = app
     }
 
     /// The entry is already on the clipboard, so a paste that cannot follow

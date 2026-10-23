@@ -21,7 +21,9 @@ final class RadialMenuService: ObservableObject {
     @Published private(set) var activeProfile: RadialMenuProfile?
     /// Names of the submenus that were descended into, for the hub's back hint.
     @Published private(set) var trail: [String] = []
-    @Published private(set) var highlightedIndex: Int?
+    @Published private(set) var highlightedIndex: Int? {
+        didSet { if highlightedIndex != oldValue { highlightDidChange() } }
+    }
     @Published private(set) var nowPlayingState = RadialNowPlayingState.nothingPlaying
     /// True while a hold-capable session still owns its shortcut or mouse
     /// button; release behavior is determined by `sessionActivationMode`.
@@ -74,8 +76,21 @@ final class RadialMenuService: ObservableObject {
     private var activationObserver: NSObjectProtocol?
     private var promptedForAccessibility = false
     private let dismissal = PanelDismissal()
+    /// The list a slice opens beside the wheel while the pointer rests on it.
+    private let peek = RadialMenuPeekController()
+    private var peekDwell: DispatchWorkItem?
 
     private init() {
+        peek.onOpenFile = { [weak self] url in self?.openFromPeek(url) }
+        // A drag outlives the summoner: letting go of the shortcut mid-drag
+        // must not close the wheel under the files being carried.
+        peek.onDragStarted = { [weak self] in self?.enterStickyPhase() }
+        peek.onDragEnded = { [weak self] dropped in
+            // Dropped somewhere, the job is done; a cancelled drag returns
+            // to the list it came from.
+            guard dropped, let self, self.sessionActive else { return }
+            self.endSession()
+        }
         // A filter tap owned by a switched-away login session keeps its place
         // in the chain, so the account on screen waits out this tap's timeout
         // on every extra-button click it makes (issue #1075). Hand the tap
@@ -143,6 +158,7 @@ final class RadialMenuService: ObservableObject {
         tearDownMouseTap()
         endSession()
         panel = nil
+        peek.releasePanel()
     }
 
     // MARK: - Mouse button trigger (a tap so the click never also reaches the
@@ -443,6 +459,9 @@ final class RadialMenuService: ObservableObject {
         if dismissal.isActive { return }
         removeMonitors()
         stopTrackingSuperKeyHold()
+        // The peek is a list to pick from, not part of the wheel's picture:
+        // it leaves at once instead of fading out with it.
+        closePeek()
         guard let panel, panel.isVisible, !stack.isEmpty else {
             forgetSession()
             return
@@ -455,6 +474,9 @@ final class RadialMenuService: ObservableObject {
 
     /// Everything a session leaves behind, dropped once the wheel is gone.
     private func forgetSession() {
+        // Every way a session ends passes here, so nothing that belongs to
+        // the wheel outlives it, whichever path closed it.
+        closePeek()
         visible = false
         panel?.orderOut(nil)
         stack = []
@@ -470,6 +492,7 @@ final class RadialMenuService: ObservableObject {
         if !AppFeature.radialMenu.isAvailable
             || !UserDefaults.standard.bool(forKey: DefaultsKey.radialMenuEnabled) {
             panel = nil
+            peek.releasePanel()
         }
     }
 
@@ -511,11 +534,75 @@ final class RadialMenuService: ObservableObject {
             }
             pointerActivated = true
         }
-        let index = RadialMenuGeometry.highlightedIndex(dx: pointer.x - wheelCenter.x,
-                                                        dyUp: pointer.y - wheelCenter.y,
+        // Files on their way out: the pointer is carrying them over other
+        // apps, not choosing a slice, and the list must stay where it is.
+        if peek.isDragging { return }
+        let dx = pointer.x - wheelCenter.x
+        let dyUp = pointer.y - wheelCenter.y
+        if peek.isOpen {
+            peek.trackPointer(pointer)
+            if peek.contains(pointer)
+                || RadialMenuPeekLayout.holdsHighlight(pointerDistance: (dx * dx + dyUp * dyUp).squareRoot()) {
+                return
+            }
+        }
+        let index = RadialMenuGeometry.highlightedIndex(dx: dx,
+                                                        dyUp: dyUp,
                                                         deadZoneRadius: RadialMenuLayout.deadZoneRadius,
                                                         itemCount: currentItems.count)
         if index != highlightedIndex { highlightedIndex = index }
+    }
+
+    /// A new slice under the pointer closes the last one's peek and starts
+    /// the rest that opens its own. Keyboard highlights rest the same way.
+    private func highlightDidChange() {
+        closePeek()
+        guard let index = highlightedIndex, sessionActive,
+              currentItems.indices.contains(index),
+              let kind = currentItems[index].peek,
+              UserDefaults.standard.bool(forKey: DefaultsKey.radialMenuPeekEnabled) else { return }
+        let session = sessionID
+        let level = stack.count
+        let dwell = DispatchWorkItem { [weak self] in
+            guard let self, self.sessionActive, self.sessionID == session,
+                  self.stack.count == level, self.highlightedIndex == index,
+                  self.panel?.isVisible == true else { return }
+            self.peekDwell = nil
+            self.peek.open(kind, slice: index, color: self.activeProfile?.color ?? .accent,
+                           wheelCenter: self.wheelCenter,
+                           direction: RadialMenuGeometry.unitPosition(index: index,
+                                                                      itemCount: self.currentItems.count))
+        }
+        peekDwell = dwell
+        DispatchQueue.main.asyncAfter(deadline: .now() + RadialMenuPeekLayout.dwell, execute: dwell)
+    }
+
+    private func closePeek() {
+        peekDwell?.cancel()
+        peekDwell = nil
+        peek.close()
+    }
+
+    /// Pastes the peek row the pointer or the arrows are on into the app in
+    /// front, once the summoning chord has left the keyboard, or the paste
+    /// would merge with it. False when no row is picked.
+    @discardableResult
+    private func choosePeekEntry() -> Bool {
+        guard sessionActive, let entry = peek.highlightedEntry else { return false }
+        endSession()
+        afterModifiersReleased(attempt: 0) { ClipboardHistoryService.shared.paste(entry) }
+        return true
+    }
+
+    /// A file opened from the folder list, the way a file slice opens one.
+    private func openFromPeek(_ url: URL) {
+        guard sessionActive else { return }
+        endSession()
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            NSSound.beep()
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 
     /// The wheel view's tap. Where the click lands decides: past the wheel's
@@ -601,9 +688,47 @@ final class RadialMenuService: ObservableObject {
             self?.pointerMoved()
         }) { eventMonitors.append(monitor) }
 
+        // Scrolling reaches the window under the pointer, key or not, so the
+        // peek scrolls without ever taking the keyboard from the wheel.
+        if let monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel, handler: { [weak self] event in
+            guard let self, let peekWindow = self.peek.window, event.window === peekWindow else { return event }
+            self.peek.scroll(deltaY: event.scrollingDeltaY, precise: event.hasPreciseScrollingDeltas,
+                             pointer: NSEvent.mouseLocation)
+            return nil
+        }) { eventMonitors.append(monitor) }
+
+        // The rest of a press on the folder list: moving far enough makes it
+        // a drag, coming back up where it began makes it a click. Watched
+        // only while such a press is pending; every other press passes.
+        if let monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDragged, .leftMouseUp],
+                                                          handler: { [weak self] event in
+            guard let self, self.peek.hasPendingPress else { return event }
+            let point = NSEvent.mouseLocation
+            if event.type == .leftMouseUp {
+                self.peek.folderMouseUp(event, at: point)
+                return nil
+            }
+            return self.peek.folderMouseDragged(event, at: point) ? nil : event
+        }) { eventMonitors.append(monitor) }
+
         let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         if let monitor = NSEvent.addLocalMonitorForEvents(matching: clicks, handler: { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return event }
+            // The peek never takes the keyboard, so its rows are not buttons:
+            // a click there runs the row under the pointer, and nothing else.
+            if let peekWindow = self.peek.window, event.window === peekWindow {
+                if event.type == .leftMouseDown {
+                    if self.peek.isFolder {
+                        // A click or the start of a drag: the button's way
+                        // back up, or the pointer's travel, decides which.
+                        self.peek.folderMouseDown(at: NSEvent.mouseLocation)
+                    } else {
+                        self.peek.trackPointer(NSEvent.mouseLocation)
+                        self.choosePeekEntry()
+                    }
+                }
+                return nil
+            }
             if event.window !== panel, !Self.pointerInside(panel) {
                 self.endSession()
             }
@@ -666,12 +791,21 @@ final class RadialMenuService: ObservableObject {
     /// mid-gesture from producing a half-old, half-new interaction.
     private func endHoldPhase() {
         guard sessionActive, holdPhase else { return }
+        // Picking from a folder is the pointer's work: letting go of the
+        // summoner over its list keeps the wheel up instead of opening
+        // whatever file happens to sit under the pointer.
+        if peek.isFolder, peek.contains(NSEvent.mouseLocation) {
+            enterStickyPhase()
+            return
+        }
         switch sessionActivationMode.releaseAction(hasSelection: highlightedIndex != nil) {
         case .stayOpen:
             enterStickyPhase()
         case .dismiss:
             endSession()
         case .select:
+            // Released over a peek row, the gesture was for that row.
+            if choosePeekEntry() { return }
             guard let index = highlightedIndex else { return }
             select(index)
         }
@@ -690,6 +824,7 @@ final class RadialMenuService: ObservableObject {
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
+        if peek.isOpen, handlePeekKeyDown(event) { return true }
         switch Int(event.keyCode) {
         case kVK_Escape:
             stepBack()
@@ -715,6 +850,71 @@ final class RadialMenuService: ObservableObject {
                 select(digit - 1)
                 return true
             }
+            return false
+        }
+    }
+
+    /// While a peek is open, up and down walk its rows and Return pastes the
+    /// one they are on; a digit pastes the entry with that number. Left and
+    /// right still turn the wheel, which closes it. Esc closes the peek
+    /// alone, and a second Esc steps back as usual.
+    private func handlePeekKeyDown(_ event: NSEvent) -> Bool {
+        if peek.isFolder { return handleFolderKeyDown(event) }
+        let keyCode = Int(event.keyCode)
+        if let digit = event.charactersIgnoringModifiers?.first?.wholeNumberValue, (1...9).contains(digit) {
+            // Swallowed even past the last entry: with the list open, a digit
+            // is a number in it, never a slice of the wheel behind.
+            if peek.highlight(row: digit - 1) { choosePeekEntry() }
+            return true
+        }
+        switch keyCode {
+        case kVK_Escape:
+            closePeek()
+            return true
+        case kVK_Return, kVK_ANSI_KeypadEnter:
+            return choosePeekEntry()
+        case kVK_UpArrow, kVK_DownArrow:
+            if sessionActivationMode != .hold { enterStickyPhase() }
+            peek.moveHighlight(by: keyCode == kVK_DownArrow ? 1 : -1)
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// The folder list's keys: up and down walk the rows, Return or a digit
+    /// opens a file or goes into a folder, → goes in and ← comes back up,
+    /// Space picks a file and ⌘C copies the picked files. At the folder on
+    /// the wheel, ← turns the wheel as it always does, and Return with no
+    /// row opens the slice itself.
+    private func handleFolderKeyDown(_ event: NSEvent) -> Bool {
+        let keyCode = Int(event.keyCode)
+        let characters = event.charactersIgnoringModifiers?.lowercased()
+        if event.modifierFlags.contains(.command), characters == "c" {
+            if peek.copyFiles() { endSession() } else { NSSound.beep() }
+            return true
+        }
+        if let digit = characters?.first?.wholeNumberValue, (1...9).contains(digit) {
+            if peek.highlight(row: digit - 1) { _ = peek.activateHighlighted() }
+            return true
+        }
+        switch keyCode {
+        case kVK_Escape:
+            closePeek()
+            return true
+        case kVK_Return, kVK_ANSI_KeypadEnter:
+            return peek.activateHighlighted()
+        case kVK_UpArrow, kVK_DownArrow:
+            if sessionActivationMode != .hold { enterStickyPhase() }
+            peek.moveHighlight(by: keyCode == kVK_DownArrow ? 1 : -1)
+            return true
+        case kVK_RightArrow:
+            return peek.enterHighlightedFolder()
+        case kVK_LeftArrow:
+            return peek.goUp()
+        case kVK_Space:
+            return peek.togglePickHighlighted()
+        default:
             return false
         }
     }
@@ -836,19 +1036,24 @@ final class RadialMenuService: ObservableObject {
         return true
     }
 
-    /// Waits for the summoning chord to leave the keyboard before posting, or
-    /// the synthetic key merges with the still-held modifiers (checked every
-    /// 15 ms for up to ~1.5 s, with an extra beat once clean).
     private func postWhenModifiersReleased(attempt: Int, then post: @escaping () -> Void) {
         guard ensureAccessibilityPermission() else { return }
+        afterModifiersReleased(attempt: attempt, then: post)
+    }
+
+    /// Waits for the summoning chord to leave the keyboard before posting, or
+    /// the synthetic key merges with the still-held modifiers (checked every
+    /// 15 ms for up to ~1.5 s, with an extra beat once clean). Asks nothing
+    /// of Accessibility itself: a peek's paste still copies without it.
+    private func afterModifiersReleased(attempt: Int, then action: @escaping () -> Void) {
         let held = CGEventSource.flagsState(.combinedSessionState)
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
         if held.isEmpty || attempt >= 100 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06, execute: post)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06, execute: action)
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) { [weak self] in
-            self?.postWhenModifiersReleased(attempt: attempt + 1, then: post)
+            self?.afterModifiersReleased(attempt: attempt + 1, then: action)
         }
     }
 

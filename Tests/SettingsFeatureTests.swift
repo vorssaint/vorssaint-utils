@@ -240,6 +240,7 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.radialMenuAtPointer)
                 && backupKeys.contains(DefaultsKey.radialMenuMouseButton)
                 && backupKeys.contains(DefaultsKey.radialMenuActivationMode)
+                && backupKeys.contains(DefaultsKey.radialMenuPeekEnabled)
                 && backupKeys.contains(DefaultsKey.radialMenuItems)
                 && backupKeys.contains(DefaultsKey.panelControlRadialMenu),
                "the radial menu wheel and choices travel with the settings backup")

@@ -4162,6 +4162,7 @@ enum ScreenshotFeatureTests {
         suite.expect(GlobalShortcutRole.radialMenu.requiredEnableKeys == [DefaultsKey.radialMenuEnabled]
                 && GlobalShortcutRole.radialMenu.feature == .radialMenu,
                "the radial menu shortcut role gates on the feature toggle")
+        RadialMenuPeekContract.run(suite)
 
         // MARK: Capture tool shortcuts
 
