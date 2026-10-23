@@ -65,8 +65,7 @@ enum PanelSurface {
     /// lower-left corner: the popover grows by that safe area, the panel sits off
     /// center, and a band of system material shows along the top and right edges.
     static var popoverHostsFullSizeContent: Bool {
-        if #available(macOS 26.0, *) { return true }
-        return false
+        false
     }
 
     static func baseFill(for scheme: ColorScheme) -> Color {
@@ -186,10 +185,8 @@ private struct PanelGlassSurface: View {
         // PanelSurface.popoverHostsFullSizeContent.
         if notchPresentation {
             Rectangle().fill(notchGlassSurface ? Color.clear : .black)
-        } else if PanelSurface.popoverHostsFullSizeContent {
-            surface.ignoresSafeArea()
         } else {
-            insetSurface
+            surface
         }
     }
 
