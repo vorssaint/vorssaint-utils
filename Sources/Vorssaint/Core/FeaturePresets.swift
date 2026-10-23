@@ -133,6 +133,9 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory,
              .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
             return .periodic
+        // The hotkey and workspace notices are quiet at rest; while a window
+        // is pinned, a 150 ms sweep keeps its clone on the original's frame.
+        case .windowPinning: return .periodic
         case .mixer:
             return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 ? .keyboard : .idle

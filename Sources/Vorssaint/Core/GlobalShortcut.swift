@@ -124,6 +124,8 @@ struct GlobalShortcut: Equatable, Hashable {
                                                  modifiers: [.control, .option, .command])
     static let shelfDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_D),
                                              modifiers: [.control, .option, .command])
+    static let windowPinningDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_O),
+                                                     modifiers: [.control, .option, .command])
     static let switcherDefault = GlobalShortcut(keyCode: Int64(kVK_Tab),
                                                 modifiers: [.command])
     static let switcherWindowDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave),
@@ -696,6 +698,7 @@ enum ShortcutRecordingCaption {
 enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keepAwake
     case shelf
+    case windowPinning
     case switcher
     case switcherWindow
     case clipboard
@@ -731,6 +734,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         switch self {
         case .keepAwake: return DefaultsKey.keepAwakeShortcut
         case .shelf: return DefaultsKey.shelfShortcut
+        case .windowPinning: return DefaultsKey.windowPinningShortcut
         case .switcher: return DefaultsKey.switcherShortcut
         case .switcherWindow: return DefaultsKey.switcherWindowShortcut
         case .clipboard: return DefaultsKey.clipboardHistoryShortcut
@@ -766,6 +770,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         switch self {
         case .keepAwake: return .keepAwakeDefault
         case .shelf: return .shelfDefault
+        case .windowPinning: return .windowPinningDefault
         case .switcher: return .switcherDefault
         case .switcherWindow: return .switcherWindowDefault
         case .clipboard: return .clipboardDefault
@@ -820,6 +825,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         switch self {
         case .keepAwake: return strings.keepAwakeTitle
         case .shelf: return strings.shelfName
+        case .windowPinning: return FeatureStrings.windowPinning(L10n.shared.language).pageTitle
         case .switcher: return strings.switcherShortcutHintApps
         case .switcherWindow: return strings.switcherShortcutHintWindows
         case .clipboard: return FeatureStrings.clipboard(L10n.shared.language).title
@@ -888,6 +894,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         switch self {
         case .keepAwake: return [DefaultsKey.hotkeyEnabled]
         case .shelf: return [DefaultsKey.shelfEnabled, DefaultsKey.shelfShortcutEnabled]
+        case .windowPinning: return [DefaultsKey.windowPinningEnabled]
         case .switcher, .switcherWindow: return [DefaultsKey.switcherEnabled]
         case .clipboard: return [DefaultsKey.clipboardHistoryEnabled,
                                  DefaultsKey.clipboardHistoryShortcutEnabled]
@@ -926,6 +933,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         switch self {
         case .keepAwake: return .keepAwake
         case .shelf: return .shelf
+        case .windowPinning: return .windowPinning
         case .switcher, .switcherWindow: return .switcher
         case .clipboard: return .clipboardHistory
         case .soundOutputSwitcher: return .soundOutputSwitcher
