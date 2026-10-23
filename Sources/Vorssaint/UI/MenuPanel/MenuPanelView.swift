@@ -293,6 +293,7 @@ struct MenuPanelView: View {
     private var estimatedNavigableContentHeight: CGFloat {
         switch activeSection {
         case .keepAwake: return 250
+        case .powerTimer: return 330
         case .brightness: return 140
         case .mixer: return 250
         case .system: return 460
@@ -325,6 +326,11 @@ struct MenuPanelView: View {
     private func section(for id: PanelSectionID, collapsible: Bool = true) -> some View {
         switch id {
         case .keepAwake: KeepAwakeCard(collapsible: collapsible)
+        case .powerTimer:
+            if PanelLayout.isVisibleInPanel(.powerTimer), AppFeature.powerTimer.isAvailable {
+                PanelSection(.powerTimer, title: FeatureStrings.powerTimer(l10n.language).title,
+                             collapsible: collapsible) { PowerTimerView() }
+            }
         case .brightness: if showBrightness { BrightnessSection(collapsible: collapsible) }
         case .mixer: if showMixer { mixerOrPrioritySection(collapsible: collapsible) }
         case .system:

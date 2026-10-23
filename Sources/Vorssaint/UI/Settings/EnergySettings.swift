@@ -53,6 +53,12 @@ struct EnergySettings: View {
                         .settingsSectionAnchor(.keepAwake, cornerRadius: 16)
                     keepAwakeOptionsCard
                 }
+                if (focus == nil || focus == .powerTimer), AppFeature.powerTimer.isAvailable {
+                    SettingsCard(title: FeatureStrings.powerTimer(l10n.language).title) {
+                        PowerTimerView()
+                    }
+                    .settingsSectionAnchor(.powerTimer, cornerRadius: 16)
+                }
                 if (focus == nil || focus == .brightness), AppFeature.brightness.isAvailable {
                     displaysCard
                         .settingsSectionAnchor(.brightness, cornerRadius: 16)
@@ -100,6 +106,7 @@ struct EnergySettings: View {
     private var pageTitle: String {
         switch focus {
         case .keepAwake: return l10n.s.keepAwakeTitle
+        case .powerTimer: return FeatureStrings.powerTimer(l10n.language).title
         case .brightness: return FeatureStrings.brightness(l10n.language).pageTitle
         case .extraBrightness: return l10n.s.extraBrightnessName
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).pageTitle
@@ -110,6 +117,7 @@ struct EnergySettings: View {
     private var pageDescription: String {
         switch focus {
         case .keepAwake: return FeatureStrings.hub(l10n.language).descKeepAwake
+        case .powerTimer: return FeatureStrings.powerTimer(l10n.language).description
         case .brightness: return FeatureStrings.brightness(l10n.language).hubDescription
         case .extraBrightness: return FeatureStrings.hub(l10n.language).descExtraBrightness
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).hubDescription
