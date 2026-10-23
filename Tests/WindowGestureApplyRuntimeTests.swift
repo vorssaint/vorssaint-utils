@@ -19,11 +19,18 @@ enum WindowGestureApplyRuntimeTests {
         var writeDuration: TimeInterval = 0
         private let writtenLock = NSLock()
         private var writtenPositions: [CGFloat] = []
+        private var writtenRestoredSizes: [CGSize?] = []
 
         var written: [CGFloat] {
             writtenLock.lock()
             defer { writtenLock.unlock() }
             return writtenPositions
+        }
+
+        var restoredSizes: [CGSize?] {
+            writtenLock.lock()
+            defer { writtenLock.unlock() }
+            return writtenRestoredSizes
         }
 
         func apply(_ gesture: WindowPointerGesture, pointer: CGPoint) {
@@ -34,6 +41,7 @@ enum WindowGestureApplyRuntimeTests {
             if writeDuration > 0 { Thread.sleep(forTimeInterval: writeDuration) }
             writtenLock.lock()
             writtenPositions.append(pointer.x)
+            writtenRestoredSizes.append(gesture.restore?.size)
             writtenLock.unlock()
         }
     }
@@ -77,6 +85,22 @@ enum WindowGestureApplyRuntimeTests {
             if host.written.last != 1000 { lostFinals += 1 }
         }
         suite.expect(lostFinals == 0, "no gesture loses its final frame write, however the writes interleave")
+
+        let resized = Host()
+        let restoredSize = CGSize(width: 800, height: 500)
+        var unparking = gesture
+        let key = WindowLayoutWindowKey(processID: 1, processLaunchTime: 0, windowID: 1)
+        unparking.restore = WindowParkedRestore(size: restoredSize, key: key,
+                                                 parked: WindowLayoutFrame(origin: .zero, size: .zero))
+        resized.firstWriteHold = DispatchSemaphore(value: 0)
+        let resizeHold = resized.firstWriteHold!
+        resized.enqueueGestureApply(gesture, pointer: CGPoint(x: 1, y: 0))
+        resized.enqueueGestureApply(unparking, pointer: CGPoint(x: 2, y: 0))
+        resized.enqueueGestureApply(gesture, pointer: CGPoint(x: 3, y: 0))
+        resizeHold.signal()
+        resized.flushGestureApplies()
+        suite.expect(resized.restoredSizes.filter { $0 == restoredSize }.count == 1 && resized.written.last == 3,
+                     "a size given back to a parked window is written once, even when a newer position replaces its write")
 
         let idle = Host()
         let idleStart = ProcessInfo.processInfo.systemUptime

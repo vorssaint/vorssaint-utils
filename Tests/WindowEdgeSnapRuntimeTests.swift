@@ -40,6 +40,14 @@ enum WindowEdgeSnapRuntimeTests {
     static var appIgnored = false
     /// Whether the window's server ID can be read from its Accessibility element.
     static var windowIDReadable = true
+    /// Whether the app takes a size written to its window.
+    static var sizeAccepted = true
+    /// The app's assistive flag is on, so a frame write holds it off first.
+    static var assistiveFlagOn = false
+    /// Every hold a write took on the app's assistive flag.
+    static var assistiveHolds: [EnhancedUserInterfaceSuspension] = []
+    /// What the drag does to the window while the app takes the next size.
+    static var duringSizeWrite: (() -> Void)?
     /// A real timer fires at or after its deadline, here a millisecond after,
     /// so a look set for exactly the rest of a pause finds it complete.
     static let timerLatency: TimeInterval = 0.001
@@ -184,6 +192,17 @@ enum WindowEdgeSnapRuntimeTests {
             self.processIdentifier = processIdentifier
         }
     }
+    /// The app's assistive flag, held off until resumed.
+    final class EnhancedUserInterfaceSuspension {
+        static func suspend(forAppOf window: Window) -> EnhancedUserInterfaceSuspension? {
+            guard assistiveFlagOn else { return nil }
+            let hold = EnhancedUserInterfaceSuspension()
+            assistiveHolds.append(hold)
+            return hold
+        }
+        var resumed = 0
+        func resume() { resumed += 1 }
+    }
     final class WindowLayoutIgnoredApps {
         static let shared = WindowLayoutIgnoredApps()
         func contains(bundleID: String?, executablePath: @autoclosure () -> String?) -> Bool {
@@ -208,10 +227,6 @@ enum WindowEdgeSnapRuntimeTests {
             return windowIDReadable ? window.id : nil
         }
     }
-    struct EnhancedUserInterfaceSuspension {
-        static func suspend(forAppOf window: Window) -> EnhancedUserInterfaceSuspension? { nil }
-        func resume() {}
-    }
     static func AXUIElementPerformAction(_ window: Window, _ action: CFString) {}
 
     /// Every question to the window's app. Asked from the main run loop it
@@ -224,6 +239,12 @@ enum WindowEdgeSnapRuntimeTests {
         } else {
             mainAXAfterRelease += 1
         }
+    }
+
+    enum Write: Equatable {
+        case size(CGSize)
+        case position(CGPoint)
+        case placement
     }
 
     class Fixture {
@@ -258,6 +279,16 @@ enum WindowEdgeSnapRuntimeTests {
         var previewShown = false
         var placements: [WindowLayoutFrame] = []
         var placedActions: [WindowLayoutAction] = []
+        var lastActions: [WindowLayoutWindowKey: WindowLayoutAction] = [:]
+        var frameHistory = WindowLayoutHistory()
+        var settledFrames: [WindowLayoutWindowKey: WindowLayoutSettledFrame] = [:]
+        var assistiveModeSuspensions: [CGWindowID: EnhancedUserInterfaceSuspension] = [:]
+        /// Frame writes the gesture queued, landed only when a test lets the app answer.
+        var queuedWrites: [(gesture: WindowPointerGesture, pointer: CGPoint)] = []
+        let anchorTolerance: CGFloat = 36
+        let frameTolerance = WindowLayoutGeometry.frameTolerance
+        /// Frame writes and placements, in the order they reach the window.
+        var writes: [Write] = []
 
         func syncWithPreferences() {}
         func edgeSnapConflictsWithWindowGesture(flags: CGEventFlags) -> Bool { false }
@@ -301,25 +332,41 @@ enum WindowEdgeSnapRuntimeTests {
             pendingGesture = nil
             replayedClicks += 1
         }
-        func endGestureAssistiveMode() {}
         func gestureTarget(at point: CGPoint, requiresResize: Bool) -> WindowGestureTarget? {
             guard currentFrame.contains(point), let app = NSRunningApplication(processIdentifier: processID)
             else { return nil }
             return WindowGestureTarget(window: Window(pid: processID, id: windowID), app: app,
                                        frame: WindowLayoutFrame(origin: currentFrame.origin, size: currentFrame.size))
         }
-        /// The app takes every frame the gesture writes at once.
+        func bestScreen(for frame: WindowLayoutFrame) -> NSScreen? { NSScreen.screens.first }
+        func cancelSettle(for windowID: CGWindowID) {}
         func enqueueGestureApply(_ gesture: WindowPointerGesture, pointer: CGPoint) {
-            switch gesture.kind {
-            case .move:
-                currentFrame.origin = WindowGestureSupport.movedOrigin(from: gesture.originalFrame.origin,
-                                                                       pointerStart: gesture.pointerStart,
-                                                                       pointerNow: pointer)
-            case .resize(let edges):
-                currentFrame = WindowGestureSupport.resizedFrame(from: gesture.originalFrame,
-                                                                 pointerStart: gesture.pointerStart,
-                                                                 pointerNow: pointer, edges: edges)
+            queuedWrites.append((gesture, pointer))
+        }
+        func flushGestureApplies() {}
+        /// macOS fits a size to the display at the position the window sits
+        /// at, and still reports success: a window against the right edge
+        /// cannot grow past it until it has moved away.
+        func setSize(_ size: CGSize, on window: Window) -> Bool {
+            countAX()
+            duringSizeWrite?()
+            duringSizeWrite = nil
+            guard sizeAccepted else { return false }
+            writes.append(.size(size))
+            let displays = NSScreen.screens.map {
+                CGRect(x: $0.frame.minX, y: NSScreen.primary.frame.maxY - $0.frame.maxY,
+                       width: $0.frame.width, height: $0.frame.height)
             }
+            let display = displays.first { $0.contains(currentFrame.origin) } ?? displays[0]
+            currentFrame.size = CGSize(width: min(size.width, display.maxX - currentFrame.minX),
+                                       height: min(size.height, display.maxY - currentFrame.minY))
+            return true
+        }
+        func setPosition(_ origin: CGPoint, on window: Window) -> Bool {
+            countAX()
+            writes.append(.position(origin))
+            currentFrame.origin = origin
+            return true
         }
         @discardableResult
         func applyPlacement(_ action: WindowLayoutAction, to target: WindowLayoutTarget,
@@ -327,6 +374,9 @@ enum WindowEdgeSnapRuntimeTests {
                             cyclesRepeatedAction: Bool) -> Bool {
             placements.append(historyFrame)
             placedActions.append(action)
+            writes.append(.placement)
+            frameHistory.record(historyFrame, for: target.key)
+            lastActions[target.key] = action
             return true
         }
     }
@@ -348,6 +398,10 @@ enum WindowEdgeSnapRuntimeTests {
         zoneActions = nil
         appIgnored = false
         windowIDReadable = true
+        sizeAccepted = true
+        assistiveFlagOn = false
+        assistiveHolds = []
+        duringSizeWrite = nil
         NSScreen.screens = [NSScreen.primary]
         WindowEdgeSnapSupport.isSystemTilingEnabled = false
         WindowEdgeSnapSupport.isSystemTopWindowOverviewDragEnabled = false
@@ -444,6 +498,14 @@ enum WindowEdgeSnapRuntimeTests {
             currentFrame = initialFrame.offsetBy(dx: point.x - pressPoint.x, dy: point.y - pressPoint.y)
         }
         host.forwardToEdgeSnap(gesture, .dragged(location: point, time: clockStart + clock))
+        DispatchQueue.main.runDue()
+    }
+
+    /// The app answers every frame write queued so far, in order.
+    private static func land(_ host: Host) {
+        let writes = host.queuedWrites
+        host.queuedWrites.removeAll()
+        for write in writes { host.apply(write.gesture, pointer: write.pointer) }
         DispatchQueue.main.runDue()
     }
 
@@ -994,5 +1056,421 @@ enum WindowEdgeSnapRuntimeTests {
         DispatchQueue.main.drain()
         suite.expect(tapCutOffDrag.preview && hiddenOnCutOff && tapCutOff.placements.isEmpty,
                      "a chord drag the system cuts off through the gesture tap hides the preview and never snaps")
+        let key = WindowLayoutWindowKey(processID: processID,
+                                        processLaunchTime: launch.timeIntervalSinceReferenceDate,
+                                        windowID: windowID)
+        let startingFrame = WindowLayoutFrame(origin: initialFrame.origin, size: initialFrame.size)
+        /// Parks the window on the right half the way a placement does, with
+        /// its earlier frame kept for Restore.
+        func park(_ host: Host) -> CGRect {
+            let parked = host.placement(for: .rightHalf, current: startingFrame,
+                                        visibleFrame: NSScreen.primary.visibleFrame).frame
+            host.lastActions[key] = .rightHalf
+            host.frameHistory.record(startingFrame, for: key)
+            currentFrame = CGRect(origin: parked.origin, size: parked.size)
+            return currentFrame
+        }
+        /// A modifier move taking the window at `grab`, its pointer since gone on to `pointer`.
+        func carryOff(_ host: Host, from frame: CGRect, grab: CGPoint, pointer: CGPoint) -> WindowPointerGesture {
+            let gesture = WindowPointerGesture(window: Window(pid: processID, id: windowID), kind: .move,
+                                               button: .primary, originalFrame: frame, pointerStart: grab,
+                                               lastAppliedAt: 0, snapsAtEdges: true, lastPointer: pointer)
+            buttonDown = true
+            host.activeGesture = gesture
+            host.forwardToEdgeSnap(gesture, .moveGestureBegan(pressOrigin: grab, initialFrame: frame,
+                                                              windowID: windowID, processID: processID))
+            DispatchQueue.main.runDue()
+            return gesture
+        }
+        func restoreEntry(_ host: Host, at frame: CGRect) -> WindowLayoutFrame? {
+            var history = host.frameHistory
+            return history.popPrevious(for: key, current: WindowLayoutFrame(origin: frame.origin, size: frame.size))
+        }
+        /// Restore after a snap that followed a given-back frame: that frame,
+        /// and nothing older behind it, since the earlier entry was spent.
+        func restoresOnly(_ host: Host, _ frame: WindowLayoutFrame, from parked: CGRect) -> Bool {
+            restoreEntry(host, at: parked) == frame
+                && restoreEntry(host, at: CGRect(origin: frame.origin, size: frame.size)) == nil
+        }
+
+        reset()
+        let unparkHost = Host()
+        let parkedRect = park(unparkHost)
+        let grab = CGPoint(x: parkedRect.midX, y: parkedRect.minY + 10)
+        let restingPointer = CGPoint(x: grab.x - 30, y: grab.y + 5)
+        let unparking = carryOff(unparkHost, from: parkedRect, grab: grab, pointer: restingPointer)
+        land(unparkHost)
+        // Half the earlier width left of the pointer would reach past the
+        // display's right edge, so the window sits against it instead.
+        let fittedX = NSScreen.primary.visibleFrame.maxX - initialFrame.width
+        let restoredUnderPointer = currentFrame == CGRect(x: fittedX, y: restingPointer.y - 10,
+                                                          width: initialFrame.width, height: initialFrame.height)
+        // The window server lags behind for the rest of the drag.
+        let leftEdge = CGPoint(x: 1, y: 400)
+        for step in 1...4 {
+            clock += 0.05
+            let point = CGPoint(x: restingPointer.x + (leftEdge.x - restingPointer.x) * CGFloat(step) / 4, y: 400)
+            unparkHost.forwardToEdgeSnap(unparking, .dragged(location: point, time: clockStart + clock))
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.runDue()
+        }
+        drop(unparkHost, unparking, at: leftEdge)
+        let restoredAtGrab = WindowLayoutFrame(origin: CGPoint(x: fittedX - (restingPointer.x - grab.x), y: grab.y - 10),
+                                               size: initialFrame.size)
+        suite.expect(restoredUnderPointer,
+                     "a modifier move that carries off a snapped window gives back its earlier size under the pointer, even with the pointer at rest")
+        suite.expect(unparkHost.placedActions == [.leftHalf] && unparkHost.placements == [restoredAtGrab]
+                        && unparkHost.lastActions[key] == .leftHalf
+                        && restoresOnly(unparkHost, restoredAtGrab, from: parkedRect),
+                     "a window given back its size snaps again at the next edge, and Restore then returns the given-back size, not the parked frame")
+
+        reset()
+        sizeAccepted = false
+        let refusedHost = Host()
+        let refusedRect = park(refusedHost)
+        _ = carryOff(refusedHost, from: refusedRect, grab: grab, pointer: restingPointer)
+        land(refusedHost)
+        suite.expect(currentFrame.size == refusedRect.size && refusedHost.lastActions[key] == .rightHalf
+                        && restoreEntry(refusedHost, at: refusedRect) == startingFrame,
+                     "an app that refuses the earlier size keeps its window's Restore frame")
+
+        reset()
+        let movedByHand = Host()
+        let handRect = park(movedByHand).offsetBy(dx: -200, dy: 0)
+        currentFrame = handRect
+        let handGrab = CGPoint(x: handRect.midX, y: handRect.minY + 10)
+        _ = carryOff(movedByHand, from: handRect, grab: handGrab, pointer: handGrab)
+        land(movedByHand)
+        suite.expect(currentFrame == handRect && movedByHand.lastActions[key] == .rightHalf
+                        && restoreEntry(movedByHand, at: handRect) == startingFrame,
+                     "a modifier move of a window no longer where its last placement left it keeps its size and its Restore frame")
+
+        reset()
+        let settlingHost = Host()
+        let settlingRect = park(settlingHost)
+        let assistiveFlag = EnhancedUserInterfaceSuspension()
+        settlingHost.assistiveModeSuspensions[windowID] = assistiveFlag
+        _ = carryOff(settlingHost, from: settlingRect, grab: grab, pointer: restingPointer)
+        land(settlingHost)
+        let heldDuringDrag = assistiveFlag.resumed == 0
+        settlingHost.activeGesture = nil
+        settlingHost.endGestureAssistiveMode()
+        suite.expect(heldDuringDrag && assistiveFlag.resumed == 1,
+                     "carrying off a window whose placement is still settling gives the app's assistive flag back when the gesture ends")
+
+        // A title bar drag of a snapped window: the window server or the app
+        // carries the window, which here follows the pointer from the press.
+        let titleBarGrab = CGPoint(x: parkedRect.midX, y: parkedRect.minY + 14)
+        func carryParked(_ host: Host, to point: CGPoint) {
+            clock += 0.01
+            let size = currentFrame.size
+            currentFrame = CGRect(origin: CGPoint(x: parkedRect.minX + point.x - titleBarGrab.x,
+                                                  y: parkedRect.minY + point.y - titleBarGrab.y),
+                                  size: size)
+            hand(host, .leftMouseDragged, point)
+        }
+        /// Where a window given back its earlier size sits once its title bar,
+        /// grabbed in the middle, is at `point`, kept on the display.
+        func unparkedAt(_ point: CGPoint) -> CGRect {
+            let visible = NSScreen.primary.visibleFrame
+            return CGRect(x: max(visible.minX, min(point.x - initialFrame.width / 2, visible.maxX - initialFrame.width)),
+                          y: point.y - 14, width: initialFrame.width, height: initialFrame.height)
+        }
+        /// A press on the title bar and a first step that the lookup answers
+        /// at once, so the drag is seen moving the window.
+        func pressTitleBar(_ host: Host) {
+            send(host, .leftMouseDown, titleBarGrab)
+            carryParked(host, to: CGPoint(x: titleBarGrab.x - 20, y: titleBarGrab.y))
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.runDue()
+        }
+        let away = CGPoint(x: titleBarGrab.x - 30, y: titleBarGrab.y)
+
+        reset()
+        let unparkedByTitleBar = Host()
+        _ = park(unparkedByTitleBar)
+        pressTitleBar(unparkedByTitleBar)
+        carryParked(unparkedByTitleBar, to: away)
+        let nothingAskedWhileHeld = mainAXWhileHeld == 0
+        let keptUntilLanded = unparkedByTitleBar.lastActions[key] == .rightHalf
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.runDue()
+        suite.expect(nothingAskedWhileHeld && keptUntilLanded
+                        && unparkedByTitleBar.writes == [Write.size(initialFrame.size),
+                                                         .position(unparkedAt(away).origin),
+                                                         .size(initialFrame.size)]
+                        && unparkedByTitleBar.lastActions[key] == nil
+                        && restoreEntry(unparkedByTitleBar, at: parkedRect) == nil,
+                     "a title bar drag that carries off a snapped window gives back its earlier frame once, under the pointer, and spends Restore's entry once it lands")
+        carryParked(unparkedByTitleBar, to: CGPoint(x: away.x - 40, y: away.y))
+        DispatchQueue.drainLookups()
+        send(unparkedByTitleBar, .leftMouseUp, CGPoint(x: away.x - 40, y: away.y))
+        suite.expect(unparkedByTitleBar.writes.count == 3 && unparkedByTitleBar.placements.isEmpty,
+                     "a snapped window dragged off by its title bar is given back its size once and stays where it is dropped")
+
+        reset()
+        let titleBarResnap = Host()
+        _ = park(titleBarResnap)
+        pressTitleBar(titleBarResnap)
+        carryParked(titleBarResnap, to: away)
+        // The frame is still to be written when the window reaches the edge,
+        // so it is placed where the window is then.
+        let leftEdgeDrop = CGPoint(x: 0, y: 400)
+        carryParked(titleBarResnap, to: leftEdgeDrop)
+        send(titleBarResnap, .leftMouseUp, CGPoint(x: 0, y: 400))
+        let placedBeforeWrite = !titleBarResnap.placements.isEmpty
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        suite.expect(!placedBeforeWrite
+                        && titleBarResnap.writes == [Write.size(initialFrame.size), .position(unparkedAt(leftEdgeDrop).origin),
+                                               .size(initialFrame.size), .placement]
+                        && titleBarResnap.placedActions == [.leftHalf]
+                        && titleBarResnap.placements == [WindowLayoutFrame(origin: unparkedAt(away).origin,
+                                                                           size: initialFrame.size)]
+                        && titleBarResnap.lastActions[key] == .leftHalf
+                        && restoresOnly(titleBarResnap,
+                                        WindowLayoutFrame(origin: unparkedAt(away).origin, size: initialFrame.size),
+                                        from: parkedRect),
+                     "a snapped window dragged by its title bar to another edge gets its size back before it snaps, and Restore then returns that size")
+
+        reset()
+        sizeAccepted = false
+        let titleBarRefused = Host()
+        _ = park(titleBarRefused)
+        pressTitleBar(titleBarRefused)
+        carryParked(titleBarRefused, to: away)
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.runDue()
+        suite.expect(titleBarRefused.lastActions[key] == .rightHalf
+                        && restoreEntry(titleBarRefused, at: parkedRect) == startingFrame,
+                     "an app that refuses the earlier size during a title bar drag keeps its window's Restore frame")
+
+        reset()
+        let titleBarSettling = Host()
+        _ = park(titleBarSettling)
+        let titleBarFlag = EnhancedUserInterfaceSuspension()
+        titleBarSettling.assistiveModeSuspensions[windowID] = titleBarFlag
+        pressTitleBar(titleBarSettling)
+        carryParked(titleBarSettling, to: away)
+        let flagHeldUntilWritten = titleBarFlag.resumed == 0
+        DispatchQueue.drainLookups()
+        suite.expect(flagHeldUntilWritten && titleBarFlag.resumed == 1
+                        && titleBarSettling.assistiveModeSuspensions[windowID] == nil,
+                     "a title bar drag off a window whose placement is still settling gives the app's assistive flag back after its write")
+
+        reset()
+        let titleBarMovedByHand = Host()
+        let handParked = park(titleBarMovedByHand).offsetBy(dx: -200, dy: 0)
+        currentFrame = handParked
+        let handTitleBar = CGPoint(x: handParked.midX, y: handParked.minY + 14)
+        send(titleBarMovedByHand, .leftMouseDown, handTitleBar)
+        for step in 1...2 {
+            clock += 0.01
+            currentFrame = handParked.offsetBy(dx: CGFloat(step) * -20, dy: 0)
+            hand(titleBarMovedByHand, .leftMouseDragged, CGPoint(x: handTitleBar.x + CGFloat(step) * -20,
+                                                                y: handTitleBar.y))
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.runDue()
+        }
+        suite.expect(titleBarMovedByHand.writes.isEmpty && titleBarMovedByHand.lastActions[key] == .rightHalf
+                        && restoreEntry(titleBarMovedByHand, at: handParked) == startingFrame,
+                     "a title bar drag of a window no longer where its last placement left it keeps its size and its Restore frame")
+
+        reset()
+        let insideSnapped = Host()
+        _ = park(insideSnapped)
+        send(insideSnapped, .leftMouseDown, titleBarGrab)
+        for step in 1...3 {
+            clock += 0.01
+            hand(insideSnapped, .leftMouseDragged, CGPoint(x: titleBarGrab.x - CGFloat(step) * 20,
+                                                          y: titleBarGrab.y + CGFloat(step) * 20))
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.runDue()
+        }
+        send(insideSnapped, .leftMouseUp, CGPoint(x: titleBarGrab.x - 60, y: titleBarGrab.y + 60))
+        suite.expect(insideSnapped.writes.isEmpty && insideSnapped.lastActions[key] == .rightHalf
+                        && restoreEntry(insideSnapped, at: parkedRect) == startingFrame,
+                     "a drag inside a snapped window that never moves it keeps its size and its Restore frame")
+
+        reset()
+        WindowEdgeSnapSupport.isSystemTilingEnabled = true
+        let titleBarSystemTiling = Host()
+        _ = park(titleBarSystemTiling)
+        pressTitleBar(titleBarSystemTiling)
+        carryParked(titleBarSystemTiling, to: away)
+        DispatchQueue.drainLookups()
+        suite.expect(titleBarSystemTiling.writes.isEmpty && titleBarSystemTiling.lastActions[key] == .rightHalf,
+                     "a snapped window dragged off by its title bar keeps its size while macOS tiling owns the edges")
+
+        // The first unsnap after an app starts gives back the app's own,
+        // wider frame, which does not fit where the right half parked it.
+        let farRightGrab = CGPoint(x: parkedRect.maxX - 30, y: parkedRect.minY + 14)
+        let farRightPointer = CGPoint(x: farRightGrab.x - 10, y: farRightGrab.y)
+
+        reset()
+        let wideModifier = Host()
+        _ = park(wideModifier)
+        _ = carryOff(wideModifier, from: parkedRect, grab: farRightGrab, pointer: farRightPointer)
+        land(wideModifier)
+        suite.expect(currentFrame.size == initialFrame.size && currentFrame.minX <= farRightPointer.x
+                        && currentFrame.maxX >= farRightPointer.x
+                        && currentFrame.maxX <= NSScreen.primary.visibleFrame.maxX,
+                     "a modifier move carrying off the right end of a right-half window's title bar gets the whole earlier width, with the pointer still on the window")
+
+        reset()
+        let wideTitleBar = Host()
+        _ = park(wideTitleBar)
+        send(wideTitleBar, .leftMouseDown, farRightGrab)
+        for step in 1...2 {
+            clock += 0.01
+            let point = CGPoint(x: farRightGrab.x - CGFloat(step) * 10, y: farRightGrab.y)
+            currentFrame = parkedRect.offsetBy(dx: point.x - farRightGrab.x, dy: 0)
+            hand(wideTitleBar, .leftMouseDragged, point)
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.runDue()
+        }
+        let wideTitleBarPointer = CGPoint(x: farRightGrab.x - 20, y: farRightGrab.y)
+        suite.expect(currentFrame.size == initialFrame.size && currentFrame.minX <= wideTitleBarPointer.x
+                        && currentFrame.maxX >= wideTitleBarPointer.x
+                        && currentFrame.maxX <= NSScreen.primary.visibleFrame.maxX,
+                     "a title bar drag off the right end of a right-half window's title bar gets the whole earlier width, with the pointer still on the window")
+
+        // An earlier frame larger than this display, say from a bigger one.
+        let visible = NSScreen.primary.visibleFrame
+        let largerFrame = WindowLayoutFrame(origin: CGPoint(x: 50, y: 30), size: CGSize(width: 1800, height: 1100))
+        reset()
+        let largerByTitleBar = Host()
+        _ = park(largerByTitleBar)
+        largerByTitleBar.frameHistory = WindowLayoutHistory()
+        largerByTitleBar.frameHistory.record(largerFrame, for: key)
+        pressTitleBar(largerByTitleBar)
+        carryParked(largerByTitleBar, to: away)
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.runDue()
+        suite.expect(currentFrame.size == visible.size && currentFrame.minX <= away.x && currentFrame.maxX >= away.x
+                        && currentFrame.minY == parkedRect.minY && largerByTitleBar.lastActions[key] == nil,
+                     "a window whose earlier frame is larger than the display gets back the display's visible size, its title bar under the pointer")
+
+        // A window parked on the bottom half whose earlier frame is taller
+        // than the room below its title bar: macOS cuts the height.
+        reset()
+        let cutHost = Host()
+        let bottom = cutHost.placement(for: .bottomHalf, current: startingFrame, visibleFrame: visible).frame
+        let bottomRect = CGRect(origin: bottom.origin, size: bottom.size)
+        let tallerFrame = WindowLayoutFrame(origin: CGPoint(x: 100, y: 40), size: CGSize(width: 800, height: 700))
+        cutHost.lastActions[key] = .bottomHalf
+        cutHost.frameHistory.record(tallerFrame, for: key)
+        currentFrame = bottomRect
+        let bottomGrab = CGPoint(x: bottomRect.midX, y: bottomRect.minY + 10)
+        _ = carryOff(cutHost, from: bottomRect, grab: bottomGrab, pointer: bottomGrab)
+        land(cutHost)
+        suite.expect(currentFrame.height < tallerFrame.size.height && cutHost.lastActions[key] == .bottomHalf
+                        && restoreEntry(cutHost, at: bottomRect) == tallerFrame,
+                     "a window whose earlier height macOS cuts at the bottom of the display keeps its Restore entry")
+
+        reset()
+        let movedOnByTitleBar = Host()
+        _ = park(movedOnByTitleBar)
+        pressTitleBar(movedOnByTitleBar)
+        carryParked(movedOnByTitleBar, to: away)
+        // The drag carries the window on before the lookup queue gets to it.
+        let further = CGPoint(x: away.x - 150, y: away.y + 60)
+        carryParked(movedOnByTitleBar, to: further)
+        DispatchQueue.drainLookups()
+        suite.expect(movedOnByTitleBar.writes == [Write.size(initialFrame.size), .position(unparkedAt(further).origin),
+                                                  .size(initialFrame.size)],
+                     "a title bar drag places the given-back frame from where the window is when it is written, not where it was sampled")
+
+        reset()
+        assistiveFlagOn = true
+        let assistiveTitleBar = Host()
+        _ = park(assistiveTitleBar)
+        pressTitleBar(assistiveTitleBar)
+        carryParked(assistiveTitleBar, to: away)
+        DispatchQueue.drainLookups()
+        suite.expect(assistiveHolds.count == 1 && assistiveHolds[0].resumed == 1 && assistiveTitleBar.writes.count == 3,
+                     "a title bar drag holds the app's assistive flag off around the given-back frame and gives it back after")
+
+        reset()
+        let clickedDuringWrite = Host()
+        _ = park(clickedDuringWrite)
+        pressTitleBar(clickedDuringWrite)
+        carryParked(clickedDuringWrite, to: away)
+        carryParked(clickedDuringWrite, to: leftEdgeDrop)
+        send(clickedDuringWrite, .leftMouseUp, leftEdgeDrop)
+        // A new press, here on the desktop, comes before the write has landed.
+        send(clickedDuringWrite, .leftMouseDown, CGPoint(x: 1400, y: 880))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        suite.expect(clickedDuringWrite.placements.isEmpty && clickedDuringWrite.writes.count == 3
+                        && clickedDuringWrite.lastActions[key] == nil,
+                     "a new press before the title bar write lands drops the waiting snap, like any pending release snap, and the given-back frame still lands")
+
+        reset()
+        let movedDuringSize = Host()
+        _ = park(movedDuringSize)
+        pressTitleBar(movedDuringSize)
+        carryParked(movedDuringSize, to: away)
+        let carriedOn = CGPoint(x: away.x - 60, y: away.y + 30)
+        duringSizeWrite = {
+            currentFrame.origin = CGPoint(x: currentFrame.minX + carriedOn.x - away.x,
+                                          y: currentFrame.minY + carriedOn.y - away.y)
+        }
+        DispatchQueue.drainLookups()
+        suite.expect(movedDuringSize.writes == [Write.size(initialFrame.size), .position(unparkedAt(carriedOn).origin),
+                                                .size(initialFrame.size)],
+                     "a title bar drag reads where the window is only after the app has taken the size, just before placing it")
+
+        reset()
+        NSScreen.screens = [NSScreen.primary, NSScreen.beside]
+        let acrossSeam = Host()
+        _ = park(acrossSeam)
+        let seamGrab = CGPoint(x: parkedRect.maxX - 30, y: parkedRect.minY + 14)
+        send(acrossSeam, .leftMouseDown, seamGrab)
+        clock += 0.01
+        currentFrame = parkedRect.offsetBy(dx: 20, dy: 0)
+        hand(acrossSeam, .leftMouseDragged, CGPoint(x: seamGrab.x + 20, y: seamGrab.y))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.runDue()
+        clock += 0.01
+        currentFrame = parkedRect.offsetBy(dx: 30, dy: 0)
+        hand(acrossSeam, .leftMouseDragged, CGPoint(x: seamGrab.x + 30, y: seamGrab.y))
+        // The pointer crosses onto the display beside before the write runs.
+        let pastSeam = CGPoint(x: seamGrab.x + 200, y: seamGrab.y)
+        currentFrame = parkedRect.offsetBy(dx: 200, dy: 0)
+        DispatchQueue.drainLookups()
+        let besideVisible = NSScreen.beside.visibleFrame
+        suite.expect(currentFrame.size == initialFrame.size && currentFrame.minX >= besideVisible.minX
+                        && currentFrame.minX <= pastSeam.x && currentFrame.maxX >= pastSeam.x,
+                     "a title bar drag that has crossed onto another display is given back its frame on that display, under the pointer")
+
+        reset()
+        let cutTitleBar = Host()
+        let cutBottom = cutTitleBar.placement(for: .bottomHalf, current: startingFrame, visibleFrame: visible).frame
+        let cutRect = CGRect(origin: cutBottom.origin, size: cutBottom.size)
+        cutTitleBar.lastActions[key] = .bottomHalf
+        cutTitleBar.frameHistory.record(tallerFrame, for: key)
+        currentFrame = cutRect
+        let cutGrab = CGPoint(x: cutRect.midX, y: cutRect.minY + 14)
+        send(cutTitleBar, .leftMouseDown, cutGrab)
+        for step in 1...2 {
+            clock += 0.01
+            currentFrame = cutRect.offsetBy(dx: CGFloat(step) * -20, dy: 0)
+            hand(cutTitleBar, .leftMouseDragged, CGPoint(x: cutGrab.x + CGFloat(step) * -20, y: cutGrab.y))
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.runDue()
+        }
+        let cutLanded = currentFrame
+        let cutDrop = CGPoint(x: 0, y: 500)
+        send(cutTitleBar, .leftMouseUp, cutDrop)
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        var cutHistory = cutTitleBar.frameHistory
+        let farAway = WindowLayoutFrame(origin: CGPoint(x: -5000, y: -5000), size: CGSize(width: 1, height: 1))
+        let lastEntry = cutHistory.popPrevious(for: key, current: farAway)
+        let entryBefore = cutHistory.popPrevious(for: key, current: farAway)
+        suite.expect(cutLanded.height < tallerFrame.size.height && cutTitleBar.placedActions == [.leftHalf]
+                        && lastEntry?.size == cutLanded.size && entryBefore == tallerFrame,
+                     "a title bar drop after a cut given-back frame keeps, for Restore, the frame the window had, not the size that never landed")
     }
 }

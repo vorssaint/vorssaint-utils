@@ -2017,10 +2017,13 @@ def main():
           + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
                     for prefix in ["private enum WindowEdgeSnapPointerInput {",
                                    "private struct WindowEdgeSnapDrag {",
+                                   "private final class WindowUnparkWrite {",
                                    "private struct WindowLayoutTarget {",
                                    "private struct WindowPointerGesture {",
                                    "private struct PendingWindowGesture {",
-                                   "private struct WindowGestureTarget {"])
+                                   "private struct WindowGestureTarget {",
+                                   "private struct WindowParkedRestore {",
+                                   "private struct WindowLayoutPlacement {"])
           + "final class Host: Fixture {\n"
           + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
                     .replace("AXIsProcessTrusted()", "WindowEdgeSnapRuntimeTests.accessibilityGranted")
@@ -2048,11 +2051,27 @@ def main():
               "    private func handleGestureEvent(",
               "    private func gestureChord(",
               "    private func arm(",
-              "    private func promote("])
+              "    private func promote(",
+              "    private func unparkMoveGestureWindow(",
+              "    private func commitParkedRestore(",
+              "    private func unparkTitleBarDraggedWindow()",
+              "    private func parkedRestore(",
+              "    private func writeRestoredFrame(",
+              "    private func quartzVisibleFrame(",
+              "    private func quartzDisplays()",
+              "    private static func visibleFrame(at point:",
+              "    private func apply(_ gesture: WindowPointerGesture",
+              "    private func endGestureAssistiveMode()",
+              "    private func placement(for action:",
+              "    private func accepted(actual:",
+              "    private func axFrame(fromAppKit",
+              "    private func appKitFrame(fromAX"])
           + "}\n}\n")
     write("WindowGestureApplyRuntime.swift", "import AppKit\nimport CoreGraphics\nimport Foundation\n"
           + "extension WindowGestureApplyRuntimeTests {\n"
-          + declaration(window_directional, "private struct WindowPointerGesture {").replace("private ", "", 1)
+          + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
+                    for prefix in ["private struct WindowPointerGesture {",
+                                   "private struct WindowParkedRestore {"])
           + "final class Host: Fixture {\n"
           + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
                     for prefix in [
