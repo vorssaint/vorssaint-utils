@@ -50,6 +50,12 @@ jobs:
       - name: Build
         run: ./build.sh
 
+      - name: Verify universal binaries
+        run: |
+          for binary in build/Vorssaint build/com.vorssaint.utils.fan-control build/libVorssaintNowPlaying.dylib; do
+            lipo "$binary" -verify_arch arm64 x86_64
+          done
+
       - name: Selftest
         run: ./build/Vorssaint --selftest
 

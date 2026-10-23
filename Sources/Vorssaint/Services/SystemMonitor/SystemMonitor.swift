@@ -1071,11 +1071,8 @@ final class SystemMonitor: ObservableObject {
         guard needTemperature, !tempKeysPrepared else { return }
         tempKeysPrepared = true
 
-        let all = client.keys { name in
-            TemperatureSensorSelector.isCPUTemperatureKey(name, platform: cpuTemperaturePlatform)
-                || name.hasPrefix("Tg")
-                || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
-        }
+        let platform = cpuTemperaturePlatform
+        let all = client.keys { TemperatureSensorSelector.isTemperatureKey($0, platform: platform) }
         cpuKeys = all.filter {
             TemperatureSensorSelector.isCPUTemperatureKey($0.name,
                                                           platform: cpuTemperaturePlatform)
@@ -1089,7 +1086,9 @@ final class SystemMonitor: ObservableObject {
         // core sensors with no reading at all.
         let preferredNames = Set(preferredCPUKeys.map(\.name))
         fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
-        gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
+        gpuKeys = all.filter {
+            TemperatureSensorSelector.isGPUTemperatureKey($0.name, platform: platform)
+        }
         batteryKeys = all.filter { $0.name.hasPrefix("TB") }
     }
 

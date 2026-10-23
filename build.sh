@@ -62,7 +62,28 @@ FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.
 NOW_PLAYING_ADAPTER_ID="$APP_BUNDLE_ID.now-playing"
 NOW_PLAYING_ADAPTER="libVorssaintNowPlaying.dylib"
-TARGET="arm64-apple-macosx14.0"
+DEPLOYMENT_TARGET="macosx14.0"
+# Releases ship one universal bundle, so the same download runs natively on
+# Apple Silicon and on Intel Macs. Each architecture compiles on its own and
+# lipo joins the slices. A --dev build only needs the Mac it is built on, so it
+# compiles that slice alone and stays as fast as before; VORSSAINT_ARCHS
+# ("arm64", "x86_64" or both, space separated) overrides either default.
+NATIVE_ARCH="$(uname -m)"
+if [[ -n "${VORSSAINT_ARCHS:-}" ]]; then
+    ARCHS=(${=VORSSAINT_ARCHS})
+elif (( DEV )); then
+    ARCHS=("$NATIVE_ARCH")
+else
+    ARCHS=(arm64 x86_64)
+fi
+for arch in "${ARCHS[@]}"; do
+    if [[ "$arch" != arm64 && "$arch" != x86_64 ]]; then
+        echo "✗ Unsupported architecture '$arch' (expected arm64 or x86_64)" >&2
+        exit 1
+    fi
+done
+# Tests run on the Mac that builds them, so they compile for its architecture.
+TARGET="$NATIVE_ARCH-apple-$DEPLOYMENT_TARGET"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
 
@@ -599,40 +620,74 @@ if (( ! DEV )); then
     # changed since, and a fresh checkout has none.
     find build -mindepth 1 -maxdepth 1 ! -name objects -exec rm -rf {} + 2>/dev/null || true
 fi
-APP_OBJECT_DIR="build/objects/$EXECUTABLE"
-mkdir -p build "$APP_OBJECT_DIR"
-APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
-write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
-# Without -j the driver compiles one file at a time, and without batch mode
-# each file's compiler parses the whole module again: a clean release took a
-# quarter of an hour. Batches share that work and run on every core, and the
-# optimization stays per file, as before.
-swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
-    -output-file-map "$APP_OUTPUT_FILE_MAP" \
-    -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
-    "${BUILD_VARIANT_FLAGS[@]}" \
-    "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
+mkdir -p build
 
-echo "▸ Compiling protected fan helper…"
-swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
-    Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
-    Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
-    Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
-    Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
-    Sources/Vorssaint/Services/FanControl/FanControlHardware.swift \
-    Sources/FanControlHelper/main.swift \
-    -o "build/$FAN_HELPER_ID"
+# Joins the per-architecture builds of one product into build/<name>. A single
+# slice is copied as is, so a one-architecture build matches the old output.
+merge_slices() {
+    local name="$1" arch
+    local slices=()
+    for arch in "${ARCHS[@]}"; do
+        slices+=("build/$arch/$name")
+    done
+    if (( ${#slices} == 1 )); then
+        cp "${slices[1]}" "build/$name"
+    else
+        lipo -create "${slices[@]}" -output "build/$name"
+    fi
+}
+
+for arch in "${ARCHS[@]}"; do
+    ARCH_TARGET="$arch-apple-$DEPLOYMENT_TARGET"
+    mkdir -p "build/$arch"
+
+    echo "▸ Compiling app ($arch)…"
+    APP_OBJECT_DIR="build/objects/$EXECUTABLE/$arch"
+    mkdir -p "$APP_OBJECT_DIR"
+    APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
+    write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
+    # Without -j the driver compiles one file at a time, and without batch mode
+    # each file's compiler parses the whole module again: a clean release took a
+    # quarter of an hour. Batches share that work and run on every core, and the
+    # optimization stays per file, as before.
+    swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
+        -output-file-map "$APP_OUTPUT_FILE_MAP" \
+        -target "$ARCH_TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
+        "${BUILD_VARIANT_FLAGS[@]}" \
+        "${APP_SOURCES[@]}" -o "build/$arch/$EXECUTABLE"
+
+    echo "▸ Compiling protected fan helper ($arch)…"
+    swiftc -O -target "$ARCH_TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
+        Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
+        Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
+        Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
+        Sources/Vorssaint/Services/FanControl/FanControlHardware.swift \
+        Sources/FanControlHelper/main.swift \
+        -o "build/$arch/$FAN_HELPER_ID"
+
+    # /usr/bin/perl loads this library, and perl runs as the Mac's own
+    # architecture, so the adapter needs the same slices as the app.
+    echo "▸ Compiling Now Playing adapter ($arch)…"
+    swiftc -O -target "$ARCH_TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
+        -module-name VorssaintNowPlaying \
+        Sources/NowPlayingAdapter/NowPlayingAdapter.swift \
+        Sources/NowPlayingAdapter/NowPlayingQueue.swift \
+        Sources/NowPlayingAdapter/NowPlayingSelection.swift \
+        Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift \
+        Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift \
+        -o "build/$arch/$NOW_PLAYING_ADAPTER"
+done
+
+if (( ${#ARCHS} > 1 )); then
+    echo "▸ Joining ${ARCHS[*]} into universal binaries…"
+fi
+merge_slices "$EXECUTABLE"
+merge_slices "$FAN_HELPER_ID"
+merge_slices "$NOW_PLAYING_ADAPTER"
+# Runs the slice for the Mac doing the build; a cross-compiled slice alone
+# (VORSSAINT_ARCHS naming only the other architecture) needs Rosetta here.
 "build/$FAN_HELPER_ID" --selftest
-
-echo "▸ Compiling Now Playing adapter…"
-swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
-    -module-name VorssaintNowPlaying \
-    Sources/NowPlayingAdapter/NowPlayingAdapter.swift \
-    Sources/NowPlayingAdapter/NowPlayingQueue.swift \
-    Sources/NowPlayingAdapter/NowPlayingSelection.swift \
-    Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift \
-    Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift \
-    -o "build/$NOW_PLAYING_ADAPTER"
 
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset
