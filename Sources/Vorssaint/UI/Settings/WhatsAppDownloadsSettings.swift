@@ -26,6 +26,8 @@ struct WhatsAppDownloadsSettings: View {
     @AppStorage(DefaultsKey.whatsAppOrganizerCategories) private var organizerCategoriesRaw = "image,video,audio,document,archive,other"
     @AppStorage(DefaultsKey.whatsAppOrganizerLayout) private var organizerLayout = "flat"
     @AppStorage(DefaultsKey.whatsAppOrganizerDuplicateAction) private var duplicateAction = "trashNew"
+    @AppStorage(DefaultsKey.downloadOrganizerSources) private var organizerSources = "WhatsApp"
+    @AppStorage(DefaultsKey.downloadOrganizerExtensions) private var organizerExtensions = ""
     @AppStorage(DefaultsKey.whatsAppOrganizerLastRun) private var organizerLastRun = 0.0
     @AppStorage(DefaultsKey.whatsAppOrganizerLastMoved) private var organizerLastMoved = 0
     @AppStorage(DefaultsKey.whatsAppOrganizerLastDuplicates) private var organizerLastDuplicates = 0
@@ -238,6 +240,8 @@ struct WhatsAppDownloadsSettings: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                 organizerDestinationRow
+                organizerSourcesRow
+                organizerExtensionsRow
 
                 Picker(organizerText.organization, selection: $organizerLayout) {
                     Text(organizerText.flat).tag(WhatsAppOrganizerLayout.flat.rawValue)
@@ -304,6 +308,43 @@ struct WhatsAppDownloadsSettings: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    /// The apps whose downloads are moved. A plain list, because the app is
+    /// named by macOS's quarantine record rather than chosen from a list the
+    /// app does not own, and the names do not come from one place.
+    private var organizerSourcesRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(organizerText.sources)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("", text: $organizerSources)
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .onChange(of: organizerSources) { _, _ in organizer.syncWithPreferences() }
+                .disabled(organizer.isBusy)
+            Text(organizerText.sourcesCaption)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// The file types that are moved. Empty means every type, which is what
+    /// an untouched preference has to mean.
+    private var organizerExtensionsRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(organizerText.extensions)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("", text: $organizerExtensions)
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .onChange(of: organizerExtensions) { _, _ in organizer.syncWithPreferences() }
+                .disabled(organizer.isBusy)
+            Text(organizerText.extensionsCaption)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
