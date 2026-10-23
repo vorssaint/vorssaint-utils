@@ -69,6 +69,9 @@ final class NotchCalendarService: NSObject, ObservableObject {
     private var countdownEnabled = false
     private var timeLeftEnabled = false
     private var excludedCalendars = Set<String>()
+    /// Events whose start has sounded, kept until they begin. Survives a
+    /// stop, so turning the island off and on does not sound one twice.
+    private var heardEvents: [String: Date] = [:]
 
     private override init() { super.init() }
 
@@ -155,7 +158,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
         let currentInterval = NotchCalendarSupport.readInterval(month: nil, now: now)
         let needsCurrentRead = NotchCalendarSupport.needsCurrentRead(
             visible: interval, current: currentInterval,
-            countdownEnabled: countdownEnabled || timeLeftEnabled || !chosenCountdowns.isEmpty)
+            countdownEnabled: countdownEnabled || timeLeftEnabled || !chosenCountdowns.isEmpty
+                || AppSoundSupport.isOn(.calendarEventSoon))
         let excluded = excludedCalendars
         loading = events.isEmpty
         task = Task { @MainActor [weak self] in
@@ -176,11 +180,12 @@ final class NotchCalendarService: NSObject, ObservableObject {
                                                             ends: self.timeLeftEnabled, chosen: self.chosenCountdowns)
             self.loading = false
             self.task = nil
+            let soundRefresh = self.soundForEvents(currentEvents, now: now)
             let agendaRefresh = NotchCalendarSupport.nextRefresh(self.events, now: now)
             let countdownRefresh = NotchCalendarSupport.countdownTransition(
                 currentEvents, now: now, starts: self.countdownEnabled, ends: self.timeLeftEnabled,
                 chosen: self.chosenCountdowns)
-            let nextRefresh = min(agendaRefresh, countdownRefresh ?? agendaRefresh)
+            let nextRefresh = [countdownRefresh, soundRefresh].compactMap { $0 }.reduce(agendaRefresh, min)
             let timer = Timer(fireAt: nextRefresh,
                               interval: 0, target: self, selector: #selector(self.timedRefresh),
                               userInfo: nil, repeats: false)
@@ -191,6 +196,16 @@ final class NotchCalendarService: NSObject, ObservableObject {
     }
 
     @objc private func timedRefresh() { refresh() }
+
+    /// Sounds once for each event about to start and returns when the next
+    /// one falls due, while that sound is on.
+    private func soundForEvents(_ events: [NotchCalendarEvent], now: Date) -> Date? {
+        guard AppSoundSupport.isOn(.calendarEventSoon) else { return nil }
+        let due = IslandSoundSupport.dueEvents(events, now: now, heard: heardEvents)
+        heardEvents = IslandSoundSupport.heard(heardEvents, adding: due, now: now)
+        if !due.isEmpty { AppSoundService.shared.play(.calendarEventSoon, now: now) }
+        return IslandSoundSupport.nextSound(events, now: now)
+    }
 
     /// A chosen event read again keeps its current end, and one that has
     /// ended is forgotten. Only the week holding every countdown the island

@@ -371,7 +371,13 @@ enum SettingsDirectory {
                                                  FeatureStrings.notchAgents(language).title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens",
                                                  FeatureStrings.notchAgents(language).resetsCard,
                                                  FeatureStrings.notchLockScreen(language).title,
-                                                 FeatureStrings.notchLockScreen(language).sounds]
+                                                 FeatureStrings.notchLockScreen(language).sounds,
+                                                 FeatureStrings.notchLockScreen(language).hideProjects,
+                                                 FeatureStrings.notchLockScreen(language).hideAmounts,
+                                                 FeatureStrings.notchLockScreen(language).mac,
+                                                 FeatureStrings.notchLockScreen(language).hideEvents,
+                                                 FeatureStrings.notchLockScreen(language).widgets,
+                                                 FeatureStrings.notchLockScreen(language).lifetimeSpending]
                                           // The fit card only appears with a camera housing to fit.
                                           + (NotchSupport.hasNotchedDisplay ? [FeatureStrings.notch(language).cameraFit] : [])
                                           + (NotchSupport.hasDisplayWithoutNotch
@@ -438,6 +444,12 @@ enum SettingsDirectory {
             (categories.app, [
                 SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",
                                       keywords: [s.hotkeyToggle]),
+                SettingsDirectoryItem(page: .sounds, title: FeatureStrings.sounds(language).title,
+                                      icon: "speaker.wave.2",
+                                      keywords: [FeatureStrings.sounds(language).playSounds]
+                                        + AppSoundGroup.allCases.flatMap { group in
+                                            group.strings(language).moments.values.map(\.title)
+                                        }),
                 SettingsDirectoryItem(page: .advanced, title: s.tabAdvanced, icon: "wrench.and.screwdriver"),
                 SettingsDirectoryItem(page: .about, title: s.tabAbout, icon: "info.circle",
                                       keywords: [s.reviewIntro, s.reviewHighlights]),

@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
-import AudioToolbox
 import Carbon.HIToolbox
 import CoreGraphics
 
@@ -30,9 +29,10 @@ final class TextSnippetService {
     private var buffer = ""
     private var libraryVisible = false
     private var commandBarVisible = false
-    /// Registered once when the preferences change, so no expansion pays
-    /// for the file read. nil means no sound plays.
-    private var expansionSound: AlertSound?
+    /// Set when the preferences change, so the tap callback reads a flag
+    /// rather than defaults. The sound itself is readied in
+    /// `AppSoundService`, so no expansion pays for the file read.
+    private var expansionSoundOn = false
     /// Split by expansion mode at load time; the tap callback only scans.
     private var immediateSnippets: [TextSnippet] = []
     private var delimiterSnippets: [TextSnippet] = []
@@ -67,28 +67,10 @@ final class TextSnippetService {
         }
     }
 
-    /// Plays the sound an expansion would play, for the picker's preview.
-    /// Plays the retained one, so the preview cannot demonstrate a sound
-    /// other than the one that will fire; it resolves for itself only
-    /// when nothing is retained, which is when the feature is off.
-    func previewExpansionSound() {
-        let retained = inputLock.withLock { expansionSound }
-        (retained ?? Self.preferredExpansionSound())?.play()
-    }
-
-    /// The sound the stored preference resolves to. Both the preview and
-    /// the armed sound come through here, so they cannot disagree about
-    /// which name wins when the stored one is not available.
-    private static func preferredExpansionSound() -> AlertSound? {
-        TextSnippetSupport.resolvedSoundName(
-            stored: UserDefaults.standard.string(forKey: DefaultsKey.snippetSoundName))
-            .flatMap { AlertSound(name: $0) }
-    }
-
-    /// Picks up a change to the sound preferences on their own. The picker
-    /// fires on every arrow-key move through the list, and going through
+    /// Picks up a change to the sound switch on its own: going through
     /// syncWithPreferences would reload every snippet and tear down and
-    /// rebuild the event tap each time.
+    /// rebuild the event tap. The sound, loudness and repeats are read by
+    /// `AppSoundService` as it plays.
     ///
     /// `featureEnabled` is whether text snippets are on at all. Passed in
     /// by syncWithPreferences, which has already worked it out, so the two
@@ -98,8 +80,8 @@ final class TextSnippetService {
             && UserDefaults.standard.bool(forKey: DefaultsKey.textSnippetsEnabled))
         let soundEnabled = featureOn
             && UserDefaults.standard.bool(forKey: DefaultsKey.snippetSoundEnabled)
-        let sound = soundEnabled ? Self.preferredExpansionSound() : nil
-        inputLock.withLock { expansionSound = sound }
+        if soundEnabled { AppSoundService.shared.prepare(.snippetExpanded) }
+        inputLock.withLock { expansionSoundOn = soundEnabled }
     }
 
     func suspend() { stop() }
@@ -427,15 +409,15 @@ final class TextSnippetService {
     /// the paste instead of ahead of it, since the shortcut waits for the
     /// modifiers to come up.
     ///
-    /// Nil when no sound is retained, which is when the feature is off.
+    /// Nil when the sound is off.
     private func expansionSoundCue() -> (() -> Void)? {
-        guard let sound = inputLock.withLock({ expansionSound }) else { return nil }
+        guard inputLock.withLock({ expansionSoundOn }) else { return nil }
         return {
             // Async because the typed path calls this while the tap callback
             // may still be blocked on the main queue, and asking the sound
             // server to play is a round trip that must not sit inside the
             // window macOS disables the tap for.
-            DispatchQueue.main.async { sound.play() }
+            DispatchQueue.main.async { AppSoundService.shared.play(.snippetExpanded) }
         }
     }
 
@@ -533,31 +515,5 @@ final class TextSnippetService {
         }
         didExpand?()
         return true
-    }
-}
-
-/// One alert sound file registered with the system sound server, so it
-/// plays the way the Mac's own alert sounds do: through the sound effects
-/// output device, at the alert volume, with the screen flash Accessibility
-/// can ask for in place of a sound. NSSound would play it on the default
-/// output device at the main volume, ignoring all three.
-private final class AlertSound {
-    private let soundID: SystemSoundID
-
-    init?(name: String) {
-        var soundID: SystemSoundID = 0
-        let url = TextSnippetSupport.soundFileURL(for: name) as CFURL
-        guard AudioServicesCreateSystemSoundID(url, &soundID) == noErr else { return nil }
-        self.soundID = soundID
-    }
-
-    deinit {
-        AudioServicesDisposeSystemSoundID(soundID)
-    }
-
-    func play() {
-        // The completion holds this instance until playback ends, so a
-        // preview that resolved its own sound is not disposed mid-note.
-        AudioServicesPlayAlertSoundWithCompletion(soundID) { withExtendedLifetime(self) {} }
     }
 }

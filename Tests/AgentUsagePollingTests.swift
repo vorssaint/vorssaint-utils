@@ -15,6 +15,7 @@ enum AgentUsagePollingTests {
     struct Store {
         var turns: [String: Int] = [:]
         var waiting: [String: Int] = [:]
+        var attention: [String: Int] = [:]
     }
     struct Cursor { var modified: Date }
     class Fixture {

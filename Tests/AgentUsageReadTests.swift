@@ -90,7 +90,18 @@ enum AgentUsageReadTests {
             snapshot = store.snapshot(plans: [:], providers: enabled, now: Date())
             publications.append(snapshot)
         }
-        func report(_ event: AgentUsageEvent) { events.append(event) }
+        func report(_ event: AgentUsageEvent, allDone: Bool = false) {
+            events.append(event)
+            if allDone { allDoneEvents.append(event) }
+        }
+        var allDoneEvents: [AgentUsageEvent] = []
+        var peakTurns = 0
+        var attentionSchedule = AgentAttentionSchedule()
+        var starts: [AgentProvider] = []
+        func reportStart(_ provider: AgentProvider) { starts.append(provider) }
+        var interrupts: [AgentProvider] = []
+        func reportInterrupt(_ provider: AgentProvider) { interrupts.append(provider) }
+        func observeFrontmost() {}
         func checkLimits() {}
         func schedulePublish() {}
     }
@@ -179,6 +190,7 @@ enum AgentUsageReadTests {
         }
         startup(suite, folder: folder.appending(path: "home"), cases: cases)
         codexThreads(suite, folder: folder)
+        allDone(suite, folder: folder)
 
         let openFile = folder.appending(path: "copilot-open.jsonl")
         let openLines = [
@@ -231,6 +243,31 @@ enum AgentUsageReadTests {
         watcher.filesChanged([], rescan: true)
         suite.expect(Set(watcher.cursors.keys) == [real.path] && watcher.store.records.count == 1,
                      "Copilot rescans use the same path boundary and do not duplicate live activity")
+    }
+
+    /// The last of several turns that ran together is heard as all done;
+    /// a turn that ran alone, or one that left others working, is not.
+    private static func allDone(_ suite: TestSuite, folder: URL) {
+        let now = Date().timeIntervalSince1970
+        let host = Host()
+        host.store.reportsTransitions = true
+        func write(_ name: String, _ lines: [String]) {
+            let file = folder.appending(path: "all-done-\(name).jsonl")
+            let old = (try? Data(contentsOf: file)) ?? Data()
+            try? (old + Data((lines.joined(separator: "\n") + "\n").utf8)).write(to: file)
+            _ = host.read(file.path, provider: .codex)
+        }
+        let start = #"{"type":"event_msg","timestamp":\#(now - 60),"payload":{"type":"task_started"}}"#
+        let done = #"{"type":"event_msg","timestamp":\#(now),"payload":{"type":"task_complete"}}"#
+        write("solo", [start])
+        write("solo", [done])
+        suite.expect(host.events.count == 1 && host.allDoneEvents.isEmpty, "a turn that ran alone is only finished")
+        write("a", [start])
+        write("b", [start])
+        write("a", [done])
+        suite.expect(host.events.count == 2 && host.allDoneEvents.isEmpty, "a turn that leaves another working is only finished")
+        write("b", [done])
+        suite.expect(host.events.count == 3 && host.allDoneEvents.count == 1, "the last of two turns that ran together is all done")
     }
 
     private static func codexThreads(_ suite: TestSuite, folder: URL) {

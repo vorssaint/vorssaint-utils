@@ -287,19 +287,21 @@ enum AgentUsageArchiveTests {
             ("AgentUsageArchive.Contents", labels(contents), ["providers", "store", "cursors"]),
             ("AgentUsageStore", labels(first),
              ["records", "billables", "sources", "index", "summary", "limits", "codexPlan", "codexPlanObserved",
-              "turns", "waiting", "registered", "settled", "replies", "reportsTransitions"]),
+              "turns", "waiting", "registered", "settled", "replies", "attention", "reportsTransitions",
+              "turnStarted", "turnInterrupted"]),
             ("AgentUsageStore.Saved", labels(sample),
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),
             ("AgentUsageStore.Saved.Record", labels(sampleRecord), ["key", "record", "billable", "sources"]),
             ("AgentUsageRecord", labels(sampleRecord.record),
-             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost"]),
+             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost", "claudeApp"]),
             ("AgentBillable", labels(sampleRecord.billable),
              ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),
             ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
-            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt"]),
+            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt",
+             "renewedAfter"]),
             ("AgentLiveSession", labels(sampleTurn),
-             ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
+             ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost", "place"]),
             ("AgentLogCursor", labels(cursor),
              ["path", "provider", "parent", "openCode", "offset", "identity", "pending", "discarding",
               "state", "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
@@ -307,9 +309,10 @@ enum AgentUsageArchiveTests {
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
             ("AgentLogState", labels(cursor.state),
              ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
-              "codexSubagent", "codexHeaderRead", "codexRoot", "codexTotalsSession",
+              "codexSubagent", "codexHeaderRead", "codexRoot", "codexTotalsSession", "codexApp",
               "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
-              "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "runningCommands"])
+              "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "runningCommands",
+              "awaitedTools", "pendingTools", "codexPendingCalls", "codexApprovalPolicy", "codexAsked"])
         ]
         for layout in layouts {
             suite.expect(layout.stored == layout.written,
@@ -442,6 +445,7 @@ enum AgentUsageArchiveSaveTests {
         var enabled: Set<AgentProvider> = [.claude]
         var store = AgentUsageStore()
         var cursors: [String: AgentLogCursor] = [:]
+        let ledger = AgentUsageLedger(url: nil)
     }
 
     static func run(_ suite: TestSuite) {

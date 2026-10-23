@@ -50,6 +50,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchReturnHome) private var returnHome = false
     @AppStorage(DefaultsKey.notchHomeModule) private var homeModule = NotchModule.controls.rawValue
     @AppStorage(DefaultsKey.notchOpensActivity) private var opensActivity = true
+    @AppStorage(DefaultsKey.notchPointerDriven) private var pointerDriven = false
     @AppStorage(DefaultsKey.notchHiddenModules) private var hidden = ""
     @AppStorage(DefaultsKey.notchModuleOrder) private var order = ""
     @AppStorage(DefaultsKey.notchVolume) private var volume = true
@@ -77,6 +78,13 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchShowInCaptures) private var showInCaptures = true
     @AppStorage(DefaultsKey.notchLockScreen) private var lockScreen = false
     @AppStorage(DefaultsKey.notchLockSounds) private var lockSounds = false
+    @AppStorage(DefaultsKey.notchLockScreenAgents) private var lockScreenAgents = false
+    @AppStorage(DefaultsKey.notchLockScreenAgentsHideProjects) private var lockScreenHidesProjects = false
+    @AppStorage(DefaultsKey.notchLockScreenAgentsHideAmounts) private var lockScreenHidesAmounts = false
+    @AppStorage(DefaultsKey.notchLockScreenMac) private var lockScreenMac = false
+    @AppStorage(DefaultsKey.notchLockScreenMacHideEvents) private var lockScreenHidesEvents = false
+    @AppStorage(DefaultsKey.notchLockWallpaper) private var lockWallpaper = false
+    @AppStorage(DefaultsKey.notchLockScreenTileTone) private var lockScreenTone = NotchLockScreenTile.Tone.graphite.rawValue
     @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = false
@@ -102,6 +110,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
     @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = true
     @AppStorage(DefaultsKey.notchQuickAccessLayout) private var accessData = Data()
+    @AppStorage(DefaultsKey.notchNavigationStyle) private var navigationStyle = NotchNavigationStyle.topBar.rawValue
     @State private var tab = NotchSettingsTab.layout
     @State private var selectedModule = NotchModule.controls
     @State private var draggingModule: NotchModule?
@@ -127,7 +136,7 @@ struct NotchSettings: View {
          String(brightness), String(keyboardLight),
          String(microphone), String(battery), String(clipboard), String(clipboardWindow), clipboardCardSize,
          String(capture), String(trackChange), captureAction, String(showInCaptures),
-         String(returnHome), homeModule, String(opensActivity), String(scratchpad),
+         String(returnHome), homeModule, String(opensActivity), String(pointerDriven), String(scratchpad),
          String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity), String(shortcutEnabled)]
     }
 
@@ -138,7 +147,7 @@ struct NotchSettings: View {
     private var orderedModules: [NotchModule] {
         let stored = order.split(separator: ",").compactMap { NotchModule(rawValue: String($0)) }
         var seen = Set<NotchModule>()
-        return (stored + NotchModule.allCases).filter { seen.insert($0).inserted }
+        return (stored + NotchModule.allCases).filter { !$0.isTopBarOnly && seen.insert($0).inserted }
     }
 
     var body: some View {
@@ -197,6 +206,7 @@ struct NotchSettings: View {
             Group {
                 switch tab {
                 case .layout: layoutPage
+                case .navigation: NotchNavigationSettings { tab = .layout }
                 case .content: EmptyView()
                 case .activity: activityPage
                 case .behavior: behaviorPage
@@ -223,8 +233,11 @@ struct NotchSettings: View {
 
     private var layoutPage: some View {
         VStack(alignment: .leading, spacing: 20) {
-            NotchLayoutEditor(configuration: access, size: $size, width: $customWidth, height: $customHeight) {
-                selectedModule = .controls; tab = .content
+            // The floating buttons are arranged here only while they show.
+            if navigationStyle == NotchNavigationStyle.sideButtons.rawValue {
+                NotchLayoutEditor(configuration: access, size: $size, width: $customWidth, height: $customHeight) {
+                    selectedModule = .controls; tab = .content
+                }
             }
             SettingsCard(title: text.size) {
                 HStack(spacing: 10) {
@@ -392,7 +405,7 @@ struct NotchSettings: View {
 
     /// The mixer, the system page and the tools arrange themselves in the island.
     private func hasOptions(_ module: NotchModule) -> Bool {
-        ![.mixer, .system, .tools].contains(module)
+        ![.mixer, .system, .tools, .keepAwake, .microphone, .battery].contains(module)
     }
 
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
@@ -528,7 +541,7 @@ struct NotchSettings: View {
         case .watch:
             NotchWatchSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())
-        case .mixer, .system, .tools:
+        case .mixer, .system, .tools, .keepAwake, .microphone, .battery:
             EmptyView()
         }
     }
@@ -629,8 +642,58 @@ struct NotchSettings: View {
             let locked = FeatureStrings.notchLockScreen(l10n.language)
             SettingsCard(title: locked.title) {
                 switchRow("lock.display", locked.show, caption: locked.showHint, isOn: $lockScreen)
+                // The AI rail beside the stage, and what it keeps back.
+                if lockScreen, NotchAgentSupport.sectionShows() {
+                    switchRow("sparkles", FeatureStrings.notchAgents(l10n.language).title, caption: locked.agentsHint,
+                              isOn: $lockScreenAgents)
+                    if lockScreenAgents {
+                        Group {
+                            switchRow("eye.slash", locked.hideProjects, caption: locked.hideProjectsHint,
+                                      isOn: $lockScreenHidesProjects)
+                            switchRow("dollarsign.circle", locked.hideAmounts, caption: locked.hideAmountsHint,
+                                      isOn: $lockScreenHidesAmounts)
+                        }
+                        .padding(.leading, settingsRowTextInset)
+                    }
+                }
+                // The machine itself left of the stage, and its calendar's titles.
+                if lockScreen {
+                    switchRow("laptopcomputer", locked.mac, caption: locked.macHint, isOn: $lockScreenMac)
+                    if lockScreenMac {
+                        switchRow("calendar.badge.minus", locked.hideEvents, caption: locked.hideEventsHint,
+                                  isOn: $lockScreenHidesEvents)
+                            .padding(.leading, settingsRowTextInset)
+                    }
+                }
+                // The widgets' palette, named for the part of a company it suits.
+                if lockScreen {
+                    let tone = NotchLockScreenTile.Tone(rawValue: lockScreenTone) ?? .graphite
+                    SettingsRow(symbol: "paintpalette", title: locked.jobProfile, caption: locked.jobProfileHint) {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(tone.swatch)
+                                .overlay { Circle().strokeBorder(.white.opacity(0.25), lineWidth: 1) }
+                                .frame(width: 14, height: 14)
+                                .accessibilityHidden(true)
+                            Picker(locked.jobProfile, selection: $lockScreenTone) {
+                                ForEach(NotchLockScreenTile.Tone.allCases) { tone in
+                                    Text(locked.jobProfiles[tone.rawValue] ?? tone.rawValue).tag(tone.rawValue)
+                                }
+                            }
+                            .labelsHidden()
+                            .fixedSize()
+                        }
+                    }
+                }
+                // Turned on, the still frame becomes the desktop picture.
+                // Turned off, it stays there, without what moves on it.
+                if lockScreen {
+                    switchRow("moon.stars", locked.wallpaper, caption: locked.wallpaperHint, isOn: $lockWallpaper)
+                        .onChange(of: lockWallpaper) { _, on in if on { NotchLockWallpaper.apply() } }
+                }
                 switchRow("speaker.wave.2", locked.sounds, caption: locked.soundsHint, isOn: $lockSounds)
             }
+            if lockScreen { NotchLockScreenWidgetSettings() }
         }
     }
 
@@ -649,7 +712,10 @@ struct NotchSettings: View {
                 }
                 if hover {
                     hoverDelayControl
-                    if hoverExpand { closeDelayControl }
+                    if hoverExpand {
+                        closeDelayControl
+                        switchRow("cursorarrow.rays", editor.pointerDriven, caption: editor.pointerDrivenHint, isOn: $pointerDriven)
+                    }
                 }
                 switchRow("keyboard", l10n.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
                 if shortcutEnabled {
@@ -863,6 +929,9 @@ struct NotchSettings: View {
         case .scratchpad: return .scratchpad
         case .agents: return .notchAgents
         case .watch: return .notchWatch
+        case .keepAwake: return .keepAwake
+        case .microphone: return .micMute
+        case .battery: return .monitorPower
         }
     }
 

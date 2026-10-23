@@ -29,8 +29,17 @@ final class AgentUsageStore {
     private var settled: [String: Date] = [:]
     /// When a model last replied, by the log of the turn it counts toward.
     private var replies: [String: Date] = [:]
+    /// Sessions waiting on the person, by the log of their turn. Kept apart
+    /// from the turns, so a wait outlasts its turn going quiet.
+    private(set) var attention: [String: AgentAttention] = [:]
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
+    /// Hears each turn that opens while transitions are reported, on the
+    /// thread that applies the logs.
+    var turnStarted: ((AgentProvider) -> Void)?
+    /// Hears each turn the person interrupted, or an error stopped, as it
+    /// happens.
+    var turnInterrupted: ((AgentProvider) -> Void)?
     /// A turn that ended longer ago than this is history found late, like a
     /// session an agent moved to its archive, not news.
     static let lateEnd: TimeInterval = 5 * 60
@@ -59,6 +68,8 @@ final class AgentUsageStore {
     func apply(_ entries: [AgentLogEntry], file: String, provider: AgentProvider,
                tracksTurns: Bool, parent: String? = nil, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
         var events: [AgentUsageEvent] = []
+        // The turn an interruption ended, which the wait it leaves describes.
+        var ended: AgentLiveSession?
         for entry in entries {
             switch entry {
             case .usage(let key, let record, let billable):
@@ -90,10 +101,14 @@ final class AgentUsageStore {
                 // turn it already holds keeps what its responses added, which
                 // the second reading skips as repeats.
                 if let turn = turns[file] ?? waiting[file], abs(turn.started.timeIntervalSince(date)) < 1 { continue }
+                attention[file] = nil
                 waiting[file] = nil
                 turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
                                                model: "", project: "", tokens: AgentTokens(), cost: 0)
+                if reportsTransitions, now.timeIntervalSince(date) <= Self.lateEnd {
+                    turnStarted?(provider)
+                }
             case .turnContext(let model, let project):
                 guard tracksTurns else { continue }
                 if var turn = turns[file] {
@@ -105,16 +120,36 @@ final class AgentUsageStore {
                     if !project.isEmpty { turn.project = project }
                     waiting[file] = turn
                 }
+            case .turnPlace(let place):
+                guard tracksTurns else { continue }
+                if var turn = turns[file] {
+                    turn.place = place
+                    turns[file] = turn
+                } else if var turn = waiting[file] {
+                    turn.place = place
+                    waiting[file] = turn
+                }
             case .turnActive(let date):
                 guard tracksTurns else { continue }
                 settled[file] = nil
                 let moment = date ?? modified
+                // Work after the wait began answers it; the line that asked
+                // comes within the same second.
+                if let wait = attention[file], wait.cause != .interrupted,
+                   date == nil || moment > wait.since.addingTimeInterval(1) {
+                    attention[file] = nil
+                }
                 if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
                     turn.lastActivity = max(turn.lastActivity, moment)
                     turns[file] = turn
                 } else {
                     turns[file] = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
                                                    model: "", project: "", tokens: AgentTokens(), cost: 0)
+                    // Work seen before its turn's opening, as when the
+                    // opening fell outside what was read, starts it all the same.
+                    if reportsTransitions, now.timeIntervalSince(moment) <= Self.lateEnd {
+                        turnStarted?(provider)
+                    }
                 }
             case .turnSettled(let date):
                 guard tracksTurns, var turn = turns[file] ?? waiting.removeValue(forKey: file) else { continue }
@@ -126,12 +161,25 @@ final class AgentUsageStore {
                 settled[file] = nil
                 // A turn that went quiet on the way ends as the whole turn.
                 let quiet = waiting.removeValue(forKey: file)
-                guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
+                let closing = turns.removeValue(forKey: file) ?? quiet
+                if closing != nil { ended = closing }
+                if completed { attention[file] = nil }
+                guard let turn = closing, completed, reportsTransitions else { continue }
                 let end = date ?? modified
                 guard now.timeIntervalSince(end) <= Self.lateEnd else { continue }
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
+            case .turnAwaiting(let cause, let date, let inferred):
+                guard tracksTurns else { continue }
+                let turn = turns[file] ?? waiting[file] ?? ended
+                let history = !reportsTransitions || now.timeIntervalSince(date) > Self.lateEnd
+                // The record says more than the log, and is current.
+                if let wait = attention[file], wait.recorded, cause != .interrupted { continue }
+                attention[file] = AgentAttention(file: file, provider: provider, project: turn?.project ?? "",
+                                                 place: turn?.place ?? .terminal, cause: cause, since: date,
+                                                 inferred: inferred, history: history)
+                if cause == .interrupted, !history { turnInterrupted?(provider) }
             case .reset:
                 let baseFile = file.components(separatedBy: "#").first ?? file
                 forget(file: baseFile)
@@ -145,6 +193,7 @@ final class AgentUsageStore {
     @discardableResult
     func forget(file: String) -> Bool {
         waiting[file] = nil
+        attention = attention.filter { $0.key != file && !$0.key.hasPrefix(file + "#") }
         settled = settled.filter { $0.key != file && !$0.key.hasPrefix(file + "#") }
         var removed = turns.removeValue(forKey: file) != nil
         for key in turns.keys where key.hasPrefix(file + "#") {
@@ -254,6 +303,8 @@ final class AgentUsageStore {
         if !subagent {
             if !record.model.isEmpty { turn.model = record.model }
             if !record.project.isEmpty { turn.project = record.project }
+            // Each Claude response names the client it came from.
+            if record.provider == .claude { turn.place = record.claudeApp ? .app : .terminal }
         }
         turns[file] = turn
     }
@@ -299,6 +350,7 @@ final class AgentUsageStore {
             waiting[file] = turn
         }
         waiting = waiting.filter { now.timeIntervalSince($0.value.lastActivity) < Self.resumeWindow(for: $0.value.provider) }
+        attention = attention.filter { now.timeIntervalSince($0.value.since) < Self.resumeWindow(for: $0.value.provider) }
         replies = replies.filter { turns[$0.key] != nil || waiting[$0.key] != nil }
     }
 
@@ -338,7 +390,67 @@ final class AgentUsageStore {
                 closed = forget(file: file) || closed
             }
         }
+        // A session that waited long enough to go quiet, then quit.
+        for (file, wait) in attention where wait.provider == .claude && turns[file] == nil
+            && processes.ended.contains(Self.session(of: file)) {
+            attention[file] = nil
+        }
         return closed
+    }
+
+    /// The session id a Claude log is named after.
+    static func session(of file: String) -> String {
+        ((file as NSString).lastPathComponent as NSString).deletingPathExtension
+    }
+
+    /// Claude Code's own record of whether each session waits on the person,
+    /// which outranks what its log suggests. `files` maps session ids to
+    /// their logs.
+    func applyClaudeStatuses(_ processes: AgentSessionRegistry, files: [String: String], now: Date) {
+        for (session, status) in processes.statuses {
+            guard let file = files[session] else { continue }
+            let existing = attention[file]
+            guard status.status == "waiting" else {
+                // Busy or idle: no approval is pending. A question the log
+                // shows stays until the log answers it, which it always does.
+                if let existing, existing.inferred || existing.recorded { attention[file] = nil }
+                continue
+            }
+            var cause: AgentAwait
+            switch status.waitingFor {
+            case "input needed": cause = .question
+            case "dialog open": cause = .dialog
+            default: cause = .permission
+            }
+            // A plan to approve asks as a permission does.
+            if cause == .permission, existing?.cause == .plan { cause = .plan }
+            if let existing, existing.recorded, existing.cause == cause { continue }
+            let turn = turns[file] ?? waiting[file]
+            let since = existing.map { $0.cause == cause && !$0.inferred ? $0.since : nil } ?? nil
+            attention[file] = AgentAttention(file: file, provider: .claude, project: turn?.project ?? existing?.project ?? "",
+                                             place: turn?.place ?? existing?.place ?? .terminal, cause: cause,
+                                             since: since ?? status.updatedAt ?? now, inferred: false, history: false,
+                                             recorded: true)
+        }
+        // A record that went away takes its wait with it.
+        for (file, wait) in attention where wait.recorded && processes.statuses[Self.session(of: file)] == nil {
+            attention[file] = nil
+        }
+    }
+
+    /// Waits only the quiet suggests: a tool call in `pending` with nothing
+    /// written for `AgentAttentionPolicy.inferQuiet`. A guess whose call came
+    /// back, or whose session has a record to ask, goes.
+    func inferQuietWaits(now: Date, pending: Set<String>, recorded: Set<String>) {
+        for (file, wait) in attention where wait.inferred && (!pending.contains(file) || recorded.contains(file)) {
+            attention[file] = nil
+        }
+        for file in pending where attention[file] == nil && !recorded.contains(file) {
+            guard let turn = turns[file] ?? waiting[file],
+                  now.timeIntervalSince(turn.lastActivity) >= AgentAttentionPolicy.inferQuiet else { continue }
+            attention[file] = AgentAttention(file: file, provider: turn.provider, project: turn.project, place: turn.place,
+                                             cause: .permission, since: turn.lastActivity, inferred: true, history: false)
+        }
     }
 
     /// Claude Code retries for minutes without a word while the Mac is
@@ -363,11 +475,15 @@ final class AgentUsageStore {
         let closed = turns.contains(where: ends)
         turns = turns.filter { !ends($0) }
         waiting = waiting.filter { !ends($0) }
+        attention = attention.filter { $0.value.recorded || turns[$0.key] != nil || waiting[$0.key] != nil
+            || $0.value.provider != .claude || $0.value.cause == .interrupted }
         settled = settled.filter { turns[$0.key] != nil || waiting[$0.key] != nil }
         return closed
     }
 
     var showsClaudeTurn: Bool { turns.values.contains { $0.provider == .claude } }
+    /// A Claude session waits on the person, which its record can end.
+    var awaitsClaude: Bool { attention.values.contains { $0.provider == .claude } }
 
     /// What is kept between launches: every counter the logs gave, and none
     /// of their text. OpenCode's database is read again at each launch, so
@@ -518,6 +634,17 @@ struct AgentSessionRegistry: Equatable {
     var complete = true
     /// A sessions folder could be listed, so this Claude Code keeps records.
     var listed = false
+    /// What each running session's record says it is doing, when it says.
+    var statuses: [String: Status] = [:]
+
+    struct Status: Equatable {
+        /// "busy", "idle" or "waiting".
+        let status: String
+        /// What a waiting session waits for, as "permission prompt".
+        let waitingFor: String?
+        let updatedAt: Date?
+        let pid: Int32
+    }
 
     /// `folders` are the `sessions` folders beside each Claude log root.
     static func read(_ folders: [URL], isRunning: (Int32) -> Bool = AgentSessionRegistry.isRunning) -> AgentSessionRegistry {
@@ -535,7 +662,16 @@ struct AgentSessionRegistry: Equatable {
                 // A session run in a container or virtual machine that shares
                 // this folder names a process this Mac cannot see.
                 if let domain = json["pidDomain"] as? String, domain != "darwin" { continue }
-                if isRunning(Int32(clamping: pid)) { registry.running.insert(session) } else { registry.ended.insert(session) }
+                guard isRunning(Int32(clamping: pid)) else {
+                    registry.ended.insert(session)
+                    continue
+                }
+                registry.running.insert(session)
+                if let status = json["status"] as? String {
+                    registry.statuses[session] = Status(status: status, waitingFor: json["waitingFor"] as? String,
+                                                        updatedAt: AgentLogParser.seconds(json["statusUpdatedAt"]),
+                                                        pid: Int32(clamping: pid))
+                }
             }
         }
         // A session resumed by a new process after an old one was killed.
@@ -926,5 +1062,70 @@ final class AgentLogWatcher {
         FSEventStreamInvalidate(stream)
         FSEventStreamRelease(stream)
         self.stream = nil
+    }
+}
+
+/// Change notifications for one file that its writer replaces on save,
+/// delivered on the usage queue. The folder is watched for the replacement
+/// and the file for writes in place, and a burst of either arrives as one
+/// call a moment later.
+final class AgentFileWatcher {
+    static let delay: TimeInterval = 0.25
+    private let url: URL
+    private let queue: DispatchQueue
+    private let handler: () -> Void
+    private var folder: DispatchSourceFileSystemObject?
+    private var file: DispatchSourceFileSystemObject?
+    private var scheduled = false
+
+    init(_ url: URL, queue: DispatchQueue, handler: @escaping () -> Void) {
+        self.url = url
+        self.queue = queue
+        self.handler = handler
+    }
+
+    deinit { stop() }
+
+    /// Runs on `queue`.
+    func start() {
+        stop()
+        folder = source(url.deletingLastPathComponent().path, events: .write)
+        watchFile()
+    }
+
+    /// Runs on `queue`.
+    func stop() {
+        folder?.cancel()
+        file?.cancel()
+        folder = nil
+        file = nil
+        scheduled = false
+    }
+
+    /// A replaced file is a new one, so each change watches it afresh.
+    private func watchFile() {
+        file?.cancel()
+        file = source(url.path, events: [.write, .extend, .delete, .rename])
+    }
+
+    private func source(_ path: String, events: DispatchSource.FileSystemEvent) -> DispatchSourceFileSystemObject? {
+        let descriptor = open(path, O_EVTONLY)
+        guard descriptor >= 0 else { return nil }
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: events, queue: queue)
+        source.setEventHandler { [weak self] in self?.changed() }
+        source.setCancelHandler { close(descriptor) }
+        source.resume()
+        return source
+    }
+
+    private func changed() {
+        guard folder != nil, !scheduled else { return }
+        scheduled = true
+        queue.asyncAfter(deadline: .now() + Self.delay) { [weak self] in
+            guard let self, self.scheduled else { return }
+            self.scheduled = false
+            self.watchFile()
+            self.handler()
+        }
     }
 }

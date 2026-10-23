@@ -8,7 +8,16 @@ import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
     case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    // Pages only the top bar opens; the sections list leaves them out.
+    case keepAwake, microphone, battery
     var id: String { rawValue }
+
+    /// Whether the Mac has a battery for its page to show. The island reads
+    /// the hardware once as it starts; until then, and in tests, it is assumed.
+    static var batteryInstalled = true
+
+    /// Reached from the top bar alone, never listed among the sections.
+    var isTopBarOnly: Bool { [.keepAwake, .microphone, .battery].contains(self) }
 
     var symbol: String {
         switch self {
@@ -31,6 +40,9 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
         case .watch: return "eye"
+        case .keepAwake: return "cup.and.saucer"
+        case .microphone: return "mic"
+        case .battery: return "battery.75percent"
         }
     }
 
@@ -53,6 +65,9 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .scratchpad: return "p"
         case .agents: return "g"
         case .watch: return "o"
+        case .keepAwake: return "k"
+        case .microphone: return "u"
+        case .battery: return "e"
         }
     }
 
@@ -76,6 +91,9 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
         case .watch: return AppFeature.notchWatch.isAvailable(in: defaults)
+        case .keepAwake: return AppFeature.keepAwake.isAvailable(in: defaults)
+        case .microphone: return AppFeature.micMute.isAvailable(in: defaults)
+        case .battery: return AppFeature.monitorPower.isAvailable(in: defaults) && Self.batteryInstalled
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
                     .monitorDisk, .monitorPower, .fanControl, .connectedDevices].contains { (feature: AppFeature) in
@@ -119,6 +137,95 @@ enum NotchSilhouette: String, CaseIterable {
 
     static func current(in defaults: UserDefaults = .standard) -> NotchSilhouette {
         NotchSilhouette(rawValue: defaults.string(forKey: DefaultsKey.notchSilhouette) ?? "") ?? .capsule
+    }
+}
+
+/// How the open island moves between its pages: a bar of icons along its
+/// top, as the menu bar panel has, or the circles floating beside it.
+enum NotchNavigationStyle: String, CaseIterable {
+    case topBar, sideButtons
+
+    static func current(in defaults: UserDefaults = .standard) -> NotchNavigationStyle {
+        // The registered default is the top bar; with none registered, as
+        // in tests, the island keeps the buttons it always had.
+        NotchNavigationStyle(rawValue: defaults.string(forKey: DefaultsKey.notchNavigationStyle) ?? "") ?? .sideButtons
+    }
+}
+
+/// One place in the open island's top bar: a page, or the Settings window.
+enum NotchTopBarItem: String, CaseIterable, Identifiable {
+    case agents, keepAwake, music, mixer, calendar, clipboard, scratchpad, microphone, system, battery, settings
+    var id: String { rawValue }
+
+    /// Settings opens a window rather than a page.
+    var module: NotchModule? {
+        switch self {
+        case .agents: return .agents
+        case .keepAwake: return .keepAwake
+        case .music: return .music
+        case .mixer: return .mixer
+        case .calendar: return .calendar
+        case .clipboard: return .clipboard
+        case .scratchpad: return .scratchpad
+        case .microphone: return .microphone
+        case .system: return .system
+        case .battery: return .battery
+        case .settings: return nil
+        }
+    }
+
+    var symbol: String { module?.symbol ?? "gearshape" }
+
+    /// Keep Awake and the microphone switch on a secondary click, as the
+    /// menu bar icon does for Keep Awake.
+    var togglesOnSecondaryClick: Bool { self == .keepAwake || self == .microphone }
+
+    func isAvailable(in defaults: UserDefaults = .standard) -> Bool {
+        guard let module else { return true }
+        return NotchSupport.isTurnedOn(module, in: defaults)
+    }
+}
+
+/// The top bar's order and the items a person hid. Settings always ends it.
+struct NotchTopBarConfiguration: Equatable {
+    var order: [NotchTopBarItem]
+    var hidden: Set<NotchTopBarItem>
+
+    static let initial = Self(order: NotchTopBarItem.allCases, hidden: [])
+
+    init(order: [NotchTopBarItem], hidden: Set<NotchTopBarItem>) {
+        var seen = Set<NotchTopBarItem>()
+        // Unknown or repeated entries drop out; new items join at their default place.
+        let known = (order + NotchTopBarItem.allCases).filter { $0 != .settings && seen.insert($0).inserted }
+        self.order = known + [.settings]
+        self.hidden = hidden.subtracting([.settings])
+    }
+
+    static func stored(in defaults: UserDefaults = .standard) -> Self {
+        let order = (defaults.string(forKey: DefaultsKey.notchTopBarOrder) ?? "")
+            .split(separator: ",").compactMap { NotchTopBarItem(rawValue: String($0)) }
+        let hidden = (defaults.string(forKey: DefaultsKey.notchTopBarHidden) ?? "")
+            .split(separator: ",").compactMap { NotchTopBarItem(rawValue: String($0)) }
+        return Self(order: order, hidden: Set(hidden))
+    }
+
+    func save(in defaults: UserDefaults = .standard) {
+        defaults.set(order.map(\.rawValue).joined(separator: ","), forKey: DefaultsKey.notchTopBarOrder)
+        defaults.set(order.filter(hidden.contains).map(\.rawValue).joined(separator: ","), forKey: DefaultsKey.notchTopBarHidden)
+    }
+
+    /// What the bar shows: the visible items whose page is on.
+    func shown(in defaults: UserDefaults = .standard) -> [NotchTopBarItem] {
+        order.filter { !hidden.contains($0) && $0.isAvailable(in: defaults) }
+    }
+
+    /// The pages the bar opens, first to last.
+    func modules(in defaults: UserDefaults = .standard) -> [NotchModule] {
+        shown(in: defaults).compactMap(\.module)
+    }
+
+    static func current(in defaults: UserDefaults = .standard) -> [NotchTopBarItem] {
+        stored(in: defaults).shown(in: defaults)
     }
 }
 
@@ -263,6 +370,8 @@ enum NotchLayout {
     static let shoulder: CGFloat = 14
     static let horizontalInset: CGFloat = 28
     static let headerHeight: CGFloat = 36
+    /// The open island's bar of pages, when it replaces the floating buttons.
+    static let topBarHeight: CGFloat = 34
     static let navigationHeight: CGFloat = 36
     static let spacing: CGFloat = 12
     static let bottomInset: CGFloat = 16
@@ -1479,6 +1588,11 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
 
     static func current(in defaults: UserDefaults = .standard) -> Self {
         var configuration = stored(in: defaults)
+        // The top bar replaces the floating circles.
+        guard NotchNavigationStyle.current(in: defaults) == .sideButtons else {
+            configuration.buttons = []
+            return configuration
+        }
         configuration.buttons = configuration.shown(in: defaults)
         return configuration
     }
@@ -1843,15 +1957,26 @@ enum NotchSupport {
         let stored = (defaults.string(forKey: DefaultsKey.notchModuleOrder) ?? "")
             .split(separator: ",").compactMap { NotchModule(rawValue: String($0)) }
         var seen = Set<NotchModule>()
-        return (stored + NotchModule.allCases).filter {
-            seen.insert($0).inserted && !hidden.contains($0.rawValue) && $0.isAvailable(in: defaults)
-                && ($0 != .timer || defaults.bool(forKey: DefaultsKey.notchTimerEnabled))
-                && ($0 != .camera || defaults.bool(forKey: DefaultsKey.notchCameraEnabled))
-                && ($0 != .calendar || defaults.bool(forKey: DefaultsKey.notchCalendarEnabled))
-                && ($0 != .notifications || defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled))
-                && ($0 != .agents || defaults.bool(forKey: DefaultsKey.notchAgentsEnabled))
-                && ($0 != .watch || defaults.bool(forKey: DefaultsKey.notchWatchEnabled))
+        // The top bar's pages lead, in its order, so its first page is the
+        // island's first; the sections it leaves out follow as before.
+        let topBar = NotchNavigationStyle.current(in: defaults) == .topBar
+            ? NotchTopBarConfiguration.stored(in: defaults).modules(in: defaults) : []
+        let sections = (stored + NotchModule.allCases).filter {
+            !$0.isTopBarOnly && !hidden.contains($0.rawValue) && isTurnedOn($0, in: defaults)
         }
+        return (topBar + sections).filter { seen.insert($0).inserted }
+    }
+
+    /// Whether a page's feature, and its own switch where it has one, is on,
+    /// whatever the sections list hides.
+    static func isTurnedOn(_ module: NotchModule, in defaults: UserDefaults = .standard) -> Bool {
+        module.isAvailable(in: defaults)
+            && (module != .timer || defaults.bool(forKey: DefaultsKey.notchTimerEnabled))
+            && (module != .camera || defaults.bool(forKey: DefaultsKey.notchCameraEnabled))
+            && (module != .calendar || defaults.bool(forKey: DefaultsKey.notchCalendarEnabled))
+            && (module != .notifications || defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled))
+            && (module != .agents || defaults.bool(forKey: DefaultsKey.notchAgentsEnabled))
+            && (module != .watch || defaults.bool(forKey: DefaultsKey.notchWatchEnabled))
     }
 
     static func watchesMusicActivity(in defaults: UserDefaults = .standard) -> Bool {
@@ -1997,10 +2122,19 @@ enum NotchSupport {
             + (AppFeature.connectedDevices.isAvailable(in: defaults) ? 1 : 0)
     }
 
+    /// The screen's first pixel row, which the menu bar keeps from the
+    /// island's window. CGRect.contains leaves out its top edge.
+    static func onScreenTopRow(_ point: CGPoint, of screen: CGRect) -> Bool {
+        point.y > screen.maxY - 1 && NSMouseInRect(point, screen, false)
+    }
+
     /// Direct openings are dismissed explicitly, never by the pointer's
     /// initial position at the menu bar or in the application being used.
-    static func closesOnPointerExit(expanded: Bool, peeking: Bool, openedByHover: Bool) -> Bool {
-        peeking || (expanded && openedByHover)
+    /// An island driven by the pointer also closes a direct opening once the
+    /// pointer has been on it.
+    static func closesOnPointerExit(expanded: Bool, peeking: Bool, openedByHover: Bool,
+                                    pointerReached: Bool = false) -> Bool {
+        peeking || (expanded && (openedByHover || pointerReached))
     }
 
     /// Another app becoming active closes the open island like a click away.
@@ -2255,6 +2389,9 @@ struct NotchGeometry: Equatable {
     /// Nothing floating beside the island leads to its sections, so the
     /// open page's row starts with the island's own button for them.
     var sectionsButtonInRow = false
+    /// The open island's bar of pages, below the camera's row; zero with
+    /// the floating buttons instead.
+    var topBarHeight: CGFloat = 0
     /// The 28-point controls a page that wraps the camera hands the row,
     /// as the player's lyrics and queue toggles while a song plays.
     var pageTrailingControls = 0
@@ -2370,9 +2507,12 @@ struct NotchGeometry: Equatable {
     /// From the top of the island to the top of the page. A page that wraps
     /// the camera starts with the row and lays out its leading side itself.
     var pageTopInset: CGFloat {
-        guard pageTop != .wrapsCamera, headerRowHeight > 0 else { return headerTopInset }
-        return headerTopInset + headerRowHeight + NotchLayout.spacing
+        let bar = topBarHeight > 0 ? topBarHeight + NotchLayout.spacing : 0
+        guard pageTop != .wrapsCamera, headerRowHeight > 0 else { return headerTopInset + bar }
+        return headerTopInset + headerRowHeight + NotchLayout.spacing + bar
     }
+    /// From the top of the island's row to the top of its bar of pages.
+    var topBarOffset: CGFloat { pageTopInset - headerTopInset - topBarHeight - NotchLayout.spacing }
     var headerChromeHeight: CGFloat { pageTopInset - headerTopInset + NotchLayout.bottomInset }
     /// Floating circles sit below the menu bar even when the top row wraps the camera.
     var quickAccessCenterY: CGFloat {
@@ -2681,7 +2821,9 @@ struct NotchGeometry: Equatable {
     var musicExtrasHeight: CGFloat { layout == .custom ? min(216, contentBudget) : 216 }
     /// The camera's row the player starts with, which its cover tucks into;
     /// none where the island has no room beside a camera.
-    var musicBandHeight: CGFloat { headerCameraGap > 0 ? headerRowHeight : 0 }
+    /// The bar of pages sits between the camera and the player, so the
+    /// cover no longer tucks in beside the camera.
+    var musicBandHeight: CGFloat { headerCameraGap > 0 && topBarHeight == 0 ? headerRowHeight : 0 }
     /// The player's height at rest. The island keeps this room for it, and
     /// the page holds it there while lyrics or the queue grow the island.
     var musicPlayerHeight: CGFloat { NotchLayout.musicPlayerHeight(band: musicBandHeight) }
@@ -2766,7 +2908,8 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch,
+                 .keepAwake, .microphone, .battery:
                 contentHeight = budget
             }
         }

@@ -7,9 +7,17 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity, resets
+    // The order is the page's default. Sessions now sit in the limits cards
+    // and models in Spending, so Now and Models are retired: the cases stay
+    // only so saved orders still read.
+    case limits, spend, trend, projects, resets, activity, live, models
 
     var id: String { rawValue }
+
+    /// Cards the page no longer shows, whatever the saved settings say. A
+    /// page whose hidden cards were saved before they retired would
+    /// otherwise list the sessions and models a second time.
+    var retired: Bool { self == .live || self == .models }
 
     var symbol: String {
         switch self {
@@ -28,7 +36,14 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
     var fullWidth: Bool { self == .trend || self == .activity }
 
     /// Cards that cover the period chosen in the island's top row.
-    var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
+    var followsPeriod: Bool { self == .trend || self == .models || self == .projects }
+}
+
+/// What the AI page keeps back where anyone can read it, as on the lock
+/// screen: the folders agents work in, and what the work cost.
+struct NotchAgentPrivacy: Equatable {
+    var hidesProjects = false
+    var hidesAmounts = false
 }
 
 /// What the closed island shows beside the camera while an agent works.
@@ -52,6 +67,38 @@ enum NotchAgentLimitFocus: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// How the resting island lays out the accounts' allowances: the one the
+/// focus picks, the first two accounts one per side, or each in turn.
+enum NotchAgentRestingLayout: String, CaseIterable, Identifiable {
+    case single, split, cycle
+    var id: String { rawValue }
+}
+
+/// How close a window is to running out, as the resting island colors it.
+enum NotchAgentRestingStatus: Equatable {
+    case normal, low, almostOut
+}
+
+/// One account at rest: the limit "Limit to show" picks, which its ring
+/// fills and its number and reset time read.
+struct NotchAgentRestingMeter: Identifiable, Equatable {
+    let provider: AgentProvider
+    let window: AgentLimitWindow
+    /// A Claude seat's meter: the seat's id and its email.
+    var seat: String? = nil
+    var email: String? = nil
+
+    var id: String { provider.rawValue + (seat.map { "." + $0 } ?? "") }
+}
+
+/// When a resting limit renews, in the two lengths a wing has room for.
+struct NotchAgentRestingReset: Equatable {
+    /// "16:26" within the day, "Sat 15:33" further off.
+    let full: String
+    /// "16:26" or "Sat", for a narrow wing.
+    let short: String
+}
+
 struct NotchAgentTile: Identifiable, Equatable {
     let card: NotchAgentCard
     /// The account a limits card belongs to.
@@ -60,7 +107,29 @@ struct NotchAgentTile: Identifiable, Equatable {
     var accountID: String? = nil
     /// The Resets card beside added Codex homes, which says whose resets they are.
     var namesDefaultAccount = false
-    var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "") }
+    /// Claude's limits card beside the API key's spending, which takes a row.
+    var splitsBilling = false
+    /// Claude's seats side by side, which take a row.
+    var claudeSeats = false
+    /// How many seats the seats' card shows; none leaves its header and sessions.
+    var seatCount = 0
+    /// The seats' card carries the API key's figures in its header.
+    var seatsShowAPI = false
+    /// The API key's spending on its own, with Claude's plan left out.
+    var claudeAPI = false
+    /// Trend or Activity beside another card, as they sit once seats take
+    /// the first row.
+    var paired = false
+    var id: String {
+        card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "")
+            + (claudeSeats ? ".seats" : "") + (claudeAPI ? ".api" : "")
+    }
+    var fullWidth: Bool { (card.fullWidth && !paired) || splitsBilling || claudeSeats }
+    /// Claude's and Codex's own limits cards list the sessions they pay for,
+    /// a row each, and keep one row while none runs.
+    var showsSessions: Bool {
+        card == .limits && accountID == nil && !claudeAPI && (provider == .claude || provider == .codex)
+    }
 }
 
 enum NotchAgentSupport {
@@ -99,21 +168,33 @@ enum NotchAgentSupport {
     }
 
     /// Every card in the saved order; cards added later join at the end.
-    static func orderedCards(in defaults: UserDefaults = .standard) -> [NotchAgentCard] {
-        let stored = (defaults.string(forKey: DefaultsKey.notchAgentsCardOrder) ?? "")
-            .split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) }
-        var seen = Set<NotchAgentCard>()
-        return (stored + NotchAgentCard.allCases).filter { seen.insert($0).inserted }
+    static func orderedCards(in defaults: UserDefaults = .standard, claudeSeats: Bool = false) -> [NotchAgentCard] {
+        orderedCards(defaults.string(forKey: DefaultsKey.notchAgentsCardOrder) ?? "", claudeSeats: claudeSeats)
     }
 
+    /// The page's order once Claude's seats take the first row:
+    /// Spending beside Codex, Projects beside Trend, and Resets beside Activity.
+    static let claudeSeatsOrder = "limits,spend,projects,trend,resets,activity"
+
+    /// The cards a saved order lists, without retired or repeated ones.
+    static func orderedCards(_ saved: String, claudeSeats: Bool = false) -> [NotchAgentCard] {
+        let order = saved.isEmpty && claudeSeats ? claudeSeatsOrder : saved
+        let stored = order.split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) }
+        var seen = Set<NotchAgentCard>()
+        return (stored + NotchAgentCard.allCases).filter { !$0.retired && seen.insert($0).inserted }
+    }
+
+    /// Cards a new page leaves out until the person shows them.
+    static let defaultHiddenCards = "live,models"
+
     static func hiddenCards(in defaults: UserDefaults = .standard) -> Set<NotchAgentCard> {
-        Set((defaults.string(forKey: DefaultsKey.notchAgentsHiddenCards) ?? "")
+        Set((defaults.string(forKey: DefaultsKey.notchAgentsHiddenCards) ?? defaultHiddenCards)
             .split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) })
     }
 
-    static func cards(in defaults: UserDefaults = .standard) -> [NotchAgentCard] {
+    static func cards(in defaults: UserDefaults = .standard, claudeSeats: Bool = false) -> [NotchAgentCard] {
         let hidden = hiddenCards(in: defaults)
-        return orderedCards(in: defaults).filter { !hidden.contains($0) }
+        return orderedCards(in: defaults, claudeSeats: claudeSeats).filter { !hidden.contains($0) }
     }
 
     /// Added Codex accounts have cards only in the Limits card's place.
@@ -167,6 +248,194 @@ enum NotchAgentSupport {
             ?? mostSpent { AgentLimitSupport.binding($0, now: now) }
     }
 
+    // MARK: Resting meters
+
+    static func restingLayout(in defaults: UserDefaults = .standard) -> NotchAgentRestingLayout {
+        NotchAgentRestingLayout(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsRestingLayout) ?? "") ?? .single
+    }
+
+    /// Accounts switched off in Show at rest.
+    static func restingHidden(in defaults: UserDefaults = .standard) -> Set<AgentProvider> {
+        parseRestingHidden(defaults.string(forKey: DefaultsKey.notchAgentsRestingHidden) ?? "")
+    }
+
+    static func parseRestingHidden(_ stored: String) -> Set<AgentProvider> {
+        Set(stored.split(separator: ",").compactMap { AgentProvider(rawValue: String($0)) })
+    }
+
+    static func restingStatus(usedFraction: Double) -> NotchAgentRestingStatus {
+        if usedFraction >= 0.95 { return .almostOut }
+        if usedFraction >= 0.8 { return .low }
+        return .normal
+    }
+
+    /// The Developer build's stand-in usage, so the resting colors can be
+    /// checked by eye: `claude.session=0.86,codex.weekly=0.97`. Anything
+    /// malformed is skipped, and a release build never reads the key.
+    static func simulatedRestingUsage(in defaults: UserDefaults = .standard,
+                                      developer: Bool = AppInfo.isDeveloperBuild) -> [AgentProvider: [AgentLimitWindow.Kind: Double]] {
+        guard developer, let stored = defaults.string(forKey: DefaultsKey.simulateRestingUsage) else { return [:] }
+        return parseSimulatedRestingUsage(stored)
+    }
+
+    static func parseSimulatedRestingUsage(_ stored: String) -> [AgentProvider: [AgentLimitWindow.Kind: Double]] {
+        var result: [AgentProvider: [AgentLimitWindow.Kind: Double]] = [:]
+        for entry in stored.split(separator: ",") {
+            let pair = entry.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+            guard pair.count == 2, let value = Double(pair[1]), value.isFinite else { continue }
+            let name = pair[0].split(separator: ".", maxSplits: 1).map(String.init)
+            guard name.count == 2, let provider = AgentProvider(rawValue: name[0]),
+                  let kind = AgentLimitWindow.Kind(rawValue: name[1]), kind != .other else { continue }
+            result[provider, default: [:]][kind] = min(1, max(0, value))
+        }
+        return result
+    }
+
+    /// A copy of the snapshot with the simulated windows' usage in place of
+    /// the real one. Only the resting island reads it.
+    static func applyingSimulation(_ snapshot: AgentUsageSnapshot,
+                                   _ overrides: [AgentProvider: [AgentLimitWindow.Kind: Double]]) -> AgentUsageSnapshot {
+        guard !overrides.isEmpty else { return snapshot }
+        var copy = snapshot
+        for (provider, kinds) in overrides {
+            guard var limits = copy.limits[provider] else { continue }
+            limits.windows = limits.windows.map { window in
+                guard window.scope == nil, let fraction = kinds[window.kind] else { return window }
+                return AgentLimitWindow(id: window.id, kind: window.kind, minutes: window.minutes, scope: nil,
+                                        usedPercent: fraction * 100, resetsAt: window.resetsAt)
+            }
+            copy.limits[provider] = limits
+        }
+        return copy
+    }
+
+    /// Every account that rests, in the order the person keeps them: switched
+    /// on, not left out at rest, and reporting a plan-wide window. Each shows
+    /// the window "Limit to show" picks, or its most used one while the
+    /// account reports none of that kind.
+    static func restingMeters(_ snapshot: AgentUsageSnapshot, providers: [AgentProvider],
+                              hidden: Set<AgentProvider>, focus: NotchAgentLimitFocus,
+                              now: Date) -> [NotchAgentRestingMeter] {
+        providers.flatMap { provider -> [NotchAgentRestingMeter] in
+            guard !hidden.contains(provider) else { return [] }
+            // Each Claude seat rests on its own, in the person's order.
+            if provider == .claude, !snapshot.claudeSeats.isEmpty {
+                return snapshot.claudeSeats.compactMap { seat in
+                    restingWindow(seat.limits, focus: focus, now: now).map {
+                        NotchAgentRestingMeter(provider: provider, window: $0, seat: seat.id, email: seat.email)
+                    }
+                }
+            }
+            return restingWindow(snapshot.limits[provider], focus: focus, now: now)
+                .map { [NotchAgentRestingMeter(provider: provider, window: $0)] } ?? []
+        }
+    }
+
+    /// The window an account rests on: the kind "Limit to show" picks, or
+    /// its most used plan-wide one.
+    private static func restingWindow(_ limits: AgentLimits?, focus: NotchAgentLimitFocus,
+                                      now: Date) -> AgentLimitWindow? {
+        guard let limits else { return nil }
+        let planWide = limits.windows.filter { $0.scope == nil }.map { AgentLimitSupport.current($0, at: now) }
+        let kind: AgentLimitWindow.Kind?
+        switch focus {
+        case .mostUsed: kind = nil
+        case .session: kind = .session
+        case .weekly: kind = .weekly
+        }
+        // Of two windows as spent, the one renewing later stops you longer.
+        return kind.flatMap { kind in planWide.first { $0.kind == kind } } ?? planWide.max {
+            $0.usedPercent != $1.usedPercent ? $0.usedPercent < $1.usedPercent
+                : ($0.resetsAt ?? .distantPast) < ($1.resetsAt ?? .distantPast)
+        }
+    }
+
+    /// Single's meter: the limit closest to stopping you among the accounts
+    /// that rest, the same one the working strip's ring shows.
+    static func singleRestingMeter(_ snapshot: AgentUsageSnapshot, hidden: Set<AgentProvider>,
+                                   focus: NotchAgentLimitFocus, now: Date) -> NotchAgentRestingMeter? {
+        var shown = snapshot
+        shown.limits = snapshot.limits.filter { !hidden.contains($0.key) }
+        return restingLimit(shown, focus: focus, now: now).map { pick in
+            // With seats, Claude's limit is the seat the Claude app uses.
+            let seat = pick.provider == .claude ? snapshot.activeClaudeSeat : nil
+            return NotchAgentRestingMeter(provider: pick.provider, window: pick.window, seat: seat?.id, email: seat?.email)
+        }
+    }
+
+    /// What a layout shows, in its order: Single's one meter, the first two
+    /// for One per side, and for Rotate the tightest number first, then the
+    /// rest in the person's order.
+    static func restingSequence(_ snapshot: AgentUsageSnapshot, layout: NotchAgentRestingLayout,
+                                providers: [AgentProvider], hidden: Set<AgentProvider>,
+                                focus: NotchAgentLimitFocus, now: Date) -> [NotchAgentRestingMeter] {
+        switch layout {
+        case .single:
+            return singleRestingMeter(snapshot, hidden: hidden, focus: focus, now: now).map { [$0] } ?? []
+        case .split:
+            return Array(restingMeters(snapshot, providers: providers, hidden: hidden, focus: focus, now: now).prefix(2))
+        case .cycle:
+            var meters = restingMeters(snapshot, providers: providers, hidden: hidden, focus: focus, now: now)
+            // The first of the most spent, so a tie keeps the person's order.
+            if let tightest = meters.indices.max(by: { meters[$0].window.usedPercent < meters[$1].window.usedPercent
+                                                        || (meters[$0].window.usedPercent == meters[$1].window.usedPercent && $0 > $1) }) {
+                meters.insert(meters.remove(at: tightest), at: 0)
+            }
+            return meters
+        }
+    }
+
+    /// When a resting limit renews: the 24-hour clock time on the same day or
+    /// within twelve hours, the weekday and time within the week, the date
+    /// beyond. The short form keeps only the weekday. "≈" marks a time the
+    /// island estimated; nil while the time is unknown.
+    static func restingReset(_ window: AgentLimitWindow, now: Date, locale: Locale,
+                             calendar: Calendar = .autoupdatingCurrent) -> NotchAgentRestingReset? {
+        guard let resets = AgentLimitSupport.displayedReset(window, now: now) else { return nil }
+        let mark = window.estimatedResetsAt == nil ? "" : "≈"
+        let style = Date.FormatStyle(locale: AgentFormat.resetClock(locale), calendar: calendar, timeZone: calendar.timeZone)
+        let away = resets.timeIntervalSince(now)
+        if calendar.isDate(resets, inSameDayAs: now) || away < 12 * 3_600 {
+            let clock = mark + resets.formatted(style.hour(.twoDigits(amPM: .omitted)).minute())
+            return NotchAgentRestingReset(full: clock, short: clock)
+        }
+        let full = AgentFormat.resetTime(resets, now: now, locale: locale, calendar: calendar)
+        return NotchAgentRestingReset(full: mark + full,
+                                      short: mark + (away < 6 * 86_400 ? resets.formatted(style.weekday(.abbreviated)) : full))
+    }
+
+    /// What VoiceOver reads for the meters: each account's limit, as left or
+    /// used, when it renews, and a word once it runs low.
+    static func restingSpeech(_ meters: [NotchAgentRestingMeter], used: Bool, text: NotchAgentStrings,
+                              locale: Locale, now: Date) -> String {
+        meters.map { meter in
+            let window = meter.window
+            let share = AgentFormat.percent(used ? window.usedFraction : window.remainingFraction, locale: locale)
+            var parts = [text.restingWindow(window.kind == .weekly ? text.weekly : text.session,
+                                            used ? text.usedShare(share) : text.left(share))]
+            if let resets = AgentLimitSupport.displayedReset(window, now: now) {
+                parts.append(text.restingResets(AgentFormat.resetTime(resets, now: now, locale: locale)))
+            }
+            switch restingStatus(usedFraction: window.usedFraction) {
+            case .normal: break
+            case .low: parts.append(text.restingLow)
+            case .almostOut: parts.append(text.restingAlmostOut)
+            }
+            let name = meter.email.map { meter.provider.displayName + " · " + $0 } ?? meter.provider.displayName
+            return name + ": " + parts.joined(separator: ", ")
+        }.joined(separator: "; ")
+    }
+
+    /// Rotate's place in its sequence: every wing reads the same clock, so
+    /// both sides turn together.
+    static let restingCycle: TimeInterval = 4
+
+    static func restingCycleIndex(at date: Date, count: Int) -> Int {
+        guard count > 1 else { return 0 }
+        let step = Int((date.timeIntervalSinceReferenceDate / restingCycle).rounded(.down))
+        return ((step % count) + count) % count
+    }
+
     static func showsLiveActivity(in defaults: UserDefaults = .standard) -> Bool {
         isEnabled(in: defaults) && (defaults.object(forKey: DefaultsKey.notchAgentsLiveActivity) as? Bool ?? true)
     }
@@ -180,6 +449,31 @@ enum NotchAgentSupport {
         guard defaults.object(forKey: DefaultsKey.notchAgentsFinishAlert) as? Bool ?? true else { return nil }
         let value = defaults.object(forKey: DefaultsKey.notchAgentsFinishMinimum) as? Double ?? defaultFinishMinimum
         return value.isFinite ? min(3600, max(0, value)) : defaultFinishMinimum
+    }
+
+    /// Whether a session waiting on the person earns a notice.
+    static func inputAlert(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchAgentsInputAlert) as? Bool ?? true
+    }
+
+    /// How long a session waits on the person before the first reminder.
+    static func inputDelay(in defaults: UserDefaults = .standard) -> TimeInterval {
+        let value = defaults.object(forKey: DefaultsKey.notchAgentsInputDelay) as? Double ?? AgentAttentionPolicy.defaultDelay
+        return value.isFinite ? min(3600, max(10, value)) : AgentAttentionPolicy.defaultDelay
+    }
+
+    static func inputRepeats(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchAgentsInputRepeat) as? Bool ?? true
+    }
+
+    /// Whether a quiet log alone, which may only be a long command, may remind.
+    static func inputInferred(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchAgentsInputInferred)
+    }
+
+    /// Whether work the person interrupted and left earns one notice.
+    static func interruptAlert(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchAgentsInterruptAlert)
     }
 
     /// Percent used that earns a warning; nil while warnings are off.
@@ -207,6 +501,14 @@ enum NotchAgentSupport {
             || (showsLiveActivity(in: defaults) && readout(in: defaults) == .limit)
             || NotchSupport.idleContent(in: defaults) == .agents
             || (pageShown && !hiddenCards(in: defaults).contains(.limits))
+    }
+
+    /// Whether a limit is on screen, the page's or the closed island's,
+    /// which keeps Claude's account check at its shortest wait.
+    static func limitsOnScreen(pageShown: Bool, in defaults: UserDefaults = .standard) -> Bool {
+        (pageShown && !hiddenCards(in: defaults).contains(.limits))
+            || NotchSupport.idleContent(in: defaults) == .agents
+            || (showsLiveActivity(in: defaults) && readout(in: defaults) == .limit)
     }
 
     // MARK: Strip
@@ -237,9 +539,22 @@ enum NotchAgentSupport {
             return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
         case .limit:
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
-                  let window = focusedLimit(snapshot.limits[provider], focus: focus, now: now) else { return elapsed() }
+                  let window = focusedLimit(workingLimits(snapshot, provider: provider), focus: focus, now: now)
+            else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
         }
+    }
+
+    /// The limits a working agent's ring and reading show: for a Claude-app
+    /// session with seats, the seat it runs under; otherwise the account's.
+    /// None for an account the island leaves out, which shows the time.
+    static func workingLimits(_ snapshot: AgentUsageSnapshot, provider: AgentProvider,
+                              defaults: UserDefaults = .standard) -> AgentLimits? {
+        guard provider == .claude, let session = snapshot.live.first(where: { $0.provider == .claude }),
+              let seat = snapshot.claudeSeat(for: session) else {
+            return NotchLimitVisibility.applying(snapshot, in: .island, defaults: defaults).limits[provider]
+        }
+        return NotchLimitVisibility.shows(.profile(seat.id), in: .island, defaults: defaults) ? seat.limits : nil
     }
 
     /// Every digit takes the same width, so a reading's shape, not its value,
@@ -253,31 +568,89 @@ enum NotchAgentSupport {
     static let spacing: CGFloat = 10
     static let cardHeight: CGFloat = 96
     static let chartHeight: CGFloat = 118
+    /// Activity beside another card: its map across the card's width, and a
+    /// line of figures under it.
+    static let pairedActivityHeight: CGFloat = 176
     /// An account card also says when it was checked, and the Resets card
     /// beside account cards names the account its resets belong to.
     static let accountCardHeight: CGFloat = 116
     /// An account card's reading, checked every five minutes, has missed two.
     static let accountStaleness: TimeInterval = 10 * 60
+    /// Claude's split card: the plan and the API key side by side, or one
+    /// above the other where cards do not pair. Each size holds one session
+    /// row per slot; a card grows a row for every session past the first.
+    static let splitHeight: CGFloat = 178
+    static let stackedSplitHeight: CGFloat = 300
+    /// The seats' card without seats: padding, its header and one row of
+    /// sessions, the slots side by side or one above the other.
+    static let seatsBaseHeight: CGFloat = 92
+    static let stackedSeatsBaseHeight: CGFloat = 144
+    /// A row of seats, each with a line under its meter for a note, and one
+    /// seat where they stack.
+    static let seatRowHeight: CGFloat = 104
+    static let stackedSeatHeight: CGFloat = 108
+    /// The API key's figures take a line of their own where seats stack.
+    static let stackedAPILineHeight: CGFloat = 20
+    /// The API key's half of Claude's card on its own.
+    static let claudeAPIHeight: CGFloat = 116
+    /// A limits card with one row of sessions under the meters.
+    static let sessionCardHeight: CGFloat = 156
+    /// One running session in a limits card.
+    static let sessionRowHeight: CGFloat = 26
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
     /// Codex homes the person added take the place of Codex's one limits
     /// card, the usual home among them when they add it.
+    /// `claudeSeats` is how many seats the page shows, nil without any set
+    /// up; `claudeUsesAPI` says the API key's spending shows. An account the
+    /// page leaves out has no card, and the cards after it close up.
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
-                      codexAccounts: [String] = []) -> [NotchAgentTile] {
-        cards.flatMap { card -> [NotchAgentTile] in
+                      codexAccounts: [String] = [], claudeUsesAPI: Bool = false,
+                      claudeSeats: Int? = nil, claudeShown: Bool = true, codexShown: Bool = true) -> [NotchAgentTile] {
+        let seats = claudeSeats != nil && providers.contains(.claude)
+        return cards.flatMap { card -> [NotchAgentTile] in
             switch card {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
-                guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
+                // The seats take a row, the API key's figures in its header.
+                if provider == .claude, let count = claudeSeats {
+                    guard count > 0 || claudeUsesAPI else { return [] }
+                    return [NotchAgentTile(card: .limits, provider: provider, claudeSeats: true, seatCount: count,
+                                           seatsShowAPI: claudeUsesAPI)]
+                }
+                if provider == .claude, !claudeShown {
+                    return claudeUsesAPI ? [NotchAgentTile(card: .limits, provider: provider, claudeAPI: true)] : []
+                }
+                if provider == .codex, !codexShown { return [] }
+                guard provider == .codex, !codexAccounts.isEmpty else {
+                    return [NotchAgentTile(card: .limits, provider: provider,
+                                           splitsBilling: provider == .claude && claudeUsesAPI)]
+                }
                 return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
             }
             // Banked resets belong to a Codex account: the default one, which
             // the card names once others have cards.
             case .resets: return providers.contains(.codex)
                 ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
+            case .trend, .activity: return [NotchAgentTile(card: card, provider: nil, paired: seats)]
             default: return [NotchAgentTile(card: card, provider: nil)]
             }
         }
+    }
+
+    /// The page's tiles as the island shows them: the seats and accounts it
+    /// keeps, so the page and its height read the same.
+    static func pageTiles(_ snapshot: AgentUsageSnapshot, providers: [AgentProvider], codexAccounts: [String],
+                          claudeUsesAPI: Bool, defaults: UserDefaults = .standard) -> [NotchAgentTile] {
+        let seats = !snapshot.claudeSeats.isEmpty
+        let accounts = codexAccounts.filter { NotchLimitVisibility.shows(.profile($0), in: .island, defaults: defaults) }
+        return tiles(cards: cards(in: defaults, claudeSeats: seats), providers: providers, codexAccounts: accounts,
+                     claudeUsesAPI: claudeUsesAPI && NotchLimitVisibility.shows(.claudeAPI, in: .island, defaults: defaults),
+                     claudeSeats: seats ? NotchLimitVisibility.seats(snapshot, in: .island, defaults: defaults).count : nil,
+                     claudeShown: NotchLimitVisibility.shows(.claude, in: .island, defaults: defaults),
+                     // Added homes stand for Codex: none shown leaves it out.
+                     codexShown: codexAccounts.isEmpty
+                        ? NotchLimitVisibility.shows(.codex, in: .island, defaults: defaults) : !accounts.isEmpty)
     }
 
     /// Cards pair up in reading order; a chart, or a card left without a
@@ -287,7 +660,7 @@ enum NotchAgentSupport {
         var rows: [[NotchAgentTile]] = []
         var waiting: NotchAgentTile?
         for tile in tiles {
-            if tile.card.fullWidth || !pairs {
+            if tile.fullWidth || !pairs {
                 if let waiting { rows.append([waiting]) }
                 waiting = nil
                 rows.append([tile])
@@ -302,9 +675,97 @@ enum NotchAgentSupport {
         return rows
     }
 
-    static func height(of row: [NotchAgentTile]) -> CGFloat {
-        if row.contains(where: \.card.fullWidth) { return chartHeight }
-        return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
+    /// A row's cards share its height, so a card beside a taller one, such
+    /// as Spending beside Codex's sessions, grows with it.
+    static func height(of row: [NotchAgentTile], width: CGFloat = .infinity, live: [AgentLiveSession] = []) -> CGFloat {
+        let growth = row.map { sessionGrowth($0, live: live, width: width) }.max() ?? 0
+        if row.contains(where: \.splitsBilling) { return (width >= pairWidth ? splitHeight : stackedSplitHeight) + growth }
+        if let seats = row.first(where: \.claudeSeats) {
+            return seatsCardHeight(seats.seatCount, width: width, api: seats.seatsShowAPI) + growth
+        }
+        if row.contains(where: \.fullWidth) { return chartHeight }
+        // Activity's map fills a half card, about as tall as it is wide.
+        if row.contains(where: { $0.card == .activity }) { return pairedActivityHeight }
+        let height = row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
+        // Spending lists its top models under the total.
+        let tall = row.contains { $0.showsSessions || $0.card == .spend || $0.paired }
+        let api = row.contains(where: \.claudeAPI) ? claudeAPIHeight : 0
+        return max(tall ? max(height, sessionCardHeight) : height, api) + growth
+    }
+
+    /// Seats side by side, as many as fit at a readable width: three need
+    /// 460 points and four 560, or they go two to a row; one a row where
+    /// cards do not pair.
+    static func seatColumns(_ count: Int, width: CGFloat) -> Int {
+        guard width >= pairWidth, count > 1 else { return 1 }
+        switch count {
+        case 2: return 2
+        case 3: return width >= 460 ? 3 : 2
+        default: return width >= 560 ? 4 : 2
+        }
+    }
+
+    static func seatsCardHeight(_ count: Int, width: CGFloat, api: Bool) -> CGFloat {
+        guard width >= pairWidth else {
+            return stackedSeatsBaseHeight + CGFloat(count) * stackedSeatHeight + (api ? stackedAPILineHeight : 0)
+        }
+        let columns = seatColumns(count, width: width)
+        return seatsBaseHeight + CGFloat((count + columns - 1) / columns) * seatRowHeight
+    }
+
+    /// Where a limits card's sessions show: the app and the terminal for
+    /// Claude, the app alone for Codex unless its command line is working too.
+    static func sessionPlaces(_ provider: AgentProvider, live: [AgentLiveSession]) -> [AgentSessionPlace] {
+        provider == .codex && !live.contains { $0.provider == .codex && $0.place == .terminal }
+            ? [.app] : [.app, .terminal]
+    }
+
+    /// A slot's rows: one for each session, or one saying none is running.
+    static func sessionRows(provider: AgentProvider, place: AgentSessionPlace, live: [AgentLiveSession]) -> Int {
+        max(1, live.filter { $0.provider == provider && $0.place == place }.count)
+    }
+
+    /// How much a card grows past its one-row size to list every session:
+    /// slots side by side by the fuller one's rows, Claude's split card
+    /// stacked by both.
+    static func sessionGrowth(_ tile: NotchAgentTile, live: [AgentLiveSession], width: CGFloat) -> CGFloat {
+        guard tile.showsSessions, let provider = tile.provider else { return 0 }
+        let extra = sessionPlaces(provider, live: live).map { sessionRows(provider: provider, place: $0, live: live) - 1 }
+        let rows = (tile.splitsBilling || tile.claudeSeats) && width < pairWidth ? extra.reduce(0, +) : extra.max() ?? 0
+        return CGFloat(rows) * sessionRowHeight
+    }
+
+    // MARK: Month
+
+    /// This calendar month's days from those the summary keeps, so a month's
+    /// first days are never mixed with the last one's.
+    static func monthDays(_ snapshot: AgentUsageSnapshot, now: Date,
+                          calendar: Calendar = .autoupdatingCurrent) -> [AgentBucket] {
+        let month = calendar.dateInterval(of: .month, for: now)?.start ?? calendar.startOfDay(for: now)
+        return snapshot.days.filter { $0.start >= month }
+    }
+
+    /// What Claude's plan covered this month at API prices: every Claude
+    /// response, less Claude Code's outside the app when an API key pays.
+    static func claudePlanMonth(_ snapshot: AgentUsageSnapshot, splitsBilling: Bool, now: Date,
+                                calendar: Calendar = .autoupdatingCurrent) -> Double {
+        monthDays(snapshot, now: now, calendar: calendar).reduce(0) { total, day in
+            total + (day.byProvider[.claude]?.cost ?? 0) - (splitsBilling ? day.claudeAPI.cost : 0)
+        }
+    }
+
+    /// Every agent's work this month at API prices.
+    static func monthTotal(_ snapshot: AgentUsageSnapshot, providers: [AgentProvider], now: Date,
+                           calendar: Calendar = .autoupdatingCurrent) -> Double {
+        monthDays(snapshot, now: now, calendar: calendar).reduce(0) { total, day in
+            total + providers.reduce(0) { $0 + (day.byProvider[$1]?.cost ?? 0) }
+        }
+    }
+
+    /// The open five-hour window's value: the Claude app's share when an API
+    /// key pays for Claude Code elsewhere. Nil once the window has closed.
+    static func claudeSessionValue(_ snapshot: AgentUsageSnapshot, splitsBilling: Bool) -> Double? {
+        (splitsBilling ? snapshot.claudeAppBlock : snapshot.claudeBlock)?.totals.cost
     }
 
     /// An account card's line in place of its windows while it has none, or
@@ -325,15 +786,116 @@ enum NotchAgentSupport {
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 
-    static func contentHeight(_ rows: [[NotchAgentTile]]) -> CGFloat {
+    static func contentHeight(_ rows: [[NotchAgentTile]], width: CGFloat = .infinity,
+                              live: [AgentLiveSession] = []) -> CGFloat {
         guard !rows.isEmpty else { return 0 }
-        return rows.map(height).reduce(0, +) + spacing * CGFloat(rows.count - 1)
+        return rows.map { height(of: $0, width: width, live: live) }.reduce(0, +) + spacing * CGFloat(rows.count - 1)
     }
 }
 
 /// Numbers in the reader's region; costs in US dollars, the currency both
 /// providers list their prices in.
+/// The closed island's mark while agents work: the agent whose turn runs
+/// longest inside its limit ring, and on the ring a badge for each place it
+/// works, the app at 4:30 and the terminal at 1:30 beside it, with a count
+/// inside the badge from two sessions up.
+struct NotchAgentWorkingLayout: Equatable {
+    /// How far from the ring's centre a badge sits, as a share of the ring:
+    /// just outside the stroke, so it hides as little of the arc as it can.
+    static let badgeReach: CGFloat = 0.523
+    /// The black that parts a badge from the arc beneath it.
+    static let cut: CGFloat = 1.5
+
+    let provider: AgentProvider
+    let terminal: Int
+    let app: Int
+    let ring: CGFloat
+
+    init(provider: AgentProvider, terminal: Int, app: Int, budget: CGFloat) {
+        self.provider = provider
+        self.terminal = terminal
+        self.app = app
+        ring = max(10, min(22, budget))
+    }
+
+    /// The working agent's sessions by place, from the snapshot's turns.
+    init?(_ live: [AgentLiveSession], budget: CGFloat) {
+        // The snapshot keeps turns oldest first: its first runs longest.
+        guard let provider = live.first?.provider else { return nil }
+        let own = live.filter { $0.provider == provider }
+        self.init(provider: provider, terminal: own.filter { $0.place == .terminal }.count,
+                  app: own.filter { $0.place == .app }.count, budget: budget)
+    }
+
+    var stacked: Bool { terminal > 0 && app > 0 }
+    var lineWidth: CGFloat { max(1.6, ring * 0.114) }
+    var markSize: CGFloat { ring * 0.48 }
+    var badgeHeight: CGFloat { ring * (stacked ? 0.4545 : 0.5) }
+    var countSize: CGFloat { badgeHeight * 0.78 }
+
+    func glyph(_ place: AgentSessionPlace) -> CGFloat {
+        badgeHeight * (place == .terminal ? 0.8 : 0.68)
+    }
+
+    func padding(_ place: AgentSessionPlace) -> CGFloat { (badgeHeight - glyph(place)) / 2 }
+
+    /// A badge's centre in the ring's box: 4:30, or 1:30 for the terminal
+    /// while the app works too.
+    func anchor(_ place: AgentSessionPlace) -> CGPoint {
+        let reach = ring * Self.badgeReach * 0.5.squareRoot()
+        let up = stacked && place == .terminal
+        return CGPoint(x: ring / 2 + reach, y: ring / 2 + (up ? -reach : reach))
+    }
+
+    /// A square tile, widening to the right for a count's digits.
+    func badgeWidth(_ place: AgentSessionPlace, count: Int) -> CGFloat {
+        guard count > 1 else { return badgeHeight }
+        let digits = CGFloat(String(count).count) * countSize * 0.62
+        return padding(place) * 2 + 0.5 + glyph(place) + 1 + digits
+    }
+
+    var width: CGFloat {
+        let badges = [(AgentSessionPlace.terminal, terminal), (.app, app)].filter { $0.1 > 0 }.map { place, count in
+            anchor(place).x - badgeHeight / 2 + badgeWidth(place, count: count)
+        }
+        return max(ring, badges.max() ?? ring)
+    }
+}
+
 enum AgentFormat {
+    /// Spending colors: green under $100, yellow to $500, red beyond.
+    enum SpendLevel: Equatable {
+        case low, medium, high
+    }
+
+    static func spendLevel(_ value: Double) -> SpendLevel {
+        if value >= 500 { return .high }
+        if value >= 100 { return .medium }
+        return .low
+    }
+
+    /// When a limit renews, on a 24-hour clock: "16:26" today, "Sat 15:33"
+    /// on a later day, "Oct 30" beyond a week.
+    static func resetTime(_ date: Date, now: Date, locale: Locale, calendar: Calendar = .autoupdatingCurrent) -> String {
+        let style = Date.FormatStyle(locale: resetClock(locale), calendar: calendar, timeZone: calendar.timeZone)
+        if calendar.isDate(date, inSameDayAs: now) {
+            return date.formatted(style.hour(.twoDigits(amPM: .omitted)).minute())
+        }
+        if date.timeIntervalSince(now) < 6 * 86_400 {
+            return date.formatted(style.weekday(.abbreviated).hour(.twoDigits(amPM: .omitted)).minute())
+        }
+        return date.formatted(style.month(.abbreviated).day())
+    }
+
+    /// Reset times read on a 24-hour clock whatever the region's, so the
+    /// resting island's narrow wing, which has no room for AM or PM, and the
+    /// open island never seem to name different times.
+    static func resetClock(_ locale: Locale) -> Locale {
+        var components = Locale.Components(locale: locale)
+        components.hourCycle = .zeroToTwentyThree
+        return Locale(components: components)
+    }
+
     static func cost(_ value: Double, locale: Locale = .autoupdatingCurrent) -> String {
         guard value.isFinite else { return "$0" }
         let magnitude = abs(value)

@@ -13,17 +13,29 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
-    @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
+    @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = NotchAgentSupport.defaultHiddenCards
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var limitFocus = NotchAgentLimitFocus.mostUsed.rawValue
+    @AppStorage(DefaultsKey.notchAgentsRestingLayout) private var restingLayout = NotchAgentRestingLayout.single.rawValue
+    @AppStorage(DefaultsKey.notchAgentsRestingHidden) private var restingHidden = ""
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
     @AppStorage(DefaultsKey.notchAgentsFinishMinimum) private var finishMinimum = NotchAgentSupport.defaultFinishMinimum
+    @AppStorage(DefaultsKey.notchAgentsInputAlert) private var inputAlert = true
+    @AppStorage(DefaultsKey.notchAgentsInputDelay) private var inputDelay = AgentAttentionPolicy.defaultDelay
+    @AppStorage(DefaultsKey.notchAgentsInputRepeat) private var inputRepeat = true
+    @AppStorage(DefaultsKey.notchAgentsInputInferred) private var inputInferred = false
+    @AppStorage(DefaultsKey.notchAgentsInterruptAlert) private var interruptAlert = false
     @AppStorage(DefaultsKey.notchAgentsLimitAlert) private var limitAlert = true
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
     @AppStorage(DefaultsKey.notchAgentsDailyBudget) private var dailyBudget = 0.0
     @AppStorage(DefaultsKey.notchAgentsPriceUpdates) private var priceUpdates = true
+    @AppStorage(DefaultsKey.notchAgentsClaudeBilling) private var claudeBilling = AgentClaudeBilling.automatic.rawValue
+    @AppStorage(DefaultsKey.notchAgentsClaudeCredits) private var claudeCredits = 0.0
+    @AppStorage(DefaultsKey.notchAgentsClaudeCreditsSince) private var claudeCreditsSince = 0.0
+    /// The balance being typed, kept apart until it is saved.
+    @State private var creditsDraft = ""
     @State private var dragging: NotchAgentCard?
     @State private var roots: [AgentProvider: Bool] = [:]
     @State private var claudeApp: URL?
@@ -31,12 +43,13 @@ struct NotchAgentsSettingsControls: View {
     @State private var claudeAppFileCheck: Date?
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
+    private var attention: AgentAttentionStrings { FeatureStrings.agentAttention(l10n.language) }
+    private var billingText: ClaudeBillingStrings { FeatureStrings.claudeBilling(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
 
+    @AppStorage(DefaultsKey.notchAgentsClaudeSeats) private var claudeSeats = ""
     private var orderedCards: [NotchAgentCard] {
-        let stored = cardOrder.split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) }
-        var seen = Set<NotchAgentCard>()
-        return (stored + NotchAgentCard.allCases).filter { seen.insert($0).inserted }
+        NotchAgentSupport.orderedCards(cardOrder, claudeSeats: claude && !ClaudeSeatProfile.decode(claudeSeats).isEmpty)
     }
 
     var body: some View {
@@ -49,7 +62,9 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
+            if claude { ClaudeSeatsSettings() }
             if codex { CodexAccountsSettings() }
+            NotchLimitVisibilitySettings(claude: claude, codex: codex)
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
@@ -84,6 +99,7 @@ struct NotchAgentsSettingsControls: View {
                     Text(text.limitFocus(focus)).tag(focus.rawValue)
                 }
             }
+            restingGroup
 
             Divider()
             Text(text.liveTitle).font(.subheadline.weight(.medium))
@@ -114,6 +130,20 @@ struct NotchAgentsSettingsControls: View {
                 }
                 .padding(.leading, settingsRowTextInset)
             }
+            switchRow("hand.raised", attention.inputAlert, isOn: $inputAlert)
+            if inputAlert {
+                Group {
+                    SettingsMenuRow(symbol: "timer", title: attention.inputAfter, selection: $inputDelay) {
+                        ForEach(AgentAttentionPolicy.delays, id: \.self) { seconds in
+                            Text(AgentFormat.duration(seconds, locale: locale, style: .short)).tag(seconds)
+                        }
+                    }
+                    switchRow("bell.badge", attention.inputRepeat, isOn: $inputRepeat)
+                    switchRow("questionmark.circle", attention.inputInferred, isOn: $inputInferred)
+                }
+                .padding(.leading, settingsRowTextInset)
+            }
+            switchRow("pause.circle", attention.interruptAlert, isOn: $interruptAlert)
             switchRow("exclamationmark.triangle", text.limitAlert, isOn: $limitAlert)
             if limitAlert {
                 SettingsMenuRow(symbol: "gauge.with.dots.needle.67percent", title: text.limitAt, selection: $limitThreshold) {
@@ -143,6 +173,7 @@ struct NotchAgentsSettingsControls: View {
                 if usage.claudeAccountChecking { ProgressView().controlSize(.small) }
                 Text(text.claudeLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                claudeBillingGroup
             }
         }
         .toggleStyle(.switch)
@@ -155,9 +186,135 @@ struct NotchAgentsSettingsControls: View {
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
-                       String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
+                       String(liveActivity), readout, limitDisplay, limitFocus, claudeBilling]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
+    }
+
+    /// Who pays for Claude Code, and the API key's balance when it does.
+    @ViewBuilder private var claudeBillingGroup: some View {
+        let detected = AgentClaudeBilling.detected(home: FileManager.default.homeDirectoryForCurrentUser)
+        Text(billingText.billingTitle).font(.subheadline.weight(.medium)).padding(.top, 4)
+        SettingsMenuRow(symbol: "creditcard", title: billingText.billsTo, selection: $claudeBilling) {
+            ForEach(AgentClaudeBilling.allCases) { option in
+                Text(billingText.billing(option, detectedAPI: detected)).tag(option.rawValue)
+            }
+        }
+        Text(billingText.billingCaption).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        let _ = claudeBilling
+        if AgentClaudeBilling.usesAPI() {
+            SettingsRow(symbol: "dollarsign.circle", title: billingText.creditsTitle) {
+                HStack(spacing: 6) {
+                    TextField(billingText.balance, text: $creditsDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 96)
+                        .multilineTextAlignment(.trailing)
+                        .onSubmit(saveCredits)
+                    Button(billingText.save, action: saveCredits)
+                        .disabled(parsedCredits == nil)
+                    if claudeCredits > 0 {
+                        Button(billingText.clear) {
+                            AgentClaudeCredits.clear()
+                            creditsDraft = ""
+                        }
+                    }
+                }
+            }
+            if let stored = AgentClaudeCredits.stored(), claudeCreditsSince > 0,
+               let left = stored.remaining(days: usage.snapshot.days) {
+                Text(billingText.creditsLeft(AgentFormat.cost(max(0, left)),
+                                             since: stored.since.formatted(.relative(presentation: .named).locale(locale))))
+                    .font(.callout)
+                    .padding(.leading, settingsRowTextInset)
+            }
+            Text(billingText.creditsCaption).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The balance typed, in the reader's own way of writing numbers.
+    private var parsedCredits: Double? {
+        let trimmed = creditsDraft.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
+        let value = (try? Double(trimmed, format: .number.locale(locale))) ?? Double(trimmed)
+        return value.flatMap { $0 > 0 && $0.isFinite ? $0 : nil }
+    }
+
+    private func saveCredits() {
+        guard let balance = parsedCredits else { return }
+        AgentClaudeCredits.store(balance: balance, now: Date(), days: usage.snapshot.days)
+        creditsDraft = ""
+    }
+
+    /// Agents switched on that report a plan allowance, the ones that can rest.
+    private var restable: [AgentProvider] {
+        let on: [AgentProvider: Bool] = [.claude: claude, .codex: codex, .opencode: opencode, .copilot: copilot]
+        return AgentProvider.allCases.filter { on[$0] == true && $0.reportsLimits }
+    }
+
+    /// How the resting island shows the allowances: the layout, the agents
+    /// that rest, and the strip as it will look. "Limit to show" above picks
+    /// the limit each meter shows.
+    @ViewBuilder private var restingGroup: some View {
+        let layout = NotchAgentRestingLayout(rawValue: restingLayout) ?? .single
+        Text(text.atRest).font(.subheadline.weight(.medium)).padding(.top, 4)
+        SettingsMenuRow(symbol: "rectangle.split.3x1", title: text.restingLayout, selection: $restingLayout) {
+            ForEach(NotchAgentRestingLayout.allCases) { option in
+                Text(text.restingLayout(option)).tag(option.rawValue)
+            }
+        }
+        Text(text.restingFocusCaption).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        if layout == .split, restable.filter({ !restingHiddenSet.contains($0) }).count > 2 {
+            Text(text.restingSplitCaption).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if !restable.isEmpty {
+            Text(text.showAtRest).font(.callout).foregroundStyle(.secondary)
+            ForEach(restable) { provider in
+                HStack(spacing: 12) {
+                    NotchAgentMark(provider: provider, size: 13)
+                        .frame(width: 26, height: 26)
+                        .background(provider.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .accessibilityHidden(true)
+                    Text(provider.displayName)
+                    Spacer(minLength: 12)
+                    Toggle(provider.displayName, isOn: restingBinding(provider)).labelsHidden().toggleStyle(.switch)
+                }
+            }
+        }
+        NotchAgentRestingSample(sample: usage.snapshot.limits.keys.contains(where: restable.contains)
+                                    ? nil : Self.sampleUsage(restable))
+            .padding(.leading, settingsRowTextInset)
+    }
+
+    private var restingHiddenSet: Set<AgentProvider> { NotchAgentSupport.parseRestingHidden(restingHidden) }
+
+    private func restingBinding(_ provider: AgentProvider) -> Binding<Bool> {
+        Binding {
+            !restingHiddenSet.contains(provider)
+        } set: { shown in
+            var hidden = restingHiddenSet
+            if shown { hidden.remove(provider) } else { hidden.insert(provider) }
+            restingHidden = hidden.map(\.rawValue).sorted().joined(separator: ",")
+        }
+    }
+
+    /// Example allowances for the preview while no agent reports its own.
+    private static func sampleUsage(_ providers: [AgentProvider]) -> AgentUsageSnapshot {
+        let now = Date()
+        let examples: [(session: Double, weekly: Double)] = [(28, 55), (62, 20), (40, 10)]
+        var snapshot = AgentUsageSnapshot()
+        for (index, provider) in (providers.isEmpty ? [.claude] : providers).enumerated() {
+            let example = examples[index % examples.count]
+            snapshot.limits[provider] = AgentLimits(provider: provider, windows: [
+                AgentLimitWindow(id: "session", kind: .session, minutes: 300, scope: nil,
+                                 usedPercent: example.session, resetsAt: now.addingTimeInterval(3600)),
+                AgentLimitWindow(id: "weekly", kind: .weekly, minutes: 10_080, scope: nil,
+                                 usedPercent: example.weekly, resetsAt: now.addingTimeInterval(86_400))],
+                observedAt: now, source: .sessionLog)
+        }
+        return snapshot
     }
 
     private var priceCaption: String {
@@ -295,15 +452,20 @@ private struct NotchAgentStripSample: View {
 
     var body: some View {
         NotchAgentReadoutTimeline(readout: readout) { date in
-            let working = usage.snapshot.live.first?.provider ?? provider
+            // An example works in both places while nothing runs.
+            let mark = NotchAgentWorkingLayout(usage.snapshot.live, budget: 16)
+                ?? NotchAgentWorkingLayout(provider: provider, terminal: 1, app: 1, budget: 16)
             HStack(spacing: 0) {
-                NotchAgentGlyph(provider: working, size: 11)
+                NotchAgentWorkingMark(layout: mark,
+                                      window: NotchAgentSupport.focusedLimit(usage.snapshot.limits[mark.provider],
+                                                                             focus: focus, now: date),
+                                      used: display == .used)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Color.clear.frame(width: Self.camera)
                 Text(reading(at: date))
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 12, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(working.tint)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -324,5 +486,36 @@ private struct NotchAgentStripSample: View {
                                               cost: 4.56)]
         }
         return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, focus: focus, now: now)
+    }
+}
+
+/// The resting island drawn small beside its options: the real wings around
+/// a camera, with the person's allowances or an example of them.
+private struct NotchAgentRestingSample: View {
+    let sample: AgentUsageSnapshot?
+    private static let camera: CGFloat = 64
+    private static let wing: CGFloat = 44
+    /// The wing's shoulder on a MacBook's 32-point strip.
+    private static let inset: CGFloat = 11
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ZStack(alignment: .trailing) {
+                Color.clear
+                NotchAgentRestingWing(side: .leading, sample: sample).padding(.leading, Self.inset)
+            }
+            .frame(width: Self.wing)
+            Color.clear.frame(width: Self.camera)
+            ZStack(alignment: .leading) {
+                Color.clear
+                NotchAgentRestingWing(side: .trailing, sample: sample).padding(.trailing, Self.inset)
+            }
+            .frame(width: Self.wing)
+        }
+        .foregroundStyle(.white.opacity(0.9))
+        .frame(width: Self.camera + Self.wing * 2, height: 32)
+        .background(NotchShape(attached: true, radius: 10).fill(.black))
+        .environment(\.colorScheme, .dark)
+        .accessibilityHidden(true)
     }
 }

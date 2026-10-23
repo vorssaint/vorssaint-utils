@@ -16,10 +16,15 @@ struct ClaudeReader: AgentHarnessReader {
         // so the command line that opened a turn closes it again. Only the
         // person's own text counts: a tool result can quote the same words.
         if AgentLogParser.contains(line, "[Request interrupted by user") || AgentLogParser.contains(line, "<local-command-std"),
-           let json = AgentLogParser.object(line), json["type"] as? String == "user", endsTurn(json) {
+           let json = AgentLogParser.object(line), json["type"] as? String == "user", let ending = endsTurn(json) {
             let open = state.turnOpen
             state.turnOpen = false
-            return open ? [.turnEnded(nil, completed: false, duration: nil)] : []
+            forgetWaits(&state)
+            guard open else { return [] }
+            // An interruption leaves the work for the person to pick up.
+            guard ending == .interrupted else { return [.turnEnded(nil, completed: false, duration: nil)] }
+            return [.turnEnded(nil, completed: false, duration: nil),
+                    .turnAwaiting(.interrupted, AgentLogParser.timestamp(json["timestamp"]) ?? now, inferred: false)]
         }
         // A tool that ends the turn, like the structured output a scripted
         // session returns, gets no reply after its result: the session is done.
@@ -27,11 +32,26 @@ struct ClaudeReader: AgentHarnessReader {
            json["toolEndsTurn"] as? Bool == true, json["isSidechain"] as? Bool != true {
             let open = state.turnOpen
             state.turnOpen = false
+            forgetWaits(&state)
             return open ? [.turnEnded(AgentLogParser.timestamp(json["timestamp"]) ?? now, completed: true, duration: nil)] : []
         }
         // Tool results arrive inside a turn and can be large; while a turn is
         // open, the line only has to say that work goes on.
         if state.turnOpen {
+            // A result answers the calls it names; anything else from the
+            // person, like a prompt typed meanwhile, answers them all.
+            if !state.awaitedTools.isEmpty || !state.pendingTools.isEmpty,
+               !AgentLogParser.contains(line, #""isSidechain":true"#), !AgentLogParser.contains(line, #""isMeta":true"#) {
+                let answered = AgentLogParser.toolResultIDs(line)
+                if answered.isEmpty {
+                    forgetWaits(&state)
+                } else {
+                    for id in answered {
+                        state.awaitedTools[id] = nil
+                        state.pendingTools.remove(id)
+                    }
+                }
+            }
             if !state.runningCommands.isEmpty, let json = AgentLogParser.object(line), json["type"] as? String == "user",
                json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true {
                 let content = (json["message"] as? [String: Any])?["content"]
@@ -58,6 +78,7 @@ struct ClaudeReader: AgentHarnessReader {
         adopt(json, into: &state)
         state.turnOpen = true
         state.runningCommands = []
+        forgetWaits(&state)
         return [.turnBegan(AgentLogParser.timestamp(json["timestamp"]) ?? now)]
     }
 
@@ -88,7 +109,8 @@ struct ClaudeReader: AgentHarnessReader {
             let priced = AgentPricing.cost(billable, model: model)
             entries.append(.usage(key: key, record: AgentUsageRecord(
                 provider: .claude, date: date, model: model, project: state.project, session: state.session,
-                tokens: billable.tokens, cost: priced.cost, savings: priced.savings), billable: billable))
+                tokens: billable.tokens, cost: priced.cost, savings: priced.savings,
+                claudeApp: json["entrypoint"] as? String == "claude-desktop"), billable: billable))
         }
         // A subagent's own ending is not the end of the turn it serves.
         guard json["isSidechain"] as? Bool != true else { return entries }
@@ -97,24 +119,47 @@ struct ClaudeReader: AgentHarnessReader {
             // An error written in place of a reply, like a spent limit, stops
             // the turn without finishing it.
             let failed = json["isApiErrorMessage"] as? Bool == true || model.hasPrefix("<")
-            if state.turnOpen { entries.append(.turnEnded(date, completed: !failed, duration: nil)) }
+            if state.turnOpen {
+                entries.append(.turnEnded(date, completed: !failed, duration: nil))
+                // A turn an error stopped waits for the person to try again.
+                if failed { entries.append(.turnAwaiting(.interrupted, date, inferred: false)) }
+            }
             state.turnOpen = false
+            forgetWaits(&state)
         default:
-            for block in message["content"] as? [[String: Any]] ?? []
-            where block["type"] as? String == "tool_use" && block["name"] as? String == "Bash" {
-                if let id = block["id"] as? String { state.runningCommands.insert(id) }
+            var awaits: AgentAwait?
+            for block in message["content"] as? [[String: Any]] ?? [] where block["type"] as? String == "tool_use" {
+                guard let id = block["id"] as? String else { continue }
+                switch block["name"] as? String {
+                case "Bash": state.runningCommands.insert(id)
+                case "AskUserQuestion": state.awaitedTools[id] = .question
+                case "ExitPlanMode": state.awaitedTools[id] = .plan
+                // A subagent writes its own log while it works.
+                case "Task", "Agent": break
+                default: state.pendingTools.insert(id)
+                }
+                awaits = state.awaitedTools[id] ?? awaits
             }
             // Ahead of the usage, so a reply that opens the turn again, as
             // after an offline end, counts toward it.
             entries.insert(state.turnOpen ? .turnActive(date) : .turnBegan(date), at: 0)
             state.turnOpen = true
+            // After the work it continues, which would otherwise answer it.
+            if let awaits { entries.append(.turnAwaiting(awaits, date, inferred: false)) }
         }
         return entries
     }
 
+    private func forgetWaits(_ state: inout AgentLogState) {
+        state.awaitedTools = [:]
+        state.pendingTools = []
+    }
+
+    private enum Ending { case interrupted, localCommand }
+
     /// The interruption or local command output the person's message holds,
     /// never text inside a tool result.
-    private func endsTurn(_ json: [String: Any]) -> Bool {
+    private func endsTurn(_ json: [String: Any]) -> Ending? {
         let content = (json["message"] as? [String: Any])?["content"]
         let texts: [String]
         if let text = content as? String {
@@ -124,9 +169,8 @@ struct ClaudeReader: AgentHarnessReader {
         } else {
             texts = []
         }
-        return texts.contains {
-            $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std")
-        }
+        if texts.contains(where: { $0.hasPrefix("[Request interrupted by user") }) { return .interrupted }
+        return texts.contains { $0.hasPrefix("<local-command-std") } ? .localCommand : nil
     }
 
     private func adopt(_ json: [String: Any], into state: inout AgentLogState) {
