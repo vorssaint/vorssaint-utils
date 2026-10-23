@@ -386,13 +386,13 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 77, "feature catalog has 77 features")
+        suite.expect(AppFeature.allCases.count == 78, "feature catalog has 78 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
             "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
-            "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
+            "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection", "selectionBar",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
@@ -588,7 +588,8 @@ enum FeatureCatalogTests {
         suite.expect((AppFeature.availabilityDefaults[AppFeature.linearScroll.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.notchMascot.availabilityKey] as? Bool) == false,
+                && (AppFeature.availabilityDefaults[AppFeature.notchMascot.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.selectionBar.availabilityKey] as? Bool) == false,
                "features added after the list was frozen wait on the Features page instead of installing themselves")
         let linearScrollSuiteName = "com.vorssaint.tests.linear-scroll-availability.\(UUID().uuidString)"
         if let linearDefaults = UserDefaults(suiteName: linearScrollSuiteName) {

@@ -86,12 +86,13 @@ enum PastePlainTests {
         typealias GeneralPasteboardAccess = PastePlainTests.GeneralPasteboardAccess
         var isPerforming = false
         static var pending: (() -> Void)?
-        static func postPasteWhenModifiersReleased(attempt: Int,
-                                                  expectedChangeCount: Int,
-                                                  willPost: (() -> Void)?,
-                                                  didPost: (() -> Void)?,
-                                                  didFail: (() -> Void)?,
-                                                  completion: @escaping () -> Void) {
+        static func postShortcutWhenModifiersReleased(keyCode: Int,
+                                                      attempt: Int,
+                                                      expectedChangeCount: Int,
+                                                      willPost: (() -> Void)?,
+                                                      didPost: (() -> Void)?,
+                                                      didFail: (() -> Void)?,
+                                                      completion: @escaping () -> Void) {
             pending = { willPost?(); didPost?(); completion() }
         }
     }

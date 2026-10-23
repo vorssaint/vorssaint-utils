@@ -13,14 +13,25 @@ enum SelectedTextReader {
     struct Selection {
         /// The text as the app gives it, not trimmed.
         let text: String
+        /// True when the focused element accepts new text and lets the
+        /// selection be moved, so a transform can type over the selection.
+        let isEditable: Bool
+        /// Where the selected text is drawn, in Accessibility coordinates
+        /// (origin at the top left of the main display). Nil when the app does
+        /// not give it.
+        let bounds: CGRect?
+        /// The frame of the focused element, in the same coordinates.
+        let elementFrame: CGRect?
         /// True when the text came from a text marker range: a web page
         /// where typed letters reach the page, not the selection.
         var fromTextMarkers = false
     }
 
     /// Reads the selection of the focused element in the app `processID`.
-    /// Blocking, so callers run it off the main thread.
-    static func read(processID: pid_t) -> Selection? {
+    /// Blocking, so callers run it off the main thread. `details` adds the
+    /// editable state and the geometry, which cost more calls. A selection
+    /// with no text gets no details.
+    static func read(processID: pid_t, details: Bool = false) -> Selection? {
         guard AXIsProcessTrusted() else { return nil }
         // Asked of the app, not of the system-wide element: a timeout set on
         // the system-wide element is the DEFAULT FOR THE WHOLE PROCESS, and
@@ -36,12 +47,33 @@ enum SelectedTextReader {
         AXUIElementSetMessagingTimeout(focused, 0.35)
         // Some browsers give the selection on a page only as a text marker
         // range, not as selected text.
-        if let text = copyString(focused, kAXSelectedTextAttribute) {
-            return Selection(text: text)
+        var markerRange: CFTypeRef?
+        var text = copyString(focused, kAXSelectedTextAttribute)
+        if text == nil, let range = copyValue(focused, "AXSelectedTextMarkerRange") {
+            markerRange = range
+            text = copyString(focused, "AXStringForTextMarkerRange", range)
         }
-        guard let range = copyValue(focused, "AXSelectedTextMarkerRange"),
-              let text = copyString(focused, "AXStringForTextMarkerRange", range) else { return nil }
-        return Selection(text: text, fromTextMarkers: true)
+        guard let text else { return nil }
+        guard details, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return Selection(text: text, isEditable: false, bounds: nil, elementFrame: nil,
+                             fromTextMarkers: markerRange != nil)
+        }
+        // Web pages that give the selected text often give its place only
+        // through the marker range.
+        let bounds = markerRange.flatMap { markerBounds(focused, $0) }
+            ?? selectedBounds(focused)
+            ?? (markerRange == nil
+                ? copyValue(focused, "AXSelectedTextMarkerRange").flatMap { markerBounds(focused, $0) }
+                : nil)
+        // A terminal says its value can be set, but typed text goes to the
+        // prompt, not over the selection. A text field also lets the selection
+        // range be set; a terminal does not.
+        return Selection(text: text,
+                         isEditable: isSettable(focused, kAXValueAttribute)
+                             && isSettable(focused, kAXSelectedTextRangeAttribute),
+                         bounds: bounds,
+                         elementFrame: frame(of: focused),
+                         fromTextMarkers: markerRange != nil)
     }
 
     /// Where a focused text is selected, with that text's length, both in the
@@ -127,6 +159,42 @@ enum SelectedTextReader {
     }
 
     // MARK: - Accessibility reading
+
+    private static func selectedBounds(_ element: AXUIElement) -> CGRect? {
+        guard let range = copyValue(element, kAXSelectedTextRangeAttribute),
+              CFGetTypeID(range) == AXValueGetTypeID() else { return nil }
+        return rect(copyValue(element, kAXBoundsForRangeParameterizedAttribute, range))
+    }
+
+    private static func markerBounds(_ element: AXUIElement, _ range: CFTypeRef) -> CGRect? {
+        rect(copyValue(element, "AXBoundsForTextMarkerRange", range))
+    }
+
+    private static func rect(_ value: CFTypeRef?) -> CGRect? {
+        guard let value, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+        var rect = CGRect.zero
+        guard AXValueGetValue(value as! AXValue, .cgRect, &rect) else { return nil }
+        return rect
+    }
+
+    private static func frame(of element: AXUIElement) -> CGRect? {
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        guard let position = copyValue(element, kAXPositionAttribute),
+              CFGetTypeID(position) == AXValueGetTypeID(),
+              AXValueGetValue(position as! AXValue, .cgPoint, &origin),
+              let extent = copyValue(element, kAXSizeAttribute),
+              CFGetTypeID(extent) == AXValueGetTypeID(),
+              AXValueGetValue(extent as! AXValue, .cgSize, &size) else { return nil }
+        return CGRect(origin: origin, size: size)
+    }
+
+    private static func isSettable(_ element: AXUIElement, _ attribute: String) -> Bool {
+        var settable: DarwinBoolean = false
+        guard AXUIElementIsAttributeSettable(element, attribute as CFString, &settable) == .success
+        else { return false }
+        return settable.boolValue
+    }
 
     private static func copyElement(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
         guard let raw = copyValue(element, attribute),

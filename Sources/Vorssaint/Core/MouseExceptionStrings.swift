@@ -15,6 +15,7 @@ struct MouseExceptionStrings {
     let captionMiddleClick: String
     let captionFocusFollowsMouse: String
     let captionSuperKey: String
+    let captionSelectionBar: String
     let pausedSuperKey: String
 
     func caption(for scope: MouseExceptionScope) -> String {
@@ -27,6 +28,7 @@ struct MouseExceptionStrings {
         case .buttonShortcuts: return captionButtonShortcuts
         case .middleClick: return captionMiddleClick
         case .superKey: return captionSuperKey
+        case .selectionBar: return captionSelectionBar
         }
     }
 }
@@ -66,6 +68,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "A three finger click stays a normal click in these apps.",
         captionFocusFollowsMouse: "Hovering does not change focus or raise a window in these apps.",
         captionSuperKey: "While any of these apps is open, even in the background, Super Key pauses and the chosen key works normally.",
+        captionSelectionBar: "The selection bar does not appear in these apps.",
         pausedSuperKey: "Paused while a selected app is open"
     )
 
@@ -81,6 +84,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "Nestes apps o clique de três dedos continua um clique normal.",
         captionFocusFollowsMouse: "Nestes apps passar o mouse não muda o foco nem traz a janela para frente.",
         captionSuperKey: "Enquanto algum destes apps estiver aberto, mesmo em segundo plano, a Super Key pausa e a tecla escolhida funciona normalmente.",
+        captionSelectionBar: "A barra de seleção não aparece nestes apps.",
         pausedSuperKey: "Pausada enquanto um app selecionado está aberto"
     )
 
@@ -96,6 +100,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "Bu uygulamalarda üç parmak tıklaması normal tıklama olarak kalır.",
         captionFocusFollowsMouse: "Bu uygulamalarda imleci bekletmek odağı değiştirmez veya pencereyi öne getirmez.",
         captionSuperKey: "Bu uygulamalardan biri arka planda bile açıkken Super Key duraklatılır ve seçilen tuş normal çalışır.",
+        captionSelectionBar: "Seçim çubuğu bu uygulamalarda görünmez.",
         pausedSuperKey: "Seçili bir uygulama açıkken duraklatıldı"
     )
 
@@ -111,6 +116,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "В этих приложениях щелчок тремя пальцами остаётся обычным щелчком.",
         captionFocusFollowsMouse: "В этих приложениях наведение не меняет фокус и не выводит окно на передний план.",
         captionSuperKey: "Пока любое из этих приложений открыто, даже в фоне, Super Key приостановлена, а выбранная клавиша работает как обычно.",
+        captionSelectionBar: "Панель выделения не появляется в этих приложениях.",
         pausedSuperKey: "Приостановлено, пока открыто выбранное приложение"
     )
 
@@ -126,6 +132,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "En estas apps el clic con tres dedos sigue siendo un clic normal.",
         captionFocusFollowsMouse: "En estas apps pasar el puntero no cambia el foco ni trae la ventana al frente.",
         captionSuperKey: "Mientras alguna de estas apps esté abierta, incluso en segundo plano, Super Key se pausa y la tecla elegida funciona normalmente.",
+        captionSelectionBar: "La barra de selección no aparece en estas apps.",
         pausedSuperKey: "En pausa mientras una app seleccionada esté abierta"
     )
 
@@ -141,6 +148,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "Kliknutie tromi prstami zostáva v týchto aplikáciách bežným kliknutím.",
         captionFocusFollowsMouse: "Prejdenie kurzorom nad oknom v týchto aplikáciách nemení fokus ani ho nezobrazí navrchu.",
         captionSuperKey: "Kým je otvorená ktorákoľvek z týchto aplikácií, aj na pozadí, Super kláves sa pozastaví a vybraný kláves funguje normálne.",
+        captionSelectionBar: "Panel výberu sa v týchto aplikáciách nezobrazuje.",
         pausedSuperKey: "Pozastavené, kým je otvorená vybraná aplikácia"
     )
 
@@ -156,6 +164,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "In diesen Apps bleibt ein Klick mit drei Fingern ein normaler Klick.",
         captionFocusFollowsMouse: "In diesen Apps ändert ein Verweilen des Zeigers weder den Fokus noch die Fensterreihenfolge.",
         captionSuperKey: "Solange eine dieser Apps geöffnet ist, auch im Hintergrund, pausiert Super Key und die gewählte Taste funktioniert normal.",
+        captionSelectionBar: "Die Auswahlleiste erscheint in diesen Apps nicht.",
         pausedSuperKey: "Pausiert, solange eine ausgewählte App geöffnet ist"
     )
 
@@ -171,6 +180,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "Dans ces apps un clic à trois doigts reste un clic normal.",
         captionFocusFollowsMouse: "Dans ces apps le survol ne change pas le focus et ne place pas la fenêtre au premier plan.",
         captionSuperKey: "Tant qu’une de ces apps est ouverte, même en arrière-plan, Super Key est en pause et la touche choisie fonctionne normalement.",
+        captionSelectionBar: "La barre de sélection n’apparaît pas dans ces apps.",
         pausedSuperKey: "En pause tant qu’une app sélectionnée est ouverte"
     )
 
@@ -186,6 +196,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "In queste app un clic con tre dita resta un clic normale.",
         captionFocusFollowsMouse: "In queste app il passaggio del puntatore non cambia il focus né porta avanti la finestra.",
         captionSuperKey: "Finché una di queste app è aperta, anche in background, Super Key è in pausa e il tasto scelto funziona normalmente.",
+        captionSelectionBar: "La barra di selezione non compare in queste app.",
         pausedSuperKey: "In pausa mentre un’app selezionata è aperta"
     )
 
@@ -201,6 +212,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "これらのAppでは3本指のクリックが普通のクリックのままです。",
         captionFocusFollowsMouse: "これらのAppではポインタを止めてもフォーカスやウインドウの前後関係は変わりません。",
         captionSuperKey: "これらのAppのいずれかが開いている間は、バックグラウンドでもSuper Keyが一時停止し、選択したキーは通常どおり動作します。",
+        captionSelectionBar: "これらのAppでは選択バーを表示しません。",
         pausedSuperKey: "選択したAppが開いている間は一時停止中"
     )
 
@@ -216,6 +228,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "이 앱들에서는 세 손가락 클릭이 보통 클릭으로 남습니다.",
         captionFocusFollowsMouse: "이 앱들에서는 포인터를 올려 두어도 포커스나 윈도우 순서가 바뀌지 않습니다.",
         captionSuperKey: "이 앱 중 하나라도 열려 있으면 백그라운드에서도 Super Key가 일시 정지되고 선택한 키가 정상적으로 작동합니다.",
+        captionSelectionBar: "이 앱에서는 선택 막대가 나타나지 않습니다.",
         pausedSuperKey: "선택한 앱이 열려 있는 동안 일시 정지됨"
     )
 
@@ -231,6 +244,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "在这些 App 里三指点按仍是普通点按。",
         captionFocusFollowsMouse: "在这些 App 里悬停不会改变焦点，也不会将窗口置于前方。",
         captionSuperKey: "这些 App 中任意一个打开时，即使在后台，超级键也会暂停，所选按键恢复正常功能。",
+        captionSelectionBar: "选择栏不会在这些 App 中出现。",
         pausedSuperKey: "所选 App 打开期间已暂停"
     )
 
@@ -246,6 +260,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。",
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。",
         captionSuperKey: "這些 App 中任一個開啟時，即使在背景執行，Super Key 也會暫停，所選按鍵恢復正常功能。",
+        captionSelectionBar: "選取列不會在這些 App 中出現。",
         pausedSuperKey: "所選 App 開啟期間已暫停"
     )
 
@@ -261,6 +276,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。",
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。",
         captionSuperKey: "這些 App 中任何一個開啟時，即使在背景執行，Super Key 也會暫停，所選按鍵恢復正常功能。",
+        captionSelectionBar: "選取列不會在這些 App 中出現。",
         pausedSuperKey: "所選 App 開啟期間已暫停"
     )
     static let uk = MouseExceptionStrings(
@@ -275,6 +291,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "Клац трьома пальцями залишається звичайним клацом у цих програмах.",
         captionFocusFollowsMouse: "Наведення не змінює фокус та не піднімає вікно в цих програмах.",
         captionSuperKey: "Коли будь-яка з цих програм відкрита, навіть у фоновому режимі, Super Key призупиняється, і вибрана клавіша відновлює свою звичайну функцію.",
+        captionSelectionBar: "Панель виділення не з’являється в цих програмах.",
         pausedSuperKey: "Призупинено, поки відкрита вибрана програма"
     )
 }

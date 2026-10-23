@@ -132,6 +132,7 @@ enum ReleaseChangeAliases {
         case .radialMenu: return ["radial menu", "radial menus"]
         case .scratchpad: return ["scratchpad"]
         case .commandBar: return ["command bar", "calculator"]
+        case .selectionBar: return ["selection bar", "selection bars"]
         case .screenRecorder: return ["screen recording", "screen recordings", "recording", "recordings",
             "recorder", "recording editor", "gif export", "gif exports"]
         case .wallpaper: return [.exact("Wallpaper"), "wallpaper gallery", "wallpapers"]
