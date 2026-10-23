@@ -19,6 +19,8 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowEdgeSnapEnabled) private var edgeSnapEnabled = false
     @AppStorage(DefaultsKey.windowEdgeSnapDisabledZones) private var edgeSnapDisabledZones = ""
     @AppStorage(DefaultsKey.windowEdgeSnapZoneActions) private var edgeSnapZoneActions = ""
+    @AppStorage(DefaultsKey.windowCustomZonesEnabled) private var customZonesEnabled = false
+    @AppStorage(DefaultsKey.windowCustomZoneLayouts) private var customZoneLayouts = ""
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
@@ -116,6 +118,22 @@ struct WindowLayoutSettings: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Toggle(text.gestureRaiseWindow, isOn: $gestureRaiseWindow)
+                    }
+                }
+
+                Section(WindowCustomZoneStrings.localized(l10n.language).section) {
+                    Toggle(WindowCustomZoneStrings.localized(l10n.language).enabled,
+                           isOn: $customZonesEnabled)
+                        .onChange(of: customZonesEnabled) { _, _ in
+                            service.syncWithPreferences()
+                        }
+                    Text(WindowCustomZoneStrings.localized(l10n.language).instructions)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if customZonesEnabled {
+                        ForEach(Array(NSScreen.screens.enumerated()), id: \.offset) { _, screen in
+                            WindowCustomZoneEditor(screen: screen, storageValue: $customZoneLayouts)
+                        }
                     }
                 }
 

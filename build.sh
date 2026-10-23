@@ -554,6 +554,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/SustainedAlertGate.swift
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutSupport.swift
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift
+        Sources/Vorssaint/Services/WindowLayout/WindowCustomZones.swift
+        Sources/Vorssaint/Core/WindowCustomZoneStrings.swift
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift
         Sources/Vorssaint/Core/PointerDisplayStrings.swift
         Sources/Vorssaint/Core/GraphScaleStrings.swift

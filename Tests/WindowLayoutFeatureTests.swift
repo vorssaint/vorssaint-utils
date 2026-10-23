@@ -13,6 +13,7 @@ import VMStatisticsCompat
 
 enum WindowLayoutFeatureTests {
     static func run(_ suite: TestSuite) {
+        customZoneTests(suite)
         WindowDirectionalModifierRuntimeTests.run(suite)
         WindowEdgeSnapRuntimeTests.run(suite)
         WindowGestureApplyRuntimeTests.run(suite)
@@ -1624,5 +1625,52 @@ enum WindowLayoutFeatureTests {
                                             anchorTolerance: 36) == false,
                "window layout margin maximize rejects a merely centered small window")
 
+    }
+
+    private static func customZoneTests(_ suite: TestSuite) {
+        for language in AppLanguage.allCases {
+            let strings = WindowCustomZoneStrings.localized(language)
+            let labels = [strings.section, strings.enabled, strings.instructions, strings.preset,
+                          strings.twoColumns, strings.threeColumns, strings.fourColumns,
+                          strings.fourTiles, strings.sixTiles, strings.tile, strings.addTile,
+                          strings.remove, strings.left, strings.top, strings.width, strings.height]
+            suite.expect(labels.allSatisfy { !$0.isEmpty } &&
+                         strings.editTile.contains("%d") && strings.tilePreview.contains("%@"),
+                         "custom tiles labels and accessibility formats exist in \(language.rawValue)")
+        }
+        var layouts = WindowCustomZoneLayouts(storageValue: nil)
+        suite.expect(layouts.zones(for: "ultrawide", aspectRatio: 3.55).count == 3
+                && layouts.zones(for: "laptop", aspectRatio: 1.6).count == 2,
+                     "custom tile defaults adapt to the display's aspect ratio")
+        let custom = [
+            WindowCustomZone(x: 0, y: 0, width: 0.6, height: 1),
+            WindowCustomZone(x: 0.6, y: 0, width: 0.4, height: 0.5),
+            WindowCustomZone(x: 0.6, y: 0.5, width: 0.4, height: 0.5),
+        ]
+        layouts.set(custom, for: "ultrawide")
+        let restored = WindowCustomZoneLayouts(storageValue: layouts.storageValue)
+        suite.expect(restored.zones(for: "ultrawide", aspectRatio: 3.55) == custom
+                && restored.zones(for: "laptop", aspectRatio: 1.6).count == 2,
+                     "display UUIDs preserve separate layouts after reload")
+
+        let wide = WindowCustomZoneScreen(id: "ultrawide",
+                                          visibleFrame: CGRect(x: 0, y: 0, width: 5120, height: 1380))
+        let laptop = WindowCustomZoneScreen(id: "laptop",
+                                            visibleFrame: CGRect(x: -1512, y: 0, width: 1512, height: 940))
+        let wideTarget = WindowCustomZoneLayouts.target(
+            at: CGPoint(x: 4000, y: 100), screens: [wide, laptop], layouts: restored)
+        let laptopTarget = WindowCustomZoneLayouts.target(
+            at: CGPoint(x: -1200, y: 400), screens: [wide, laptop], layouts: restored)
+        suite.expect(wideTarget?.displayID == "ultrawide" && wideTarget?.index == 2
+                && laptopTarget?.displayID == "laptop" && laptopTarget?.index == 0,
+                     "cross-monitor pointer coordinates select only the destination display's zones")
+        let bad = WindowCustomZone(x: 0.8, y: 0, width: 0.6, height: 1)
+        layouts.set([bad], for: "ultrawide")
+        suite.expect(WindowCustomZoneLayouts(storageValue: layouts.storageValue)
+                        .zones(for: "ultrawide", aspectRatio: 3.55) == custom,
+                     "invalid tile rectangles cannot overwrite a saved layout")
+        suite.expect(WindowCustomZoneLayouts(storageValue: #"{"ultrawide":[{"x":0,"y":0,"width":1.5,"height":1}]}"#)
+                        .zones(for: "ultrawide", aspectRatio: 3.55).count == 3,
+                     "invalid saved geometry falls back to an accessible default layout")
     }
 }

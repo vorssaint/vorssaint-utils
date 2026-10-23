@@ -87,7 +87,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 ### Windows and the Dock
 
 - **App switcher.** Switch between apps and windows with live previews, search and display filters. A simpler mode works without screen capture.
-- **Window layout.** Snap windows into layouts, move them between displays and restore earlier positions using shortcuts, screen edges or modifier-drag gestures.
+- **Window layout.** Snap windows into layouts, move them between displays and restore earlier positions using shortcuts, screen edges or modifier-drag gestures. Custom tiles (opt-in) show when holding Option; drag a window into a tile and release to resize it, with separate editable zones for each connected display in Window Layout settings.
 - **Dock Preview.** Hover over Dock icons to preview windows across desktops. Switch, close, move or snap them from the preview.
 - **Dock clicks.** Click an active app's Dock icon to minimize, hide or cycle through its windows.
 - **Maximize windows.** Use the green button to fill the screen without creating another Space.
