@@ -12,14 +12,15 @@ enum BrightnessOSD {
     private static var dismissWork: DispatchWorkItem?
     private static var generation = 0
 
-    static func show(displayID: CGDirectDisplayID, brightness: Double) {
+    /// `maximum` is past 1 while the display is boosted beyond its SDR white.
+    static func show(displayID: CGDirectDisplayID, brightness: Double, maximum: Double = 1) {
         guard Thread.isMainThread else {
             DispatchQueue.main.async {
-                show(displayID: displayID, brightness: brightness)
+                show(displayID: displayID, brightness: brightness, maximum: maximum)
             }
             return
         }
-        if NotchSupport.routes(.brightness), NotchService.shared.showBrightness(brightness) {
+        if NotchSupport.routes(.brightness), NotchService.shared.showBrightness(brightness, maximum: maximum) {
             return
         }
         // A display mirroring another has no screen of its own; the overlay
@@ -37,10 +38,10 @@ enum BrightnessOSD {
         let panel = ensurePanel()
         let host: NSHostingController<BrightnessOSDView>
         if let existing = Self.host {
-            existing.rootView = BrightnessOSDView(brightness: brightness)
+            existing.rootView = BrightnessOSDView(brightness: brightness, maximum: maximum)
             host = existing
         } else {
-            host = NSHostingController(rootView: BrightnessOSDView(brightness: brightness))
+            host = NSHostingController(rootView: BrightnessOSDView(brightness: brightness, maximum: maximum))
             Self.host = host
             panel.contentViewController = host
         }
@@ -134,13 +135,18 @@ enum BrightnessOSD {
 /// host and inspect the exact shipped surface.
 struct BrightnessOSDView: View {
     let brightness: Double
+    var maximum: Double = 1
 
     private var percentage: Int {
-        BrightnessSupport.wholePercent(brightness)
+        BrightnessSupport.wholePercent(brightness, maximum: maximum)
     }
 
     private var filledSegments: Int {
         BrightnessSupport.filledBrightnessSegments(brightness)
+    }
+
+    private var boostSegments: Int {
+        BrightnessSupport.boostBrightnessSegments(brightness, maximum: maximum)
     }
 
     var body: some View {
@@ -167,7 +173,8 @@ struct BrightnessOSDView: View {
             HStack(spacing: 2) {
                 ForEach(0..<16, id: \.self) { index in
                     RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                        .fill(index < filledSegments
+                        .fill(index < boostSegments ? Color.accentColor
+                              : index < filledSegments
                               ? Color.white.opacity(0.70)
                               : Color.white.opacity(0.12))
                 }

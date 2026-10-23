@@ -251,6 +251,8 @@ enum DefaultsKey {
     // Set only while Vorssaint owes a Bluetooth restore, so a Mac shut down
     // while asleep still gets it back on the next launch.
     static let bluetoothSleepRestorePending = "bluetoothSleepRestorePending"
+    // Shows the HDR switches; the HDR state itself is the system's, per display.
+    static let hdrControlEnabled = "hdrControlEnabled"
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let musicBlockPlayReplacement = "musicBlockPlayReplacement" // play after Play/Pause opens the replacement
@@ -376,6 +378,7 @@ enum DefaultsKey {
     static let panelToggleLockScreen = "panelToggleLockScreen"
     static let panelToggleDisplayOff = "panelToggleDisplayOff"
     static let panelToggleScreenSaver = "panelToggleScreenSaver"
+    static let panelToggleHDR = "panelToggleHDR"
 
     // System monitor — live metrics shown next to the menu bar icon (opt-in).
     static let menuBarCPU = "menuBarCPU"
@@ -1362,6 +1365,7 @@ enum Defaults {
         DefaultsKey.bluetoothSleepEnabled: false,
         DefaultsKey.bluetoothSleepRestoreOnWake: true,
         DefaultsKey.bluetoothSleepRestorePending: false,
+        DefaultsKey.hdrControlEnabled: false,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.musicBlockPlayReplacement: true,
@@ -1616,6 +1620,7 @@ enum Defaults {
         DefaultsKey.panelToggleLockScreen: true,
         DefaultsKey.panelToggleDisplayOff: true,
         DefaultsKey.panelToggleScreenSaver: true,
+        DefaultsKey.panelToggleHDR: true,
         // Menu bar metrics start off (the icon stays clean) and are opt-in.
         // The panel shows every monitoring block by default; users hide what
         // they don't want.

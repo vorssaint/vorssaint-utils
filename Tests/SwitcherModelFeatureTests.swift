@@ -3135,7 +3135,8 @@ enum SwitcherModelFeatureTests {
                 DefaultsKey.panelToggleEmptyTrash,
                 DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleHiddenFiles,
                 DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
-                DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver]
+                DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver,
+                DefaultsKey.panelToggleHDR]
                 .allSatisfy { registeredDefaults[$0] as? Bool == true },
                "every quick toggle row is visible by default")
         suite.expect(registeredDefaults[DefaultsKey.monitorInterval] as? Int == 2,

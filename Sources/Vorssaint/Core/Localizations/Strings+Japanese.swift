@@ -564,7 +564,7 @@ extension Strings {
         extraBrightnessName: "エクストラ輝度",
         extraBrightnessCaption: "ディスプレイのHDR余力を使って最大輝度を超えます。バッテリー消費が増え、Macが温かくなることがあります。",
         extraBrightnessLevelLabel: "強さ",
-        extraBrightnessUnsupported: "14インチ・16インチMacBook ProなどのXDRディスプレイでのみ利用できます。",
+        extraBrightnessUnsupported: "14インチ・16インチMacBook ProなどのXDRディスプレイと、HDRをオンにした外部ディスプレイで利用できます。",
         shelfHotkeyLabel: "ショートカット",
         shelfOpenNow: "今すぐ開く",
         shelfNoPermission: "アクセス権は不要です。",

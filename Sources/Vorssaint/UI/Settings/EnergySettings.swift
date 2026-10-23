@@ -53,17 +53,25 @@ struct EnergySettings: View {
                         .settingsSectionAnchor(.keepAwake, cornerRadius: 16)
                     keepAwakeOptionsCard
                 }
-                if (focus == nil || focus == .brightness), AppFeature.brightness.isAvailable {
+                if (focus == nil || focus == .brightness || (focus == .extraBrightness && extraBrightnessMerged)),
+                   AppFeature.brightness.isAvailable {
                     displaysCard
                         .settingsSectionAnchor(.brightness, cornerRadius: 16)
                 }
-                if (focus == nil || focus == .extraBrightness), AppFeature.extraBrightness.isAvailable {
+                // The boost lives on the display sliders; this card is the way
+                // to it only while there are no sliders to drag past 100 %.
+                if (focus == nil || focus == .brightness || focus == .extraBrightness),
+                   AppFeature.extraBrightness.isAvailable, !extraBrightnessMerged {
                     extraBrightnessCard
                         .settingsSectionAnchor(.extraBrightness, cornerRadius: 16)
                 }
                 if (focus == nil || focus == .bluetoothSleep), AppFeature.bluetoothSleep.isAvailable {
                     bluetoothCard
                         .settingsSectionAnchor(.bluetoothSleep, cornerRadius: 16)
+                }
+                if (focus == nil || focus == .hdrControl), AppFeature.hdrControl.isAvailable {
+                    HDRControlSettingsCard()
+                        .settingsSectionAnchor(.hdrControl, cornerRadius: 16)
                 }
             }
             .frame(maxWidth: 760)
@@ -94,6 +102,8 @@ struct EnergySettings: View {
         if focus == nil || focus == .brightness {
             // Displays may have changed since launch (docked, clamshell).
             BrightnessService.shared.refresh()
+            // Which display's slider reaches past 100 % (HDR may have changed).
+            ExtraBrightnessService.shared.syncWithPreferences()
         }
     }
 
@@ -103,6 +113,7 @@ struct EnergySettings: View {
         case .brightness: return FeatureStrings.brightness(l10n.language).pageTitle
         case .extraBrightness: return l10n.s.extraBrightnessName
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).pageTitle
+        case .hdrControl: return FeatureStrings.hdrControl(l10n.language).pageTitle
         default: return l10n.s.tabEnergy
         }
     }
@@ -113,6 +124,7 @@ struct EnergySettings: View {
         case .brightness: return FeatureStrings.brightness(l10n.language).hubDescription
         case .extraBrightness: return FeatureStrings.hub(l10n.language).descExtraBrightness
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).hubDescription
+        case .hdrControl: return FeatureStrings.hdrControl(l10n.language).hubDescription
         default: return FeatureStrings.settingsPages(l10n.language).energyDescription
         }
     }
@@ -316,6 +328,14 @@ struct EnergySettings: View {
                         displayRow(display)
                     }
                 }
+                if AppFeature.extraBrightness.isAvailable {
+                    Text(extraBrightness.supported ? l10n.s.extraBrightnessCaption
+                         : l10n.s.extraBrightnessUnsupported)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .settingsSectionAnchor(.extraBrightness, cornerRadius: 8)
+                }
                 if let failure = brightness.displayControlFailure {
                     Text(displayControlFailureText(failure, strings: strings))
                         .font(.caption)
@@ -397,14 +417,17 @@ struct EnergySettings: View {
                 .truncationMode(.middle)
                 .frame(minWidth: 80, alignment: .leading)
             if display.isActive, display.method != nil {
-                Slider(value: Binding(get: { display.brightness },
-                                      set: { BrightnessService.shared.setBrightness(
-                                          $0, for: display.id,
+                // Past 100 % on the boosted display; the percent is its real
+                // luminance multiple (see ExtraBrightnessSupport).
+                let position = extraBrightness.sliderPosition(for: display)
+                Slider(value: Binding(get: { position },
+                                      set: { extraBrightness.setSliderPosition(
+                                          $0, for: display,
                                           showOSD: brightnessOSDEnabled) }),
-                       in: 0...1)
+                       in: 0...extraBrightness.sliderUpperBound(for: display))
                     .disabled(brightness.isDisplayPending(display.id))
                     .accessibilityLabel(display.name)
-                Text("\(Int((display.brightness * 100).rounded()))%")
+                Text("\(extraBrightness.sliderPercent(for: display))%")
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(width: 52, alignment: .trailing)
@@ -422,6 +445,12 @@ struct EnergySettings: View {
     }
 
     // MARK: - Extra brightness
+
+    /// Whether the boost is reached through the display sliders, which run
+    /// past 100 % on the boosted display.
+    private var extraBrightnessMerged: Bool {
+        AppFeature.brightness.isAvailable && brightnessEnabled
+    }
 
     private var extraBrightnessCard: some View {
         SettingsCard {

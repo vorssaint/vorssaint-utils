@@ -41,6 +41,9 @@ enum SettingsSidebarSupport {
             let destination = feature.settingsDestination
             guard destination.page == page, destination.sectionAnchor != nil,
                   isAvailable(feature) else { continue }
+            // The boost is set on the Displays sliders, so it has no row of
+            // its own beside them.
+            if feature == .extraBrightness, isAvailable(.brightness) { continue }
             rows.append(SettingsSidebarItem(id: .feature(feature),
                                             destination: destination,
                                             title: featureTitle(feature),

@@ -564,7 +564,7 @@ extension Strings {
         extraBrightnessName: "Extra jas",
         extraBrightnessCaption: "Využíva HDR rezervu displeja, aby prekročil maximálny jas. Spotrebuje viac batérie a Mac sa môže zahrievať.",
         extraBrightnessLevelLabel: "Intenzita",
-        extraBrightnessUnsupported: "Dostupné len na XDR displejoch, napríklad na 14 a 16 palcovom MacBooku Pro.",
+        extraBrightnessUnsupported: "Dostupné na XDR displejoch, napríklad na 14 a 16 palcovom MacBooku Pro, a na externých displejoch so zapnutým HDR.",
         shelfHotkeyLabel: "Skratka",
         shelfOpenNow: "Otvoriť teraz",
         shelfNoPermission: "Nevyžaduje žiadne povolenia.",

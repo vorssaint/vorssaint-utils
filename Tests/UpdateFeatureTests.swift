@@ -331,6 +331,16 @@ enum UpdateFeatureTests {
             isAvailable: { generalFeatures.contains($0) },
             featureTitle: { $0.rawValue })
         let toolRows = generalRows + quickToolRows
+        func energyRows(_ available: [AppFeature]) -> [SettingsSidebarItem.ID] {
+            SettingsSidebarSupport.items(page: .energy, title: "Energy", icon: "bolt",
+                                         preferredFeatures: [], includePage: false,
+                                         isAvailable: { available.contains($0) },
+                                         featureTitle: { $0.rawValue }).map(\.id)
+        }
+        suite.expect(!energyRows([.brightness, .extraBrightness]).contains(.feature(.extraBrightness))
+                && energyRows([.brightness, .extraBrightness]).contains(.feature(.brightness))
+                && energyRows([.extraBrightness]).contains(.feature(.extraBrightness)),
+               "Extra brightness folds into the Displays row, keeping its own only without display control")
         func toolRow(_ feature: AppFeature) -> SettingsSidebarItem? {
             toolRows.first { $0.id == .feature(feature) }
         }

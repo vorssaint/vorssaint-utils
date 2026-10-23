@@ -564,7 +564,7 @@ extension Strings {
         extraBrightnessName: "超亮度",
         extraBrightnessCaption: "利用显示器的HDR余量突破最高亮度。会更耗电，Mac可能会发热。",
         extraBrightnessLevelLabel: "强度",
-        extraBrightnessUnsupported: "仅适用于XDR显示屏，例如14英寸和16英寸MacBook Pro。",
+        extraBrightnessUnsupported: "适用于XDR显示屏（例如14英寸和16英寸MacBook Pro）以及已打开HDR的外接显示器。",
         shelfHotkeyLabel: "快捷键",
         shelfOpenNow: "立即打开",
         shelfNoPermission: "无需任何权限。",
