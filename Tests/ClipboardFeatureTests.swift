@@ -665,6 +665,9 @@ enum ClipboardFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
                "clipboard history quick preview is closed by default")
 
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryShowSourceAppIcons] as? Bool == false,
+                     "source app icons are opt-in, preserving the existing list by default")
+
         // MARK: Clipboard history layout
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryLayout] as? String
@@ -950,6 +953,10 @@ enum ClipboardFeatureTests {
                    && !clipboardStrings.historyLayoutList.isEmpty
                    && clipboardStrings.historyLayoutCards != clipboardStrings.historyLayoutList,
                    "\(language.rawValue) clipboard history layout choice is localized")
+            suite.expect(!clipboardStrings.showSourceAppIconsInList.isEmpty
+                         && (language == .enUS || clipboardStrings.showSourceAppIconsInList
+                             != FeatureStrings.clipboard(.enUS).showSourceAppIconsInList),
+                         "\(language.rawValue) source app icons setting is localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty
