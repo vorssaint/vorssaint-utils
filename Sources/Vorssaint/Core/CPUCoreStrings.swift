@@ -24,6 +24,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -101,6 +102,17 @@ extension CPUCoreFeatureStrings {
         efficiencyCores: "Úsporné",
         apps: "Aplikácie využívajúce CPU",
         perCore: "Po jadrách"
+    )
+
+    static let cs = CPUCoreFeatureStrings(
+        title: "Logická jádra CPU",
+        coreFormat: "Jádro %d",
+        hint: "Každý sloupec je jedno logické jádro. Výška výplně ukazuje vytížení, ne zbývající výkon.",
+        superCores: "Super",
+        performanceCores: "Výkonná",
+        efficiencyCores: "Úsporná",
+        apps: "Aplikace využívající CPU",
+        perCore: "Po jádrech"
     )
     static let de = CPUCoreFeatureStrings(
         title: "Logische CPU-Kerne",

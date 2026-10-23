@@ -70,6 +70,7 @@ struct MediaImageConverterStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -441,6 +442,66 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "Uložené obrázky: %d",
         batchPartialFormat: "Uložené: %d, neúspešné: %d",
         batchSummaryHeaderFormat: "Uložené: %d, neúspešné: %d",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let cs = MediaImageConverterStrings(
+        filesSelectedFormat: "Vybrané soubory: %d",
+        profile: "Profil",
+        noProfile: "Žádný profil",
+        profileName: "Název profilu",
+        saveAsNew: "Uložit nový",
+        updateProfile: "Aktualizovat",
+        deleteProfile: "Smazat profil",
+        profileModified: "Upraveno",
+        profileDefaultNameFormat: "Profil %d",
+        presetWeb: "Web",
+        presetSocial: "Sociální sítě",
+        presetDocs: "Dokumenty",
+        resize: "Změnit velikost",
+        resizeNone: "Beze změny",
+        resizeMax: "Nejdelší strana",
+        resizeWidth: "Šířka",
+        resizeHeight: "Výška",
+        resizeExact: "Vlastní",
+        exactStretch: "Roztáhnout",
+        exactFit: "Přizpůsobit",
+        exactFill: "Vyplnit",
+        height: "Výška",
+        watermark: "Vodoznak",
+        watermarkOff: "Vypnutý",
+        watermarkText: "Text",
+        watermarkLogo: "Logo",
+        watermarkBoth: "Text + logo",
+        watermarkTextPlaceholder: "Text vodoznaku",
+        noLogo: "Žádné logo",
+        chooseLogo: "Vybrat logo",
+        position: "Poloha",
+        topLeft: "Vlevo nahoře",
+        topRight: "Vpravo nahoře",
+        center: "Uprostřed",
+        bottomLeft: "Vlevo dole",
+        bottomRight: "Vpravo dole",
+        opacity: "Krytí",
+        margin: "Okraj",
+        scale: "Měřítko",
+        rename: "Přejmenovat",
+        preview: "Náhled",
+        outputName: "Výstup",
+        background: "Pozadí",
+        backgroundTransparent: "Průhledné",
+        backgroundWhite: "Bílé",
+        backgroundBlack: "Černé",
+        preserveDate: "Zachovat původní datum úpravy",
+        saveInSubfolder: "Uložit do podsložky „Converted“",
+        moreOptions: "Další možnosti",
+        tooLarge: "Tyto rozměry jsou příliš velké pro bezpečné zpracování. Zvolte menší velikost.",
+        copySummary: "Kopírovat souhrn",
+        savedBytesFormat: "Ušetřeno %@",
+        grewBytesFormat: "O %@ větší",
+        batchSavedFormat: "Uložené obrázky: %d",
+        batchPartialFormat: "Uloženo: %d, neúspěšné: %d",
+        batchSummaryHeaderFormat: "Uloženo: %d, neúspěšné: %d",
         batchSummaryItemFormat: "%@ -> %@"
     )
 

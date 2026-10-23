@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -154,6 +155,20 @@ extension BackupFeatureStrings {
         importMissingIslandBody: "Táto záloha neobsahuje nastavenia Dynamic Island. Nastavenia na tomto Macu zostanú zachované. Ak ich chcete preniesť z druhého Macu, exportujte zálohu znova vo Vorssaint 3.4 alebo novšom. Ostatné nastavenia sa importujú a aplikácia sa reštartuje.",
         importAction: "Importovať a reštartovať",
         invalidFile: "Tento súbor nie je platná záloha Vorssaint."
+    )
+
+    static let cs = BackupFeatureStrings(
+        title: "Záloha",
+        description: "Přeneste svá nastavení na jiný Mac: exportujte všechny předvolby do souboru a tam je importujte. Poznámkový blok, historie schránky, položky police a systémová oprávnění nikdy neopustí tento Mac.",
+        exportButton: "Exportovat nastavení…",
+        importButton: "Importovat nastavení…",
+        exported: "Záloha uložena",
+        exportFailed: "Zálohu se nepodařilo uložit.",
+        importConfirmTitle: "Importovat tato nastavení?",
+        importConfirmBody: "Vaše aktuální nastavení se nahradí nastaveními ze souboru a aplikace se restartuje. Nic jiného se na tomto Macu nezmění.",
+        importMissingIslandBody: "Tato záloha neobsahuje nastavení Dynamic Island. Nastavení na tomto Macu zůstanou zachována. Pokud je chcete přenést z druhého Macu, exportujte zálohu znovu ve Vorssaint 3.4 nebo novějším. Ostatní nastavení se importují a aplikace se restartuje.",
+        importAction: "Importovat a restartovat",
+        invalidFile: "Tento soubor není platná záloha Vorssaint."
     )
 
     static let de = BackupFeatureStrings(
