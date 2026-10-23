@@ -18,6 +18,7 @@ struct NetworkSection: View {
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
     @AppStorage(DefaultsKey.monitorNetAddresses) private var netAddresses = true
+    @AppStorage(DefaultsKey.monitorDataUsageEnabled) private var netDataUsage = true
     @AppStorage(DefaultsKey.panelNetworkOrder) private var networkOrderRaw = ""
     @AppStorage(DefaultsKey.networkSpeedUnit) private var speedUnit = NetworkSpeedUnit.bytes
     @State private var draggingBlock: Block?
@@ -79,7 +80,7 @@ struct NetworkSection: View {
         }
     }
 
-    private enum Block: String, PanelOrderItem { case speed, apps, totals, addresses, test }
+    private enum Block: String, PanelOrderItem { case speed, apps, totals, dataUsage, addresses, test }
 
     private var visibleBlocks: [Block] {
         orderedBlocks.filter(isVisible)
@@ -91,7 +92,13 @@ struct NetworkSection: View {
 
     private var orderedBlocks: [Block] {
         _ = networkOrderRaw
-        return PanelLayout.itemOrder(Block.self, key: DefaultsKey.panelNetworkOrder)
+        var ordered = PanelLayout.itemOrder(Block.self, key: DefaultsKey.panelNetworkOrder)
+        let allBlocks: Set<Block> = [.speed, .apps, .totals, .dataUsage, .addresses, .test]
+        let missing = allBlocks.subtracting(ordered)
+        if !missing.isEmpty {
+            ordered.append(contentsOf: missing.sorted { $0.rawValue < $1.rawValue })
+        }
+        return ordered
     }
 
     private var blockOrderBinding: Binding<[Block]> {
@@ -107,6 +114,7 @@ struct NetworkSection: View {
         case .speed: return netSpeed
         case .apps: return netApps
         case .totals: return netTotals
+        case .dataUsage: return netDataUsage
         case .addresses: return netAddresses
         case .test: return netTest
         }
@@ -120,6 +128,7 @@ struct NetworkSection: View {
         netTotals = true
         netAddresses = true
         netTest = true
+        netDataUsage = true
     }
 
     @ViewBuilder
@@ -128,6 +137,7 @@ struct NetworkSection: View {
         case .speed: speedBlock(editing: editing)
         case .apps: appUsageBlock(editing: editing)
         case .totals: totalsRow(editing: editing)
+        case .dataUsage: DataUsageBlock(isVisible: $netDataUsage, editing: editing)
         case .addresses: NetworkAddressBlock(service: addresses, isVisible: $netAddresses, editing: editing)
         case .test: speedTestRow(editing: editing)
         }
@@ -269,22 +279,42 @@ struct NetworkSection: View {
                                systemImage: "sum",
                                isVisible: $netTotals)
         } else {
-            HStack(spacing: 6) {
-                Text(l10n.s.networkThisSession)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                Spacer()
-                if let down = monitor.snapshot.netTotalDown, let up = monitor.snapshot.netTotalUp {
-                    Text("↓\(MetricFormat.bytes(down))  ↑\(MetricFormat.bytes(up))")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                totalsLine(title: l10n.s.networkThisSession, value: thisSessionRow())
                 if editing {
-                    PanelInlineHideButton(isVisible: $netTotals)
+                    HStack {
+                        Spacer()
+                        PanelInlineHideButton(isVisible: $netTotals)
+                    }
                 }
             }
         }
+    }
+
+    private func totalsLine(title: String, value: String?) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            Spacer()
+            if let value {
+                Text(value)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func thisSessionRow() -> String? {
+        guard let down = monitor.snapshot.netTotalDown, let up = monitor.snapshot.netTotalUp else { return nil }
+        return "↓\(MetricFormat.bytes(down))  ↑\(MetricFormat.bytes(up))"
+    }
+
+    private func totalDataUsageRow() -> String? {
+        guard let down = monitor.snapshot.totalDownloadSinceBootUp,
+              let up = monitor.snapshot.totalUploadSinceBootUp else { return nil }
+        return MetricFormat.bytes(down + up)
     }
 
     /// On-demand internet speed test (latency, download, upload).
@@ -435,6 +465,45 @@ private struct NetworkAddressBlock: View {
             .onAppear { service.refreshLocalAddresses() }
             .onReceive(SystemMonitor.shared.$snapshot) { _ in service.refreshLocalAddresses() }
             .onDisappear { service.cancel() }
+        }
+    }
+}
+
+/// The total data usage showing accumulated data since boot.
+private struct DataUsageBlock: View {
+    @Binding var isVisible: Bool
+    var editing: Bool
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var monitor = SystemMonitor.shared
+
+    var body: some View {
+        if !isVisible {
+            PanelHiddenItemRow(title: l10n.s.networkUsageSinceStartup,
+                               systemImage: "network", isVisible: $isVisible)
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(l10n.s.networkUsageSinceStartup)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    if let down = monitor.snapshot.totalDownloadSinceBootUp,
+                       let up = monitor.snapshot.totalUploadSinceBootUp {
+                        Text(MetricFormat.bytes(down + up))
+                            .font(.system(size: 10.5, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if editing {
+                    HStack {
+                        Spacer()
+                        PanelInlineHideButton(isVisible: $isVisible)
+                    }
+                }
+            }
+            .onReceive(SystemMonitor.shared.$snapshot) { _ in }
+            .onDisappear { }
         }
     }
 }
