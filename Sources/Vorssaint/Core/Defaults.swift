@@ -370,6 +370,7 @@ enum DefaultsKey {
     // Keep the existing storage key so moving the row preserves its visibility choice.
     static let panelToggleMicMute = "panelUtilityMicMute"
     static let panelToggleEmptyTrash = "panelToggleEmptyTrash"
+    static let panelToggleQuitAllApps = "panelToggleQuitAllApps"
     static let panelToggleEjectDisks = "panelToggleEjectDisks"
     static let panelToggleHiddenFiles = "panelToggleHiddenFiles"
     static let panelToggleDesktopIcons = "panelToggleDesktopIcons"
@@ -591,6 +592,12 @@ enum DefaultsKey {
     static let screenOCRDetectQRCodes = "screenOCRDetectQRCodes" // QR content wins over OCR text
     static let micMuteShortcutEnabled = "micMuteShortcutEnabled"
     static let micMuteShortcut = "micMuteShortcut"
+    static let quitAppsShortcutEnabled = "quitAppsShortcutEnabled"
+    static let quitAppsShortcut = "quitAppsShortcut"
+    static let quitAppsExceptFrontShortcutEnabled = "quitAppsExceptFrontShortcutEnabled"
+    static let quitAppsExceptFrontShortcut = "quitAppsExceptFrontShortcut"
+    /// Bundle ids "Quit all apps" leaves running, on top of the mandatory set.
+    static let quitAppsKeptApps = "quitAppsKeptApps"
     static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
     static let cameraPreviewShortcut = "cameraPreviewShortcut"
     static let wallpaperApplyAllDisplays = "wallpaperApplyAllDisplays"
@@ -1610,6 +1617,7 @@ enum Defaults {
         DefaultsKey.panelToggleKeyboardLight: true,
         DefaultsKey.panelToggleMicMute: true,
         DefaultsKey.panelToggleEmptyTrash: true,
+        DefaultsKey.panelToggleQuitAllApps: true,
         DefaultsKey.panelToggleEjectDisks: true,
         DefaultsKey.panelToggleHiddenFiles: true,
         DefaultsKey.panelToggleDesktopIcons: true,
@@ -1796,6 +1804,11 @@ enum Defaults {
         DefaultsKey.screenOCRDetectQRCodes: true,
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
+        DefaultsKey.quitAppsShortcutEnabled: false,
+        DefaultsKey.quitAppsShortcut: GlobalShortcut.quitAllDefault.storageValue,
+        DefaultsKey.quitAppsExceptFrontShortcutEnabled: false,
+        DefaultsKey.quitAppsExceptFrontShortcut: GlobalShortcut.quitAllExceptFrontDefault.storageValue,
+        DefaultsKey.quitAppsKeptApps: mandatoryAutoQuitExceptionBundleIDs,
         DefaultsKey.cameraPreviewShortcutEnabled: false,
         DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
         DefaultsKey.wallpaperApplyAllDisplays: true,

@@ -1110,6 +1110,8 @@ extension Strings {
         shelfShortcutFinderSelection: "단축키로 Finder 선택 항목 추가",
         shelfShortcutFinderSelectionCaption: "Finder가 앞에 있을 때 단축키를 누르면 선택한 파일이 담긴 선반이 열립니다. 아무것도 선택하지 않았다면 평소처럼 열립니다.",
         spacesOrderName: "공간 순서 고정",
-        spacesOrderCaption: "macOS가 최근 사용 순서에 따라 공간을 재정렬하지 않도록 해 정한 순서를 유지합니다. 끄면 이전 설정으로 돌아갑니다. 변경 사항을 적용하려고 Dock이 한 번 다시 시작될 수 있습니다."
+        spacesOrderCaption: "macOS가 최근 사용 순서에 따라 공간을 재정렬하지 않도록 해 정한 순서를 유지합니다. 끄면 이전 설정으로 돌아갑니다. 변경 사항을 적용하려고 Dock이 한 번 다시 시작될 수 있습니다.",
+        quitAppsName: "앱 종료",
+        quitAppsCaption: "열려 있는 앱을 나열해 하나씩, 한 번에 모두, 또는 맨 앞의 앱을 제외하고 모두 종료할 수 있습니다. 무엇이든 종료하기 전에 항상 목록을 먼저 보여 줍니다."
     )
 }

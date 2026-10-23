@@ -191,6 +191,13 @@ struct GlobalShortcut: Equatable, Hashable {
                                                  modifiers: [.control, .option, .command])
     static let micMuteDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_M),
                                                modifiers: [.control, .option, .command])
+    // Fallback for Quit all apps (issue #855). The shortcut stays off until the
+    // user turns it on and records a combination; nothing is stolen by default.
+    static let quitAllDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Q),
+                                                           modifiers: [.control, .option, .command])
+    // O for "others", beside Quit all on the same layer.
+    static let quitAllExceptFrontDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_O),
+                                                              modifiers: [.control, .option, .command])
     // W for webcam, on the same free control-option-command layer.
     static let cameraPreviewDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_W),
                                                      modifiers: [.control, .option, .command])
@@ -705,6 +712,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case colorPicker
     case screenOCR
     case micMute
+    case quitAll
+    case quitAllExceptFront
     case quickLauncher
     case screenshot
     case screenshotFullScreen
@@ -740,6 +749,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .colorPicker: return DefaultsKey.colorPickerShortcut
         case .screenOCR: return DefaultsKey.screenOCRShortcut
         case .micMute: return DefaultsKey.micMuteShortcut
+        case .quitAll: return DefaultsKey.quitAppsShortcut
+        case .quitAllExceptFront: return DefaultsKey.quitAppsExceptFrontShortcut
         case .quickLauncher: return DefaultsKey.quickLauncherShortcut
         case .screenshot: return DefaultsKey.screenshotShortcut
         case .screenshotFullScreen: return DefaultsKey.screenshotFullScreenShortcut
@@ -775,6 +786,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .colorPicker: return .colorPickerDefault
         case .screenOCR: return .screenOCRDefault
         case .micMute: return .micMuteDefault
+        case .quitAll: return .quitAllDefault
+        case .quitAllExceptFront: return .quitAllExceptFrontDefault
         case .quickLauncher: return .quickLauncherDefault
         case .screenshot: return .screenshotDefault
         case .screenshotFullScreen: return .screenshotFullScreenDefault
@@ -829,6 +842,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .colorPicker: return strings.colorPickerName
         case .screenOCR: return strings.ocrName
         case .micMute: return strings.micMuteName
+        case .quitAll: return FeatureStrings.quickToggles(L10n.shared.language).quitAllTitle
+        case .quitAllExceptFront:
+            return FeatureStrings.quickToggles(L10n.shared.language).quitOthersTitle
         case .quickLauncher: return strings.launcherName
         case .screenshot:
             return FeatureStrings.screenshot(L10n.shared.language).pageTitle
@@ -897,6 +913,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .colorPicker: return [DefaultsKey.colorPickerShortcutEnabled]
         case .screenOCR: return [DefaultsKey.screenOCRShortcutEnabled]
         case .micMute: return [DefaultsKey.micMuteShortcutEnabled]
+        case .quitAll: return [DefaultsKey.quitAppsShortcutEnabled]
+        case .quitAllExceptFront: return [DefaultsKey.quitAppsExceptFrontShortcutEnabled]
         case .quickLauncher: return [DefaultsKey.quickLauncherShortcutEnabled]
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
         case .screenshotFullScreen: return [DefaultsKey.screenshotFullScreenShortcutEnabled]
@@ -934,6 +952,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .colorPicker: return .colorPicker
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
+        case .quitAll, .quitAllExceptFront: return .quitApps
         case .quickLauncher: return .quickLauncher
         case .screenshot, .screenshotFullScreen, .screenshotLastCapture, .recentCaptures,
              .screenshotClipboard, .screenshotUpload:

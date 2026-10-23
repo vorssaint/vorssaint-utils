@@ -1109,6 +1109,8 @@ extension Strings {
         shelfShortcutFinderSelection: "Finder-Auswahl per Kurzbefehl hinzufügen",
         shelfShortcutFinderSelectionCaption: "Ist der Finder im Vordergrund, öffnet der Kurzbefehl die Ablage bereits mit den ausgewählten Dateien. Ohne Auswahl öffnet sie sich wie gewohnt.",
         spacesOrderName: "Spaces in fester Reihenfolge halten",
-        spacesOrderCaption: "Verhindert, dass macOS die Spaces nach der letzten Nutzung neu anordnet, damit sie in deiner Reihenfolge bleiben. Deine vorherige Einstellung kehrt zurück, wenn du dies ausschaltest. Das Dock startet dafür eventuell einmal neu."
+        spacesOrderCaption: "Verhindert, dass macOS die Spaces nach der letzten Nutzung neu anordnet, damit sie in deiner Reihenfolge bleiben. Deine vorherige Einstellung kehrt zurück, wenn du dies ausschaltest. Das Dock startet dafür eventuell einmal neu.",
+        quitAppsName: "Apps beenden",
+        quitAppsCaption: "Listet deine geöffneten Apps auf, um sie einzeln, alle auf einmal oder alle außer der vorderen zu beenden. Zeigt immer zuerst die Liste, bevor etwas beendet wird."
     )
 }

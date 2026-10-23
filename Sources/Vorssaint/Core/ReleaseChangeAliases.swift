@@ -113,6 +113,7 @@ enum ReleaseChangeAliases {
         case .bluetoothSleep: return ["bluetooth on sleep", "bluetooth power", "bluetooth off during sleep"]
         case .quickLauncher: return ["quick panel", "quick launcher"]
         case .quickToggles: return ["quick toggles"]
+        case .quitApps: return ["quit apps", "quit all apps"]
         case .colorPicker: return ["color picker"]
         case .screenOCR: return ["copy text from screen", "screen ocr"]
         case .cleaningMode: return ["cleaning mode"]

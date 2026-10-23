@@ -1109,6 +1109,8 @@ extension Strings {
         shelfShortcutFinderSelection: "使用快捷键添加访达中的所选项",
         shelfShortcutFinderSelectionCaption: "访达位于前台时，快捷键会打开暂存架并放入所选文件。未选择任何内容时照常打开。",
         spacesOrderName: "固定空间顺序",
-        spacesOrderCaption: "阻止 macOS 按最近使用情况重新排列空间，让它们保持你设定的顺序。关闭此选项后会恢复之前的设置。为应用更改，Dock 可能会重新启动一次。"
+        spacesOrderCaption: "阻止 macOS 按最近使用情况重新排列空间，让它们保持你设定的顺序。关闭此选项后会恢复之前的设置。为应用更改，Dock 可能会重新启动一次。",
+        quitAppsName: "退出应用",
+        quitAppsCaption: "列出打开的应用，可逐个退出、全部退出，或退出最前面应用以外的所有应用。退出任何应用前都会先显示列表。"
     )
 }

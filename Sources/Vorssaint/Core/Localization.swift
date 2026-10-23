@@ -1316,6 +1316,8 @@ struct Strings {
     let shelfShortcutFinderSelectionCaption: String
     let spacesOrderName: String
     let spacesOrderCaption: String
+    let quitAppsName: String
+    let quitAppsCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -2426,7 +2428,9 @@ extension Strings {
         shelfShortcutFinderSelection: "Adicionar a seleção do Finder com o atalho",
         shelfShortcutFinderSelectionCaption: "Com o Finder em primeiro plano, o atalho abre a área temporária já com os arquivos selecionados. Sem seleção, ela abre como sempre.",
         spacesOrderName: "Manter os Espaços em ordem fixa",
-        spacesOrderCaption: "Impede que o macOS reorganize os Espaços pelo uso mais recente, para que fiquem na ordem que você definiu. A configuração anterior volta ao desligar esta opção. O Dock pode reiniciar uma vez para aplicar a mudança."
+        spacesOrderCaption: "Impede que o macOS reorganize os Espaços pelo uso mais recente, para que fiquem na ordem que você definiu. A configuração anterior volta ao desligar esta opção. O Dock pode reiniciar uma vez para aplicar a mudança.",
+        quitAppsName: "Encerrar apps",
+        quitAppsCaption: "Lista seus apps abertos para encerrar um por um, todos de uma vez ou todos exceto o da frente. Sempre mostra a lista antes de encerrar qualquer um."
     )
 }
 
@@ -3538,6 +3542,8 @@ extension Strings {
         shelfShortcutFinderSelection: "Add the Finder selection with the shortcut",
         shelfShortcutFinderSelectionCaption: "With Finder in front, the shortcut opens the shelf with the selected files already in it. With nothing selected, it opens as usual.",
         spacesOrderName: "Keep Spaces in a fixed order",
-        spacesOrderCaption: "Stops macOS from rearranging Spaces by most recent use, so they stay in the order you set. Your previous setting returns when this is turned off. The Dock may restart once to apply the change."
+        spacesOrderCaption: "Stops macOS from rearranging Spaces by most recent use, so they stay in the order you set. Your previous setting returns when this is turned off. The Dock may restart once to apply the change.",
+        quitAppsName: "Quit apps",
+        quitAppsCaption: "Lists your open apps to quit one by one, all at once, or all but the one in front. Always shows the list before anything quits."
     )
 }

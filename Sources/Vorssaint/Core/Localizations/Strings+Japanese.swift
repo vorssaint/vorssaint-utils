@@ -1109,6 +1109,8 @@ extension Strings {
         shelfShortcutFinderSelection: "ショートカットで Finder の選択項目を追加",
         shelfShortcutFinderSelectionCaption: "Finder が最前面にあるとき、ショートカットで選択中のファイルが入った状態のシェルフを開きます。何も選択していない場合は通常どおり開きます。",
         spacesOrderName: "スペースの順序を固定",
-        spacesOrderCaption: "最近の使用状況に応じてmacOSがスペースを並べ替えないようにし、設定した順序を保ちます。オフにすると以前の設定に戻ります。変更を適用するためにDockが一度再起動することがあります。"
+        spacesOrderCaption: "最近の使用状況に応じてmacOSがスペースを並べ替えないようにし、設定した順序を保ちます。オフにすると以前の設定に戻ります。変更を適用するためにDockが一度再起動することがあります。",
+        quitAppsName: "アプリを終了",
+        quitAppsCaption: "開いているアプリを一覧表示し、1つずつ、すべてまとめて、または最前面以外をすべて終了できます。何かを終了する前に必ず一覧を表示します。"
     )
 }

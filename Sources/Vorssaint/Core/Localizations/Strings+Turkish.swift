@@ -1109,6 +1109,8 @@ extension Strings {
         shelfShortcutFinderSelection: "Kısayolla Finder seçimini ekle",
         shelfShortcutFinderSelectionCaption: "Finder öndeyken kısayol, rafı seçili dosyalar içinde olacak şekilde açar. Hiçbir şey seçili değilse her zamanki gibi açılır.",
         spacesOrderName: "Space sırasını sabit tut",
-        spacesOrderCaption: "macOS’un Space’leri son kullanıma göre yeniden sıralamasını engeller, böylece belirlediğiniz sırada kalırlar. Seçenek kapatıldığında önceki ayar geri yüklenir. Değişikliği uygulamak için Dock bir kez yeniden başlayabilir."
+        spacesOrderCaption: "macOS’un Space’leri son kullanıma göre yeniden sıralamasını engeller, böylece belirlediğiniz sırada kalırlar. Seçenek kapatıldığında önceki ayar geri yüklenir. Değişikliği uygulamak için Dock bir kez yeniden başlayabilir.",
+        quitAppsName: "Uygulamaları kapat",
+        quitAppsCaption: "Açık uygulamalarınızı tek tek, hepsini birden ya da öndeki dışında hepsini kapatmak için listeler. Herhangi biri kapanmadan önce listeyi her zaman gösterir."
     )
 }

@@ -1110,6 +1110,8 @@ extension Strings {
         shelfShortcutFinderSelection: "使用快速鍵加入 Finder 所選項目",
         shelfShortcutFinderSelectionCaption: "Finder 位於前景時，快速鍵會打開暫存架並放入所選檔案。未選取任何項目時照常打開。",
         spacesOrderName: "固定桌面空間順序",
-        spacesOrderCaption: "避免 macOS 依最近使用情況重新排列桌面空間，讓它們維持你設定的順序。關閉此選項後會恢復先前的設定。為套用變更，Dock 可能會重新啟動一次。"
+        spacesOrderCaption: "避免 macOS 依最近使用情況重新排列桌面空間，讓它們維持你設定的順序。關閉此選項後會恢復先前的設定。為套用變更，Dock 可能會重新啟動一次。",
+        quitAppsName: "結束 App",
+        quitAppsCaption: "列出開啟中的 App，可逐一結束、全部結束，或結束最前方 App 以外的所有 App。結束任何 App 前一律會先顯示清單。"
     )
 }

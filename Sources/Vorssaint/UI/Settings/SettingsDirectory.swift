@@ -399,6 +399,10 @@ enum SettingsDirectory {
                                                             .emptyTrashTitle,
                                                          FeatureStrings.brightness(language)
                                                             .keyboardLight]),
+                                        (.quitApps, [s.quitAppsName,
+                                                     FeatureStrings.quickToggles(language).quitAllTitle,
+                                                     FeatureStrings.quickToggles(language).quitOthersTitle,
+                                                     FeatureStrings.quickToggles(language).exceptionsTitle]),
                                         (.cameraPreview,
                                          [FeatureStrings.cameraPreview(language).pageTitle]),
                                         (.wallpaper,

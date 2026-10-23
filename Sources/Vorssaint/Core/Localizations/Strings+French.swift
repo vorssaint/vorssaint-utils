@@ -1109,6 +1109,8 @@ extension Strings {
         shelfShortcutFinderSelection: "Ajouter la sélection du Finder avec le raccourci",
         shelfShortcutFinderSelectionCaption: "Quand le Finder est au premier plan, le raccourci ouvre l’étagère avec les fichiers sélectionnés déjà dedans. Sans sélection, elle s’ouvre comme d’habitude.",
         spacesOrderName: "Garder les Espaces dans un ordre fixe",
-        spacesOrderCaption: "Empêche macOS de réorganiser les Espaces selon leur utilisation récente, pour qu’ils restent dans l’ordre choisi. Votre réglage précédent revient quand cette option est désactivée. Le Dock peut redémarrer une fois pour appliquer le changement."
+        spacesOrderCaption: "Empêche macOS de réorganiser les Espaces selon leur utilisation récente, pour qu’ils restent dans l’ordre choisi. Votre réglage précédent revient quand cette option est désactivée. Le Dock peut redémarrer une fois pour appliquer le changement.",
+        quitAppsName: "Quitter des apps",
+        quitAppsCaption: "Liste vos apps ouvertes pour les quitter une par une, toutes à la fois ou toutes sauf celle au premier plan. La liste s’affiche toujours avant toute fermeture."
     )
 }
