@@ -1101,6 +1101,8 @@ extension Strings {
         smoothScrollCoastLabel: "Inerzia",
         mouseAccelerationName: "Disattiva l’accelerazione del mouse",
         mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint.",
+        mousePointerSpeedLabel: "Velocità del puntatore del mouse",
+        mousePointerSpeedCaption: "Solo mouse. Il trackpad mantiene la propria velocità.",
         linearScrollName: "Scorrimento lineare",
         linearScrollCaption: "Ogni scatto della rotellina del mouse scorre la stessa distanza, a prescindere dalla velocità di rotazione. Il trackpad non cambia.",
         linearScrollLinesLabel: "Righe per scatto",

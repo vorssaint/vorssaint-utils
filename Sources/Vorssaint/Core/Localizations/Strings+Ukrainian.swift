@@ -1071,6 +1071,8 @@ extension Strings {
         smoothScrollCoastLabel: "Інерція",
         mouseAccelerationName: "Вимкнути прискорення миші",
         mouseAccelerationCaption: "Вимикає прискорення вказівника для підключених мишей. Попереднє налаштування повернеться після вимкнення функції або виходу з Vorssaint.",
+        mousePointerSpeedLabel: "Швидкість вказівника миші",
+        mousePointerSpeedCaption: "Лише для мишей. Трекпад зберігає власну швидкість.",
         linearScrollName: "Лінійна прокрутка",
         linearScrollCaption: "Кожен клац колеса миші прокручує однакову відстань, хоч як швидко воно обертається. Трекпед не змінюється.",
         linearScrollLinesLabel: "Рядків на клац",

@@ -1101,6 +1101,8 @@ extension Strings {
         smoothScrollCoastLabel: "Dobeh",
         mouseAccelerationName: "Vypnúť akceleráciu myši",
         mouseAccelerationCaption: "Odstráni akceleráciu kurzora pre pripojené myši. Predchádzajúce nastavenie sa vráti po vypnutí tejto funkcie alebo po ukončení Vorssaintu.",
+        mousePointerSpeedLabel: "Rýchlosť ukazovateľa myši",
+        mousePointerSpeedCaption: "Len pre myši. Trackpad si ponechá vlastnú rýchlosť.",
         linearScrollName: "Lineárne rolovanie",
         linearScrollCaption: "Každý krok kolieska myši posunie rovnakú vzdialenosť bez ohľadu na to, ako rýchlo sa točí. Trackpadu sa to netýka.",
         linearScrollLinesLabel: "Riadky na krok",

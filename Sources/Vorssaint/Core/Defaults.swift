@@ -64,6 +64,7 @@ enum DefaultsKey {
     static let linearScrollEnabled = "linearScrollEnabled" // every mouse wheel notch scrolls the same lines (issue #403)
     static let linearScrollLines = "linearScrollLines"     // lines per wheel notch while linear scrolling is on
     static let mouseAccelerationDisabled = "mouseAccelerationDisabled" // sets HIDMouseAcceleration to -1 for mice
+    static let mousePointerSpeed = "mousePointerSpeed" // percent of each mouse's own speed; 100 leaves it alone (issue #403)
     static let smoothScrollResponse = "smoothScrollResponse" // 0...100, higher follows the wheel sooner
     static let smoothScrollCoast = "smoothScrollCoast" // 0...100, higher coasts the same distance out longer
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
@@ -1228,6 +1229,7 @@ enum Defaults {
         DefaultsKey.linearScrollEnabled: false,
         DefaultsKey.linearScrollLines: ScrollWheelSupport.defaultLinesPerNotch,
         DefaultsKey.mouseAccelerationDisabled: false,
+        DefaultsKey.mousePointerSpeed: MouseAccelerationSupport.defaultSpeed,
         DefaultsKey.smoothScrollResponse: SmoothScrollSupport.defaultResponse,
         DefaultsKey.smoothScrollCoast: SmoothScrollSupport.defaultCoast,
         DefaultsKey.mouseNavigationEnabled: false,
