@@ -598,6 +598,7 @@ struct NotchView: View {
             case .tools: QuickLauncherView(notchSize: pageSize)
             case .scratchpad: NotchScratchpadView(service: service)
             case .agents: NotchAgentsView(size: pageSize)
+            case .herdr: NotchHerdrView(size: pageSize)
             case .watch: NotchWatchView(size: pageSize)
             }
         }
@@ -735,6 +736,10 @@ struct NotchRestingStrip: View {
                                 .padding(.trailing, restingBatteryInset)
                         case .none: EmptyView()
                         }
+                        if NotchHerdrBadge.shouldShow {
+                            NotchHerdrBadgeMarks(blockedCount: NotchHerdrBadge.blockedCount)
+                                .padding(.trailing, restingBatteryInset)
+                        }
                     }
                     .frame(width: geometry.restingWingWidth)
                     .opacity(wingStepsAside(.right) ? 0 : 1)
@@ -833,6 +838,7 @@ extension NotchModule: PanelOrderItem {
         case .tools: return FeatureStrings.notch(language).tools
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .agents: return FeatureStrings.notchAgents(language).title
+        case .herdr: return FeatureStrings.herdr(language).title
         case .watch: return FeatureStrings.notchWatch(language).title
         }
     }
