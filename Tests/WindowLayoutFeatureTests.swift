@@ -910,6 +910,190 @@ enum WindowLayoutFeatureTests {
         suite.expect(WindowLayoutGeometry.screenGapFrame(CGRect(x: 0, y: 0, width: 100, height: 100), screenGap: 128)
                == CGRect(x: 10, y: 10, width: 80, height: 80),
                "an oversized screen gap keeps 80pt of layout space instead of inverting the frame")
+        suite.expect(WindowMaximizerSupport.maximizeTarget(visibleFrame: visibleFrame, screenGap: 0)
+               == visibleFrame,
+               "green-button maximize keeps the visible frame when Screen gap is off")
+        suite.expect(WindowMaximizerSupport.maximizeTarget(visibleFrame: visibleFrame, screenGap: 32)
+               == CGRect(x: 32, y: 72, width: 1376, height: 796),
+               "green-button maximize applies the shared Screen gap on all four edges")
+        suite.expect(WindowMaximizerSupport.maximizeTarget(
+            visibleFrame: CGRect(x: 0, y: 0, width: 100, height: 100), screenGap: 128)
+               == CGRect(x: 10, y: 10, width: 80, height: 80),
+               "green-button maximize shares the oversized-gap safe minimum")
+        let gapTarget = WindowMaximizerSupport.maximizeTarget(visibleFrame: visibleFrame, screenGap: 32)
+        let twoPointOvershoot = CGSize(width: gapTarget.width + 2, height: gapTarget.height)
+        let recoveryOrigin = WindowMaximizerSupport.approachOrigin(for: gapTarget.origin, tolerance: 4)
+        suite.expect(WindowMaximizerSupport.overshoots(twoPointOvershoot, target: gapTarget.size)
+                && !WindowMaximizerSupport.overshoots(twoPointOvershoot, target: visibleFrame.size)
+                && recoveryOrigin == CGPoint(x: gapTarget.minX - 4, y: gapTarget.minY - 4),
+               "Dock recovery measures and approaches the Screen-gap target rather than the full visible frame")
+
+        let toggleTarget32 = WindowMaximizerSupport.maximizeTarget(visibleFrame: visibleFrame, screenGap: 32)
+        let toggleTarget64 = WindowMaximizerSupport.maximizeTarget(visibleFrame: visibleFrame, screenGap: 64)
+        for original in [CGRect(x: 100, y: 100, width: 320, height: 80),
+                         CGRect(x: 100, y: 100, width: 80, height: 320),
+                         CGRect(x: 100, y: 100, width: 320, height: 60),
+                         CGRect(x: -1600, y: -100, width: 640, height: 480)] {
+            var toggleState = WindowMaximizerFrameState<CGRect>()
+            suite.expect(WindowMaximizerSupport.toggleAction(
+                current: original, maximized: toggleTarget32, original: nil, tolerance: 0)
+                    == .maximize(toggleTarget32),
+                "the production toggle first maximizes a valid original, including a small or negative-origin frame")
+            let firstToggle = toggleState.beginMaximize(current: original, target: toggleTarget32, isClose: ==)
+            _ = toggleState.complete(firstToggle, success: true)
+            suite.expect(WindowMaximizerSupport.toggleAction(
+                current: toggleTarget32, maximized: toggleTarget32,
+                original: toggleState.original, tolerance: 0) == .restore(original),
+                "the production toggle restores the exact original even when a dimension is 80pt or less")
+            suite.expect(WindowMaximizerSupport.toggleAction(
+                current: toggleTarget32, maximized: toggleTarget64,
+                original: toggleState.original, tolerance: 0) == .maximize(toggleTarget64),
+                "a changed Screen gap selects the new maximize target before restoring")
+            let changedToggle = toggleState.beginMaximize(current: toggleTarget32,
+                                                          target: toggleTarget64, isClose: ==)
+            _ = toggleState.complete(changedToggle, success: true)
+            suite.expect(WindowMaximizerSupport.toggleAction(
+                current: toggleTarget64, maximized: toggleTarget64,
+                original: toggleState.original, tolerance: 0) == .restore(original),
+                "maximize, live gap change and the next toggle preserve the exact small original")
+            let failedToggle = toggleState.beginRestore()
+            _ = toggleState.complete(failedToggle, success: false)
+            suite.expect(WindowMaximizerSupport.toggleAction(
+                current: toggleTarget64, maximized: toggleTarget64,
+                original: toggleState.original, tolerance: 0) == .restore(original),
+                "a failed small-frame restore keeps the exact target for the next toggle")
+            let completedToggle = toggleState.beginRestore()
+            suite.expect(toggleState.complete(completedToggle, success: true) && toggleState.isEmpty,
+                "a successful small-frame restore clears the completed state")
+        }
+        let manuallyMovedSmallFrame = CGRect(x: -1200, y: 50, width: 320, height: 60)
+        var movedToggleState = WindowMaximizerFrameState<CGRect>()
+        let beforeMoveToggle = movedToggleState.beginMaximize(
+            current: CGRect(x: 100, y: 100, width: 600, height: 400), target: toggleTarget32, isClose: ==)
+        _ = movedToggleState.complete(beforeMoveToggle, success: true)
+        suite.expect(WindowMaximizerSupport.toggleAction(
+            current: manuallyMovedSmallFrame, maximized: toggleTarget64,
+            original: movedToggleState.original, tolerance: 0) == .maximize(toggleTarget64),
+            "a deliberate move selects maximize instead of prematurely restoring an older frame")
+        let afterMoveToggle = movedToggleState.beginMaximize(
+            current: manuallyMovedSmallFrame, target: toggleTarget64, isClose: ==)
+        _ = movedToggleState.complete(afterMoveToggle, success: true)
+        suite.expect(WindowMaximizerSupport.toggleAction(
+            current: toggleTarget64, maximized: toggleTarget64,
+            original: movedToggleState.original, tolerance: 0) == .restore(manuallyMovedSmallFrame),
+            "a deliberately moved small window becomes the exact restore target")
+        for invalidFrame in [CGRect.zero,
+                             CGRect(x: 0, y: 0, width: 0, height: 80),
+                             CGRect(x: 0, y: 0, width: -1, height: 80),
+                             CGRect(x: CGFloat.nan, y: 0, width: 80, height: 80),
+                             CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 80),
+                             CGRect(x: 0, y: 0, width: 80, height: CGFloat.nan)] {
+            suite.expect(WindowMaximizerSupport.toggleAction(
+                current: invalidFrame, maximized: toggleTarget32, original: nil, tolerance: 0) == nil
+                    && WindowMaximizerSupport.toggleAction(
+                        current: toggleTarget32, maximized: invalidFrame, original: nil, tolerance: 0) == nil,
+                "the production toggle never selects an empty, negative or nonfinite current/maximize frame")
+            suite.expect(WindowMaximizerSupport.toggleAction(
+                current: toggleTarget32, maximized: toggleTarget32,
+                original: invalidFrame, tolerance: 0) == .maximize(toggleTarget32),
+                "an invalid remembered frame never becomes an AX restore target")
+        }
+
+        let maximizerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/WindowMaximizer.swift", encoding: .utf8)) ?? ""
+        let maximizerCode = maximizerSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        suite.expect(maximizerCode.contains("WindowMaximizerSupport.overshoots(actual.size, target: target.size)")
+                && maximizerCode.contains("size: target.size)")
+                && maximizerCode.contains("restoreFrame(fallback, on: window)\n            completion(false)"),
+               "settling recovers against the requested gap target and reports failure after restoring its fallback")
+        suite.expect(maximizerCode.contains("let wanted = AppFeature.windowMaximizer.isAvailable")
+                && maximizerCode.contains("!isExcluded(pid: candidate.pid)")
+                && maximizerCode.contains("frameStates.removeAll()"),
+               "disabled, excluded and stopped maximizers retain native handling and discard restore state")
+
+        var maximizeState = WindowMaximizerFrameState<String>()
+        let initial = maximizeState.beginMaximize(current: "O", target: "M0", isClose: ==)
+        suite.expect(maximizeState.complete(initial, success: true)
+                && maximizeState.original == "O" && maximizeState.maximized == "M0",
+               "a successful first maximize remembers the original and effective target")
+        let gapAttempt = maximizeState.beginMaximize(current: "M0", target: "M32", isClose: ==)
+        suite.expect(maximizeState.original == "O" && maximizeState.maximized == "M32",
+               "a live gap change keeps the pre-maximize restore frame")
+        suite.expect(maximizeState.complete(gapAttempt, success: false)
+                && maximizeState.original == "O" && maximizeState.maximized == "M0",
+               "an asynchronous gap-change failure rolls both state values back")
+        let gapRetry = maximizeState.beginMaximize(current: "M0", target: "M32", isClose: ==)
+        _ = maximizeState.complete(gapRetry, success: true)
+        let restoreOriginal = maximizeState.original
+        let restoreAttempt = maximizeState.beginRestore()
+        suite.expect(restoreOriginal == "O" && maximizeState.complete(restoreAttempt, success: true)
+                && maximizeState.isEmpty,
+               "a successful gap-change maximize still restores the original frame")
+
+        var supersedingState = WindowMaximizerFrameState<String>()
+        let firstInFlight = supersedingState.beginMaximize(current: "O", target: "M", isClose: ==)
+        let secondInFlight = supersedingState.beginMaximize(current: "I", target: "M", isClose: ==)
+        suite.expect(supersedingState.original == "O" && supersedingState.maximized == "M"
+                && supersedingState.complete(secondInFlight, success: true)
+                && !supersedingState.complete(firstInFlight, success: false)
+                && !supersedingState.complete(firstInFlight, success: true),
+               "a superseding maximize keeps O and ignores either completion from the old animation")
+        let restoreAfterSupersession = supersedingState.beginRestore()
+        suite.expect(supersedingState.original == "O"
+                && supersedingState.complete(restoreAfterSupersession, success: true)
+                && supersedingState.isEmpty,
+               "a successful superseding maximize still restores O")
+
+        var restoreSupersessionState = WindowMaximizerFrameState<String>()
+        let completedMaximize = restoreSupersessionState.beginMaximize(current: "O", target: "M", isClose: ==)
+        _ = restoreSupersessionState.complete(completedMaximize, success: true)
+        let inFlightRestore = restoreSupersessionState.beginRestore()
+        let maximizeDuringRestore = restoreSupersessionState.beginMaximize(current: "I", target: "M", isClose: ==)
+        suite.expect(restoreSupersessionState.original == "O"
+                && restoreSupersessionState.complete(maximizeDuringRestore, success: true)
+                && !restoreSupersessionState.complete(inFlightRestore, success: true),
+               "maximizing during an in-flight restore preserves O and supersedes its completion")
+        let failedSupersession = restoreSupersessionState.beginRestore()
+        let newerSupersession = restoreSupersessionState.beginMaximize(current: "J", target: "M", isClose: ==)
+        suite.expect(restoreSupersessionState.complete(newerSupersession, success: false)
+                && restoreSupersessionState.original == "O"
+                && restoreSupersessionState.maximized == "M"
+                && !restoreSupersessionState.complete(failedSupersession, success: false),
+               "a failed newer attempt restores O/M bookkeeping and leaves the older completion stale")
+        let lateAfterReset = restoreSupersessionState.beginMaximize(current: "I", target: "M", isClose: ==)
+        restoreSupersessionState.reset()
+        suite.expect(!restoreSupersessionState.complete(lateAfterReset, success: true)
+                && !restoreSupersessionState.complete(inFlightRestore, success: false)
+                && restoreSupersessionState.isEmpty,
+               "reset makes every late maximize or restore completion inert")
+
+        var manualState = WindowMaximizerFrameState<String>()
+        let manualInitial = manualState.beginMaximize(current: "O", target: "M0", isClose: ==)
+        _ = manualState.complete(manualInitial, success: true)
+        let manualAttempt = manualState.beginMaximize(current: "X", target: "M32", isClose: ==)
+        _ = manualState.complete(manualAttempt, success: true)
+        suite.expect(manualState.original == "X" && manualState.maximized == "M32",
+               "a deliberate move away from the last effective target becomes the restore frame")
+        let restoreManual = manualState.beginRestore()
+        suite.expect(manualState.original == "X" && manualState.complete(restoreManual, success: true)
+                && manualState.isEmpty,
+               "a manually moved window restores to its deliberate frame")
+
+        var rejectedState = WindowMaximizerFrameState<String>()
+        let rejectedInitial = rejectedState.beginMaximize(current: "O", target: "M0", isClose: ==)
+        suite.expect(rejectedState.complete(rejectedInitial, success: false) && rejectedState.isEmpty,
+               "a synchronous initial rejection leaves no false maximize state")
+        let staleAttempt = rejectedState.beginMaximize(current: "O", target: "M0", isClose: ==)
+        let newerAttempt = rejectedState.beginMaximize(current: "X", target: "M32", isClose: ==)
+        _ = rejectedState.complete(newerAttempt, success: true)
+        suite.expect(!rejectedState.complete(staleAttempt, success: false)
+                && rejectedState.original == "O" && rejectedState.maximized == "M32",
+               "a superseding attempt preserves O and a stale failure cannot roll it back")
+        rejectedState.reset()
+        suite.expect(!rejectedState.complete(newerAttempt, success: false) && rejectedState.isEmpty,
+               "a completion arriving after stop/reset cannot resurrect frame state")
         let sixthLayouts: [(WindowLayoutAction, CGRect, CGRect)] = [
             (.topLeftSixth,
              CGRect(x: 0, y: 470, width: 480, height: 430),

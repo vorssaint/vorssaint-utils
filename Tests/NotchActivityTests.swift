@@ -568,27 +568,41 @@ enum NotchActivityTests {
         }
     }
 
-    /// The modes and Start sit in the island's top row, on a page no wider
-    /// than its ruler and clock need. Beside the camera the modes' menu
-    /// takes one side and Start the other; the menu's name may narrow, never
-    /// lose letters, and where the sections button leaves its side too
-    /// little for a name the menu shows the mode's glyph. A full row of the
-    /// page's own width holds the sections button, the whole name and
-    /// Start, in every language.
+    /// Exercise the timer's actual page, including the sections button and
+    /// the whole-name or glyph menu that the available leading side selects.
     private static func modePickerContracts(_ suite: TestSuite) {
         let layout = NotchTimerSupport.ModePicker.self
-        let font = NSFont.systemFont(ofSize: layout.labelSize, weight: .medium)
-        let button = NotchBand.sectionsButtonRoom
-        let chevron = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold))?.size.width ?? 0
-        let glyph = ["timer", "stopwatch"].compactMap {
-            NSImage(systemSymbolName: $0, accessibilityDescription: nil)?
-                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: layout.labelSize, weight: .medium))?.size.width
-        }.max() ?? 0
-        let glyphMenu = glyph + layout.menuSpacing + chevron + layout.labelPadding * 2
-        // The timer's page as the island opens it, in a display's own size
-        // or a capsule without a camera.
-        func page(camera: CGFloat, _ size: NotchSize, custom: Double = NotchSize.defaultWidth,
+        let font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        let startFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        func points(_ value: CGFloat) -> String { String(format: "%.3f", Double(value)) }
+        func width(_ text: String) -> CGFloat { (text as NSString).size(withAttributes: [.font: font]).width }
+        func symbolWidth(_ name: String, size: CGFloat, weight: NSFont.Weight) -> CGFloat {
+            NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: size, weight: weight))?.size.width ?? 0
+        }
+        let chevron = symbolWidth("chevron.down", size: 9, weight: .semibold)
+        let timerGlyph = symbolWidth("timer", size: 12, weight: .medium)
+        let stopwatchGlyph = symbolWidth("stopwatch", size: 12, weight: .medium)
+        suite.expect(layout.labelSize == 12 && layout.menuLabelPadding == 2 && layout.labelPadding == 4
+               && layout.menuMinimumScale == 0.7 && layout.menuSpacing == 3 && layout.spacing == 14
+               && NotchBand.sectionsButtonRoom == 34 && NotchBand.cameraClearance == 8,
+               "the timer keeps font12, menu padding2, picker padding4, scale0.7 and its declared chrome")
+        suite.expect(layout.height > layout.labelSize + 2 && NotchLayout.timerStartHeight == 28
+               && NotchTimerSupport.StartButton.labelSize == 12 && NotchTimerSupport.StartButton.padding == 10,
+               "mode labels keep underline room and Start retains its full-size text and padding")
+        guard chevron.isFinite && chevron > 0 && timerGlyph.isFinite && timerGlyph > 0
+                && stopwatchGlyph.isFinite && stopwatchGlyph > 0 else {
+            suite.expect(false, "timer menu symbols must resolve: chevron=\(points(chevron)), timer=\(points(timerGlyph)), stopwatch=\(points(stopwatchGlyph))")
+            return
+        }
+        let modes: [NotchTimerMode] = [.timer, .pomodoro, .stopwatch]
+        suite.expect(NotchTimerMode.allCases == modes && layout.symbol(for: .timer) == "timer"
+               && layout.symbol(for: .pomodoro) == "timer" && layout.symbol(for: .stopwatch) == "stopwatch",
+               "every timer mode has its own complete name and the intended menu glyph")
+        let expectedLocales: Set<String> = ["en-US", "pt-BR", "tr", "ru", "es", "sk", "de", "fr", "it", "ja", "ko", "uk", "zh-Hans", "zh-TW", "zh-HK"]
+        suite.expect(AppLanguage.allCases.count == 15 && Set(AppLanguage.allCases.map(\.rawValue)) == expectedLocales,
+               "the timer menu checks every complete shipped locale")
+        func page(camera: CGFloat, _ size: NotchSize, custom: Double = 440,
                   sectionsButton: Bool) -> NotchGeometry {
             NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: camera > 0 ? 32 : 0,
                           cameraWidth: camera, layout: size, customWidth: custom, silhouette: camera > 0 ? .notch : .capsule)
@@ -596,67 +610,171 @@ enum NotchActivityTests {
         }
         func band(_ geometry: NotchGeometry) -> NotchBand { NotchBand(geometry: geometry, contentWidth: geometry.contentWidth) }
         let compact = page(camera: 180, .compact, sectionsButton: false)
-        let wrapped: CGFloat = max(NotchLayout.timerContentWidth, 180 + compact.pageBandSide * 2)
-        suite.expect(band(compact).besideCamera && compact.pageContentWidth == NotchLayout.timerContentWidth
-               && compact.contentWidth == wrapped
-               && band(compact).side == compact.pageBandSide - NotchBand.cameraClearance
-               && chevron > 0 && glyph > 0,
-               "the timer's row wraps a 180-point camera on a page no wider than its own: \(band(compact).side)")
-        suite.expect(layout.height > layout.labelSize + 2 && layout.labelPadding > 0
-               && NotchLayout.timerStartHeight == 28,
-               "every mode label keeps room for its underline and around its text, and Start is as tall as the row's buttons")
-        var sizes: [(NotchSize, Double)] = [(.compact, NotchSize.defaultWidth), (.spacious, NotchSize.defaultWidth)]
-        sizes += stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 20).map { (.custom, $0) }
+        suite.expect(compact.pageContentWidth == 344 && compact.contentWidth == 380
+               && compact.cameraWidth == 180 && compact.headerCameraGap == 180
+               && band(compact).besideCamera && band(compact).side == 92 && band(compact).leadingRoom == 92,
+               "the actual compact timer page wraps camera180 with a 92-point side, not an unpaged width")
+        let anchorCameras: [CGFloat] = [185, 208, 210, 224]
+        let anchorWidths: [CGFloat] = [385, 408, 410, 424]
+        let sectionsRooms: [CGFloat] = [77.5, 66, 65, 58]
+        var anchoredCameras = Set<CGFloat>()
+        var floatingSides: [(camera: CGFloat, side: CGFloat)] = []
+        var cameraDiagnostics: [String] = []
+        for index in anchorCameras.indices {
+            let camera = anchorCameras[index]
+            let floating = page(camera: camera, .compact, sectionsButton: false)
+            let sections = page(camera: camera, .compact, sectionsButton: true)
+            let floatingBand = band(floating), sectionsBand = band(sections)
+            anchoredCameras.insert(floating.cameraWidth)
+            floatingSides.append((camera, floatingBand.side))
+            let details = "camera=\(points(camera)), floating-width=\(points(floating.contentWidth)), side=\(points(floatingBand.side)), sections-width=\(points(sections.contentWidth)), sections-room=\(points(sectionsBand.leadingRoom))"
+            cameraDiagnostics.append(details)
+            suite.expect(floating.cameraWidth == camera && floating.headerCameraGap == camera
+                   && sections.cameraWidth == camera && sections.headerCameraGap == camera
+                   && floatingBand.besideCamera && sectionsBand.besideCamera
+                   && floatingBand.side.isFinite && floatingBand.side > 0 && sectionsBand.leadingRoom.isFinite && sectionsBand.leadingRoom > 0
+                   && floating.contentWidth == anchorWidths[index] && floatingBand.side == 92
+                   && floatingBand.leadingRoom == 92 && sections.contentWidth == 424
+                   && sectionsBand.leadingRoom == sectionsRooms[index],
+                   "each wide camera uses its own actual page: \(details)")
+        }
+        // All four floating pages tie; their different widths catch camera180 substitution.
+        let minimumSide = floatingSides.map(\.side).min()!
+        let limitingCameras = Set(floatingSides.filter { $0.side == minimumSide }.map(\.camera))
+        suite.expect(anchoredCameras == Set(anchorCameras) && floatingSides.count == 4
+               && minimumSide == 92 && limitingCameras == Set(anchorCameras),
+               "all four actual floating cameras tie at92 without a missing-camera or camera180 fallback: \(cameraDiagnostics.joined(separator: "; "))")
+        for sections in [false, true] {
+            let geometry = page(camera: 0, .custom, custom: 360, sectionsButton: sections)
+            let row = band(geometry)
+            suite.expect(geometry.contentWidth == 304 && !row.besideCamera && row.side == 304
+                   && row.leadingRoom == (sections ? 270 : 304),
+                   "the narrow capsule keeps its whole row: sections=\(sections), width=\(points(geometry.contentWidth)), leading=\(points(row.leadingRoom))")
+        }
+        // A uniquely longest middle element catches helpers that drop a supplied mode name.
+        let synthetic = ["i", "MMMMMMMMMMMM", "ii"]
+        let reduced = [synthetic[0], synthetic[2]]
+        let syntheticThreshold = width(synthetic[1]) * 0.7 * 1.05 + 3 + chevron + 4
+        let reducedThreshold = max(width(reduced[0]), width(reduced[1])) * 0.7 * 1.05 + 3 + chevron + 4
+        let middleRoom = (syntheticThreshold + reducedThreshold) / 2
+        suite.expect(reducedThreshold < middleRoom && middleRoom < syntheticThreshold
+               && !layout.menuNamesFit(synthetic, in: middleRoom) && layout.menuNamesFit(reduced, in: middleRoom),
+               "the helper measures the complete supplied name set, including its uniquely longest middle element")
+        let customWidths: [Double] = [360, 380, 400, 420, 440, 460, 480, 500, 520, 540, 560, 580, 600]
+        suite.expect(NotchSize.widthRange == 360...600 && NotchSize.defaultWidth == 440,
+               "the page matrix covers the complete supported custom-width range")
+        let sizes: [(NotchSize, Double)] = [(.compact, 440), (.spacious, 440)] + customWidths.map { (.custom, $0) }
+        let expectedSizes = Set(sizes.map { "\($0.0.rawValue):\(Int($0.1))" })
         let cameras: [CGFloat] = [0, 156, 170, 180, 185, 190, 200, 208, 210, 224]
+        var observedLocales = Set<String>(), observedModes = Set<String>()
+        var totalCases = 0, totalNamed = 0, totalGlyph = 0, totalFullRows = 0
+        var totalConstrainedGlyphs = 0, totalFallbacks = 0
+        var actualGlyphWitness: String?, actualFallbackWitness: String?
         for language in AppLanguage.allCases {
+            observedLocales.insert(language.rawValue)
             let text = FeatureStrings.notchActivities(language)
             let labels = [text.timer, text.pomodoro, text.stopwatch]
-            suite.expect(Set(labels).count == 3 && labels.allSatisfy { !$0.isEmpty },
-                   "each mode has its own name: \(language)")
-            let widths = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
-            let named = (widths.max() ?? 0) + layout.menuSpacing + chevron + layout.labelPadding * 2
-            let narrowed = (widths.max() ?? 0) * layout.menuMinimumScale + layout.menuSpacing + chevron + layout.labelPadding * 2
-            let startFont = NSFont.systemFont(ofSize: NotchTimerSupport.StartButton.labelSize, weight: .semibold)
-            let start = (text.start as NSString).size(withAttributes: [.font: startFont]).width + NotchTimerSupport.StartButton.padding * 2
-            var floating = true, spacious = true, shown = true, starts = true, rows = true
-            var narrowest = CGFloat.infinity
+            let widths = labels.map(width)
+            suite.expect(Set(labels).count == 3 && labels.allSatisfy { !$0.isEmpty }
+                   && widths.allSatisfy { $0.isFinite && $0 > 0 },
+                   "each mode has its complete distinct measurable name: locale=\(language.rawValue), labels=\(labels)")
+            let longest = widths.indices.max { widths[$0] < widths[$1] }!
+            let labelWidth = widths[longest]
+            // Independently measure natural text, physical scaled text and the
+            // conservative selection policy; none discounts the natural width.
+            let natural = labelWidth + 3 + chevron + 4
+            let scaled = labelWidth * 0.7 + 3 + chevron + 4
+            let threshold = labelWidth * 0.7 * 1.05 + 3 + chevron + 4
+            let pickerThreshold = labelWidth * 0.7 * 1.05 + 3 + chevron + 8
+            let paddingWitness = (threshold + pickerThreshold) / 2
+            let picker = widths.reduce(0) { $0 + $1 + 8 } + 14 * 2
+            let start = (text.start as NSString).size(withAttributes: [.font: startFont]).width + 20
+            let components = "locale=\(language.rawValue), labels=\(labels.joined(separator: " | ")), longest=\(labels[longest]), label=\(points(labelWidth)), widths=\(widths.map(points).joined(separator: ",")), font=12.000, scale=0.700, chevron=\(points(chevron)), menu-padding=4.000, picker-padding=8.000, spacing=3.000, natural=\(points(natural)), scaled=\(points(scaled)), threshold=\(points(threshold)), picker=\(points(picker)), start=\(points(start))"
+            suite.expect(!layout.menuNamesFit(labels, in: threshold - 0.01)
+                   && layout.menuNamesFit(labels, in: threshold) && layout.menuNamesFit(labels, in: threshold + 0.01),
+                   "the independent conservative threshold is exact, without a fit tolerance: \(components)")
+            suite.expect(threshold <= paddingWitness && paddingWitness < pickerThreshold
+                   && layout.menuNamesFit(labels, in: paddingWitness),
+                   "the menu uses its own padding2 rather than picker padding4: \(components), room=\(points(paddingWitness))")
+            var seenCases = Set<String>(), seenCameras = Set<CGFloat>(), seenSizes = Set<String>(), seenSections = Set<Bool>()
+            var caseCount = 0, namedCount = 0, glyphCount = 0, fullRows = 0
+            var constrainedGlyphs = 0, fallbacks = 0
+            var localeGlyphWitness: String?, localeFallbackWitness: String?
             for camera in cameras {
                 for (size, custom) in sizes {
-                    for sectionsButton in [false, true] {
-                        let geometry = page(camera: camera, size, custom: custom, sectionsButton: sectionsButton)
+                    for sections in [false, true] {
+                        let geometry = page(camera: camera, size, custom: custom, sectionsButton: sections)
                         let row = band(geometry)
-                        guard row.besideCamera else {
-                            // Across the top the marks give way before the name narrows.
-                            rows = rows && (sectionsButton ? button : 0) + named + 12 + start <= row.side
-                            continue
+                        let sizeKey = "\(size.rawValue):\(Int(custom))"
+                        let caseKey = "\(points(camera))/\(sizeKey)/\(sections)"
+                        seenCases.insert(caseKey); seenCameras.insert(camera); seenSizes.insert(sizeKey); seenSections.insert(sections)
+                        caseCount += 1
+                        let room = max(0, row.side - (sections ? 34 : 0))
+                        let helperNames = layout.menuNamesFit(labels, in: row.leadingRoom)
+                        let expectedNames = !row.besideCamera || threshold <= room
+                        let named = !row.besideCamera || helperNames
+                        let geometryDetails = "camera=\(points(camera)), size=\(size.rawValue), custom=\(points(CGFloat(custom))), sections=\(sections), content-width=\(points(geometry.contentWidth)), side=\(points(row.side)), leading-room=\(points(row.leadingRoom)), branch=\(named ? "name" : "glyph"), expected=\(expectedNames ? "name" : "glyph")"
+                        let details = "\(components), \(geometryDetails)"
+                        suite.expect(row.side.isFinite && row.side > 0 && row.leadingRoom.isFinite && row.leadingRoom > 0
+                               && row.sectionsButton == sections && row.leadingRoom == room && named == expectedNames,
+                               "the actual page reserves the sections button and selects the independently measured branch: \(details)")
+                        if !row.besideCamera {
+                            fullRows += 1
+                            let wholeName = (sections ? CGFloat(34) : 0) + natural + 12 + start
+                            let fullPicker = (sections ? CGFloat(34) : 0) + picker + 12 + start
+                            suite.expect(named && wholeName <= row.side,
+                                   "a full row keeps the whole natural name, sections and Start: \(details)")
+                            if fullPicker > row.side && wholeName <= row.side {
+                                fallbacks += 1
+                                if localeFallbackWitness == nil { localeFallbackWitness = "\(geometryDetails), full-picker-total=\(points(fullPicker)), whole-name-total=\(points(wholeName))" }
+                            }
+                        } else {
+                            suite.expect(helperNames == (threshold <= room) && start <= row.side,
+                                   "a camera row keeps mandatory Start and the exact menu policy: \(details)")
+                            if named {
+                                namedCount += 1
+                                suite.expect(scaled <= room, "the selected full names fit at their minimum scale: \(details)")
+                            } else {
+                                glyphCount += 1
+                                for mode in modes {
+                                    let expectedSymbol = mode == .stopwatch ? "stopwatch" : "timer"
+                                    let glyph = mode == .stopwatch ? stopwatchGlyph : timerGlyph
+                                    suite.expect(layout.symbol(for: mode) == expectedSymbol && glyph + 3 + chevron + 4 <= room,
+                                           "each selected mode glyph fits without a lost menu item: mode=\(mode.rawValue), \(details)")
+                                }
+                                if sections && scaled > room {
+                                    constrainedGlyphs += 1
+                                    if localeGlyphWitness == nil { localeGlyphWitness = geometryDetails }
+                                }
+                            }
+                            if !sections {
+                                suite.expect(named, "a floating page keeps complete mode names: \(details)")
+                            } else if size == .spacious {
+                                let floating = band(page(camera: camera, size, custom: custom, sectionsButton: false))
+                                suite.expect(named && room == floating.side,
+                                       "the spacious page keeps the floating name room past sections: \(details)")
+                            }
                         }
-                        // What the menu's side keeps past the button, as the row draws it.
-                        let room = row.side - (sectionsButton ? button : 0)
-                        let fits = layout.menuNamesFit(labels, in: row.leadingRoom)
-                        shown = shown && (fits ? narrowed <= room : glyphMenu <= room)
-                        starts = starts && start <= row.side
-                        if !sectionsButton {
-                            // With the floating button the menu always names the mode.
-                            floating = floating && fits
-                            narrowest = min(narrowest, room)
-                        } else if size == .spacious {
-                            // The preset most islands use keeps the name's room past the button.
-                            spacious = spacious && fits
-                                && room == band(page(camera: camera, size, sectionsButton: false)).side
-                        }
+                        for mode in modes { observedModes.insert(mode.rawValue) }
                     }
                 }
             }
-            suite.expect(floating,
-                   "every mode's name names the menu beside the camera in \(language), down to \(Int(narrowest)) points")
-            suite.expect(spacious,
-                   "past the sections button the spacious island keeps the name's room beside every camera in \(language)")
-            suite.expect(shown,
-                   "the menu's name never narrows past its minimum, and where it would the mode's glyph fits instead, in \(language): \(Int(narrowed))")
-            suite.expect(starts, "Start fits its side beside every camera in \(language): \(Int(start))")
-            suite.expect(rows,
-                   "a full top row holds the sections button, the whole name and Start in \(language): \(Int(button + named + 12 + start))")
+            suite.expect(caseCount == 300 && seenCases.count == 300 && seenCameras == Set(cameras)
+                   && seenSizes == expectedSizes && seenSections == Set([false, true]) && fullRows > 0 && namedCount > 0,
+                   "the complete actual-page matrix ran: locale=\(language.rawValue), cases=\(caseCount), unique=\(seenCases.count), full=\(fullRows), named=\(namedCount), glyph=\(glyphCount)")
+            totalCases += caseCount; totalNamed += namedCount; totalGlyph += glyphCount; totalFullRows += fullRows
+            totalConstrainedGlyphs += constrainedGlyphs; totalFallbacks += fallbacks
+            if actualGlyphWitness == nil, let witness = localeGlyphWitness { actualGlyphWitness = "locale=\(language.rawValue), \(witness)" }
+            if actualFallbackWitness == nil, let witness = localeFallbackWitness { actualFallbackWitness = "locale=\(language.rawValue), \(witness)" }
+            let compactNamed = layout.menuNamesFit(labels, in: band(compact).leadingRoom)
+            print("TIMER MODE MENU FIT \(components), camera=180.000, size=compact, custom=440.000, sections=false, content-width=380.000, side=92.000, leading-room=92.000, branch=\(compactNamed ? "name" : "glyph"), expected=\(threshold <= 92 ? "name" : "glyph"), cases=\(caseCount), full=\(fullRows), named=\(namedCount), glyph=\(glyphCount), constrained-glyphs=\(constrainedGlyphs), fallbacks=\(fallbacks), floating-limit=92.000, limiting-cameras=185,208,210,224, anchors={\(cameraDiagnostics.joined(separator: "; "))}, glyph-witness={\(localeGlyphWitness ?? "none")}, fallback-witness={\(localeFallbackWitness ?? "none")}")
         }
+        suite.expect(observedLocales == expectedLocales && observedModes == Set(["timer", "pomodoro", "stopwatch"])
+               && totalCases == 4500 && totalNamed + totalGlyph + totalFullRows == totalCases
+               && totalNamed > 0 && totalGlyph > 0 && totalFullRows > 0 && totalConstrainedGlyphs > 0 && totalFallbacks > 0
+               && actualGlyphWitness != nil && actualFallbackWitness != nil,
+               "all locales and real page branches are non-vacuous: cases=\(totalCases), named=\(totalNamed), glyph=\(totalGlyph), full=\(totalFullRows), constrained-glyphs=\(totalConstrainedGlyphs), fallbacks=\(totalFallbacks), constrained-glyph={\(actualGlyphWitness ?? "none")}, full-row-fallback={\(actualFallbackWitness ?? "none")}")
+        print("TIMER MODE MENU COVERAGE locales=\(observedLocales.count), modes=\(observedModes.count), cases=\(totalCases), named=\(totalNamed), glyph=\(totalGlyph), full=\(totalFullRows), constrained-glyphs=\(totalConstrainedGlyphs), fallbacks=\(totalFallbacks), constrained-glyph={\(actualGlyphWitness ?? "none")}, full-row-fallback={\(actualFallbackWitness ?? "none")}")
         suite.expect(NotchPomodoroOption.focus.range == 1...180
                      && NotchPomodoroOption.shortBreak.range == 1...60
                      && NotchPomodoroOption.longBreak.range == 1...60
