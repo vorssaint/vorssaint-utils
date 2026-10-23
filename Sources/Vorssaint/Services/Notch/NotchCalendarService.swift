@@ -53,7 +53,20 @@ private actor NotchCalendarReader {
 final class NotchCalendarService: NSObject, ObservableObject {
     static let shared = NotchCalendarService()
     @Published private(set) var events: [NotchCalendarEvent] = []
-    @Published private(set) var countdown: NotchCalendarCountdown?
+    /// Every countdown the closed island shows, nearest first.
+    @Published private(set) var countdowns: [NotchCalendarCountdown] = []
+    /// The nearest countdown, which sizes the strip and drives the clock.
+    var countdown: NotchCalendarCountdown? { countdowns.first }
+    var stack: NotchCalendarStack? { NotchCalendarStack(countdowns) }
+    /// Fires when a start joins countdowns already showing, so a second
+    /// meeting at the same time is announced instead of waiting unseen.
+    let headsUp = PassthroughSubject<Void, Never>()
+    /// Starts already counted down, by event id, so each is announced once.
+    private var announced = Set<String>()
+    /// What the last read announces, held until the island shows it: an
+    /// island hidden over full screen announces it once it can.
+    private var pendingAnnouncement: Set<String>?
+    var hasPendingHeadsUp: Bool { pendingAnnouncement != nil }
     @Published private(set) var loading = false
     /// The event the Calendar page scrolls to once, after a click on the countdown.
     @Published var revealing: String?
@@ -68,6 +81,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
     private var visibleMonth: Date?
     private var countdownEnabled = false
     private var timeLeftEnabled = false
+    /// How long before a start the island counts down, from Settings.
+    private(set) var countdownLeadTime = NotchCalendarSupport.countdownLeadTime()
     private var excludedCalendars = Set<String>()
 
     private override init() { super.init() }
@@ -88,8 +103,13 @@ final class NotchCalendarService: NSObject, ObservableObject {
         let keys = Set(NotchCalendarSupport.chosenCountdowns().keys)
         guard keys != chosenCountdowns else { return }
         chosenCountdowns = keys
-        if let countdown, !follows(countdown) { self.countdown = nil }
+        dropUnfollowedCountdowns()
         refresh()
+    }
+
+    private func dropUnfollowedCountdowns() {
+        let followed = countdowns.filter(follows)
+        if followed != countdowns { countdowns = followed }
     }
 
     private func follows(_ countdown: NotchCalendarCountdown) -> Bool {
@@ -106,26 +126,30 @@ final class NotchCalendarService: NSObject, ObservableObject {
         guard NotchCalendarSupport.isEnabled() else { stop(); return }
         let countdownEnabled = NotchCalendarSupport.showsCountdown()
         let timeLeftEnabled = NotchCalendarSupport.showsTimeLeft()
+        let countdownLeadTime = NotchCalendarSupport.countdownLeadTime()
         let excludedCalendars = NotchCalendarSupport.excludedCalendars()
         let chosenCountdowns = Set(NotchCalendarSupport.chosenCountdowns().keys)
         guard reader == nil else {
             if self.countdownEnabled != countdownEnabled || self.timeLeftEnabled != timeLeftEnabled
-                || self.excludedCalendars != excludedCalendars || self.chosenCountdowns != chosenCountdowns {
+                || self.countdownLeadTime != countdownLeadTime || self.excludedCalendars != excludedCalendars
+                || self.chosenCountdowns != chosenCountdowns {
                 if !excludedCalendars.isSubset(of: self.excludedCalendars) {
                     events = []
-                    countdown = nil
+                    countdowns = []
                 }
                 self.countdownEnabled = countdownEnabled
                 self.timeLeftEnabled = timeLeftEnabled
+                self.countdownLeadTime = countdownLeadTime
                 self.excludedCalendars = excludedCalendars
                 if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
-                if let countdown, !follows(countdown) { self.countdown = nil }
+                dropUnfollowedCountdowns()
                 refresh()
             }
             return
         }
         self.countdownEnabled = countdownEnabled
         self.timeLeftEnabled = timeLeftEnabled
+        self.countdownLeadTime = countdownLeadTime
         self.excludedCalendars = excludedCalendars
         if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
         reader = NotchCalendarReader()
@@ -146,7 +170,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         generation = UUID()
         guard NotchCalendarSupport.isEnabled(), let reader else { stop(); return }
         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
-            events = []; countdown = nil; loading = false
+            events = []; countdowns = []; loading = false
             return
         }
         let requested = generation
@@ -166,20 +190,23 @@ final class NotchCalendarService: NSObject, ObservableObject {
                   NotchCalendarSupport.isEnabled() else { return }
             let now = Date()
             guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
-                self.events = []; self.countdown = nil; self.loading = false; self.task = nil
+                self.events = []; self.countdowns = []; self.loading = false; self.task = nil
                 return
             }
             self.events = NotchCalendarSupport.ordered(result)
             let currentEvents = needsCurrentRead ? NotchCalendarSupport.ordered(currentResult) : self.events
             self.updateChosenCountdowns(currentEvents, now: now)
-            self.countdown = NotchCalendarSupport.countdown(currentEvents, now: now, starts: self.countdownEnabled,
-                                                            ends: self.timeLeftEnabled, chosen: self.chosenCountdowns)
+            let countdowns = NotchCalendarSupport.countdowns(
+                currentEvents, now: now, starts: self.countdownEnabled, ends: self.timeLeftEnabled,
+                chosen: self.chosenCountdowns, leadTime: self.countdownLeadTime)
+            if countdowns != self.countdowns { self.countdowns = countdowns }
+            self.announce(countdowns)
             self.loading = false
             self.task = nil
             let agendaRefresh = NotchCalendarSupport.nextRefresh(self.events, now: now)
             let countdownRefresh = NotchCalendarSupport.countdownTransition(
                 currentEvents, now: now, starts: self.countdownEnabled, ends: self.timeLeftEnabled,
-                chosen: self.chosenCountdowns)
+                chosen: self.chosenCountdowns, leadTime: self.countdownLeadTime)
             let nextRefresh = min(agendaRefresh, countdownRefresh ?? agendaRefresh)
             let timer = Timer(fireAt: nextRefresh,
                               interval: 0, target: self, selector: #selector(self.timedRefresh),
@@ -191,6 +218,25 @@ final class NotchCalendarService: NSObject, ObservableObject {
     }
 
     @objc private func timedRefresh() { refresh() }
+
+    private func announce(_ countdowns: [NotchCalendarCountdown]) {
+        let (announces, starts) = NotchCalendarSupport.headsUp(countdowns, announced: announced)
+        if announces {
+            pendingAnnouncement = starts
+            headsUp.send()
+        } else {
+            // Nothing new, or what waited has started or passed its window.
+            pendingAnnouncement = nil
+            announced = starts
+        }
+    }
+
+    /// The island showed the heads-up, so what it announced is not announced again.
+    func headsUpShown() {
+        guard let pendingAnnouncement else { return }
+        announced = pendingAnnouncement
+        self.pendingAnnouncement = nil
+    }
 
     /// A chosen event read again keeps its current end, and one that has
     /// ended is forgotten. Only the week holding every countdown the island
@@ -217,6 +263,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
         timeLeftEnabled = false
         excludedCalendars = []
         if !chosenCountdowns.isEmpty { chosenCountdowns = [] }
-        events = []; countdown = nil; loading = false
+        announced = []
+        pendingAnnouncement = nil
+        events = []; countdowns = []; loading = false
     }
 }
