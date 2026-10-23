@@ -586,8 +586,9 @@ enum CommandBarCatalog {
             let isDark = toggles.systemAppearanceIsDark ?? false
             entries.append(CommandBarEntry(
                 id: "action.darkMode",
-                title: isDark ? togglesText.darkModeToLight : togglesText.darkModeToDark,
+                title: togglesText.darkModeToggle,
                 subtitle: togglesArea,
+                keywords: "\(togglesText.darkModeToLight) \(togglesText.darkModeToDark)",
                 icon: .symbol(isDark ? "sun.max.fill" : "moon.fill"),
                 run: { _ in QuickTogglesService.shared.toggleDarkMode() }))
             entries.append(CommandBarEntry(
