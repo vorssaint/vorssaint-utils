@@ -837,6 +837,7 @@ struct PermissionsPortalSections: View {
 private struct PermissionPortalRow: View {
     enum Status { case granted, missing, unknown }
 
+    @AppStorage(DefaultsKey.statusItemMiddleClickAction) private var middleAction = StatusItemQuickAction.none.rawValue
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.colorScheme) private var colorScheme
     let permission: AppPermission
@@ -867,7 +868,7 @@ private struct PermissionPortalRow: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
-                if status == .granted, activeFeatures.isEmpty {
+                if status == .granted, activeUsageNames.isEmpty {
                     unusedCard
                 }
                 HStack(spacing: 8) {
@@ -889,8 +890,19 @@ private struct PermissionPortalRow: View {
         }
     }
 
+    private var activeUsageNames: [String] {
+        var names = activeFeatures.map { $0.hubTitle(l10n.s, hub: hub) }
+        if permission == .accessibility,
+           StatusItemGesture.Settings(middle: StatusItemQuickAction(rawValue: middleAction) ?? .none)
+            .needsAccessibility {
+            let strings = StatusItemQuickActionStrings.localized(l10n.language)
+            names.append("\(strings.title) — \(strings.middleClick)")
+        }
+        return names
+    }
+
     private var usedByLine: String {
-        let names = activeFeatures.map { $0.hubTitle(l10n.s, hub: hub) }
+        let names = activeUsageNames
         guard !names.isEmpty else { return hub.usedByNone }
         return String(format: hub.usedByFormat, names.joined(separator: ", "))
     }

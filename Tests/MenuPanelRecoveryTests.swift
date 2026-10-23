@@ -210,6 +210,7 @@ enum MenuPanelRecoveryTests {
             PanelRecoveryPolicy.shouldReopenPanel(closedByApp: closedByApp, lastFrame: lastFrame,
                 panelWindowNumber: panelWindowNumber, event: event, secondsSinceLastReopen: secondsSinceLastReopen)
         }
+        static let statusClickFreshness = PanelRecoveryPolicy.statusClickFreshness
     }
     class Fixture {
         let popover = Popover()
@@ -232,7 +233,6 @@ enum MenuPanelRecoveryTests {
         var popoverLastWindowNumber: Int?
         var popoverForeignReopenAt = Date.distantPast
         var lastStatusClick: (point: NSPoint, at: Date)?
-        static let statusClickFreshness: TimeInterval = 0.5
         static let statusClickEventTypes: Set<NSEvent.EventType> = [
             .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
         ]
