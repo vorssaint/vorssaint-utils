@@ -18,6 +18,7 @@ if CommandLine.arguments.contains("--sensors") {
 if CommandLine.arguments.contains("--uninstall") {
     Uninstaller.runAndExit()
 }
+SettingsBackup.runCommandIfRequestedAndExit()
 
 #if VORSSAINT_DEVELOPMENT
 // A probe mode on its own would otherwise launch the whole app, and TCC kills
