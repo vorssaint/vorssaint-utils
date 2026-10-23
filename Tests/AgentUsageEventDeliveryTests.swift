@@ -10,7 +10,11 @@ enum AgentUsageEventDeliveryTests {
         static var minimum: TimeInterval? = 10
         static var threshold: Double? = 0.2
         static var budget: Double? = 1
+        static var input = true
+        static var interrupt = false
         static func finishMinimum() -> TimeInterval? { minimum }
+        static func inputAlert() -> Bool { input }
+        static func interruptAlert() -> Bool { interrupt }
         static func limitThreshold() -> Double? { threshold }
         static func dailyBudget() -> Double? { budget }
     }
@@ -26,6 +30,7 @@ enum AgentUsageEventDeliveryTests {
         var readerSession = 1
         var providers: [AgentProvider] = [.claude, .codex, .copilot]
         let events = Events()
+        func soundContext(_ provider: AgentProvider) -> AppSoundContext { AppSoundContext(provider: provider) }
     }
 
     static func run(_ suite: TestSuite) {
@@ -39,6 +44,8 @@ enum AgentUsageEventDeliveryTests {
             suite.expect(reached, "the agent event fixture drains its delivery queue")
         }
         defer {
+            NotchAgentSupport.input = true
+            NotchAgentSupport.interrupt = false
             NotchAgentSupport.minimum = 10
             NotchAgentSupport.threshold = 0.2
             NotchAgentSupport.budget = 1
@@ -88,5 +95,29 @@ enum AgentUsageEventDeliveryTests {
         host.report(events[3])
         drain()
         suite.expect(host.events.values.isEmpty, "duration and disabled-alert preferences still filter current events")
+
+        let wait = AgentAttentionNotice(provider: .claude, project: "example", cause: .question, inferred: false,
+                                        waited: 60, place: .terminal, others: [], reminder: false,
+                                        target: AgentSessionTarget(file: "example.jsonl"))
+        let paused = AgentAttentionNotice(provider: .claude, project: "example", cause: .interrupted, inferred: false,
+                                          waited: 300, place: .terminal, others: [], reminder: false,
+                                          target: AgentSessionTarget(file: "example.jsonl"))
+        host.report(.needsInput(wait))
+        drain()
+        suite.expect(host.events.values == [.needsInput(wait)], "a session waiting on the person is told")
+        host.events.values.removeAll()
+        host.providers = [.codex]
+        host.report(.needsInput(wait))
+        NotchAgentSupport.input = false
+        host.providers = [.claude, .codex, .copilot]
+        host.report(.needsInput(wait))
+        host.report(.needsInput(paused))
+        drain()
+        suite.expect(host.events.values.isEmpty,
+                     "a wait is dropped for an agent turned off, with its notice off, and an interruption unless asked")
+        NotchAgentSupport.interrupt = true
+        host.report(.needsInput(paused))
+        drain()
+        suite.expect(host.events.values == [.needsInput(paused)], "interrupted work is told once asked for")
     }
 }

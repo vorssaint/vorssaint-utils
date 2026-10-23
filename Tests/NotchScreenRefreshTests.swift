@@ -123,6 +123,7 @@ enum NotchScreenRefreshContract {
         var pinned = false
         var keepsWorkingSurface = false
         var openedByHover = false
+        var pointerReachedOpening = false
         var clickedSinceOpening = false
         var preferenceSyncs = 0
         var reads = 0

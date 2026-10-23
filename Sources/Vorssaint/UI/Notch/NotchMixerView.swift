@@ -4,8 +4,8 @@
 import AppKit
 import SwiftUI
 
-/// The mixer as a desk: the output and microphone faders on the left, one fader per app
-/// running sideways, pinned ones first. Every row action of the panel's list
+/// The mixer as a desk: the output and microphone faders on the left, then a
+/// list of apps, one sideways fader each, pinned ones first. Every row action of the panel's list
 /// is here: the app's menu pins, moves and routes it, Command-drag reorders,
 /// a click on a level types a new one. The island's top row holds the output
 /// and opens the options: where sound effects and the microphone go, the
@@ -24,11 +24,10 @@ struct NotchMixerView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.notchSettingsPreview) private var preview
     private static let masterWidth: CGFloat = 72
-    private static let columnWidth: CGFloat = 96
+    private static let rowHeight: CGFloat = 40
     private var faderHeight: CGFloat { max(NotchLayout.mixerMinimumHeight, size.height) }
     /// A microphone that reports no level has nothing to fade, as in the options.
     private var showsMicrophone: Bool { input.inputVolume != nil }
-    private var leadingWidth: CGFloat { showsMicrophone ? Self.masterWidth * 2 + 10 : Self.masterWidth }
 
     private var arrangement: MixerAppArrangement { MixerAppArrangement(rawValue: arrangementValue) }
 
@@ -98,9 +97,20 @@ struct NotchMixerView: View {
         } else {
             let apps = apps
             let ids = apps.compactMap(\.persistenceID)
-            NotchRail(items: apps, rows: 1, itemWidth: Self.columnWidth,
-                      width: size.width - leadingWidth - 21) { app in
-                NotchAppFader(app: app, height: faderHeight, editingVolumeID: $editingVolumeID,
+            // One row per app, sideways faders stacked down a page that scrolls.
+            ScrollView(.vertical) {
+                LazyVStack(spacing: 4) {
+                    ForEach(apps) { app in row(app, ids: ids) }
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollIndicators(.automatic)
+            .notchScrollEdgeFade()
+        }
+    }
+
+    private func row(_ app: MixerApp, ids: [String]) -> some View {
+                NotchAppFader(app: app, height: Self.rowHeight, editingVolumeID: $editingVolumeID,
                               isPinned: arrangement.isPinned(app.persistenceID),
                               togglePin: { updateArrangement { $0.togglePin(app.persistenceID ?? "") } },
                               moveBack: moveAction(for: app, offset: -1, ids: ids),
@@ -118,10 +128,8 @@ struct NotchMixerView: View {
                         move: { source, target, after in
                             updateArrangement { $0.move(source, to: target, after: after, visibleIDs: ids) }
                         },
-                        sideways: true))
+                        sideways: false))
                     .help(app.name + "\n" + FeatureStrings.mixer(l10n.language).arrange)
-            }
-        }
     }
 
     private func updateArrangement(_ change: (inout MixerAppArrangement) -> Void) {
@@ -478,10 +486,10 @@ private struct NotchMixerOptions: View {
     }
 }
 
-/// One app: an icon with actions beside it, a fader and level. The track ticks at unity, and the
-/// fader turns amber in the boost range the way the panel's slider does.
-/// The panel row's menu, output picker and context menu fold into the
-/// column's own menu, with the route shown as a badge on the icon.
+/// One app's row: its icon and name, a sideways fader and its level. The
+/// track ticks at unity, and the fader turns amber in the boost range the way
+/// the panel's slider does. The panel row's menu, output picker and context
+/// menu fold into the row's own menu, with the route shown as a badge on the icon.
 private struct NotchAppFader: View {
     let app: MixerApp
     let height: CGFloat
@@ -504,76 +512,86 @@ private struct NotchAppFader: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
-            icon
-                .frame(maxWidth: .infinity)
-                .frame(height: 32)
-                .help(app.name)
-                .overlay(alignment: .trailing) {
-                    if app.persistenceID != nil || !app.isBypassed { actionsMenu }
+        sideways
+        .contextMenu { actions }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(app.name)
+        .accessibilityValue("\(percent)%")
+        .accessibilityAction(named: Text(strings.moveUp)) { moveBack?() }
+        .accessibilityAction(named: Text(strings.moveDown)) { moveForward?() }
+    }
+
+    /// Icon and name, then the fader across the row, its level, reset, mute
+    /// and the app's menu.
+    private var sideways: some View {
+        HStack(spacing: 8) {
+            icon.frame(width: 30, height: 30).help(app.name)
+            HStack(spacing: 4) {
+                if isPinned {
+                    Image(systemName: "pin.fill").font(.system(size: 8)).foregroundStyle(.secondary)
+                        .accessibilityLabel(strings.pin)
                 }
-                .overlay(alignment: .leading) {
-                    if isPinned {
-                        Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.secondary)
-                            .accessibilityLabel(strings.pinFirst)
-                    }
-                }
+                Text(app.name)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .frame(width: 84, alignment: .leading)
             if app.isBypassed {
-                // Conferencing and pro audio apps manage their own sound: listed so
-                // their absence never reads as a bug, never tapped.
                 Text(l10n.s.mixerBypassedCaption)
-                    .font(.system(size: 9)).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .font(.system(size: 9.5)).foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 NotchLevelSlider(value: Binding(get: { app.volume }, set: { mixer.setVolume($0, for: app) }),
                                  label: app.name, range: 0...AppVolumeMixer.maxVolume,
-                                 tint: boosting ? .orange : .white, vertical: true, trackThickness: 28, marker: 1,
+                                 tint: boosting ? .orange : .white, trackThickness: 24, marker: 1,
                                  valueLabel: "\(percent)%")
-                    .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
                 NotchEditablePercent(percent: percent, maximum: Int(AppVolumeMixer.maxVolume * 100),
                                      editorID: "notch-app:\(app.id)", editingID: $editingVolumeID,
                                      label: app.name, tint: boosting ? .orange : .secondary,
                                      boosting: boosting, height: 28) {
                     mixer.setVolume($0, for: app)
                 }
-                .frame(maxWidth: .infinity)
-                .overlay(alignment: .leading) {
-                    Button { mixer.setVolume(1, for: app) } label: {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(boosting ? Color.orange : Color.secondary)
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(NotchButtonStyle(cornerRadius: 5))
-                    .opacity(percent == 100 ? 0 : 1)
-                    .disabled(percent == 100)
-                    .help(l10n.s.mixerResetTooltip)
-                    .accessibilityLabel(l10n.s.mixerResetTooltip)
-                }
-                .overlay(alignment: .trailing) {
-                    Button { mixer.toggleMute(app) } label: {
-                        Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(muted ? Color.red : Color.secondary)
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(NotchButtonStyle(cornerRadius: 5))
-                    .accessibilityLabel(muted ? l10n.s.actionUnmute : l10n.s.actionMute)
-                }
-                .frame(height: 28)
+                .frame(width: 44)
+                resetButton
+                muteButton
             }
+            if app.persistenceID != nil || !app.isBypassed { actionsMenu }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: height, alignment: .top)
-        .contextMenu { actions }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(app.name)
-        .accessibilityValue("\(percent)%")
-        .accessibilityAction(named: Text(strings.moveLeft)) { moveBack?() }
-        .accessibilityAction(named: Text(strings.moveRight)) { moveForward?() }
+        .padding(.horizontal, 6)
+        .frame(height: height)
+        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var resetButton: some View {
+        Button { mixer.setVolume(1, for: app) } label: {
+            Image(systemName: "arrow.counterclockwise")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(boosting ? Color.orange : Color.secondary)
+                .frame(width: 24, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 5))
+        .opacity(percent == 100 ? 0 : 1)
+        .disabled(percent == 100)
+        .help(l10n.s.mixerResetTooltip)
+        .accessibilityLabel(l10n.s.mixerResetTooltip)
+    }
+
+    private var muteButton: some View {
+        Button { mixer.toggleMute(app) } label: {
+            Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(muted ? Color.red : Color.secondary)
+                .frame(width: 24, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 5))
+        .accessibilityLabel(muted ? l10n.s.actionUnmute : l10n.s.actionMute)
     }
 
     private var icon: some View {
@@ -623,11 +641,11 @@ private struct NotchAppFader: View {
     @ViewBuilder private var actions: some View {
         if app.persistenceID != nil {
             Button(action: togglePin) {
-                Label(isPinned ? strings.unpin : strings.pinFirst, systemImage: isPinned ? "pin.slash" : "pin")
+                Label(isPinned ? strings.unpin : strings.pin, systemImage: isPinned ? "pin.slash" : "pin")
             }
-            Button { moveBack?() } label: { Label(strings.moveLeft, systemImage: "arrow.left") }
+            Button { moveBack?() } label: { Label(strings.moveUp, systemImage: "arrow.up") }
                 .disabled(moveBack == nil)
-            Button { moveForward?() } label: { Label(strings.moveRight, systemImage: "arrow.right") }
+            Button { moveForward?() } label: { Label(strings.moveDown, systemImage: "arrow.down") }
                 .disabled(moveForward == nil)
         }
         if !app.isBypassed {

@@ -8,7 +8,7 @@ import SwiftUI
 struct CodexAccountsSettings: View {
     @AppStorage(DefaultsKey.notchAgentsCodexProfiles) private var saved = ""
     /// Hiding the Limits card stops the checks, so Check limits greys out with it.
-    @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
+    @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = NotchAgentSupport.defaultHiddenCards
     @ObservedObject private var service = CodexProfileLimitsService.shared
     @ObservedObject private var l10n = L10n.shared
     @State private var invalidFolder = false

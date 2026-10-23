@@ -9,7 +9,7 @@ import Foundation
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
     case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
-    case shortcuts, advanced, about, releaseNotes, support
+    case shortcuts, sounds, advanced, about, releaseNotes, support
 }
 
 /// Stable, non-localized identities for destinations inside shared Settings
@@ -425,6 +425,7 @@ enum FeatureVisibilitySupport {
         case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
         case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch, .notchMascot]
         case .notchMascot: return [.notchMascot]
+        case .sounds: return Array(Set(AppSound.allCases.map(\.feature)))
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]
         case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support:

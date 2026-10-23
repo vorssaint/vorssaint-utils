@@ -15,7 +15,6 @@ struct TextSnippetsSettings: View {
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var enabled = false
     @AppStorage(DefaultsKey.snippetLibraryEnabled) private var libraryEnabled = false
     @AppStorage(DefaultsKey.snippetSoundEnabled) private var soundEnabled = false
-    @AppStorage(DefaultsKey.snippetSoundName) private var soundName = Defaults.defaultSnippetSoundName
     @State private var snippets: [TextSnippet] = TextSnippetSupport.decode(
         UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
     @State private var editing: TextSnippet?
@@ -46,26 +45,13 @@ struct TextSnippetsSettings: View {
                     Text(text.soundCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    // The sound itself is chosen with every other moment's,
+                    // which can store a tone or your own sound this page's
+                    // list of alert sounds could not show.
                     if soundEnabled {
-                        Picker(text.soundPickerLabel, selection: $soundName) {
-                            ForEach(AlertSoundStrings.sortedNames(TextSnippetSupport.alertSoundNames,
-                                                                  language: l10n.language), id: \.self) { name in
-                                Text(AlertSoundStrings.displayName(for: name, language: l10n.language)).tag(name)
-                            }
-                            // A name stored on another Mac, or dropped by a
-                            // macOS update, needs a row of its own or the
-                            // picker shows an empty selection. Asked through
-                            // the same resolver the service arms the sound
-                            // with, so the row cannot call a name usable that
-                            // an expansion would substitute away from.
-                            if TextSnippetSupport.resolvedSoundName(stored: soundName) != soundName {
-                                Text(text.soundUnavailable).tag(soundName)
-                            }
-                        }
-                        .onChange(of: soundName) { _, _ in
-                            TextSnippetService.shared.syncExpansionSound()
-                            TextSnippetService.shared.previewExpansionSound()
-                        }
+                        Text(FeatureStrings.snippetSoundHint(l10n.language).hint)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

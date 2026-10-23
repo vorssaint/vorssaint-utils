@@ -133,7 +133,9 @@ final class CodexProfileLimitsService: ObservableObject {
                 if force, let place = waiting.firstIndex(where: { $0.id == state.id }) { waiting[place].asked = true }
                 continue
             }
-            guard force || state.isDue(at: now) else { continue }
+            // A home the island leaves out has no card to check for.
+            guard force || state.isDue(at: now),
+                  NotchLimitVisibility.shows(.profile(state.id), in: .island, defaults: defaults) else { continue }
             states[index].checking = true
             waiting.append((state.id, force))
         }

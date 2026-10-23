@@ -10,6 +10,7 @@ enum SystemMonitorPlanTests {
     class Fixture {
         var menuPanelNeeds = SystemMonitorPanelNeeds.none
         var notchDetailNeeds = SystemMonitorPanelNeeds.none
+        var lockScreenNeeds = SystemMonitorPanelNeeds.none
         var fullMonitorVisible = false
         var notchVisible = false
         var notchAccessoryMonitoring = false
@@ -51,6 +52,13 @@ enum SystemMonitorPlanTests {
         suite.expect(monitor.currentPlan(defaults: defaults).needConnectedDevices,
                      "the island System page's device card ignores the panel row's toggle")
         monitor.notchDetailNeeds = .none
+        // The lock screen's This Mac page keeps its own needs, so the island
+        // clearing its own as the Mac locks leaves them in place.
+        monitor.lockScreenNeeds = SystemMonitorPanelNeeds(fanSpeed: true, connectedDevices: true)
+        let locked = monitor.currentPlan(defaults: defaults)
+        suite.expect(locked.needConnectedDevices && locked.needFanSpeed,
+                     "the lock screen's page reads what it asks for with the island's needs cleared")
+        monitor.lockScreenNeeds = .none
         monitor.fullMonitorVisible = true
         let preview = monitor.currentPlan(defaults: defaults)
         suite.expect(preview.needConnectedDevices && preview.needFanSpeed,

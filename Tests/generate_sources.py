@@ -1049,6 +1049,7 @@ def main():
               "    private var watchesHiddenHover:", "    func hover(",
               "    func shelfDragMoved(",
               "    private func syncHoverExitMonitoring(", "    private func removeHoverExitMonitors(",
+              "    private var closesOnPointerExit:", "    private var pointerDriven:",
               "    var showsCompactActivityPicker:",
               "    private func missionControlDidRestore()",
               "    private var holdsNotification:", "    private func holdNotification(",
@@ -1105,7 +1106,8 @@ def main():
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private var screenEdgeClickArea:", "    private func syncScreenEdgeClicks(",
               "    private func handleScreenEdgeEvent(", "    private func handleScreenEdgeClick(",
-              "    private func removeScreenEdgeClickMonitors("])
+              "    private func removeScreenEdgeClickMonitors(", "    private func syncScreenEdgeHover(",
+              "    private func handleScreenEdgeMove(", "    private func removeScreenEdgeHoverMonitors("])
           + "}\n}\n")
     write("NotchScreenRefresh.swift", "import Foundation\n\nextension NotchScreenRefreshContract {\nfinal class Service: State {\n"
           + declaration(notch, "    private func schedulePreferenceSync()").replace("private func", "func", 1)
@@ -1282,6 +1284,8 @@ def main():
           + declaration(notch, "    func setPageLayer(")
           + declaration(notch, "    func openAppPanel(")
           + declaration(notch, "    func showMetric(")
+          + declaration(notch, "    private var pointerDriven:").replace("    private ", "    ", 1)
+              .replace("UserDefaults.standard", "ReviewDefaults.current!")
           + declaration(notch, "    var reopeningDestination:")
               .replace("UserDefaults.standard", "ReviewDefaults.current!")
           + declaration(notch, "    func openActivity(")
@@ -2160,7 +2164,8 @@ def main():
                     .replace("private func", "func", 1)
                     for prefix in ["    private func readClaudeApp(", "    private func checkLimits(",
                                    "    private func reportRenewals(", "    private func claudeLimitsDue(",
-                                   "    private func noteClaudeCheck(", "    private func networkChanged("])
+                                   "    private func noteClaudeCheck(", "    private func networkChanged(",
+                                   "    private func noteClaudeCache(", "    private func takeClaudeCache("])
           + "}\n}\n")
 
     write("AgentUsagePolling.swift", "import Foundation\n"

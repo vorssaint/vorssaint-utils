@@ -612,6 +612,9 @@ final class ScreenRecorderService: ObservableObject {
         }
         timer.tolerance = 0.1
         elapsedTimer = timer
+        // The recording leaves out this app's own audio, so the sound stays
+        // out of the take unless a microphone hears the speakers.
+        AppSoundService.shared.play(.recordingStarted)
     }
 
     private func tickElapsed() {
@@ -679,6 +682,7 @@ final class ScreenRecorderService: ObservableObject {
             self.session = nil
             self.isFinishing = false
             if written {
+                AppSoundService.shared.play(.recordingStopped)
                 self.deliver(session.take, reason: reason)
             } else {
                 RecorderTakeStore.shared.delete(session.take)

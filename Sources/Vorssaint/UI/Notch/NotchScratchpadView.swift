@@ -20,6 +20,9 @@ struct NotchScratchpadView: View {
     @State private var copied = false
     @State private var hoveredPadID: UUID?
     @State private var editor = EditorHandle()
+    @State private var renamingPadID: UUID?
+    @State private var renameDraft = ""
+    @FocusState private var renameFocused: Bool
     @AppStorage(DefaultsKey.scratchpadTextSize) private var storedTextSize = ScratchpadSupport.defaultTextSize
     private var text: ScratchpadFeatureStrings { FeatureStrings.scratchpad(l10n.language) }
     private var textSize: CGFloat { CGFloat(ScratchpadSupport.sanitizedTextSize(storedTextSize)) }
@@ -33,6 +36,9 @@ struct NotchScratchpadView: View {
     }
 
     private var selectedPad: ScratchpadPad? { pad.pads.first { $0.id == pad.selectedPadID } }
+    /// Under the top bar the pads keep a row of tabs in the page itself,
+    /// beside the camera too, where the row has room for only one name.
+    private var tabsInPage: Bool { service.geometry.topBarHeight > 0 }
 
     var body: some View {
         Group {
@@ -40,6 +46,7 @@ struct NotchScratchpadView: View {
                 NotchEmptyView(symbol: "exclamationmark.triangle", message: text.loadFailed)
             } else {
                 VStack(spacing: 6) {
+                    if tabsInPage { pageTabs }
                     // The marks open under the row, above the text they format.
                     if pad.marksExpanded {
                         markRow
@@ -88,7 +95,7 @@ struct NotchScratchpadView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .notchBand(leading: {
-            if !loadFailed { padControls }
+            if !loadFailed, !tabsInPage { padControls }
         }, trailing: {
             if !loadFailed { noteActions }
         })
@@ -148,6 +155,25 @@ struct NotchScratchpadView: View {
                 guard let selected else { return }
                 withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(selected, anchor: .center) }
             }
+        }
+    }
+
+    /// The pads' tabs across the page, a way to a new pad, then the menu
+    /// of what the chosen pad can do. A double click renames a tab in place.
+    private var pageTabs: some View {
+        HStack(spacing: 6) {
+            tabStrip
+            NotchIconButton(symbol: "plus", title: newPadTitle) {
+                pad.createPad(defaultName: text.pageTitle)
+            }
+            .disabled(!pad.canCreatePad)
+            NotchMenuButton(title: text.padActions, items: padItems(listsPads: false), cornerRadius: 9) {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .frame(width: 28, height: 28)
+            }
+            .help(text.padActions)
         }
     }
 
@@ -239,7 +265,17 @@ struct NotchScratchpadView: View {
     private func tab(_ entry: ScratchpadPad) -> some View {
         let selected = entry.id == pad.selectedPadID
         return Group {
-            if selected {
+            if renamingPadID == entry.id {
+                renameField(entry)
+            } else if tabsInPage {
+                // A click chooses the pad; a second renames it. The pad's
+                // menu has its own button after the tabs.
+                tabLabel(entry, selected: selected)
+                    .onTapGesture(count: 2) { beginRename(entry) }
+                    .onTapGesture { pad.selectPad(entry.id) }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction(named: Text(text.renamePad)) { beginRename(entry) }
+            } else if selected {
                 NotchMenuButton(title: text.padActions, items: padItems(listsPads: false), cornerRadius: 11) {
                     tabLabel(entry, selected: true)
                 }
@@ -258,7 +294,42 @@ struct NotchScratchpadView: View {
                 .disabled(!pad.canClosePad)
         }
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .help(selected ? text.padActions : entry.name)
+        .help(tabsInPage ? entry.name : selected ? text.padActions : entry.name)
+    }
+
+    private func renameField(_ entry: ScratchpadPad) -> some View {
+        TextField(text.renamePad, text: $renameDraft)
+            .textFieldStyle(.plain)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.white)
+            .focused($renameFocused)
+            .frame(width: max(70, min(180, CGFloat(renameDraft.count) * 7 + 24)))
+            .padding(.horizontal, 10)
+            .frame(height: 22)
+            .background(.white.opacity(0.2), in: Capsule())
+            .overlay(Capsule().strokeBorder(.white.opacity(0.35), lineWidth: 1))
+            .onSubmit { endRename(saving: true) }
+            .onExitCommand { endRename(saving: false) }
+            .onChange(of: renameFocused) { _, focused in if !focused { endRename(saving: true) } }
+            .onChange(of: renameDraft) { _, draft in
+                if draft.count > ScratchpadDocument.maximumNameLength {
+                    renameDraft = String(draft.prefix(ScratchpadDocument.maximumNameLength))
+                }
+            }
+    }
+
+    private func beginRename(_ entry: ScratchpadPad) {
+        pad.selectPad(entry.id)
+        renameDraft = entry.name
+        renamingPadID = entry.id
+        DispatchQueue.main.async { renameFocused = true }
+    }
+
+    private func endRename(saving: Bool) {
+        guard let id = renamingPadID else { return }
+        renamingPadID = nil
+        if saving { pad.renamePad(id, to: renameDraft) }
+        DispatchQueue.main.async { focusEditor() }
     }
 
     private func tabLabel(_ entry: ScratchpadPad, selected: Bool) -> some View {
@@ -267,7 +338,7 @@ struct NotchScratchpadView: View {
             Text(entry.name)
                 .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
-            if selected {
+            if selected, !tabsInPage {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .semibold))
             } else if showsClose {
@@ -283,11 +354,13 @@ struct NotchScratchpadView: View {
                 .accessibilityLabel(text.closePad)
             }
         }
-        .foregroundStyle(selected ? .white : .white.opacity(0.6))
+        .foregroundStyle(selected ? (tabsInPage ? .black : .white) : .white.opacity(0.6))
         .padding(.leading, 10)
-        .padding(.trailing, showsClose ? 5 : selected ? 8 : 10)
+        .padding(.trailing, showsClose ? 5 : selected && !tabsInPage ? 8 : 10)
         .frame(height: 22)
-        .background(.white.opacity(selected ? 0.14 : 0.05), in: Capsule())
+        // Under the top bar the chosen pad wears the scratchpad's yellow.
+        .background(selected && tabsInPage ? AnyShapeStyle(NotchTopBarPalette.yellow)
+                        : AnyShapeStyle(.white.opacity(selected ? 0.14 : 0.05)), in: Capsule())
         .contentShape(Capsule())
     }
 

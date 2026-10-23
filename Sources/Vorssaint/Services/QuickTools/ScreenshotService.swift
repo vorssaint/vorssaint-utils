@@ -447,6 +447,8 @@ final class ScreenshotService: ObservableObject {
         beginLatestCapture(capture)
         // The island's companion blinks hard, as a flash, if it is there to see.
         NotchService.shared.reactMascot(.flash, patience: 1)
+        // Every mode lands here once, so the shutter sounds once per picture.
+        AppSoundService.shared.play(.screenshotTaken)
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
         let defaults = UserDefaults.standard

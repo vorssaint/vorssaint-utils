@@ -9,12 +9,22 @@ import Foundation
 struct CodexReader: AgentHarnessReader {
     var provider: AgentProvider { .codex }
 
+    /// The client that started a thread names itself: the desktop app as
+    /// "Codex Desktop", or "codex_work_desktop" in a workspace. Anything else,
+    /// like `codex_cli_rs`, is the command line.
+    static func isApp(originator: String?) -> Bool {
+        guard let originator = originator?.lowercased() else { return false }
+        return originator.contains("desktop")
+    }
+
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         guard let kind = AgentLogParser.firstType(line) else { return [] }
         switch kind.name {
         case "token_usage_record", "turn_context", "session_meta": break
         case "event_msg":
             guard let event = AgentLogParser.firstType(line, from: kind.end), AgentLogParser.codexEvents.contains(event.name) else { return [] }
+        case "response_item":
+            return toolCall(line, after: kind.end, state: &state, now: now)
         default: return []
         }
         guard let json = AgentLogParser.object(line), let payload = json["payload"] as? [String: Any] else { return [] }
@@ -29,6 +39,7 @@ struct CodexReader: AgentHarnessReader {
             state.codexHeaderRead = true
             if !id.isEmpty { state.session = AgentLogParser.native(id) }
             if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = AgentLogParser.projectName(cwd) }
+            state.codexApp = Self.isApp(originator: payload["originator"] as? String)
             // Subagents, reviews and memory tasks Codex starts itself name
             // `subagent` or `internal`; a person's thread names its client.
             let source = payload["source"] as? [String: Any]
@@ -42,6 +53,7 @@ struct CodexReader: AgentHarnessReader {
             if let model = payload["model"] as? String, !model.isEmpty { state.model = AgentLogParser.native(model) }
             if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = AgentLogParser.projectName(cwd) }
             if let tier = payload["service_tier"] as? String { state.fast = AgentLogParser.fastTier(tier) }
+            if let policy = payload["approval_policy"] as? String { state.codexApprovalPolicy = AgentLogParser.native(policy) }
             return []
         case "token_usage_record":
             guard let usage = payload["usage"] as? [String: Any] else { return [] }
@@ -102,15 +114,64 @@ struct CodexReader: AgentHarnessReader {
             return []
         case "task_started":
             state.turnOpen = true
-            return [.turnBegan(AgentLogParser.seconds(payload["started_at"]) ?? date)]
+            state.codexPendingCalls = []
+            state.awaitedTools = [:]
+            state.codexAsked = false
+            return [.turnBegan(AgentLogParser.seconds(payload["started_at"]) ?? date),
+                    .turnPlace(state.codexApp ? .app : .terminal)]
         case "task_complete", "turn_aborted":
             let open = state.turnOpen
+            let asked = state.codexAsked
             state.turnOpen = false
+            state.codexPendingCalls = []
+            state.awaitedTools = [:]
+            state.codexAsked = false
             guard open else { return [] }
             let duration = (payload["duration_ms"] as? NSNumber).map { $0.doubleValue / 1000 }
-            return [.turnEnded(AgentLogParser.seconds(payload["completed_at"]) ?? date,
-                               completed: payload["type"] as? String == "task_complete", duration: duration)]
+            let end = AgentLogParser.seconds(payload["completed_at"]) ?? date
+            if payload["type"] as? String == "turn_aborted" {
+                let ended = AgentLogEntry.turnEnded(end, completed: false, duration: duration)
+                guard payload["reason"] as? String == "interrupted" else { return [ended] }
+                return [ended, .turnAwaiting(.interrupted, end, inferred: false)]
+            }
+            // A turn that ends on a question it posted is not done: it waits
+            // for the answer, and says so instead of finishing.
+            guard !asked else {
+                return [.turnEnded(end, completed: false, duration: duration), .turnAwaiting(.question, end, inferred: false)]
+            }
+            return [.turnEnded(end, completed: true, duration: duration)]
         default:
+            return []
+        }
+    }
+
+    /// A tool call and its output pair up by call id. Outputs can run to
+    /// megabytes, so only the payload's own small fields are read, never the
+    /// output itself. Asking the person is the one call that says it waits.
+    private func toolCall(_ line: Data, after start: Int, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        guard state.turnOpen, let type = AgentLogParser.firstType(line, from: start)?.name else { return [] }
+        let calls: Set<String> = ["function_call", "custom_tool_call"]
+        let outputs: Set<String> = ["function_call_output", "custom_tool_call_output"]
+        guard calls.contains(type) || outputs.contains(type),
+              let envelope = AgentLogObject(line), let payload = envelope.object("payload"),
+              let id = payload.string("call_id"), !id.isEmpty else { return [] }
+        let date = AgentLogParser.timestamp(envelope.value("timestamp")) ?? now
+        guard calls.contains(type) else {
+            // A call that came back, or the answer to a question.
+            state.codexPendingCalls.remove(id)
+            return state.awaitedTools.removeValue(forKey: id) == nil ? [] : [.turnActive(date)]
+        }
+        switch payload.string("name") {
+        case "request_user_input":
+            state.awaitedTools[AgentLogParser.native(id)] = .question
+            return [.turnAwaiting(.question, date, inferred: false)]
+        case "request_user_input_async":
+            state.codexAsked = true
+            return []
+        // Waiting on its own background work is no approval.
+        case "wait": return []
+        default:
+            state.codexPendingCalls.insert(AgentLogParser.native(id))
             return []
         }
     }

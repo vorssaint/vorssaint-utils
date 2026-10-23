@@ -353,6 +353,7 @@ final class NotchDownloadService: ObservableObject {
         finished.insert(item, at: 0)
         finished = Array(finished.prefix(5))
         onArrival?(item)
+        AppSoundService.shared.play(.downloadFinished)
         expiry?.cancel()
         let work = DispatchWorkItem { [weak self] in
             self?.finished.removeAll(); self?.expiry = nil; self?.refreshItems()
