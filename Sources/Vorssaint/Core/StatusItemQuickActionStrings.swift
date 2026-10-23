@@ -20,11 +20,11 @@ struct StatusItemQuickActionStrings {
     static func localized(_ language: AppLanguage) -> Self {
         switch language {
         case .enUS: return .init(title: "Menu bar icon quick actions",
-            middleClick: "Middle-click", longPress: "Press and hold", soundMute: "Mute / unmute sound",
+            middleClick: "Middle click", longPress: "Press and hold", soundMute: "Mute / unmute sound",
             middleHint: "Uses the mouse’s middle button, not its side buttons.",
             holdHint: "Hold for half a second, then release on the icon. Drag away to cancel.",
             unavailable: "Unavailable until this feature is installed",
-            middleClickUsage: "Middle-click on the menu bar icon")
+            middleClickUsage: "Middle click on the menu bar icon")
         case .ptBR: return .init(title: "Ações rápidas do ícone da barra de menus",
             middleClick: "Clique do meio", longPress: "Manter pressionado", soundMute: "Silenciar / ativar som",
             middleHint: "Usa o botão do meio do mouse, não os botões laterais.",
@@ -85,12 +85,12 @@ struct StatusItemQuickActionStrings {
             holdHint: "0.5초 누른 뒤 아이콘에서 놓으세요. 밖으로 드래그하면 취소됩니다.",
             unavailable: "이 기능을 설치할 때까지 사용할 수 없습니다",
             middleClickUsage: "메뉴 막대 아이콘 가운데 클릭")
-        case .uk: return .init(title: "Швидкі дії значка смуги меню",
+        case .uk: return .init(title: "Швидкі дії значка на смузі меню",
             middleClick: "Середня кнопка", longPress: "Утримування", soundMute: "Вимкнути / увімкнути звук",
             middleHint: "Використовує середню кнопку миші, а не бічні.",
             holdHint: "Утримуйте пів секунди й відпустіть над значком. Відведіть для скасування.",
             unavailable: "Недоступно, поки цю функцію не встановлено",
-            middleClickUsage: "Середня кнопка на значку смуги меню")
+            middleClickUsage: "Середня кнопка на значку на смузі меню")
         case .zhHans: return .init(title: "菜单栏图标快捷操作",
             middleClick: "中键点按", longPress: "长按", soundMute: "切换系统静音",
             middleHint: "使用鼠标中键，不使用侧键。",

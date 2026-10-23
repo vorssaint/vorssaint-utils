@@ -12,9 +12,9 @@ import os.log
 ///
 /// Left clicks use the button's frame, with the original click path as a
 /// fallback when that frame cannot be trusted. The session-wide middle tap
-/// also checks window identity, so a stale frame cannot claim another icon.
+/// also asks who owns the point, so a stale frame cannot claim another icon.
 /// Where macOS 27 strands this item's frame at its birth slot (see
-/// `StatusItemAnchorSupport`), both checks refuse the drawn icon: the
+/// `StatusItemAnchorSupport`), the frame check refuses the drawn icon: the
 /// gestures stay inactive there and a left click opens the panel as usual.
 final class StatusItemGestureHandler {
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
@@ -23,6 +23,11 @@ final class StatusItemGestureHandler {
     /// Some macOS versions report the press rather than the release. Watch
     /// the physical button every 40 ms while a hold is in flight.
     private static let releaseWatchInterval: TimeInterval = 0.04
+    /// How long a press the watcher ended still waits for its own button
+    /// action. A busy main thread can deliver that action late, but one that
+    /// never comes (a release just off the button) must not hold back an
+    /// accessibility press for long.
+    private static let lateActionWindow: TimeInterval = 2
     weak var owner: StatusItemController?
     private var gesture = StatusItemGesture()
     private var settings: StatusItemGesture.Settings
@@ -31,6 +36,16 @@ final class StatusItemGestureHandler {
     private var generation = 0
     /// When the left press in flight went down.
     private var leftPressStart: TimeInterval?
+    /// Where that press was last seen while the button was still down. The
+    /// watcher notices a release on its next tick, when the pointer may
+    /// already be on its way elsewhere.
+    private var lastHeldPoint: CGPoint?
+    /// Whether the latest left press's button action has arrived. Until it
+    /// has, a late action for that press is still its own.
+    private var leftActionSeen = true
+    /// The latest Command or Control press the monitor turned away. Where the
+    /// button reports its press, that press's action carries the same time.
+    private var rejectedLeftDown: TimeInterval?
     /// Latest release handled by any path. Kept across cancellation so a
     /// delayed AppKit action cannot replay a click after its callback runs.
     private var handledLeftRelease: TimeInterval?
@@ -161,24 +176,48 @@ final class StatusItemGestureHandler {
                                                         primaryHeight: primaryHeight)
         let frame = mainButtonFrame()
         guard StatusItemGesture.claims(appKitPoint, frame: frame),
-              isMainButtonWindow(at: event.location) else {
+              ownsClick(at: event.location) else {
             gesture.cancelMiddle()
             return
         }
         if type == .otherMouseDown {
-            gesture.middleDown(at: appKitPoint, settings: settings)
+            gesture.middleDown(settings: settings, within: hitArea ?? .null)
         } else {
-            emit(gesture.middleUp(at: appKitPoint, settings: settings, tolerance: dragMargin))
+            emit(gesture.middleUp(at: appKitPoint, settings: settings))
         }
         schedule()
     }
 
-    /// A reported frame can remain at the item's old slot after a move.
-    /// Ask the window server who would receive this click before claiming it.
-    /// `point` is in display coordinates, as the tap reports it.
-    private func isMainButtonWindow(at point: CGPoint) -> Bool {
+    /// Whether the item under `point` (display coordinates, as the tap
+    /// reports them) is this icon. A reported frame can stay at the item's
+    /// old slot after a move, so the frame alone cannot say.
+    ///
+    /// Where the button's own window takes the click, the window server names
+    /// it. Where the system draws the menu bar itself, as macOS 27 does, that
+    /// window is no window-server window and the point belongs to the
+    /// system's bar; Accessibility, which the middle click already needs,
+    /// then names the app whose item is there. Another window of this app,
+    /// such as the Cleaning Mode overlay, is never the icon.
+    private func ownsClick(at point: CGPoint) -> Bool {
         guard let number = mainButtonWindowNumber else { return false }
-        return WindowServerSupport.receivingWindow(at: point) == CGWindowID(exactly: number)
+        if let receiving = WindowServerSupport.receivingWindow(at: point) {
+            if receiving == CGWindowID(exactly: number) { return true }
+            if WindowServerSupport.ownerProcessID(ofWindowID: receiving) == getpid() { return false }
+        }
+        return accessibilityOwner(at: point) == getpid()
+    }
+
+    /// The process whose element is at `point`, within the app-wide
+    /// Accessibility wait limit. Asking about this app's own item is answered
+    /// in-process.
+    private func accessibilityOwner(at point: CGPoint) -> pid_t? {
+        var element: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(),
+                                               Float(point.x), Float(point.y), &element) == .success,
+              let element else { return nil }
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success else { return nil }
+        return pid
     }
 
     /// The main button's window, or nil when the item is hidden or unplaced.
@@ -213,14 +252,20 @@ final class StatusItemGestureHandler {
         timer = nil
         generation &+= 1
         leftPressStart = nil
+        lastHeldPoint = nil
     }
 
-    /// Whether a button action belongs to the left press still in flight.
-    /// After a busy main thread its event arrives late, and handing it to the
-    /// plain click path would give that one press a second outcome.
+    /// Whether a button action belongs to the latest left press. After a busy
+    /// main thread its event arrives late, and handing it to the plain click
+    /// path would give that one press a second outcome. That holds after the
+    /// watcher has ended the press too, until the press's own action arrives.
     func tracksPress(of event: NSEvent) -> Bool {
-        guard gesture.watchesForRelease, let leftPressStart else { return false }
-        return event.timestamp >= leftPressStart
+        guard let leftPressStart, event.timestamp >= leftPressStart else { return false }
+        if gesture.watchesForRelease { return true }
+        guard !leftActionSeen, let handledLeftRelease,
+              ProcessInfo.processInfo.systemUptime - handledLeftRelease <= Self.lateActionWindow
+        else { return false }
+        return event.timestamp <= handledLeftRelease
     }
 
     /// Returns false when the click is not on the button, or when the button's
@@ -233,20 +278,22 @@ final class StatusItemGestureHandler {
     @discardableResult
     func buttonClick(_ event: NSEvent) -> Bool {
         guard settings.hold != .none else { return false }
+        leftActionSeen = true
         if let handledLeftRelease, event.timestamp <= handledLeftRelease { return true }
-        // The monitor cancels a Command or Control press; starting it again
-        // here would let that press run the hold after all.
-        guard event.modifierFlags.intersection([.command, .control]).isEmpty,
-              let point = point(event, inset: dragMargin) else {
+        // The monitor turns a Command or Control press away; starting it
+        // again here would let that press run the hold after all.
+        let rejected = rejectedLeftDown.map { event.timestamp <= $0 } ?? false
+        guard !rejected, event.modifierFlags.intersection([.command, .control]).isEmpty,
+              let point = point(event, in: hitArea) else {
             // The normal click runs instead, so nothing may finish here too.
             cancel()
             return false
         }
         // A pending middle press is not a left press, so it cannot stand in
         // for the down this click's monitor event never delivered.
-        if !gesture.watchesForRelease {
-            leftPressStart = event.timestamp
-            emit(gesture.leftDown(at: point, time: event.timestamp))
+        let inFlight = gesture.watchesForRelease
+        if !inFlight {
+            beginLeftPress(at: point, time: event.timestamp)
         }
         // A missed monitor down must still start the release watcher. Do not
         // finish a press while the physical button is held.
@@ -254,11 +301,21 @@ final class StatusItemGestureHandler {
             schedule()
             return true
         }
-        handledLeftRelease = event.timestamp
-        emit(gesture.leftUp(at: point, time: event.timestamp, settings: settings,
-                            tolerance: dragMargin))
+        // Where the button reports its press, a late action carries the press
+        // time, while the press it belongs to ended when the button came up.
+        let released = inFlight
+            ? max(event.timestamp, releaseTime(now: ProcessInfo.processInfo.systemUptime))
+            : event.timestamp
+        handledLeftRelease = released
+        emit(gesture.leftUp(at: point, time: released, settings: settings))
         schedule()
         return true
+    }
+
+    private func beginLeftPress(at point: NSPoint, time: TimeInterval) {
+        leftPressStart = time
+        lastHeldPoint = point
+        emit(gesture.leftDown(at: point, time: time, within: hitArea ?? .null))
     }
     // MARK: - Geometry
 
@@ -272,10 +329,10 @@ final class StatusItemGestureHandler {
         return frame
     }
 
-    /// The margin a held press may drift within: the icon's own half-width, so
-    /// the drift of a finger resting on a trackpad cannot cancel a long press.
-    private var dragMargin: CGFloat {
-        StatusItemGesture.dragMargin(iconWidth: mainButtonFrame()?.width ?? 0)
+    /// Where a press on the button may stray and still count: the icon plus
+    /// a little slack, whatever the item's title makes its width.
+    private var hitArea: CGRect? {
+        StatusItemGesture.hitArea(of: mainButtonFrame())
     }
 
     /// The pointer's screen position for this event.
@@ -289,15 +346,14 @@ final class StatusItemGestureHandler {
         NSEvent.mouseLocation
     }
 
-    /// The event's point when it lands on the main button, expanded by `inset`
-    /// so a release just off the edge is still the same click. The decision
-    /// itself is the pure `claims` predicate, so the tests exercise the real
-    /// branch that decides whether a click is swallowed or runs normally.
-    private func point(_ event: NSEvent, inset: CGFloat) -> NSPoint? {
+    /// The event's point when it lands in `area`: the button's frame for a
+    /// press, its hit area for a release, so a release just off the edge is
+    /// still the same click. The decision itself is the pure `claims`
+    /// predicate, so the tests exercise the real branch that decides whether a
+    /// click is swallowed or runs normally.
+    private func point(_ event: NSEvent, in area: CGRect?) -> NSPoint? {
         let point = screenPoint(event)
-        guard StatusItemGesture.claims(point, frame: mainButtonFrame(), inset: inset) else {
-            return nil
-        }
+        guard StatusItemGesture.claims(point, frame: area) else { return nil }
         return point
     }
 
@@ -309,7 +365,9 @@ final class StatusItemGestureHandler {
         case .rightMouseDown:
             cancel()
         case .leftMouseDown where !event.modifierFlags.intersection([.command, .control]).isEmpty:
-            cancel() // Command-drag reorders the icon; Control-click is a context menu
+            // Command-drag reorders the icon; Control-click is a context menu.
+            rejectedLeftDown = event.timestamp
+            cancel()
         case .leftMouseDown:
             // A press on another window of this app, such as the Cleaning
             // Mode overlay above the menu bar, never reaches the button. A
@@ -318,16 +376,14 @@ final class StatusItemGestureHandler {
                 cancel()
                 return
             }
-            guard let point = point(event, inset: 0) else { cancel(); return }
-            leftPressStart = event.timestamp
-            emit(gesture.leftDown(at: point, time: event.timestamp))
+            guard let point = point(event, in: mainButtonFrame()) else { cancel(); return }
+            leftActionSeen = false
+            beginLeftPress(at: point, time: event.timestamp)
             schedule()
         case .leftMouseDragged:
-            // The gesture itself drops a press that moves past its tolerance.
-            gesture.moved(to: screenPoint(event), tolerance: dragMargin)
-            schedule()
+            held(at: screenPoint(event))
         case .leftMouseUp:
-            guard let point = point(event, inset: dragMargin) else {
+            guard let point = point(event, in: hitArea) else {
                 cancel()
                 return
             }
@@ -336,8 +392,7 @@ final class StatusItemGestureHandler {
             // through the button action.
             guard gesture.watchesForRelease else { return }
             handledLeftRelease = event.timestamp
-            emit(gesture.leftUp(at: point, time: event.timestamp, settings: settings,
-                                tolerance: dragMargin))
+            emit(gesture.leftUp(at: point, time: event.timestamp, settings: settings))
             schedule()
         default:
             break
@@ -377,14 +432,24 @@ final class StatusItemGestureHandler {
         guard gesture.watchesForRelease else { return }
         let stillHeld = NSEvent.pressedMouseButtons & 0x1 != 0
         if stillHeld {
+            held(at: NSEvent.mouseLocation)
             emit(gesture.expired(at: ProcessInfo.processInfo.systemUptime, settings: settings))
             return
         }
         let now = ProcessInfo.processInfo.systemUptime
         handledLeftRelease = now
-        emit(gesture.leftUp(at: NSEvent.mouseLocation, time: releaseTime(now: now), settings: settings,
-                            tolerance: dragMargin))
+        emit(gesture.leftUp(at: lastHeldPoint ?? NSEvent.mouseLocation, time: releaseTime(now: now),
+                            settings: settings))
         schedule()
+    }
+
+    /// The pointer of a press still held. Leaving the icon cancels the press
+    /// at once, the same from a drag event or from the watcher.
+    private func held(at point: CGPoint) {
+        guard gesture.watchesForRelease else { return }
+        lastHeldPoint = point
+        gesture.moved(to: point)
+        if !gesture.watchesForRelease { cancel() }
     }
 
     /// When the button came up, as the event source recorded it, kept between
@@ -392,8 +457,20 @@ final class StatusItemGestureHandler {
     /// later still when the main thread is busy; judging the press by the
     /// tick would turn a short click into a hold.
     private func releaseTime(now: TimeInterval) -> TimeInterval {
-        let sinceRelease = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .leftMouseUp)
-        let released = sinceRelease.isFinite && sinceRelease >= 0 ? now - sinceRelease : -.infinity
-        return min(now, max(leftPressStart ?? now, released))
+        let start = leftPressStart ?? now
+        var released = eventTime(.leftMouseUp, now: now) ?? -.infinity
+        // A press that began since this one makes the last release possibly
+        // its own; this press came up before that one went down.
+        if let down = eventTime(.leftMouseDown, now: now), down > start + 0.001 {
+            released = min(released, down)
+        }
+        return min(now, max(start, released))
+    }
+
+    /// When the hardware last reported an event of `type`, or nil when the
+    /// event source cannot say.
+    private func eventTime(_ type: CGEventType, now: TimeInterval) -> TimeInterval? {
+        let since = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: type)
+        return since.isFinite && since >= 0 ? now - since : nil
     }
 }
