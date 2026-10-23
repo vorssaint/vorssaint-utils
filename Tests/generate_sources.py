@@ -153,13 +153,13 @@ def main():
                     for prefix in [
                         "    private func watchAccessibility(", "    private func syncMiddleTap(",
                         "    private func handleMiddleTap(", "    private func tearDownMiddleTap(",
-                        "    private func isMainButtonWindow(", "    private var mainButtonWindowNumber:",
+                        "    private func ownsClick(", "    private var mainButtonWindowNumber:",
                         "    func sync(", "    func cancel(", "    func tracksPress(",
-                        "    func buttonClick(", "    private var dragMargin:",
+                        "    func buttonClick(", "    private func beginLeftPress(", "    private var hitArea:",
                         "    private func screenPoint(", "    private func point(",
                         "    private func observe(", "    private func emit(",
                         "    private func schedule(", "    private func observeRelease(",
-                        "    private func releaseTime("])
+                        "    private func held(", "    private func releaseTime(", "    private func eventTime("])
           + "}\nfinal class ControllerHost: ControllerFixture {\n"
           + declaration("Sources/Vorssaint/App/StatusItemController.swift", "    @objc private func clicked(")
             .replace("@objc private ", "")
@@ -174,6 +174,10 @@ def main():
                     .replace("    private ", "    ", 1) for prefix in [
                         "    private var activeUsageNames:", "    private var usedByLine:"])
             .replace(".runnable(middleAction)", ".runnable(middleAction, in: defaults)")
+          + "}\nfinal class DispatchHost: DispatchFixture {\n"
+          + declaration("Sources/Vorssaint/App/AppDelegate+StatusItemQuickActions.swift",
+                        "    func performStatusItemAction(")
+            .replace(".feature.isAvailable", ".feature.isAvailable(in: DispatchFixture.defaults)")
           + "}\nfinal class PollingHost: PollingFixture {\n"
           + declaration("Sources/Vorssaint/Core/Permissions.swift", "    private var desiredPollInterval:")
             .replace("    private ", "    ", 1)

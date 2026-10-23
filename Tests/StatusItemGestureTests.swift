@@ -15,7 +15,7 @@ enum StatusItemGestureTests {
         testMiddleClick(suite, point: point, outside: outside, middle: middle)
         testPreferences(suite)
         testButtonGeometry(suite)
-        testDragMargin(suite)
+        testIconArea(suite)
         testReleaseWatch(suite)
         StatusItemGestureAdapterTests.run(suite)
     }
@@ -39,10 +39,10 @@ enum StatusItemGestureTests {
                      "a press is watched: no event will report its release")
         suite.expect(click.deadline(hold) == 1.5, "the long press waits for its threshold")
         suite.expect(click.expired(at: 1.49, settings: hold).isEmpty
-                     && click.phaseName == "pressed",
+                     && click.deadline(hold) == 1.5,
                      "the threshold is not crossed early")
         suite.expect(click.expired(at: 1.5, settings: hold).isEmpty
-                     && click.phaseName == "held",
+                     && click.deadline(hold) == nil && click.watchesForRelease,
                      "reaching the threshold does not run the action while held")
         suite.expect(click.leftUp(at: point, time: 2, settings: hold) == [.quick(.screenshot)],
                      "the release commits exactly one long press")
@@ -64,28 +64,41 @@ enum StatusItemGestureTests {
         click.cancel()
         suite.expect(click.leftUp(at: point, time: 2, settings: hold).isEmpty
                      && !click.isActive,
-                     "Esc, teardown or a changed preference cancels the release")
+                     "a right click, teardown or a changed preference cancels the release")
+
+        // The button has already taken a left press in flight: a middle press
+        // on the icon then must not leave that click with no outcome.
+        for (held, expected) in [(false, StatusItemGesture.Result.single(point)), (true, .quick(.screenshot))] {
+            let both = StatusItemGesture.Settings(middle: .keepAwake, hold: .screenshot)
+            click = StatusItemGesture()
+            _ = click.leftDown(at: point, time: 1)
+            if held { _ = click.expired(at: 1.6, settings: both) }
+            click.middleDown(settings: both)
+            suite.expect(click.middleUp(at: point, settings: both).isEmpty
+                         && click.leftUp(at: point, time: held ? 2 : 1.1, settings: both) == [expected],
+                         "a left press keeps the icon over a middle press (held: \(held))")
+        }
     }
 
     private static func testMiddleClick(_ suite: TestSuite, point: CGPoint, outside: CGPoint,
                                        middle: StatusItemGesture.Settings) {
         var click = StatusItemGesture()
-        click.middleDown(at: point, settings: middle)
-        suite.expect(click.phaseName == "middle" && !click.watchesForRelease,
+        click.middleDown(settings: middle)
+        suite.expect(click.isActive && !click.watchesForRelease,
                      "a middle click arrives with its own release from the tap")
         suite.expect(click.middleUp(at: point, settings: middle) == [.quick(.keepAwake)],
                      "the middle release commits once")
 
         // The tap reports no drags, only the release: a middle click is
-        // judged by where it comes up, against the same tolerance as a hold.
+        // judged by where it comes up, against the same area as a hold.
+        let icon = StatusItemGesture.hitArea(of: CGRect(x: 105, y: 288, width: 30, height: 24))!
         click = StatusItemGesture()
-        click.middleDown(at: point, settings: middle)
-        suite.expect(click.middleUp(at: outside, settings: middle, tolerance: 15).isEmpty
-                     && !click.isActive,
-                     "a middle release dragged away cancels it")
+        click.middleDown(settings: middle, within: icon)
+        suite.expect(click.middleUp(at: outside, settings: middle).isEmpty && !click.isActive,
+                     "a middle release dragged off the icon cancels it")
 
         click = StatusItemGesture()
-        click.middleDown(at: point, settings: .init())
+        click.middleDown(settings: .init())
         suite.expect(click.middleUp(at: point, settings: .init()).isEmpty
                      && !click.isActive,
                      "with no middle action assigned nothing runs")
@@ -126,15 +139,6 @@ enum StatusItemGestureTests {
         }, "every supported language labels the choices")
         suite.expect(StatusItemQuickAction.allCases.allSatisfy { $0.title(.ja) != $0.title(.enUS) },
                      "every choice is labelled in the language asked for, not the app's")
-        let features: [StatusItemQuickAction: AppFeature] = [
-            .keepAwake: .keepAwake, .micMute: .micMute, .soundMute: .mixer,
-            .screenRecorder: .screenRecorder, .screenshot: .screenshot,
-        ]
-        suite.expect(features.allSatisfy { $0.key.feature == $0.value },
-                     "each action is gated on the feature that runs it")
-        suite.expect(StatusItemQuickAction.allCases.filter(\.closesPanelBeforeRunning)
-                        == [.screenRecorder, .screenshot],
-                     "only the two captures wait for the panel to close")
     }
 
     /// The one branch that must never lose a click: when the button's frame is
@@ -148,9 +152,8 @@ enum StatusItemGestureTests {
                      && StatusItemGesture.claims(edge, frame: frame),
                      "a click inside the button is claimed")
         suite.expect(!StatusItemGesture.claims(justOutside, frame: frame)
-                     && StatusItemGesture.claims(justOutside, frame: frame,
-                                                 inset: StatusItemGesture.Settings.dragTolerance),
-                     "a release just off the edge counts only with the drag tolerance")
+                     && StatusItemGesture.claims(justOutside, frame: StatusItemGesture.hitArea(of: frame)),
+                     "a release just off the edge counts only within the icon's hit area")
         suite.expect(!StatusItemGesture.claims(middle, frame: nil)
                      && !StatusItemGesture.claims(middle, frame: .zero),
                      "an unknown or empty frame claims nothing, so the normal click still runs")
@@ -171,36 +174,43 @@ enum StatusItemGestureTests {
     }
 
     /// A trackpad button held still for half a second still drifts several
-    /// points. The original few-point box cancelled every long press there, so
-    /// both the old failure and the fix are pinned here.
-    private static func testDragMargin(_ suite: TestSuite) {
-        let point = CGPoint(x: 120, y: 300)
+    /// points, and a box around the press point cancelled every long press
+    /// there. "Drag away" means leaving the icon, whatever the item's width.
+    private static func testIconArea(_ suite: TestSuite) {
         let hold = StatusItemGesture.Settings(hold: .screenshot)
-        let margin = StatusItemGesture.dragMargin(iconWidth: 42)
-        // A finger resting on a trackpad: real, and well past the old box.
-        let resting = CGPoint(x: point.x + 12, y: point.y + 8)
+        let icon = CGRect(x: 105, y: 288, width: 30, height: 24)
+        let area = StatusItemGesture.hitArea(of: icon)!
+        let point = CGPoint(x: 120, y: 300)
 
-        var strict = StatusItemGesture()
-        _ = strict.leftDown(at: point, time: 1)
-        strict.moved(to: resting)
-        suite.expect(!strict.isActive,
-                     "the old few-point box cancelled every hold on a trackpad")
-
-        var tolerant = StatusItemGesture()
-        _ = tolerant.leftDown(at: point, time: 1)
-        tolerant.moved(to: resting, tolerance: margin)
-        suite.expect(tolerant.isActive, "resting drift no longer drops the press")
-        suite.expect(tolerant.leftUp(at: resting, time: 2, settings: hold,
-                                     tolerance: margin) == [.quick(.screenshot)],
+        var resting = StatusItemGesture()
+        _ = resting.leftDown(at: point, time: 1, within: area)
+        resting.moved(to: CGPoint(x: 132, y: 308))
+        suite.expect(resting.isActive && resting.leftUp(at: CGPoint(x: 132, y: 308), time: 2, settings: hold)
+                        == [.quick(.screenshot)],
                      "a hold survives the drift of a finger resting on a trackpad")
 
+        var edge = StatusItemGesture()
+        _ = edge.leftDown(at: CGPoint(x: 106, y: 300), time: 1, within: area)
+        suite.expect(edge.leftUp(at: CGPoint(x: 134, y: 300), time: 1.1, settings: hold)
+                        == [.single(CGPoint(x: 134, y: 300))],
+                     "a click that slides across a narrow icon is still a click on it")
+
         var away = StatusItemGesture()
-        _ = away.leftDown(at: point, time: 1)
-        away.moved(to: CGPoint(x: point.x + margin + 12, y: point.y), tolerance: margin)
-        suite.expect(!away.isActive
-                     && away.leftUp(at: point, time: 2, settings: hold,
-                                    tolerance: margin).isEmpty,
-                     "leaving the icon still cancels the hold permanently")
+        _ = away.leftDown(at: point, time: 1, within: area)
+        away.moved(to: CGPoint(x: area.maxX + 1, y: point.y))
+        suite.expect(!away.isActive && away.leftUp(at: point, time: 2, settings: hold).isEmpty,
+                     "leaving the icon cancels the hold for good")
+
+        // A countdown or metric in the title widens the item; the slack below
+        // the menu bar must not grow with it.
+        let wide = StatusItemGesture.hitArea(of: CGRect(x: 600, y: 776, width: 120, height: 24))!
+        var below = StatusItemGesture()
+        _ = below.leftDown(at: CGPoint(x: 660, y: 788), time: 1, within: wide)
+        _ = below.expired(at: 1.6, settings: hold)
+        suite.expect(below.leftUp(at: CGPoint(x: 660, y: 738), time: 2, settings: hold).isEmpty,
+                     "a release well below a wide item runs nothing")
+        suite.expect(StatusItemGesture.hitArea(of: nil) == nil && StatusItemGesture.hitArea(of: .zero) == nil,
+                     "an unknown icon has no area to stay in")
     }
 
     /// The status button reports its press and never its release, so the
@@ -218,11 +228,11 @@ enum StatusItemGestureTests {
         suite.expect(press.watchesForRelease,
                      "a press is watched: no event will report its release")
         _ = press.expired(at: 1.5, settings: settings)
-        suite.expect(press.phaseName == "held" && press.watchesForRelease,
+        suite.expect(press.deadline(settings) == nil && press.watchesForRelease,
                      "a held press is still watched until the real release")
 
         var middle = StatusItemGesture()
-        middle.middleDown(at: point, settings: settings)
+        middle.middleDown(settings: settings)
         suite.expect(!middle.watchesForRelease,
                      "a middle click arrives with its own release from the tap")
     }

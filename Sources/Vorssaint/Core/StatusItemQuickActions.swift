@@ -45,11 +45,6 @@ enum StatusItemQuickAction: String, CaseIterable, Identifiable {
     }
 }
 
-extension DefaultsKey {
-    static let statusItemMiddleClickAction = "statusItemMiddleClickAction"
-    static let statusItemLongPressAction = "statusItemLongPressAction"
-}
-
 /// Pure arbitration for the two gestures the menu bar icon carries: a
 /// middle-click and a press held past a threshold.
 ///
@@ -61,7 +56,6 @@ struct StatusItemGesture {
         var middle: StatusItemQuickAction = .none
         var hold: StatusItemQuickAction = .none
         static let holdInterval: TimeInterval = 0.5
-        static let dragTolerance: CGFloat = 4
 
         /// Reads the saved assignments.
         static func saved(defaults: UserDefaults = .standard) -> Self {
@@ -81,14 +75,17 @@ struct StatusItemGesture {
         var needsAccessibility: Bool { middle != .none }
     }
 
-    /// The margin a held press may drift within before it counts as a drag
-    /// away.
+    /// Where a press may stray and still be on the icon: the icon itself, plus
+    /// the slack the controller gives any click on its items.
     ///
     /// A trackpad button held still for half a second still drifts several
-    /// points, so a few-point box cancelled every long press on a trackpad.
-    /// "Drag away" has to mean leaving the icon instead.
-    static func dragMargin(iconWidth: CGFloat) -> CGFloat {
-        max(Settings.dragTolerance, iconWidth / 2)
+    /// points, so a few-point box around the press cancelled every long press
+    /// there. A box sized by the item's width was no better: a countdown or a
+    /// metric in the title widens the item, and a release far below the menu
+    /// bar still committed. "Drag away" means leaving the icon.
+    static func hitArea(of frame: CGRect?) -> CGRect? {
+        guard let frame, frame.width > 0, frame.height > 0 else { return nil }
+        return frame.insetBy(dx: -4, dy: -8)
     }
 
     /// Display coordinates (origin at the top left of the primary display)
@@ -129,7 +126,8 @@ struct StatusItemGesture {
     }
 
     private var phase: Phase = .idle
-    private var startPoint: CGPoint = .zero
+    /// Where the press in flight may stray, from `hitArea(of:)`.
+    private var area: CGRect = .infinite
 
     var isActive: Bool {
         if case .idle = phase { return false }
@@ -148,17 +146,6 @@ struct StatusItemGesture {
         }
     }
 
-    /// A short label for the current phase. The tests pin the transitions this
-    /// state machine owns, and a phase is the only honest way to read them.
-    var phaseName: String {
-        switch phase {
-        case .idle: return "idle"
-        case .pressed: return "pressed"
-        case .held: return "held"
-        case .middlePressed: return "middle"
-        }
-    }
-
     /// The only deadline this machine has: when a held press becomes a long
     /// press. Everything else is driven by the release.
     func deadline(_ settings: Settings) -> TimeInterval? {
@@ -170,16 +157,15 @@ struct StatusItemGesture {
         }
     }
 
-    mutating func leftDown(at point: CGPoint, time: TimeInterval) -> [Result] {
+    mutating func leftDown(at point: CGPoint, time: TimeInterval,
+                           within area: CGRect = .infinite) -> [Result] {
         phase = .pressed(point, time)
-        startPoint = point
+        self.area = area
         return []
     }
 
-    mutating func leftUp(at point: CGPoint, time: TimeInterval,
-                         settings: Settings,
-                         tolerance: CGFloat = Settings.dragTolerance) -> [Result] {
-        guard insideDragTolerance(point, tolerance: tolerance) else { cancel(); return [] }
+    mutating func leftUp(at point: CGPoint, time: TimeInterval, settings: Settings) -> [Result] {
+        guard contains(point) else { cancel(); return [] }
         switch phase {
         case .held:
             phase = .idle
@@ -197,17 +183,18 @@ struct StatusItemGesture {
         }
     }
 
-    mutating func middleDown(at point: CGPoint, settings: Settings) {
+    /// A left press in flight keeps the icon: the button has already taken
+    /// that click, and dropping it here would leave it with no outcome.
+    mutating func middleDown(settings: Settings, within area: CGRect = .infinite) {
+        guard !watchesForRelease else { return }
         cancel()
         guard settings.middle != .none else { return }
-        startPoint = point
+        self.area = area
         phase = .middlePressed
     }
 
-    mutating func middleUp(at point: CGPoint, settings: Settings,
-                           tolerance: CGFloat = Settings.dragTolerance) -> [Result] {
-        guard case .middlePressed = phase,
-              insideDragTolerance(point, tolerance: tolerance) else {
+    mutating func middleUp(at point: CGPoint, settings: Settings) -> [Result] {
+        guard case .middlePressed = phase, contains(point) else {
             cancelMiddle()
             return []
         }
@@ -215,12 +202,9 @@ struct StatusItemGesture {
         return settings.middle == .none ? [] : [.quick(settings.middle)]
     }
 
-    /// Drops the press once it has moved further than `tolerance` from where it
-    /// started. The caller chooses that margin: a few points is far too strict
-    /// for a held trackpad button, where staying still for half a second still
-    /// drifts, and a press must survive that to become a long press.
-    mutating func moved(to point: CGPoint, tolerance: CGFloat = Settings.dragTolerance) {
-        if isActive && !insideDragTolerance(point, tolerance: tolerance) { cancel() }
+    /// Drops the press once it leaves its area.
+    mutating func moved(to point: CGPoint) {
+        if isActive && !contains(point) { cancel() }
     }
 
     /// Advances a held press to the long press once its threshold passes.
@@ -243,8 +227,7 @@ struct StatusItemGesture {
         phase = .idle
     }
 
-    private func insideDragTolerance(_ point: CGPoint, tolerance: CGFloat) -> Bool {
-        abs(startPoint.x - point.x) <= tolerance
-            && abs(startPoint.y - point.y) <= tolerance
+    private func contains(_ point: CGPoint) -> Bool {
+        area.isInfinite || Self.claims(point, frame: area)
     }
 }
