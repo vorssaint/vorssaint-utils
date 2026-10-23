@@ -52,8 +52,13 @@ enum CommandBarEmojiContract {
         var reactions: [NotchMascotReaction] = []
         func reactMascot(_ reaction: NotchMascotReaction, after delay: TimeInterval = 0) { reactions.append(reaction) }
     }
+    final class Droplet {
+        static let shared = Droplet()
+        var climbEnds: CFTimeInterval?
+    }
     final class Service {
         typealias NotchService = CommandBarEmojiContract.NotchService
+        typealias CommandBarDroplet = CommandBarEmojiContract.Droplet
         typealias CommandBarEntry = CommandBarEmojiContract.CommandBarEntry
         typealias UserDefaults = CommandBarEmojiContract.UserDefaults
         typealias CommandBarCatalog = CommandBarEmojiContract.Catalog

@@ -1687,6 +1687,7 @@ enum NotchTests {
                "the strip stays black at every island height, tall or at the preview's")
 
         NotchMissionControlPollingTests.run(suite)
+        NotchCanvasActivationAreaTests.run(suite)
         activitySelectionContracts(suite)
         railContracts(suite)
         presentationSpacingContracts(suite)
