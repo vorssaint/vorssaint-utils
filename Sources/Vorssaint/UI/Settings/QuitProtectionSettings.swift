@@ -108,10 +108,10 @@ struct QuitProtectionSettings: View {
             if currentMode == .hold {
                 Slider(value: holdDuration,
                        in: QuitProtectionSupport.holdDurationRange,
-                       step: 50) {
+                       step: 25) {
                     Text(strings.holdDuration)
                 } minimumValueLabel: {
-                    Text("250 ms").font(.caption2)
+                    Text("\(Int(QuitProtectionSupport.holdDurationRange.lowerBound)) ms").font(.caption2)
                 } maximumValueLabel: {
                     Text("2 s").font(.caption2)
                 }
