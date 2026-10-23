@@ -26,6 +26,7 @@ enum SelfUninstall {
                 Permissions.shared.refresh()
                 FeatureRuntime.shared.sync(AppFeature.allCases)
                 BrightnessService.shared.resumeInputTaps()
+                (NSApp.delegate as? AppDelegate)?.resumeStatusItemGestureTap()
                 completion(false)
             }
         }
@@ -58,6 +59,7 @@ enum SelfUninstall {
                             FeatureRuntime.shared.sync(AppFeature.allCases)
                         }
                         BrightnessService.shared.resumeInputTaps()
+                        (NSApp.delegate as? AppDelegate)?.resumeStatusItemGestureTap()
                         completion(ruleRemoved && reset)
                     }
                 }
@@ -77,6 +79,7 @@ enum SelfUninstall {
                 Permissions.shared.refresh()
                 FeatureRuntime.shared.sync(AppFeature.allCases)
                 BrightnessService.shared.resumeInputTaps()
+                (NSApp.delegate as? AppDelegate)?.resumeStatusItemGestureTap()
                 onFailure(body)
             }
         }
@@ -157,6 +160,9 @@ enum SelfUninstall {
         AppSwitcher.shared.suspend()
         DockPreviewService.shared.stop()
         BrightnessService.shared.suspendInputTaps()
+        // The menu bar icon's middle-click tap asks Accessibility whose item a
+        // click landed on.
+        (NSApp.delegate as? AppDelegate)?.suspendStatusItemGestureTap()
         AutoQuitService.shared.suspend()
         FinderCutPaste.shared.suspend()
         FinderRenameService.shared.suspend()
