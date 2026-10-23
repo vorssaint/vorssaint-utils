@@ -75,6 +75,24 @@ starting a multiplexer or a slow prompt:
 [[ -n $VORSSAINT_RESOLVING_ENVIRONMENT ]] && return
 ```
 
+## The settings file in `~/.config`
+
+Vorssaint keeps the settings that Export settings would save in
+`~/.config/vorssaint/settings.plist`. The Developer build uses
+`~/.config/vorssaint-dev/` instead. The app applies the file at launch and
+rewrites it shortly after a setting changes, so you can link it from your
+dotfiles. If the file is read-only, as a Nix store link is, the app never
+rewrites it, and the file's values come back at the next launch. If the
+file does not parse, the app leaves it alone until you fix it.
+
+To use `$XDG_CONFIG_HOME`, set it to an absolute path where apps opened
+from Finder can see it, then quit and reopen Vorssaint. Exporting it in
+`~/.zshrc` only reaches apps started from Terminal.
+
+```sh
+launchctl setenv XDG_CONFIG_HOME "$HOME/.config"
+```
+
 ## Resetting permissions
 
 To wipe Vorssaint's granted permissions and let macOS ask again from scratch, pick one of these.
@@ -100,7 +118,7 @@ To wipe Vorssaint's granted permissions and let macOS ask again from scratch, pi
 
 ## Clean uninstall
 
-The bundled script takes out everything Vorssaint added, the app itself, its preferences and saved state, the login item, its privacy grants, and the optional closed lid `sudoers` rule.
+The bundled script takes out everything Vorssaint added, the app itself, its preferences and saved state, the login item, its privacy grants, and the optional closed lid `sudoers` rule. It leaves your [settings file](#the-settings-file-in-config) in `~/.config/vorssaint` in place, since it may belong to your dotfiles.
 
 ```sh
 ./Tools/uninstall.sh
