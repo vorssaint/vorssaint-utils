@@ -573,6 +573,7 @@ struct SettingsView: View {
             } else {
                 GeneralSettings()
             }
+        case .duplicateFinder: DuplicateFinderSettings()
         case .features: FeatureHubSettings()
         case .textSnippets: TextSnippetsSettings()
         case .notch: NotchSettings()
