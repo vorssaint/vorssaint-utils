@@ -96,6 +96,7 @@ private final class FanControlController {
     private var lastStopReason: FanControlStopReason?
     private var coolingLevel: Int?
     private var activeConfiguration: FanControlConfiguration?
+    private let adaptiveController = FanControlAdaptiveController()
     private var connectionCount = 0
     private var idleGeneration = 0
     private var timer: DispatchSourceTimer?
@@ -240,14 +241,34 @@ private final class FanControlController {
         }
 
         do {
-            guard let level = requestedLevel(for: configuration, hardware: control) else {
-                finishFailedStart(mayHaveChangedHardware: false)
-                return .failure(.controlFailed)
+            var initialCoolingLevel: Int?
+            if configuration.mode == .adaptive {
+                adaptiveController.reset()
+                let initial = try control.snapshot(isCooling: false,
+                                                   endsAt: nil,
+                                                   stopReason: nil,
+                                                   coolingLevel: nil,
+                                                   configuration: configuration)
+                guard let level = adaptiveController.nextLevel(
+                    temperatures: initial.temperatures ?? [],
+                    settings: configuration.adaptive
+                ) else {
+                    finishFailedStart(mayHaveChangedHardware: false)
+                    return .failure(.controlFailed)
+                }
+                _ = try control.startCooling(level: FanControlAdaptivePolicy.bootstrapCoolingLevel)
+                _ = try control.updateCooling(fraction: level)
+            } else {
+                guard let level = requestedLevel(for: configuration, hardware: control) else {
+                    finishFailedStart(mayHaveChangedHardware: false)
+                    return .failure(.controlFailed)
+                }
+                _ = try control.startCooling(level: level)
+                initialCoolingLevel = level
             }
-            _ = try control.startCooling(level: level)
             owner = id
             isCooling = true
-            coolingLevel = level
+            coolingLevel = initialCoolingLevel
             activeConfiguration = configuration
             isRecovering = false
             let uptime = ProcessInfo.processInfo.systemUptime
@@ -278,14 +299,35 @@ private final class FanControlController {
     private func updateActiveConfiguration(_ configuration: FanControlConfiguration,
                                            duration: TimeInterval?) -> FanControlResponse {
         if hardware == nil { hardware = FanControlHardware() }
-        guard let hardware,
-              let level = requestedLevel(for: configuration, hardware: hardware) else {
+        guard let hardware else {
             return .failure(.controlFailed, snapshot: currentSnapshot())
         }
         do {
-            _ = try hardware.updateCooling(level: level)
+            switch configuration.mode {
+            case .adaptive:
+                // Retuning a running adaptive control keeps its filters and
+                // demand, so the fans ramp to the new settings.
+                if activeConfiguration?.mode != .adaptive { adaptiveController.reset() }
+                guard let level = adaptiveController.nextLevel(
+                    temperatures: hardware.readTemperatures(),
+                    settings: configuration.adaptive
+                ) else {
+                    return .failure(.controlFailed, snapshot: currentSnapshot())
+                }
+                _ = try hardware.updateCooling(fraction: level)
+                coolingLevel = nil
+            case .manual, .curve:
+                guard let level = requestedLevel(for: configuration, hardware: hardware) else {
+                    return .failure(.controlFailed, snapshot: currentSnapshot())
+                }
+                _ = try hardware.updateCooling(level: level)
+                coolingLevel = level
+            case .system:
+                return performRestore(reason: nil)
+                    ? .success(currentSnapshot())
+                    : .failure(.controlFailed, snapshot: currentSnapshot())
+            }
             activeConfiguration = configuration
-            coolingLevel = level
             let uptime = ProcessInfo.processInfo.systemUptime
             endsAt = duration.map { Date().addingTimeInterval($0) }
             endsAtUptime = duration.map { uptime + $0 }
@@ -314,6 +356,8 @@ private final class FanControlController {
                 temperatures: hardware.readTemperatures(),
                 previousLevel: previousLevel
             )
+        case .adaptive:
+            return nil
         }
     }
 
@@ -347,6 +391,7 @@ private final class FanControlController {
             owner = nil
             coolingLevel = nil
             activeConfiguration = nil
+            adaptiveController.reset()
             endsAt = nil
             endsAtUptime = nil
             verificationFailures = 0
@@ -361,6 +406,7 @@ private final class FanControlController {
         owner = nil
         coolingLevel = nil
         activeConfiguration = nil
+        adaptiveController.reset()
         endsAt = nil
         endsAtUptime = nil
         verificationFailures = 0
@@ -412,9 +458,45 @@ private final class FanControlController {
             return
         }
         var controlIntact = false
-        if activeConfiguration?.mode == .curve,
+        if activeConfiguration?.mode == .adaptive,
            let configuration = activeConfiguration,
            let hardware {
+            if let current = try? hardware.snapshot(isCooling: true,
+                                                    endsAt: endsAt,
+                                                    stopReason: lastStopReason,
+                                                    coolingLevel: nil,
+                                                    configuration: configuration),
+               let requested = adaptiveController.nextLevel(
+                   temperatures: current.temperatures ?? [],
+                   settings: configuration.adaptive
+               ) {
+                temperatureFailures = 0
+                let targetMatches = current.fans.allSatisfy { fan in
+                    guard let expected = FanControlPolicy.coolingTargetRPM(
+                        minimum: fan.minimumRPM,
+                        maximum: fan.maximumRPM,
+                        fraction: requested
+                    ) else { return false }
+                    return FanControlPolicy.targetRPMMatches(target: fan.targetRPM,
+                                                             expected: expected)
+                }
+                if targetMatches {
+                    controlIntact = hardware.coolingIsIntact()
+                } else {
+                    do {
+                        _ = try hardware.updateCooling(fraction: requested)
+                        controlIntact = true
+                    } catch {
+                        controlIntact = false
+                    }
+                }
+            } else {
+                temperatureFailures += 1
+                controlIntact = hardware.coolingIsIntact()
+            }
+        } else if activeConfiguration?.mode == .curve,
+                  let configuration = activeConfiguration,
+                  let hardware {
             if let requested = requestedLevel(for: configuration, hardware: hardware,
                                               previousLevel: coolingLevel) {
                 temperatureFailures = 0
@@ -580,6 +662,10 @@ private func runSelfTest() -> Bool {
           FanControlPolicy.coolingDuration == 900,
           FanControlPolicy.validCoolingLevel(FanControlPolicy.defaultCoolingLevel),
           FanControlPolicy.validConfiguration(.curve([FanControlConfiguration.defaultCurve])),
+          FanControlPolicy.validConfiguration(.adaptive()),
+          FanControlAdaptivePolicy.baseLevel(temperature: 40) == 0,
+          FanControlPolicy.coolingTargetRPM(minimum: 1_500, maximum: 5_500,
+                                            fraction: 0.15) == 2_100,
           let encoded = SMCValueCodec.encode(4_800, type: "flt ", size: 4),
           SMCValueCodec.decode(encoded, type: "flt ") == 4_800 else { return false }
     print("fan-control-helper: ok")

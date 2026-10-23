@@ -17,6 +17,7 @@ final class FanControlService: ObservableObject {
 
     @Published private(set) var accessState: AccessState = .notRegistered
     @Published private(set) var snapshot: FanControlSnapshot = .empty
+    @Published private(set) var history: [FanControlHistorySample] = []
     @Published private(set) var error: FanControlErrorCode?
     @Published private(set) var isWorking = false
 
@@ -31,6 +32,7 @@ final class FanControlService: ObservableObject {
     private var tickCount = 0
     private var registrationAttemptedVersion: String?
     private var observingWorkspace = false
+    private var fanControlHistory = FanControlHistory()
 
     private static var appService: SMAppService {
         SMAppService.daemon(plistName: FanControlIdentifiers.plistName)
@@ -128,6 +130,11 @@ final class FanControlService: ObservableObject {
     }
 
     func applyConfiguration(_ configuration: FanControlConfiguration) {
+        applyConfiguration(configuration, resumeAttempt: nil)
+    }
+
+    private func applyConfiguration(_ configuration: FanControlConfiguration,
+                                    resumeAttempt: Int?) {
         guard FanControlPolicy.validConfiguration(configuration) else {
             error = .controlFailed
             return
@@ -154,6 +161,7 @@ final class FanControlService: ObservableObject {
             self.isWorking = false
             guard let response else {
                 self.error = .helperUnavailable
+                if let resumeAttempt, self.scheduleResumeRetry(after: resumeAttempt) { return }
                 self.restoreAutomatic()
                 return
             }
@@ -352,7 +360,24 @@ final class FanControlService: ObservableObject {
     private func resume(_ configuration: FanControlConfiguration) -> Bool {
         refreshAccessState()
         guard accessState == .enabled, !Self.helperAwaitsRegistration else { return false }
-        applyConfiguration(configuration)
+        applyConfiguration(configuration, resumeAttempt: 0)
+        return true
+    }
+
+    /// Right after login the helper can start slower than its idle exit, so
+    /// the first request is interrupted. A resume retries a few times before
+    /// giving up, and only while the user still wants the kept control.
+    private static let resumeRetryDelays: [TimeInterval] = [2, 5, 15, 30]
+
+    private func scheduleResumeRetry(after attempt: Int) -> Bool {
+        guard attempt < Self.resumeRetryDelays.count else { return false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.resumeRetryDelays[attempt]) { [weak self] in
+            guard let self, !self.isWorking, !self.snapshot.isCooling,
+                  let configuration = Self.resumableConfiguration else { return }
+            self.refreshAccessState()
+            guard self.accessState == .enabled else { return }
+            self.applyConfiguration(configuration, resumeAttempt: attempt + 1)
+        }
         return true
     }
 
@@ -466,6 +491,21 @@ final class FanControlService: ObservableObject {
     private func apply(_ response: FanControlResponse) {
         snapshot = response.snapshot
         error = response.error
+        if response.succeeded,
+           snapshot.isCooling,
+           snapshot.configuration?.mode == .adaptive {
+            fanControlHistory.append(snapshot: snapshot)
+            history = fanControlHistory.samples
+        } else if !snapshot.isCooling || snapshot.configuration?.mode != .adaptive {
+            resetHistory()
+        }
+    }
+
+    /// The history covers one adaptive session and ends with it.
+    private func resetHistory() {
+        guard !history.isEmpty else { return }
+        fanControlHistory.reset()
+        history = []
     }
 
     private func beginRequest() -> Int {
@@ -572,6 +612,7 @@ final class FanControlService: ObservableObject {
         case .failure(let error):
             snapshot = .empty
             self.error = error
+            resetHistory()
         }
     }
 
@@ -580,6 +621,7 @@ final class FanControlService: ObservableObject {
         guard accessState != .enabled else { return }
         self.snapshot = snapshot
         self.error = error
+        resetHistory()
     }
 
     private func restoreThenUnregister() {
