@@ -1979,11 +1979,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             if MenuBarAllowanceSupport.currentAllowance() == .disallowed {
                 self.isReshowingStatusItem = false
                 self.logStatusItemPlacement("disallowed by system")
-                let strings = L10n.shared.s
+                let s = L10n.shared.s
                 NSApp.activate(ignoringOtherApps: true)
                 let alert = NSAlert()
-                alert.messageText = strings.menuBarIconStillHiddenTitle
-                alert.informativeText = strings.menuBarIconDisallowedBody
+                alert.messageText = s.menuBarIconStillHiddenTitle
+                alert.informativeText = s.menuBarIconDisallowedBody
                 alert.runModal()
                 return
             }
@@ -2001,14 +2001,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             }
             self.isReshowingStatusItem = false
             self.logStatusItemPlacement("still hidden")
-            let strings = L10n.shared.s
-            var body = strings.menuBarIconStillHiddenBody
+            let s = L10n.shared.s
+            var body = s.menuBarIconStillHiddenBody
             if let manager = Self.runningMenuBarManagerName() {
-                body += "\n\n" + String(format: strings.menuBarIconManagerHintFormat, manager, manager)
+                body += "\n\n" + String(format: s.menuBarIconManagerHintFormat, manager, manager)
             }
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
-            alert.messageText = strings.menuBarIconStillHiddenTitle
+            alert.messageText = s.menuBarIconStillHiddenTitle
             alert.informativeText = body
             alert.runModal()
         }
@@ -2477,11 +2477,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             window.setContentSize(fitting)
         }
         let size = window.frame.size
-        let maxOriginX = max(visible.minX, visible.maxX - size.width)
-        let maxOriginY = max(visible.minY, visible.maxY - size.height)
-        let originX = min(max(visible.midX - size.width / 2, visible.minX), maxOriginX)
-        let originY = min(max(visible.midY - size.height / 2, visible.minY), maxOriginY)
-        window.setFrameOrigin(NSPoint(x: originX.rounded(), y: originY.rounded()))
+        let x = min(max(visible.midX - size.width / 2, visible.minX), max(visible.minX, visible.maxX - size.width))
+        let y = min(max(visible.midY - size.height / 2, visible.minY), max(visible.minY, visible.maxY - size.height))
+        window.setFrameOrigin(NSPoint(x: x.rounded(), y: y.rounded()))
     }
 
     /// The pre-install update preview, shown before any download from BOTH the

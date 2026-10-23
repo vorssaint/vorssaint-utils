@@ -8,9 +8,9 @@ Bodies are read verbatim on every build, never copied into a maintained fixture.
 The narrow declaration/indentation contract fails closed if a method moves or
 changes shape; the Swift compiler then checks the generated source normally.
 """
+from pathlib import Path
 import json
 import re
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "build/generated-tests"
@@ -153,23 +153,27 @@ def main():
                     for prefix in [
                         "    private func watchAccessibility(", "    private func syncMiddleTap(",
                         "    private func handleMiddleTap(", "    private func tearDownMiddleTap(",
-                        "    private func isMainButtonWindow(",
-                        "    func sync(", "    func cancel(",
+                        "    private func isMainButtonWindow(", "    private var mainButtonWindowNumber:",
+                        "    func sync(", "    func cancel(", "    func tracksPress(",
                         "    func buttonClick(", "    private var dragMargin:",
                         "    private func screenPoint(", "    private func point(",
                         "    private func observe(", "    private func emit(",
-                        "    private func schedule(", "    private func observeRelease("])
+                        "    private func schedule(", "    private func observeRelease(",
+                        "    private func releaseTime("])
           + "}\nfinal class ControllerHost: ControllerFixture {\n"
           + declaration("Sources/Vorssaint/App/StatusItemController.swift", "    @objc private func clicked(")
             .replace("@objc private ", "")
+          + declaration("Sources/Vorssaint/App/StatusItemController.swift", "    private func isFresh(")
           + "}\n"
           + "final class SettingsHost: SettingsFixture {\n"
           + declaration("Sources/Vorssaint/UI/Settings/GeneralSettings.swift",
                         "    private func setMiddleAction(").replace("    private ", "    ", 1)
+            .replace(".runnable(value)", ".runnable(value, in: defaults)")
           + "}\nfinal class UsageHost: UsageFixture {\n"
           + "".join(declaration("Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift", prefix)
                     .replace("    private ", "    ", 1) for prefix in [
                         "    private var activeUsageNames:", "    private var usedByLine:"])
+            .replace(".runnable(middleAction)", ".runnable(middleAction, in: defaults)")
           + "}\nfinal class PollingHost: PollingFixture {\n"
           + declaration("Sources/Vorssaint/Core/Permissions.swift", "    private var desiredPollInterval:")
             .replace("    private ", "    ", 1)

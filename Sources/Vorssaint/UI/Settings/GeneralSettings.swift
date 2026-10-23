@@ -130,15 +130,15 @@ struct GeneralSettings: View {
         let strings = StatusItemQuickActionStrings.localized(l10n.language)
         return SettingsCard(title: strings.title) {
             statusItemActionRow(strings.middleClick, caption: strings.middleHint,
-                                selection: Binding(get: { middleAction }, set: setMiddleAction))
-            if StatusItemGesture.Settings(middle: StatusItemQuickAction(rawValue: middleAction) ?? .none)
-                .needsAccessibility, !permissions.accessibility {
+                                saved: middleAction, select: setMiddleAction)
+            if StatusItemGesture.Settings(middle: .runnable(middleAction)).needsAccessibility,
+               !permissions.accessibility {
                 PermissionRow(kind: .accessibility)
                     .padding(.leading, settingsRowTextInset)
             }
             Divider()
             statusItemActionRow(strings.longPress, caption: strings.holdHint,
-                                selection: $holdAction)
+                                saved: holdAction, select: { holdAction = $0 })
         }
     }
 
@@ -147,18 +147,25 @@ struct GeneralSettings: View {
     private func setMiddleAction(_ value: String) {
         guard value != middleAction else { return }
         middleAction = value
-        if StatusItemGesture.Settings(middle: StatusItemQuickAction(rawValue: value) ?? .none)
-            .needsAccessibility, !permissions.accessibility {
+        if StatusItemGesture.Settings(middle: .runnable(value)).needsAccessibility,
+           !permissions.accessibility {
             permissions.requestAccessibility()
         }
     }
 
-    private func statusItemActionRow(_ title: String, caption: String,
-                                     selection: Binding<String>) -> some View {
-        SettingsRow(symbol: "cursorarrow.click", title: title, caption: caption) {
-            Picker(title, selection: selection) {
+    /// An unknown saved value shows as Off, which is what it runs. A saved
+    /// assignment outlives the feature it points at: the picker still shows
+    /// it, not selectable, and the caption says why it does nothing.
+    private func statusItemActionRow(_ title: String, caption: String, saved: String,
+                                     select: @escaping (String) -> Void) -> some View {
+        let current = StatusItemQuickAction(rawValue: saved) ?? .none
+        let installed = current == .none || current.feature.isAvailable
+        let strings = StatusItemQuickActionStrings.localized(l10n.language)
+        return SettingsRow(symbol: "cursorarrow.click", title: title,
+                           caption: installed ? caption : strings.unavailable) {
+            Picker(title, selection: Binding(get: { current.rawValue }, set: select)) {
                 ForEach(StatusItemQuickAction.allCases) { action in
-                    Text(statusItemActionLabel(action))
+                    Text(action.title(l10n.language))
                         .tag(action.rawValue)
                         .disabled(action != .none && !action.feature.isAvailable)
                 }
@@ -167,15 +174,6 @@ struct GeneralSettings: View {
             .labelsHidden()
             .accessibilityLabel(title)
         }
-    }
-
-    /// A saved assignment outlives the feature it points at. Marking it keeps
-    /// the choice visible instead of silently falling back to Off, and the
-    /// picker still shows it even though the entry is not selectable.
-    private func statusItemActionLabel(_ action: StatusItemQuickAction) -> String {
-        let name = action.title(l10n.language)
-        guard action != .none, !action.feature.isAvailable else { return name }
-        return "\(name) — \(StatusItemQuickActionStrings.localized(l10n.language).unavailable)"
     }
 
     private var shortcutCard: some View {

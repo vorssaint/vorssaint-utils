@@ -10,7 +10,17 @@ enum StatusItemQuickAction: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static func saved(_ key: String, in defaults: UserDefaults = .standard) -> Self {
-        Self(rawValue: defaults.string(forKey: key) ?? "") ?? .none
+        runnable(defaults.string(forKey: key) ?? "", in: defaults)
+    }
+
+    /// What a saved value runs: nothing for an unknown value or for a feature
+    /// that is not installed. The value itself stays saved, so an assignment
+    /// comes back with its feature, and until then the gesture holds no tap,
+    /// no permission and no click.
+    static func runnable(_ rawValue: String, in defaults: UserDefaults = .standard) -> Self {
+        guard let action = Self(rawValue: rawValue), action != .none,
+              action.feature.isAvailable(in: defaults) else { return .none }
+        return action
     }
 
     var feature: AppFeature {
@@ -66,7 +76,8 @@ struct StatusItemGesture {
         }
 
         /// Shared by the tap, permission polling and both settings surfaces.
-        /// The assignment still needs a grant if its target is uninstalled.
+        /// Built from runnable actions, so an assignment whose feature is not
+        /// installed asks for nothing.
         var needsAccessibility: Bool { middle != .none }
     }
 

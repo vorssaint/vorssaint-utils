@@ -893,10 +893,8 @@ private struct PermissionPortalRow: View {
     private var activeUsageNames: [String] {
         var names = activeFeatures.map { $0.hubTitle(l10n.s, hub: hub) }
         if permission == .accessibility,
-           StatusItemGesture.Settings(middle: StatusItemQuickAction(rawValue: middleAction) ?? .none)
-            .needsAccessibility {
-            let strings = StatusItemQuickActionStrings.localized(l10n.language)
-            names.append("\(strings.title) — \(strings.middleClick)")
+           StatusItemGesture.Settings(middle: .runnable(middleAction)).needsAccessibility {
+            names.append(StatusItemQuickActionStrings.localized(l10n.language).middleClickUsage)
         }
         return names
     }
