@@ -19,6 +19,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
+    @AppStorage(DefaultsKey.menuBarBatteryPercentage) private var batteryPercentage = true
     @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
@@ -44,6 +45,7 @@ struct MenuBarMetricsPreview: View {
 
     var body: some View {
         let _ = metricOrder
+        let _ = batteryPercentage
         let _ = combineTemperatures
         let _ = metricAppearance
         let _ = usageBarNormalColor
@@ -201,20 +203,14 @@ struct MenuBarMetricsPreview: View {
             .frame(width: MenuBarRenderer.rateBlockWidth(style: style),
                    height: style == .readable ? 22 : 20,
                    alignment: .center)
-        case let .batteryBlock(percent, isCharging, externalConnected, warning, style):
-            HStack(spacing: style == .readable ? 5 : 4) {
-                Image(systemName: BatteryPowerSupport.menuBarSymbol(percent: percent,
-                                                                    isCharging: isCharging,
-                                                                    externalConnected: externalConnected))
-                    .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
-                Text("\(max(0, min(100, percent)))%")
-                    .font(.system(size: style == .readable ? 13 : 12,
-                                  weight: .semibold,
-                                  design: .monospaced))
-                    .frame(minWidth: style == .readable ? 33 : 30, alignment: .leading)
-            }
-            .foregroundStyle(MenuBarRenderer.nsColor(for: warning).map { Color(nsColor: $0) } ?? .white)
-            .fixedSize(horizontal: true, vertical: true)
+        case let .batteryBlock(percent, showsBolt, externalConnected, warning, style):
+            Image(nsImage: BatteryMenuBarImage.make(percent: percent,
+                                                   showsBolt: showsBolt,
+                                                   externalConnected: externalConnected,
+                                                   showPercentage: batteryPercentage,
+                                                   readable: style == .readable,
+                                                   color: MenuBarRenderer.nsColor(for: warning) ?? .white))
+                .accessibilityLabel("\(max(0, min(100, percent)))%")
         case let .dot(pressure):
             Circle()
                 .fill(dotColor(pressure))
