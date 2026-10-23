@@ -76,11 +76,13 @@ enum StatusItemGestureTests {
         suite.expect(click.middleUp(at: point, settings: middle) == [.quick(.keepAwake)],
                      "the middle release commits once")
 
+        // The tap reports no drags, only the release: a middle click is
+        // judged by where it comes up, against the same tolerance as a hold.
         click = StatusItemGesture()
         click.middleDown(at: point, settings: middle)
-        click.moved(to: outside)
-        suite.expect(click.middleUp(at: point, settings: middle).isEmpty,
-                     "dragging a middle click away cancels it")
+        suite.expect(click.middleUp(at: outside, settings: middle, tolerance: 15).isEmpty
+                     && !click.isActive,
+                     "a middle release dragged away cancels it")
 
         click = StatusItemGesture()
         click.middleDown(at: point, settings: .init())
@@ -92,6 +94,7 @@ enum StatusItemGestureTests {
     private static func testPreferences(_ suite: TestSuite) {
         let defaults = UserDefaults(suiteName: "vorss.tests.status-action")!
         defer { defaults.removePersistentDomain(forName: "vorss.tests.status-action") }
+        for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         suite.expect(StatusItemQuickAction.saved(DefaultsKey.statusItemMiddleClickAction,
                                                  in: defaults) == .none,
                      "a missing preference is off")
@@ -111,10 +114,27 @@ enum StatusItemGestureTests {
         let assigned = StatusItemGesture.Settings.saved(defaults: defaults)
         suite.expect(assigned.middle == .keepAwake && assigned.isEnabled,
                      "a saved assignment is read back and enables the gesture")
-        suite.expect(AppLanguage.allCases.allSatisfy {
-            !StatusItemQuickActionStrings.localized($0).title.isEmpty
-                && !StatusItemQuickAction.soundMute.title($0).isEmpty
+        defaults.set(false, forKey: AppFeature.keepAwake.availabilityKey)
+        let uninstalled = StatusItemGesture.Settings.saved(defaults: defaults)
+        suite.expect(uninstalled.middle == .none && !uninstalled.isEnabled && !uninstalled.needsAccessibility
+                     && defaults.string(forKey: DefaultsKey.statusItemMiddleClickAction)
+                        == StatusItemQuickAction.keepAwake.rawValue,
+                     "an uninstalled target runs nothing and keeps its saved assignment")
+        suite.expect(AppLanguage.allCases.allSatisfy { language in
+            !StatusItemQuickActionStrings.localized(language).title.isEmpty
+                && StatusItemQuickAction.allCases.allSatisfy { !$0.title(language).isEmpty }
         }, "every supported language labels the choices")
+        suite.expect(StatusItemQuickAction.allCases.allSatisfy { $0.title(.ja) != $0.title(.enUS) },
+                     "every choice is labelled in the language asked for, not the app's")
+        let features: [StatusItemQuickAction: AppFeature] = [
+            .keepAwake: .keepAwake, .micMute: .micMute, .soundMute: .mixer,
+            .screenRecorder: .screenRecorder, .screenshot: .screenshot,
+        ]
+        suite.expect(features.allSatisfy { $0.key.feature == $0.value },
+                     "each action is gated on the feature that runs it")
+        suite.expect(StatusItemQuickAction.allCases.filter(\.closesPanelBeforeRunning)
+                        == [.screenRecorder, .screenshot],
+                     "only the two captures wait for the panel to close")
     }
 
     /// The one branch that must never lose a click: when the button's frame is

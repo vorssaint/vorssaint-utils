@@ -429,24 +429,28 @@ final class StatusItemController {
     }
 
     @objc private func clicked() {
-        // Accessibility activation has no mouse event of its own. currentEvent
-        // can still be a release already handled by a previous hold.
-        let freshness = StatusItemAnchorSupport.statusClickFreshness
-        guard let event = NSApp.currentEvent,
-              (0...freshness).contains(ProcessInfo.processInfo.systemUptime - event.timestamp)
-        else { onLeftClick?(); return }
-        if event.type == .rightMouseUp {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp {
             cancelGesture()
             onRightClick?(statusItem.button)
-        } else if event.type == .leftMouseUp, let gestureHandler {
+        } else if let event, event.type == .leftMouseUp, let gestureHandler,
+                  isFresh(event) || gestureHandler.tracksPress(of: event) {
             // The handler refuses a click it cannot place on the button (an
             // unknown frame, or a release far outside). Refusing must fall
             // back to the normal click rather than swallow it, or the panel
             // would become unreachable while gestures are configured.
             if !gestureHandler.buttonClick(event) { onLeftClick?() }
         } else {
+            // Accessibility activation has no mouse event of its own, so
+            // currentEvent can be a release a previous hold already handled.
+            cancelGesture()
             onLeftClick?() // unconfigured or accessibility/keyboard activation
         }
+    }
+
+    private func isFresh(_ event: NSEvent) -> Bool {
+        (0...StatusItemAnchorSupport.statusClickFreshness)
+            .contains(ProcessInfo.processInfo.systemUptime - event.timestamp)
     }
 
     private func syncGestureMonitor() {
