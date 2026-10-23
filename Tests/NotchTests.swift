@@ -3259,8 +3259,10 @@ enum NotchTests {
         suite.expect(shortTarget.height <= shortScreen.height - 48 && shortScreen.contains(shortMedia.frame(for: shortTarget)),
                "the larger media workspace preserves the screen margin on shorter displays")
         suite.expect(NotchSupport.screenIndex(preference: .automatic, builtIn: [false, true],
-                                       notched: [false, true], main: 0) == 1,
-               "automatic uses the notched built-in screen even with external main display")
+                                       notched: [false, true], main: 0) == 0
+                     && NotchSupport.screenIndex(preference: .automatic, builtIn: [false, true],
+                                       notched: [false, true], main: 1) == 1,
+               "automatic follows the menu bar to an external main display beside an open notched laptop (issue #1711)")
         suite.expect(NotchSupport.screenIndex(preference: .builtIn, builtIn: [false],
                                        notched: [false], main: 0) == nil,
                "closed-lid mode hides the island when the selected built-in display is unavailable")
@@ -3307,9 +3309,11 @@ enum NotchTests {
             }
         }
         // The shape for displays without a notch shows only where the island can rest.
-        suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: .automatic, builtIn: [true, false],
-                                                              notched: [true, false], main: 1),
-               "automatic keeps a notched laptop's island off its monitor, even the main one")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .automatic, builtIn: [true, false],
+                                                             notched: [true, false], main: 1)
+                     && !NotchSupport.reachesDisplayWithoutNotch(preference: .automatic, builtIn: [true, false],
+                                                                 notched: [true, false], main: 0),
+               "automatic reaches a monitor beside an open notched laptop only when it has the menu bar")
         suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .automatic, builtIn: [false],
                                                              notched: [false], main: 0),
                "automatic reaches the monitor once the lid closes")

@@ -2135,21 +2135,21 @@ enum NotchSupport {
         return sinceRide < volumeRideWindow ? .rides : .announces
     }
 
-    /// A laptop with its lid closed has no built-in screen to show on, so the
-    /// built-in choice hides the island there. A Mac without a built-in panel
-    /// never has one, so that choice keeps the main display. The pointer
-    /// choice takes the display it last followed the pointer to, if any, and
-    /// so does the choice of every display for the island that responds.
+    /// The automatic choice keeps the island on the display with the menu
+    /// bar, so a monitor made the main display beside an open MacBook gets
+    /// it rather than the laptop's notch. A laptop with its lid closed has no
+    /// built-in screen to show on, so the built-in choice hides the island
+    /// there. A Mac without a built-in panel never has one, so that choice
+    /// keeps the main display. The pointer choice takes the display it last
+    /// followed the pointer to, if any, and so does the choice of every
+    /// display for the island that responds.
     static func screenIndex(preference: NotchDisplay, builtIn: [Bool], notched: [Bool], main: Int,
                             pointer: Int? = nil, hasLid: Bool = true) -> Int? {
         guard !builtIn.isEmpty, builtIn.count == notched.count else { return nil }
         let fallback = builtIn.indices.contains(main) ? main : 0
         switch preference {
-        case .main: return fallback
+        case .automatic, .main: return fallback
         case .builtIn: return builtIn.firstIndex(of: true) ?? (hasLid ? nil : fallback)
-        case .automatic:
-            return builtIn.indices.first { builtIn[$0] && notched[$0] }
-                ?? notched.firstIndex(of: true) ?? fallback
         case .pointer, .all: return pointer.flatMap { builtIn.indices.contains($0) ? $0 : nil } ?? fallback
         }
     }
