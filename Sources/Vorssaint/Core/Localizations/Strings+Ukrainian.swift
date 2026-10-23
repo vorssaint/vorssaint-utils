@@ -867,6 +867,8 @@ extension Strings {
         cleaningOverlayMouseHint: "Миша та трекпед продовжують працювати",
         cleaningKeepScreenVisibleToggle: "Залишати екран видимим",
         cleaningKeepScreenVisibleCaption: "Показує компактний індикатор у куті екрана замість затемнення вмісту.",
+        cleaningBuiltInOnlyToggle: "Закривати лише вбудований дисплей",
+        cleaningBuiltInOnlyCaption: "Зовнішні дисплеї залишаються доступними, поки клавіатуру заблоковано. Якщо вбудованого дисплея немає, закриваються всі дисплеї.",
         cleaningStartNow: "Заблокувати клавіатуру зараз",
         cleaningNeedsAxTitle: "Потрібен дозвіл «Доступність»",
         cleaningNeedsAxBody: "Для безпечного блокування клавіатури Vorssaint потрібен дозвіл «Доступність». Надайте його в Системних параметрах і спробуйте знову.",

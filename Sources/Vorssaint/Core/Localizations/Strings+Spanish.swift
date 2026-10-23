@@ -896,6 +896,8 @@ extension Strings {
         cleaningOverlayMouseHint: "El ratón y el trackpad siguen funcionando",
         cleaningKeepScreenVisibleToggle: "Mantener la pantalla visible",
         cleaningKeepScreenVisibleCaption: "Muestra un indicador discreto en la esquina de la pantalla en lugar de oscurecer el contenido.",
+        cleaningBuiltInOnlyToggle: "Cubrir solo la pantalla integrada",
+        cleaningBuiltInOnlyCaption: "Deja utilizables las pantallas externas mientras el teclado está bloqueado. Si no hay pantalla integrada conectada, se cubren todas.",
         cleaningStartNow: "Bloquear el teclado ahora",
         cleaningNeedsAxTitle: "Se necesita Accesibilidad",
         cleaningNeedsAxBody: "Para bloquear el teclado de forma segura, Vorssaint necesita el permiso de Accesibilidad. Concédelo en Ajustes del Sistema e inténtalo de nuevo.",

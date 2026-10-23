@@ -896,6 +896,8 @@ extension Strings {
         cleaningOverlayMouseHint: "你的鼠标和触控板仍可使用",
         cleaningKeepScreenVisibleToggle: "保持屏幕可见",
         cleaningKeepScreenVisibleCaption: "在屏幕角落显示小巧的指示条，而不调暗屏幕内容。",
+        cleaningBuiltInOnlyToggle: "仅遮盖内置显示器",
+        cleaningBuiltInOnlyCaption: "键盘锁定期间，外接显示器仍可正常使用。未连接内置显示器时，将遮盖所有显示器。",
         cleaningStartNow: "立即锁定键盘",
         cleaningNeedsAxTitle: "需要辅助功能",
         cleaningNeedsAxBody: "为安全地锁定键盘，Vorssaint 需要辅助功能权限。请在“系统设置”中授予后重试。",

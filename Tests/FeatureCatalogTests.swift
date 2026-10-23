@@ -112,6 +112,22 @@ enum FeatureCatalogTests {
         suite.expect(!smearedUnlock && smeared.progress == 1,
                "four Escapes with a modifier in between never unlock; the next Escape starts at 1")
 
+        // Cleaning Mode covers every display unless the user limits it to the
+        // built-in one, and never leaves a Mac without any overlay.
+        let builtIn = CleaningDisplay(frame: CGRect(x: 0, y: 0, width: 1512, height: 982), isBuiltIn: true)
+        let external = CleaningDisplay(frame: CGRect(x: 1512, y: 0, width: 2560, height: 1440), isBuiltIn: false)
+        suite.expect(CleaningOverlayScreens.frames(for: [builtIn, external], builtInOnly: false)
+                        == [builtIn.frame, external.frame],
+               "cleaning covers every display by default")
+        suite.expect(CleaningOverlayScreens.frames(for: [external, builtIn], builtInOnly: true) == [builtIn.frame],
+               "built-in only leaves the external display uncovered")
+        suite.expect(CleaningOverlayScreens.frames(for: [external], builtInOnly: true) == [external.frame],
+               "built-in only still covers the external display when no built-in display is connected")
+        suite.expect(CleaningOverlayScreens.frames(for: [], builtInOnly: true).isEmpty,
+               "no displays yield no frames, so the caller keeps its own fallback")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.cleaningModeBuiltInOnly] as? Bool == false,
+               "cleaning mode keeps covering every display until the user opts in")
+
         // User-requested teardown waits only for real releases corresponding
         // to mouse-down events observed while Cleaning Mode was active.
         var cleaningMouseGate = CleaningMouseReleaseGate()

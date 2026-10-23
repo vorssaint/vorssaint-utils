@@ -897,6 +897,8 @@ extension Strings {
         cleaningOverlayMouseHint: "마우스와 트랙패드는 계속 사용할 수 있습니다",
         cleaningKeepScreenVisibleToggle: "화면을 켠 상태로 유지",
         cleaningKeepScreenVisibleCaption: "화면을 끄지 않고 구석에 눈에 띄지 않는 표시줄을 표시합니다.",
+        cleaningBuiltInOnlyToggle: "내장 디스플레이만 가리기",
+        cleaningBuiltInOnlyCaption: "키보드가 잠겨 있는 동안에도 외장 디스플레이를 사용할 수 있습니다. 내장 디스플레이가 없으면 모든 디스플레이를 가립니다.",
         cleaningStartNow: "지금 키보드 잠그기",
         cleaningNeedsAxTitle: "손쉬운 사용 권한이 필요합니다",
         cleaningNeedsAxBody: "키보드를 안전하게 잠그려면 Vorssaint에 손쉬운 사용 권한이 필요합니다. 시스템 설정에서 허용한 뒤 다시 시도하세요.",
