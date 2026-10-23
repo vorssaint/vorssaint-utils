@@ -70,6 +70,7 @@ struct QuickTogglesList: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var toggles = QuickTogglesService.shared
     @ObservedObject private var micMute = MicMuteService.shared
+    @ObservedObject private var pointerHide = PointerHideService.shared
     @ObservedObject private var brightness = BrightnessService.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.panelToggleDarkMode) private var showDarkMode = true
@@ -82,6 +83,9 @@ struct QuickTogglesList: View {
     @AppStorage(DefaultsKey.panelToggleLockScreen) private var showLockScreen = true
     @AppStorage(DefaultsKey.panelToggleDisplayOff) private var showDisplayOff = true
     @AppStorage(DefaultsKey.panelToggleScreenSaver) private var showScreenSaver = true
+    @AppStorage(DefaultsKey.panelToggleHidePointerIdle) private var showHidePointerIdle = true
+    @AppStorage(DefaultsKey.panelToggleDockRevealDelay) private var showDockRevealDelay = true
+    @AppStorage(DefaultsKey.panelToggleHotCorners) private var showHotCorners = true
     @AppStorage(DefaultsKey.panelToggleOrder) private var toggleOrderRaw = ""
 
     let editing: Bool
@@ -104,6 +108,7 @@ struct QuickTogglesList: View {
         .onAppear {
             toggles.refreshPermissionStates()
             brightness.refreshKeyboardLight()
+            toggles.refreshDockPreferenceStates()
         }
     }
 
@@ -115,7 +120,10 @@ struct QuickTogglesList: View {
                     DefaultsKey.panelToggleEmptyTrash,
                     DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleHiddenFiles,
                     DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
-                    DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver] {
+                    DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver,
+                    DefaultsKey.panelToggleHidePointerIdle,
+                    DefaultsKey.panelToggleDockRevealDelay,
+                    DefaultsKey.panelToggleHotCorners] {
             defaults.set(true, forKey: key)
         }
     }
@@ -159,6 +167,9 @@ struct QuickTogglesList: View {
         case .lockScreen: return $showLockScreen
         case .displayOff: return $showDisplayOff
         case .screenSaver: return $showScreenSaver
+        case .hidePointerIdle: return $showHidePointerIdle
+        case .dockRevealDelay: return $showDockRevealDelay
+        case .hotCorners: return $showHotCorners
         }
     }
 
@@ -294,6 +305,57 @@ struct QuickTogglesList: View {
                                         QuickTogglesService.shared.startScreenSaver()
                                     }
                                 })
+        case .hidePointerIdle:
+            PanelToggleRow(title: strings.hidePointerIdleTitle,
+                           caption: caption(for: item, idle: strings.hidePointerIdleCaption),
+                           systemImage: pointerHide.isHiding ? "cursorarrow.rays" : "cursorarrow",
+                           isOn: Binding(
+                               get: { pointerHide.isEnabled },
+                               set: { QuickTogglesService.shared.setPointerHideIdle($0) }
+                           ),
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: visibilityBinding(item))
+        case .dockRevealDelay:
+            PanelToggleRow(title: toggles.dockRevealDelayInstant
+                                ? strings.dockRevealDelayRestoreTitle
+                                : strings.dockRevealDelayTitle,
+                           caption: caption(for: item, idle: strings.dockRevealDelayCaption),
+                           systemImage: "dock.arrow-up.rectangle",
+                           isOn: Binding(
+                               get: { toggles.dockRevealDelayInstant },
+                               set: { _ in QuickTogglesService.shared.toggleDockRevealDelay() }
+                           ),
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: visibilityBinding(item))
+        case .hotCorners:
+            // The caption is the stop the next click lands on, not the one
+            // currently set: a cycle has no "on" for a switch to show, and
+            // naming the destination is what makes the click predictable.
+            UtilityActionButton(title: strings.hotCornerTitle,
+                                caption: caption(for: item, idle: nextHotCornerName(strings)),
+                                systemImage: "rectangle.bottomright.filled",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: visibilityBinding(item),
+                                captionStaysVisible: reportsState(item),
+                                action: {
+                                    QuickTogglesService.shared.cycleHotCorners()
+                                })
+        }
+    }
+
+    /// The name of the stop the cycle advances to next. Localized here rather
+    /// than in the service so the four corner names travel with the rest of
+    /// the row's copy in all fifteen locales.
+    private func nextHotCornerName(_ strings: QuickToggleFeatureStrings) -> String {
+        let next = QuickTogglesSupport.nextHotCornerState(toggles.hotCornerState)
+        switch next {
+        case .none: return strings.hotCornerStateNone
+        case .bottomLeft: return strings.hotCornerStateBottomLeft
+        case .bottomRight: return strings.hotCornerStateBottomRight
+        case .both: return strings.hotCornerStateBoth
         }
     }
 

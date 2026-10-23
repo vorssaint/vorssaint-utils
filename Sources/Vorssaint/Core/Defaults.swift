@@ -376,6 +376,9 @@ enum DefaultsKey {
     static let panelToggleLockScreen = "panelToggleLockScreen"
     static let panelToggleDisplayOff = "panelToggleDisplayOff"
     static let panelToggleScreenSaver = "panelToggleScreenSaver"
+    static let panelToggleHidePointerIdle = "panelToggleHidePointerIdle"
+    static let panelToggleDockRevealDelay = "panelToggleDockRevealDelay"
+    static let panelToggleHotCorners = "panelToggleHotCorners"
 
     // System monitor — live metrics shown next to the menu bar icon (opt-in).
     static let menuBarCPU = "menuBarCPU"
@@ -744,6 +747,8 @@ enum DefaultsKey {
     static let windowDirectionalShortcut = "windowDirectionalShortcut"
     static let pointerDisplayEnabled = "pointerDisplayEnabled"
     static let pointerDisplayShortcut = "pointerDisplayShortcut"
+    static let pointerHideIdleEnabled = "pointerHideIdleEnabled"
+    static let pointerHideIdleSeconds = "pointerHideIdleSeconds"
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
     static let windowEdgeSnapDisabledZones = "windowEdgeSnapDisabledZones" // comma-separated visual zone ids
     static let windowEdgeSnapZoneActions = "windowEdgeSnapZoneActions" // zone=action entries, + between split areas
@@ -1616,6 +1621,11 @@ enum Defaults {
         DefaultsKey.panelToggleLockScreen: true,
         DefaultsKey.panelToggleDisplayOff: true,
         DefaultsKey.panelToggleScreenSaver: true,
+        DefaultsKey.panelToggleHidePointerIdle: true,
+        DefaultsKey.pointerHideIdleEnabled: false,
+        DefaultsKey.pointerHideIdleSeconds: PointerHideSupport.defaultThreshold,
+        DefaultsKey.panelToggleDockRevealDelay: true,
+        DefaultsKey.panelToggleHotCorners: true,
         // Menu bar metrics start off (the icon stays clean) and are opt-in.
         // The panel shows every monitoring block by default; users hide what
         // they don't want.
