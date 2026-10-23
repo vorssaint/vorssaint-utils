@@ -339,7 +339,10 @@ final class StatusItemGestureHandler {
         let released = carriesPressTime
             ? releaseTime(now: ProcessInfo.processInfo.systemUptime)
             : event.timestamp
-        finishLeftPress(releasedAt: released, handledThrough: max(event.timestamp, released))
+        // A release action comes only for a release on the button, so the
+        // press counts where it was last held, wherever the pointer went.
+        finishLeftPress(releasedAt: released, handledThrough: max(event.timestamp, released),
+                        at: carriesPressTime ? nil : point)
         return true
     }
 
@@ -354,9 +357,10 @@ final class StatusItemGestureHandler {
     /// held. Actions up to `handled` belong to it; a newer one is a new click.
     /// A press that ends with no outcome lets go of everything, so no later
     /// action is mistaken for its own.
-    private func finishLeftPress(releasedAt time: TimeInterval, handledThrough handled: TimeInterval) {
+    private func finishLeftPress(releasedAt time: TimeInterval, handledThrough handled: TimeInterval,
+                                 at known: CGPoint? = nil) {
         handledLeftRelease = handled
-        let results = gesture.leftUp(at: releasePoint(releasedAt: time), time: time, settings: settings)
+        let results = gesture.leftUp(at: known ?? releasePoint(releasedAt: time), time: time, settings: settings)
         if results.isEmpty {
             cancel()
         } else {
@@ -538,9 +542,15 @@ final class StatusItemGestureHandler {
     /// up before `time`, released when the source says. Another button
     /// pressed then follows that click instead of cancelling it.
     private func finishIfReleased(before time: TimeInterval) {
-        guard gesture.watchesForRelease, let start = leftPressStart,
-              let released = eventTime(.leftMouseUp, now: ProcessInfo.processInfo.systemUptime),
-              released >= start, released <= time else { return }
+        guard gesture.watchesForRelease, let start = leftPressStart else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        // A press elsewhere since this one: the source's last release may be
+        // that press's own, so nothing past this press's start is assumed.
+        if let newer = newerPress(than: start, now: now), newer <= time {
+            finishLeftPress(releasedAt: start, handledThrough: time.nextDown)
+            return
+        }
+        guard let released = eventTime(.leftMouseUp, now: now), released >= start, released <= time else { return }
         finishLeftPress(releasedAt: released, handledThrough: time.nextDown)
     }
 

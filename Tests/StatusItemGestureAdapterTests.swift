@@ -1542,6 +1542,24 @@ extension StatusItemGestureAdapterTests {
         click.timer?.fire()
         suite.expect(click.results == [.single(point)],
                      "a click that drifted and then moved away still opens the panel")
+
+        // A release action proves the release was on the button.
+        let acted = Host()
+        NSEvent.mouseLocation = point
+        NSEvent.pressedMouseButtons = 1
+        CGEventSource.draggedAt = nil
+        CGEventSource.movedAt = nil
+        acted.observe(NSEvent(type: .leftMouseDown, timestamp: 1315))
+        ProcessInfo.processInfo.systemUptime = 1315.56
+        acted.timer?.fire()
+        CGEventSource.draggedAt = 1315.58
+        CGEventSource.releasedAt = 1315.6
+        CGEventSource.movedAt = 1315.603
+        NSEvent.mouseLocation = CGPoint(x: 145, y: 300)
+        NSEvent.pressedMouseButtons = 0
+        ProcessInfo.processInfo.systemUptime = 1315.606
+        suite.expect(acted.buttonClick(NSEvent(timestamp: 1315.6)) && acted.results == [.quick(.screenshot)],
+                     "a hold whose release action arrived runs, wherever the pointer went after")
         CGEventSource.draggedAt = nil
         CGEventSource.movedAt = nil
         CGEventSource.releasedAt = nil
@@ -1590,6 +1608,20 @@ extension StatusItemGestureAdapterTests {
         middle.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
         suite.expect(middle.results == [.single(point), .quick(.keepAwake)],
                      "a middle click just after a left click: each has its own outcome")
+
+        // A click elsewhere in between: its release is not this press's.
+        let elsewhere = Host()
+        NSEvent.pressedMouseButtons = 1
+        CGEventSource.releasedAt = 1349
+        elsewhere.observe(NSEvent(type: .leftMouseDown, timestamp: 1350))
+        CGEventSource.pressedAt = 1350.3
+        CGEventSource.releasedAt = 1350.6
+        NSEvent.pressedMouseButtons = 0
+        ProcessInfo.processInfo.systemUptime = 1350.8
+        elsewhere.observe(NSEvent(type: .rightMouseDown, timestamp: 1350.7))
+        suite.expect(elsewhere.results == [.single(point)],
+                     "a right click after a click elsewhere keeps this press a click, not a hold")
+        CGEventSource.pressedAt = nil
         CGEventSource.releasedAt = nil
     }
 
