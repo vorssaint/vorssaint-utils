@@ -25,6 +25,9 @@ enum StatusItemGestureAdapterTests {
         var timestamp: TimeInterval
         var modifierFlags: AppKit.NSEvent.ModifierFlags = []
         var window: Window?
+        /// Where the event happened, in display coordinates. Unset, the
+        /// adapter falls back to the live pointer.
+        var cgEvent: CGEvent?
     }
 
     /// The event source's record of the last physical release and press.
@@ -59,13 +62,13 @@ enum StatusItemGestureAdapterTests {
     }
     enum WindowServerSupport {
         static var receivingWindowNumber = 42
-        static var owners: [CGWindowID: pid_t] = [:]
+        static var menuBars: Set<CGWindowID> = []
         static var lastPoint: CGPoint?
         static func receivingWindow(at point: CGPoint) -> CGWindowID? {
             lastPoint = point
             return receivingWindowNumber > 0 ? CGWindowID(receivingWindowNumber) : nil
         }
-        static func ownerProcessID(ofWindowID windowID: CGWindowID) -> pid_t? { owners[windowID] }
+        static func isMenuBar(windowID: CGWindowID) -> Bool { menuBars.contains(windowID) }
     }
     enum NSApp { static var currentEvent: NSEvent? }
 
@@ -78,6 +81,7 @@ enum StatusItemGestureAdapterTests {
 
     final class Owner {
         var statusItem: Item? = Item()
+        var gestureTapSuspended = false
         var onDelayedLeftClick: ((NSPoint) -> Void)?
         var onQuickAction: ((StatusItemQuickAction) -> Void)?
     }
@@ -110,9 +114,11 @@ enum StatusItemGestureAdapterTests {
         var leftActionSeen = true
         var rejectedLeftDown: TimeInterval?
         var handledLeftRelease: TimeInterval?
-        /// Who Accessibility says owns the point, where the window server
-        /// cannot: nobody, unless a test says so.
-        var accessibilityOwnerPID: pid_t?
+        /// Whether Accessibility names the main button where the window
+        /// server cannot: never, unless a test says so. Every question asked
+        /// is recorded.
+        var accessibilityNamesButton = false
+        var accessibilityQueries: [CGPoint] = []
         var middleTap: Tap?
         var middleRunLoopSource: CFRunLoopSource?
         var accessibilityObserver: AnyCancellable?
@@ -131,7 +137,10 @@ enum StatusItemGestureAdapterTests {
 
         deinit { timer?.invalidate() }
         func mainButtonFrame() -> NSRect? { frame }
-        func accessibilityOwner(at point: CGPoint) -> pid_t? { accessibilityOwnerPID }
+        func accessibilityNamesMainButton(at point: CGPoint) -> Bool {
+            accessibilityQueries.append(point)
+            return accessibilityNamesButton
+        }
         func log(_ message: String) {}
         func installMiddleTap() {
             installAttempts += 1
@@ -213,7 +222,7 @@ enum StatusItemGestureAdapterTests {
             Permissions.shared.accessibility = false
             Permissions.shared.requests = 0
             WindowServerSupport.receivingWindowNumber = 42
-            WindowServerSupport.owners = [:]
+            WindowServerSupport.menuBars = []
             WindowServerSupport.lastPoint = nil
             NSApp.currentEvent = nil
             ProcessInfo.processInfo.systemUptime = 0
@@ -244,6 +253,11 @@ enum StatusItemGestureAdapterTests {
         testMiddleDuringLeftPress(suite)
         testSystemHostedMenuBar(suite)
         testActionDispatch(suite)
+        testSuspendedTap(suite)
+        testQueuedEventLocation(suite)
+        testReleaseTimeSources(suite)
+        testSecondPress(suite)
+        testPanelAnchor(suite)
     }
 
     private static func testPermissionUI(_ suite: TestSuite) {
@@ -1003,16 +1017,19 @@ extension StatusItemGestureAdapterTests {
         suite.expect(dragged.results == [.quick(.screenshot)],
                      "a drag that stays on the icon keeps the hold")
 
+        // Drift the watcher alone sees, into the slack just past the edge.
         let drifted = Host()
         NSEvent.mouseLocation = start
         NSEvent.pressedMouseButtons = 1
         drifted.observe(NSEvent(type: .leftMouseDown, timestamp: 810))
-        NSEvent.mouseLocation = drift
+        NSEvent.mouseLocation = CGPoint(x: 137, y: 314)
+        ProcessInfo.processInfo.systemUptime = 810.6
+        drifted.timer?.fire()
         NSEvent.pressedMouseButtons = 0
         ProcessInfo.processInfo.systemUptime = 811
         drifted.timer?.fire()
         suite.expect(drifted.results == [.quick(.screenshot)],
-                     "a release the watcher sees off-centre on the icon still commits the hold")
+                     "a hold held just past the icon's edge still commits")
 
         let left = Host()
         NSEvent.mouseLocation = start
@@ -1153,41 +1170,67 @@ extension StatusItemGestureAdapterTests {
     }
 
     /// Where the system draws the menu bar itself, the button's window is no
-    /// window-server window and the point belongs to the system's bar. Only
-    /// Accessibility can then say the icon is this one.
+    /// window-server window and a click lands on the bar's own window, or on
+    /// none. Only Accessibility can then say the item is this button. It is
+    /// asked at the button's middle row, so the screen's top row counts.
     private static func testSystemHostedMenuBar(_ suite: TestSuite) {
         let systemBar = 30967
-        WindowServerSupport.receivingWindowNumber = systemBar
-        WindowServerSupport.owners = [CGWindowID(systemBar): 498]
-        for (owner, fires) in [(getpid(), true), (pid_t(4242), false), (nil, false)] as [(pid_t?, Bool)] {
-            let host = Host()
-            host.owner?.statusItem?.button?.window?.windowNumber = 1 << 32
-            host.accessibilityOwnerPID = owner
-            host.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120, y: 488))
-            host.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120, y: 488))
-            suite.expect(host.results == (fires ? [.quick(.keepAwake)] : []),
-                         "a system-drawn bar defers to Accessibility (owner \(owner.map { "\($0)" } ?? "unknown"))")
+        Permissions.shared.accessibility = true
+        for receiving in [systemBar, 0] {
+            WindowServerSupport.receivingWindowNumber = receiving
+            WindowServerSupport.menuBars = [CGWindowID(systemBar)]
+            for names in [true, false] {
+                let host = Host()
+                host.owner?.statusItem?.button?.window?.windowNumber = 1 << 32
+                host.accessibilityNamesButton = names
+                // The screen's top row, above the 312 pt top of the button.
+                host.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120, y: 484))
+                host.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120, y: 484))
+                suite.expect(host.results == (names ? [.quick(.keepAwake)] : []),
+                             "a system-drawn bar defers to Accessibility (window \(receiving), names \(names))")
+                suite.expect(host.accessibilityQueries.allSatisfy { $0 == CGPoint(x: 120, y: 500) }
+                             && WindowServerSupport.lastPoint == CGPoint(x: 120, y: 484),
+                             "the window server is asked where the click was, Accessibility at the button's middle")
+            }
         }
-        suite.expect(WindowServerSupport.lastPoint == CGPoint(x: 120, y: 488),
-                     "the window server is asked with the tap's own top-left coordinates")
 
-        // Another window of this app, such as the Cleaning Mode overlay,
-        // is never the icon, whatever Accessibility reports.
+        // Any other window over the bar, this app's own Cleaning Mode overlay
+        // included, takes the click itself; nobody is asked.
         WindowServerSupport.receivingWindowNumber = 77
-        WindowServerSupport.owners = [77: getpid()]
         let overlay = Host()
-        overlay.accessibilityOwnerPID = getpid()
+        overlay.accessibilityNamesButton = true
         overlay.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120))
         overlay.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
-        suite.expect(overlay.results.isEmpty, "a middle click on this app's own overlay runs nothing")
+        suite.expect(overlay.results.isEmpty && overlay.accessibilityQueries.isEmpty,
+                     "a middle click on another window runs nothing and asks nobody")
+
+        // Without the grant, the hit test would hang inside the tap.
+        WindowServerSupport.receivingWindowNumber = 0
+        Permissions.shared.accessibility = false
+        let revoked = Host()
+        revoked.accessibilityNamesButton = true
+        revoked.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120))
+        suite.expect(revoked.results.isEmpty && revoked.accessibilityQueries.isEmpty,
+                     "a revoked grant never reaches Accessibility from the tap")
+
+        // A release with no press waiting asks nobody.
+        Permissions.shared.accessibility = true
+        let idle = Host()
+        idle.owner?.statusItem?.button?.window?.windowNumber = 1 << 32
+        idle.accessibilityNamesButton = true
+        idle.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
+        suite.expect(idle.results.isEmpty && idle.accessibilityQueries.isEmpty,
+                     "a stray middle release asks nothing")
+        Permissions.shared.accessibility = false
         WindowServerSupport.receivingWindowNumber = 42
-        WindowServerSupport.owners = [:]
+        WindowServerSupport.menuBars = []
     }
 
     /// The dispatcher runs each action through its own feature, and only
     /// while that feature is installed. A capture waits for the panel to
     /// close, so it cannot photograph it.
     private static func testActionDispatch(_ suite: TestSuite) {
+        _ = installingEveryFeature(in: DispatchFixture.defaults)
         let services: [StatusItemQuickAction: String] = [
             .keepAwake: "keepAwake", .micMute: "micMute", .screenRecorder: "screenRecorder",
             .screenshot: "screenshot",
@@ -1228,5 +1271,154 @@ extension StatusItemGestureAdapterTests {
                      "Off runs nothing")
         Service.calls = []
         DispatchFixture.defaults.removePersistentDomain(forName: "vorss.tests.status-action-dispatch")
+    }
+}
+
+extension StatusItemGestureAdapterTests {
+    /// A permission reset takes the tap down with the other input taps.
+    /// Nothing brings it back until the reset ends: not a settings sync, a
+    /// grant change or a disabled-tap notice.
+    private static func testSuspendedTap(_ suite: TestSuite) {
+        Permissions.shared.accessibility = true
+        let host = Host()
+        host.watchAccessibility()
+        host.syncMiddleTap()
+        let tap = host.middleTap
+        host.owner?.gestureTapSuspended = true
+        host.sync(settings: host.settings)
+        suite.expect(host.middleTap == nil && tap?.valid == false, "suspension removes the tap")
+        host.sync(settings: host.settings)
+        Permissions.shared.accessibility = false
+        Permissions.shared.accessibility = true
+        host.handleMiddleTap(type: .tapDisabledByUserInput, event: middleEvent(.otherMouseUp, x: 120))
+        suite.expect(host.middleTap == nil && host.installations == 1,
+                     "syncs, grant changes and disabled notices stay suspended")
+        host.owner?.gestureTapSuspended = false
+        host.sync(settings: host.settings)
+        suite.expect(host.middleTap != nil && host.installations == 2, "the end of the reset restores the tap")
+        Permissions.shared.accessibility = false
+    }
+
+    /// A monitored event can be handled after the pointer moved on. Where the
+    /// event itself happened decides, and so does the press for its action.
+    private static func testQueuedEventLocation(_ suite: TestSuite) {
+        let point = CGPoint(x: 120, y: 300)
+        let away = CGPoint(x: 120, y: 200)
+        func at(_ location: CGPoint) -> CGEvent {
+            CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp,
+                    mouseCursorPosition: CGPoint(x: location.x, y: 800 - location.y), mouseButton: .left)!
+        }
+        let monitored = Host()
+        NSEvent.mouseLocation = point
+        NSEvent.pressedMouseButtons = 1
+        monitored.observe(NSEvent(type: .leftMouseDown, timestamp: 940, cgEvent: at(point)))
+        NSEvent.pressedMouseButtons = 0
+        NSEvent.mouseLocation = away
+        monitored.observe(NSEvent(timestamp: 940.1, cgEvent: at(point)))
+        suite.expect(monitored.results == [.single(point)],
+                     "a queued release on the icon counts where it happened")
+
+        let acted = Host()
+        NSEvent.mouseLocation = point
+        NSEvent.pressedMouseButtons = 1
+        acted.observe(NSEvent(type: .leftMouseDown, timestamp: 950))
+        NSEvent.pressedMouseButtons = 0
+        NSEvent.mouseLocation = away
+        ProcessInfo.processInfo.systemUptime = 950.1
+        suite.expect(acted.buttonClick(NSEvent(timestamp: 950.1)) && acted.results == [.single(point)],
+                     "the button's own action finishes its press wherever the pointer went")
+
+        let dragged = Host()
+        NSEvent.mouseLocation = point
+        NSEvent.pressedMouseButtons = 1
+        dragged.observe(NSEvent(type: .leftMouseDown, timestamp: 960))
+        NSEvent.mouseLocation = point
+        dragged.observe(NSEvent(type: .leftMouseDragged, timestamp: 960.2, cgEvent: at(away)))
+        suite.expect(!dragged.gesture.isActive, "a queued drag off the icon cancels where it happened")
+        NSEvent.mouseLocation = point
+        NSEvent.pressedMouseButtons = 0
+    }
+
+    /// Which time a release is judged by: the release action's own, or the
+    /// event source's record; never a newer press's.
+    private static func testReleaseTimeSources(_ suite: TestSuite) {
+        let point = CGPoint(x: 120, y: 300)
+        // A release action carries its exact time, even when the event source
+        // already records a later click's release.
+        let exact = Host()
+        NSEvent.mouseLocation = point
+        NSEvent.pressedMouseButtons = 1
+        exact.observe(NSEvent(type: .leftMouseDown, timestamp: 970))
+        NSEvent.pressedMouseButtons = 0
+        CGEventSource.releasedAt = 970.7
+        ProcessInfo.processInfo.systemUptime = 970.8
+        _ = exact.buttonClick(NSEvent(timestamp: 970.1))
+        suite.expect(exact.results == [.single(point)], "a release action's own time decides")
+
+        // The press's own down is not a newer press.
+        let own = Host()
+        NSEvent.pressedMouseButtons = 1
+        own.observe(NSEvent(type: .leftMouseDown, timestamp: 980))
+        CGEventSource.pressedAt = 980
+        ProcessInfo.processInfo.systemUptime = 980.6
+        own.timer?.fire()
+        NSEvent.pressedMouseButtons = 0
+        CGEventSource.releasedAt = 980.7
+        ProcessInfo.processInfo.systemUptime = 980.75
+        own.timer?.fire()
+        suite.expect(own.results == [.quick(.screenshot)], "a hold is not cut short by its own down")
+
+        // A newer press held at the tick: this press came up before it.
+        let newer = Host()
+        NSEvent.pressedMouseButtons = 1
+        newer.observe(NSEvent(type: .leftMouseDown, timestamp: 990))
+        CGEventSource.pressedAt = 990.6
+        CGEventSource.releasedAt = 990.3
+        ProcessInfo.processInfo.systemUptime = 990.7
+        newer.timer?.fire()
+        suite.expect(newer.results == [.single(point)] && !newer.gesture.isActive,
+                     "a newer press ends this one as the click it was, not a hold")
+        _ = newer.buttonClick(NSEvent(timestamp: 990.3))
+        suite.expect(newer.results == [.single(point)], "this press's late action stays its own")
+        CGEventSource.releasedAt = nil
+        CGEventSource.pressedAt = nil
+        NSEvent.pressedMouseButtons = 0
+    }
+
+    /// A second press can begin before a tick saw the first come up. The
+    /// first ends as the click it was, and the second starts on its own.
+    private static func testSecondPress(_ suite: TestSuite) {
+        let point = CGPoint(x: 120, y: 300)
+        let host = Host()
+        NSEvent.mouseLocation = point
+        NSEvent.pressedMouseButtons = 1
+        host.observe(NSEvent(type: .leftMouseDown, timestamp: 1000))
+        host.observe(NSEvent(type: .leftMouseDown, timestamp: 1000.03))
+        suite.expect(host.results == [.single(point)] && host.gesture.watchesForRelease,
+                     "the first press opens the panel and the second is watched")
+        _ = host.buttonClick(NSEvent(timestamp: 1000.02))
+        suite.expect(host.results == [.single(point)], "the first press's late action stays its own")
+        NSEvent.pressedMouseButtons = 0
+        ProcessInfo.processInfo.systemUptime = 1000.1
+        host.timer?.fire()
+        suite.expect(host.results == [.single(point), .single(point)], "the second press has its own outcome")
+    }
+
+    /// The panel anchors at the click. A release in the slack around the icon
+    /// anchors it on the icon, never beside or above it.
+    private static func testPanelAnchor(_ suite: TestSuite) {
+        let host = Host()
+        NSEvent.mouseLocation = CGPoint(x: 120, y: 300)
+        NSEvent.pressedMouseButtons = 1
+        host.observe(NSEvent(type: .leftMouseDown, timestamp: 1010))
+        NSEvent.mouseLocation = CGPoint(x: 138, y: 318)
+        ProcessInfo.processInfo.systemUptime = 1010.05
+        host.timer?.fire()
+        NSEvent.pressedMouseButtons = 0
+        ProcessInfo.processInfo.systemUptime = 1010.1
+        host.timer?.fire()
+        suite.expect(host.results == [.single(CGPoint(x: 135, y: 312))],
+                     "a release in the slack anchors the panel on the icon")
+        NSEvent.mouseLocation = CGPoint(x: 120, y: 300)
     }
 }

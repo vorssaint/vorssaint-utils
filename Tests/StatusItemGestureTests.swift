@@ -211,6 +211,14 @@ enum StatusItemGestureTests {
                      "a release well below a wide item runs nothing")
         suite.expect(StatusItemGesture.hitArea(of: nil) == nil && StatusItemGesture.hitArea(of: .zero) == nil,
                      "an unknown icon has no area to stay in")
+        // The bar is taller than the button: a press counts over its full
+        // height above and below the icon, but never beside it.
+        let press = StatusItemGesture.pressArea(of: icon)!
+        suite.expect(StatusItemGesture.claims(CGPoint(x: 120, y: 316), frame: press)
+                     && StatusItemGesture.claims(CGPoint(x: 120, y: 284), frame: press)
+                     && !StatusItemGesture.claims(CGPoint(x: 103, y: 300), frame: press)
+                     && StatusItemGesture.pressArea(of: nil) == nil,
+                     "a press counts over the bar's height at the icon, never beside it")
     }
 
     /// The status button reports its press and never its release, so the
