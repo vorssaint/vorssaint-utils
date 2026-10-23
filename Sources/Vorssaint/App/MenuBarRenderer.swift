@@ -204,6 +204,7 @@ enum MenuBarSegment {
     case diskActivityBlock(read: String, write: String, style: MenuBarBlockStyle)
     case batteryBlock(percent: Int, isCharging: Bool, externalConnected: Bool,
                       warning: BatteryWarning = .none, style: MenuBarBlockStyle)
+    case batteryBarBlock(percent: Int, isCharging: Bool, externalConnected: Bool, style: MenuBarBlockStyle)
     case dot(MemoryPressure)
     case separator
 }
@@ -517,11 +518,8 @@ enum MenuBarRenderer {
                                                     pressure: nil,
                                                     warning: batteryWarning(for: snapshot.power))])
                     } else if let chargePercent = enabled.contains(.battery) ? snapshot.power?.chargePercent : nil {
-                        groups.append([.batteryBlock(percent: chargePercent,
-                                                     isCharging: snapshot.power?.isCharging ?? false,
-                                                     externalConnected: snapshot.power?.externalConnected ?? false,
-                                                     warning: batteryWarning(for: snapshot.power),
-                                                     style: style)])
+                        groups.append([batterySegment(percent: chargePercent, power: snapshot.power,
+                                                      usesBars: usesBars, style: style)])
                     } else if let temperature {
                         groups.append([.metricBlock(label: temperatureLabel("BAT"),
                                                     value: temperature,
@@ -542,11 +540,8 @@ enum MenuBarRenderer {
                     break
                 }
                 if let charge = snapshot.power?.chargePercent {
-                    groups.append([.batteryBlock(percent: charge,
-                                                 isCharging: snapshot.power?.isCharging ?? false,
-                                                 externalConnected: snapshot.power?.externalConnected ?? false,
-                                                 warning: batteryWarning(for: snapshot.power),
-                                                 style: style)])
+                    groups.append([batterySegment(percent: charge, power: snapshot.power,
+                                                  usesBars: usesBars, style: style)])
                 }
             case .batteryTime:
                 if let power = snapshot.power,
@@ -751,6 +746,12 @@ enum MenuBarRenderer {
                                                      externalConnected: externalConnected,
                                                      warning: warning,
                                                      style: style))
+            case let .batteryBarBlock(percent, isCharging, externalConnected, style):
+                result.append(usageBarBlockAttachment(label: "BAT",
+                                                      fraction: Double(max(0, min(100, percent))) / 100,
+                                                      style: style,
+                                                      pressure: nil,
+                                                      battery: (isCharging, externalConnected)))
             case let .dot(pressure):
                 result.append(NSAttributedString(string: "●", attributes: [.foregroundColor: nsColor(for: pressure)]))
             case .separator:
@@ -812,11 +813,13 @@ enum MenuBarRenderer {
     private static func usageBarBlockAttachment(label: String,
                                                 fraction: Double?,
                                                 style: MenuBarBlockStyle,
-                                                pressure: MemoryPressure?) -> NSAttributedString {
+                                                pressure: MemoryPressure?,
+                                                battery: (isCharging: Bool, externalConnected: Bool)? = nil) -> NSAttributedString {
         let image = usageBarBlockImage(label: label,
                                        fraction: fraction,
                                        style: style,
-                                       pressure: pressure)
+                                       pressure: pressure,
+                                       battery: battery)
         let attachment = NSTextAttachment()
         attachment.image = image
         // The gauge outline fills the image symmetrically, so the offset
@@ -932,18 +935,26 @@ enum MenuBarRenderer {
         return image
     }
 
+    /// `battery` switches the fill from usage thresholds, where high is bad, to
+    /// charge thresholds in the same colors, where low is bad, turns it green on
+    /// external power like the panel's battery, and overlays a bolt while charging.
     private static func usageBarBlockImage(label: String,
                                            fraction: Double?,
                                            style: MenuBarBlockStyle,
-                                           pressure: MemoryPressure?) -> NSImage {
+                                           pressure: MemoryPressure?,
+                                           battery: (isCharging: Bool, externalConnected: Bool)? = nil) -> NSImage {
         let innerSteps = style == .readable ? 17 : 15
         let fillLevel = fraction.map { MenuBarUsageBarSupport.fillLevel(for: $0, steps: innerSteps) }
+        let batteryColor = battery?.externalConnected == true ? NSColor.systemGreen : nil
         let fillColorHex = fraction.map {
-            MenuBarUsageBarSupport.currentColorHex(for: MenuBarUsageBarSupport.currentLevel(for: $0))
+            MenuBarUsageBarSupport.currentColorHex(for: battery == nil
+                                                       ? MenuBarUsageBarSupport.currentLevel(for: $0)
+                                                       : MenuBarUsageBarSupport.batteryLevel(forPercent: Int(($0 * 100).rounded())))
         } ?? "missing"
         let pressureKey = pressure.map(String.init(describing:)) ?? "none"
         let levelKey = fillLevel.map(String.init) ?? "missing"
-        let cacheKey = "usageBar|\(label)|\(levelKey)|\(fillColorHex)|\(style)|\(pressureKey)" as NSString
+        let batteryKey = battery.map { "\($0.isCharging)|\($0.externalConnected)" } ?? "none"
+        let cacheKey = "usageBar|\(label)|\(levelKey)|\(fillColorHex)|\(style)|\(pressureKey)|\(batteryKey)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
         let size = usageBarSize(style: style, showsPressure: pressure != nil)
@@ -991,6 +1002,7 @@ enum MenuBarRenderer {
             outline.stroke()
 
             let innerRect = outlineRect.insetBy(dx: 1.6, dy: 1.6)
+            var fillTop = innerRect.minY
             if let fillLevel, fillLevel > 0 {
                 let fillHeight = max(1, min(innerRect.height,
                                             innerRect.height * CGFloat(fillLevel) / CGFloat(innerSteps)))
@@ -998,8 +1010,9 @@ enum MenuBarRenderer {
                                       y: innerRect.minY,
                                       width: innerRect.width,
                                       height: fillHeight)
-                usageBarColor(hex: fillColorHex).setFill()
+                (batteryColor ?? usageBarColor(hex: fillColorHex)).setFill()
                 NSBezierPath(roundedRect: fillRect, xRadius: 1.2, yRadius: 1.2).fill()
+                fillTop = fillRect.maxY
             } else if fillLevel == nil {
                 NSColor.secondaryLabelColor.setStroke()
                 let dash = NSBezierPath()
@@ -1008,11 +1021,38 @@ enum MenuBarRenderer {
                 dash.lineWidth = 1
                 dash.stroke()
             }
+            if battery?.isCharging == true {
+                drawChargingBolt(in: innerRect, fillTop: fillTop)
+            }
             return true
         }
         image.isTemplate = false
         blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))
         return image
+    }
+
+    /// The bolt is cut out of the fill and drawn in the label color above it, so
+    /// its shape reads at any charge instead of sitting light on a light fill.
+    private static func drawChargingBolt(in rect: NSRect, fillTop: CGFloat) {
+        let width = rect.width
+        let height = min(rect.height - 2, width * 1.5)
+        let boltRect = NSRect(x: rect.midX - width / 2, y: rect.midY - height / 2, width: width, height: height)
+        let bolt = NSBezierPath()
+        for (index, point) in MenuBarUsageBarSupport.chargingBoltPoints.enumerated() {
+            let mapped = NSPoint(x: boltRect.minX + point.x * width, y: boltRect.minY + point.y * height)
+            if index == 0 { bolt.move(to: mapped) } else { bolt.line(to: mapped) }
+        }
+        bolt.close()
+        NSGraphicsContext.saveGraphicsState()
+        NSRect(x: rect.minX, y: rect.minY, width: rect.width, height: fillTop - rect.minY).clip()
+        NSGraphicsContext.current?.compositingOperation = .destinationOut
+        bolt.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSGraphicsContext.saveGraphicsState()
+        NSRect(x: rect.minX, y: fillTop, width: rect.width, height: rect.maxY - fillTop).clip()
+        NSColor.labelColor.setFill()
+        bolt.fill()
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private static func usageBarColor(hex: String) -> NSColor {
@@ -1144,6 +1184,27 @@ enum MenuBarRenderer {
 
     private static func dynamicTextAttributes(font: NSFont) -> [NSAttributedString.Key: Any] {
         [.font: font, .foregroundColor: NSColor.labelColor]
+    }
+
+    /// The charge reading, as a vertical bar when the bars appearance asks for
+    /// one, otherwise as the battery glyph with its percentage.
+    private static func batterySegment(percent: Int,
+                                       power: PowerReading?,
+                                       usesBars: Bool,
+                                       style: MenuBarBlockStyle) -> MenuBarSegment {
+        let isCharging = power?.isCharging ?? false
+        let externalConnected = power?.externalConnected ?? false
+        guard !usesBars || MenuBarBatteryStyle.current != .bar else {
+            // The bar colors itself from its charge like its neighbors, not from
+            // the island's opt-in warning.
+            return .batteryBarBlock(percent: percent, isCharging: isCharging, externalConnected: externalConnected,
+                                    style: style)
+        }
+        return .batteryBlock(percent: percent,
+                             isCharging: isCharging,
+                             externalConnected: externalConnected,
+                             warning: batteryWarning(for: power),
+                             style: style)
     }
 
     /// The island's low battery warning, which the menu bar reading shares.
