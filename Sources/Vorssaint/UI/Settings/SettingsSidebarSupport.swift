@@ -26,6 +26,28 @@ struct SettingsSidebarSection: Identifiable {
 
 /// Builds one row per tool, even when several tools share one Settings card.
 enum SettingsSidebarSupport {
+    static func feature(for item: SettingsSidebarItem) -> AppFeature? {
+        if case .feature(let feature) = item.id { return feature }
+        // Tools without a dedicated page target Features itself; that does
+        // not make the discovery page owned by one of those optional tools.
+        if item.id == .page(.features) { return nil }
+        return AppFeature.allCases.first { $0.settingsDestination == item.destination }
+    }
+
+    static func visibleSections(_ sections: [SettingsSidebarSection],
+                                experience: SettingsExperience,
+                                selected: FeatureSettingsDestination) -> [SettingsSidebarSection] {
+        sections.compactMap { section in
+            let items = section.items.filter { item in
+                guard let feature = feature(for: item) else { return true }
+                // A search/deep link stays selected even outside the chosen level.
+                return experience.shows(feature) || item.destination == selected
+            }
+            return items.isEmpty ? nil : SettingsSidebarSection(
+                id: section.id, title: section.title, items: items)
+        }
+    }
+
     static func items(page: SettingsPage, title: String, icon: String,
                       preferredFeatures: [AppFeature], includePage: Bool,
                       isAvailable: (AppFeature) -> Bool,
