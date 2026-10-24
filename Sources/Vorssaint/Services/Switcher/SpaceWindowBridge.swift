@@ -95,8 +95,19 @@ enum SpaceWindowBridge {
         struct DisplayInfo {
             let displayID: CGDirectDisplayID?
             let spaces: [UInt64]
+            /// Only ordinary desktops receive the system's Desktop 1–10 numbers.
+            let desktopSpaces: [UInt64]?
             let fullscreenSpaces: Set<UInt64>
             let currentSpace: UInt64?
+
+            init(displayID: CGDirectDisplayID?, spaces: [UInt64], desktopSpaces: [UInt64]? = nil,
+                 fullscreenSpaces: Set<UInt64>, currentSpace: UInt64?) {
+                self.displayID = displayID
+                self.spaces = spaces
+                self.desktopSpaces = desktopSpaces
+                self.fullscreenSpaces = fullscreenSpaces
+                self.currentSpace = currentSpace
+            }
         }
 
         /// With separate Spaces, only the island's display controls visibility.
@@ -124,7 +135,7 @@ enum SpaceWindowBridge {
     /// Captures AppKit's display identity while the caller is on main. The
     /// resulting values are safe to carry to window-enumeration workers.
     static func displayIDsByUUID() -> [String: CGDirectDisplayID] {
-        var map: [String: CGDirectDisplayID] = [:]
+        var map: [String: CGDirectDisplayID] = ["Main": CGMainDisplayID()]
         for screen in NSScreen.screens {
             guard let screenNum = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
                   let uuid = CGDisplayCreateUUIDFromDisplayID(screenNum)?.takeRetainedValue(),
@@ -159,11 +170,13 @@ enum SpaceWindowBridge {
                 guard (space["type"] as? NSNumber)?.intValue == 4 else { return nil }
                 return (space["id64"] as? NSNumber)?.uint64Value
             })
+            let desktopSpaces = SpaceHopSupport.desktopSpaceIDs(spaceDictionaries)
             let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
             let uuidStr = display["Display Identifier"] as? String
             let displayID = uuidStr.flatMap { displayIDsByUUID[$0] }
             displays.append(Topology.DisplayInfo(displayID: displayID,
                                                  spaces: row,
+                                                 desktopSpaces: desktopSpaces,
                                                  fullscreenSpaces: fullscreenSpaces,
                                                  currentSpace: current?.uint64Value))
         }
