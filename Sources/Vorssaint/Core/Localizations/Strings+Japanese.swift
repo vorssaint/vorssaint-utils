@@ -992,6 +992,8 @@ extension Strings {
         cleanerPanelCaption: "アプリの残骸、キャッシュ、ログ",
         cleanerSafeSection: "安全なクリーンアップ",
         cleanerOptionalSection: "オプション、先に確認",
+        cleanerExpandAll: "すべて展開",
+        cleanerCollapseAll: "すべて折りたたむ",
         cleanerCatOtherCaches: "その他のキャッシュ",
         cleanerCachesCaption: "アプリが自動で作り直す一時ファイルです。",
         cleanerLogsCaption: "古い診断ログです。",

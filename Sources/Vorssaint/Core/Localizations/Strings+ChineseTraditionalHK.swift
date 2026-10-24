@@ -993,6 +993,8 @@ extension Strings {
         cleanerPanelCaption: "App 殘留、快取和日誌",
         cleanerSafeSection: "安全清理",
         cleanerOptionalSection: "可選，請先確認",
+        cleanerExpandAll: "全部展開",
+        cleanerCollapseAll: "全部收合",
         cleanerCatOtherCaches: "其他快取",
         cleanerCachesCaption: "App 會自行重建的暫存檔案。",
         cleanerLogsCaption: "舊的診斷記錄。",
