@@ -863,9 +863,12 @@ enum NotchMusicExtrasTests {
                                                                  DefaultsKey.notchQueueEnabled, DefaultsKey.notchLiveEqualizer, AppFeature.notchLyrics.availabilityKey,
                                                                  AppFeature.notchQueue.availabilityKey]),
                "music feature choices and online consent are accounted for by settings backup")
+        suite.expect(NotchMusicSidePlace.sanitized(nil) == .output && NotchMusicSidePlace.sanitized("like") == .like
+                     && NotchMusicSidePlace.sanitized("output") == .output && NotchMusicSidePlace.sanitized("junk") == .output,
+                     "the button after the transport is the audio output unless the heart is chosen, and a stored oddity falls back to it")
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchMusicExtras(language)).children.compactMap { $0.value as? String }
-            suite.expect(strings.count == 44 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            suite.expect(strings.count == 48 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "music extras have complete user-facing strings in \(language.rawValue)")
         }
     }
