@@ -378,7 +378,7 @@ enum DefaultsKey {
     static let panelToggleDisplayOff = "panelToggleDisplayOff"
     static let panelToggleScreenSaver = "panelToggleScreenSaver"
 
-    // System monitor — live metrics shown next to the menu bar icon (opt-in).
+    // System monitor: live metrics shown next to the menu bar icon (opt-in).
     static let menuBarCPU = "menuBarCPU"
     static let menuBarGPU = "menuBarGPU"
     static let menuBarMemory = "menuBarMemory"
@@ -415,7 +415,7 @@ enum DefaultsKey {
     static let monitorMemoryMetric = "monitorMemoryMetric" // used | app
     static let monitorInterval = "monitorIntervalSeconds"  // sampling cadence: 1/2/5
     static let temperatureUnit = "temperatureUnit"          // celsius | fahrenheit
-    // System monitor — which blocks appear in the panel.
+    // System monitor: which blocks appear in the panel.
     static let monitorShowSystem = "monitorShowSystem"
     static let monitorShowNetwork = "monitorShowNetwork"
     static let monitorShowDisk = "monitorShowDisk"
@@ -436,7 +436,7 @@ enum DefaultsKey {
     // automatic fan control before this marker can be cleared.
     static let fanControlRecoveryNeeded = "fanControlRecoveryNeeded"
     static let fanControlHelperVersion = "fanControlHelperVersion"
-    // System monitor — per-metric history graphs (each independently toggleable).
+    // System monitor: per-metric history graphs (each independently toggleable).
     static let monitorGraphCPU = "monitorGraphCPU"
     static let monitorGraphGPU = "monitorGraphGPU"
     static let monitorGraphMemory = "monitorGraphMemory"
@@ -445,7 +445,7 @@ enum DefaultsKey {
     static let monitorGraphPower = "monitorGraphPower"
     static let monitorGraphBattery = "monitorGraphBattery"
     static let monitorGraphScale = "monitorGraphScale"
-    // System monitor — per-item visibility inside each panel section.
+    // System monitor: per-item visibility inside each panel section.
     static let monitorSysTemps = "monitorSysTemps"
     static let monitorSysCPU = "monitorSysCPU"
     static let monitorSysCPUCores = "monitorSysCPUCores"
@@ -473,7 +473,7 @@ enum DefaultsKey {
     static let monitorPwrTimeRemaining = "monitorPwrTimeRemaining"
     static let monitorPwrHealth = "monitorPwrHealth"
     static let monitorPwrPeripherals = "monitorPwrPeripherals"
-    // System monitor — optional notifications for sustained or actionable conditions.
+    // System monitor: optional notifications for sustained or actionable conditions.
     static let monitorAlertCPU = "monitorAlertCPU"
     static let monitorAlertCPUTemperature = "monitorAlertCPUTemperature"
     static let monitorAlertBatteryTemperature = "monitorAlertBatteryTemperature"
@@ -486,7 +486,7 @@ enum DefaultsKey {
     static let monitorAlertDiskFreePercent = "monitorAlertDiskFreePercent"
     static let monitorAlertBatteryPercent = "monitorAlertBatteryPercent"
     static let monitorAlertCooldownMinutes = "monitorAlertCooldownMinutes"
-    // Menu panel layout — the order the major sections appear in and which are
+    // Menu panel layout: the order the major sections appear in and which are
     // collapsed, both comma-joined section ids (see PanelSectionID). Absent keys
     // mean the canonical order and nothing collapsed, so no defaults registration.
     static let panelSectionOrder = "panelSectionOrder"
@@ -509,7 +509,7 @@ enum DefaultsKey {
     static let panelCollapsedSections = "panelCollapsedSections"
     static let panelCollapsedResetVersion = "panelCollapsedResetVersion"
 
-    // Media utility — local video, GIF, image and OCR tools.
+    // Media utility: local video, GIF, image and OCR tools.
     static let mediaLastTool = "mediaLastTool"
     static let mediaVideoStart = "mediaVideoStart"
     static let mediaVideoEnd = "mediaVideoEnd"
@@ -552,7 +552,7 @@ enum DefaultsKey {
     static let mediaTextAccurate = "mediaTextAccurate"
     static let mediaTextLanguageCorrection = "mediaTextLanguageCorrection"
 
-    // Clipboard history — text only, opt-in and local.
+    // Clipboard history: text only, opt-in and local.
     static let clipboardHistoryEnabled = "clipboardHistoryEnabled"
     static let clipboardHistoryEntries = "clipboardHistoryEntries"
     static let clipboardHistoryLimit = "clipboardHistoryLimit"
@@ -694,6 +694,8 @@ enum DefaultsKey {
     static let screenshotSpotlightDim = "screenshotSpotlightDim"
     static let screenshotLastArrowStyle = "screenshotLastArrowStyle"
     static let screenshotLastSticker = "screenshotLastSticker"
+    static let screenshotMeasureUnit = "screenshotMeasureUnit"       // "" points | px
+    static let screenshotLastMagnification = "screenshotLastMagnification"
     static let screenshotAnnotationShadows = "screenshotAnnotationShadows"
     static let screenshotToolOrder = "screenshotToolOrder"
     static let screenshotToolShortcuts = "screenshotToolShortcuts"
@@ -740,7 +742,7 @@ enum DefaultsKey {
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
 
-    // Window Layout — snapping, global shortcuts and optional pointer gestures.
+    // Window Layout: snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
     static let windowDirectionalEnabled = "windowDirectionalEnabled"
     static let windowDirectionalShortcut = "windowDirectionalShortcut"
@@ -1098,7 +1100,7 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
     }
 
     /// Nudge down the menu bar canvas, in points. Symbols carrying their mass
-    /// above the shape's middle — steam over a cup, a bulb over its base — read
+    /// above the shape's middle (steam over a cup, a bulb over its base) read
     /// as sitting high when their ink is centered geometrically.
     var menuBarDrop: CGFloat {
         switch self {
@@ -1897,6 +1899,8 @@ enum Defaults {
         DefaultsKey.screenshotSpotlightDim: Double(ScreenshotSupport.defaultSpotlightDim),
         DefaultsKey.screenshotLastArrowStyle: "filled",
         DefaultsKey.screenshotLastSticker: "check",
+        DefaultsKey.screenshotMeasureUnit: "",
+        DefaultsKey.screenshotLastMagnification: ScreenshotSupport.defaultMagnification,
         DefaultsKey.screenshotAnnotationShadows: false,
         DefaultsKey.screenshotToolOrder: ScreenshotSupport.Tool.defaultOrderStorage,
         DefaultsKey.screenshotToolShortcutsEnabled: true,
@@ -2355,8 +2359,8 @@ enum Defaults {
     /// shortcut of its own, so the combination keeps opening the chooser.
     /// A tool whose shortcut is switched off but was customized still counts
     /// as having its own, so its saved combination is never overwritten.
-    /// Availability is read from the passed defaults — the same key
-    /// `isAvailable` reads from the standard ones — to stay testable.
+    /// Availability is read from the passed defaults, the same key
+    /// `isAvailable` reads from the standard ones, to stay testable.
     static func migrateOrphanedCaptureShortcut(in defaults: UserDefaults) {
         guard !defaults.bool(forKey: DefaultsKey.orphanedCaptureShortcutMigrated) else {
             return
