@@ -2512,13 +2512,13 @@ enum PointerInputFeatureTests {
                                               longHold: true,
                                               repeated: true) == .capsLock,
                "the input-source action switches on a quick press and reserves a hold for Caps Lock")
-        suite.expect(SuperKeySupport.nextInputSourceID(currentID: "abc",
-                                                 enabledIDs: ["abc", "pinyin", "kana"]) == "pinyin"
-                && SuperKeySupport.nextInputSourceID(currentID: "kana",
+        suite.expect(InputSourceSelection.nextSourceID(currentID: "abc",
+                                                       enabledIDs: ["abc", "pinyin", "kana"]) == "pinyin"
+                && InputSourceSelection.nextSourceID(currentID: "kana",
                                                      enabledIDs: ["abc", "pinyin", "kana"]) == "abc"
-                && SuperKeySupport.nextInputSourceID(currentID: "missing",
+                && InputSourceSelection.nextSourceID(currentID: "missing",
                                                      enabledIDs: ["abc", "pinyin"]) == "abc"
-                && SuperKeySupport.nextInputSourceID(currentID: nil,
+                && InputSourceSelection.nextSourceID(currentID: nil,
                                                      enabledIDs: ["abc"]) == nil,
                "input sources cycle through the enabled system list without a hard-coded shortcut")
 

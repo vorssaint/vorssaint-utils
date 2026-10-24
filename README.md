@@ -119,6 +119,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Extra click filter.** Ignore accidental rapid clicks from worn mouse buttons without delaying normal clicks.
 - **Key debounce.** Filter repeated letters caused by a worn keyboard.
 - **Super key.** Use Caps Lock or a right-side modifier as a shortcut combination, with a separate tap action and app exclusions.
+- **Fn input source.** Tap Fn/🌐 on its own to switch to the next input source, with no picker and no wait. Fn shortcuts keep working.
 - **Keyboard shortcuts.** Manage feature shortcuts in one place, including optional takeover of supported macOS shortcuts while a feature is active.
 
 ### Clipboard, files and links

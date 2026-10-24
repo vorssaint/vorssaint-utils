@@ -93,7 +93,8 @@ extension AppFeature {
              .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
              .dockPreview, .dockClick, .shelf:
             return .mouse
-        case .keyboardDebounce, .finderCutPaste, .finderRename, .quitWindowProtection, .musicBlock:
+        case .keyboardDebounce, .finderCutPaste, .finderRename, .quitWindowProtection, .musicBlock,
+             .fnInputSource:
             return .keyboard
         // The switcher's tap also takes clicks and scrolls, and the Super key
         // stamps its modifiers on mouse presses from a second tap.

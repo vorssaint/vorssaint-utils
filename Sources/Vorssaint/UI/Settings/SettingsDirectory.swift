@@ -420,6 +420,12 @@ enum SettingsDirectory {
                                       keywords: SuperKeySource.allCases.map {
                                           FeatureStrings.superKey(language).sourceLabel($0)
                                       }),
+                SettingsDirectoryItem(page: .fnInputSource,
+                                      title: FeatureStrings.fnInputSource(language).pageTitle,
+                                      icon: AppFeature.fnInputSource.symbolName,
+                                      keywords: [FeatureStrings.fnInputSource(language).enableToggle,
+                                                 FeatureStrings.fnInputSource(language).systemSection,
+                                                 "Fn", "🌐", "Globe"]),
                 SettingsDirectoryItem(page: .textSnippets,
                                       title: FeatureStrings.snippets(language).pageTitle,
                                       icon: "text.append",

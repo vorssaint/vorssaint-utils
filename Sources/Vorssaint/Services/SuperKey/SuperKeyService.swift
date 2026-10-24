@@ -806,7 +806,7 @@ final class SuperKeyService: ObservableObject {
             // Must finish before this tap returns: the next keystroke is already
             // in flight, and hopping to main (or waiting on Accessibility) left
             // that character in the old source.
-            Self.selectNextInputSource()
+            InputSourceSelection.selectNext()
         }
     }
 
@@ -829,38 +829,6 @@ final class SuperKeyService: ObservableObject {
         down.post(tap: .cgSessionEventTap)
         up.post(tap: .cgSessionEventTap)
         return true
-    }
-
-    /// Cycle enabled keyboard sources through TIS before the tap lets the next
-    /// key through. An earlier path asked another app for marked text (up to
-    /// 200 ms) and then slept 100 ms so Control-Space could commit IME
-    /// composition; that wait ran on every tap, including ones with nothing to
-    /// commit. Selecting the next source directly lets the input method commit
-    /// or cancel on its own, the same way the Input menu does.
-    private static func selectNextInputSource() {
-        let apply = {
-            let sources = InputSourceSelection.selectableInputSources()
-            let ids = sources.compactMap {
-                InputSourceSelection.inputSourceString($0, property: kTISPropertyInputSourceID)
-            }
-            guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
-            let currentID = InputSourceSelection.inputSourceString(current, property: kTISPropertyInputSourceID)
-            guard let nextID = SuperKeySupport.nextInputSourceID(currentID: currentID,
-                                                                 enabledIDs: ids),
-                  let next = sources.first(where: {
-                      InputSourceSelection.inputSourceString($0, property: kTISPropertyInputSourceID) == nextID
-                  })
-            else { return }
-            _ = TISSelectInputSource(next)
-        }
-        // TIS talks to the text-input server from the main thread. sync (not
-        // async) keeps the switch ahead of the next keystroke this tap is
-        // about to let through.
-        if Thread.isMainThread {
-            apply()
-        } else {
-            DispatchQueue.main.sync(execute: apply)
-        }
     }
 
     // MARK: - Caps Lock itself

@@ -952,8 +952,13 @@ enum CommandBarFeatureTests {
         let superKeySource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift",
             encoding: .utf8)) ?? ""
-        suite.expect(superKeySource.contains("InputSourceSelection.selectableInputSources()"),
-               "the Super key cycle shares the TIS plumbing instead of its own copy")
+        let fnKeySource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/FnInputSource/FnInputSourceService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(superKeySource.contains("InputSourceSelection.selectNext()")
+                && fnKeySource.contains("InputSourceSelection.selectNext()")
+                && !superKeySource.contains("TISSelectInputSource") && !fnKeySource.contains("TISSelectInputSource"),
+               "the Super key and Fn key cycles share one TIS selection instead of copies of their own")
 
         // MARK: The Mac's own Settings panes
         let openablePane: [String: Any] = [

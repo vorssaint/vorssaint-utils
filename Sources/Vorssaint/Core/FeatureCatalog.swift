@@ -17,7 +17,7 @@ enum AppFeature: String, CaseIterable {
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit, spacesOrder
     // Mouse and keyboard
     case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
-         mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
+         mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection, fnInputSource
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
          diskImageInstaller
@@ -104,7 +104,8 @@ extension AppFeature {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder:
             return .windowsDock
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
-             .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
+             .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce,
+             .fnInputSource:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
              .diskImageInstaller:
@@ -152,6 +153,7 @@ extension AppFeature {
                 UserDefaults.standard.string(forKey: DefaultsKey.superKeySource)
             ).systemImage
         case .mouseClickDebounce: return "cursorarrow.click"
+        case .fnInputSource: return "globe"
         case .quitWindowProtection: return "shield.lefthalf.filled"
         case .clipboardHistory: return "doc.on.clipboard"
         case .pastePlain: return "doc.plaintext"
@@ -256,6 +258,7 @@ extension AppFeature {
             return [DefaultsKey.quitProtectionQuitEnabled, DefaultsKey.quitProtectionCloseEnabled]
         case .textSnippets: return [DefaultsKey.textSnippetsEnabled, DefaultsKey.snippetLibraryEnabled]
         case .superKey: return [DefaultsKey.superKeyEnabled]
+        case .fnInputSource: return [DefaultsKey.fnInputSourceEnabled]
         case .mouseClickDebounce: return [DefaultsKey.mouseClickDebounceEnabled]
         case .notchGestures: return [DefaultsKey.notchGesturesEnabled]
         case .notchTimer: return [DefaultsKey.notchTimerEnabled]
@@ -350,7 +353,7 @@ extension AppFeature {
         case .mouseAcceleration, .spacesOrder:
             return []
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
-             .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
+             .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce, .fnInputSource,
              .dockClick, .windowMaximizer, .windowLayout,
              .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
              // The bar reads other apps' menus and windows and types at the
@@ -435,7 +438,7 @@ extension AppFeature {
         .dockPreview, .dockClick, .windowMaximizer, .autoQuit,
         .scrollInverter, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation,
         .mouseButtonShortcuts, .middleClick, .keyboardDebounce, .mouseClickDebounce, .superKey,
-        .finderCutPaste,
+        .fnInputSource, .finderCutPaste,
     ]
 
     /// Installed features from that list whose switches are off and were never
@@ -484,7 +487,8 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder,
+             .fnInputSource:
             return false
         }
     }

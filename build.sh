@@ -515,6 +515,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift
         Sources/Vorssaint/Services/SuperKey/SuperKeyMappingGuard.swift
         Sources/Vorssaint/Core/SuperKeyStrings.swift
+        Sources/Vorssaint/Services/FnInputSource/FnInputSourceSupport.swift
+        Sources/Vorssaint/Core/FnInputSourceStrings.swift
         Sources/Vorssaint/Core/InputSourceSelection.swift
         Sources/Vorssaint/Services/SessionActivity.swift
         Sources/Vorssaint/Services/SessionActivitySupport.swift

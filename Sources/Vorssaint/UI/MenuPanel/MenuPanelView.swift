@@ -1114,7 +1114,7 @@ struct UtilitiesSection: View {
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, linearScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
          dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
-         mouseClickDebounce, notch, spacesOrder
+         mouseClickDebounce, notch, spacesOrder, fnInputSource
 
     var id: String { rawValue }
 
@@ -1143,6 +1143,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .mouseButtonShortcuts: return .mouseButtonShortcuts
         case .superKey: return .superKey
         case .mouseClickDebounce: return .mouseClickDebounce
+        case .fnInputSource: return .fnInputSource
         }
     }
 }
@@ -1160,7 +1161,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
              .spacesOrder:
             return .windows
         case .mouseScroll, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
-             .textSnippets, .radialMenu, .superKey, .mouseClickDebounce:
+             .textSnippets, .radialMenu, .superKey, .mouseClickDebounce, .fnInputSource:
             return .inputDevices
         case .cutPaste, .shelf:
             return .files
@@ -1211,6 +1212,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
     @AppStorage(DefaultsKey.linearScrollEnabled) private var linearScrollEnabled = false
     @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
+    @AppStorage(DefaultsKey.fnInputSourceEnabled) private var fnInputSourceEnabled = false
     @AppStorage(DefaultsKey.superKeyModifiers) private var superKeyModifierStorage =
         SuperKeySupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
@@ -1237,6 +1239,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlSuperKey) private var showSuperKey = true
     @AppStorage(DefaultsKey.panelControlMouseAcceleration) private var showMouseAcceleration = true
     @AppStorage(DefaultsKey.panelControlMouseClickDebounce) private var showMouseClickDebounce = true
+    @AppStorage(DefaultsKey.panelControlFnInputSource) private var showFnInputSource = true
     @AppStorage(DefaultsKey.panelControlWindowsExpanded) private var windowsExpanded = false
     @AppStorage(DefaultsKey.panelControlInputExpanded) private var inputExpanded = false
     @AppStorage(DefaultsKey.panelControlFilesExpanded) private var filesExpanded = false
@@ -1360,6 +1363,7 @@ struct QuickControlsSection: View {
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .superKey: return superKeyEnabled
         case .mouseClickDebounce: return mouseClickDebounceEnabled
+        case .fnInputSource: return fnInputSourceEnabled
         }
     }
 
@@ -1440,6 +1444,7 @@ struct QuickControlsSection: View {
         case .mouseButtonShortcuts: return showMouseButtonShortcuts
         case .superKey: return showSuperKey
         case .mouseClickDebounce: return showMouseClickDebounce
+        case .fnInputSource: return showFnInputSource
         }
     }
 
@@ -1874,6 +1879,23 @@ struct QuickControlsSection: View {
                            permissionAction: accessibilityPermissionAction(mouseClickDebounceEnabled))
                 .onChange(of: mouseClickDebounceEnabled) { _, enabled in
                     MouseClickDebounceService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .fnInputSource:
+            let fnStrings = FeatureStrings.fnInputSource(l10n.language)
+            PanelToggleRow(title: fnStrings.pageTitle,
+                           caption: caption(fnStrings.hubDescription,
+                                            needsAccessibility: fnInputSourceEnabled),
+                           systemImage: AppFeature.fnInputSource.symbolName,
+                           isOn: $fnInputSourceEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showFnInputSource,
+                           needsAttention: fnInputSourceEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(fnInputSourceEnabled))
+                .onChange(of: fnInputSourceEnabled) { _, enabled in
+                    FnInputSourceService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
         }

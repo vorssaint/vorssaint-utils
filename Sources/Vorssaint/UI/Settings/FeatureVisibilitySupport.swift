@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
+    case mouse, switcher, dock, keyDebounce, superKey, fnInputSource, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -312,6 +312,7 @@ extension AppFeature {
         case .keyboardDebounce: return FeatureSettingsDestination(.keyDebounce)
         case .textSnippets: return FeatureSettingsDestination(.textSnippets)
         case .superKey: return FeatureSettingsDestination(.superKey)
+        case .fnInputSource: return FeatureSettingsDestination(.fnInputSource)
 
         case .clipboardHistory:
             return FeatureSettingsDestination(.clipboard, sectionAnchor: .clipboardHistory)
@@ -421,6 +422,7 @@ enum FeatureVisibilitySupport {
         case .portManager: return [.portManager]
         case .keyDebounce: return [.keyboardDebounce]
         case .superKey: return [.superKey]
+        case .fnInputSource: return [.fnInputSource]
         case .textSnippets: return [.textSnippets]
         case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
         case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch, .notchMascot]

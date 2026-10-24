@@ -82,6 +82,7 @@ enum DefaultsKey {
     // and which source to take back after a crash.
     static let superKeyMappingApplied = "superKeyMappingApplied"
     static let superKeyMappedSource = "superKeyMappedSource"
+    static let fnInputSourceEnabled = "fnInputSourceEnabled" // a solo tap of Fn/🌐 selects the next input source (issue #3224)
     // One list of bundle ids per mouse feature: apps it leaves alone (issue #358).
     static let smoothScrollExceptions = "smoothScrollExceptions"
     static let linearScrollExceptions = "linearScrollExceptions"
@@ -354,6 +355,7 @@ enum DefaultsKey {
     static let panelControlLinearScroll = "panelControlLinearScroll"
     static let panelControlMouseClickDebounce = "panelControlMouseClickDebounce"
     static let panelControlSpacesOrder = "panelControlSpacesOrder"
+    static let panelControlFnInputSource = "panelControlFnInputSource"
     // Quick-control categories start collapsed and remember being opened.
     static let panelControlWindowsExpanded = "panelControlWindowsExpanded"
     static let panelControlInputExpanded = "panelControlInputExpanded"
@@ -1245,6 +1247,7 @@ enum Defaults {
         DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
+        DefaultsKey.fnInputSourceEnabled: false,
         DefaultsKey.smoothScrollExceptions: [String](),
         DefaultsKey.linearScrollExceptions: [String](),
         DefaultsKey.scrollInverterExceptions: [String](),
@@ -1601,6 +1604,7 @@ enum Defaults {
         DefaultsKey.panelControlLinearScroll: true,
         DefaultsKey.panelControlMouseClickDebounce: true,
         DefaultsKey.panelControlSpacesOrder: true,
+        DefaultsKey.panelControlFnInputSource: true,
         DefaultsKey.panelControlWindowsExpanded: false,
         DefaultsKey.panelControlInputExpanded: false,
         DefaultsKey.panelControlFilesExpanded: false,
