@@ -105,7 +105,7 @@ final class QuitProtectionHUD {
             progressTrack.backgroundColor = NSColor.white.withAlphaComponent(0.16).cgColor
             progressTrack.cornerRadius = 1.5
             progressTrack.masksToBounds = true
-            // Visibility must change with the labels, even for a 250 ms hold.
+            // Visibility must change with the labels, even for a 125 ms hold.
             progressTrack.actions = ["hidden": NSNull()]
             progressTrack.isHidden = true
             progressFill.backgroundColor = NSColor.white.withAlphaComponent(0.8).cgColor

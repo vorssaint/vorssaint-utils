@@ -29,6 +29,23 @@ extension QuitProtectionRoutingContract.QuitProtectionService {
             return service.handle(type: type, event: event) != nil
         }
 
+        for shortcut in QuitProtectionShortcut.allCases {
+            let holdKey = shortcut == .quit ? DefaultsKey.quitProtectionQuitHoldDurationMs
+                : DefaultsKey.quitProtectionCloseHoldDurationMs
+            defaults.set(125.0, forKey: holdKey)
+            let key = CGKeyCode(shortcut.fallbackKeyCode)
+            let startedAt = Date()
+            let intercepted = !send(key)
+            let scheduledDelay = service.holdTimer?.fireDate.timeIntervalSince(startedAt) ?? 0
+            let elapsed = Date().timeIntervalSince(startedAt)
+            suite.expect(intercepted && scheduledDelay >= 0.124 && scheduledDelay <= elapsed + 0.126,
+                         "\(shortcut.symbol) schedules a saved 125 ms hold without clamping it to 250 ms")
+            send(key, .keyUp)
+            suite.expect(service.pending == nil && service.holdTimer == nil,
+                         "releasing \(shortcut.symbol) cancels a short hold")
+            defaults.removeObject(forKey: holdKey)
+        }
+
         // Chrome stays frontmost while the native switcher selects another app.
         // A held Q must reach the switcher, with no termination of Chrome.
         for mode in QuitProtectionMode.allCases {
