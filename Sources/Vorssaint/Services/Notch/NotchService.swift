@@ -4102,7 +4102,27 @@ final class NotchService: ObservableObject {
         if NotchSupport.routes(.battery) || idleContent == .battery || NotchMascotSupport.isEnabled() { startPower() }
     }
 
+    private static let questionSound = NSSound(contentsOfFile: "/System/Library/Sounds/Ping.aiff", byReference: true)
+    private static let permissionSound = NSSound(contentsOfFile: "/System/Library/Sounds/Funk.aiff", byReference: true)
+    private static let finishedSound = NSSound(data: AgentAlertTone.cashRegister())
+
+    /// A question, a permission request and a finished task each sound
+    /// different, so you know from across the room which one it is.
+    private func playAgentSound(_ event: AgentUsageEvent) {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.notchAgentsSounds) else { return }
+        let sound: NSSound?
+        switch event {
+        case .needsInput(_, .question): sound = Self.questionSound
+        case .needsInput(_, .permission): sound = Self.permissionSound
+        case .finished: sound = Self.finishedSound
+        default: sound = nil
+        }
+        sound?.stop()
+        sound?.play()
+    }
+
     private func showAgentEvent(_ event: AgentUsageEvent) {
+        playAgentSound(event)
         let text = FeatureStrings.notchAgents(L10n.shared.language)
         let locale = L10n.shared.language.formattingLocale()
         let remaining = NotchAgentSupport.limitDisplay() == .remaining
@@ -4135,6 +4155,15 @@ final class NotchService: ObservableObject {
         case .budgetReached(let spent, _):
             show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
                              symbol: "dollarsign.circle.fill"))
+        case .needsInput(let provider, let kind):
+            let alerts = FeatureStrings.agentAlerts(L10n.shared.language)
+            show(NotchNotice(event: .agents,
+                             title: kind == .question ? alerts.question(provider.displayName)
+                                : alerts.permission(provider.displayName),
+                             detail: alerts.waiting,
+                             symbol: kind == .question ? "questionmark.bubble.fill" : "hand.raised.fill",
+                             agent: provider))
+            reactMascot(.surprised)
         }
     }
 
