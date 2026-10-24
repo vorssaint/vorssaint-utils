@@ -1702,6 +1702,10 @@ def main():
           + declaration(dock, "    private func isNearDock(").replace("private func", "func", 1)
           + "}\n")
 
+    write("NotchLyricsDirection.swift", "import SwiftUI\n\nextension NotchLyricsDirectionTests {\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchLyricsView.swift", "struct NotchLyricsView: View {")
+          + "}\n")
+
     lyrics = "Sources/Vorssaint/Services/Notch/NotchLyricsService.swift"
     write("NotchLyricsLifecycle.swift", "import Foundation\nimport UniformTypeIdentifiers\n\nextension NotchLyricsContract {\n"
           + "final class Service {\nvar memory = NotchLyricsMemory()\n"
