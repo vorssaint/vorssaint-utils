@@ -179,12 +179,13 @@ enum LocalizationFeatureContractTests {
                    && !strings.switcherAppearanceDelay.contains("—")
                    && !strings.switcherAppearanceDelayCaption.contains("—"),
                    "\(prefix) App Switcher appearance-delay labels are present without em dash")
-            suite.expect(!strings.switcherMaxColumns.isEmpty
-                   && !strings.switcherMaxColumnsCaption.isEmpty
-                   && !strings.switcherMaxColumnsAuto.isEmpty
-                   && !strings.switcherMaxColumns.contains("—")
-                   && !strings.switcherMaxColumnsCaption.contains("—"),
-                   "\(prefix) App Switcher max-columns labels are present without em dash")
+            suite.expect(!strings.switcherIconRowOverflow.isEmpty
+                   && !strings.switcherIconRowOverflowCaption.isEmpty
+                   && !strings.switcherIconRowOverflowScroll.isEmpty
+                   && !strings.switcherIconRowOverflowNewRows.isEmpty
+                   && !strings.switcherIconRowOverflow.contains("—")
+                   && !strings.switcherIconRowOverflowCaption.contains("—"),
+                   "\(prefix) App Switcher icon-row overflow labels are present without em dash")
             suite.expect(!strings.switcherWindowlessApps.isEmpty
                    && !strings.switcherWindowlessApps.contains("—"),
                    "\(prefix) App Switcher windowless apps title is present without em dash")

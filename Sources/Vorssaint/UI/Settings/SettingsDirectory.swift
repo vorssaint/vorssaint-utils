@@ -250,7 +250,7 @@ enum SettingsDirectory {
                                        featureKeywords: [
                                         (.switcher, [s.switcherEnable, s.switcherInstantSelection,
                                                      s.switcherWindowlessApps,
-                                                     s.switcherShowShortcutHints, s.switcherMaxColumns,
+                                                     s.switcherShowShortcutHints, s.switcherIconRowOverflow,
                                                      FeatureStrings.switcherAppRules(language).listTitle,
                                                      FeatureStrings.switcherAppRules(language)
                                                         .showWithoutWindows,

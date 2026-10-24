@@ -640,19 +640,50 @@ struct SwitcherView: View {
     private func singleIconRow<Content: View>(itemCount: Int,
                                               tileWidth: CGFloat,
                                               @ViewBuilder content: () -> Content) -> some View {
-        let overflow = itemCount > switcher.iconRowLayout.visibleIconCount
-        return HStack(alignment: .center, spacing: SwitcherIconRowLayout.spacing) {
-            content()
+        let layout = switcher.iconRowLayout
+        let overflow = itemCount > layout.visibleIconCount
+        let first = SwitcherSupport.clampedIconRowFirstVisibleIndex(itemCount: itemCount,
+                                                                    visibleCount: layout.visibleIconCount,
+                                                                    firstVisibleIndex: switcher.iconRowFirstVisibleIndex)
+        return HStack(spacing: 0) {
+            if layout.pagesSideways {
+                iconRowOverflowHint(hiddenCount: first, edge: .leading)
+            }
+            HStack(alignment: .center, spacing: SwitcherIconRowLayout.spacing) {
+                content()
+            }
+            .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .center)
+            .offset(x: overflow ? iconRowOverflowOffset(tileWidth: tileWidth) : 0)
+            .animation(instantSelection ? nil : .easeOut(duration: SwitcherSupport.iconRowEdgeHoverAnimationDuration),
+                       value: switcher.iconRowFirstVisibleIndex)
+            .frame(width: layout.appRowContentWidth,
+                   height: SwitcherIconRowLayout.rowHeight,
+                   alignment: .leading)
+            .clipped()
+            .contentShape(Rectangle())
+            if layout.pagesSideways {
+                iconRowOverflowHint(hiddenCount: max(0, itemCount - first - layout.visibleIconCount),
+                                    edge: .trailing)
+            }
         }
-        .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .center)
-        .offset(x: overflow ? iconRowOverflowOffset(tileWidth: tileWidth) : 0)
+    }
+
+    /// The number of icons past one end of a paging row, with a chevron their way.
+    private func iconRowOverflowHint(hiddenCount: Int, edge: HorizontalEdge) -> some View {
+        VStack(spacing: 2) {
+            if hiddenCount > 0 {
+                Image(systemName: edge == .leading ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                Text("\(hiddenCount)")
+                    .font(.system(size: 10, weight: .semibold).monospacedDigit())
+            }
+        }
+        .foregroundStyle(SwitcherIconStyle.secondaryText)
+        .frame(width: SwitcherIconRowLayout.overflowHintWidth, height: SwitcherIconRowLayout.rowHeight)
         .animation(instantSelection ? nil : .easeOut(duration: SwitcherSupport.iconRowEdgeHoverAnimationDuration),
-                   value: switcher.iconRowFirstVisibleIndex)
-        .frame(width: switcher.iconRowLayout.appRowContentWidth,
-               height: SwitcherIconRowLayout.rowHeight,
-               alignment: .leading)
-        .clipped()
-        .contentShape(Rectangle())
+                   value: hiddenCount)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func iconRowOverflowOffset(tileWidth: CGFloat) -> CGFloat {

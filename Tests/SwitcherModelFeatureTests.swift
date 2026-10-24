@@ -448,9 +448,10 @@ enum SwitcherModelFeatureTests {
                == SwitcherSupport.defaultAppearanceDelayMilliseconds
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherAppearanceDelay),
                "App Switcher keeps the current appearance delay by default and carries the choice in backups")
-        suite.expect(registeredDefaults[DefaultsKey.switcherMaxColumns] as? Int == 0
-               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherMaxColumns),
-               "App Switcher columns start on Auto and carry the choice in backups")
+        suite.expect(registeredDefaults[DefaultsKey.switcherIconRowOverflow] as? String
+               == SwitcherIconRowOverflow.scroll.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherIconRowOverflow),
+               "App Switcher icon row starts scrolling and carries the choice in backups")
         suite.expect(registeredDefaults[DefaultsKey.switcherInstantSelection] as? Bool == false
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherInstantSelection),
                "App Switcher keeps smooth selection by default and carries instant selection in backups")
@@ -3612,65 +3613,61 @@ enum SwitcherModelFeatureTests {
                "App Switcher width still follows the window count on one row")
         suite.expect(SwitcherSupport.gridColumnCount(itemCount: 16, maxColumns: 8) == 8,
                "App Switcher keeps the packed width when two rows are already even")
-        // Ultrawide displays: a column cap wraps every layout onto more rows,
-        // while Auto keeps exactly the layout from before the cap existed.
-        suite.expect(SwitcherSupport.sanitizedMaxColumns(0) == nil
-               && SwitcherSupport.sanitizedMaxColumns(-3) == nil
-               && SwitcherSupport.sanitizedMaxColumns(1) == SwitcherSupport.maxColumnsRange.lowerBound
-               && SwitcherSupport.sanitizedMaxColumns(6) == 6
-               && SwitcherSupport.sanitizedMaxColumns(99) == SwitcherSupport.maxColumnsRange.upperBound,
-               "App Switcher column cap treats zero as Auto and clamps the rest")
-        suite.expect(SwitcherSupport.cappedColumnCount(fitByWidth: 15, userMax: 6) == 6
-               && SwitcherSupport.cappedColumnCount(fitByWidth: 4, userMax: 6) == 4
-               && SwitcherSupport.cappedColumnCount(fitByWidth: 15, userMax: nil) == 15,
-               "App Switcher column cap never exceeds what the screen fits")
-        suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 4, fitByWidth: 15, userMax: 3) == 3
-               && SwitcherSupport.wrappingColumnCount(itemCount: 7, fitByWidth: 15, userMax: 3) == 3
-               && SwitcherSupport.wrappingColumnCount(itemCount: 20, fitByWidth: 15, userMax: 6) == 6,
-               "App Switcher fills a user column cap exactly instead of evening the rows out")
-        suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 2, fitByWidth: 15, userMax: 3) == 2
-               && SwitcherSupport.wrappingColumnCount(itemCount: 4, fitByWidth: 2, userMax: 3) == 2,
-               "App Switcher column cap still shrinks for few items or a narrow screen")
-        suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 10, fitByWidth: 8, userMax: nil)
-               == SwitcherSupport.gridColumnCount(itemCount: 10, maxColumns: 8),
-               "App Switcher keeps balanced rows on Auto")
-        // A cap above Auto's balanced count must not widen the grid: six
-        // windows on a laptop that fits five stay 3 + 3, not 5 + 1.
-        suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 6, fitByWidth: 5, userMax: 8) == 3
-               && SwitcherSupport.wrappingColumnCount(itemCount: 5, fitByWidth: 4, userMax: 8) == 3
-               && SwitcherSupport.wrappingColumnCount(itemCount: 12, fitByWidth: 10, userMax: 8) == 6,
-               "App Switcher column cap never makes the grid wider than Auto")
         let ultrawide = CGRect(x: 0, y: 0, width: 5120, height: 1415)
-        let strictIcons = SwitcherIconRowLayout.compute(appCount: 4, selectedWindowCount: 1,
-                                                        screenVisibleFrame: ultrawide, maxColumns: 3)
-        suite.expect(strictIcons.columns == 3 && strictIcons.rows == 2,
-               "App Switcher icon row fills a cap of three as three plus one")
         let autoUltrawide = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
                                                           screenVisibleFrame: ultrawide)
-        let cappedUltrawide = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
-                                                            screenVisibleFrame: ultrawide,
-                                                            maxColumns: 8)
         suite.expect(!autoUltrawide.isWrapped
                && autoUltrawide.rows == 1
                && autoUltrawide.iconAreaHeight == SwitcherIconRowLayout.rowHeight,
-               "App Switcher icon row stays a single row on Auto")
-        suite.expect(cappedUltrawide.isWrapped
-               && cappedUltrawide.columns == 8
-               && cappedUltrawide.rows == 4
-               && cappedUltrawide.visibleIconCount == 30
-               && cappedUltrawide.appRowContentWidth < autoUltrawide.appRowContentWidth
-               && cappedUltrawide.panelSize.height > autoUltrawide.panelSize.height
-               && cappedUltrawide.simplePanelSize.height > autoUltrawide.simplePanelSize.height,
-               "App Switcher icon row wraps thirty apps into four rows of eight under a cap of eight")
-        let fewApps = SwitcherIconRowLayout.compute(appCount: 5, selectedWindowCount: 1,
-                                                    screenVisibleFrame: ultrawide, maxColumns: 8)
-        suite.expect(fewApps == SwitcherIconRowLayout.compute(appCount: 5, selectedWindowCount: 1,
-                                                              screenVisibleFrame: ultrawide),
-               "App Switcher icon row under the cap is identical to Auto")
-        let shortScreen = CGRect(x: 0, y: 0, width: 5120, height: 700)
-        let scrollingRows = SwitcherIconRowLayout.compute(appCount: 60, selectedWindowCount: 1,
-                                                          screenVisibleFrame: shortScreen, maxColumns: 4)
-        suite.expect(scrollingRows.rows == 15
+               "App Switcher icon row stays a single row when every app fits")
+        // New rows shares the apps evenly: thirteen on a twelve-wide row are seven and six.
+        let rowScreen = CGRect(x: 0, y: 0, width: 1512, height: 888)
+        func newRows(_ count: Int, on screen: CGRect = rowScreen) -> SwitcherIconRowLayout {
+            SwitcherIconRowLayout.compute(appCount: count, selectedWindowCount: 1, screenVisibleFrame: screen,
+                                          overflow: .newRows)
+        }
+        let rowFit = newRows(1_000).columns
+        let thirteen = newRows(rowFit + 1)
+        suite.expect(thirteen.isWrapped && thirteen.rows == 2
+               && thirteen.columns == (rowFit + 2) / 2
+               && !thirteen.pagesSideways && thirteen.visibleIconCount == rowFit + 1,
+               "App Switcher new rows share \(rowFit + 1) apps evenly over two rows, found \(thirteen.columns) columns")
+        let thirty = newRows(30)
+        suite.expect(thirty.rows == (30 + rowFit - 1) / rowFit
+               && thirty.columns == (30 + thirty.rows - 1) / thirty.rows
+               && thirty.columns <= rowFit
+               && thirty.panelSize.width <= rowScreen.width,
+               "App Switcher new rows share thirty apps evenly across the rows the width needs")
+        suite.expect(newRows(5) == SwitcherIconRowLayout.compute(appCount: 5, selectedWindowCount: 1,
+                                                                 screenVisibleFrame: rowScreen),
+               "App Switcher new rows lays out apps that fit exactly like scrolling")
+        // A paging row is exactly as wide as the whole icons it shows.
+        for width in [1280.0, 1512, 1728, 2560, 5120] {
+            for tile in [SwitcherIconRowLayout.appTileWidth, SwitcherIconRowLayout.windowTileWidth] {
+                let paging = SwitcherIconRowLayout.compute(appCount: 80, selectedWindowCount: 1,
+                                                           screenVisibleFrame: CGRect(x: 0, y: 0, width: width, height: 900),
+                                                           tileWidth: tile)
+                let shown = CGFloat(paging.visibleIconCount)
+                suite.expectClose(Double(paging.appRowContentWidth),
+                                  Double(shown * tile + (shown - 1) * SwitcherIconRowLayout.spacing),
+                                  "App Switcher paging row on a \(Int(width))-point screen shows whole icons only")
+            }
+        }
+        // A paging row keeps room at each end for the overflow hints.
+        let paging = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1, screenVisibleFrame: rowScreen)
+        suite.expect(paging.pagesSideways && paging.visibleIconCount < 30,
+               "App Switcher icon row that overflows pages sideways by default")
+        suite.expectClose(Double(paging.appRowSurfaceWidth),
+                          Double(paging.appRowContentWidth
+                                 + (SwitcherIconRowLayout.rowHorizontalPadding + SwitcherIconRowLayout.overflowHintWidth) * 2),
+                          "App Switcher paging row keeps room for a hint at each end")
+        suite.expect(paging.panelSize.width <= rowScreen.width,
+               "App Switcher paging row with its hints still fits the screen")
+        suite.expect(!SwitcherIconRowLayout.compute(appCount: 5, selectedWindowCount: 1, screenVisibleFrame: rowScreen).pagesSideways,
+               "App Switcher icon row that fits shows no overflow hints")
+        let shortScreen = CGRect(x: 0, y: 0, width: 1280, height: 520)
+        let scrollingRows = newRows(60, on: shortScreen)
+        suite.expect(scrollingRows.rows > 1
                && scrollingRows.visibleRows >= 1
                && scrollingRows.visibleRows < scrollingRows.rows
                && scrollingRows.panelSize.height <= shortScreen.height,
@@ -3685,7 +3682,7 @@ enum SwitcherModelFeatureTests {
             previewContentWidth: 200, previewSurfaceWidth: 224, columns: 8)
         suite.expect(wrappedPlacement == secondColumnPlacement,
                "App Switcher preview sits over the selected icon's column on a wrapped row")
-        // Five apps capped at two columns: Alpha Beta / Gamma Delta / Epsilon.
+        // Five apps on rows of two: Alpha Beta / Gamma Delta / Epsilon.
         let wrappedApps = [
             SwitcherItem.window(id: 1, title: "A1", appName: "Alpha", pid: 101, isOnScreen: true, frame: .zero),
             SwitcherItem.window(id: 2, title: "A2", appName: "Alpha", pid: 101, isOnScreen: true, frame: .zero),
@@ -3710,7 +3707,7 @@ enum SwitcherModelFeatureTests {
                && appRowMove(from: 6, down: true) == nil
                && appRowMove(from: 9, down: true) == nil,
                "App Switcher ↑/↓ keeps the selection at the top and bottom of wrapped app rows")
-        // Seven windows capped at three columns: 0 1 2 / 3 4 5 / 6.
+        // Seven windows on rows of three: 0 1 2 / 3 4 5 / 6.
         func windowRowMove(from index: Int, down: Bool) -> Int? {
             SwitcherSupport.iconRowSelectionIndex(after: index, items: wrappedApps, windowRow: true,
                                                   columns: 3, movingDown: down)
@@ -3730,9 +3727,9 @@ enum SwitcherModelFeatureTests {
                                                                     frontmostPID: 101,
                                                                     reversed: true)
         let shortScreenRows = SwitcherIconRowLayout.compute(appCount: wrappedApps.count, selectedWindowCount: 1,
-                                                            screenVisibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 520),
+                                                            screenVisibleFrame: CGRect(x: 0, y: 0, width: 400, height: 520),
                                                             tileWidth: SwitcherIconRowLayout.windowTileWidth,
-                                                            maxColumns: 2)
+                                                            overflow: .newRows)
         suite.expect(reverseStart == wrappedApps.count - 1
                && shortScreenRows.visibleRows < shortScreenRows.rows
                && reverseStart / shortScreenRows.columns >= shortScreenRows.visibleRows,
@@ -3750,28 +3747,19 @@ enum SwitcherModelFeatureTests {
         suite.expect(SwitcherSupport.iconRowScrollID(items: wrappedApps, selectedIndex: 3, windowRow: false)
                != SwitcherSupport.iconRowScrollID(items: searched, selectedIndex: 3, windowRow: false),
                "App Switcher reveals the new tile when a search keeps the selected index")
-        // Displays of different widths: the cap holds where it fits and yields
-        // where it does not, so the panel never outgrows the narrower screen.
+        // New rows never outgrows the display, on a laptop or a narrow one.
         let laptop = CGRect(x: 0, y: 0, width: 1440, height: 900)
-        let wideDisplay = CGRect(x: 0, y: 0, width: 3440, height: 1440)
-        let laptopIcons = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
-                                                        screenVisibleFrame: laptop, maxColumns: 8)
-        let wideIcons = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
-                                                      screenVisibleFrame: wideDisplay, maxColumns: 8)
-        suite.expect(laptopIcons.columns == 8 && wideIcons.columns == 8
+        let laptopIcons = newRows(30, on: laptop)
+        suite.expect(laptopIcons.isWrapped
                && laptopIcons.panelSize.width <= laptop.width
                && laptopIcons.panelSize.height <= laptop.height,
-               "App Switcher icon rows keep a cap of eight on a 1440 point display and stay inside it")
+               "App Switcher new rows stay inside a 1440 point display")
         let windowIcons = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
                                                         screenVisibleFrame: CGRect(x: 0, y: 0, width: 600, height: 900),
                                                         tileWidth: SwitcherIconRowLayout.windowTileWidth,
-                                                        maxColumns: 8)
-        suite.expect(windowIcons.isWrapped && windowIcons.columns < 8
-               && windowIcons.panelSize.width <= 600,
-               "App Switcher icon rows drop below the cap when the display cannot fit it")
-        suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 20, fitByWidth: 4, userMax: 8) == 4
-               && SwitcherSupport.wrappingColumnCount(itemCount: 20, fitByWidth: 11, userMax: 8) == 8,
-               "App Switcher grid cap yields to the four cards a 1440 point display fits and holds on a wider one")
+                                                        overflow: .newRows)
+        suite.expect(windowIcons.isWrapped && windowIcons.panelSize.width <= 600,
+               "App Switcher new rows of window tiles fit a narrow display")
         suite.expect(SwitcherSupport.gridSelectionIndex(after: 1,
                                                    itemCount: 8,
                                                    columns: 5,

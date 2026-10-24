@@ -27,7 +27,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
     @AppStorage(DefaultsKey.switcherAppearanceDelay) private var switcherAppearanceDelay = SwitcherSupport.defaultAppearanceDelayMilliseconds
     @AppStorage(DefaultsKey.switcherInstantSelection) private var switcherInstantSelection = false
-    @AppStorage(DefaultsKey.switcherMaxColumns) private var switcherMaxColumns = 0
+    @AppStorage(DefaultsKey.switcherIconRowOverflow) private var switcherIconRowOverflow = SwitcherIconRowOverflow.scroll.rawValue
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
     /// Only then does the macOS switcher on ⌘Tab need explaining: without the
@@ -199,20 +199,12 @@ struct SwitcherSettings: View {
                         .frame(width: 56, alignment: .trailing)
                 }
             }
-            SettingsRow(symbol: "square.grid.3x2", title: l10n.s.switcherMaxColumns,
-                        caption: l10n.s.switcherMaxColumnsCaption) {
-                HStack(spacing: 8) {
-                    Slider(value: switcherMaxColumnsBinding,
-                           in: Double(SwitcherSupport.maxColumnsRange.lowerBound - 1)
-                               ... Double(SwitcherSupport.maxColumnsRange.upperBound),
-                           step: 1)
-                        .frame(width: 140)
-                        .accessibilityValue(switcherMaxColumnsLabel)
-                    Text(switcherMaxColumnsLabel)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .frame(width: 56, alignment: .trailing)
-                }
+            if switcherSimpleMode || switcherIconRowMode {
+                chipRow(symbol: "square.grid.3x2", title: l10n.s.switcherIconRowOverflow,
+                        caption: l10n.s.switcherIconRowOverflowCaption,
+                        selection: $switcherIconRowOverflow,
+                        choices: [(SwitcherIconRowOverflow.scroll.rawValue, l10n.s.switcherIconRowOverflowScroll),
+                                  (SwitcherIconRowOverflow.newRows.rawValue, l10n.s.switcherIconRowOverflowNewRows)])
             }
             SettingsRow(symbol: "cursorarrow.rays", title: l10n.s.switcherInstantSelection,
                         caption: l10n.s.switcherInstantSelectionCaption) {
@@ -338,26 +330,6 @@ struct SwitcherSettings: View {
 
     private var sanitizedSwitcherAppearanceDelay: Int {
         SwitcherSupport.sanitizedAppearanceDelay(milliseconds: switcherAppearanceDelay)
-    }
-
-    private var sanitizedSwitcherMaxColumns: Int? {
-        SwitcherSupport.sanitizedMaxColumns(switcherMaxColumns)
-    }
-
-    private var switcherMaxColumnsLabel: String {
-        sanitizedSwitcherMaxColumns.map(String.init) ?? l10n.s.switcherMaxColumnsAuto
-    }
-
-    /// The slider's leftmost step, one below the range, stands for Auto.
-    private var switcherMaxColumnsBinding: Binding<Double> {
-        let auto = SwitcherSupport.maxColumnsRange.lowerBound - 1
-        return Binding(
-            get: { Double(sanitizedSwitcherMaxColumns ?? auto) },
-            set: {
-                let value = Int($0.rounded())
-                switcherMaxColumns = value <= auto ? 0 : SwitcherSupport.sanitizedMaxColumns(value) ?? 0
-            }
-        )
     }
 
     private var switcherAppearanceDelayBinding: Binding<Double> {
