@@ -607,10 +607,16 @@ final class NotchService: ObservableObject {
         }
     }
 
-    /// A single activity never borrows another activity's wing implicitly.
+    /// Supported pairs can share the closed island: either explicitly chosen,
+    /// or automatically when two tasks are active side by side.
     var compactCompanion: NotchCompactActivity? {
-        guard let activity = compactActivity, activity == activitySelection.preferred else { return nil }
-        return activitySelection.companion(available: compactCompanions(of: activity))
+        guard let activity = compactActivity else { return nil }
+        let companions = compactCompanions(of: activity)
+        if let chosen = activitySelection.companion(available: companions) { return chosen }
+        if activitySelection.preferred == nil || activity == activitySelection.preferred {
+            return companions.first
+        }
+        return nil
     }
 
     private var compactActivityIsVisible: Bool {
@@ -769,20 +775,32 @@ final class NotchService: ObservableObject {
     private func agentStripWing(in geometry: NotchGeometry) -> CGFloat {
         let provisional = geometry.compactAgentGeometry(wing: NotchAgentSupport.stripWingRange.lowerBound)
         let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
-        let shape = NotchAgentSupport.readingShape(NotchAgentSupport.stripReading(
+        let live = AgentUsageService.shared.snapshot.live
+        let needsApproval = live.contains { $0.needsApproval }
+        let readingStr = needsApproval ? "Approval" : NotchAgentSupport.stripReading(
             AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
-            display: NotchAgentSupport.limitDisplay(), focus: NotchAgentSupport.limitFocus(), now: Date()))
+            display: NotchAgentSupport.limitDisplay(), focus: NotchAgentSupport.limitFocus(), now: Date())
+        let shape = NotchAgentSupport.readingShape(readingStr)
         let width = (shape as NSString).size(withAttributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
         ]).width
         let reading = width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+            + (needsApproval ? 16 : 0)
         // The marks on the other side, drawn as the strip draws them: two
         // working agents share a smaller size, each in a frame wider than it.
-        let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
+        let working = Set(live.map(\.provider)).count
         let mark = CGFloat(working > 1 ? 11 : 14)
         let frame = mark * 1.45 + 1
-        let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
+        var marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
             + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
+            + (needsApproval ? 16 : 0)
+        if let companion = compactCompanion {
+            if companion == .music {
+                marks = max(marks, geometry.compactMusicArtworkSide + geometry.compactMusicArtworkInset)
+            } else {
+                marks = max(marks, 28)
+            }
+        }
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
@@ -1033,6 +1051,7 @@ final class NotchService: ObservableObject {
             let playback = shown?.playback ?? live
             return layout.musicSurface(title: named
                                         ? playback?.track.title ?? FeatureStrings.radialMenu(language).mediaNowPlaying : nil,
+                                       companion: companion, workingAgents: working,
                                        geometry: geometry)
         case .timer:
             let timer = NotchTimerService.shared
@@ -1047,7 +1066,9 @@ final class NotchService: ObservableObject {
             let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
                                                          display: NotchAgentSupport.limitDisplay(),
                                                          focus: NotchAgentSupport.limitFocus(), now: Date())
-            return layout.agentSurface(reading: reading, working: working, geometry: geometry)
+            return layout.agentSurface(reading: reading, working: working, companion: companion,
+                                       downloadPercent: download?.fraction != nil,
+                                       geometry: geometry, language: language)
         case .calendar:
             guard let countdown = NotchCalendarService.shared.countdown else { return geometry.restingSize(showsContent: false) }
             if let companion {
@@ -4012,7 +4033,7 @@ final class NotchService: ObservableObject {
             // ending, the first read landing, which agents have cards, and
             // which are working, since each one's mark widens the strip.
             AgentUsageService.shared.$snapshot
-                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider))) }
+                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider)), $0.live.contains(where: \.needsApproval)) }
                 .removeDuplicates(by: ==)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
@@ -4135,6 +4156,14 @@ final class NotchService: ObservableObject {
         case .budgetReached(let spent, _):
             show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
                              symbol: "dollarsign.circle.fill"))
+        case .needsApproval(let provider, let project):
+            show(NotchNotice(event: .agents,
+                             title: "\(provider.displayName) Needs Approval",
+                             detail: project.isEmpty ? "Waiting for user confirmation" : project,
+                             symbol: "exclamationmark.triangle.fill",
+                             agent: provider))
+            reactMascot(.surprised)
+            refreshPresentation()
         }
     }
 

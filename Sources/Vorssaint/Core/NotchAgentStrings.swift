@@ -150,6 +150,7 @@ struct NotchAgentStrings {
     func readout(_ readout: NotchAgentReadout) -> String {
         switch readout {
         case .elapsed: return readoutElapsed
+        case .elapsedAndLimit: return "\(readoutElapsed) & \(readoutLimit)"
         case .tokens: return readoutTokens
         case .cost: return apiValue.prefix(1).uppercased() + apiValue.dropFirst()
         case .limit: return readoutLimit
@@ -159,8 +160,12 @@ struct NotchAgentStrings {
     func limitFocus(_ focus: NotchAgentLimitFocus) -> String {
         switch focus {
         case .mostUsed: return mostUsed
-        case .session: return session
+        case .session: return "5-Hour Session"
         case .weekly: return weekly
+        case .geminiSession, .gemini: return "Gemini (5-Hour)"
+        case .geminiWeekly: return "Gemini (Weekly)"
+        case .claudeGptSession, .claudeGpt: return "Claude & GPT (5-Hour)"
+        case .claudeGptWeekly: return "Claude & GPT (Weekly)"
         }
     }
 }

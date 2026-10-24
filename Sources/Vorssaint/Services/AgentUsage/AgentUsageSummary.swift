@@ -408,7 +408,9 @@ enum AgentLimitSupport {
     static func current(_ window: AgentLimitWindow, at now: Date) -> AgentLimitWindow {
         guard let resets = window.resetsAt, resets <= now else { return window }
         return AgentLimitWindow(id: window.id, kind: window.kind, minutes: window.minutes,
-                                scope: window.scope, usedPercent: 0, resetsAt: nil)
+                                scope: window.scope, usedPercent: 0, resetsAt: nil,
+                                estimatedResetsAt: window.estimatedResetsAt,
+                                name: window.name, detail: window.detail)
     }
 
     /// Once an estimate has passed, the countdown is unknown until another

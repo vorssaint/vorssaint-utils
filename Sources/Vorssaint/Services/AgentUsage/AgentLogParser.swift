@@ -21,6 +21,8 @@ enum AgentLogEntry: Equatable {
     case turnContext(model: String, project: String)
     /// Work continues; nil when the line was not worth decoding for its time.
     case turnActive(Date?)
+    /// The agent paused to ask the user a question or awaits tool approval.
+    case turnNeedsApproval(Date?)
     /// A step ended expecting the agent to go on; unless work follows soon,
     /// the agent stopped there and its turn is over.
     case turnSettled(Date)
