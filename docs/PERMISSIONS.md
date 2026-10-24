@@ -6,8 +6,8 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 | Permission | Optional | Powers |
 |---|---|---|
-| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
-| Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
+| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Always On Top, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
+| Screen Recording | Yes | Window previews, Always On Top, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
@@ -31,6 +31,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Window Layout**, which moves or resizes windows when you use a layout action, shortcut or optional trackpad or mouse gesture.
 - **App and window switcher**, which captures the switcher hotkey and reads the window list.
 - **Dock Preview**, which reads Dock items and brings windows forward for a temporary peek.
+- **Always On Top**, which follows a pinned window as it moves, resizes or is minimized, brings it forward when you reach for it, and during a hover peek notices a click or a keypress so it knows to keep the window in front.
 - **Dock click to minimize**, which spots clicks on the Dock icon of the active app and minimizes or restores its windows.
 - **Middle click**, which turns a three finger press on the trackpad into a middle click.
 - **Paste as plain text**, which presses ⌘V for you after stripping the formatting.
@@ -48,11 +49,13 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **Why it comes up.** On macOS, reading other windows' titles and grabbing their thumbnails counts as screen recording.
 
-**What uses it.** The window switcher and Dock Preview for live thumbnails and titles, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
+**What uses it.** The window switcher and Dock Preview for live thumbnails and titles, Always On Top for the live picture of a pinned window while other windows cover it, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
+
+Always On Top captures only the pinned window, and only while something covers it, so the purple screen recording indicator in the menu bar comes and goes with that. The picture is drawn on screen and never saved. If macOS stops delivering a picture, the pin says so and suggests logging out and back in, which restarts the system's capture service.
 
 The color picker also uses this permission for Vorssaint's magnifier and keyboard controls. Arrow keys select a pixel; Return or keypad Enter copies its color and closes the picker. C copies without closing. Without this permission, the native macOS color picker remains available.
 
-**If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
+**If you say no.** The switcher falls back to app icons. Always On Top, Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
 
 **Optional.** Yes.
 

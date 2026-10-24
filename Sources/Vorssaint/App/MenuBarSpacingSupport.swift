@@ -127,7 +127,7 @@ enum MenuBarUsageBarSupport {
         return String(format: "#%02X%02X%02X", components[0], components[1], components[2])
     }
 
-    private static func normalizedColorHex(_ raw: String) -> String? {
+    static func normalizedColorHex(_ raw: String) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let digits = trimmed.hasPrefix("#") ? String(trimmed.dropFirst()) : trimmed
         let allowed = CharacterSet(charactersIn: "0123456789ABCDEF")

@@ -172,6 +172,7 @@ enum SettingsDirectory {
         -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
         let quitProtection = FeatureStrings.quitProtection(language)
+        let alwaysOnTop = FeatureStrings.alwaysOnTop(language)
         return [
             (categories.essentials, [
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
@@ -289,6 +290,9 @@ enum SettingsDirectory {
                                       ]),
                 SettingsDirectoryItem(page: .autoQuit, title: s.autoQuitName, icon: "xmark.rectangle",
                                       keywords: [s.autoQuitEnable]),
+                SettingsDirectoryItem(page: .alwaysOnTop, title: alwaysOnTop.title,
+                                      icon: AppFeature.alwaysOnTop.symbolName,
+                                      keywords: [alwaysOnTop.enable, alwaysOnTop.reveal, alwaysOnTop.excludedTitle]),
                 SettingsDirectoryItem(page: .quitProtection,
                                       title: quitProtection.name,
                                       icon: "shield.lefthalf.filled",

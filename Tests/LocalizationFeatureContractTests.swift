@@ -460,6 +460,7 @@ enum LocalizationFeatureContractTests {
         // would leave that feature with no shortcut at all, on a fresh install,
         // with nothing to show for it.
         let defaultShortcuts: [(String, GlobalShortcut)] = [
+            ("alwaysOnTopDefault", GlobalShortcut.alwaysOnTopDefault),
             ("cameraPreviewDefault", GlobalShortcut.cameraPreviewDefault),
             ("clipboardDefault", GlobalShortcut.clipboardDefault),
             ("colorPickerDefault", GlobalShortcut.colorPickerDefault),
@@ -503,7 +504,7 @@ enum LocalizationFeatureContractTests {
             ("windowLayoutTopLeftDefault", GlobalShortcut.windowLayoutTopLeftDefault),
             ("windowLayoutTopRightDefault", GlobalShortcut.windowLayoutTopRightDefault),
         ]
-        suite.expect(defaultShortcuts.count == 42, "every default shortcut is in the round trip")
+        suite.expect(defaultShortcuts.count == 43, "every default shortcut is in the round trip")
         var brokenShortcuts: [String] = []
         for (name, shortcut) in defaultShortcuts {
             guard let restored = GlobalShortcut(storageValue: shortcut.storageValue),
