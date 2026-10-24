@@ -35,7 +35,7 @@ struct NotchMixerView: View {
     /// The same order and the same hidden rows as the panel's list.
     private var apps: [MixerApp] {
         arrangement.ordered(mixer.apps, identity: { $0.persistenceID }).filter { app in
-            MixerRoutingSupport.shouldShowApp(isPlaying: app.isPlaying, volume: app.volume,
+            MixerRoutingSupport.shouldShowApp(isPlaying: app.isPlaying, volume: app.volume, isMuted: app.isMuted,
                                               selectedOutputDeviceUID: app.selectedOutputDeviceUID,
                                               hideInactiveApps: hideInactiveApps)
         }
@@ -496,7 +496,11 @@ private struct NotchAppFader: View {
     private var percent: Int { MixerRoutingSupport.displayPercent(forVolume: app.volume) }
     private var sharingStrings: MixerScreenSharingStrings { .localized(l10n.language) }
     private var boosting: Bool { percent > 100 }
-    private var muted: Bool { app.volume <= 0.001 }
+    private var muted: Bool { app.isMuted }
+    private var volumeValue: String {
+        MixerRoutingSupport.volumeAccessibilityValue(percent: percent, isMuted: app.isMuted,
+                                                     mutedText: l10n.s.mixerMutedValue)
+    }
     private var routed: Bool { !app.isBypassed && app.selectedOutputDeviceUID != nil }
     private var routeDescription: String {
         if app.outputDeviceUnavailable { return l10n.s.mixerOutputFallback }
@@ -528,7 +532,7 @@ private struct NotchAppFader: View {
                 NotchLevelSlider(value: Binding(get: { app.volume }, set: { mixer.setVolume($0, for: app) }),
                                  label: app.name, range: 0...AppVolumeMixer.maxVolume,
                                  tint: boosting ? .orange : .white, vertical: true, trackThickness: 28, marker: 1,
-                                 valueLabel: "\(percent)%")
+                                 valueLabel: volumeValue)
                     .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
                 NotchEditablePercent(percent: percent, maximum: Int(AppVolumeMixer.maxVolume * 100),
                                      editorID: "notch-app:\(app.id)", editingID: $editingVolumeID,
@@ -570,7 +574,7 @@ private struct NotchAppFader: View {
         .contextMenu { actions }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(app.name)
-        .accessibilityValue("\(percent)%")
+        .accessibilityValue(volumeValue)
         .accessibilityAction(named: Text(strings.moveLeft)) { moveBack?() }
         .accessibilityAction(named: Text(strings.moveRight)) { moveForward?() }
     }

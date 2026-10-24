@@ -603,6 +603,7 @@ extension Strings {
         mixerUnavailable: "Disponibile su macOS 14.4 e successivi",
         mixerPermissionBody: "Per regolare il volume per ogni app, consenti “Registrazione schermo e audio di sistema” in Impostazioni di Sistema. L’audio non viene mai registrato.",
         mixerResetTooltip: "Ripristina al 100%",
+        mixerMutedValue: "Silenziata",
         mixerOutputDefault: "Predefinita",
         mixerOutputCurrent: "attuale",
         mixerOutputUnavailable: "Uscita non disponibile",

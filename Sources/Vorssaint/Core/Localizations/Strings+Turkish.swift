@@ -603,6 +603,7 @@ extension Strings {
         mixerUnavailable: "macOS 14.4 ve sonrasında kullanılabilir",
         mixerPermissionBody: "Uygulama başına ses düzeyini ayarlamak için Sistem Ayarları’nda “Ekran ve Sistem Sesi Kaydı”na izin ver. Ses hiçbir zaman kaydedilmez.",
         mixerResetTooltip: "%100’e sıfırla",
+        mixerMutedValue: "Sessize alındı",
         mixerOutputDefault: "Varsayılan",
         mixerOutputCurrent: "geçerli",
         mixerOutputUnavailable: "Çıkış kullanılamıyor",

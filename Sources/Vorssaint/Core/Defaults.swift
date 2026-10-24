@@ -148,6 +148,8 @@ enum DefaultsKey {
     static let whatsNewKnownFeatures = "whatsNewKnownFeatures" // comma-joined AppFeature raw values
     static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
     static let appVolumesArePositions = "appVolumesArePositions" // appVolumes hold slider positions, not gains; travels with them so an older backup converts on restore
+    static let appMutes = "appMutes"                      // [bundle id] of muted apps; their level stays in appVolumes
+    static let appMutesAreSeparate = "appMutesAreSeparate" // volumes at or below 0.1% became mutes; travels with them so an older backup migrates on restore
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
     static let mixerCallAppVolumeEnabled = "mixerCallAppVolumeEnabled" // bundle ids explicitly allowed to process call audio despite screen-sharing echo
     static let mixerUniversalOutputDevice = "mixerUniversalOutputDevice" // retired: all-apps output saved by 3.4.1 betas
@@ -1298,6 +1300,7 @@ enum Defaults {
         DefaultsKey.updateShowcaseMediaOverride: "",
         DefaultsKey.mixerShowFinder: true,
         DefaultsKey.mixerHideInactiveApps: false,
+        DefaultsKey.appMutesAreSeparate: false,
         DefaultsKey.mixerAppArrangement: "",
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
@@ -2001,6 +2004,7 @@ enum Defaults {
         migrateOrphanedCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateAppVolumesToPositions(in: defaults)
+        migrateMutedAppVolumes(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
         recheckBrightnessDDCWriteOnlyPaths(in: defaults)
         hideScratchpadControlOnce(in: defaults)
@@ -2715,6 +2719,31 @@ enum Defaults {
             positions[id] = MixerRoutingSupport.volume(forGain: sanitizedAppVolume(gain))
         }
         defaults.set(positions, forKey: DefaultsKey.appVolumes)
+    }
+
+    /// Muting an app used to save its volume as 0 and keep the level it had
+    /// only in memory. A mute is now saved apart, in appMutes, and the level
+    /// stays. Each volume saved at or below the old mute threshold moves once
+    /// to a mute at 100%, the level unmuting gave after a relaunch, so the app
+    /// stays silent. It runs after migrateAppVolumesToPositions, so it reads
+    /// slider positions, never gains. The marker travels with the mutes in a
+    /// backup: restoring one written before the change clears it, and the
+    /// relaunch that follows moves that backup's mutes too.
+    static func migrateMutedAppVolumes(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.appMutesAreSeparate) else { return }
+        defer { defaults.set(true, forKey: DefaultsKey.appMutesAreSeparate) }
+        guard let saved = defaults.dictionary(forKey: DefaultsKey.appVolumes), !saved.isEmpty else { return }
+        var volumes = saved
+        var mutes = MixerRoutingSupport.sanitizedMutedApps(defaults.array(forKey: DefaultsKey.appMutes) ?? [])
+        for (id, value) in saved {
+            guard let level = (value as? NSNumber)?.doubleValue, level.isFinite,
+                  sanitizedAppVolume(level) <= MixerRoutingSupport.legacyMuteThreshold else { continue }
+            volumes.removeValue(forKey: id)
+            mutes.insert(id)
+        }
+        guard volumes.count < saved.count else { return }
+        defaults.set(volumes, forKey: DefaultsKey.appVolumes)
+        defaults.set(mutes.sorted(), forKey: DefaultsKey.appMutes)
     }
 
     static func sanitizedAppOutputDeviceUID(_ value: Any?) -> String? {

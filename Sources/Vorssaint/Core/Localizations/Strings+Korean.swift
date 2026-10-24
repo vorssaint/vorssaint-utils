@@ -604,6 +604,7 @@ extension Strings {
         mixerUnavailable: "macOS 14.4 이상에서 사용할 수 있습니다",
         mixerPermissionBody: "앱별 볼륨을 조절하려면 시스템 설정에서 ‘화면 및 시스템 오디오 녹음’을 허용하세요. 오디오는 기록되지 않습니다.",
         mixerResetTooltip: "100%로 재설정",
+        mixerMutedValue: "음소거됨",
         mixerOutputDefault: "기본값",
         mixerOutputCurrent: "현재",
         mixerOutputUnavailable: "출력을 사용할 수 없습니다",

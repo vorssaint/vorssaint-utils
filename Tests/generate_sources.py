@@ -745,7 +745,10 @@ def main():
               "    private func appNeedsEngine(", "    private func rowMayBeTapped(",
               "    private func applyOutputRoute(", "    func setOutputDeviceUID(",
               "    func switchToNextSoundOutput(", "    func setUniversalOutputDeviceUID(",
-              "    private func setDefaultOutputDeviceUID("])
+              "    private func setDefaultOutputDeviceUID(",
+              "    func setVolume(", "    func toggleMute(", "    func effectiveVolume(",
+              "    private static func storedMute(", "    private func storedMute(",
+              "    private func savedMutes(", "    private func persistMute("])
           + "}\n")
     level_watch = declaration(mixer, "final class LevelCompensationWatch {").replace("private ", "")
     for operation in ("AddPropertyListener", "RemovePropertyListener"):
