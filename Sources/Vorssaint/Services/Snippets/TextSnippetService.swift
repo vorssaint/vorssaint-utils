@@ -124,7 +124,7 @@ final class TextSnippetService {
             UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
         inputLock.withLock {
             immediateSnippets = all.filter { $0.enabled && $0.expansion == .immediate }
-            delimiterSnippets = all.filter { $0.enabled && $0.expansion == .afterDelimiter }
+            delimiterSnippets = all.filter { $0.enabled && ($0.expansion == .afterDelimiter || $0.expansion == .afterTab) }
         }
     }
 
@@ -331,14 +331,13 @@ final class TextSnippetService {
         let typed = String(utf16CodeUnits: characters, count: length)
 
         if let first = typed.first, TextSnippetSupport.delimiters.contains(first) {
-            // A delimiter can complete an afterDelimiter trigger. The typed
+            // A delimiter can complete an ordinary or Tab-only trigger. The typed
             // delimiter is swallowed and kept after the replacement, either
             // in the same paste or as the original key after typed injection.
             let matched = inputLock.withLock { () -> (snippet: TextSnippet, deleteCount: Int, typedTrigger: String)? in
-                let match = TextSnippetSupport.expansionMatch(buffer: buffer,
-                                                              expansion: .afterDelimiter,
-                                                              snippets: delimiterSnippets,
-                                                              swallowed: "")
+                let match = TextSnippetSupport.delimiterExpansionMatch(buffer: buffer,
+                                                                       delimiter: first,
+                                                                       snippets: delimiterSnippets)
                 buffer = ""
                 return match
             }
