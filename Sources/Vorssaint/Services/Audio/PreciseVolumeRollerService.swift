@@ -16,6 +16,7 @@ final class PreciseVolumeRollerService: ObservableObject {
     private var gate = PreciseVolumeRollerGate()
     private var keyOwnership = PreciseVolumeKeyOwnership()
     private var notchKeyGate = NotchVolumeKeyGate()
+    private let bannerGuard = NotchVolumeBannerGuard()
     /// Island steps bypass the system, so its volume click plays on release here.
     /// Waits for both the release and the last step's adjustment, so a failed
     /// step forwarded to macOS never plays a second click.
@@ -30,13 +31,16 @@ final class PreciseVolumeRollerService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        let island = NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback
         let wanted = AppFeature.mixer.isAvailable
-            && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
-                || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback))
+            && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled) || island)
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
             start()
+            // A level set outside the keys, like an AirPods swipe, still
+            // raises the system banner. The island shows that level as well.
+            if island { bannerGuard.start() } else { bannerGuard.stop() }
         } else {
             stop()
         }
@@ -47,6 +51,7 @@ final class PreciseVolumeRollerService: ObservableObject {
     }
 
     func stop() {
+        bannerGuard.stop()
         removeTap()
         tapFailed = false
     }
