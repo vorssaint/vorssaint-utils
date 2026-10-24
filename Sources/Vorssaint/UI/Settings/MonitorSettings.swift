@@ -18,6 +18,7 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
+    @AppStorage(DefaultsKey.menuBarIconTrailing) private var iconTrailing = false
     @AppStorage(DefaultsKey.monitorInterval) private var interval = 2
     @AppStorage(DefaultsKey.monitorGraphScale) private var graphScale = true
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
@@ -104,7 +105,8 @@ struct MonitorSettings: View {
     }
 
     /// The readings that can sit in the menu bar, as tiles in the order they
-    /// appear there.
+    /// appear there. The reverse control sits here too, because it belongs
+    /// to that order.
     private var menuBarCard: some View {
         SettingsCard {
             Text(l10n.s.monitorMenuBarCaption)
@@ -115,6 +117,14 @@ struct MonitorSettings: View {
             Text(FeatureStrings.notchEditor(l10n.language).reorderHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Divider()
+            SettingsRow(symbol: "arrow.left.arrow.right", title: l10n.s.monitorReverseMenuBarOrder,
+                        caption: l10n.s.monitorReverseMenuBarOrderCaption) {
+                Button(l10n.s.monitorReverseMenuBarOrder) {
+                    MenuBarMetric.setOrder(MenuBarMetric.order(in: .standard).reversed())
+                    iconTrailing.toggle()
+                }
+            }
         }
     }
 
