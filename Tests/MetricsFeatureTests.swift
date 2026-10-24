@@ -594,6 +594,72 @@ enum MetricsFeatureTests {
 
         // MARK: Temperature sensor selection
 
+        let m4MaxPlatform = TemperatureSensorSelector.platform(
+            brandString: "Apple M4 Max", modelIdentifier: "Mac16,5",
+            performanceCoreCount: 10, efficiencyCoreCount: 4
+        )
+        suite.expect(m4MaxPlatform == .appleM4MaxFamily,
+                     "the measured M4 Max configuration enables the verified Pro/Max map")
+        for (model, performance, efficiency) in [
+            ("Mac16,5", 12, 4), ("Mac16,6", 10, 4), ("Mac16,5", 10, 3),
+        ] {
+            suite.expect(TemperatureSensorSelector.platform(
+                brandString: "Apple M4 Max", modelIdentifier: model,
+                performanceCoreCount: performance, efficiencyCoreCount: efficiency
+            ) == .unmappedAppleSilicon, "unmeasured M4 Max hardware does not silently adopt this map")
+        }
+        let unverifiedM4Max = TemperatureSensorSelector.platform(
+            brandString: "Apple M4 Max", modelIdentifier: nil,
+            performanceCoreCount: nil, efficiencyCoreCount: nil
+        )
+        suite.expect(unverifiedM4Max == .unmappedAppleSilicon,
+                     "M4 Max hardware discovery failure does not guess a mapped configuration")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("Tp0M", 67)], platform: unverifiedM4Max
+        ) ?? -1, 67, "unverified M4 Max hardware retains the existing unmapped display fallback")
+        suite.expect(TemperatureSensorSelector.platform(brandString: "  Apple M4 Max\n") == m4MaxPlatform,
+                     "M4 Max identification ignores surrounding whitespace")
+        suite.expect(TemperatureSensorSelector.isCPUCoreKey("Tpx5", platform: m4MaxPlatform)
+                     && !TemperatureSensorSelector.isCPUCoreKey("Tp01", platform: m4MaxPlatform),
+                     "M4 Max selects its measured regions instead of the base M4 map")
+        for (name, sample) in [("loaded", M4MaxTemperatureFixtures.loaded),
+                               ("parked", M4MaxTemperatureFixtures.parked),
+                               ("idle", M4MaxTemperatureFixtures.idle)] {
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: sample.cpu, platform: m4MaxPlatform
+            ) ?? -1, sample.hottest, "M4 Max reads the measured hottest region when \(name)")
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: sample.cpu + [("Tp3X", 110)], platform: m4MaxPlatform
+            ) ?? -1, sample.hottest, "an auxiliary hotspot cannot override mapped M4 Max \(name) regions")
+        }
+        let m4MaxBroken: [(key: String, value: Double)] = [
+            ("Tex0", .nan), ("Tex1", .infinity), ("Tex2", 9), ("Tex3", 125),
+            ("Tpx0", 0), ("Tpx1", -4), ("Tp0M", 88),
+        ]
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m4MaxBroken, platform: m4MaxPlatform
+        ) ?? -1, 88, "M4 Max display preserves family fallback when its mapped set has no valid reading")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m4MaxBroken + [("Tex1", 53.234375)], platform: m4MaxPlatform
+        ) ?? -1, 53.234375, "one valid M4 Max region outranks auxiliary readings despite missing or invalid peers")
+        suite.expect(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: Array(m4MaxBroken.dropLast()), platform: m4MaxPlatform
+        ) == nil, "M4 Max does not fabricate temperatures from invalid readings")
+        suite.expect(TemperatureSensorSelector.isCPUTemperatureKey("Tex1", platform: m4MaxPlatform)
+                     && TemperatureSensorSelector.isCPUTemperatureKey("Tp0M", platform: m4MaxPlatform)
+                     && !TemperatureSensorSelector.isCPUTemperatureKey("Tf26", platform: m4MaxPlatform)
+                     && !TemperatureSensorSelector.isCPUTemperatureKey("Tg05", platform: m4MaxPlatform),
+                     "M4 Max discovery keeps CPU families without admitting Tf or GPU sensors")
+        let otherM4Platforms: [(String, CPUTemperaturePlatform)] = [
+            ("Apple M4", .appleM4Family), ("Apple M4 Pro", .appleM4ProFamily),
+        ]
+        for (brand, expected) in otherM4Platforms {
+            suite.expect(TemperatureSensorSelector.platform(
+                brandString: brand, modelIdentifier: nil,
+                performanceCoreCount: nil, efficiencyCoreCount: nil
+            ) == expected, "M4 Max hardware validation does not restrict \(brand)")
+        }
+
         suite.expect(TemperatureSensorSelector.platform(brandString: "Apple M1") == .appleM1Family,
                "Apple M1 uses the mapped CPU core sensor set")
         suite.expect(TemperatureSensorSelector.platform(brandString: "Apple M2 Pro") == .appleM2Family,

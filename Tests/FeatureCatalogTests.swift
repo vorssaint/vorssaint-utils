@@ -1120,6 +1120,67 @@ enum FeatureCatalogTests {
         suite.expectClose(m3FanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
                     48.5,
                     "M3 fan curves exclude auxiliary Tf readings from the CPU average")
+        let m4MaxPlatform = TemperatureSensorSelector.platform(
+            brandString: "Apple M4 Max", modelIdentifier: "Mac16,5",
+            performanceCoreCount: 10, efficiencyCoreCount: 4
+        )
+        let unverifiedM4Max = TemperatureSensorSelector.platform(
+            brandString: "Apple M4 Max", modelIdentifier: "Mac16,5",
+            performanceCoreCount: 12, efficiencyCoreCount: 4
+        )
+        let unverifiedM4MaxReadings = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: M4MaxTemperatureFixtures.loaded.cpu,
+            gpuReadings: [51], platform: unverifiedM4Max
+        )
+        suite.expect(!unverifiedM4MaxReadings.contains { $0.source == .hottestCPU || $0.source == .averageCPU },
+                     "unmeasured M4 Max variants cannot supply unverified CPU fan-curve inputs")
+        for (name, sample) in [("loaded", M4MaxTemperatureFixtures.loaded),
+                               ("parked", M4MaxTemperatureFixtures.parked),
+                               ("idle", M4MaxTemperatureFixtures.idle)] {
+            let temperatures = FanControlPolicy.aggregatedTemperatures(
+                cpuReadings: sample.cpu + [("Tp3X", 110)],
+                gpuReadings: sample.gpu, platform: m4MaxPlatform
+            )
+            suite.expectClose(temperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                              sample.hottest, "M4 Max hottest CPU uses measured \(name) regions")
+            suite.expectClose(temperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                              sample.average, "M4 Max CPU mean excludes auxiliary and invalid \(name) readings")
+            suite.expectClose(temperatures.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                              sample.hottest, "M4 Max hottest SoC excludes auxiliary CPU hotspots when \(name)")
+            let hottestCurve = FanControlCurve(sensor: .hottestCPU,
+                                              points: FanControlConfiguration.defaultCurve.points)
+            suite.expect(FanControlPolicy.curveCoolingLevel(curves: [hottestCurve],
+                                                           temperatures: temperatures) == sample.defaultLevel,
+                         "M4 Max \(name) temperatures reach CPU curve evaluation")
+            let balancedCurve = FanControlCurve(sensor: .hottestSoC, points: [
+                .init(temperature: 60, coolingLevel: 0), .init(temperature: 95, coolingLevel: 100),
+            ])
+            suite.expect(FanControlPolicy.curveCoolingLevel(curves: [balancedCurve],
+                                                           temperatures: temperatures) == sample.balancedLevel,
+                         "M4 Max \(name) hottest SoC reaches shadow curve evaluation")
+        }
+        let m4MaxUnavailable = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tex0", .nan), ("Tex1", .infinity), ("Tex2", 9), ("Tex3", 125),
+                          ("Tpx0", 0), ("Tpx1", -4), ("Tp0M", 88)],
+            gpuReadings: [51], platform: m4MaxPlatform
+        )
+        suite.expect(!m4MaxUnavailable.contains { $0.source == .hottestCPU || $0.source == .averageCPU },
+                     "M4 Max fan CPU sources stay unavailable when no mapped region answers")
+        suite.expectClose(m4MaxUnavailable.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                          51, "M4 Max SoC fallback preserves GPU-only readings")
+        let missingCPUCurve = FanControlCurve(sensor: .hottestCPU,
+                                             points: FanControlConfiguration.defaultCurve.points)
+        suite.expect(FanControlPolicy.curveCoolingLevel(curves: [missingCPUCurve],
+                                                       temperatures: m4MaxUnavailable) == nil,
+                     "M4 Max CPU curves reject missing mapped readings instead of using auxiliaries")
+        let m4MaxPartial = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tex1", 53.234375), ("Tpx5", .nan), ("Tp0M", 88)],
+            gpuReadings: [59], platform: m4MaxPlatform
+        )
+        suite.expectClose(m4MaxPartial.first { $0.source == .averageCPU }?.celsius ?? -1,
+                          53.234375, "one valid M4 Max region remains a valid CPU curve input")
+        suite.expectClose(m4MaxPartial.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                          59, "M4 Max hottest SoC still includes a genuinely hotter GPU")
         let unmappedFanTemperatures = FanControlPolicy.aggregatedTemperatures(
             cpuReadings: [("Tp00", 48), ("Tp0W", 113)],
             gpuReadings: [],

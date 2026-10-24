@@ -10,6 +10,7 @@ enum CPUTemperaturePlatform: Equatable {
     case appleM3Family
     case appleM4Family
     case appleM4ProFamily
+    case appleM4MaxFamily
     case appleM5Family
     case unmappedAppleSilicon
     case generic
@@ -49,12 +50,10 @@ enum TemperatureSensorSelector {
         "Tp0V", "Tp0Y", "Tp0b", "Tp0e",
     ]
 
-    // Read on an M4 Pro (Mac16,8), which lacks three of the base M4 keys and
-    // runs hottest on sensors outside them. Each Tpx/Tex key repeats the
-    // hottest of a few Tp/Te sensors; in idle and loaded samples no other
-    // Tp/Te key read hotter beyond the moment between two reads. The Tex
-    // keys keep answering while the P cores are parked.
-    private static let appleM4ProCPUCoreKeys: Set<String> = [
+    // Observed on M4 Pro (Mac16,8) and M4 Max (Mac16,5, 10P + 4E).
+    // These are CPU regions, not a per-core map. Tex keys keep answering
+    // while Tpx keys park. currentPlatform validates the Max configuration.
+    private static let appleM4ProMaxCPUCoreKeys: Set<String> = [
         "Tex0", "Tex1", "Tex2", "Tex3",
         "Tpx0", "Tpx1", "Tpx2", "Tpx3", "Tpx4", "Tpx5",
         "Tpx8", "Tpx9", "TpxA", "TpxB", "TpxC", "TpxD",
@@ -73,6 +72,7 @@ enum TemperatureSensorSelector {
         // Preserve the established Tp/Te reading path for this supported chip
         // until a verified per-core map is available.
         if brand == "Apple A18 Pro" { return .generic }
+        if brand == "Apple M4 Max" { return .appleM4MaxFamily }
         switch appleSiliconGeneration(in: brand) {
         case 1: return .appleM1Family
         case 2: return .appleM2Family
@@ -84,15 +84,43 @@ enum TemperatureSensorSelector {
     }
 
     static func currentPlatform() -> CPUTemperaturePlatform {
+        guard let brand = sysctlString("machdep.cpu.brand_string") else {
+            return .unmappedAppleSilicon
+        }
+        let identified = platform(brandString: brand)
+        guard identified == .appleM4MaxFamily else { return identified }
+        return platform(brandString: brand,
+                        modelIdentifier: sysctlString("hw.model"),
+                        performanceCoreCount: sysctlInteger("hw.perflevel0.physicalcpu"),
+                        efficiencyCoreCount: sysctlInteger("hw.perflevel1.physicalcpu"))
+    }
+
+    /// Other M4 Max configurations retain the unmapped display fallback and
+    /// cannot supply unverified CPU fan inputs.
+    static func platform(brandString: String?, modelIdentifier: String?,
+                         performanceCoreCount: Int?, efficiencyCoreCount: Int?) -> CPUTemperaturePlatform {
+        let identified = platform(brandString: brandString)
+        guard identified == .appleM4MaxFamily else { return identified }
+        guard modelIdentifier == "Mac16,5", performanceCoreCount == 10, efficiencyCoreCount == 4 else {
+            return .unmappedAppleSilicon
+        }
+        return identified
+    }
+
+    private static func sysctlString(_ name: String) -> String? {
         var size = 0
-        guard sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0) == 0, size > 0 else {
-            return .unmappedAppleSilicon
-        }
+        guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else { return nil }
         var buffer = [CChar](repeating: 0, count: size)
-        guard sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0) == 0 else {
-            return .unmappedAppleSilicon
-        }
-        return platform(brandString: String(cString: buffer))
+        guard sysctlbyname(name, &buffer, &size, nil, 0) == 0 else { return nil }
+        return String(cString: buffer)
+    }
+
+    private static func sysctlInteger(_ name: String) -> Int? {
+        var value: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        guard sysctlbyname(name, &value, &size, nil, 0) == 0,
+              size == MemoryLayout<Int32>.size else { return nil }
+        return Int(value)
     }
 
     static func displayedCPUTemperature(readings: [(key: String, value: Double)],
@@ -116,7 +144,7 @@ enum TemperatureSensorSelector {
     static func hasCPUCoreSet(platform: CPUTemperaturePlatform) -> Bool {
         switch platform {
         case .appleM1Family, .appleM2Family, .appleM3Family, .appleM4Family,
-             .appleM4ProFamily, .appleM5Family:
+             .appleM4ProFamily, .appleM4MaxFamily, .appleM5Family:
             return true
         case .unmappedAppleSilicon, .generic: return false
         }
@@ -132,8 +160,8 @@ enum TemperatureSensorSelector {
             return appleM3CPUCoreKeys.contains(key)
         case .appleM4Family:
             return appleM4CPUCoreKeys.contains(key)
-        case .appleM4ProFamily:
-            return appleM4ProCPUCoreKeys.contains(key)
+        case .appleM4ProFamily, .appleM4MaxFamily:
+            return appleM4ProMaxCPUCoreKeys.contains(key)
         case .appleM5Family:
             return appleM5CPUCoreKeys.contains(key)
         case .unmappedAppleSilicon, .generic:
