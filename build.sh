@@ -362,6 +362,9 @@ if (( TEST )); then
         Sources/Vorssaint/Core/CPUCoreStrings.swift
         Sources/Vorssaint/Core/MonitorLayoutStrings.swift
         Sources/Vorssaint/Core/KeepAwakeStrings.swift
+        Sources/Vorssaint/Core/CleaningModeStrings.swift
+        Sources/Vorssaint/Core/DurationPicker.swift
+        Sources/Vorssaint/Services/CleaningMode/CleaningModeTimerSupport.swift
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift
         Sources/Vorssaint/Core/PermissionGuideStrings.swift
         Sources/Vorssaint/Core/FanControlStrings.swift

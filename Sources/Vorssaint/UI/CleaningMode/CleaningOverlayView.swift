@@ -39,6 +39,12 @@ struct CleaningOverlayView: View {
                 .foregroundStyle(.white.opacity(0.75))
                 .multilineTextAlignment(.center)
 
+            if let end = manager.autoUnlockDate {
+                autoUnlockCountdown(until: end)
+                    .font(.system(size: 20, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+
             fullProgressDots
                 .padding(.top, 2)
 
@@ -89,6 +95,11 @@ struct CleaningOverlayView: View {
 
                         compactProgressDots
                     }
+                    if let end = manager.autoUnlockDate {
+                        autoUnlockCountdown(until: end)
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Button(action: { manager.deactivate() }) {
@@ -122,6 +133,18 @@ struct CleaningOverlayView: View {
             }
         }
         .animation(.easeOut(duration: 0.15), value: manager.unlockProgress)
+    }
+
+    private func autoUnlockCountdown(until end: Date) -> some View {
+        Label {
+            Text(timerInterval: Date.distantPast...end, countsDown: true)
+                .monospacedDigit()
+                .fixedSize()
+        } icon: {
+            Image(systemName: "timer")
+        }
+        .accessibilityLabel(FeatureStrings.cleaningMode(l10n.language).autoUnlockAfter)
+        .accessibilityValue(Text(timerInterval: Date.distantPast...end, countsDown: true))
     }
 
     private var compactProgressDots: some View {

@@ -12,6 +12,7 @@ struct QuickToolsSettings: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var cameraPreview = CameraPreviewService.shared
     @ObservedObject private var scratchpad = ScratchpadService.shared
+    @ObservedObject private var cleaningMode = CleaningModeManager.shared
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
@@ -23,6 +24,11 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadTextSize) private var scratchpadTextSize = ScratchpadSupport.defaultTextSize
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
+    @AppStorage(DefaultsKey.cleaningModeShortcutEnabled) private var cleaningModeShortcutEnabled = false
+    @AppStorage(DefaultsKey.cleaningModeAutoUnlockSeconds) private var cleaningModeAutoUnlockSeconds = 0
+    @AppStorage(DefaultsKey.cleaningModeAutoUnlockUsesUntil) private var cleaningModeAutoUnlockUsesUntil = false
+    @AppStorage(DefaultsKey.cleaningModeAutoUnlockTime) private var cleaningModeAutoUnlockTime = 0.0
+    @State private var cleaningUntilDraft: Date?
 
     var body: some View {
         Form {
@@ -279,6 +285,27 @@ struct QuickToolsSettings: View {
                     Text(l10n.s.cleaningKeepScreenVisibleCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(FeatureStrings.cleaningMode(l10n.language).autoUnlockAfter)
+                            .font(.subheadline.weight(.medium))
+                        cleaningDurationChoices
+                        Text(FeatureStrings.cleaningMode(l10n.language).timerCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Toggle(l10n.s.quickToolShortcutToggle, isOn: $cleaningModeShortcutEnabled)
+                        .onChange(of: cleaningModeShortcutEnabled) { _, _ in
+                            CleaningModeManager.shared.syncWithPreferences()
+                        }
+                    ShortcutPreferenceRow(role: .cleaningMode,
+                                          isEnabled: cleaningModeShortcutEnabled) {
+                        CleaningModeManager.shared.syncWithPreferences()
+                    }
+                    if cleaningModeShortcutEnabled, cleaningMode.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 } header: {
                     Text(l10n.s.cleaningMenuItem)
                 }
@@ -286,6 +313,66 @@ struct QuickToolsSettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var cleaningDurationChoices: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) {
+                ForEach(DurationPicker.choices, id: \.self, content: cleaningDurationChip)
+                cleaningUntilChip
+            }
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    ForEach(DurationPicker.choices.prefix(4), id: \.self, content: cleaningDurationChip)
+                }
+                HStack(spacing: 4) {
+                    ForEach(DurationPicker.choices.dropFirst(4), id: \.self, content: cleaningDurationChip)
+                    cleaningUntilChip
+                }
+            }
+        }
+    }
+
+    private func cleaningDurationChip(_ minutes: Int) -> some View {
+        let selected = !cleaningModeAutoUnlockUsesUntil
+            && CleaningModeTimerSupport.sanitizedDuration(cleaningModeAutoUnlockSeconds) == minutes * 60
+        return Button {
+            cleaningModeAutoUnlockSeconds = minutes * 60
+            cleaningModeAutoUnlockUsesUntil = false
+        } label: {
+            Text(DurationPicker.shortTitle(for: minutes, l10n.s, l10n.language))
+        }
+        .buttonStyle(KeepAwakeChipStyle(isSelected: selected))
+        .accessibilityLabel(DurationPicker.title(for: minutes, l10n.s))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var cleaningUntilChip: some View {
+        KeepAwakeEndTimePicker(
+            selection: cleaningUntilTime,
+            activeEnd: cleaningMode.isActive && cleaningModeAutoUnlockUsesUntil ? cleaningMode.autoUnlockDate : nil,
+            onStop: {
+                cleaningModeAutoUnlockUsesUntil = false
+                cleaningModeAutoUnlockSeconds = 0
+                if cleaningMode.isActive { cleaningMode.deactivate() }
+            },
+            onStart: {
+                cleaningModeAutoUnlockTime = cleaningUntilTime.wrappedValue.timeIntervalSinceReferenceDate
+                cleaningModeAutoUnlockUsesUntil = true
+                cleaningUntilDraft = nil
+                cleaningMode.activate()
+            }
+        )
+    }
+
+    private var cleaningUntilTime: Binding<Date> {
+        Binding(
+            get: {
+                cleaningUntilDraft ?? CleaningModeTimerSupport.savedUntilTime(cleaningModeAutoUnlockTime)
+                    ?? Date().addingTimeInterval(3600)
+            },
+            set: { cleaningUntilDraft = $0 }
+        )
     }
 
     private var scratchpadBackgroundOpacityBinding: Binding<Double> {

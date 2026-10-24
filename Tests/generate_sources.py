@@ -47,6 +47,23 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    cleaning = "Sources/Vorssaint/Services/CleaningMode/CleaningModeManager.swift"
+    write("CleaningModeTimer.swift", "import Foundation\nextension CleaningModeTimerTests {\n"
+          + "final class Service: Fixture {\n"
+          + "".join(declaration(cleaning, prefix).replace("private func", "func", 1)
+                    for prefix in ["    private func startAutoUnlockTimer()", "    private func cancelAutoUnlockTimer()",
+                                   "    func deactivate()", "    private func scheduleUserDeactivation()",
+                                   "    private func finishDeactivation(", "    private func registerUnlockKeyDown("])
+          + "}\n}\n")
+    write("CleaningModeShortcut.swift", "import Foundation\nextension CleaningModeShortcutTests {\n"
+          + "final class Service: Fixture {\n"
+          + declaration(cleaning, "    private init()")
+              .replace("private init() {", "override init() {\n        super.init()", 1)
+          + "".join(declaration(cleaning, prefix).replace("private func", "func", 1)
+                    .replace("GlobalShortcutRole.cleaningMode.savedShortcut", "configuredShortcut")
+                    for prefix in ["    func syncWithPreferences()", "    private func activateFromShortcut()",
+                                   "    func deactivateForSystemTeardown()"])
+          + "}\n}\n")
     recorder = "Sources/Vorssaint/Services/Recorder/ScreenRecorderService.swift"
     write("RecorderPreparation.swift", "import Foundation\nextension RecorderPreparationTests {\n"
           + "final class Service: Fixture {\n"

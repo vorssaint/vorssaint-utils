@@ -307,6 +307,11 @@ enum DefaultsKey {
     static let keyboardDebounceKeyWindows = "keyboardDebounceKeyWindows" // comma-separated keyCode:ms
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let cleaningModeKeepScreenVisible = "cleaningModeKeepScreenVisible"
+    static let cleaningModeShortcutEnabled = "cleaningModeShortcutEnabled"
+    static let cleaningModeShortcut = "cleaningModeShortcut"
+    static let cleaningModeAutoUnlockSeconds = "cleaningModeAutoUnlockSeconds" // 0 = off
+    static let cleaningModeAutoUnlockUsesUntil = "cleaningModeAutoUnlockUsesUntil"
+    static let cleaningModeAutoUnlockTime = "cleaningModeAutoUnlockTime"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
     static let uninstallerCommandBarEnabled = "uninstallerCommandBarEnabled"
@@ -1554,6 +1559,11 @@ enum Defaults {
         DefaultsKey.keyboardDebounceKeyWindows: "",
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.cleaningModeKeepScreenVisible: false,
+        DefaultsKey.cleaningModeShortcutEnabled: false,
+        DefaultsKey.cleaningModeShortcut: GlobalShortcut.cleaningModeDefault.storageValue,
+        DefaultsKey.cleaningModeAutoUnlockSeconds: 0,
+        DefaultsKey.cleaningModeAutoUnlockUsesUntil: false,
+        DefaultsKey.cleaningModeAutoUnlockTime: 0.0,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.uninstallerCommandBarEnabled: false,

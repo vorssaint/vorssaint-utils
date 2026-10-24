@@ -38,6 +38,28 @@ enum FeatureCatalogTests {
         }
         // MARK: Cleaning-mode unlock gesture
 
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.cleaningModeShortcutEnabled] as? Bool == false
+                     && Defaults.registeredDefaults[DefaultsKey.cleaningModeShortcut] as? String
+                         == GlobalShortcut.cleaningModeDefault.storageValue,
+                     "Cleaning Mode ships an optional shortcut disabled by default")
+        suite.expect(GlobalShortcutRole.availableRoles(isAvailable: { $0 == .cleaningMode }) == [.cleaningMode]
+                     && GlobalShortcutRole.activeRoles(isOn: { _ in false },
+                         isAvailable: { $0 == .cleaningMode }).isEmpty,
+                     "the shortcut editor includes the disabled Cleaning Mode shortcut")
+        suite.expect(GlobalShortcutRole.activeRoles(isOn: { $0 == DefaultsKey.cleaningModeShortcutEnabled },
+                         isAvailable: { $0 == .cleaningMode }) == [.cleaningMode]
+                     && !GlobalShortcutRole.activeRoles(isOn: { _ in true },
+                         isAvailable: { $0 != .cleaningMode }).contains(.cleaningMode),
+                     "the Cleaning Mode shortcut follows its toggle and feature availability")
+        suite.expect(GlobalShortcutRole.conflict(for: .cleaningModeDefault, excluding: nil,
+                         isOn: { $0 == DefaultsKey.cleaningModeShortcutEnabled },
+                         isAvailable: { _ in true }) == .cleaningMode
+                     && GlobalShortcutRole.conflict(for: .cleaningModeDefault, excluding: .cleaningMode,
+                         isOn: { _ in true }, isAvailable: { _ in true }) == nil,
+                     "other recorders refuse the active Cleaning Mode shortcut while its own recorder accepts it")
+        suite.expect(GlobalShortcutRole.featuresToSilenceWhileRecording.contains(.cleaningMode),
+                     "Cleaning Mode registers again after any shortcut recorder finishes")
+
         let escapeKeyCode: Int64 = 53
 
         // Five deliberate Escape taps unlock, on the fifth.
