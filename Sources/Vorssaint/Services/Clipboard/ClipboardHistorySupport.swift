@@ -847,6 +847,41 @@ enum ClipboardHistoryPreview {
     }
 }
 
+struct ClipboardHistoryShortcutCycle {
+    private var openingModifiers: GlobalShortcutModifiers = []
+    private var hasCycled = false
+
+    mutating func begin(modifiers: NSEvent.ModifierFlags) {
+        openingModifiers = GlobalShortcutModifiers(eventFlags: modifiers)
+        hasCycled = false
+    }
+
+    mutating func advance() -> Bool {
+        guard !openingModifiers.isEmpty else { return false }
+        hasCycled = true
+        return true
+    }
+
+    /// Opening alone enters normal search mode on release. After cycling,
+    /// wait for every modifier to be up so none leaks into the paste.
+    mutating func release(modifiers: NSEvent.ModifierFlags) -> Bool {
+        let held = GlobalShortcutModifiers(eventFlags: modifiers)
+        guard !openingModifiers.isEmpty else { return false }
+        if hasCycled {
+            guard held.isEmpty else { return false }
+            cancel()
+            return true
+        }
+        if !held.isSuperset(of: openingModifiers) { cancel() }
+        return false
+    }
+
+    mutating func cancel() {
+        openingModifiers = []
+        hasCycled = false
+    }
+}
+
 enum ClipboardHistoryNavigation {
     /// How far a key moves the highlight, or nil when it is not a move.
     /// Down and Control-N go forward and up and Control-P back in both

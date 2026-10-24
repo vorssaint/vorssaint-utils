@@ -392,6 +392,7 @@ def main():
               "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
               "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
               "    func moveQuickSelection(", "    func cycleQuickSelection(", "    func removeSelectedQuickEntries(",
+              "    var editingEntryID:",
               "    private var quickBatchEntries:", "    private func quickEntriesForPrimaryAction(",
               "    private func selectedQuickIndex(", "    private func promote(",
               "    private func insertPromoted("])
