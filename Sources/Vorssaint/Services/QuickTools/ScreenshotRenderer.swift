@@ -126,6 +126,11 @@ enum ScreenshotRenderer {
                     drawSpotlight(annotations, dimStrength: spotlightDimStrength,
                                   imageSize: imageSize, in: context)
                 }
+            case .ruler:
+                drawRuler(annotation, in: context, imageSize: imageSize, scale: scale,
+                          shadowsEnabled: annotationShadowsEnabled)
+            case .guide:
+                drawGuide(annotation, in: context, scale: scale)
             case .select, .crop, .expandCanvas:
                 break
             }
@@ -446,7 +451,7 @@ enum ScreenshotRenderer {
         context.restoreGState()
     }
 
-    private static func applyShadow(_ context: CGContext,
+    static func applyShadow(_ context: CGContext,
                                     scale: CGFloat,
                                     enabled: Bool) {
         guard enabled else { return }
