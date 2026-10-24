@@ -924,6 +924,7 @@ enum UtilitiesFeatureTests {
                 && RadialMenuTool.uninstaller.feature == .uninstaller
                 && RadialMenuTool.appUpdates.feature == .appUpdates
                 && RadialMenuTool.cleaningMode.feature == .cleaningMode
+                && RadialMenuTool.commandBar.feature == .commandBar
                 && RadialMenuTool.keepAwake.feature == .keepAwake,
                "every wheel tool maps to a real feature and symbol")
         let addedWheelTools: [RadialMenuTool] = [.screenRecorder, .cleaner, .uninstaller, .appUpdates]

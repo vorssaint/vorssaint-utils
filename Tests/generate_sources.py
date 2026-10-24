@@ -322,7 +322,7 @@ def main():
                         "    private func handleLaunch(", "    private func handleMediaKeyEvent("])
           + "}\n}\n")
     middle_click_lifecycle = "".join(
-        declaration("Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift", prefix)
+        declaration("Sources/Vorssaint/Services/Trackpad/TrackpadTouchService.swift", prefix)
         .replace("private ", "", 1) for prefix in [
             "    private func startMultitouch(", "    private func stopMultitouch(",
             "    private func restartMultitouch(", "    private func installHotplugObserver(",
