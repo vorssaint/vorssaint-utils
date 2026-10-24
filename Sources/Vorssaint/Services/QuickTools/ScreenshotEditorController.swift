@@ -1132,7 +1132,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// `includeShapeInteriors: false` is the creation-tap variant: area
     /// shapes (boxes, ellipses, highlights, censors) only answer near their
     /// edge, so their inside stays free for placing a new text, sticker or
-    /// counter — the tap that used to create one there must keep doing so.
+    /// counter: the tap that used to create one there must keep doing so.
     func hitTest(_ point: CGPoint, includeShapeInteriors: Bool = true) -> UUID? {
         let tolerance = 10 * scale
         for annotation in annotations.reversed() {
@@ -1743,9 +1743,10 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     func save() {
         guard let export = model.exportImage(),
-              let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+              case let (data, type)? = ScreenshotService.encodedForSaving(export)
         else { return }
-        let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
+        let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings,
+                                                                      fileExtension: type.fileExtension)
         do {
             try data.write(to: url, options: .atomic)
             ScreenshotSupport.markAsScreenCapture(url)
@@ -1765,13 +1766,18 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     func saveAs() {
         guard let window else { return }
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.png]
+        // The chosen format names the file; typing another extension wins.
+        let preferred = model.exportImage().map { ScreenshotService.saveFileType(for: $0.image) } ?? .png
+        panel.allowedContentTypes = preferred == .png ? [.png, .jpeg] : [.jpeg, .png]
         panel.nameFieldStringValue = ScreenshotSupport.fileName(
-            prefix: strings.fileNamePrefix, date: Date())
+            prefix: strings.fileNamePrefix, date: Date(), fileExtension: preferred.fileExtension)
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
+            let type = ScreenshotSaveFormat.FileType(fileExtension: url.pathExtension)
             guard let export = self.model.exportImage(),
-                  let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+                  let data = type == .png
+                    ? ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+                    : ScreenshotSaveFormat.jpegData(from: export.image, scale: export.scale)
             else { return }
             do {
                 try data.write(to: url, options: .atomic)

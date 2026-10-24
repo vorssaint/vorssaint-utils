@@ -31,6 +31,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotLoupeSteppedZoomByDefault)
     private var steppedLoupeZoomByDefault = false
     @AppStorage(DefaultsKey.screenshotDownscale) private var downscale = false
+    @AppStorage(DefaultsKey.screenshotSaveFormat) private var saveFormatRaw = ""
     @AppStorage(DefaultsKey.screenshotDelay) private var delay = 0
     @AppStorage(DefaultsKey.screenshotDefaultAction) private var defaultActionRaw = ""
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
@@ -193,6 +194,7 @@ struct ScreenshotCaptureSettings: View {
                 Text(strings.downscaleCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                saveFormatRow
             }
 
             Section {
@@ -351,6 +353,21 @@ struct ScreenshotCaptureSettings: View {
             Text(strings.previewPositionBottomRight)
                 .tag(ScreenshotSupport.QuickPreviewPosition.bottomRight.rawValue)
         }
+    }
+
+    /// How Save writes the file. Copying stays PNG either way.
+    @ViewBuilder
+    private var saveFormatRow: some View {
+        let format = FeatureStrings.screenshotFormat(l10n.language)
+        Picker(format.saveFormatLabel, selection: $saveFormatRaw) {
+            Text("PNG").tag(ScreenshotSaveFormat.png.rawValue)
+            Text("JPEG").tag(ScreenshotSaveFormat.jpeg.rawValue)
+            Text(format.saveFormatAutomatic).tag(ScreenshotSaveFormat.automatic.rawValue)
+        }
+        .pickerStyle(.segmented)
+        Text(format.saveFormatCaption)
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 
     private var folderRow: some View {
