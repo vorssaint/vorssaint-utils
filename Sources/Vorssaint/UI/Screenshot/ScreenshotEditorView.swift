@@ -26,6 +26,9 @@ struct ScreenshotEditorView: View {
     @State private var footerHeight = ScreenshotSupport.editorWrappedFooterHeight
     @State private var toolOptionsShown = false
     @State private var sharing = false
+    /// A drag that marks a live measurement, not one a tool draws.
+    @State private var inspectionDrag = false
+    @State private var resizePopoverShown = false
     @State private var sharedRecord: ScreenshotShareRecord?
     @State private var shareAnchor = ShelfSharePickerAnchor.Anchor()
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
@@ -38,6 +41,10 @@ struct ScreenshotEditorView: View {
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
+    }
+
+    private var inspectorStrings: ScreenshotInspectorStrings {
+        FeatureStrings.screenshotInspector(l10n.language)
     }
 
     private var recentCapturesTitle: String {
@@ -143,6 +150,12 @@ struct ScreenshotEditorView: View {
             }
             .scrollIndicators(.never)
             .frame(width: available.width, height: available.height, alignment: .topLeading)
+            .overlay(alignment: .top) {
+                ScreenshotMeasureHint(inspector: model.inspector, rulerActive: model.tool == .ruler,
+                                      strings: inspectorStrings)
+                    .padding(.top, 8)
+                    .padding(.horizontal, 12)
+            }
             // Trackpad pinch, anchored at the zoom the gesture started from.
             .simultaneousGesture(
                 MagnificationGesture()
@@ -253,10 +266,20 @@ struct ScreenshotEditorView: View {
         .onContinuousHover { phase in
             switch phase {
             case .active(let location):
-                updateHoverCursor(at: imagePoint(from: location, zoom: zoom))
+                let point = imagePoint(from: location, zoom: zoom)
+                let onImage = CGRect(origin: .zero, size: model.imageSize).contains(point)
+                model.inspector.pointer = onImage ? point : nil
+                updateHoverCursor(at: point)
             case .ended:
+                model.inspector.pointer = nil
                 NSCursor.arrow.set()
             }
+        }
+        .overlay(alignment: .topLeading) {
+            ScreenshotLiveMeasureOverlay(inspector: model.inspector, color: model.color,
+                                         stroke: model.stroke, zoom: zoom,
+                                         padding: model.backdropPaddingPixels, scale: model.scale)
+                .frame(width: canvasSize.width, height: canvasSize.height)
         }
         .overlay(alignment: .topLeading) {
             textEditorOverlay(zoom: zoom)
@@ -423,6 +446,16 @@ struct ScreenshotEditorView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 let point = imagePoint(from: value.location, zoom: zoom)
+                // A live measurement waits for its click; the tool never
+                // sees that drag.
+                if !dragInFlight, !inspectionDrag, model.inspector.liveMode != nil {
+                    inspectionDrag = true
+                    drag.begin(at: value.startLocation)
+                }
+                if inspectionDrag {
+                    drag.update(to: value.location)
+                    return
+                }
                 if !dragInFlight {
                     if model.tool == .expandCanvas { expansionDragZoom = zoom }
                     dragInFlight = true
@@ -439,6 +472,15 @@ struct ScreenshotEditorView: View {
                 drag.update(to: value.location)
             }
             .onEnded { value in
+                if inspectionDrag {
+                    inspectionDrag = false
+                    drag.update(to: value.location)
+                    if drag.isTap(for: .select) {
+                        commitEditingTextIfNeeded()
+                        model.imprintLiveMeasurement()
+                    }
+                    return
+                }
                 defer { expansionDragZoom = nil }
                 dragInFlight = false
                 dragCanvasArea = nil
@@ -466,6 +508,10 @@ struct ScreenshotEditorView: View {
     }
 
     private func updateHoverCursor(at point: CGPoint) {
+        if model.inspector.liveMode != nil {
+            NSCursor.crosshair.set()
+            return
+        }
         // The same rule a press follows: a spotlight region offers only its
         // handles and edge while its tool is active, and expanding the canvas
         // never moves a mark.
@@ -490,7 +536,7 @@ struct ScreenshotEditorView: View {
     private func cropLoupeOverlay(zoom: CGFloat, canvasSize: CGSize) -> some View {
         if let point = model.cropLoupePoint {
             // A crop edge sits between pixels, not on one, so this loupe wants an
-            // even sample side to put that edge in the middle of the frame — the
+            // even sample side to put that edge in the middle of the frame, the
             // opposite of what the capture loupe's color read needs.
             let sourceRect = ScreenshotSupport.cropLoupeSampleRect(
                 around: point,
@@ -993,7 +1039,8 @@ struct ScreenshotEditorView: View {
 
     private var showsColorControls: Bool {
         switch model.tool {
-        case .arrow, .line, .rect, .ellipse, .freehand, .highlight, .text, .counter, .redact:
+        case .arrow, .line, .rect, .ellipse, .freehand, .highlight, .text, .counter, .redact,
+             .ruler, .magnifier:
             return true
         case .select:
             guard let selectedID = model.selectedID,
@@ -1003,9 +1050,20 @@ struct ScreenshotEditorView: View {
                 && selected.tool != .image
                 && selected.tool != .pixelate
                 && selected.tool != .spotlight
-        case .sticker, .pixelate, .crop, .spotlight, .image, .expandCanvas:
+        case .sticker, .pixelate, .crop, .spotlight, .image, .expandCanvas, .guide:
             return false
         }
+    }
+
+    /// A picked magnifier keeps its magnification control, like a picked
+    /// spotlight region keeps its dim.
+    private var showsMagnifierControls: Bool {
+        if model.tool == .magnifier { return true }
+        guard model.tool == .select,
+              let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        return selected.tool == .magnifier
     }
 
     /// A picked region keeps the dim control, so its strength changes
@@ -1091,6 +1149,7 @@ struct ScreenshotEditorView: View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: 10) {
                 infoChip
+                pointerColorChip
                 Spacer(minLength: 6)
                 contextualBar
                 Spacer(minLength: 6)
@@ -1102,6 +1161,7 @@ struct ScreenshotEditorView: View {
                 contextualBar
                 HStack {
                     infoChip
+                    pointerColorChip
                     Spacer()
                     zoomChip
                 }
@@ -1182,6 +1242,20 @@ struct ScreenshotEditorView: View {
             }
             if showsSpotlightControls {
                 spotlightDimControl
+                Divider().frame(height: 16)
+            }
+            if showsMagnifierControls {
+                magnificationControl
+                Divider().frame(height: 16)
+            }
+            if let opacity = model.selectedImageOpacity {
+                imageOpacityControl(opacity)
+                comparisonButton
+                Divider().frame(height: 16)
+            }
+            if model.tool == .ruler {
+                ScreenshotMeasureUnitControl(inspector: model.inspector,
+                                             label: inspectorStrings.measureUnitLabel)
                 Divider().frame(height: 16)
             }
             if showsColorControls {
@@ -1290,8 +1364,90 @@ struct ScreenshotEditorView: View {
         .accessibilityLabel(strings.toolSticker)
     }
 
+    private var magnificationControl: some View {
+        Picker(inspectorStrings.magnificationLabel, selection: $model.magnification) {
+            ForEach(ScreenshotSupport.magnifications, id: \.self) { value in
+                Text("\(value)×").tag(value)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
+        .fixedSize()
+        .screenshotSafeHelp(inspectorStrings.magnificationLabel)
+        .accessibilityLabel(inspectorStrings.magnificationLabel)
+    }
+
+    /// How see-through the picked pasted image is, to line it up with the
+    /// capture below or to compare the two. One drag is one undo step.
+    private func imageOpacityControl(_ opacity: CGFloat) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: "circle.lefthalf.filled")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Slider(value: Binding(get: { Double(opacity) },
+                                  set: { model.setSelectedImageOpacity(CGFloat($0)) }),
+                   in: 0.1...1,
+                   onEditingChanged: { editing in
+                       if editing { model.beginImageOpacityChange() }
+                   })
+                .controlSize(.mini)
+                .frame(width: 84)
+            Text(Double(opacity).formatted(.percent.precision(.fractionLength(0))))
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 34, alignment: .trailing)
+        }
+        .frame(height: 24)
+        .screenshotSafeHelp(inspectorStrings.overlayOpacityLabel)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(inspectorStrings.overlayOpacityLabel)
+        .accessibilityValue(Double(opacity).formatted(.percent.precision(.fractionLength(0))))
+    }
+
+    /// Before and after: the capture alone, then with its pasted images.
+    private var comparisonButton: some View {
+        Button {
+            commitEditingTextIfNeeded()
+            controller.saveComparisonGIF()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "photo.stack")
+                    .font(.system(size: 12, weight: .medium))
+                Text("GIF")
+                    .font(.system(size: 11.5, weight: .semibold))
+            }
+            .padding(.horizontal, 7)
+            .frame(height: 24)
+        }
+        .buttonStyle(.borderless)
+        .fixedSize()
+        .screenshotSafeHelp(inspectorStrings.comparisonGIF)
+        .accessibilityLabel(inspectorStrings.comparisonGIF)
+    }
+
     private var cropBar: some View {
         HStack(spacing: 8) {
+            ScreenshotSelectionReadout(inspector: model.inspector, scale: model.scale,
+                                       strings: inspectorStrings) { color in
+                let swatch = ScreenshotEditorInspector.nsColor(color)
+                if let value = ColorSamplerService.shared.copyQuietly(swatch) {
+                    QuickToolHUD.show(icon: "eyedropper", message: value, swatch: swatch)
+                }
+            }
+            Button {
+                if !model.fitCropToContent() { NSSound.beep() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.down.right.and.arrow.up.left.square")
+                    Text(inspectorStrings.fitToContent)
+                    Text("A")
+                        .font(.system(size: 9.5, weight: .bold, design: .rounded))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .screenshotSafeHelp(inspectorStrings.fitToContent + "  (A)")
+            .accessibilityLabel(inspectorStrings.fitToContent)
             Button(strings.cancel) {
                 model.tool = .select
             }
@@ -1643,16 +1799,36 @@ struct ScreenshotEditorView: View {
     private var infoChip: some View {
         HStack(spacing: 8) {
             dragOutHandle
-            Text(dimensionsLabel)
-                .font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .fixedSize()
+            Button {
+                resizePopoverShown.toggle()
+            } label: {
+                Text(dimensionsLabel)
+                    .font(.system(size: 11, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .screenshotSafeHelp(inspectorStrings.resizeTitle)
+            .accessibilityLabel(inspectorStrings.resizeTitle)
+            .accessibilityValue(dimensionsLabel)
+            .popover(isPresented: $resizePopoverShown, arrowEdge: .top) {
+                ScreenshotResizePopover(original: model.imageSize, strings: inspectorStrings) { size in
+                    commitEditingTextIfNeeded()
+                    resizePopoverShown = false
+                    if !model.resizeImage(to: size) { NSSound.beep() }
+                }
+            }
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
         .background(.regularMaterial, in: Capsule(style: .continuous))
         .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
+    }
+
+    private var pointerColorChip: some View {
+        ScreenshotPointerColorChip(inspector: model.inspector, hint: inspectorStrings.pointerColorHint)
     }
 
     private var zoomChip: some View {
@@ -1716,7 +1892,7 @@ struct ScreenshotEditorView: View {
     }
 
     /// A draggable control that exports the flattened PNG. Lives in infoChip
-    /// (bottom row), not the top toolbar — that region overlaps the
+    /// (bottom row), not the top toolbar: that region overlaps the
     /// window's real system title bar, where no subview-level override
     /// can reliably stop AppKit from treating a click as "move the
     /// window."
@@ -1848,6 +2024,8 @@ extension ScreenshotSupport.Tool {
         case .spotlight: return "viewfinder"
         case .image: return "photo"
         case .expandCanvas: return "arrow.up.left.and.arrow.down.right"
+        case .ruler, .guide: return "ruler"
+        case .magnifier: return "plus.magnifyingglass"
         }
     }
 
@@ -1869,6 +2047,8 @@ extension ScreenshotSupport.Tool {
         case .spotlight: return strings.toolSpotlight
         case .image: return strings.pastedImage
         case .expandCanvas: return strings.toolExpandCanvas
+        case .ruler, .guide: return FeatureStrings.screenshotInspector(L10n.shared.language).toolRuler
+        case .magnifier: return FeatureStrings.screenshotInspector(L10n.shared.language).toolMagnifier
         }
     }
 }
