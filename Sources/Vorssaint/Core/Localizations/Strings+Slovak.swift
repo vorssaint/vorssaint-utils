@@ -1104,6 +1104,8 @@ extension Strings {
         linearScrollName: "Lineárne rolovanie",
         linearScrollCaption: "Každý krok kolieska myši posunie rovnakú vzdialenosť bez ohľadu na to, ako rýchlo sa točí. Trackpadu sa to netýka.",
         linearScrollLinesLabel: "Riadky na krok",
+        linearScrollHorizontalSeparate: "Samostatná vodorovná rýchlosť",
+        linearScrollHorizontalLinesLabel: "Vodorovné riadky na krok",
         shelfClearOnClose: "Vymazať pri zatvorení",
         shelfClearOnCloseCaption: "Vyprázdni policu len vtedy, keď kliknete na jej tlačidlo zatvorenia. Automatické skrytie a zbalenie položky zachovajú.",
         shelfShortcutFinderSelection: "Pridať výber z Findera skratkou",

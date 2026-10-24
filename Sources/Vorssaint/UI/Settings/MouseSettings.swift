@@ -30,6 +30,9 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.linearScrollEnabled) private var linearScrollEnabled = false
     @AppStorage(DefaultsKey.linearScrollLines) private var linearScrollLines =
         ScrollWheelSupport.defaultLinesPerNotch
+    @AppStorage(DefaultsKey.linearScrollHorizontalSeparate) private var linearScrollHorizontalSeparate = false
+    @AppStorage(DefaultsKey.linearScrollHorizontalLines) private var linearScrollHorizontalLines =
+        ScrollWheelSupport.defaultLinesPerNotch
     @AppStorage(DefaultsKey.smoothScrollResponse) private var smoothScrollResponse =
         SmoothScrollSupport.defaultResponse
     @AppStorage(DefaultsKey.smoothScrollCoast) private var smoothScrollCoast =
@@ -368,6 +371,15 @@ struct MouseSettings: View {
                                   ... Double(ScrollWheelSupport.linesPerNotchRange.upperBound),
                               step: 1,
                               readout: "\(ScrollWheelSupport.sanitizedLinesPerNotch(linearScrollLines))")
+                    Toggle(l10n.s.linearScrollHorizontalSeparate, isOn: $linearScrollHorizontalSeparate)
+                    if linearScrollHorizontalSeparate {
+                        sliderRow(l10n.s.linearScrollHorizontalLinesLabel,
+                                  value: linearScrollHorizontalLinesBinding,
+                                  range: Double(ScrollWheelSupport.linesPerNotchRange.lowerBound)
+                                      ... Double(ScrollWheelSupport.linesPerNotchRange.upperBound),
+                                  step: 1,
+                                  readout: "\(ScrollWheelSupport.sanitizedLinesPerNotch(linearScrollHorizontalLines))")
+                    }
                     MouseExceptionsList(scope: .linearScroll)
                 }
                 .padding(.leading, settingsRowTextInset)
@@ -586,6 +598,13 @@ struct MouseSettings: View {
         Binding(
             get: { Double(ScrollWheelSupport.sanitizedLinesPerNotch(linearScrollLines)) },
             set: { linearScrollLines = Int($0) }
+        )
+    }
+
+    private var linearScrollHorizontalLinesBinding: Binding<Double> {
+        Binding(
+            get: { Double(ScrollWheelSupport.sanitizedLinesPerNotch(linearScrollHorizontalLines)) },
+            set: { linearScrollHorizontalLines = Int($0) }
         )
     }
 

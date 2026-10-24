@@ -1104,6 +1104,8 @@ extension Strings {
         linearScrollName: "Scorrimento lineare",
         linearScrollCaption: "Ogni scatto della rotellina del mouse scorre la stessa distanza, a prescindere dalla velocità di rotazione. Il trackpad non cambia.",
         linearScrollLinesLabel: "Righe per scatto",
+        linearScrollHorizontalSeparate: "Velocità orizzontale separata",
+        linearScrollHorizontalLinesLabel: "Righe orizzontali per scatto",
         shelfClearOnClose: "Svuota alla chiusura",
         shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano.",
         shelfShortcutFinderSelection: "Aggiungi la selezione del Finder con la scorciatoia",

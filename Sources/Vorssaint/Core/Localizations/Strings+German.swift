@@ -1104,6 +1104,8 @@ extension Strings {
         linearScrollName: "Lineares Scrollen",
         linearScrollCaption: "Jeder Rastschritt des Mausrads scrollt dieselbe Strecke, egal wie schnell es gedreht wird. Das Trackpad bleibt unverändert.",
         linearScrollLinesLabel: "Zeilen pro Rastschritt",
+        linearScrollHorizontalSeparate: "Eigene horizontale Geschwindigkeit",
+        linearScrollHorizontalLinesLabel: "Horizontale Zeilen pro Rastschritt",
         shelfClearOnClose: "Beim Schließen leeren",
         shelfClearOnCloseCaption: "Leert die Ablage nur, wenn du auf die Schließen-Taste klickst. Automatisches Ausblenden und Einklappen behalten die Objekte.",
         shelfShortcutFinderSelection: "Finder-Auswahl per Kurzbefehl hinzufügen",

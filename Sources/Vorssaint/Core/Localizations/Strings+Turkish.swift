@@ -1104,6 +1104,8 @@ extension Strings {
         linearScrollName: "Doğrusal kaydırma",
         linearScrollCaption: "Fare tekerleğinin her adımı, ne kadar hızlı çevrilirse çevrilsin aynı mesafeyi kaydırır. İzleme dörtgeni değişmez.",
         linearScrollLinesLabel: "Adım başına satır",
+        linearScrollHorizontalSeparate: "Ayrı yatay hız",
+        linearScrollHorizontalLinesLabel: "Yatay adım başına satır",
         shelfClearOnClose: "Kapatınca temizle",
         shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur.",
         shelfShortcutFinderSelection: "Kısayolla Finder seçimini ekle",

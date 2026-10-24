@@ -288,6 +288,21 @@ enum SmoothScrollRoutingTests {
         _ = tick(capped, fastNotch)
         suite.expect(capped.engine.remainingVertical == 120,
                      "linear scrolling still caps a fast raw notch before it is smoothed")
+        defaults.set(true, forKey: DefaultsKey.linearScrollHorizontalSeparate)
+        defaults.set(6, forKey: DefaultsKey.linearScrollHorizontalLines)
+        let cappedSideways = Service()
+        let fastTilt = wheel()
+        fastTilt.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: 0)
+        fastTilt.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: 0)
+        fastTilt.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: 0)
+        fastTilt.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: 7)
+        fastTilt.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: 7)
+        fastTilt.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: 70)
+        _ = tick(cappedSideways, fastTilt)
+        suite.expect(abs(cappedSideways.engine.remainingHorizontal) == 240
+                        && cappedSideways.engine.remainingVertical == 0,
+                     "a sideways notch is smoothed at its own linear count")
+        defaults.set(false, forKey: DefaultsKey.linearScrollHorizontalSeparate)
         defaults.set(false, forKey: DefaultsKey.linearScrollEnabled)
 
         posted = []

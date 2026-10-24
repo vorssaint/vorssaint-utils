@@ -63,10 +63,12 @@ enum LinearScrollTapTests {
         }
         func configure(linear: Bool = true, installed: Bool = true, lines: Int = 3,
                        invert: Bool = false, invertHorizontal: Bool = false, inverterInstalled: Bool = true,
-                       sidewaysKey: ScrollHorizontalModifier? = nil) {
+                       sidewaysKey: ScrollHorizontalModifier? = nil, horizontalLines: Int? = nil) {
             defaults.set(installed, forKey: AppFeature.linearScroll.availabilityKey)
             defaults.set(linear, forKey: DefaultsKey.linearScrollEnabled)
             defaults.set(lines, forKey: DefaultsKey.linearScrollLines)
+            defaults.set(horizontalLines != nil, forKey: DefaultsKey.linearScrollHorizontalSeparate)
+            defaults.set(horizontalLines ?? 0, forKey: DefaultsKey.linearScrollHorizontalLines)
             defaults.set(inverterInstalled, forKey: AppFeature.scrollInverter.availabilityKey)
             defaults.set(invert, forKey: DefaultsKey.scrollInverterEnabled)
             defaults.set(invertHorizontal, forKey: DefaultsKey.scrollInverterHorizontalEnabled)
@@ -156,6 +158,25 @@ enum LinearScrollTapTests {
                         && sideways?.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 3,
                      "a modifier-held notch is capped before it is turned sideways")
 
+        // A tilt or thumb wheel's notch arrives on the horizontal axis.
+        configure()
+        let tiltShared = deliver(tilt(line: 7, fixed: 7.298, point: 73))
+        suite.expect(tiltShared.map(horizontalLine) == 3,
+                     "a sideways notch follows the vertical count until it is set apart")
+        configure(horizontalLines: 6)
+        let tiltOwn = deliver(tilt(line: 1, fixed: 0.1, point: 1))
+        let verticalBeside = deliver(wheel(line: 7, fixed: 7.298, point: 73))
+        suite.expect(tiltOwn.map(horizontalLine) == 6 && verticalBeside.map(verticalLine) == 3,
+                     "a sideways notch takes its own count while the vertical wheel keeps its own")
+        configure(sidewaysKey: .option, horizontalLines: 6)
+        let turnedVertical = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskAlternate))
+        suite.expect(turnedVertical?.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 3,
+                     "the vertical wheel turned sideways by a modifier keeps the vertical count")
+        configure(horizontalLines: 0)
+        suite.expect(deliver(tilt(line: 4, fixed: 4, point: 40)).map(horizontalLine)
+                        == Int64(ScrollWheelSupport.defaultLinesPerNotch),
+                     "a stored sideways count of zero falls back to the default")
+
         configure()
         let nativeZoom = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskControl))
         suite.expect(nativeZoom.map(verticalLine) == 4 && nativeZoom.map(verticalFixed) == 4,
@@ -232,6 +253,18 @@ enum LinearScrollTapTests {
 
     private static func verticalLine(_ event: CGEvent) -> Int64 {
         event.getIntegerValueField(.scrollWheelEventDeltaAxis1)
+    }
+
+    private static func horizontalLine(_ event: CGEvent) -> Int64 {
+        event.getIntegerValueField(.scrollWheelEventDeltaAxis2)
+    }
+
+    private static func tilt(line: Int64, fixed: Double, point: Int64) -> CGEvent {
+        let event = wheel(line: 0, fixed: 0, point: 0)
+        event.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: line)
+        event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: fixed)
+        event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: point)
+        return event
     }
 
     private static func verticalFixed(_ event: CGEvent) -> Double {

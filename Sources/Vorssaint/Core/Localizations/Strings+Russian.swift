@@ -1105,6 +1105,8 @@ extension Strings {
         linearScrollName: "Линейная прокрутка",
         linearScrollCaption: "Каждый щелчок колёсика мыши прокручивает одно и то же расстояние независимо от скорости вращения. Трекпад не меняется.",
         linearScrollLinesLabel: "Строк на щелчок",
+        linearScrollHorizontalSeparate: "Отдельная скорость по горизонтали",
+        linearScrollHorizontalLinesLabel: "Строк на щелчок по горизонтали",
         shelfClearOnClose: "Очищать при закрытии",
         shelfClearOnCloseCaption: "Очищает полку только при нажатии кнопки закрытия. Автоматическое скрытие и сворачивание сохраняют элементы.",
         shelfShortcutFinderSelection: "Добавлять выбранное в Finder по горячей клавише",
