@@ -658,6 +658,10 @@ enum DefaultsKey {
     static let orphanedCaptureShortcutMigrated = "orphanedCaptureShortcutMigrated"
     static let screenshotFullScreenShortcutEnabled = "screenshotFullScreenShortcutEnabled"
     static let screenshotFullScreenShortcut = "screenshotFullScreenShortcut"
+    static let screenshotAreaShortcutEnabled = "screenshotAreaShortcutEnabled"
+    static let screenshotAreaShortcut = "screenshotAreaShortcut"
+    static let screenshotWindowShortcutEnabled = "screenshotWindowShortcutEnabled"
+    static let screenshotWindowShortcut = "screenshotWindowShortcut"
     static let screenshotLastCaptureShortcutEnabled = "screenshotLastCaptureShortcutEnabled"
     static let screenshotLastCaptureShortcut = "screenshotLastCaptureShortcut"
     static let recentCapturesShortcutEnabled = "recentCapturesShortcutEnabled"
@@ -1858,6 +1862,10 @@ enum Defaults {
         DefaultsKey.restoredScreenCaptureShortcutsMigrated: false,
         DefaultsKey.screenshotFullScreenShortcutEnabled: false,
         DefaultsKey.screenshotFullScreenShortcut: GlobalShortcut.screenshotFullScreenDefault.storageValue,
+        DefaultsKey.screenshotAreaShortcutEnabled: false,
+        DefaultsKey.screenshotAreaShortcut: GlobalShortcut.screenshotAreaDefault.storageValue,
+        DefaultsKey.screenshotWindowShortcutEnabled: false,
+        DefaultsKey.screenshotWindowShortcut: GlobalShortcut.screenshotWindowDefault.storageValue,
         DefaultsKey.screenshotLastCaptureShortcutEnabled: false,
         DefaultsKey.screenshotLastCaptureShortcut: GlobalShortcut.screenshotLastCaptureDefault.storageValue,
         DefaultsKey.recentCapturesShortcutEnabled: false,

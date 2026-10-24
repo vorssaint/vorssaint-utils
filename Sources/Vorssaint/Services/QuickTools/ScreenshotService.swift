@@ -14,6 +14,8 @@ final class ScreenshotService: ObservableObject {
     static let shared = ScreenshotService()
 
     @Published private(set) var fullScreenShortcutRegistrationFailed = false
+    @Published private(set) var areaShortcutRegistrationFailed = false
+    @Published private(set) var windowShortcutRegistrationFailed = false
     @Published private(set) var lastCaptureShortcutRegistrationFailed = false
     @Published private(set) var clipboardShortcutRegistrationFailed = false
 
@@ -33,6 +35,8 @@ final class ScreenshotService: ObservableObject {
     private let lastCaptureHotkey = QuickToolHotkey(id: 22)
     private let fullScreenHotkey = QuickToolHotkey(id: 23)
     private let clipboardHotkey = QuickToolHotkey(id: 24)
+    private let areaHotkey = QuickToolHotkey(id: 62)
+    private let windowHotkey = QuickToolHotkey(id: 63)
     private var session: ScreenshotSelectionController?
     private var preview: ScreenshotQuickPreviewController?
     private var editors: [ScreenshotEditorController] = []
@@ -54,6 +58,10 @@ final class ScreenshotService: ObservableObject {
         case standard
         case fullScreen
         case scrolling
+        /// Dragging only: a click on a window does nothing.
+        case area
+        /// Window clicks only: dragging draws no area.
+        case window
     }
 
     private var hideVorssaintWindows: Bool {
@@ -109,6 +117,8 @@ final class ScreenshotService: ObservableObject {
             ScreenshotSupport.removeTemporaryDragDirectories()
         }
         fullScreenHotkey.onPress = { [weak self] in self?.captureFullScreen() }
+        areaHotkey.onPress = { [weak self] in self?.captureArea() }
+        windowHotkey.onPress = { [weak self] in self?.captureWindow() }
         lastCaptureHotkey.onPress = { [weak self] in self?.openLastCapture() }
         uploadHotkey.onPress = { [weak self] in
             Task { @MainActor [weak self] in self?.uploadLastCapture() }
@@ -119,10 +129,14 @@ final class ScreenshotService: ObservableObject {
     func syncWithPreferences() {
         guard AppFeature.screenshot.isAvailable else {
             fullScreenShortcutRegistrationFailed = false
+            areaShortcutRegistrationFailed = false
+            windowShortcutRegistrationFailed = false
             lastCaptureShortcutRegistrationFailed = false
             clipboardShortcutRegistrationFailed = false
             uploadShortcutRegistrationFailed = false
             fullScreenHotkey.unregister()
+            areaHotkey.unregister()
+            windowHotkey.unregister()
             lastCaptureHotkey.unregister()
             clipboardHotkey.unregister()
             uploadHotkey.unregister()
@@ -140,6 +154,14 @@ final class ScreenshotService: ObservableObject {
             enabled: fullScreenEnabled,
             shortcut: fullScreenShortcut,
             storageKey: DefaultsKey.screenshotFullScreenShortcut)
+        areaShortcutRegistrationFailed = !areaHotkey.sync(
+            enabled: defaults.bool(forKey: DefaultsKey.screenshotAreaShortcutEnabled),
+            shortcut: GlobalShortcutRole.screenshotArea.savedShortcut,
+            storageKey: DefaultsKey.screenshotAreaShortcut)
+        windowShortcutRegistrationFailed = !windowHotkey.sync(
+            enabled: defaults.bool(forKey: DefaultsKey.screenshotWindowShortcutEnabled),
+            shortcut: GlobalShortcutRole.screenshotWindow.savedShortcut,
+            storageKey: DefaultsKey.screenshotWindowShortcut)
         let lastCaptureEnabled = defaults.bool(
             forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled)
         let lastCaptureShortcut = GlobalShortcut.saved(
@@ -180,6 +202,8 @@ final class ScreenshotService: ObservableObject {
 
     func suspend() {
         fullScreenHotkey.unregister()
+        areaHotkey.unregister()
+        windowHotkey.unregister()
         lastCaptureHotkey.unregister()
         clipboardHotkey.unregister()
         uploadHotkey.unregister()
@@ -227,6 +251,16 @@ final class ScreenshotService: ObservableObject {
 
     func captureFullScreen() {
         startCapture(.fullScreen)
+    }
+
+    /// The area and window shortcuts skip the chooser and its tool menu:
+    /// each opens a surface that accepts only its own kind of target.
+    func captureArea() {
+        startCapture(.area)
+    }
+
+    func captureWindow() {
+        startCapture(.window)
     }
 
     private func startCapture(_ mode: CaptureMode) {
@@ -296,12 +330,14 @@ final class ScreenshotService: ObservableObject {
                 ? false
                 : defaults.bool(forKey: DefaultsKey.screenshotFreeze),
             includePointer: defaults.bool(forKey: DefaultsKey.screenshotIncludePointer),
-            showLastRegion: defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
+            showLastRegion: mode != .window && defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
             hideVorssaintWindows: hideVorssaintWindows,
             protectedWindowIDs: { [weak self] in self?.protectedWindowIDs ?? [] },
             purpose: mode == .scrolling ? strings.scrollingCaptureTitle : nil,
             mode: mode == .scrolling ? .geometry : .image,
-            supportsScrollingCapture: mode == .standard)
+            supportsScrollingCapture: mode == .standard,
+            requiresDraggedRegion: mode == .area,
+            windowOnly: mode == .window)
         session = controller
         controller.begin { [weak self] outcome in
             guard let self else { return }
