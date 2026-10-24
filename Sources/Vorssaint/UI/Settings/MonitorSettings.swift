@@ -16,6 +16,7 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMetrics = false
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
+    @AppStorage(DefaultsKey.menuBarFontWeight) private var fontWeight = "automatic"
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
     @AppStorage(DefaultsKey.monitorInterval) private var interval = 2
@@ -75,6 +76,7 @@ struct MonitorSettings: View {
         .onAppear {
             interval = Defaults.sanitizedMonitorInterval(interval)
             metricAppearance = Defaults.sanitizedMenuBarMetricAppearance(metricAppearance)
+            fontWeight = MenuBarFontWeight.current().rawValue
             if TemperatureUnit(rawValue: temperatureUnit) == nil {
                 temperatureUnit = TemperatureUnit.celsius.rawValue
             }
@@ -139,6 +141,17 @@ struct MonitorSettings: View {
                 }
             }
             Divider()
+            SettingsRow(symbol: "textformat", title: appearanceStrings.fontWeight) {
+                Picker(appearanceStrings.fontWeight, selection: $fontWeight) {
+                    Text(appearanceStrings.fontWeightAutomatic).tag("automatic")
+                    Text(appearanceStrings.fontWeightRegular).tag("regular")
+                    Text(appearanceStrings.fontWeightMedium).tag("medium")
+                    Text(appearanceStrings.fontWeightSemibold).tag("semibold")
+                    Text(appearanceStrings.fontWeightBold).tag("bold")
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+            }
             SettingsRow(symbol: "arrow.left.and.right", title: l10n.s.menuBarSpacingLabel) {
                 Picker(l10n.s.menuBarSpacingLabel, selection: $metricSpacing) {
                     Text(l10n.s.menuBarSpacingStandard).tag("standard")
