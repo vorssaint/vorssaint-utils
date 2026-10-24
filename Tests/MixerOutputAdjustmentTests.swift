@@ -65,7 +65,7 @@ enum MixerOutputAdjustmentContract {
         mixer.requestOutputStep(level: { $0 + 0.1 })
         finish(mixer)
         suite.expect(Hardware.writes.last?.muted == false
-                     && mixer.systemOutputVolume == 0.1 && mixer.systemOutputMuted == false,
+                     && abs((mixer.systemOutputVolume ?? -1) - 0.1) < 0.0001 && mixer.systemOutputMuted == false,
                      "the next positive volume key unmutes an output muted at zero")
 
         mixer = make()
@@ -191,10 +191,10 @@ enum MixerOutputAdjustmentContract {
             mixer.requestOutputStep(level: step(0.1)) { completions.append($0) }
             finish(mixer)
             suite.expect(Hardware.writes.compactMap(\.volume).map { ($0 * 100).rounded() }
-                            == (directMute ? [10] : [35, 45])
-                         && mixer.systemOutputMuted == false
-                         && completions == [true, true, true],
-                         "a key after a direct \(directMute ? "mute" : "level") follows it when the superseded read fails")
+                            == (directMute ? [] : [35, 45])
+                         && mixer.systemOutputMuted == directMute
+                         && completions == (directMute ? [true, true, false] : [true, true, true]),
+                         "after a direct \(directMute ? "mute" : "level"), a key uses a fresh reading or falls back when volume is unavailable")
         }
 
         mixer = make()
@@ -234,14 +234,14 @@ enum MixerOutputAdjustmentContract {
         mixer = make()
         Hardware.accepts = coarse
         Hardware.volume = 0.3
-        suite.expect(press(mixer, 1.0 / 16, times: 4) == [0.3, 0.45, 0.45, 0.65],
-                     "volume up climbs an output that rounds a single step back to its level")
+        suite.expect(press(mixer, 1.0 / 16, times: 4) == [0.45, 0.65, 1, 1],
+                     "every volume-up press advances a coarse output until full volume")
 
         mixer = make()
         Hardware.accepts = coarse
         Hardware.volume = 1
-        suite.expect(press(mixer, -1.0 / 16, times: 3) == [1, 1, 0.65],
-                     "volume down leaves full volume on an output whose top step is wider than a key's")
+        suite.expect(press(mixer, -1.0 / 16, times: 3) == [0.65, 0.45, 0.3],
+                     "every volume-down press advances a coarse output, including the first press at full volume")
 
         mixer = make()
         Hardware.accepts = coarse
@@ -261,7 +261,7 @@ enum MixerOutputAdjustmentContract {
         finish(mixer)
         Hardware.writes = []
         _ = press(mixer, 1.0 / 16, times: 1)
-        suite.expect(Hardware.writes.compactMap(\.volume).map { ($0 * 10000).rounded() } == [3625],
+        suite.expect(Hardware.writes.compactMap(\.volume).map { ($0 * 10000).rounded() } == [3625, 4250],
                      "a direct level change starts the next key from that level")
 
         mixer = make()
@@ -269,15 +269,15 @@ enum MixerOutputAdjustmentContract {
         Hardware.volume = 0.3
         _ = press(mixer, 1.0 / 16, times: 1)
         mixer.readSnapshot(volume: 0.3, muted: false)
-        suite.expect(press(mixer, 1.0 / 16, times: 1) == [0.45],
-                     "the reading right after a step the output rounded back keeps the next key going")
+        suite.expect(press(mixer, 1.0 / 16, times: 1) == [0.65],
+                     "a stale snapshot cannot undo the accepted level the next key reads from the device")
 
         mixer = make()
         Hardware.accepts = coarse
         Hardware.volume = 0.3
         _ = press(mixer, 1.0 / 16, times: 1)
-        suite.expect(press(mixer, -1.0 / 16, times: 1) == [0.2],
-                     "a key back the other way after a step the output rounded back steps from the output's level")
+        suite.expect(press(mixer, -1.0 / 16, times: 1) == [0.3],
+                     "reversing direction returns to the previous hardware level in one press")
 
         mixer = make()
         Hardware.accepts = { $0 }
@@ -308,8 +308,62 @@ enum MixerOutputAdjustmentContract {
         Hardware.succeeds = true
         Hardware.writes = []
         _ = press(mixer, 1.0 / 16, times: 1)
-        suite.expect(Hardware.writes.compactMap(\.volume).map { ($0 * 10000).rounded() } == [3625],
+        suite.expect(Hardware.writes.compactMap(\.volume).map { ($0 * 10000).rounded() } == [3625, 4250],
                      "a step the output refused carries nothing over to the next key")
+
+        for delta in [1.0 / 16, 1.0 / 64, -1.0 / 16, -1.0 / 64] {
+            for initial in coarseLevels {
+                mixer = make()
+                Hardware.accepts = coarse
+                Hardware.volume = initial
+                var accepted: Bool?
+                mixer.requestOutputStep(level: step(delta)) { accepted = $0 }
+                finish(mixer)
+                let actual = Double(Hardware.volume!)
+                let atLimit = delta > 0 ? initial == 1 : initial == 0
+                suite.expect(accepted == true && (atLimit || (actual - Double(initial)) * delta > 0),
+                             "one \(delta) key moves the hardware from \(initial), unless already at its endpoint")
+                suite.expectClose(mixer.systemOutputVolume ?? -1, actual,
+                                  "feedback shows the accepted hardware level")
+                suite.expect(Hardware.writes.compactMap(\.volume).count <= 64,
+                             "a coarse or fine key has bounded driver writes")
+            }
+        }
+
+        mixer = make()
+        Hardware.accepts = coarse
+        Hardware.volume = 0.3
+        var burstLevels: [Double] = []
+        for _ in 0..<3 {
+            mixer.requestOutputStep(level: step(1.0 / 16)) { applied in
+                suite.expect(applied, "each key in a burst completes successfully")
+                burstLevels.append(mixer.systemOutputVolume ?? -1)
+            }
+        }
+        finish(mixer)
+        suite.expect(burstLevels.map { ($0 * 100).rounded() } == [45, 65, 100],
+                     "queued keys each advance from the hardware level accepted by the previous key")
+
+        mixer = make()
+        Hardware.accepts = { _ in 0.3 }
+        Hardware.volume = 0.3
+        var ignored: Bool?
+        mixer.requestOutputStep(level: step(1.0 / 64)) { ignored = $0 }
+        finish(mixer)
+        suite.expect(ignored == false && Hardware.writes.compactMap(\.volume).count <= 64,
+                     "an output ignoring every write returns the key to native handling after bounded work")
+
+        mixer = make()
+        Hardware.accepts = coarse
+        Hardware.volume = 0.3
+        Hardware.afterVolumeWrite = {
+            Hardware.device = 2
+            mixer.selectOutput(2, volume: 0.2, muted: false)
+        }
+        mixer.requestOutputStep(level: step(1.0 / 64))
+        finish(mixer)
+        suite.expect(Hardware.writes.count == 1 && Hardware.writes[0].device == 1,
+                     "switching output during a rounded write stops further attempts and skips stale mute")
 
         // A level of zero also throws the mute switch, as the system's own
         // keys and the Control Center slider do, because the bottom of the

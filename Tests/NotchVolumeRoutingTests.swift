@@ -24,7 +24,10 @@ enum NotchVolumeRoutingTests {
         static let shared = NotchService()
         let acceptsSystemFeedback = true
         let showsSystemFeedback = true
-        func showCurrentVolume() {}
+        var shownLevels: [Double] = []
+        func showCurrentVolume() {
+            if let level = AppVolumeMixer.shared.systemOutputVolume { shownLevels.append(level) }
+        }
     }
     struct NSEvent { let data1: Int }
     final class CGEvent {
@@ -55,9 +58,11 @@ enum NotchVolumeRoutingTests {
             Hardware.writes = []
             Hardware.succeeds = true
             Hardware.afterVolumeWrite = nil
+            Hardware.accepts = nil
             AppVolumeMixer.shared = MixerOutputAdjustmentContract.Mixer()
             AppVolumeMixer.shared.selectOutput(1, volume: 0.5, muted: false)
             Service.forwardedReleases = []
+            NotchService.shared.shownLevels = []
             return Service()
         }
         func drain() {
@@ -101,6 +106,26 @@ enum NotchVolumeRoutingTests {
                          && Hardware.writes.contains { $0.volume == Float(expected) },
                          "\(key) still applies its ordinary volume step")
         }
+        service = reset()
+        Hardware.volume = 0.3
+        Hardware.accepts = { $0 < 0.375 ? 0.3 : 0.45 }
+        let coarseKey = CGEvent()
+        _ = press(.volumeUp, service: service, event: coarseKey)
+        drain()
+        suite.expect(Hardware.volume == 0.45 && coarseKey.posts == 0,
+                     "one intercepted key advances coarse USB volume without a second native press")
+        suite.expect(NotchService.shared.shownLevels.map { ($0 * 100).rounded() } == [45],
+                     "the notch announces the device's accepted volume instead of the rounded-away request")
+
+        service = reset()
+        Hardware.accepts = { _ in 0.5 }
+        let ignoredKey = CGEvent()
+        _ = press(.volumeDown, service: service, event: ignoredKey)
+        drain()
+        suite.expect(ignoredKey.posts == 1 && Service.forwardedReleases == [1]
+                     && NotchService.shared.shownLevels.isEmpty,
+                     "a driver ignoring successful writes receives a native fallback without false notch confirmation")
+
         service = reset()
         AppVolumeMixer.shared.systemOutputMuted = nil
         let unsupportedMute = CGEvent()
