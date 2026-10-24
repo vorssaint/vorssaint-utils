@@ -42,7 +42,8 @@ enum PointerOnDisplayContract {
         static func spaces(of windowID: CGWindowID) -> [UInt64] { windowSpaces }
         static func spaceShortcut(_ direction: SpaceDirection) -> SpaceShortcut? { SpaceShortcut() }
         static func pressSpaceShortcut(_ shortcut: SpaceShortcut) { presses += 1 }
-        static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) {}
+        static var frontedWindows = 0
+        static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) { frontedWindows += 1 }
     }
 
     /// `SpaceHop` starting and taking one step toward a window on a hidden
@@ -53,6 +54,7 @@ enum PointerOnDisplayContract {
         typealias SpaceWindowBridge = Bridge
         typealias NSRunningApplication = App
         typealias ActivationHandoff = Handoff
+        typealias WindowActivator = Activator
         struct CGEvent {
             let location = CGPoint.zero
             init?(source: CGEventSource?) {}
@@ -62,10 +64,18 @@ enum PointerOnDisplayContract {
             var isHidden = false
             var unhides = 0
             func unhide() { unhides += 1 }
-            func activate(from: App, options: NSApplication.ActivationOptions) -> Bool { true }
+            var activations: [NSApplication.ActivationOptions] = []
+            func activate(from: App, options: NSApplication.ActivationOptions) -> Bool {
+                activations.append(options)
+                return true
+            }
             @discardableResult func activate(options: NSApplication.ActivationOptions) -> Bool { true }
         }
         enum Handoff { static func yield(to app: App) {} }
+        enum Activator {
+            static var raises = false
+            static func raiseWindowOnHiddenSpace(windowID: CGWindowID, pid: pid_t) -> Bool { raises }
+        }
         let app = App()
         let windowOwnerPID: pid_t = 1
         let windowID: CGWindowID = 1
@@ -74,8 +84,9 @@ enum PointerOnDisplayContract {
         var originalCursorLocation: CGPoint?
         var warpedCursorLocation: CGPoint?
         var warps: [CGPoint] = []
+        var appIsAlreadyHere = false
         func windowSpaceIsVisible() -> Bool { false }
-        func appHasWindowOnVisibleSpace() -> Bool { false }
+        func appHasWindowOnVisibleSpace() -> Bool { appIsAlreadyHere }
         func focusOnArrival() {}
         func finish() {}
         func waitForTravel(from visibleBefore: Set<UInt64>, then completion: @escaping (TravelOutcome) -> Void) {}
@@ -178,6 +189,25 @@ enum PointerOnDisplayContract {
         hiddenHop.start()
         suite.expect(visibleHop.app.unhides == 0 && hiddenHop.app.unhides == 1,
                      "a Space hop unhides its app only when the app is hidden")
+        // Issue #2591: the hop slid through every Space between the current
+        // one and the window's. A raised window travels straight there, and
+        // fronting it through the window server would cancel that travel.
+        for (raises, here, fronts, options, place) in [
+            (true, true, 0, NSApplication.ActivationOptions(), "a raised window whose app has another in view"),
+            (true, false, 0, NSApplication.ActivationOptions(), "a raised window whose app has none in view"),
+            (false, true, 1, NSApplication.ActivationOptions(), "an unraised window whose app has another in view"),
+            (false, false, 0, NSApplication.ActivationOptions.activateAllWindows, "an unraised window whose app has none in view"),
+        ] {
+            Hop.Activator.raises = raises
+            Bridge.frontedWindows = 0
+            let hop = Hop()
+            hop.appIsAlreadyHere = here
+            hop.start()
+            suite.expect(Bridge.frontedWindows == fronts && hop.app.activations == [options],
+                         "a Space hop to \(place) fronts \(fronts) windows and activates with \(options.rawValue), "
+                         + "found \(Bridge.frontedWindows) and \(hop.app.activations.map(\.rawValue))")
+        }
+        Hop.Activator.raises = false
         // With 64-point icons the Dock's strip is 160 points deep, measured
         // from the edge of the display the pointer is on.
         let dock: [(NSPoint, DockPreviewOrientation, Bool, String)] = [

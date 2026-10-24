@@ -12,6 +12,7 @@ enum SwitcherFullscreenScopeTests {
         typealias SpaceWindowBridge = SwitcherFullscreenScopeTests.Bridge
         typealias WindowUseTracker = SwitcherFullscreenScopeTests.Tracker
         typealias UserDefaults = SwitcherFullscreenScopeTests.Preferences
+        typealias AXWindowResolver = SwitcherFullscreenScopeTests.Resolver
         static let minimumSize = CGSize(width: 80, height: 60)
         static let maximumCount = 48
         static var raw: [[String: Any]] = []
@@ -31,6 +32,27 @@ enum SwitcherFullscreenScopeTests {
 
         static func orderByUse(_ windows: [SwitcherItem], frontToBack: [CGWindowID]) -> [SwitcherItem] {
             windows
+        }
+
+        /// Stand-in elements carry their window id as their pid.
+        static func accessibilityTitle(for window: AXUIElement) -> String {
+            var id: pid_t = 0
+            AXUIElementGetPid(window, &id)
+            return Resolver.titles[CGWindowID(id)] ?? ""
+        }
+    }
+
+    /// Remote elements of windows on hidden Spaces, with each app's lookup
+    /// recorded.
+    enum Resolver {
+        static let remoteLookupBudget: TimeInterval = 0.15
+        static var titles: [CGWindowID: String] = [:]
+        static var lookups: [pid_t] = []
+        static func elementsOnHiddenSpace(windowIDs: Set<CGWindowID>, pid: pid_t,
+                                          budget: TimeInterval) -> [CGWindowID: AXUIElement] {
+            lookups.append(pid)
+            return Dictionary(uniqueKeysWithValues: windowIDs.filter { titles[$0] != nil }
+                .map { ($0, AXUIElementCreateApplication(pid_t($0))) })
         }
     }
 
@@ -124,6 +146,8 @@ enum SwitcherFullscreenScopeTests {
             Bridge.getWindowTags = nil
             Bridge.orderedOut = []
             Bridge.hiddenWithApp = nil
+            Resolver.titles = [:]
+            Resolver.lookups = []
             Preferences.standard.values = [:]
         }
         let frame = CGRect(x: 0, y: 0, width: 900, height: 600)
@@ -196,6 +220,28 @@ enum SwitcherFullscreenScopeTests {
         Preferences.standard.values[DefaultsKey.switcherCurrentSpaceOnly] = true
         suite.expect(Enumerator.listWindowsForCommandBar(snapshot: snapshot).compactMap(\.windowID) == [1],
                      "Command Bar keeps its existing current-desktop scope")
+        // Without Screen Recording the window server titles no window, and
+        // Accessibility leaves the browser's window on another desktop out of
+        // its list, so the window showed only its app's name. Its remote
+        // element supplies the title, looked up once for the app; a window
+        // the app's list describes keeps that title without a lookup.
+        let screenRecordingTitles = Enumerator.raw
+        Enumerator.raw = Enumerator.raw.map { $0.filter { $0.key != kCGWindowName as String } }
+        Resolver.titles = [3: "Pull requests"]
+        let untitled = enumerate(currentSpaceOnly: false).items
+        suite.expect(untitled.first { $0.windowID == 3 }?.title == "Pull requests" && Resolver.lookups == [3],
+                     "a window on another desktop takes its title from its remote element, found \(Resolver.lookups)")
+        suite.expect(untitled.first { $0.windowID == 2 }?.title == "Window 2",
+                     "a window on another desktop that Accessibility describes keeps that title")
+        Resolver.titles = [:]
+        Resolver.lookups = []
+        suite.expect(enumerate(currentSpaceOnly: false).items.first { $0.windowID == 3 }?.title == "",
+                     "a window whose element cannot be found stays untitled, so it shows its app's name as before")
+        Enumerator.raw = screenRecordingTitles
+        Resolver.lookups = []
+        _ = enumerate(currentSpaceOnly: false)
+        suite.expect(Resolver.lookups.isEmpty, "with Screen Recording titles nothing is looked up")
+
         Bridge.windowServerTags = [3: 1 << 18]
         suite.expect(!enumerate(currentSpaceOnly: true).items.contains { $0.windowID == 3 },
                      "an unmatched cycle-excluded fullscreen helper stays out")

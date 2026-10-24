@@ -409,6 +409,29 @@ enum WindowEnumerator {
             }
             return hiddenWithAppWindowIDs.map { $0.contains(windowID) }
         }
+        // Accessibility leaves windows on a hidden Space out of the app's list,
+        // so without Screen Recording they have no title and show only the
+        // app's name. Their elements are still reachable by remote token,
+        // looked up once per app on first need, all apps sharing one budget
+        // so a busy Mac does not hold up the list.
+        var hiddenSpaceTitles: [pid_t: [CGWindowID: String]] = [:]
+        let hiddenSpaceTitleDeadline = Date().addingTimeInterval(AXWindowResolver.remoteLookupBudget)
+        func hiddenSpaceTitle(of windowID: CGWindowID, ownerPID: pid_t) -> String {
+            if hiddenSpaceTitles[ownerPID] == nil {
+                let parked = Set(raw.compactMap { info -> CGWindowID? in
+                    guard (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownerPID,
+                          (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                          let id = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                          isOnHiddenSpace(CGWindowID(id)) else { return nil }
+                    return CGWindowID(id)
+                })
+                hiddenSpaceTitles[ownerPID] = AXWindowResolver
+                    .elementsOnHiddenSpace(windowIDs: parked, pid: ownerPID,
+                                           budget: hiddenSpaceTitleDeadline.timeIntervalSinceNow)
+                    .mapValues(accessibilityTitle(for:))
+            }
+            return hiddenSpaceTitles[ownerPID]?[windowID] ?? ""
+        }
         func excludeForSpaceScope(_ windowID: CGWindowID, appPID: pid_t,
                                   isNativeFullscreen: Bool) -> Bool {
             guard currentSpaceOnly, isOnHiddenSpace(windowID) else { return false }
@@ -517,7 +540,14 @@ enum WindowEnumerator {
             } else {
                 guard let name = regularApps[appPID] else { continue }
                 appName = name
-                displayTitle = title.isEmpty ? (axWindow?.title ?? "") : title
+                if SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: title,
+                                                           isDescribedByAccessibility: axWindow != nil,
+                                                           accessibilityGranted: snapshot.accessibilityGranted,
+                                                           isOnHiddenSpace: hiddenSpaceSurfaceIsWitnessed) {
+                    displayTitle = hiddenSpaceTitle(of: CGWindowID(windowID), ownerPID: windowOwnerPID)
+                } else {
+                    displayTitle = title.isEmpty ? (axWindow?.title ?? "") : title
+                }
             }
 
             // Off-screen *and* untitled windows are usually invisible helpers

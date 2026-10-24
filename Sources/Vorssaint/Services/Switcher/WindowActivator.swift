@@ -358,7 +358,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(windowOwnerPID)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp),
+        guard let axWindow = closableElement(windowID: windowID, in: axApp, pid: windowOwnerPID),
               let closeButton = elementAttribute(axWindow, kAXCloseButtonAttribute as String),
               boolAttribute(closeButton, kAXEnabledAttribute as String, default: true)
         else { return false }
@@ -367,9 +367,30 @@ enum WindowActivator {
         return AXUIElementPerformAction(closeButton, kAXPressAction as CFString) == .success
     }
 
-    /// Keeps the regular close path immediate. A hidden app is temporarily
-    /// revealed, and a hidden-Space target reuses the verified Space hop; both
-    /// paths poll until Accessibility can resolve that exact window.
+    /// The app's list leaves out a window on a hidden Space, fullscreen ones
+    /// included; its remote element reaches it without travelling (issue #2708).
+    private static func closableElement(windowID: CGWindowID, in axApp: AXUIElement, pid: pid_t) -> AXUIElement? {
+        axElement(windowID: windowID, in: axApp)
+            ?? (SpaceWindowBridge.isParkedOnHiddenSpace(windowID)
+                ? AXWindowResolver.elementOnHiddenSpace(windowID: windowID, pid: pid) : nil)
+    }
+
+    /// A fullscreen window keeps its close button disabled (measured on macOS
+    /// 26.6). True when it was asked to leave fullscreen, so a close can follow.
+    private static func leaveFullscreenToClose(windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard Permissions.shared.accessibility else { return false }
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        guard let axWindow = closableElement(windowID: windowID, in: axApp, pid: pid),
+              boolAttribute(axWindow, "AXFullScreen", default: false)
+        else { return false }
+        return AXUIElementSetAttributeValue(axWindow, "AXFullScreen" as CFString, kCFBooleanFalse) == .success
+    }
+
+    /// Keeps the regular close path immediate. A fullscreen window first leaves
+    /// fullscreen, a hidden app is temporarily revealed, and a hidden-Space
+    /// target the lookup missed reuses the verified Space hop; each path polls
+    /// until Accessibility can close that exact window.
     static func closeWindowIncludingHiddenState(_ item: SwitcherItem,
                                                 completion: @escaping (Bool) -> Void) {
         pendingWindowClose?.cancel()
@@ -381,6 +402,16 @@ enum WindowActivator {
                        appPID: item.pid,
                        windowOwnerPID: item.windowOwnerPID) {
             completion(true)
+            return
+        }
+        if leaveFullscreenToClose(windowID: windowID, pid: item.windowOwnerPID) {
+            let pending = SwitcherPendingWindowClose(item: item,
+                                                     restoresHiddenApp: false,
+                                                     usesSpaceHop: false,
+                                                     leavesFullscreen: true,
+                                                     completion: completion)
+            pendingWindowClose = pending
+            pending.start()
             return
         }
         let app = NSRunningApplication(processIdentifier: item.pid)
@@ -768,6 +799,21 @@ enum WindowActivator {
         return raised == .success
     }
 
+    /// Makes a window parked on a hidden Space its app's main window and raises
+    /// it. macOS answers by going straight to that window's Space, even when
+    /// the app also has a window where the user is looking, which activation
+    /// alone cannot do (issue #2591, measured on macOS 26.6). False when the
+    /// window's element cannot be found or the raise is refused.
+    static func raiseWindowOnHiddenSpace(windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard Permissions.shared.accessibility,
+              let axWindow = AXWindowResolver.elementOnHiddenSpace(windowID: windowID, pid: pid)
+        else { return false }
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        AXUIElementSetAttributeValue(axApp, kAXMainWindowAttribute as CFString, axWindow)
+        return AXUIElementPerformAction(axWindow, kAXRaiseAction as CFString) == .success
+    }
+
     /// Every window the owner has right now, in the scope the retry guard
     /// compares against. Taken by a hop at the moment it begins.
     static func focusSnapshot(ownerPID: pid_t) -> Set<CGWindowID> {
@@ -860,6 +906,7 @@ fileprivate final class SwitcherPendingWindowClose {
     private let item: SwitcherItem
     private let restoresHiddenApp: Bool
     fileprivate let usesSpaceHop: Bool
+    private let leavesFullscreen: Bool
     private let completion: (Bool) -> Void
     private let deadline: DispatchTime
     private var completed = false
@@ -871,10 +918,12 @@ fileprivate final class SwitcherPendingWindowClose {
     init(item: SwitcherItem,
          restoresHiddenApp: Bool,
          usesSpaceHop: Bool,
+         leavesFullscreen: Bool = false,
          completion: @escaping (Bool) -> Void) {
         self.item = item
         self.restoresHiddenApp = restoresHiddenApp
         self.usesSpaceHop = usesSpaceHop
+        self.leavesFullscreen = leavesFullscreen
         self.completion = completion
         self.deadline = .now() + Self.timeout
         self.observedExpectedActivation = !usesSpaceHop
@@ -898,7 +947,7 @@ fileprivate final class SwitcherPendingWindowClose {
         }
         if usesSpaceHop {
             WindowActivator.activate(item, retry: false)
-        } else {
+        } else if restoresHiddenApp {
             NSRunningApplication(processIdentifier: item.pid)?.unhide()
         }
         revealGeneration = WindowActivator.activationGeneration(for: item.pid)
@@ -934,7 +983,9 @@ fileprivate final class SwitcherPendingWindowClose {
     private func poll() {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.pollInterval) { [weak self] in
             guard let self, !self.completed, let windowID = self.item.windowID else { return }
-            if !SpaceWindowBridge.isParkedOnHiddenSpace(windowID),
+            // A window leaving fullscreen closes wherever it lands, once its
+            // close button is enabled again.
+            if self.leavesFullscreen || !SpaceWindowBridge.isParkedOnHiddenSpace(windowID),
                WindowActivator.closeWindow(windowID: windowID,
                                            appPID: self.item.pid,
                                            windowOwnerPID: self.item.windowOwnerPID) {

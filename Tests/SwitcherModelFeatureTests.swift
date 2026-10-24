@@ -691,10 +691,22 @@ enum SwitcherModelFeatureTests {
                                           visibleSpaces: [0],
                                           target: 40) == nil,
                "space travel refuses hops beyond the press cap")
-        suite.expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: true) == .moveASpace,
+        suite.expect(SpaceHopSupport.firstStage(raisedTargetWindow: false, appHasWindowOnVisibleSpace: true) == .moveASpace,
                "an app with a window on the visible Space cannot travel by being activated, so the move is asked for right away")
-        suite.expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: false) == .waitForActivationTravel,
+        suite.expect(SpaceHopSupport.firstStage(raisedTargetWindow: false, appHasWindowOnVisibleSpace: false) == .waitForActivationTravel,
                "an app with no window on the visible Space travels on activation, so that travel is waited on")
+        // Issue #2591: the hop replayed "move a space" through every Space in
+        // between. Raising the exact window goes straight to its Space even
+        // with another window of the app in view, and fronting it through
+        // the window server cancelled the travel activation would start.
+        suite.expect(SpaceHopSupport.firstStage(raisedTargetWindow: true, appHasWindowOnVisibleSpace: true) == .waitForActivationTravel,
+               "a raised window travels straight to its Space even when its app has a window in view")
+        suite.expect(SpaceHopSupport.firstStage(raisedTargetWindow: true, appHasWindowOnVisibleSpace: false) == .waitForActivationTravel,
+               "a raised window of an app with no window in view is waited on as well")
+        suite.expect(!SpaceHopSupport.FirstStage.waitForActivationTravel.frontsTargetWindowFirst,
+               "a hop that relies on activation travel leaves the exact window for the arrival pulses")
+        suite.expect(SpaceHopSupport.FirstStage.moveASpace.frontsTargetWindowFirst,
+               "a hop that cannot travel by activation still fronts the exact window right away")
         // Issue #1733: every arrival pulse raised the target again, so a window
         // that the first pulse already left focused and in front flickered.
         suite.expect(SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: true,
@@ -911,6 +923,24 @@ enum SwitcherModelFeatureTests {
         suite.expect(placementCode.contains("forKey: DefaultsKey.switcherTreatHiddenAppsLikeMinimized")
                && placementCode.contains("item.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized)"),
                "window enumeration applies the saved hidden-app choice through the placement predicate")
+
+        // A window on another desktop showed only its app's name without
+        // Screen Recording: Accessibility leaves it out of the app's list.
+        suite.expect(SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: "", isDescribedByAccessibility: false,
+                                                             accessibilityGranted: true, isOnHiddenSpace: true),
+               "an untitled window on another desktop has its title looked up")
+        suite.expect(!SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: "Inbox", isDescribedByAccessibility: false,
+                                                              accessibilityGranted: true, isOnHiddenSpace: true),
+               "a window the window server already titles is not looked up again")
+        suite.expect(!SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: "", isDescribedByAccessibility: true,
+                                                              accessibilityGranted: true, isOnHiddenSpace: true),
+               "a window Accessibility describes keeps that title")
+        suite.expect(!SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: "", isDescribedByAccessibility: false,
+                                                              accessibilityGranted: true, isOnHiddenSpace: false),
+               "an untitled window on the visible desktop is not looked up")
+        suite.expect(!SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: "", isDescribedByAccessibility: false,
+                                                              accessibilityGranted: false, isOnHiddenSpace: true),
+               "no lookup runs without Accessibility")
 
         // Real parked windows remain ordered in; a dismissed surface can
         // retain the same desktop assignment but is explicitly ordered out.
