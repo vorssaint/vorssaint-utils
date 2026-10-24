@@ -17,7 +17,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         // gear looked like a second settings button.
         case .mixer: return "speaker.wave.2"
         case .music: return "music.note"
-        case .timer: return "timer"
+        case .timer: return "timer.circle"
         case .camera: return "web.camera"
         case .downloads: return "arrow.down.circle"
         case .notifications: return "bell"
