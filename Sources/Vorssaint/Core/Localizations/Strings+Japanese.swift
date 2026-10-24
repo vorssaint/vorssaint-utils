@@ -260,6 +260,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "プレビューが開いている間は自動非表示を一時停止し、離れると元に戻します。ウインドウのサイズが変わる場合があります。アプリが中断した場合は、再度開いてDockの設定を復元してください。",
         dockPreviewOrderByCreation: "ウインドウを作成順に並べる",
         dockPreviewOrderByCreationCaption: "最近使ったものではなく、古いウインドウから順に表示します。",
+        dockPreviewMultipleWindowsOnly: "複数のウインドウがあるアプリのみ",
+        dockPreviewMultipleWindowsOnlyCaption: "表示するウインドウが1つだけのときはパネルを開きません。しまったウインドウも数に含め、現在のデスクトップのみ表示する設定でなければ、ほかのデスクトップのウインドウも含めます。",
         dockClickMinimize: "Dock クリックでしまう",
         dockClickMinimizeCaption: "手前のアプリの Dock アイコンをクリックするとウインドウをしまいます。もう一度クリックすると戻ります。",
         dockClickCycleWindows: "Dock クリックでウインドウを切り替え",

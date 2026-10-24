@@ -260,6 +260,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "Önizleme açıkken otomatik gizlemeyi duraklatır ve ayrıldığınızda geri açar. Pencereler yeniden boyutlanabilir. Uygulama kesintiye uğrarsa Dock’u geri yüklemek için yeniden açın.",
         dockPreviewOrderByCreation: "Pencereleri oluşturma zamanına göre sırala",
         dockPreviewOrderByCreationCaption: "En son kullanılanlar yerine önce daha eski pencereleri göster.",
+        dockPreviewMultipleWindowsOnly: "Yalnızca birden fazla penceresi olan uygulamalarda",
+        dockPreviewMultipleWindowsOnlyCaption: "Gösterilecek tek pencere olduğunda panel açılmaz. Küçültülmüş pencereler de sayılır; yalnızca geçerli masaüstü gösterilmiyorsa diğer masaüstlerindeki pencereler de sayılır.",
         dockClickMinimize: "Dock simgesine tıklayınca küçült",
         dockClickMinimizeCaption: "Etkin uygulamanın pencereleri Dock simgesine tıklandığında küçülür. Geri getirmek için yeniden tıklayın.",
         dockClickCycleWindows: "Dock simgesine tıklayınca pencere değiştir",

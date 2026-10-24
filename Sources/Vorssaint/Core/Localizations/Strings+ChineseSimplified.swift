@@ -260,6 +260,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "预览打开时暂停自动隐藏，离开时恢复。可能调整窗口大小。如果 App 意外中断，请重新打开以恢复程序坞设置。",
         dockPreviewOrderByCreation: "按创建时间排序窗口",
         dockPreviewOrderByCreationCaption: "先显示较早创建的窗口，而不是最近使用的窗口。",
+        dockPreviewMultipleWindowsOnly: "仅在 App 有多个窗口时显示",
+        dockPreviewMultipleWindowsOnlyCaption: "只有一个窗口可显示时不会打开面板。最小化的窗口也计算在内；除非仅显示当前桌面，否则其他桌面上的窗口也计算在内。",
         dockClickMinimize: "点按程序坞图标最小化",
         dockClickMinimizeCaption: "点按最前面 App 的程序坞图标可将其窗口最小化。再次点按即可恢复。",
         dockClickCycleWindows: "点按程序坞图标切换窗口",

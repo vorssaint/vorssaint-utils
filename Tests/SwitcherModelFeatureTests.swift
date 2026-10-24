@@ -1812,6 +1812,24 @@ enum SwitcherModelFeatureTests {
                "the Dock Preview close button closes one window by default")
         suite.expect(registeredDefaults[DefaultsKey.dockPreviewOrderByCreation] as? Bool == false,
                "Dock Preview keeps last-use window order by default")
+        suite.expect(registeredDefaults[DefaultsKey.dockPreviewMultipleWindowsOnly] as? Bool == false,
+               "Dock Preview opens for single-window apps by default")
+        suite.expect(!DockPreviewSupport.opensPanel(windowCount: 0, multipleWindowsOnly: false)
+                && DockPreviewSupport.opensPanel(windowCount: 1, multipleWindowsOnly: false),
+               "by default any app with a window to list opens its panel")
+        suite.expect(!DockPreviewSupport.opensPanel(windowCount: 0, multipleWindowsOnly: true)
+                && !DockPreviewSupport.opensPanel(windowCount: 1, multipleWindowsOnly: true)
+                && DockPreviewSupport.opensPanel(windowCount: 2, multipleWindowsOnly: true)
+                && DockPreviewSupport.opensPanel(windowCount: 12, multipleWindowsOnly: true),
+               "the multiple-windows option opens the panel only from a second window on")
+        for multipleWindowsOnly in [false, true] {
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.dockPreviewMultipleWindowsOnly ? multipleWindowsOnly : nil
+            }
+            let restored = SettingsBackupSupport.sanitizedSettings(from: backup)
+            suite.expect(restored?[DefaultsKey.dockPreviewMultipleWindowsOnly] as? Bool == multipleWindowsOnly,
+                   "backup preserves the Dock Preview multiple-windows choice")
+        }
         func dockPreviewWindow(id: CGWindowID) -> SwitcherItem {
             SwitcherItem(id: "w.\(id)", title: "Window \(id)", appName: "App",
                          pid: 1, windowOwnerPID: 1, windowID: id,

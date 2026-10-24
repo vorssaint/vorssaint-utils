@@ -260,6 +260,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "Suspend le masquage automatique pendant l’aperçu et le rétablit à la sortie. Peut redimensionner les fenêtres. Si l’app est interrompue, rouvrez-la pour rétablir le Dock.",
         dockPreviewOrderByCreation: "Ordonner les fenêtres par date de création",
         dockPreviewOrderByCreationCaption: "Afficher d’abord les fenêtres plus anciennes plutôt que les plus récemment utilisées.",
+        dockPreviewMultipleWindowsOnly: "Seulement pour les apps avec plusieurs fenêtres",
+        dockPreviewMultipleWindowsOnlyCaption: "Le panneau reste fermé s’il n’y a qu’une fenêtre à afficher. Les fenêtres réduites comptent, tout comme celles des autres bureaux, sauf si seul le bureau actuel est affiché.",
         dockClickMinimize: "Réduire d’un clic sur le Dock",
         dockClickMinimizeCaption: "Les fenêtres de l’app active se réduisent d’un clic sur son icône du Dock. Cliquez à nouveau pour les faire revenir.",
         dockClickCycleWindows: "Clic sur le Dock pour alterner les fenêtres",

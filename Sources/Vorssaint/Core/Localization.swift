@@ -426,6 +426,8 @@ struct Strings {
     let dockPreviewKeepDockVisibleCaption: String
     let dockPreviewOrderByCreation: String
     let dockPreviewOrderByCreationCaption: String
+    let dockPreviewMultipleWindowsOnly: String
+    let dockPreviewMultipleWindowsOnlyCaption: String
     let dockClickMinimize: String
     let dockClickMinimizeCaption: String
     let dockClickCycleWindows: String
@@ -1577,6 +1579,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "Suspende o ocultamento automático enquanto o preview está aberto e restaura ao sair. Pode reajustar janelas. Se o app for interrompido, reabra-o para restaurar o Dock.",
         dockPreviewOrderByCreation: "Ordenar janelas por criação",
         dockPreviewOrderByCreationCaption: "Mostra primeiro as janelas mais antigas em vez das usadas mais recentemente.",
+        dockPreviewMultipleWindowsOnly: "Só para apps com mais de uma janela",
+        dockPreviewMultipleWindowsOnlyCaption: "O painel fica fechado quando há só uma janela para mostrar. Janelas minimizadas contam, assim como as de outras mesas, a menos que só a mesa atual seja mostrada.",
         dockClickMinimize: "Clicar no Dock minimiza",
         dockClickMinimizeCaption: "As janelas do app ativo são minimizadas ao clicar no ícone dele no Dock. Clique de novo para trazê-las de volta.",
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
@@ -2689,6 +2693,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "Pauses auto-hide while the preview is open and restores it when you leave. May resize windows. If the app is interrupted, reopen it to restore the Dock.",
         dockPreviewOrderByCreation: "Order windows by creation time",
         dockPreviewOrderByCreationCaption: "Show older windows first instead of the ones you used most recently.",
+        dockPreviewMultipleWindowsOnly: "Only for apps with more than one window",
+        dockPreviewMultipleWindowsOnlyCaption: "The panel stays closed when there is only one window to show. Minimized windows count, as do windows on other desktops unless only the current desktop is shown.",
         dockClickMinimize: "Click the Dock icon to minimize",
         dockClickMinimizeCaption: "The active app’s windows minimize when you click its Dock icon. Click again to bring them back.",
         dockClickCycleWindows: "Click the Dock icon to cycle windows",
