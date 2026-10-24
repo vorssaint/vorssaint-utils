@@ -323,9 +323,12 @@ final class AgentUsageStore {
     /// that no longer runs, or a record seen running is gone. A session that
     /// keeps no record waits as before. At launch, a turn the logs left open
     /// without a record is over too, once the records could be read. True
-    /// when a turn was showing.
+    /// when a turn was showing. A session writes its record before its first
+    /// prompt, so a turn that stays without any for `recordGrace` is a call
+    /// another app makes in the background, which leaves no record once it
+    /// exits and whose last line may never close the turn.
     @discardableResult
-    func closeEndedTurns(_ processes: AgentSessionRegistry, atLaunch: Bool = false) -> Bool {
+    func closeEndedTurns(_ processes: AgentSessionRegistry, atLaunch: Bool = false, now: Date = Date()) -> Bool {
         registered.formIntersection(turns.keys)
         var closed = false
         for (file, turn) in turns where turn.provider == .claude {
@@ -333,12 +336,25 @@ final class AgentUsageStore {
             if processes.running.contains(session) {
                 registered.insert(file)
             } else if processes.ended.contains(session)
-                        || (processes.complete && (registered.contains(file) || (atLaunch && processes.listed))) {
+                        || (processes.complete && (registered.contains(file) || (atLaunch && processes.listed)))
+                        || Self.lacksRecord(session, file: file, since: turn.started, in: processes, now: now) {
                 registered.remove(file)
                 closed = forget(file: file) || closed
             }
         }
         return closed
+    }
+
+    /// How long a turn may run before its session must have a process record.
+    static let recordGrace: TimeInterval = 30
+
+    /// A turn older than the grace whose session has no record, in a Claude
+    /// folder whose own records were read whole, and does not run on another system.
+    static func lacksRecord(_ session: String, file: String, since started: Date, in processes: AgentSessionRegistry,
+                            now: Date) -> Bool {
+        processes.complete && processes.listedFolders.contains(where: file.hasPrefix)
+            && !processes.foreign.contains(session)
+            && !processes.running.contains(session) && now.timeIntervalSince(started) >= recordGrace
     }
 
     /// Claude Code retries for minutes without a word while the Mac is
@@ -518,6 +534,11 @@ struct AgentSessionRegistry: Equatable {
     var complete = true
     /// A sessions folder could be listed, so this Claude Code keeps records.
     var listed = false
+    /// The Claude folders, with a trailing slash, whose sessions folder could
+    /// be listed: a log beneath one of them has its records read.
+    var listedFolders: Set<String> = []
+    /// Session ids whose process lives where this Mac cannot see it.
+    var foreign: Set<String> = []
 
     /// `folders` are the `sessions` folders beside each Claude log root.
     static func read(_ folders: [URL], isRunning: (Int32) -> Bool = AgentSessionRegistry.isRunning) -> AgentSessionRegistry {
@@ -525,6 +546,7 @@ struct AgentSessionRegistry: Equatable {
         for folder in folders {
             guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { continue }
             registry.listed = true
+            registry.listedFolders.insert(folder.deletingLastPathComponent().path + "/")
             for name in names where name.hasSuffix(".json") && Int32(name.dropLast(5)) != nil {
                 guard let data = try? Data(contentsOf: folder.appending(path: name)), data.count < 1 << 16,
                       let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -534,7 +556,10 @@ struct AgentSessionRegistry: Equatable {
                 }
                 // A session run in a container or virtual machine that shares
                 // this folder names a process this Mac cannot see.
-                if let domain = json["pidDomain"] as? String, domain != "darwin" { continue }
+                if let domain = json["pidDomain"] as? String, domain != "darwin" {
+                    registry.foreign.insert(session)
+                    continue
+                }
                 if isRunning(Int32(clamping: pid)) { registry.running.insert(session) } else { registry.ended.insert(session) }
             }
         }
