@@ -361,6 +361,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/BatteryTimeStrings.swift
         Sources/Vorssaint/Core/CPUCoreStrings.swift
         Sources/Vorssaint/Core/MonitorLayoutStrings.swift
+        Sources/Vorssaint/Core/NetworkStatusStrings.swift
         Sources/Vorssaint/Core/KeepAwakeStrings.swift
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift
         Sources/Vorssaint/Core/PermissionGuideStrings.swift
@@ -545,6 +546,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift
         Sources/Vorssaint/Services/Metrics/NetworkAddressService.swift
         Sources/Vorssaint/Services/Metrics/SpeedTest.swift
+        Sources/Vorssaint/Services/Metrics/NetworkStatusService.swift
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySampler.swift
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift
         Sources/Vorssaint/Services/Metrics/DiskSupport.swift
