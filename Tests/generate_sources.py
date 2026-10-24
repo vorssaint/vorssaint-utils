@@ -1119,6 +1119,8 @@ def main():
                                                 "captureControls: captureControls != nil, in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace(
         "NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name", "downloadName")
+    music_visibility = music_visibility.replace("hasLyricsActivity", "false")
+    music_visibility = music_visibility.replace("NotchLyricsSupport.belowIslandEnabled()", "false")
     music_visibility = music_visibility.replace("AppFeature.monitorDisk.isAvailable",
                                                 "AppFeature.monitorDisk.isAvailable(in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("AppFeature.fanControl.isAvailable",

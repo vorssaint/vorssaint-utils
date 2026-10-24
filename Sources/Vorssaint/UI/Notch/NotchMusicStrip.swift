@@ -71,10 +71,31 @@ struct NotchMusicStrip: View {
     /// A click's request shows at once, before the player says so.
     private var playing: Bool { (live ? service.musicStripRequest : nil) ?? playback?.isPlaying == true }
 
+    private var showsLyricsBelow: Bool {
+        geometry.showsCompactLyrics
+    }
+
     var body: some View {
+        if showsLyricsBelow {
+            VStack(spacing: 0) {
+                topStrip
+                ZStack(alignment: .topTrailing) {
+                    NotchCompactLyricsView(service: service)
+                    collapseButton
+                }
+            }
+            .frame(width: geometry.compactActivitySize.width,
+                   height: geometry.compactActivitySize.height,
+                   alignment: .top)
+        } else {
+            topStrip
+        }
+    }
+
+    private var topStrip: some View {
         let wing = geometry.compactActivityWingWidth
         let named = namedWing
-        Button { live ? service.activateMusicStrip() : service.openActivity(.music) } label: {
+        return Button { live ? service.activateMusicStrip() : service.openActivity(.music) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: Layout.spacing) {
                     // The words grow out from behind the cover, which keeps its place.
@@ -121,6 +142,26 @@ struct NotchMusicStrip: View {
         // sides, it keeps the camera's gap over the camera, while the button
         // keeps to the strip, which takes clicks only in its own frame.
         .frame(width: (named ?? wing) * 2 + geometry.compactActivityCameraGap, alignment: .leading)
+    }
+
+    private var collapseButton: some View {
+        Button {
+            UserDefaults.standard.set(false, forKey: DefaultsKey.notchLyricsBelowIsland)
+            NotchLyricsService.shared.update(playback: playback, visible: false)
+            service.objectWillChange.send()
+            service.refreshPresentation(animated: true)
+        } label: {
+            Image(systemName: "chevron.up")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: 20, height: 20)
+                .background(.white.opacity(0.12), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, max(28, barsInset))
+        .padding(.top, 8)
+        .help(FeatureStrings.notchMusicExtras(l10n.language).lyricsBelowIsland)
+        .accessibilityLabel(FeatureStrings.notchMusicExtras(l10n.language).lyricsBelowIsland)
     }
 
     /// The bars, or the button they become while the pointer rests on them.
@@ -261,3 +302,103 @@ struct NotchMusicCover: View {
         }
     }
 }
+
+/// The compact lyrics area shown directly below the Dynamic Island.
+struct NotchCompactLyricsView: View {
+    @ObservedObject var service: NotchService
+    @ObservedObject private var music = NotchMusicService.shared
+    @ObservedObject private var lyricsService = NotchLyricsService.shared
+    @ObservedObject private var l10n = L10n.shared
+    private var text: NotchMusicExtrasStrings { FeatureStrings.notchMusicExtras(l10n.language) }
+    private var playback: NotchPlayback? { music.playback }
+
+    var body: some View {
+        Group {
+            if lyricsService.state == .loading {
+                VStack(spacing: 6) {
+                    ProgressView().scaleEffect(0.7)
+                    Text(text.loading)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let lyrics = lyricsService.lyrics {
+                if lyrics.instrumental {
+                    HStack(spacing: 8) {
+                        Image(systemName: "guitars.fill")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.white.opacity(0.65))
+                        Text(text.instrumental)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if !lyrics.lines.isEmpty, let playback {
+                    compactTimeline(lyrics: lyrics, playback: playback)
+                } else if !lyrics.plain.isEmpty {
+                    Text(lyrics.plain)
+                        .font(.system(size: 14, weight: .medium))
+                        .lineLimit(3)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    Text(text.waiting)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else {
+                Text(text.waiting)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            service.open(.music)
+        }
+    }
+
+    private func compactTimeline(lyrics: NotchLyrics, playback: NotchPlayback) -> some View {
+        TimelineView(.explicit(lyrics.changeDates(for: playback, offset: lyricsService.offset, from: .now))) { context in
+            let active = lyrics.activeIndex(at: playback.position(at: context.date), offset: lyricsService.offset)
+            let currentIdx = active ?? 0
+            let lines = lyrics.lines
+            let prevLine = currentIdx > 0 ? lines[currentIdx - 1].text : nil
+            let currLine = active != nil && currentIdx < lines.count ? lines[currentIdx].text : (lines.first?.text ?? "")
+            let nextLine = currentIdx + 1 < lines.count ? lines[currentIdx + 1].text : nil
+
+            VStack(spacing: 4) {
+                if let prev = prevLine {
+                    Text(prev)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.40))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                Text(currLine)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
+                if let next = nextLine {
+                    Text(next)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.50))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: active)
+        }
+    }
+}
+

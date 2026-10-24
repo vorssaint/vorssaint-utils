@@ -12,6 +12,7 @@ struct NotchMusicView: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var shuffle = NotchShuffleService.shared
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
+    @AppStorage(DefaultsKey.notchLyricsBelowIsland) private var lyricsBelowIsland = true
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
     @State private var extra: MusicExtra?
     private enum MusicExtra { case lyrics, queue }
@@ -78,6 +79,7 @@ struct NotchMusicView: View {
                 .frame(height: max(0, min(split.extra, size.height - reserve)), alignment: .top)
                 .clipped()
             }
+
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         // Beside the camera the row holds the song's extras, across from the cover.
@@ -206,6 +208,21 @@ struct NotchMusicView: View {
     @ViewBuilder private var extraButtons: some View {
         if showsLyrics {
             extraButton(.lyrics, title: FeatureStrings.notchMusicExtras(l10n.language).lyrics, symbol: "quote.bubble")
+            Button {
+                lyricsBelowIsland.toggle()
+                NotchLyricsService.shared.update(playback: service.playback, visible: lyricsBelowIsland)
+                NotchService.shared.objectWillChange.send()
+                NotchService.shared.refreshPresentation(animated: true)
+            } label: {
+                Image(systemName: lyricsBelowIsland ? "rectangle.bottomhalf.filled" : "rectangle")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(lyricsBelowIsland ? accent : .secondary)
+                    .frame(width: 28, height: 28)
+                    .background(lyricsBelowIsland ? accent.opacity(0.18) : .white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help(FeatureStrings.notchMusicExtras(l10n.language).lyricsBelowIsland)
+            .accessibilityLabel(FeatureStrings.notchMusicExtras(l10n.language).lyricsBelowIsland)
         }
         if showsQueue {
             extraButton(.queue, title: FeatureStrings.notchMusicExtras(l10n.language).queue, symbol: "list.bullet")

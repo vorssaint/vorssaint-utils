@@ -65,10 +65,10 @@ struct NotchView: View {
 
     private var usesGlassSurface: Bool {
 #if compiler(>=6.2)
-        if #available(macOS 26, *), glass, !reduceTransparency {
-            // Resting wings, compact activities and small status notices keep
-            // blending into the physical camera cutout.
-            return service.usesGlassSurface
+        if #available(macOS 26, *), !reduceTransparency {
+            if glass || (service.compactActivity == .music && service.compactActivityGeometry.showsCompactLyrics) {
+                return service.usesGlassSurface
+            }
         }
 #endif
         return false

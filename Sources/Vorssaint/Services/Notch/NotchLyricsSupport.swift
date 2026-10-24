@@ -126,6 +126,10 @@ enum NotchLyricsSupport {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLyricsOnline)
     }
 
+    static func belowIslandEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLyricsBelowIsland)
+    }
+
     static func lookupURL(for track: NotchMusicIdentity) -> URL? {
         let album = catalogAlbum(track.album)
         guard [track.title, track.artist].allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.utf8.count <= 1024 }),

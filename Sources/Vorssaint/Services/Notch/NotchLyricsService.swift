@@ -12,6 +12,11 @@ final class NotchLyricsService: ObservableObject {
     @Published private var memory = NotchLyricsMemory()
     var lyrics: NotchLyrics? { memory.lyrics }
     var offset: Double { memory.offset }
+    /// Whether lyrics are available to display below the compact island.
+    var hasActiveLyrics: Bool {
+        guard let lyrics = memory.lyrics else { return false }
+        return (!lyrics.lines.isEmpty || !lyrics.plain.isEmpty) && !lyrics.instrumental
+    }
     private var track: NotchMusicIdentity? { memory.track }
     private var session: URLSession?
     private var generation = UUID()
@@ -29,7 +34,7 @@ final class NotchLyricsService: ObservableObject {
     func update(playback: NotchPlayback?, visible: Bool) {
         guard NotchLyricsSupport.isEnabled() else { stop(); return }
         let next = playback.map(NotchMusicIdentity.init)
-        let wanted = visible && next != nil
+        let wanted = (visible || NotchLyricsSupport.belowIslandEnabled()) && next != nil
         let online = NotchLyricsSupport.onlineEnabled()
         let changedTrack = next != nil && next != track
         guard changedTrack || wanted != self.visible || online != self.online else { return }
@@ -49,7 +54,7 @@ final class NotchLyricsService: ObservableObject {
         guard NotchLyricsSupport.isEnabled() else { stop(); return }
         let next = playback.map(NotchMusicIdentity.init)
         guard next != track else { return }
-        let wasVisible = visible
+        let wasVisible = visible || NotchLyricsSupport.belowIslandEnabled()
         cancel()
         memory.select(next)
         settledAttempt = nil
@@ -59,7 +64,7 @@ final class NotchLyricsService: ObservableObject {
     }
 
     func retry() {
-        guard visible, NotchLyricsSupport.onlineEnabled(), let track else { return }
+        guard visible || NotchLyricsSupport.belowIslandEnabled(), NotchLyricsSupport.onlineEnabled(), let track else { return }
         cancel()
         settledAttempt = nil
         let key = NotchLyricsSupport.artistCacheKey(for: track)
@@ -73,6 +78,7 @@ final class NotchLyricsService: ObservableObject {
     func resetOffset() { memory.resetOffset() }
 
     func hide() {
+        if NotchLyricsSupport.belowIslandEnabled() { return }
         cancel()
         visible = false
         if !NotchLyricsSupport.isEnabled() {

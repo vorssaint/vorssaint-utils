@@ -13,8 +13,10 @@ enum NotchLyricsContract {
     enum Preferences {
         static var enabled = true
         static var online = false
+        static var belowIsland = false
         static func isEnabled() -> Bool { enabled }
         static func onlineEnabled() -> Bool { enabled && online }
+        static func belowIslandEnabled() -> Bool { enabled && belowIsland }
         static let maximumBytes = ProductionLyricsParser.maximumBytes
         static let maximumSearchBytes = ProductionLyricsParser.maximumSearchBytes
         typealias Candidate = ProductionLyricsParser.Candidate

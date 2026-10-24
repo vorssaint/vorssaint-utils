@@ -644,7 +644,9 @@ final class NotchService: ObservableObject {
             geometry.compactSideRoom = min(geometry.compactSideRoom ?? 0, room)
         }
         switch activity {
-        case .music: return geometry.compactMusicGeometry
+        case .music:
+            let showsLyrics = NotchLyricsSupport.belowIslandEnabled() && hasLyricsActivity
+            return geometry.compactMusicGeometry(showsLyrics: showsLyrics)
         case .timer:
             return geometry.compactTimerGeometry(showsDownloads: companion == .downloads,
                                                  wing: timerStripWing(for: companion, in: geometry))
@@ -660,6 +662,10 @@ final class NotchService: ObservableObject {
         case .keepAwake: return geometry.compactTimerGeometry(showsDownloads: false, wing: keepAwakeStripWing(in: geometry))
         default: return geometry
         }
+    }
+
+    private var hasLyricsActivity: Bool {
+        NotchLyricsService.shared.hasActiveLyrics
     }
 
     /// The wider side: the eye at the left end, or the reading, or the
@@ -908,6 +914,7 @@ final class NotchService: ObservableObject {
         // the shape, which showed rows outside it for that frame.
         (expanded && !showingCommandBar) || peeking || dragPlaceholder || noticeExpanded
             || (captureControls != nil && !captureControlsCollapsed)
+            || (compactActivity == .music && compactActivityGeometry.showsCompactLyrics)
     }
 
     /// The open capture controls, measured with their title's font.
@@ -3962,6 +3969,12 @@ final class NotchService: ObservableObject {
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.nameCapsuleSong() }
                 .store(in: &subscriptions)
+            NotchLyricsService.shared.$state.removeDuplicates().receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard let self, self.compactActivity == .music else { return }
+                    self.objectWillChange.send()
+                    self.refreshPresentation(animated: true)
+                }.store(in: &subscriptions)
         }
         if NotchSupport.routes(.track) {
             // Received at once, on the main thread, while the strip still

@@ -338,6 +338,8 @@ enum NotchLayout {
     static let musicBottomRoom: CGFloat = 8
     /// Lyrics or the queue shorter than this give the player's place to the list.
     static let musicMinimumExtraHeight: CGFloat = 88
+    static let compactLyricsWidth: CGFloat = 485
+    static let compactLyricsHeight: CGFloat = 132
     /// The ruler and its clock read at the player's width.
     static let timerContentWidth: CGFloat = 344
     static let timerRowSpacing: CGFloat = 8
@@ -2564,15 +2566,25 @@ struct NotchGeometry: Equatable {
     }
     var musicWingWidth: CGFloat { max(0, (musicStrip.width - musicCameraGap) / 2) }
 
-    /// Only a physical camera may need a footer. A simulated cutout and all
-    /// of its compact activity stay within the real menu bar's height.
+    var showsCompactLyrics = false
+
+    func compactMusicGeometry(showsLyrics: Bool = false) -> NotchGeometry {
+        var compact = self.compactMusicGeometry
+        compact.showsCompactLyrics = showsLyrics
+        return compact
+    }
+
     var compactActivityUsesFooter: Bool { isNotched && allowsActivityFooter && musicWingWidth < 44 }
     var compactActivityContentHeight: CGFloat { compactActivityUsesFooter ? 32 : stripHeight }
     var compactActivityTopPadding: CGFloat { compactActivityUsesFooter ? stripHeight : 0 }
     var compactActivityHorizontalPadding: CGFloat { compactActivityUsesFooter ? 4 : 0 }
     var compactActivityCameraGap: CGFloat { compactActivityUsesFooter ? 0 : musicCameraGap }
     var compactActivitySize: CGSize {
-        compactActivityUsesFooter
+        if showsCompactLyrics {
+            let width = min(NotchLayout.compactLyricsWidth, screen.width - 24)
+            return CGSize(width: width, height: NotchLayout.compactLyricsHeight)
+        }
+        return compactActivityUsesFooter
             ? CGSize(width: cameraWidth, height: compactActivityTopPadding + compactActivityContentHeight)
             : musicStrip
     }
@@ -3122,6 +3134,11 @@ struct NotchGlassFade: Equatable {
         if endsInGlass {
             guard end > start, current < 1 else { return .open }
             if current == 0 {
+                if end <= 160 {
+                    let solid = min(start, NotchLayout.headerHeight)
+                    let range = max(1, end - solid)
+                    return NotchGlassFade(solidHeight: solid, range: range)
+                }
                 let range = min(stretch, travel)
                 return NotchGlassFade(solidHeight: end - range, range: max(1, range))
             }

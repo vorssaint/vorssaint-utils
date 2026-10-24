@@ -545,7 +545,7 @@ struct NotchSurfaceBackground: View {
 
     private var offersGlass: Bool {
 #if compiler(>=6.2)
-        if #available(macOS 26, *) { return glass && !reduceTransparency }
+        if #available(macOS 26, *) { return (glass || presentation.usesGlass) && !reduceTransparency }
 #endif
         return false
     }
@@ -561,7 +561,7 @@ struct NotchSurfaceBackground: View {
             // the glass has opened, and the glass exists only while that
             // black lets it show, so the window's resizes at either end of a
             // transition happen in plain black.
-            Color.black.opacity(showsGlass || showsTranslucent ? presentation.restingBlack : 1)
+            Color.black.opacity(showsGlass || showsTranslucent ? presentation.restingBlack : (presentation.usesGlass ? 0.35 : 1))
 #if compiler(>=6.2)
             if #available(macOS 26, *), showsGlass, presentation.restingBlack < 1 {
                 let shape = NotchBackdropShape(contour: presentation.contour)
@@ -576,6 +576,11 @@ struct NotchSurfaceBackground: View {
                             .frame(maxHeight: .infinity, alignment: .top)
                             .mask(shape)
                     }
+            } else if presentation.usesGlass {
+                let shape = NotchBackdropShape(contour: presentation.contour)
+                Color.clear
+                    .background(.ultraThinMaterial)
+                    .mask(shape)
             }
 #endif
             if showsTranslucent, presentation.restingBlack < 1 {
@@ -594,7 +599,7 @@ struct NotchSurfaceBackground: View {
         (0...64).map { index in
             let t = Double(index) / 64
             return Gradient.Stop(
-                color: .black.opacity(1 - openness * (contrast == .increased ? 0.10 : 0.45) * pow(t, 2.5)),
+                color: .black.opacity(1 - openness * (contrast == .increased ? 0.20 : 0.70) * pow(t, 1.8)),
                 location: t)
         }
     }
