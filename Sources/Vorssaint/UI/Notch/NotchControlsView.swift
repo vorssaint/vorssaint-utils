@@ -422,6 +422,9 @@ struct NotchActionTile: View {
     var accent: NotchTileAccent = .selection
     let action: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The pointer's wash frames the glyph and its label with this margin,
+    /// centred in the tile, instead of filling the whole cell.
+    private let washInset: CGFloat = 5
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
@@ -432,16 +435,15 @@ struct NotchActionTile: View {
                     .background(active ? accent.fill : Color.white.opacity(0.075), in: Circle())
                     .animation(reduceMotion ? nil : .smooth(duration: 0.26), value: symbol)
                 label
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 28, alignment: .top)
             }
-            .padding(.horizontal, 4)
-            .frame(maxWidth: .infinity)
-            .frame(height: NotchLayout.shortcutHeight)
+            .frame(minWidth: 56)
             .animation(reduceMotion ? nil : .smooth(duration: 0.26), value: active)
-            .contentShape(RoundedRectangle(cornerRadius: 14))
+            .contentShape(RoundedRectangle(cornerRadius: 14).inset(by: -washInset))
         }
-        .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+        .buttonStyle(NotchButtonStyle(cornerRadius: 14, washInset: washInset))
+        .padding(.horizontal, washInset)
+        .frame(maxWidth: .infinity)
+        .frame(height: NotchLayout.shortcutHeight, alignment: .top)
         .accessibilityLabel(title)
         .accessibilityValue(reading ?? "")
         .accessibilityAddTraits(active ? .isSelected : [])
