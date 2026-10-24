@@ -2918,3 +2918,77 @@ private enum DisplayConfigurationBridge {
         return unsafeBitCast(pointer, to: ConfigureEnabledFn.self)
     }()
 }
+
+// MARK: - VCP access beyond luminance (monitor speaker volume)
+
+extension BrightnessService {
+    /// Active displays driven over DDC, for features that address other VCP
+    /// controls on the same channel.
+    var ddcDisplays: [BrightnessDisplay] {
+        displays.filter { $0.isActive && $0.method == .ddc }
+    }
+
+    /// Reads one VCP control on the brightness work queue, with the same
+    /// pacing and retries as brightness, and answers on the main queue. Nil
+    /// when the display has no DDC route or never answered.
+    func readVCP(_ code: UInt8, display id: CGDirectDisplayID,
+                 completion: @escaping ((current: UInt16, maximum: UInt16)?) -> Void) {
+        workQueue.async { [weak self] in
+            let reply = self?.performVCPRead(code, display: id)
+            DispatchQueue.main.async { completion(reply) }
+        }
+    }
+
+    /// Writes one VCP control on the brightness work queue and answers on
+    /// the main queue whether the display accepted it.
+    func writeVCP(_ code: UInt8, value: UInt16, display id: CGDirectDisplayID,
+                  completion: @escaping (Bool) -> Void) {
+        workQueue.async { [weak self] in
+            var accepted = false
+            if let self, let service = self.ddcService(for: id) {
+                accepted = self.ddcSend(to: id, service: service,
+                                        packet: BrightnessSupport.writePacket(code: code, value: value))
+                Self.log.log("wrote display \(id) vcp \(code) value \(value) ok \(accepted)")
+            }
+            DispatchQueue.main.async { completion(accepted) }
+        }
+    }
+
+    private func ddcService(for id: CGDirectDisplayID) -> CFTypeRef? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard let route = routes[id], route.method == .ddc else { return nil }
+        return route.service
+    }
+
+    private func performVCPRead(_ code: UInt8, display id: CGDirectDisplayID) -> (current: UInt16, maximum: UInt16)? {
+        guard let service = ddcService(for: id),
+              let write = BrightnessBridge.writeI2C,
+              let read = BrightnessBridge.readI2C else { return nil }
+        paceDDCCommand(for: id)
+        defer { recordDDCCommandEnd(for: id) }
+        var request = BrightnessSupport.readRequestPacket(code: code)
+        let attempts = BrightnessSupport.ddcProbeAttempts()
+        for attempt in 0..<attempts {
+            for _ in 0..<BrightnessSupport.writeCycles {
+                usleep(BrightnessSupport.writePauseMicroseconds)
+                _ = write(service, BrightnessSupport.chipAddress,
+                          BrightnessSupport.dataAddress,
+                          &request, UInt32(request.count))
+            }
+            usleep(BrightnessSupport.readPauseMicroseconds)
+            var reply = [UInt8](repeating: 0, count: BrightnessSupport.replyLength)
+            if read(service, BrightnessSupport.chipAddress, 0,
+                    &reply, UInt32(reply.count)) == KERN_SUCCESS,
+               let parsed = BrightnessSupport.parseReply(reply, code: code) {
+                Self.log.log("read display \(id) vcp \(code) current \(parsed.current) max \(parsed.maximum)")
+                return parsed
+            }
+            if attempt + 1 < attempts {
+                usleep(BrightnessSupport.retryPauseMicroseconds)
+            }
+        }
+        Self.log.log("read display \(id) vcp \(code) got no reply")
+        return nil
+    }
+}

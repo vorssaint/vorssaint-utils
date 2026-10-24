@@ -43,6 +43,16 @@ struct BrightnessFeatureStrings {
     let islandPromptTitle: String
     let islandPromptMessage: String
     let islandPromptKeepOff: String
+    let speakersTitle: String
+    let speakersToggle: String
+    let speakersCaption: String
+    let speakersStep: String
+    let speakersStepCaption: String
+    let speakersStepStandard: String
+    let speakersMinimum: String
+    let speakersMinimumCaption: String
+    let speakersMaximum: String
+    let speakersMaximumCaption: String
 }
 
 extension FeatureStrings {
@@ -104,7 +114,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Extra dimming",
         islandPromptTitle: "Show brightness in the Dynamic Island?",
         islandPromptMessage: "The Dynamic Island shows brightness changes only while “Control displays” is on in Displays settings.",
-        islandPromptKeepOff: "Keep Off"
+        islandPromptKeepOff: "Keep Off",
+        speakersTitle: "Monitor speakers",
+        speakersToggle: "Volume keys control monitor speakers",
+        speakersCaption: "When sound plays through a monitor over DisplayPort or HDMI, the volume and mute keys set the monitor's own speaker volume. Uses the same connection as the brightness controls.",
+        speakersStep: "Volume step",
+        speakersStepCaption: "How much one press changes the volume. Hold Option-Shift for a quarter of this.",
+        speakersStepStandard: "Standard (6.25%)",
+        speakersMinimum: "Minimum volume",
+        speakersMinimumCaption: "Volume down stops here. Mute still silences the monitor.",
+        speakersMaximum: "Maximum volume",
+        speakersMaximumCaption: "Volume up stops here."
     )
 
     static let ptBR = BrightnessFeatureStrings(
@@ -143,7 +163,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Escurecimento extra",
         islandPromptTitle: "Mostrar o brilho na Dynamic Island?",
         islandPromptMessage: "A Dynamic Island só mostra mudanças de brilho quando “Controlar telas” está ativado nos ajustes de Telas.",
-        islandPromptKeepOff: "Manter desativado"
+        islandPromptKeepOff: "Manter desativado",
+        speakersTitle: "Alto-falantes do monitor",
+        speakersToggle: "Teclas de volume controlam os alto-falantes do monitor",
+        speakersCaption: "Quando o som sai por um monitor via DisplayPort ou HDMI, as teclas de volume e de silenciar ajustam o volume dos alto-falantes do próprio monitor. Usa a mesma conexão dos controles de brilho.",
+        speakersStep: "Passo do volume",
+        speakersStepCaption: "Quanto cada toque altera o volume. Segure Option-Shift para um quarto disso.",
+        speakersStepStandard: "Padrão (6,25%)",
+        speakersMinimum: "Volume mínimo",
+        speakersMinimumCaption: "Diminuir o volume para aqui. Silenciar ainda deixa o monitor mudo.",
+        speakersMaximum: "Volume máximo",
+        speakersMaximumCaption: "Aumentar o volume para aqui."
     )
 
     static let tr = BrightnessFeatureStrings(
@@ -182,7 +212,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Ek karartma",
         islandPromptTitle: "Parlaklık Dynamic Island’da gösterilsin mi?",
         islandPromptMessage: "Dynamic Island, parlaklık değişikliklerini yalnızca Ekranlar ayarlarında “Ekranları denetle” açıkken gösterir.",
-        islandPromptKeepOff: "Kapalı kalsın"
+        islandPromptKeepOff: "Kapalı kalsın",
+        speakersTitle: "Monitör hoparlörleri",
+        speakersToggle: "Ses tuşları monitör hoparlörlerini denetler",
+        speakersCaption: "Ses DisplayPort veya HDMI üzerinden bir monitörden çalarken ses ve sessiz tuşları monitörün kendi hoparlör sesini ayarlar. Parlaklık denetimleriyle aynı bağlantıyı kullanır.",
+        speakersStep: "Ses adımı",
+        speakersStepCaption: "Her basışta sesin ne kadar değişeceği. Bunun dörtte biri için Option-Shift tuşlarını basılı tutun.",
+        speakersStepStandard: "Standart (%6,25)",
+        speakersMinimum: "En düşük ses",
+        speakersMinimumCaption: "Sesi azaltma burada durur. Sessiz tuşu monitörü yine de susturur.",
+        speakersMaximum: "En yüksek ses",
+        speakersMaximumCaption: "Sesi artırma burada durur."
     )
 
     static let ru = BrightnessFeatureStrings(
@@ -221,7 +261,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Дополнительное затемнение",
         islandPromptTitle: "Показывать яркость в Dynamic Island?",
         islandPromptMessage: "Dynamic Island показывает изменения яркости, только когда в настройках «Экраны» включено «Управлять экранами».",
-        islandPromptKeepOff: "Оставить выключенным"
+        islandPromptKeepOff: "Оставить выключенным",
+        speakersTitle: "Динамики монитора",
+        speakersToggle: "Клавиши громкости управляют динамиками монитора",
+        speakersCaption: "Когда звук идёт через монитор по DisplayPort или HDMI, клавиши громкости и выключения звука меняют громкость динамиков самого монитора. Используется то же подключение, что и для яркости.",
+        speakersStep: "Шаг громкости",
+        speakersStepCaption: "Насколько меняется громкость за одно нажатие. Удерживайте Option-Shift для четверти шага.",
+        speakersStepStandard: "Стандартный (6,25%)",
+        speakersMinimum: "Минимальная громкость",
+        speakersMinimumCaption: "Уменьшение громкости останавливается здесь. Выключение звука по-прежнему заглушает монитор.",
+        speakersMaximum: "Максимальная громкость",
+        speakersMaximumCaption: "Увеличение громкости останавливается здесь."
     )
 
     static let es = BrightnessFeatureStrings(
@@ -260,7 +310,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Atenuación adicional",
         islandPromptTitle: "¿Mostrar el brillo en el Dynamic Island?",
         islandPromptMessage: "El Dynamic Island solo muestra los cambios de brillo cuando “Controlar las pantallas” está activado en los ajustes de Pantallas.",
-        islandPromptKeepOff: "Mantener desactivado"
+        islandPromptKeepOff: "Mantener desactivado",
+        speakersTitle: "Altavoces del monitor",
+        speakersToggle: "Las teclas de volumen controlan los altavoces del monitor",
+        speakersCaption: "Cuando el sonido sale por un monitor mediante DisplayPort o HDMI, las teclas de volumen y silencio ajustan el volumen de los altavoces del propio monitor. Usa la misma conexión que los controles de brillo.",
+        speakersStep: "Paso de volumen",
+        speakersStepCaption: "Cuánto cambia el volumen con cada pulsación. Mantén Opción-Mayúsculas para un cuarto de esto.",
+        speakersStepStandard: "Estándar (6,25 %)",
+        speakersMinimum: "Volumen mínimo",
+        speakersMinimumCaption: "Bajar el volumen se detiene aquí. Silenciar sigue dejando el monitor mudo.",
+        speakersMaximum: "Volumen máximo",
+        speakersMaximumCaption: "Subir el volumen se detiene aquí."
     )
 
     static let sk = BrightnessFeatureStrings(
@@ -299,7 +359,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Ďalšie stmievanie",
         islandPromptTitle: "Zobrazovať jas v Dynamic Island?",
         islandPromptMessage: "Dynamic Island zobrazuje zmeny jasu, len keď je v nastaveniach Displeje zapnuté „Ovládať displeje“.",
-        islandPromptKeepOff: "Nechať vypnuté"
+        islandPromptKeepOff: "Nechať vypnuté",
+        speakersTitle: "Reproduktory monitora",
+        speakersToggle: "Klávesy hlasitosti ovládajú reproduktory monitora",
+        speakersCaption: "Keď zvuk ide cez monitor pripojený cez DisplayPort alebo HDMI, klávesy hlasitosti a stlmenia nastavujú hlasitosť reproduktorov samotného monitora. Používa rovnaké pripojenie ako ovládanie jasu.",
+        speakersStep: "Krok hlasitosti",
+        speakersStepCaption: "O koľko sa hlasitosť zmení jedným stlačením. Podržte Option-Shift pre štvrtinu kroku.",
+        speakersStepStandard: "Štandardný (6,25 %)",
+        speakersMinimum: "Minimálna hlasitosť",
+        speakersMinimumCaption: "Znižovanie hlasitosti sa zastaví tu. Stlmenie monitor aj tak umlčí.",
+        speakersMaximum: "Maximálna hlasitosť",
+        speakersMaximumCaption: "Zvyšovanie hlasitosti sa zastaví tu."
     )
 
     static let de = BrightnessFeatureStrings(
@@ -338,7 +408,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Zusätzliches Abdunkeln",
         islandPromptTitle: "Helligkeit in der Dynamic Island anzeigen?",
         islandPromptMessage: "Die Dynamic Island zeigt Helligkeitsänderungen nur, wenn „Displays steuern“ in den Displays-Einstellungen aktiviert ist.",
-        islandPromptKeepOff: "Aus lassen"
+        islandPromptKeepOff: "Aus lassen",
+        speakersTitle: "Monitorlautsprecher",
+        speakersToggle: "Lautstärketasten steuern die Monitorlautsprecher",
+        speakersCaption: "Wenn der Ton über einen Monitor per DisplayPort oder HDMI läuft, stellen die Lautstärke- und Stummtasten die Lautstärke der Monitorlautsprecher ein. Nutzt dieselbe Verbindung wie die Helligkeitsregler.",
+        speakersStep: "Lautstärkeschritt",
+        speakersStepCaption: "Wie stark ein Tastendruck die Lautstärke ändert. Halte Wahl-Umschalt gedrückt für ein Viertel davon.",
+        speakersStepStandard: "Standard (6,25 %)",
+        speakersMinimum: "Mindestlautstärke",
+        speakersMinimumCaption: "Leiser stoppt hier. Stumm schaltet den Monitor trotzdem stumm.",
+        speakersMaximum: "Höchstlautstärke",
+        speakersMaximumCaption: "Lauter stoppt hier."
     )
 
     static let fr = BrightnessFeatureStrings(
@@ -377,7 +457,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Assombrissement supplémentaire",
         islandPromptTitle: "Afficher la luminosité dans la Dynamic Island ?",
         islandPromptMessage: "La Dynamic Island n’affiche les changements de luminosité que lorsque « Contrôler les écrans » est activé dans les réglages Écrans.",
-        islandPromptKeepOff: "Laisser désactivé"
+        islandPromptKeepOff: "Laisser désactivé",
+        speakersTitle: "Haut-parleurs du moniteur",
+        speakersToggle: "Les touches de volume contrôlent les haut-parleurs du moniteur",
+        speakersCaption: "Quand le son passe par un moniteur en DisplayPort ou HDMI, les touches de volume et de silence règlent le volume des haut-parleurs du moniteur. Utilise la même connexion que les réglages de luminosité.",
+        speakersStep: "Pas du volume",
+        speakersStepCaption: "De combien chaque pression change le volume. Maintenez Option-Maj pour un quart de ce pas.",
+        speakersStepStandard: "Standard (6,25 %)",
+        speakersMinimum: "Volume minimal",
+        speakersMinimumCaption: "La baisse du volume s’arrête ici. Le silence coupe toujours le son du moniteur.",
+        speakersMaximum: "Volume maximal",
+        speakersMaximumCaption: "La hausse du volume s’arrête ici."
     )
 
     static let it = BrightnessFeatureStrings(
@@ -416,7 +506,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Oscuramento extra",
         islandPromptTitle: "Mostrare la luminosità nella Dynamic Island?",
         islandPromptMessage: "La Dynamic Island mostra le variazioni di luminosità solo quando “Controlla gli schermi” è attivo nelle impostazioni Schermi.",
-        islandPromptKeepOff: "Lascia disattivato"
+        islandPromptKeepOff: "Lascia disattivato",
+        speakersTitle: "Altoparlanti del monitor",
+        speakersToggle: "I tasti del volume controllano gli altoparlanti del monitor",
+        speakersCaption: "Quando l’audio esce da un monitor tramite DisplayPort o HDMI, i tasti del volume e di silenziamento regolano il volume degli altoparlanti del monitor. Usa la stessa connessione dei controlli della luminosità.",
+        speakersStep: "Passo del volume",
+        speakersStepCaption: "Quanto cambia il volume a ogni pressione. Tieni premuti Opzione-Maiuscole per un quarto di questo.",
+        speakersStepStandard: "Standard (6,25%)",
+        speakersMinimum: "Volume minimo",
+        speakersMinimumCaption: "Abbassare il volume si ferma qui. Il silenziamento azzera comunque il monitor.",
+        speakersMaximum: "Volume massimo",
+        speakersMaximumCaption: "Alzare il volume si ferma qui."
     )
 
     static let ja = BrightnessFeatureStrings(
@@ -455,7 +555,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "さらに暗くする",
         islandPromptTitle: "Dynamic Islandに明るさを表示しますか？",
         islandPromptMessage: "Dynamic Islandは、「ディスプレイ」設定で「ディスプレイを操作」がオンのときだけ明るさの変化を表示します。",
-        islandPromptKeepOff: "オフのままにする"
+        islandPromptKeepOff: "オフのままにする",
+        speakersTitle: "モニタのスピーカー",
+        speakersToggle: "音量キーでモニタのスピーカーを操作",
+        speakersCaption: "DisplayPort または HDMI 経由でモニタから音を出しているとき、音量キーと消音キーでモニタ本体のスピーカー音量を変更します。明るさの調整と同じ接続を使います。",
+        speakersStep: "音量のステップ",
+        speakersStepCaption: "1回押したときの音量の変化量です。Option-Shift を押しながらでその4分の1になります。",
+        speakersStepStandard: "標準（6.25%）",
+        speakersMinimum: "最小音量",
+        speakersMinimumCaption: "音量を下げるとここで止まります。消音キーではモニタを消音できます。",
+        speakersMaximum: "最大音量",
+        speakersMaximumCaption: "音量を上げるとここで止まります。"
     )
 
     static let ko = BrightnessFeatureStrings(
@@ -494,7 +604,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "추가 어둡게",
         islandPromptTitle: "Dynamic Island에 밝기를 표시할까요?",
         islandPromptMessage: "Dynamic Island는 디스플레이 설정에서 “디스플레이 제어”가 켜져 있을 때만 밝기 변화를 표시합니다.",
-        islandPromptKeepOff: "끈 상태로 유지"
+        islandPromptKeepOff: "끈 상태로 유지",
+        speakersTitle: "모니터 스피커",
+        speakersToggle: "음량 키로 모니터 스피커 제어",
+        speakersCaption: "DisplayPort 또는 HDMI로 연결된 모니터에서 소리가 나올 때 음량 키와 음소거 키가 모니터 자체 스피커 음량을 조절합니다. 밝기 조절과 같은 연결을 사용합니다.",
+        speakersStep: "음량 단계",
+        speakersStepCaption: "한 번 누를 때 바뀌는 음량입니다. Option-Shift를 누르고 있으면 그 4분의 1만큼 바뀝니다.",
+        speakersStepStandard: "표준(6.25%)",
+        speakersMinimum: "최소 음량",
+        speakersMinimumCaption: "음량을 줄이면 여기서 멈춥니다. 음소거는 여전히 모니터를 무음으로 만듭니다.",
+        speakersMaximum: "최대 음량",
+        speakersMaximumCaption: "음량을 높이면 여기서 멈춥니다."
     )
 
     static let zhHans = BrightnessFeatureStrings(
@@ -533,7 +653,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "进一步调暗",
         islandPromptTitle: "在Dynamic Island中显示亮度？",
         islandPromptMessage: "只有在“显示器”设置中打开“控制显示器”时，Dynamic Island才会显示亮度变化。",
-        islandPromptKeepOff: "保持关闭"
+        islandPromptKeepOff: "保持关闭",
+        speakersTitle: "显示器扬声器",
+        speakersToggle: "音量键控制显示器扬声器",
+        speakersCaption: "当声音通过 DisplayPort 或 HDMI 从显示器播放时，音量键和静音键会调节显示器自身扬声器的音量。使用与亮度控制相同的连接。",
+        speakersStep: "音量步长",
+        speakersStepCaption: "每按一次音量的变化幅度。按住 Option-Shift 时为其四分之一。",
+        speakersStepStandard: "标准（6.25%）",
+        speakersMinimum: "最低音量",
+        speakersMinimumCaption: "降低音量时在此停止。静音仍会让显示器静音。",
+        speakersMaximum: "最高音量",
+        speakersMaximumCaption: "提高音量时在此停止。"
     )
 
     static let zhTW = BrightnessFeatureStrings(
@@ -572,7 +702,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "進一步調暗",
         islandPromptTitle: "要在Dynamic Island中顯示亮度嗎？",
         islandPromptMessage: "只有在「顯示器」設定中開啟「控制顯示器」時，Dynamic Island才會顯示亮度變化。",
-        islandPromptKeepOff: "保持關閉"
+        islandPromptKeepOff: "保持關閉",
+        speakersTitle: "顯示器揚聲器",
+        speakersToggle: "音量鍵控制顯示器揚聲器",
+        speakersCaption: "當聲音透過 DisplayPort 或 HDMI 從顯示器播放時，音量鍵和靜音鍵會調整顯示器本身揚聲器的音量。使用與亮度控制相同的連線。",
+        speakersStep: "音量間距",
+        speakersStepCaption: "每按一次音量的變化幅度。按住 Option-Shift 時為其四分之一。",
+        speakersStepStandard: "標準（6.25%）",
+        speakersMinimum: "最低音量",
+        speakersMinimumCaption: "降低音量時會停在這裡。靜音仍會讓顯示器靜音。",
+        speakersMaximum: "最高音量",
+        speakersMaximumCaption: "提高音量時會停在這裡。"
     )
 
     static let zhHK = BrightnessFeatureStrings(
@@ -611,7 +751,17 @@ extension BrightnessFeatureStrings {
         extendedDimming: "進一步調暗",
         islandPromptTitle: "要在Dynamic Island中顯示亮度嗎？",
         islandPromptMessage: "只有在「顯示器」設定中開啟「控制顯示器」時，Dynamic Island才會顯示亮度變化。",
-        islandPromptKeepOff: "保持關閉"
+        islandPromptKeepOff: "保持關閉",
+        speakersTitle: "顯示器揚聲器",
+        speakersToggle: "音量鍵控制顯示器揚聲器",
+        speakersCaption: "當聲音經 DisplayPort 或 HDMI 由顯示器播放時，音量鍵和靜音鍵會調校顯示器本身揚聲器的音量。使用與亮度控制相同的連接。",
+        speakersStep: "音量間距",
+        speakersStepCaption: "每按一次音量的變化幅度。按住 Option-Shift 時為其四分之一。",
+        speakersStepStandard: "標準（6.25%）",
+        speakersMinimum: "最低音量",
+        speakersMinimumCaption: "調低音量時會停在這裡。靜音仍會令顯示器靜音。",
+        speakersMaximum: "最高音量",
+        speakersMaximumCaption: "調高音量時會停在這裡。"
     )
     static let uk = BrightnessFeatureStrings(
         pageTitle: "Дисплеї",
@@ -649,6 +799,16 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Додаткове затемнення",
         islandPromptTitle: "Показувати яскравість у Dynamic Island?",
         islandPromptMessage: "Dynamic Island показує зміни яскравості, лише коли в налаштуваннях «Дисплеї» увімкнено «Керування дисплеями».",
-        islandPromptKeepOff: "Залишити вимкненим"
+        islandPromptKeepOff: "Залишити вимкненим",
+        speakersTitle: "Динаміки монітора",
+        speakersToggle: "Клавіші гучності керують динаміками монітора",
+        speakersCaption: "Коли звук іде через монітор по DisplayPort або HDMI, клавіші гучності та вимкнення звуку змінюють гучність динаміків самого монітора. Використовується те саме підключення, що й для яскравості.",
+        speakersStep: "Крок гучності",
+        speakersStepCaption: "Наскільки змінюється гучність за одне натискання. Утримуйте Option-Shift для чверті кроку.",
+        speakersStepStandard: "Стандартний (6,25%)",
+        speakersMinimum: "Мінімальна гучність",
+        speakersMinimumCaption: "Зменшення гучності зупиняється тут. Вимкнення звуку все одно глушить монітор.",
+        speakersMaximum: "Максимальна гучність",
+        speakersMaximumCaption: "Збільшення гучності зупиняється тут."
     )
 }
