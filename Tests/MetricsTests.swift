@@ -24,6 +24,7 @@ struct MetricsTests {
             }),
             ("clipboard", {
                 ClipboardFeatureTests.run(suite)
+                ClipboardHistorySyncTests.run(suite)
                 PastePlainTests.run(suite)
             }),
             ("pointer-input", {

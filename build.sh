@@ -10,14 +10,16 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# The icon catalog and the bundle are staged in temp dirs; sweep both however
-# the script ends.
+# The icon catalog, the bundle and the CloudKit entitlements are staged in
+# temp dirs; sweep them however the script ends.
 ICON_TMP=""
 STAGE_TMP=""
+CLOUDKIT_TMP=""
 
 cleanup() {
     [[ -n "$ICON_TMP" ]] && rm -rf "$ICON_TMP"
     [[ -n "$STAGE_TMP" ]] && rm -rf "$STAGE_TMP"
+    [[ -n "$CLOUDKIT_TMP" ]] && rm -rf "$CLOUDKIT_TMP"
     return 0
 }
 trap cleanup EXIT
@@ -109,6 +111,61 @@ if (( DEV || INSTALL )) && [[ -z "$(developer_id_identity)" ]] \
         echo "    After fixing the identity, clear the stale grant once with:" >&2
         echo "      tccutil reset Accessibility $APP_BUNDLE_ID" >&2
     fi
+fi
+
+# Clipboard history sync uses CloudKit, whose iCloud entitlements a Developer
+# ID app may carry only with a Developer ID provisioning profile for the same
+# team and bundle id embedded in it; without the profile macOS refuses to
+# launch it. VORSSAINT_PROVISIONING_PROFILE names that profile: the build then
+# embeds it and signs with the containers it grants. Without it nothing
+# changes and the app hides the feature.
+CLOUDKIT_PROFILE="${VORSSAINT_PROVISIONING_PROFILE:-}"
+if [[ -n "$CLOUDKIT_PROFILE" ]] && (( ! TEST )); then
+    if [[ -z "$(developer_id_identity)" ]]; then
+        echo "✗ VORSSAINT_PROVISIONING_PROFILE needs a Developer ID Application identity to sign with" >&2
+        exit 1
+    fi
+    CLOUDKIT_TMP="$(mktemp -d)"
+    cloudkit_profile_plist="$CLOUDKIT_TMP/profile.plist"
+    if ! security cms -D -i "$CLOUDKIT_PROFILE" > "$cloudkit_profile_plist" 2>/dev/null; then
+        echo "✗ $CLOUDKIT_PROFILE is not a provisioning profile" >&2
+        exit 1
+    fi
+    cloudkit_entitlement() {
+        /usr/libexec/PlistBuddy -c "Print :Entitlements:$1" "$cloudkit_profile_plist" 2>/dev/null
+    }
+    cloudkit_team="$(cloudkit_entitlement com.apple.developer.team-identifier)"
+    cloudkit_app_id="$(cloudkit_entitlement com.apple.application-identifier)"
+    if [[ -z "$cloudkit_team" || "$cloudkit_app_id" != "$cloudkit_team.$APP_BUNDLE_ID" ]]; then
+        echo "✗ the provisioning profile is for ${cloudkit_app_id:-no app}, not $cloudkit_team.$APP_BUNDLE_ID" >&2
+        exit 1
+    fi
+    cloudkit_containers=()
+    for index in {0..31}; do
+        container="$(cloudkit_entitlement "com.apple.developer.icloud-container-identifiers:$index")" || break
+        cloudkit_containers+=("$container")
+    done
+    if (( ${#cloudkit_containers} == 0 )); then
+        echo "✗ the provisioning profile grants no iCloud container" >&2
+        exit 1
+    fi
+    CLOUDKIT_ENTITLEMENTS="$CLOUDKIT_TMP/Vorssaint.entitlements"
+    cp "$ENTITLEMENTS" "$CLOUDKIT_ENTITLEMENTS"
+    {
+        print -r -- "Add :com.apple.application-identifier string $cloudkit_app_id"
+        print -r -- "Add :com.apple.developer.team-identifier string $cloudkit_team"
+        print -r -- "Add :com.apple.developer.icloud-services array"
+        print -r -- "Add :com.apple.developer.icloud-services:0 string CloudKit"
+        print -r -- "Add :com.apple.developer.icloud-container-environment string Production"
+        print -r -- "Add :com.apple.developer.icloud-container-identifiers array"
+        for index in {1..${#cloudkit_containers}}; do
+            print -r -- "Add :com.apple.developer.icloud-container-identifiers:$((index - 1)) string ${cloudkit_containers[$index]}"
+        done
+    } | while IFS= read -r command; do
+        /usr/libexec/PlistBuddy -c "$command" "$CLOUDKIT_ENTITLEMENTS" >/dev/null
+    done
+    ENTITLEMENTS="$CLOUDKIT_ENTITLEMENTS"
+    echo "▸ CloudKit: ${cloudkit_containers[*]} for $cloudkit_app_id"
 fi
 
 codesign_with_timestamp_retry() {
@@ -437,6 +494,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerSupport.swift
         Sources/Vorssaint/UI/NonModalAlert.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift
+        Sources/Vorssaint/Services/Clipboard/ClipboardHistorySyncSupport.swift
+        Sources/Vorssaint/Services/Clipboard/ClipboardHistoryCloudRecords.swift
+        Sources/Vorssaint/Services/Clipboard/ClipboardHistorySyncStatus.swift
+        Sources/Vorssaint/Core/ClipboardSyncStrings.swift
         Sources/Vorssaint/Core/ColorValue.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardAutoClearSupport.swift
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift
@@ -680,6 +741,7 @@ cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
+[[ -n "$CLOUDKIT_PROFILE" ]] && cp "$CLOUDKIT_PROFILE" "$STAGE/Contents/embedded.provisionprofile"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
 for lproj in Resources/*.lproj(N); do
     cp -R "$lproj" "$STAGE/Contents/Resources/"
