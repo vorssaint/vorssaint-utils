@@ -27,6 +27,9 @@ enum ClipboardHistoryWindowSizing {
     static let compactDefault = NSSize(width: 560, height: 420)
     static let compactMinimum = NSSize(width: 560, height: 300)
     static let previewExtra = NSSize(width: 280, height: 80)
+    /// The cards' shelf: a toolbar row over one row of cards with room for
+    /// their shadows and selection ring.
+    static let shelfHeight: CGFloat = 335
 
     static func minimumSize(preview: Bool) -> NSSize {
         NSSize(width: compactMinimum.width + (preview ? previewExtra.width : 0),
@@ -167,6 +170,9 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     /// a history written before it existed still decodes, and an older
     /// version reading this file skips the key.
     var sourceBundleID: String?
+    /// A name the user gave the entry, shown in place of its kind and
+    /// matched by the search.
+    var title: String?
 
     init(id: UUID = UUID(),
          text: String,
@@ -237,6 +243,20 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         kind == .text ? ColorValue(text: text) : nil
     }
 
+    /// The web address a text entry holds, if it holds nothing else, so a
+    /// card can show it as a link. Only http and https with a host qualify.
+    var linkURL: URL? {
+        guard kind == .text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 2048,
+              trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = url.host, !host.isEmpty
+        else { return nil }
+        return url
+    }
+
     /// `preview` collapsed further to a menu bar sized excerpt, for the
     /// optional "show latest copy" status item. `preview` itself renders an
     /// image as bare dimensions (nothing else displays it raw — every other
@@ -270,19 +290,23 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     /// What the search box can match. Image entries carry the localized label
     /// plus dimensions so typing "image"/"imagem" finds them.
     func searchableText(imageLabel: String) -> String {
+        let content: String
         switch kind {
-        case .text: return text
-        case .image: return "\(imageLabel) png \(imageDimensionsLabel)"
+        case .text: content = text
+        case .image: content = "\(imageLabel) png \(imageDimensionsLabel)"
         case .files:
             let names = fileNames.joined(separator: " ")
             let hasImage = filePaths.contains { ClipboardHistoryImageSupport.isImageFileName($0) }
-            return hasImage ? "\(imageLabel) \(names)" : names
+            content = hasImage ? "\(imageLabel) \(names)" : names
         }
+        guard let title else { return content }
+        return "\(title) \(content)"
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, text, copiedAt, pinnedAt, kind, filePaths, imageFile, imageHash, imageWidth, imageHeight
         case sourceBundleID
+        case title
     }
 
     init(from decoder: Decoder) throws {
@@ -299,6 +323,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         imageWidth = try container.decodeIfPresent(Int.self, forKey: .imageWidth)
         imageHeight = try container.decodeIfPresent(Int.self, forKey: .imageHeight)
         sourceBundleID = try container.decodeIfPresent(String.self, forKey: .sourceBundleID)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
     }
 }
 
@@ -331,6 +356,24 @@ enum ClipboardHistoryEditing {
     static func canSave(original: String, draft: String) -> Bool {
         guard let text = storableText(draft) else { return false }
         return text != original
+    }
+
+    /// A copy taken again is rebuilt from what was read, but the name the
+    /// user gave it is theirs and stays with it.
+    static func keepingUserChoices(of existing: ClipboardHistoryEntry,
+                                   in recopied: ClipboardHistoryEntry) -> ClipboardHistoryEntry {
+        var entry = recopied
+        entry.title = existing.title
+        return entry
+    }
+
+    static let titleLimit = 60
+
+    /// A title trimmed and capped, or nil for an empty one, which removes it.
+    static func sanitizedTitle(_ title: String) -> String? {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(titleLimit))
     }
 
     /// `retentionDays` drops recent entries copied longer ago than that, even
@@ -1175,5 +1218,56 @@ enum ClipboardHistoryImageSupport {
     static func isImageFilePath(_ path: String, fileManager: FileManager = .default) -> Bool {
         guard isImageFileName(path) else { return false }
         return fileManager.fileExists(atPath: path)
+    }
+}
+
+/// The color a card's header takes from the app a copy came from: the
+/// average of the icon's saturated, visible pixels, kept dark enough that
+/// white text stays readable on it. Pure math over RGBA bytes, so the view
+/// only has to draw the icon small.
+enum ClipboardCardTint {
+    struct RGB: Equatable {
+        let red: Double
+        let green: Double
+        let blue: Double
+    }
+
+    /// `pixels` holds premultiplied RGBA bytes. Nil when the icon has no
+    /// color to speak of (a monochrome glyph), so the caller falls back.
+    static func headerColor(rgba pixels: [UInt8]) -> RGB? {
+        var red = 0.0, green = 0.0, blue = 0.0, weight = 0.0
+        var index = 0
+        while index + 3 < pixels.count {
+            let alpha = Double(pixels[index + 3]) / 255
+            if alpha > 0.8 {
+                let r = Double(pixels[index]) / 255 / alpha
+                let g = Double(pixels[index + 1]) / 255 / alpha
+                let b = Double(pixels[index + 2]) / 255 / alpha
+                let maximum = max(r, g, b), minimum = min(r, g, b)
+                let saturation = maximum > 0 ? (maximum - minimum) / maximum : 0
+                // Near-white, near-black and gray pixels say nothing about
+                // the app's color; vivid ones say the most.
+                if saturation > 0.3, maximum > 0.25 {
+                    red += r * saturation
+                    green += g * saturation
+                    blue += b * saturation
+                    weight += saturation
+                }
+            }
+            index += 4
+        }
+        // A few stray colored pixels on a gray icon are not its color.
+        guard weight > Double(pixels.count / 4) * 0.04 else { return nil }
+        return readable(RGB(red: red / weight, green: green / weight, blue: blue / weight))
+    }
+
+    /// Keeps white header text legible: a light color is darkened until its
+    /// luminance sits below the threshold, its hue unchanged.
+    static func readable(_ color: RGB, maximumLuminance: Double = 0.62) -> RGB {
+        func luminance(_ c: RGB) -> Double { 0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue }
+        let current = luminance(color)
+        guard current > maximumLuminance, current > 0 else { return color }
+        let factor = maximumLuminance / current
+        return RGB(red: color.red * factor, green: color.green * factor, blue: color.blue * factor)
     }
 }
