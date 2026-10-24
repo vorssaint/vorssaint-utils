@@ -32,6 +32,7 @@ final class QuitProtectionService: ObservableObject {
     private var nativeSwitcherSessionActive = false
     private var frontmostBundleIdentifier: String?
     private var frontmostProcessIdentifier: pid_t?
+    private var nativeSwitcherEntries: [LiveSystemShortcut]?
     private let hud = QuitProtectionHUD()
 
     private init() {
@@ -86,6 +87,7 @@ final class QuitProtectionService: ObservableObject {
         guard !isRunning else { return }
         guard installTap() else { return }
         isRunning = true
+        nativeSwitcherEntries = SymbolicHotKeys.entries(for: QuitProtectionSupport.nativeAppSwitcherIDs)
         let frontmost = NSWorkspace.shared.frontmostApplication
         frontmostBundleIdentifier = frontmost?.bundleIdentifier
         frontmostProcessIdentifier = frontmost?.processIdentifier
@@ -169,7 +171,8 @@ final class QuitProtectionService: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            // The key up that ends the swallow may be among the events missed.
+            // The key up that ends the swallow, or the release of Command that
+            // closes the native switcher, may be among the events missed.
             swallowShortcut = nil
             nativeSwitcherSessionActive = false
             cancelPending()
@@ -202,8 +205,7 @@ final class QuitProtectionService: ObservableObject {
             nativeSwitcherSessionActive = false
         } else if type == .keyDown {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-            if keyCode == 48, !event.flags.contains(.maskControl),
-               !event.flags.contains(.maskAlternate) {
+            if opensNativeSwitcher(keyCode: keyCode, flags: event.flags) {
                 nativeSwitcherSessionActive = true
             } else if keyCode == 53 || (nativeSwitcherSessionActive
                 && GlobalShortcut.layoutKeyLabel(for: keyCode, usesCommand: true) == ".") {
@@ -227,6 +229,22 @@ final class QuitProtectionService: ObservableObject {
         default:
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    /// The switcher rows' keys are read when the tap starts; System Settings
+    /// rarely changes them. Whether a row is on is read live, and only for a
+    /// press on its key, because the App Switcher's take-over switches these
+    /// rows off and on while it runs.
+    private func opensNativeSwitcher(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        let entries = nativeSwitcherEntries?.map { entry in
+            guard entry.shortcut.keyCode == keyCode, let isEnabled = SymbolicHotKeys.isEnabled else {
+                return entry
+            }
+            return LiveSystemShortcut(id: entry.id, shortcut: entry.shortcut,
+                                      enabled: isEnabled(entry.id),
+                                      requiresFunctionKey: entry.requiresFunctionKey)
+        }
+        return QuitProtectionSupport.opensNativeSwitcher(keyCode: keyCode, flags: flags, entries: entries)
     }
 
     private func handleKeyDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
