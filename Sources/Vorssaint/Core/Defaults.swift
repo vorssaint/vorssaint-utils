@@ -864,6 +864,7 @@ enum DefaultsKey {
     static let notchCalendarCountdown = "notchCalendarCountdown"
     static let notchCalendarTimeLeft = "notchCalendarTimeLeft" // the event under way counts down to its end
     static let notchCalendarWeekNumbers = "notchCalendarWeekNumbers" // the month grid numbers its weeks
+    static let notchCalendarWeekLayout = "notchCalendarWeekLayout" // the week is laid out horizontally or vertically on the calendar page
     static let notchCalendarExcluded = "notchCalendarExcluded" // [EKCalendar.calendarIdentifier] left out of the island
     // [countdown key: event end] chosen from an event's menu; unregistered, so it stays out of backups
     static let notchCalendarChosenCountdowns = "notchCalendarChosenCountdowns"
@@ -1457,6 +1458,7 @@ enum Defaults {
         DefaultsKey.notchCalendarCountdown: false,
         DefaultsKey.notchCalendarTimeLeft: false,
         DefaultsKey.notchCalendarWeekNumbers: false,
+        DefaultsKey.notchCalendarWeekLayout: NotchCalendarWeekLayout.horizontal.rawValue,
         DefaultsKey.notchCalendarExcluded: [String](),
         DefaultsKey.notchAgentsEnabled: false,
         DefaultsKey.notchAgentsClaude: true,

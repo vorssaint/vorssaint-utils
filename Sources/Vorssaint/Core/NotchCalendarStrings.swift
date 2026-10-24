@@ -41,6 +41,31 @@ struct NotchCalendarStrings {
     let weekNumber: String
     /// Heads the per-calendar checkboxes in Settings.
     let calendars: String
+    /// How the week is laid out on the island's page, and the two ways it can go.
+    let weekLayout: String
+    let weekLayoutHorizontal: String
+    let weekLayoutVertical: String
+}
+
+/// How the week is laid out on the island's calendar page: horizontal, as a
+/// strip across the top of the agenda, or vertical, as a column down its side.
+/// Vertical gives the agenda the island's full height instead of what one row
+/// above it leaves, which suits an island far wider than it is tall.
+enum NotchCalendarWeekLayout: String, CaseIterable, Identifiable {
+    case horizontal, vertical
+    var id: String { rawValue }
+
+    /// The layout a stored value names. Anything else, nothing stored
+    /// included, is horizontal: the week across the top, as the island laid it
+    /// out before it could run down the side, so nobody gets the new layout
+    /// without choosing it.
+    init(stored: String?) {
+        self = stored.flatMap(NotchCalendarWeekLayout.init(rawValue:)) ?? .horizontal
+    }
+
+    static func current(in defaults: UserDefaults = .standard) -> NotchCalendarWeekLayout {
+        NotchCalendarWeekLayout(stored: defaults.string(forKey: DefaultsKey.notchCalendarWeekLayout))
+    }
 }
 
 extension FeatureStrings {
@@ -77,7 +102,10 @@ extension FeatureStrings {
             timeLeftHint: "Show a timed event in progress in the closed island during the hour before it ends. Its title may appear in screen captures.",
             weekNumbers: "Week numbers",
             weekNumber: "Week %d",
-            calendars: "Calendars shown")
+            calendars: "Calendars shown",
+            weekLayout: "Week layout",
+            weekLayoutHorizontal: "Horizontal",
+            weekLayoutVertical: "Vertical")
         case .ptBR: return NotchCalendarStrings(
             title: "Calendário",
             description: "Veja o mês e seus próximos compromissos no Dynamic Island.",
@@ -109,7 +137,10 @@ extension FeatureStrings {
             timeLeftHint: "Mostra o evento com horário em andamento no notch durante a última hora antes de terminar. O título pode aparecer em capturas de tela.",
             weekNumbers: "Números das semanas",
             weekNumber: "Semana %d",
-            calendars: "Calendários exibidos")
+            calendars: "Calendários exibidos",
+            weekLayout: "Disposição da semana",
+            weekLayoutHorizontal: "Horizontal",
+            weekLayoutVertical: "Vertical")
         case .es: return NotchCalendarStrings(
             title: "Calendario",
             description: "Consulta el mes y tus próximas citas en el Dynamic Island.",
@@ -141,7 +172,10 @@ extension FeatureStrings {
             timeLeftHint: "Muestra el evento con hora en curso en el notch durante la última hora antes de que termine. El título puede aparecer en capturas de pantalla.",
             weekNumbers: "Números de semana",
             weekNumber: "Semana %d",
-            calendars: "Calendarios mostrados")
+            calendars: "Calendarios mostrados",
+            weekLayout: "Disposición de la semana",
+            weekLayoutHorizontal: "Horizontal",
+            weekLayoutVertical: "Vertical")
         case .sk: return NotchCalendarStrings(
             title: "Kalendár",
             description: "Prezerajte mesiac a nadchádzajúce stretnutia v Dynamic Island.",
@@ -173,7 +207,10 @@ extension FeatureStrings {
             timeLeftHint: "Zobrazí prebiehajúcu udalosť s časom v zatvorenom výreze počas hodiny pred jej koncom. Názov sa môže zobraziť na snímkach obrazovky.",
             weekNumbers: "Čísla týždňov",
             weekNumber: "%d. týždeň",
-            calendars: "Zobrazené kalendáre")
+            calendars: "Zobrazené kalendáre",
+            weekLayout: "Rozloženie týždňa",
+            weekLayoutHorizontal: "Horizontálne",
+            weekLayoutVertical: "Vertikálne")
         case .de: return NotchCalendarStrings(
             title: "Kalender",
             description: "Den Monat und deine nächsten Termine im Dynamic Island ansehen.",
@@ -205,7 +242,10 @@ extension FeatureStrings {
             timeLeftHint: "Zeigt einen laufenden Termin mit Uhrzeit in der geschlossenen Insel in der Stunde vor seinem Ende. Der Titel kann in Bildschirmaufnahmen erscheinen.",
             weekNumbers: "Kalenderwochen",
             weekNumber: "Kalenderwoche %d",
-            calendars: "Angezeigte Kalender")
+            calendars: "Angezeigte Kalender",
+            weekLayout: "Anordnung der Woche",
+            weekLayoutHorizontal: "Horizontal",
+            weekLayoutVertical: "Vertikal")
         case .fr: return NotchCalendarStrings(
             title: "Calendrier",
             description: "Consultez le mois et vos prochains rendez-vous dans le Dynamic Island.",
@@ -237,7 +277,10 @@ extension FeatureStrings {
             timeLeftHint: "Affiche l’événement en cours avec une heure dans l’encoche pendant l’heure qui précède sa fin. Son titre peut apparaître dans les captures d’écran.",
             weekNumbers: "Numéros de semaine",
             weekNumber: "Semaine %d",
-            calendars: "Calendriers affichés")
+            calendars: "Calendriers affichés",
+            weekLayout: "Disposition de la semaine",
+            weekLayoutHorizontal: "Horizontale",
+            weekLayoutVertical: "Verticale")
         case .it: return NotchCalendarStrings(
             title: "Calendario",
             description: "Consulta il mese e i prossimi appuntamenti nel Dynamic Island.",
@@ -269,7 +312,10 @@ extension FeatureStrings {
             timeLeftHint: "Mostra l’evento in corso con un orario nell’isola chiusa durante l’ultima ora prima della fine. Il titolo può apparire nelle acquisizioni dello schermo.",
             weekNumbers: "Numeri delle settimane",
             weekNumber: "Settimana %d",
-            calendars: "Calendari mostrati")
+            calendars: "Calendari mostrati",
+            weekLayout: "Disposizione della settimana",
+            weekLayoutHorizontal: "Orizzontale",
+            weekLayoutVertical: "Verticale")
         case .ru: return NotchCalendarStrings(
             title: "Календарь",
             description: "Просматривайте месяц и ближайшие встречи в вырезе экрана.",
@@ -301,7 +347,10 @@ extension FeatureStrings {
             timeLeftHint: "Показывает текущее событие со временем за час до его окончания. Название может попасть на снимки экрана.",
             weekNumbers: "Номера недель",
             weekNumber: "Неделя %d",
-            calendars: "Показываемые календари")
+            calendars: "Показываемые календари",
+            weekLayout: "Расположение недели",
+            weekLayoutHorizontal: "Горизонтально",
+            weekLayoutVertical: "Вертикально")
         case .tr: return NotchCalendarStrings(
             title: "Takvim",
             description: "Ayı ve yaklaşan randevularınızı çentikte görüntüleyin.",
@@ -333,7 +382,10 @@ extension FeatureStrings {
             timeLeftHint: "Devam eden saatli etkinliği bitmeden önceki bir saat boyunca çentikte gösterir. Başlığı ekran görüntülerinde görünebilir.",
             weekNumbers: "Hafta numaraları",
             weekNumber: "%d. hafta",
-            calendars: "Gösterilen takvimler")
+            calendars: "Gösterilen takvimler",
+            weekLayout: "Hafta düzeni",
+            weekLayoutHorizontal: "Yatay",
+            weekLayoutVertical: "Dikey")
         case .ja: return NotchCalendarStrings(
             title: "カレンダー",
             description: "Dynamic Islandで月のカレンダーと今後の予定を確認できます。",
@@ -365,7 +417,10 @@ extension FeatureStrings {
             timeLeftHint: "終了1時間前から、時刻がある進行中の予定を閉じたノッチに表示します。タイトルが画面収録やスクリーンショットに映る場合があります。",
             weekNumbers: "週番号",
             weekNumber: "第%d週",
-            calendars: "表示するカレンダー")
+            calendars: "表示するカレンダー",
+            weekLayout: "週の配置",
+            weekLayoutHorizontal: "横",
+            weekLayoutVertical: "縦")
         case .ko: return NotchCalendarStrings(
             title: "캘린더",
             description: "Dynamic Island에서 월별 달력과 다가오는 일정을 확인하세요.",
@@ -397,7 +452,10 @@ extension FeatureStrings {
             timeLeftHint: "종료 1시간 전부터 시간이 지정된 진행 중인 일정을 닫힌 노치에 표시합니다. 제목이 화면 캡처에 나타날 수 있습니다.",
             weekNumbers: "주 번호",
             weekNumber: "%d주차",
-            calendars: "표시할 캘린더")
+            calendars: "표시할 캘린더",
+            weekLayout: "주 배치",
+            weekLayoutHorizontal: "가로",
+            weekLayoutVertical: "세로")
         case .zhHans: return NotchCalendarStrings(
             title: "日历",
             description: "在Dynamic Island中浏览月历和即将开始的日程。",
@@ -429,7 +487,10 @@ extension FeatureStrings {
             timeLeftHint: "在结束前一小时，于收起的刘海区域显示正在进行的定时日程。标题可能出现在屏幕截图中。",
             weekNumbers: "周数",
             weekNumber: "第%d周",
-            calendars: "显示的日历")
+            calendars: "显示的日历",
+            weekLayout: "周布局",
+            weekLayoutHorizontal: "横向",
+            weekLayoutVertical: "纵向")
         case .zhTW: return NotchCalendarStrings(
             title: "行事曆",
             description: "在Dynamic Island中瀏覽月曆與即將到來的行程。",
@@ -461,7 +522,10 @@ extension FeatureStrings {
             timeLeftHint: "在結束前一小時，於收合的動態島顯示進行中且有時間的行程。標題可能出現在螢幕截圖中。",
             weekNumbers: "週數",
             weekNumber: "第%d週",
-            calendars: "顯示的行事曆")
+            calendars: "顯示的行事曆",
+            weekLayout: "週版面",
+            weekLayoutHorizontal: "橫向",
+            weekLayoutVertical: "縱向")
         case .zhHK: return NotchCalendarStrings(
             title: "日曆",
             description: "在Dynamic Island中瀏覽月曆及即將到來的行程。",
@@ -493,7 +557,10 @@ extension FeatureStrings {
             timeLeftHint: "在結束前一小時，於收合的動態島顯示進行中且有時間的行程。標題可能出現在螢幕截圖中。",
             weekNumbers: "週數",
             weekNumber: "第%d週",
-            calendars: "顯示的日曆")
+            calendars: "顯示的日曆",
+            weekLayout: "週版面",
+            weekLayoutHorizontal: "橫向",
+            weekLayoutVertical: "縱向")
         case .uk: return NotchCalendarStrings(
             title: "Календар",
             description: "Переглядайте місяць та майбутні події у Dynamic Island.",
@@ -525,7 +592,10 @@ extension FeatureStrings {
             timeLeftHint: "Показує поточну подію з визначеним часом за годину до її завершення. Назва може потрапити на знімки екрана.",
             weekNumbers: "Номери тижнів",
             weekNumber: "Тиждень %d",
-            calendars: "Календарі для показу")
+            calendars: "Календарі для показу",
+            weekLayout: "Розташування тижня",
+            weekLayoutHorizontal: "Горизонтально",
+            weekLayoutVertical: "Вертикально")
         }
     }
 }
