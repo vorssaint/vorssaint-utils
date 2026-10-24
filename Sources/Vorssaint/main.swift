@@ -20,6 +20,9 @@ if CommandLine.arguments.contains("--uninstall") {
 }
 
 #if VORSSAINT_DEVELOPMENT
+if CommandLine.arguments.contains("--calendar-scroll-benchmark") {
+    NotchCalendarPerformanceProbe.runAndExit()
+}
 // A probe mode on its own would otherwise launch the whole app, and TCC kills
 // that from a shell whose host app lacks a Bluetooth usage description. The
 // commands above come first, so `--selftest` beside a probe mode runs the
