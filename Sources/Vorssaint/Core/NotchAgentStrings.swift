@@ -4,6 +4,12 @@
 import Foundation
 
 struct NotchAgentStrings {
+    let cursorHint: String
+    let cursorSetup: String
+    let openCursor: String
+    let getCursor: String
+    let cursorUnavailable: String
+    let cursorIncomplete: String
     let title: String
     let hubDescription: String
     let settingsDescription: String
@@ -102,6 +108,14 @@ struct NotchAgentStrings {
     let resetsCheckFailed: String
     let resetsHelp: String
 
+    func cursorFailure(_ failure: AgentCursorAccount.Failure) -> String {
+        switch failure {
+        case .closed, .needsSignIn, .accountChanged: return cursorSetup
+        case .unavailable: return cursorUnavailable
+        case .incomplete: return cursorIncomplete
+        }
+    }
+
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
     func written(_ count: String) -> String { String(format: writtenFormat, count) }
@@ -189,9 +203,15 @@ extension FeatureStrings {
 
 extension NotchAgentStrings {
     static let enUS = NotchAgentStrings(
+        cursorHint: "Keep Cursor open and signed in. Vorssaint uses its desktop sign-in to fetch account usage and resets from cursor.com. Credentials are never saved. Usage stays in memory.",
+        cursorSetup: "Open Cursor and sign in to read usage.",
+        openCursor: "Open Cursor",
+        getCursor: "Get Cursor",
+        cursorUnavailable: "Cursor usage could not be checked. Keep Cursor open and signed in.",
+        cursorIncomplete: "Cursor usage history could not be fully loaded.",
         title: "AI Agents",
-        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island.",
-        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode and GitHub Copilot record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
+        hubDescription: "Follow plan limits, tokens and API value for Claude, Codex, OpenCode, GitHub Copilot and Cursor in the Dynamic Island.",
+        settingsDescription: "Reads local agent usage and Claude’s saved plan limits. Cursor usage is fetched from cursor.com with its desktop sign-in while Cursor is open. Prompts, replies and files are never kept.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
         spendCard: "Spending",
@@ -288,9 +308,15 @@ extension NotchAgentStrings {
         resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.")
 
     static let uk = NotchAgentStrings(
+        cursorHint: "Залиште Cursor відкритим і увійдіть в обліковий запис. Vorssaint використовує вхід програми для отримання даних використання та поновлення лімітів із cursor.com. Облікові дані ніколи не зберігаються. Дані використання залишаються в пам’яті.",
+        cursorSetup: "Відкрийте Cursor та увійдіть, щоб побачити використання.",
+        openCursor: "Відкрити Cursor",
+        getCursor: "Завантажити Cursor",
+        cursorUnavailable: "Не вдалося перевірити використання Cursor. Залиште програму відкритою та увійдіть в обліковий запис.",
+        cursorIncomplete: "Не вдалося повністю завантажити історію використання Cursor.",
         title: "ШІ-агенти",
-        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude, Codex, OpenCode і GitHub Copilot у Dynamic Island.",
-        settingsDescription: "Читає дані про використання, які Claude Code, Codex, OpenCode і GitHub Copilot записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
+        hubDescription: "Стежте за лімітами, токенами й вартістю за API для Claude, Codex, OpenCode, GitHub Copilot та Cursor у Dynamic Island.",
+        settingsDescription: "Читає локальне використання агентів і ліміти, збережені Claude. Використання Cursor завантажується з cursor.com через вхід програми, поки вона відкрита. Запити, відповіді та файли ніколи не зберігаються.",
         restingTitle: "Ліміти ШІ",
         limitsCard: "Ліміти",
         spendCard: "Витрати",
@@ -387,9 +413,15 @@ extension NotchAgentStrings {
         resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.")
 
     static let ptBR = NotchAgentStrings(
+        cursorHint: "Mantenha o Cursor aberto e conectado. O Vorssaint usa o login do app para buscar o uso da conta e as renovações em cursor.com. As credenciais nunca são salvas. O uso fica na memória.",
+        cursorSetup: "Abra o Cursor e entre para ler o uso.",
+        openCursor: "Abrir Cursor",
+        getCursor: "Obter Cursor",
+        cursorUnavailable: "Não foi possível verificar o uso do Cursor. Mantenha o app aberto e conectado.",
+        cursorIncomplete: "Não foi possível carregar todo o histórico de uso do Cursor.",
         title: "Agentes de IA",
-        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude, do Codex, do OpenCode e do GitHub Copilot.",
-        settingsDescription: "Lê o uso que o Claude Code, o Codex, o OpenCode e o GitHub Copilot registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
+        hubDescription: "Acompanhe limites, tokens e valor de API de Claude, Codex, OpenCode, GitHub Copilot e Cursor na Dynamic Island.",
+        settingsDescription: "Lê o uso local dos agentes e os limites salvos pelo Claude. O uso do Cursor é obtido de cursor.com com o login do app enquanto ele está aberto. Prompts, respostas e arquivos nunca são guardados.",
         restingTitle: "Limites de IA",
         limitsCard: "Limites",
         spendCard: "Gastos",
@@ -486,9 +518,15 @@ extension NotchAgentStrings {
         resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.")
 
     static let es = NotchAgentStrings(
+        cursorHint: "Mantén Cursor abierto y con la sesión iniciada. Vorssaint usa el acceso de la app para consultar el uso de la cuenta y las renovaciones en cursor.com. Nunca guarda las credenciales. El uso permanece en memoria.",
+        cursorSetup: "Abre Cursor e inicia sesión para consultar el uso.",
+        openCursor: "Abrir Cursor",
+        getCursor: "Obtener Cursor",
+        cursorUnavailable: "No se pudo consultar el uso de Cursor. Mantén la app abierta y con la sesión iniciada.",
+        cursorIncomplete: "No se pudo cargar todo el historial de uso de Cursor.",
         title: "Agentes de IA",
-        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude, Codex, OpenCode y GitHub Copilot.",
-        settingsDescription: "Lee el uso que Claude Code, Codex, OpenCode y GitHub Copilot registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
+        hubDescription: "Sigue los límites, tokens y valor de API de Claude, Codex, OpenCode, GitHub Copilot y Cursor en la Dynamic Island.",
+        settingsDescription: "Lee el uso local de los agentes y los límites guardados por Claude. El uso de Cursor se obtiene de cursor.com con el acceso de la app mientras está abierta. Nunca se guardan instrucciones, respuestas ni archivos.",
         restingTitle: "Límites de IA",
         limitsCard: "Límites",
         spendCard: "Gasto",
@@ -585,9 +623,15 @@ extension NotchAgentStrings {
         resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.")
 
     static let sk = NotchAgentStrings(
+        cursorHint: "Nechajte Cursor otvorený a prihlásený. Vorssaint používa prihlásenie aplikácie na načítanie využitia účtu a obnovení z cursor.com. Prihlasovacie údaje sa nikdy neukladajú. Využitie zostáva v pamäti.",
+        cursorSetup: "Otvorte Cursor a prihláste sa na načítanie využitia.",
+        openCursor: "Otvoriť Cursor",
+        getCursor: "Získať Cursor",
+        cursorUnavailable: "Využitie Cursor sa nepodarilo overiť. Nechajte aplikáciu otvorenú a prihlásenú.",
+        cursorIncomplete: "Históriu využitia Cursor sa nepodarilo načítať úplne.",
         title: "AI agenti",
-        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude, Codex, OpenCode a GitHub Copilot.",
-        settingsDescription: "Číta využitie, ktoré si Claude Code, Codex, OpenCode a GitHub Copilot zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
+        hubDescription: "Sledujte limity, tokeny a hodnotu API pre Claude, Codex, OpenCode, GitHub Copilot a Cursor v Dynamic Island.",
+        settingsDescription: "Číta miestne využitie agentov a limity uložené aplikáciou Claude. Využitie Cursor sa načítava z cursor.com cez prihlásenie aplikácie, keď je otvorená. Zadania, odpovede ani súbory sa nikdy neuchovávajú.",
         restingTitle: "Limity AI",
         limitsCard: "Limity",
         spendCard: "Výdavky",
@@ -684,9 +728,15 @@ extension NotchAgentStrings {
         resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.")
 
     static let de = NotchAgentStrings(
+        cursorHint: "Lasse Cursor geöffnet und angemeldet. Vorssaint nutzt die Anmeldung der App, um Kontonutzung und Erneuerungen von cursor.com abzurufen. Zugangsdaten werden nie gespeichert. Die Nutzung bleibt im Arbeitsspeicher.",
+        cursorSetup: "Öffne Cursor und melde dich an, um die Nutzung abzurufen.",
+        openCursor: "Cursor öffnen",
+        getCursor: "Cursor laden",
+        cursorUnavailable: "Die Cursor-Nutzung konnte nicht geprüft werden. Lasse die App geöffnet und angemeldet.",
+        cursorIncomplete: "Der Cursor-Nutzungsverlauf konnte nicht vollständig geladen werden.",
         title: "KI-Agenten",
-        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude, Codex, OpenCode und GitHub Copilot.",
-        settingsDescription: "Liest die Nutzung, die Claude Code, Codex, OpenCode und GitHub Copilot auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
+        hubDescription: "Verfolge Limits, Token und API-Wert von Claude, Codex, OpenCode, GitHub Copilot und Cursor in der Dynamic Island.",
+        settingsDescription: "Liest die lokale Agentennutzung und Claudes gespeicherte Planlimits. Die Cursor-Nutzung wird bei geöffneter App mit deren Anmeldung von cursor.com abgerufen. Prompts, Antworten und Dateien werden nie aufbewahrt.",
         restingTitle: "KI-Limits",
         limitsCard: "Limits",
         spendCard: "Ausgaben",
@@ -783,9 +833,15 @@ extension NotchAgentStrings {
         resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.")
 
     static let fr = NotchAgentStrings(
+        cursorHint: "Gardez Cursor ouvert et connecté. Vorssaint utilise la connexion de l’application pour obtenir l’utilisation du compte et les renouvellements sur cursor.com. Les identifiants ne sont jamais enregistrés. L’utilisation reste en mémoire.",
+        cursorSetup: "Ouvrez Cursor et connectez-vous pour lire l’utilisation.",
+        openCursor: "Ouvrir Cursor",
+        getCursor: "Obtenir Cursor",
+        cursorUnavailable: "Impossible de vérifier l’utilisation de Cursor. Gardez l’application ouverte et connectée.",
+        cursorIncomplete: "L’historique d’utilisation de Cursor n’a pas pu être chargé entièrement.",
         title: "Agents IA",
-        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude, Codex, OpenCode et GitHub Copilot.",
-        settingsDescription: "Lit l’usage que Claude Code, Codex, OpenCode et GitHub Copilot enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
+        hubDescription: "Suivez les limites, les jetons et la valeur API de Claude, Codex, OpenCode, GitHub Copilot et Cursor dans la Dynamic Island.",
+        settingsDescription: "Lit l’utilisation locale des agents et les limites enregistrées par Claude. L’utilisation de Cursor est obtenue sur cursor.com avec la connexion de l’application quand elle est ouverte. Les requêtes, réponses et fichiers ne sont jamais conservés.",
         restingTitle: "Limites IA",
         limitsCard: "Limites",
         spendCard: "Dépenses",
@@ -882,9 +938,15 @@ extension NotchAgentStrings {
         resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.")
 
     static let it = NotchAgentStrings(
+        cursorHint: "Tieni Cursor aperto e connesso. Vorssaint usa l’accesso dell’app per ottenere l’utilizzo dell’account e i rinnovi da cursor.com. Le credenziali non vengono mai salvate. L’utilizzo resta in memoria.",
+        cursorSetup: "Apri Cursor e accedi per leggere l’utilizzo.",
+        openCursor: "Apri Cursor",
+        getCursor: "Scarica Cursor",
+        cursorUnavailable: "Impossibile verificare l’utilizzo di Cursor. Tieni l’app aperta e connessa.",
+        cursorIncomplete: "Impossibile caricare tutta la cronologia di utilizzo di Cursor.",
         title: "Agenti IA",
-        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude, Codex, OpenCode e GitHub Copilot.",
-        settingsDescription: "Legge l’utilizzo che Claude Code, Codex, OpenCode e GitHub Copilot registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
+        hubDescription: "Segui limiti, token e valore API di Claude, Codex, OpenCode, GitHub Copilot e Cursor nella Dynamic Island.",
+        settingsDescription: "Legge l’utilizzo locale degli agenti e i limiti salvati da Claude. L’utilizzo di Cursor viene ottenuto da cursor.com con l’accesso dell’app mentre è aperta. Richieste, risposte e file non vengono mai conservati.",
         restingTitle: "Limiti IA",
         limitsCard: "Limiti",
         spendCard: "Spesa",
@@ -981,9 +1043,15 @@ extension NotchAgentStrings {
         resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.")
 
     static let ru = NotchAgentStrings(
+        cursorHint: "Оставьте Cursor открытым и войдите в аккаунт. Vorssaint использует вход приложения для получения данных об использовании и обновлении лимитов с cursor.com. Учётные данные никогда не сохраняются. Данные использования остаются в памяти.",
+        cursorSetup: "Откройте Cursor и войдите, чтобы увидеть использование.",
+        openCursor: "Открыть Cursor",
+        getCursor: "Скачать Cursor",
+        cursorUnavailable: "Не удалось проверить использование Cursor. Оставьте приложение открытым и войдите в аккаунт.",
+        cursorIncomplete: "Не удалось полностью загрузить историю использования Cursor.",
         title: "ИИ-агенты",
-        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude, Codex, OpenCode и GitHub Copilot.",
-        settingsDescription: "Читает сведения об использовании, которые Claude Code, Codex, OpenCode и GitHub Copilot записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
+        hubDescription: "Следите за лимитами, токенами и стоимостью по API для Claude, Codex, OpenCode, GitHub Copilot и Cursor в Dynamic Island.",
+        settingsDescription: "Читает локальное использование агентов и лимиты, сохранённые Claude. Использование Cursor загружается с cursor.com через вход приложения, пока оно открыто. Запросы, ответы и файлы никогда не сохраняются.",
         restingTitle: "Лимиты ИИ",
         limitsCard: "Лимиты",
         spendCard: "Расходы",
@@ -1080,9 +1148,15 @@ extension NotchAgentStrings {
         resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.")
 
     static let tr = NotchAgentStrings(
+        cursorHint: "Cursor’ı açık ve oturum açılmış tutun. Vorssaint, hesap kullanımını ve yenileme zamanlarını cursor.com’dan almak için uygulamanın oturumunu kullanır. Kimlik bilgileri asla kaydedilmez. Kullanım verileri bellekte kalır.",
+        cursorSetup: "Kullanımı görmek için Cursor’ı açıp oturum açın.",
+        openCursor: "Cursor’ı aç",
+        getCursor: "Cursor’ı indir",
+        cursorUnavailable: "Cursor kullanımı kontrol edilemedi. Uygulamayı açık ve oturum açılmış tutun.",
+        cursorIncomplete: "Cursor kullanım geçmişi tam olarak yüklenemedi.",
         title: "YZ Ajanları",
-        hubDescription: "Claude, Codex, GitHub Copilot ve OpenCode için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
-        settingsDescription: "Claude Code, Codex, GitHub Copilot ve OpenCode’un bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
+        hubDescription: "Dynamic Island’da Claude, Codex, OpenCode, GitHub Copilot ve Cursor için limitleri, tokenları ve API değerini takip edin.",
+        settingsDescription: "Yerel aracı kullanımını ve Claude’un kaydettiği plan limitlerini okur. Cursor açıkken uygulamanın oturumuyla cursor.com’dan kullanım alınır. İstemler, yanıtlar ve dosyalar asla saklanmaz.",
         restingTitle: "YZ sınırları",
         limitsCard: "Sınırlar",
         spendCard: "Harcama",
@@ -1179,9 +1253,15 @@ extension NotchAgentStrings {
         resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.")
 
     static let ja = NotchAgentStrings(
+        cursorHint: "Cursorを開いたままサインインしてください。Vorssaintはデスクトップアプリのログイン情報を使い、cursor.comからアカウントの使用量とリセット日時を取得します。認証情報は保存しません。使用量はメモリにのみ保持します。",
+        cursorSetup: "使用量を取得するにはCursorを開いてサインインしてください。",
+        openCursor: "Cursorを開く",
+        getCursor: "Cursorを入手",
+        cursorUnavailable: "Cursorの使用量を確認できませんでした。アプリを開いたままサインインしてください。",
+        cursorIncomplete: "Cursorの使用履歴を完全に読み込めませんでした。",
         title: "AIエージェント",
-        hubDescription: "Claude、Codex、OpenCode、GitHub Copilotのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
-        settingsDescription: "Claude Code、Codex、OpenCode、GitHub CopilotがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
+        hubDescription: "Dynamic IslandでClaude、Codex、OpenCode、GitHub Copilot、Cursorの上限、トークン、API換算額を確認します。",
+        settingsDescription: "エージェントのローカル使用量とClaudeが保存したプラン上限を読み取ります。Cursorが開いている間、アプリのログイン情報でcursor.comから使用量を取得します。プロンプト、応答、ファイルは保存しません。",
         restingTitle: "AIの上限",
         limitsCard: "上限",
         spendCard: "使用額",
@@ -1278,9 +1358,15 @@ extension NotchAgentStrings {
         resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。")
 
     static let ko = NotchAgentStrings(
+        cursorHint: "Cursor를 열고 로그인한 상태로 유지하세요. Vorssaint는 데스크톱 앱의 로그인을 사용해 cursor.com에서 계정 사용량과 초기화 시간을 가져옵니다. 인증 정보는 저장하지 않습니다. 사용량은 메모리에만 유지됩니다.",
+        cursorSetup: "사용량을 읽으려면 Cursor를 열고 로그인하세요.",
+        openCursor: "Cursor 열기",
+        getCursor: "Cursor 다운로드",
+        cursorUnavailable: "Cursor 사용량을 확인하지 못했습니다. 앱을 열고 로그인한 상태로 유지하세요.",
+        cursorIncomplete: "Cursor 사용 기록을 모두 불러오지 못했습니다.",
         title: "AI 에이전트",
-        hubDescription: "Claude, Codex, OpenCode, GitHub Copilot의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
-        settingsDescription: "Claude Code, Codex, OpenCode, GitHub Copilot이 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
+        hubDescription: "Dynamic Island에서 Claude, Codex, OpenCode, GitHub Copilot, Cursor의 한도, 토큰, API 환산 가치를 확인하세요.",
+        settingsDescription: "에이전트의 로컬 사용량과 Claude가 저장한 플랜 한도를 읽습니다. Cursor가 열려 있는 동안 앱의 로그인으로 cursor.com에서 사용량을 가져옵니다. 프롬프트, 응답, 파일은 저장하지 않습니다.",
         restingTitle: "AI 한도",
         limitsCard: "한도",
         spendCard: "사용 금액",
@@ -1377,9 +1463,15 @@ extension NotchAgentStrings {
         resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.")
 
     static let zhHans = NotchAgentStrings(
+        cursorHint: "请保持 Cursor 打开并登录。Vorssaint 使用桌面应用的登录信息，从 cursor.com 获取账户用量和重置时间。不会保存凭据。用量数据仅保留在内存中。",
+        cursorSetup: "请打开 Cursor 并登录以读取用量。",
+        openCursor: "打开 Cursor",
+        getCursor: "获取 Cursor",
+        cursorUnavailable: "无法检查 Cursor 用量。请保持应用打开并登录。",
+        cursorIncomplete: "无法完整加载 Cursor 用量历史。",
         title: "AI 智能体",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 和 GitHub Copilot 的套餐额度、令牌、API 价值与正在进行的工作。",
-        settingsDescription: "读取 Claude Code、Codex、OpenCode 和 GitHub Copilot 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
+        hubDescription: "在灵动岛中查看 Claude、Codex、OpenCode、GitHub Copilot 和 Cursor 的额度、令牌和 API 等值费用。",
+        settingsDescription: "读取智能体的本地用量和 Claude 保存的套餐额度。Cursor 打开时，使用桌面应用的登录信息从 cursor.com 获取用量。不会保留提示词、回复或文件。",
         restingTitle: "AI 额度",
         limitsCard: "额度",
         spendCard: "花费",
@@ -1476,9 +1568,15 @@ extension NotchAgentStrings {
         resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。")
 
     static let zhTW = NotchAgentStrings(
+        cursorHint: "請保持 Cursor 開啟並登入。Vorssaint 使用桌面應用程式的登入資訊，從 cursor.com 取得帳戶用量和重設時間。不會儲存憑證。用量資料僅保留在記憶體中。",
+        cursorSetup: "請開啟 Cursor 並登入以讀取用量。",
+        openCursor: "開啟 Cursor",
+        getCursor: "取得 Cursor",
+        cursorUnavailable: "無法檢查 Cursor 用量。請保持應用程式開啟並登入。",
+        cursorIncomplete: "無法完整載入 Cursor 用量歷史。",
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 與 GitHub Copilot 的方案額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在動態島中查看 Claude、Codex、OpenCode、GitHub Copilot 和 Cursor 的額度、權杖和 API 等值費用。",
+        settingsDescription: "讀取代理程式的本機用量和 Claude 儲存的方案額度。Cursor 開啟時，使用桌面應用程式的登入資訊從 cursor.com 取得用量。不會保留提示詞、回覆或檔案。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1575,9 +1673,15 @@ extension NotchAgentStrings {
         resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。")
 
     static let zhHK = NotchAgentStrings(
+        cursorHint: "請保持 Cursor 開啟並登入。Vorssaint 使用桌面應用程式的登入資料，從 cursor.com 取得帳戶用量和重設時間。不會儲存憑證。用量資料僅保留在記憶體中。",
+        cursorSetup: "請開啟 Cursor 並登入以讀取用量。",
+        openCursor: "開啟 Cursor",
+        getCursor: "取得 Cursor",
+        cursorUnavailable: "無法檢查 Cursor 用量。請保持應用程式開啟並登入。",
+        cursorIncomplete: "無法完整載入 Cursor 用量記錄。",
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 與 GitHub Copilot 的計劃額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在動態島中查看 Claude、Codex、OpenCode、GitHub Copilot 和 Cursor 的額度、Token 和 API 等值費用。",
+        settingsDescription: "讀取代理程式的本機用量和 Claude 儲存的方案額度。Cursor 開啟時，使用桌面應用程式的登入資料從 cursor.com 取得用量。不會保留提示詞、回覆或檔案。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",

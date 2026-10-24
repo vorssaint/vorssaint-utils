@@ -60,6 +60,8 @@ struct NotchAgentTile: Identifiable, Equatable {
     var accountID: String? = nil
     /// The Resets card beside added Codex homes, which says whose resets they are.
     var namesDefaultAccount = false
+    /// The Now card lists these providers when none is working.
+    var idleProviderCount = 0
     var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "") }
 }
 
@@ -95,6 +97,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .cursor: return DefaultsKey.notchAgentsCursor
         }
     }
 
@@ -275,6 +278,7 @@ enum NotchAgentSupport {
             // the card names once others have cards.
             case .resets: return providers.contains(.codex)
                 ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
+            case .live: return [NotchAgentTile(card: .live, provider: nil, idleProviderCount: providers.count)]
             default: return [NotchAgentTile(card: card, provider: nil)]
             }
         }
@@ -304,7 +308,15 @@ enum NotchAgentSupport {
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
         if row.contains(where: \.card.fullWidth) { return chartHeight }
-        return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
+        return row.map { tile in
+            if tile.card == .live {
+                // Three idle rows fit the standard card. Reserve another row
+                // for each additional provider, even while tasks are running,
+                // so finishing a task cannot change the grid's height.
+                return cardHeight + CGFloat(max(0, tile.idleProviderCount - 3)) * 20
+            }
+            return tile.accountID != nil || tile.namesDefaultAccount ? accountCardHeight : cardHeight
+        }.max() ?? cardHeight
     }
 
     /// An account card's line in place of its windows while it has none, or
@@ -322,6 +334,7 @@ enum NotchAgentSupport {
         guard let limits else { return false }
         let age = now.timeIntervalSince(limits.observedAt)
         if account { return age >= accountStaleness }
+        if provider == .cursor { return age >= AgentCursorUsage.freshness }
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 

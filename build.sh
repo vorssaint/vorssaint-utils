@@ -301,6 +301,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeAppUsage.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentCursorUsage.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentCursorAccount.swift
         Sources/Vorssaint/Services/AgentUsage/AgentCLIConversation.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeServer.swift
         Sources/Vorssaint/Services/AgentUsage/AgentCodexServer.swift

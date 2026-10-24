@@ -12,6 +12,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -27,6 +28,7 @@ struct NotchAgentsSettingsControls: View {
     @State private var dragging: NotchAgentCard?
     @State private var roots: [AgentProvider: Bool] = [:]
     @State private var claudeApp: URL?
+    @State private var cursorApp: URL?
     /// Read from the file while the section is off and the service is idle.
     @State private var claudeAppFileCheck: Date?
 
@@ -49,6 +51,8 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
+            providerRow(.cursor, isOn: $cursor)
+            if cursor { cursorStatus }
             if codex { CodexAccountsSettings() }
 
             Divider()
@@ -98,7 +102,7 @@ struct NotchAgentsSettingsControls: View {
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
                                       focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
-                                      provider: claude ? .claude : codex ? .codex : opencode ? .opencode : .copilot)
+                                      provider: claude ? .claude : codex ? .codex : opencode ? .opencode : copilot ? .copilot : .cursor)
                     .padding(.leading, settingsRowTextInset)
             }
 
@@ -154,10 +158,35 @@ struct NotchAgentsSettingsControls: View {
         .onChange(of: claude) { _, on in if on { findClaudeApp() } }
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
-        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
+        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot), String(cursor),
                        String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
+    }
+
+    private var cursorStatus: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(text.cursorHint).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if usage.cursorChecking {
+                ProgressView().controlSize(.small)
+            } else if let failure = usage.cursorFailure {
+                Text(text.cursorFailure(failure)).font(.caption).foregroundStyle(.secondary)
+            }
+            if let checked = usage.snapshot.limits[.cursor]?.observedAt {
+                TimelineView(.periodic(from: .now, by: 30)) { context in
+                    Text(text.updated(relative(checked, now: context.date))).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if let cursorApp {
+                Button(text.openCursor) {
+                    NSWorkspace.shared.openApplication(at: cursorApp, configuration: NSWorkspace.OpenConfiguration())
+                }
+            } else {
+                Link(text.getCursor, destination: AgentCursorUsage.downloadURL)
+            }
+        }
+        .padding(.leading, settingsRowTextInset)
     }
 
     private var priceCaption: String {
@@ -245,13 +274,15 @@ struct NotchAgentsSettingsControls: View {
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, cursor].filter { $0 }.count <= 1)
         }
     }
 
     /// Where the logs live is checked when the page opens, not on every draw.
     private func findRoots() {
-        let found = AgentLogRoot.all().filter(\.exists).map(\.provider)
+        var found = AgentLogRoot.all().filter(\.exists).map(\.provider)
+        cursorApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: AgentCursorUsage.bundleIdentifier)
+        if cursorApp != nil { found.append(.cursor) }
         roots = Dictionary(uniqueKeysWithValues: AgentProvider.allCases.map { ($0, found.contains($0)) })
     }
 
