@@ -431,7 +431,7 @@ enum CommandBarMath {
 
     /// Distinguishes grouped thousands from a decimal written with the alternate
     /// separator. Thousands never start at zero, so 0.125 always has decimals.
-    private static func looksLikeGrouping(_ raw: String, separator: Character) -> Bool {
+    static func looksLikeGrouping(_ raw: String, separator: Character) -> Bool {
         let parts = raw.split(separator: separator, omittingEmptySubsequences: false)
         guard parts.count >= 2, let first = parts.first, !first.isEmpty, first.count <= 3,
               first.first != "0" else { return false }
