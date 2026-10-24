@@ -1080,6 +1080,15 @@ enum ScreenshotFeatureTests {
                 && recentCapturePaletteCode.contains(
                     "NSWorkspace.shared.notificationCenter.removeObserver("),
                "a recent captures palette appears promptly and leaves when another app activates")
+        // The Clear history confirmation is a sheet: a window of its own,
+        // attached to the palette. A click on its buttons is not a click outside.
+        let recentCaptureClickMonitor = recentCapturePaletteCode
+            .components(separatedBy: "panelLocalClickMonitor = NSEvent.addLocalMonitorForEvents(")
+            .dropFirst().first?
+            .components(separatedBy: "panelGlobalClickMonitor").first ?? ""
+        suite.expect(recentCaptureClickMonitor.contains(
+                    "event.window !== panel, event.window?.sheetParent !== panel"),
+               "a click on the palette's own Clear history confirmation keeps the palette open")
         suite.expect(!ScreenshotSupport.captureAvailabilityChanged(
                     activeTools: [.screenshot, .recording],
                     availableTools: [.screenshot, .recording])
