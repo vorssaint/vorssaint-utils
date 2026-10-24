@@ -24,10 +24,18 @@ struct CachedSensorReading {
 enum TemperatureSensorSelector {
     static let minimumChipTemperature = 10.0
 
+    // The second row is another M1 layout, read on a MacBook Pro 13-inch
+    // (MacBookPro17,1) on macOS 27 and reported on a Mac mini (Macmini9,1,
+    // #1353), neither of which carries any key of the first row. Each Tp/Te
+    // index exposes a, b, x and z variants. Under load Tp<n>a and Te<n>a
+    // stayed within about 1 °C of the named pACC/eACC MTR die sensors with
+    // the same index; b and z sat a fixed 7 to 22 °C above them, so they are
+    // not core readings.
     private static let appleM1CPUCoreKeys: Set<String> = [
         "Tp09", "Tp0T",
         "Tp01", "Tp05", "Tp0D", "Tp0H",
         "Tp0L", "Tp0P", "Tp0X", "Tp0b",
+        "Tp2a", "Tp3a", "Tp4a", "Tp5a", "Tp7a", "Tp8a", "Tp9a", "Te0a", "Te3a",
     ]
 
     private static let appleM2CPUCoreKeys: Set<String> = [

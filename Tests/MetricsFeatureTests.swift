@@ -772,12 +772,43 @@ enum MetricsFeatureTests {
         ]
         suite.expect(macMini9_1M1Sensors.allSatisfy {
             TemperatureSensorSelector.isCPUTemperatureKey($0.key, platform: .appleM1Family)
-        } && !macMini9_1M1Sensors.contains {
+        }, "this M1 exposes every one of its sensors as a CPU sensor")
+        suite.expect(macMini9_1M1Sensors.filter {
             TemperatureSensorSelector.isCPUCoreKey($0.key, platform: .appleM1Family)
-        }, "this M1 exposes CPU sensors, none of them in the mapped core set")
+        }.map(\.key) == ["Te0a", "Te3a", "Tp2a", "Tp3a", "Tp4a", "Tp5a", "Tp7a", "Tp8a", "Tp9a"],
+               "this M1 layout maps only its a variants as cores")
+        // 3.3.4 showed 64.61 here, the Tp4z variant, which reads well above
+        // the die sensors.
         suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
             readings: macMini9_1M1Sensors, platform: .appleM1Family
-        ) ?? -1, 64.61, "this M1 shows the CPU temperature it showed on 3.3.2 again")
+        ) ?? -1, 40.71, "this M1 shows its hottest core instead of an offset variant")
+
+        // MacBook Pro 13-inch, MacBookPro17,1, Apple M1, macOS 27, read with
+        // --sensors after a minute of full CPU load. The named HID die
+        // sensors peaked at 78.23 in the same sample; the hottest variant
+        // the compatibility reading would pick is Tp9z at 93.88.
+        let macBookPro17_1M1Sensors: [(key: String, value: Double)] = [
+            ("Te0a", 62.95), ("Te0b", 62.95), ("Te0x", 65.42), ("Te0z", 65.42),
+            ("Te3a", 59.55), ("Te3b", 68.25), ("Te3x", 60.88), ("Te3z", 80.88),
+            ("Tp2a", 71.69), ("Tp2b", 80.79), ("Tp2x", 75.19), ("Tp2z", 90.19),
+            ("Tp3a", 75.11), ("Tp3b", 82.51), ("Tp3x", 79.67), ("Tp3z", 91.67),
+            ("Tp4a", 71.72), ("Tp4b", 81.82), ("Tp4x", 75.33), ("Tp4z", 92.33),
+            ("Tp5a", 67.30), ("Tp5b", 77.50), ("Tp5x", 68.91), ("Tp5z", 84.91),
+            ("Tp7a", 71.16), ("Tp7b", 80.26), ("Tp7x", 75.34), ("Tp7z", 90.34),
+            ("Tp8a", 74.52), ("Tp8b", 81.92), ("Tp8x", 79.39), ("Tp8z", 91.39),
+            ("Tp9a", 72.42), ("Tp9b", 82.52), ("Tp9x", 76.88), ("Tp9z", 93.88),
+        ]
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: macBookPro17_1M1Sensors, platform: .appleM1Family
+        ) ?? -1, 75.11, "a loaded MacBook Pro M1 shows its hottest core, not an offset variant")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: macBookPro17_1M1Sensors.filter { !$0.key.hasSuffix("a") },
+            platform: .appleM1Family
+        ) ?? -1, 93.88, "an offset variant is only the compatibility reading when no core answers")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("Tp09", 43.0), ("Tp01", 49.0), ("Tp2z", 70.0)],
+            platform: .appleM1Family
+        ) ?? -1, 49.0, "the first M1 layout keeps its cores ahead of the second layout's variants")
 
         // This project's own Mac, Apple M4, read with --sensors: its mapped
         // cores answer and sit well below the hottest auxiliary sensor, so it

@@ -1127,6 +1127,27 @@ enum FeatureCatalogTests {
         )
         suite.expect(unmappedFanTemperatures.isEmpty,
                "fan curves reject unknown Apple Silicon sensors instead of treating them as CPU")
+        // Apple M1 MacBook Pro 13-inch (MacBookPro17,1) under load. It carries
+        // none of the first M1 layout's keys; its Tg keys read zero.
+        let m1AlternateFanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Te0a", 62.95), ("Te0z", 65.42), ("Te3a", 59.55), ("Te3z", 80.88),
+                          ("Tp2a", 71.69), ("Tp2z", 90.19), ("Tp3a", 75.11), ("Tp3b", 82.51),
+                          ("Tp4a", 71.72), ("Tp5a", 67.30), ("Tp7a", 71.16), ("Tp8a", 74.52),
+                          ("Tp9a", 72.42), ("Tp9z", 93.88)],
+            gpuReadings: [0, 0],
+            platform: TemperatureSensorSelector.platform(brandString: "Apple M1")
+        )
+        suite.expectClose(m1AlternateFanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    75.11,
+                    "M1 fan curves follow the hottest core of the second M1 layout")
+        suite.expectClose(m1AlternateFanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                    69.60,
+                    "M1 fan curves average only the a variants of the second layout", tol: 0.01)
+        suite.expectClose(m1AlternateFanTemperatures.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                    75.11,
+                    "the default SoC curve has a reading on the second M1 layout")
+        suite.expect(m1AlternateFanTemperatures.first { $0.source == .hottestGPU } == nil,
+               "zero GPU keys do not become a fan curve reading")
         // Apple M4 Pro (Mac16,8) under load: the base M4 set tops out at Tp0Y,
         // 10 °C below the core that Tpx5 repeats.
         let m4ProPlatform = TemperatureSensorSelector.platform(brandString: "Apple M4 Pro")
