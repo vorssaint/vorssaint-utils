@@ -818,7 +818,20 @@ enum NotchMusicStripLayout {
         let artist = artist?.trimmingCharacters(in: .whitespaces)
         let named = namedWing(title: title, artist: artist?.isEmpty == false ? artist : nil, geometry: geometry)
         let leading = min(named, geometry.noticeWingWidth(preferred: named), max(0, room).rounded(.down))
-        return leading > wing ? NotchNoticeWings(leading: leading, trailing: wing) : nil
+        guard leading > wing else { return nil }
+        // Kept symmetric, the words and the bars share the same width evenly,
+        // which cuts a long title short rather than widening the island.
+        guard geometry.symmetric else { return NotchNoticeWings(leading: leading, trailing: wing) }
+        let even = ((leading + wing) / 2).rounded(.down)
+        return NotchNoticeWings(leading: even, trailing: even)
+    }
+
+    /// The bars' side: as wide as the words' side while a symmetric strip
+    /// names its song, otherwise the wing they rest in.
+    static func barsWing(named: CGFloat?, geometry: NotchGeometry) -> CGFloat {
+        let wing = geometry.compactActivityWingWidth
+        guard geometry.symmetric, let named else { return wing }
+        return max(wing, named)
     }
 }
 
@@ -2244,6 +2257,10 @@ struct NotchGeometry: Equatable {
     let outlineRoom: CGFloat
     private let capsuleWidthFit: CGFloat
     var compactSideRoom: CGFloat?
+    /// Both sides of the camera stay equally wide: a notice or a strip
+    /// naming its song grows on both sides instead of toward its wider one,
+    /// and a long title is cut short within the narrower room.
+    var symmetric = false
     var quickAccessBottomInset: CGFloat = 0
     var requiresFullWidthHeader = false
     /// What the open page puts in the island's top row.
@@ -2616,10 +2633,16 @@ struct NotchGeometry: Equatable {
         max(0, (noticeSize(wingWidth: preferred).width - noticeCameraGap) / 2)
     }
 
-    /// Each side as wide as it asks, short of the display's edge.
+    /// Each side as wide as it asks, short of the display's edge. Kept
+    /// symmetric beside a camera, the two share the same width evenly, so
+    /// the wider side's text is cut short rather than the island growing;
+    /// a capsule already runs its content end to end around its centre.
     func noticeWings(_ preferred: NotchNoticeWings) -> NotchNoticeWings {
-        NotchNoticeWings(leading: noticeWingWidth(preferred: preferred.leading),
-                         trailing: noticeWingWidth(preferred: preferred.trailing))
+        let wings = NotchNoticeWings(leading: noticeWingWidth(preferred: preferred.leading),
+                                     trailing: noticeWingWidth(preferred: preferred.trailing))
+        guard symmetric, !floats else { return wings }
+        let even = (wings.leading + wings.trailing) / 2
+        return NotchNoticeWings(leading: even, trailing: even)
     }
 
     func noticeSize(wings preferred: NotchNoticeWings) -> CGSize {

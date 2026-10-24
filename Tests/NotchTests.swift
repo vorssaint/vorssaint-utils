@@ -1421,6 +1421,48 @@ enum NotchTests {
         }
     }
 
+    /// Kept symmetric, a strip naming its song grows both sides alike, so the
+    /// island stays centred on the camera and a long title is cut short within
+    /// the room the narrower side of the menus leaves.
+    private static func symmetricNamedMusicStripChecks(_ suite: TestSuite, compactMusic: NotchGeometry) {
+        typealias Layout = NotchMusicStripLayout
+        let wing = compactMusic.compactActivityWingWidth
+        var symmetric = compactMusic
+        symmetric.symmetric = true
+        let lopsided = Layout.namedWings(title: "Midnight City", artist: "M83", geometry: compactMusic, room: .infinity)
+        let even = Layout.namedWings(title: "Midnight City", artist: "M83", geometry: symmetric, room: .infinity)
+        suite.expect(lopsided.map { $0.trailing == wing } == true
+                     && even.map { $0.leading == $0.trailing
+                         && $0.leading == (((lopsided?.leading ?? 0) + wing) / 2).rounded(.down) } == true,
+                     "a symmetric strip splits the width it would take evenly rather than growing")
+        let long = (CGFloat(120) + wing) / 2
+        suite.expect(Layout.namedWings(title: String(repeating: "A very long song title ", count: 12), artist: nil,
+                                       geometry: symmetric, room: 120.6)
+                     == NotchNoticeWings(leading: long.rounded(.down), trailing: long.rounded(.down)),
+                     "a symmetric strip cuts a long title short within the menus' room rather than leaning away")
+        suite.expect(Layout.namedWings(title: "Midnight City", artist: "M83", geometry: symmetric, room: wing) == nil,
+                     "a symmetric strip with no room past the cover still leaves the song unnamed")
+        suite.expect(Layout.barsWing(named: even?.leading, geometry: symmetric) == even?.trailing
+                     && Layout.barsWing(named: lopsided?.leading, geometry: compactMusic) == wing
+                     && Layout.barsWing(named: nil, geometry: symmetric) == wing,
+                     "a symmetric strip's bars answer the pointer across the side the words widened")
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        var notched = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, menuBarHeight: 32)
+        notched.symmetric = true
+        let wings = notched.noticeWings(NotchNoticeWings(leading: 160, trailing: 40))
+        suite.expect(wings == NotchNoticeWings(leading: 100, trailing: 100)
+                     && notched.noticeShift(NotchNoticeWings(leading: 160, trailing: 40)) == 0
+                     && notched.noticeSize(wings: NotchNoticeWings(leading: 40, trailing: 160)).width == 180 + 200,
+                     "a symmetric notice splits its width evenly around the camera rather than growing")
+        var capsule = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24,
+                                    silhouette: .capsule)
+        capsule.symmetric = true
+        suite.expect(capsule.noticeWings(NotchNoticeWings(leading: 160, trailing: 40))
+                     == NotchNoticeWings(leading: capsule.noticeWingWidth(preferred: 160),
+                                         trailing: capsule.noticeWingWidth(preferred: 40)),
+                     "a capsule, already centred end to end, ignores the symmetric setting")
+    }
+
     /// Resting on the cover names the song: the left side grows from the
     /// island's curved end with the words, and the cover and the bars stay
     /// where they rest beside the camera.
@@ -1472,6 +1514,7 @@ enum NotchTests {
         suite.expect(Layout.namedWings(title: "Midnight City", artist: "M83", geometry: crowded.compactMusicGeometry,
                                        room: .infinity) == nil,
                "a strip whose wings gave way to the menus has no cover to name the song beside")
+        symmetricNamedMusicStripChecks(suite, compactMusic: compactMusic)
         let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24,
                                       compactSideRoom: 100).compactMusicGeometry
         suite.expect(Layout.fillsCameraGap(simulated)
@@ -1998,6 +2041,8 @@ enum NotchTests {
                "a new island starts spacious and opens by click")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchHideUntilHover), "hidden hover is opt-in")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchOutlineEnabled), "the island outline is opt-in")
+        suite.expect(!defaults.bool(forKey: DefaultsKey.notchSymmetrical),
+                     "the island leans toward a notice's wider side unless symmetry is chosen")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchHideMenuBarGap),
                      "the island matches the physical notch's height unless covering the gap below it is chosen")
         suite.expect(defaults.double(forKey: DefaultsKey.notchHoverDelay) == 0.25,
@@ -2467,7 +2512,7 @@ enum NotchTests {
         suite.expect(NotchEvent.allCases.allSatisfy { !NotchSupport.routes($0, in: defaults) },
                "hub removal gates every notch event")
 
-        let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchIncludeOtherPlayers, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchOutlineEnabled, DefaultsKey.notchHideMenuBarGap, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
+        let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchIncludeOtherPlayers, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchOutlineEnabled, DefaultsKey.notchHideMenuBarGap, DefaultsKey.notchSymmetrical, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
                                 DefaultsKey.notchCustomWidth, DefaultsKey.notchCustomHeight, DefaultsKey.notchHapticFeedback,
                                 DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHidesMenuBarIcon, DefaultsKey.notchScratchpad,
