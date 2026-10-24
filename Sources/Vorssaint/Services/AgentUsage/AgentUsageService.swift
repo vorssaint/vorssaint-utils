@@ -147,7 +147,8 @@ final class AgentUsageService: ObservableObject {
         // A page torn down with the island never reports leaving, so the
         // minute cadence would outlive it.
         pageVisible = false
-        guard running, !paused else { return }
+        // A session waiting for agents reads on with the display asleep or locked.
+        guard running, !paused, !KeepAwakeManager.shared.waitsForAgents else { return }
         paused = true
         cancelClaudeLimits()
         timer?.invalidate()

@@ -133,3 +133,27 @@ enum KeepAwakeAutomationSupport {
         return sessionActive ? .none : .activate
     }
 }
+
+extension KeepAwakeAutomationSupport {
+    /// How long no agent may work before a session waiting for agents ends.
+    /// The island already stops counting a turn after ten silent minutes, so
+    /// a command that prints nothing gets fifteen in all; one silent for
+    /// longer ends the session, which the island's waiting turns could extend.
+    static let agentsQuietGrace: TimeInterval = 5 * 60
+
+    /// Whether the work a session waits for goes on: any agent's turn, or
+    /// only the one it follows.
+    static func agentsWorking(_ liveIDs: [String], following id: String?) -> Bool {
+        id.map(liveIDs.contains) ?? !liveIDs.isEmpty
+    }
+
+    /// Moves `quietSince` to now while an agent works or the readings have not
+    /// loaded, and says whether the quiet has lasted the grace. A reader that
+    /// never loaded, as with the AI section off, counts as busy, so it can
+    /// never end the session or shut the Mac down.
+    static func agentWait(quietSince: Date, loaded: Bool, working: Bool,
+                          now: Date) -> (quietSince: Date, finished: Bool) {
+        let quiet = loaded && !working ? quietSince : now
+        return (quiet, now.timeIntervalSince(quiet) >= agentsQuietGrace)
+    }
+}
