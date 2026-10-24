@@ -407,6 +407,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/Localization.swift
         Sources/Vorssaint/Core/Localizations/Strings+*.swift
         Sources/Vorssaint/Core/FeatureStrings.swift
+        Sources/Vorssaint/Core/WindowPinningStrings.swift
         Sources/Vorssaint/Core/KillProcessStrings.swift
         Sources/Vorssaint/Core/PortManagerStrings.swift
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift
@@ -525,6 +526,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SmoothScrollSupport.swift
         Sources/Vorssaint/Services/MouseAcceleration/MouseAccelerationSupport.swift
         Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseSupport.swift
+        Sources/Vorssaint/Services/WindowPinning/WindowPinningSupport.swift
         Sources/Vorssaint/Services/AssistiveKeyboard.swift
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift
         Sources/Vorssaint/Services/Switcher/WindowServerCaptureQueue.swift

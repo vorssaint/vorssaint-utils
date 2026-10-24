@@ -601,6 +601,7 @@ struct SettingsView: View {
         case .quickTools: QuickToolsSettings()
         case .screenshot: ScreenCaptureSettings()
         case .windowLayout: WindowLayoutSettings()
+        case .windowPinning: WindowPinningSettings()
         case .shelf: ShelfSettings()
         case .shortcuts: ShortcutsSettings()
         case .advanced: AdvancedSettings()

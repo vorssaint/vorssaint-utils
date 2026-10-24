@@ -44,6 +44,7 @@ struct MetricsTests {
                 DiskImageHomebrewTests.run(suite)
             }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),
+            ("window-pinning", { WindowPinningTests.run(suite) }),
             ("media", { MediaFeatureTests.run(suite) }),
             ("mixer", {
                 MixerRenderContinuityTests.run(suite)

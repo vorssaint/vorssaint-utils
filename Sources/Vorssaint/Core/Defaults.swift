@@ -135,6 +135,10 @@ enum DefaultsKey {
     static let spacesOrderEnabled = "spacesOrderEnabled" // keeps macOS from rearranging Spaces by recent use (Dock mru-spaces)
     static let spacesOrderRestore = "spacesOrderRestore" // local recovery; never backed up: "absent" or "on", the mru-spaces state to put back, or "off" when there was nothing to put back
     static let spacesOrderRestartPending = "spacesOrderRestartPending" // local recovery; never backed up: "<Dock pid> <fixed|rearranging> <absent|on|off>…", the Dock process that owes the restart reading a written mru-spaces, what it runs and the values written under it
+    static let windowPinningEnabled = "windowPinningEnabled"
+    static let windowPinningShortcut = "windowPinningShortcut"  // GlobalShortcut storage value
+    static let windowPinnedWindows = "windowPinnedWindows"      // persisted pinned window entries
+    static let panelShowWindowPinning = "panelShowWindowPinning"
     static let middleClickEnabled = "middleClickEnabled"  // three-finger PHYSICAL click on the trackpad acts as a middle click
     static let middleClickTapFingers = "middleClickTapFingers"  // 0 = off (default); 3 or 4 = a light tap with that many fingers also middle-clicks (issue #161)
     static let previewSize = "previewSize"                // dock preview thumbnail size (once shared with the app switcher)
@@ -1215,6 +1219,8 @@ enum Defaults {
         DefaultsKey.hotkeyEnabled: true,
         DefaultsKey.launchAtLoginWanted: false,
         DefaultsKey.keepAwakeShortcut: "control+option+command:40",
+        DefaultsKey.windowPinningEnabled: false,
+        DefaultsKey.windowPinningShortcut: GlobalShortcut.windowPinningDefault.storageValue,
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,
         DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
         DefaultsKey.showCountdown: false,
@@ -1605,6 +1611,7 @@ enum Defaults {
         DefaultsKey.panelControlInputExpanded: false,
         DefaultsKey.panelControlFilesExpanded: false,
         DefaultsKey.panelShowKeepAwake: true,
+        DefaultsKey.panelShowWindowPinning: true,
         DefaultsKey.panelShowBrightness: true,
         DefaultsKey.panelShowUtilities: true,
         DefaultsKey.panelShowControls: true,
