@@ -18,6 +18,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.displayPresetsEnabled) private var displayPresetsEnabled = true
     @AppStorage(DefaultsKey.brightnessKeyStep)
     private var brightnessKeyStep = BrightnessSupport.KeyStep.standard.rawValue
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
@@ -94,6 +95,7 @@ struct EnergySettings: View {
         if focus == nil || focus == .brightness {
             // Displays may have changed since launch (docked, clamshell).
             BrightnessService.shared.refresh()
+            DisplayPresetService.shared.refresh()
         }
     }
 
@@ -314,6 +316,8 @@ struct EnergySettings: View {
                 } else {
                     ForEach(brightness.displays) { display in
                         displayRow(display)
+                        DisplayPresetPicker(display: display)
+                            .padding(.leading, 38)
                     }
                 }
                 if let failure = brightness.displayControlFailure {
@@ -352,6 +356,14 @@ struct EnergySettings: View {
                                         BrightnessService.shared.syncWithPreferences()
                                     }
                             }
+                        }
+                        SettingsRow(symbol: "slider.horizontal.3", title: strings.presetsToggle,
+                                    caption: strings.presetsCaption) {
+                            Toggle(strings.presetsToggle, isOn: $displayPresetsEnabled)
+                                .labelsHidden()
+                                .onChange(of: displayPresetsEnabled) { _, _ in
+                                    DisplayPresetService.shared.refresh()
+                                }
                         }
                         if brightnessKeysEnabled || brightnessOSDEnabled
                             || BrightnessSupport.KeyStep.sanitized(brightnessKeyStep) != .standard,

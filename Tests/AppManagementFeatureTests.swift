@@ -18,6 +18,33 @@ enum AppManagementFeatureTests {
                "extra brightness is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.extraBrightnessLevel] as? Int == 100,
                "extra brightness starts at full intensity once enabled")
+        suite.expect(registeredDefaults[DefaultsKey.displayPresetsEnabled] as? Bool == true,
+               "displays with presets show their preset menu by default")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.displayPresetsEnabled),
+               "showing the display preset menu travels with a settings backup")
+        let xdrPresets = DisplayPresetSupport.list([
+            .init(index: 0, name: "Apple XDR Display (P3-1600 nits)", group: 1, valid: true),
+            .init(index: 1, name: "Apple Display (P3-600 nits)", group: 1, valid: true),
+            .init(index: 2, name: "HDR Video (P3-ST 2084)", group: 2, valid: true),
+            .init(index: 10, name: "Internet & Web (sRGB)", group: 2, valid: true),
+            .init(index: 11, name: "Preset #11", group: 3, valid: false),
+            .init(index: 12, name: "Night grading", group: 3, valid: true),
+        ], activeIndex: 1)
+        suite.expect(xdrPresets?.presets.map(\.index) == [0, 1, 2, 10, 12]
+                && xdrPresets?.activeIndex == 1,
+               "the preset menu lists every usable preset and hides empty custom slots")
+        suite.expect(xdrPresets?.groups.map { $0.map(\.index) } == [[0, 1], [2, 10], [12]],
+               "the preset menu separates Apple, reference and custom presets")
+        suite.expect(DisplayPresetSupport.list([
+            .init(index: 0, name: "Apple XDR Display (P3-1600 nits)", group: 1, valid: true),
+            .init(index: 11, name: "Preset #11", group: 3, valid: false),
+        ], activeIndex: 0) == nil,
+               "a display with a single usable preset offers no menu")
+        suite.expect(DisplayPresetSupport.list([
+            .init(index: 0, name: "A", group: 1, valid: true),
+            .init(index: 1, name: "B", group: 1, valid: true),
+        ], activeIndex: 11)?.activeIndex == nil,
+               "an active preset outside the menu selects nothing rather than a wrong entry")
         suite.expect(registeredDefaults[DefaultsKey.bluetoothSleepEnabled] as? Bool == false,
                "switching Bluetooth off on sleep is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.bluetoothSleepRestoreOnWake] as? Bool == true,
