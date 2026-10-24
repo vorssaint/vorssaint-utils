@@ -98,6 +98,7 @@ enum ScreenshotSelectionRefreshContract {
         }
     }
     @MainActor enum ScreenshotCaptureEngine {
+        static func ownerBundleID(ofWindow windowID: CGWindowID) -> String? { "com.example.window\(windowID)" }
         struct Request {
             let excluded: Set<CGWindowID>
             let continuation: CheckedContinuation<[CGDirectDisplayID: CGImage], Never>
@@ -148,6 +149,7 @@ enum ScreenshotSelectionRefreshContract {
             let image: CGImage
             let scale: CGFloat
             let anchorRect: CGRect
+            var sourceBundleID: String? = nil
         }
         enum Outcome {
             case captured(Capture), region(RecorderSupport.Region), scrollingRegion(
@@ -489,6 +491,8 @@ enum ScreenshotSelectionRefreshContract {
             if case .captured(let capture)? = window.outcome {
                 expect(capture.scale == (reported ?? window.panels[0].pixelScale),
                        "a window capture records the scale the engine captured it at")
+                expect(capture.sourceBundleID == "com.example.window11",
+                       "a window capture names the app that owns the window")
             } else {
                 expect(false, "a window capture records the scale the engine captured it at")
             }
