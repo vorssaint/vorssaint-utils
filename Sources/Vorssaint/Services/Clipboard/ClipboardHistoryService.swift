@@ -69,6 +69,8 @@ final class ClipboardHistoryService: ObservableObject {
     /// Read again on every opening, so the window's frame and its content
     /// always agree, even if the setting changes while it is open.
     @Published private(set) var quickLayout = ClipboardHistoryLayout.current()
+    /// ⌘ held over the shelf: its cards show their ⌘1 to ⌘9.
+    @Published private(set) var quickCommandHeld = false
 
     private var timer: Timer?
     /// Entries age out with nothing new copied, so the retention window is
@@ -96,6 +98,7 @@ final class ClipboardHistoryService: ObservableObject {
     private var panelResizeObserver: NSObjectProtocol?
     private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
+    private var modifierMonitor: Any?
     private var localClickMonitor: Any?
     private var outsideClickMonitor: Any?
     private var activationObserver: NSObjectProtocol?
@@ -211,6 +214,10 @@ final class ClipboardHistoryService: ObservableObject {
         if list.count == 1, let entry = list.first {
             switch entry.kind {
             case .text:
+                if let name = entry.richTextFile,
+                   let rich = ClipboardRichTextStore.attributedString(named: name) {
+                    return .rich(rich, plain: entry.text)
+                }
                 return .text(entry.text)
             case .image:
                 guard let name = entry.imageFile,
@@ -365,6 +372,7 @@ final class ClipboardHistoryService: ObservableObject {
         if entries[index].text == text { return true }
         let previousEntries = entries
         entries[index].text = text
+        entries[index].richTextFile = nil
         trimToLimit()
         guard let edited = entries.first(where: { $0.id == entry.id }),
               ClipboardHistoryEditing.preservesPinnedEntries(from: previousEntries, in: entries),
@@ -710,7 +718,7 @@ final class ClipboardHistoryService: ObservableObject {
         // that closes it may already have taken them away.
         let historyPanelIsKey = historyPanelClosing || panel?.isKeyWindow == true
         GeneralPasteboardAccess.shared.async(timeout: Self.pasteboardTimeout, { isExpired
-            -> (changeCount: Int, content: CapturedContent?, declaredSource: String?, remote: Bool)? in
+            -> (changeCount: Int, content: CapturedContent?, declaredSource: String?, remote: Bool, rich: Data?)? in
             let changeCount = NSPasteboard.general.changeCount
             guard !isExpired() else { return nil }
             // Read during a baseline too, not only on a detected change: a
@@ -722,9 +730,16 @@ final class ClipboardHistoryService: ObservableObject {
             let content: CapturedContent? = (baseline || changeCount != sinceChangeCount)
                 ? Self.readPasteboard(includeImagesFiles: includeImagesFiles)
                 : nil
+            var rich: Data?
+            if case .text = content {
+                rich = NSPasteboard.general.data(forType: .rtf).flatMap {
+                    $0.count <= ClipboardRichTextStore.maxBytes ? $0 : nil
+                }
+            }
             return (changeCount, content,
                     content == nil ? nil : NSPasteboard.general.string(forType: .source),
-                    content != nil && NSPasteboard.general.types?.contains(.remoteClipboard) == true)
+                    content != nil && NSPasteboard.general.types?.contains(.remoteClipboard) == true,
+                    rich)
         }, then: { [weak self] result in
             guard let self else { return }
             guard let result else {
@@ -792,7 +807,8 @@ final class ClipboardHistoryService: ObservableObject {
             case .transient: break
             case .files(let paths): self.promoteFiles(paths, source: source.bundleID, keepsSource: keepsSource)
             case .image(let image): self.promoteImage(image, source: source.bundleID, keepsSource: keepsSource)
-            case .text(let text): self.promote(text, source: source.bundleID, keepsSource: keepsSource)
+            case .text(let text):
+                self.promote(text, rich: result.rich, source: source.bundleID, keepsSource: keepsSource)
             }
         }, didFinish: { [weak self] _ in
             self?.captureState.finish()
@@ -957,7 +973,7 @@ final class ClipboardHistoryService: ObservableObject {
         return (scheme == "http" || scheme == "https") && url.host != nil
     }
 
-    private func promote(_ raw: String, source: String?, keepsSource: Bool) {
+    private func promote(_ raw: String, rich: Data? = nil, source: String?, keepsSource: Bool) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters else { return }
         if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText),
@@ -967,14 +983,18 @@ final class ClipboardHistoryService: ObservableObject {
 
         let existing = entries.first(where: { $0.kind == .text && $0.text == text })
         entries.removeAll { $0.kind == .text && $0.text == text }
+        // The formatting is the latest copy's: taken again as plain text,
+        // the entry drops what an earlier formatted copy left.
+        if let old = existing?.richTextFile { ClipboardRichTextStore.remove(named: old) }
         if let existing {
-            insertPromoted(ClipboardHistoryEntry(id: existing.id,
-                                                 text: text,
-                                                 copiedAt: Date(),
-                                                 pinnedAt: existing.pinnedAt),
-                           source: keepsSource ? existing.sourceBundleID : source)
+            var recopied = ClipboardHistoryEntry(id: existing.id, text: text, copiedAt: Date(),
+                                                 pinnedAt: existing.pinnedAt)
+            recopied.richTextFile = rich.flatMap { ClipboardRichTextStore.store($0, for: existing.id) }
+            insertPromoted(recopied, source: keepsSource ? existing.sourceBundleID : source)
         } else {
-            insertPromoted(ClipboardHistoryEntry(text: text), source: source)
+            var entry = ClipboardHistoryEntry(text: text)
+            entry.richTextFile = rich.flatMap { ClipboardRichTextStore.store($0, for: entry.id) }
+            insertPromoted(entry, source: source)
         }
         normalizeEntryOrder()
         trimToLimit()
@@ -1100,6 +1120,7 @@ final class ClipboardHistoryService: ObservableObject {
         // Sweep image files that lost their entry (crash between write and save).
         ClipboardImageStore.cleanup(keeping: Set(entries.compactMap(\.imageFile)),
                                     filePaths: Set(entries.flatMap(\.filePaths)))
+        ClipboardRichTextStore.cleanup(keeping: Set(entries.compactMap(\.richTextFile)))
         // A history read from the legacy blob migrates right away instead of
         // waiting for the next copy: launching once is enough to leave
         // UserDefaults behind.
@@ -1142,6 +1163,7 @@ final class ClipboardHistoryService: ObservableObject {
                     }
                     ClipboardImageStore.cleanup(keeping: Set(self.entries.compactMap(\.imageFile)),
                                                 filePaths: Set(self.entries.flatMap(\.filePaths)))
+                    ClipboardRichTextStore.cleanup(keeping: Set(self.entries.compactMap(\.richTextFile)))
                 }
             }
             guard let url = Self.storeURL else {
@@ -1257,7 +1279,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     func toggleHistoryWindow() {
         if NotchSupport.routesClipboardWindow(), NotchService.shared.showClipboard(toggle: true) { return }
-        if panel?.isVisible == true {
+        if panel?.isVisible == true, !shelfIsSlidingOut {
             hideHistoryWindow()
         } else {
             showHistoryWindow()
@@ -1280,8 +1302,50 @@ final class ClipboardHistoryService: ObservableObject {
         // hold the keys yet, so it keeps the app it came from.
         captureIfChanged()
         panel.alphaValue = 1
+        if quickLayout == .cards, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            slideShelf(panel, in: true)
+            return
+        }
+        shelfSlideGeneration += 1
+        shelfIsSlidingOut = false
         panel.orderFrontRegardless()
         panel.makeKey()
+    }
+
+    /// Bumped by every opening and closing, so a slide that finishes after a
+    /// newer one began leaves the window to the newer one.
+    private var shelfSlideGeneration = 0
+    private var shelfIsSlidingOut = false
+
+    /// The shelf rises from below the screen's bottom edge and sinks back
+    /// there. The window is placed fully off screen at the far end, so the
+    /// whole height travels.
+    private func slideShelf(_ panel: NSPanel, in comingIn: Bool) {
+        shelfSlideGeneration += 1
+        let generation = shelfSlideGeneration
+        shelfIsSlidingOut = !comingIn
+        let shown = panel.frame
+        let hidden = shown.offsetBy(dx: 0, dy: -(shown.height + 8))
+        (panel as? ClipboardShelfPanel)?.allowsFrameBelowScreen = true
+        if comingIn {
+            panel.setFrame(hidden, display: false)
+            panel.orderFrontRegardless()
+            panel.makeKey()
+        }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = comingIn ? 0.3 : 0.2
+            context.timingFunction = comingIn
+                ? CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+                : CAMediaTimingFunction(name: .easeIn)
+            panel.animator().setFrame(comingIn ? shown : hidden, display: true)
+        }, completionHandler: { [weak self, weak panel] in
+            guard let self, let panel, self.shelfSlideGeneration == generation else { return }
+            if !comingIn {
+                panel.orderOut(nil)
+                self.shelfIsSlidingOut = false
+            }
+            (panel as? ClipboardShelfPanel)?.allowsFrameBelowScreen = false
+        })
     }
 
     func hideHistoryWindow() {
@@ -1293,7 +1357,14 @@ final class ClipboardHistoryService: ObservableObject {
         // Ordering out keeps an open confirmation attached, and it would come
         // back with its old count the next time the window opens.
         if let panel, let sheet = panel.attachedSheet { panel.endSheet(sheet) }
-        panel?.orderOut(nil)
+        if let panel, panel.isVisible, quickLayout == .cards,
+           !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            if !shelfIsSlidingOut { slideShelf(panel, in: false) }
+        } else {
+            shelfSlideGeneration += 1
+            shelfIsSlidingOut = false
+            panel?.orderOut(nil)
+        }
         clearQuickBatchSelection()
     }
 
@@ -1352,11 +1423,11 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = OverlayPanel(contentRect: .zero,
-                                 styleMask: [.titled, .closable,
-                                             .fullSizeContentView, .nonactivatingPanel],
-                                 backing: .buffered,
-                                 defer: false)
+        let panel = ClipboardShelfPanel(contentRect: .zero,
+                                        styleMask: [.titled, .closable,
+                                                    .fullSizeContentView, .nonactivatingPanel],
+                                        backing: .buffered,
+                                        defer: false)
         panel.title = FeatureStrings.clipboard(L10n.shared.language).title
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
@@ -1422,19 +1493,30 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     /// Placed again on every open, so a changed display never strands it.
-    /// Cards make a shelf along the bottom of the screen the pointer is on.
-    /// The list is a window of the size the user last gave it, centered
-    /// toward the top.
+    /// Cards make a shelf along the bottom edge of the screen the pointer is
+    /// on, over the Dock. The list is a window of the size the user last gave
+    /// it, centered toward the top.
     private func position(_ panel: NSPanel) {
         let screen = NSScreen.pointerVisibleFrame
         switch quickLayout {
         case .cards:
             panel.styleMask.remove(.resizable)
-            panel.setFrame(NSRect(x: screen.minX + 16, y: screen.minY + 8,
-                                  width: screen.width - 32, height: min(318, screen.height - 16)),
+            // The Dock's level is below the main menu's.
+            panel.level = .mainMenu
+            // The shelf draws its own rounded glass or material; the window
+            // behind it stays clear so the desktop shows through the glass.
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            let full = NSScreen.pointerFrame
+            panel.setFrame(NSRect(x: full.minX + 8, y: full.minY + 8,
+                                  width: full.width - 16,
+                                  height: min(ClipboardHistoryWindowSizing.shelfHeight, screen.height - 16)),
                            display: true,
                            animate: false)
         case .list:
+            panel.level = .floating
+            panel.isOpaque = true
+            panel.backgroundColor = .windowBackgroundColor
             panel.styleMask.insert(.resizable)
             let size = preferredPanelSize(visibleFrame: screen)
             let x = screen.midX - size.width / 2
@@ -1466,6 +1548,12 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func installKeyMonitor(for panel: NSPanel) {
         removeKeyMonitor()
+        modifierMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self, weak panel] event in
+            guard let self, let panel, event.window === panel else { return event }
+            let held = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.command]
+            if held != self.quickCommandHeld { self.quickCommandHeld = held }
+            return event
+        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             // An open confirmation owns Return and Escape.
             guard let self, let panel, event.window === panel, panel.attachedSheet == nil else { return event }
@@ -1497,7 +1585,8 @@ final class ClipboardHistoryService: ObservableObject {
                 return nil
             }
             if event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
-                if modifiers == [.command] {
+                // The shelf chooses one card at a time.
+                if modifiers == [.command], self.quickLayout == .list {
                     self.toggleSelectedQuickEntryBatchSelection()
                     return nil
                 }
@@ -1521,7 +1610,7 @@ final class ClipboardHistoryService: ObservableObject {
                 self.copySelectedQuickEntryOnly()
                 return nil
             }
-            if modifiers == [.command], key == "a",
+            if modifiers == [.command], key == "a", self.quickLayout == .list,
                ClipboardHistoryBatch.listOwnsSelectAllShortcut(
                    batchCount: self.quickBatchCount,
                    queryIsEmpty: self.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
@@ -1557,7 +1646,7 @@ final class ClipboardHistoryService: ObservableObject {
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return event }
-            if event.window !== panel, !Self.mouseIsInside(panel) {
+            if !Self.window(event.window, belongsTo: panel), !Self.mouseIsInside(panel) {
                 self.hideHistoryWindow()
             }
             return event
@@ -1589,6 +1678,17 @@ final class ClipboardHistoryService: ObservableObject {
         panel.frame.insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
     }
 
+    /// The panel or a window it owns, such as a card's preview popover: a
+    /// click there is not a click away from the history.
+    private static func window(_ window: NSWindow?, belongsTo panel: NSPanel) -> Bool {
+        var current = window
+        while let candidate = current {
+            if candidate === panel { return true }
+            current = candidate.parent
+        }
+        return false
+    }
+
     private func removeDismissMonitors() {
         if let localClickMonitor {
             NSEvent.removeMonitor(localClickMonitor)
@@ -1609,11 +1709,36 @@ final class ClipboardHistoryService: ObservableObject {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
         }
+        if let modifierMonitor {
+            NSEvent.removeMonitor(modifierMonitor)
+            self.modifierMonitor = nil
+        }
+        quickCommandHeld = false
     }
 
     private func resetQuickSelection() {
         quickSelectionID = nil
-        quickSelectionIsVisible = false
+        // The shelf shows its first card chosen until a search starts: Space
+        // then types instead of previewing.
+        quickSelectionIsVisible = quickLayout == .cards && quickQuery.isEmpty
+    }
+
+    /// A click on a card of the shelf chooses it; a double click pastes.
+    func selectQuickEntry(_ entry: ClipboardHistoryEntry) {
+        // Each publish redraws the window; a click on the chosen card changes nothing.
+        if quickSelectionID != entry.id { quickSelectionID = entry.id }
+        if !quickSelectionIsVisible { quickSelectionIsVisible = true }
+    }
+
+    func previewQuickEntry(_ entry: ClipboardHistoryEntry) {
+        selectQuickEntry(entry)
+        setQuickPreviewPresented(true)
+    }
+
+    func openClipboardSettings() {
+        hideHistoryWindow()
+        SettingsRouter.shared.page = .clipboard
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
     }
 
     private var quickBatchEntries: [ClipboardHistoryEntry] {
@@ -1888,5 +2013,16 @@ private final class ClipboardPanelSizeLimit: NSObject, NSWindowDelegate {
             NSSize(width: max(minimum.width, frameSize.width),
                    height: max(minimum.height, frameSize.height)),
             visibleFrame: visibleFrame(sender))
+    }
+}
+
+/// AppKit keeps a titled window's frame on screen, which would cut the
+/// shelf's slide short at the bottom edge. The constraint is lifted only
+/// while the shelf slides.
+private final class ClipboardShelfPanel: OverlayPanel {
+    var allowsFrameBelowScreen = false
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        allowsFrameBelowScreen ? frameRect : super.constrainFrameRect(frameRect, to: screen)
     }
 }
