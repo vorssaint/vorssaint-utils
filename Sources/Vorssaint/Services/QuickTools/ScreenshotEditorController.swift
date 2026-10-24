@@ -1132,7 +1132,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// `includeShapeInteriors: false` is the creation-tap variant: area
     /// shapes (boxes, ellipses, highlights, censors) only answer near their
     /// edge, so their inside stays free for placing a new text, sticker or
-    /// counter — the tap that used to create one there must keep doing so.
+    /// counter: the tap that used to create one there must keep doing so.
     func hitTest(_ point: CGPoint, includeShapeInteriors: Bool = true) -> UUID? {
         let tolerance = 10 * scale
         for annotation in annotations.reversed() {
@@ -1814,7 +1814,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         pasteboard.clearContents()
         pasteboard.declareVorssaintSource()
         pasteboard.setString(text, forType: .string)
-        QuickToolHUD.show(icon: "text.viewfinder", message: L10n.shared.s.ocrCopied)
+        QuickToolHUD.show(icon: "text.viewfinder", message: L10n.shared.s.ocrCopied,
+                          detail: QuickToolsSupport.copiedTextPreview(text))
     }
 
     /// Shows the detected code's content in the shared result panel; the

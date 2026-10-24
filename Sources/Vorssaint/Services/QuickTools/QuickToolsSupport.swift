@@ -92,6 +92,45 @@ enum QuickToolsSupport {
 
     /// Joins recognized lines in natural reading order: top to bottom, left
     /// to right within the same visual row. Empty lines are dropped.
+    /// What a confirmation shows of copied text: its first lines with
+    /// anything in them, each trimmed, within about `rows` rows of
+    /// `rowLength` characters. A line that runs past the rows left, or text
+    /// that goes on after them, ends in an ellipsis. Nil when only
+    /// whitespace was copied, so an empty result never shows a preview.
+    static func copiedTextPreview(_ text: String, rows: Int = 3, rowLength: Int = 60) -> String? {
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !lines.isEmpty, rows > 0, rowLength > 1 else { return nil }
+        var remaining = rows
+        var shown: [String] = []
+        for line in lines {
+            guard remaining > 0 else { break }
+            let needed = (line.count + rowLength - 1) / rowLength
+            if needed <= remaining {
+                shown.append(line)
+                remaining -= needed
+            } else {
+                let kept = String(line.prefix(remaining * rowLength - 1))
+                shown.append(kept.trimmingCharacters(in: .whitespaces) + "…")
+                remaining = 0
+            }
+        }
+        if shown.count < lines.count, let last = shown.last, !last.hasSuffix("…") {
+            shown[shown.count - 1] = last + "…"
+        }
+        return shown.joined(separator: "\n")
+    }
+
+    /// The text a capture copies, and the other line-break choice when it
+    /// would copy something different, which the confirmation then offers.
+    static func recognizedTextVariants(_ lines: [RecognizedLine],
+                                       removingLineBreaks: Bool) -> (text: String, toggled: String?) {
+        let text = joinedRecognizedText(lines, removingLineBreaks: removingLineBreaks)
+        let toggled = joinedRecognizedText(lines, removingLineBreaks: !removingLineBreaks)
+        return (text, toggled == text ? nil : toggled)
+    }
+
     static func joinedRecognizedText(_ lines: [RecognizedLine],
                                      removingLineBreaks: Bool) -> String {
         let texts = lines
