@@ -10,7 +10,9 @@ struct BrightnessSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var presets = DisplayPresetService.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.displayPresetsEnabled) private var displayPresetsEnabled = true
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @State private var optionsExpanded = false
     var collapsible = true
@@ -61,6 +63,7 @@ struct BrightnessSection: View {
             .onAppear {
                 service.refresh()
                 service.refreshKeyboardLight()
+                presets.refresh()
             }
         }
     }
@@ -105,6 +108,12 @@ struct BrightnessSection: View {
                         .buttonStyle(.link)
                     }
                     DisplayBrightnessShortcutControls()
+                    Toggle(strings.presetsToggle, isOn: $displayPresetsEnabled)
+                        .onChange(of: displayPresetsEnabled) { _, _ in presets.refresh() }
+                    Text(strings.presetsCaption)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(.system(size: 11.5, weight: .medium))
                 .toggleStyle(.checkbox)
@@ -143,6 +152,7 @@ struct BrightnessSection: View {
                     .disabled(service.isDisplayPending(display.id))
                     .accessibilityLabel(display.name)
             }
+            DisplayPresetPicker(display: display, compact: true)
             SoftwareDimmingButton(display: display, compact: true)
         }
     }
@@ -254,6 +264,61 @@ struct SoftwareDimmingButton: View {
             .disabled(service.isDisplayPending(display.id))
             .accessibilityLabel("\(display.name): \(usesExtendedDimming ? strings.extendedDimming : strings.softwareDimming)")
         }
+    }
+}
+
+/// Preset menu for a display that offers presets (XDR panels, the Studio
+/// Display), on every surface that shows the display rows once "Show display
+/// presets" is on. It mirrors the Preset menu in System Settings > Displays,
+/// including the separators between Apple, reference and custom presets.
+struct DisplayPresetPicker: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = DisplayPresetService.shared
+    @AppStorage(DefaultsKey.displayPresetsEnabled) private var enabled = true
+    let display: BrightnessDisplay
+    var compact = false
+
+    private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
+
+    var body: some View {
+        if enabled, display.isActive, let list = service.lists[display.id] {
+            HStack(spacing: compact ? 6 : 8) {
+                Text(strings.preset)
+                    .font(.system(size: compact ? 10.5 : 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Picker(strings.preset, selection: selection(list)) {
+                    // A preset outside the menu is active (or none could be
+                    // read): the menu shows a dash rather than a blank.
+                    if list.activeIndex == nil, !service.isPending(display.id) {
+                        Text(verbatim: "–").tag(Int?.none)
+                        Divider()
+                    }
+                    ForEach(Array(list.groups.enumerated()), id: \.offset) { offset, group in
+                        if offset > 0 { Divider() }
+                        ForEach(group) { preset in
+                            Text(preset.name).tag(Int?.some(preset.index))
+                        }
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .controlSize(compact ? .small : .regular)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .disabled(service.isPending(display.id))
+                .accessibilityLabel("\(display.name): \(strings.preset)")
+                if service.isPending(display.id) {
+                    ProgressView().controlSize(.mini)
+                }
+            }
+        }
+    }
+
+    private func selection(_ list: DisplayPresetList) -> Binding<Int?> {
+        Binding(get: { service.pendingSelections[display.id] ?? list.activeIndex },
+                set: { index in
+                    if let index { service.select(index, for: display.id) }
+                })
     }
 }
 
