@@ -105,6 +105,7 @@ enum AgentUsageReadTests {
         catch { suite.expect(false, "the streaming fixture creates its folder: \(error)"); return }
         let now = Date()
         let timestamp = now.timeIntervalSince1970
+        let iso = ISO8601DateFormatter().string(from: now)
         let cases: [(AgentProvider, [String])] = [
             (.claude, [
                 #"{"type":"user","timestamp":\#(timestamp),"sessionId":"s","message":{"content":"work"}}"#,
@@ -129,6 +130,20 @@ enum AgentUsageReadTests {
                 #"{"id":"end","timestamp":\#(timestamp),"type":"assistant.turn_end","data":{"turnId":"0"}}"#,
                 #"{"id":"usage","timestamp":\#(timestamp),"type":"session.shutdown","data":{"modelMetrics":{"gpt-6-sol":{"requests":{"count":1},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":20},"cache_write":{"tokenCount":0},"output":{"tokenCount":5}},"usage":{"reasoningTokens":2}}}}}"#,
                 #"{"id":"final-checkpoint","timestamp":\#(timestamp),"type":"session.usage_checkpoint","data":{}}"#
+            ]),
+            (.pi, [
+                #"{"type":"session","version":3,"id":"s","timestamp":"\#(iso)","cwd":"/tmp/example"}"#,
+                #"{"type":"message","id":"a1","timestamp":"\#(iso)","message":{"role":"user","content":"work"}}"#,
+                #"{"type":"message","id":"a2","timestamp":"\#(iso)","message":{"role":"assistant","model":"gpt-6-astra","stopReason":"toolUse","usage":{"input":10,"output":2,"cacheRead":0,"cacheWrite":0,"reasoning":0}}}"#,
+                #"{"type":"message","id":"a3","timestamp":"\#(iso)","message":{"role":"assistant","model":"gpt-6-astra","stopReason":"stop","usage":{"input":3,"output":7,"cacheRead":0,"cacheWrite":0,"reasoning":0}}}"#
+            ]),
+            (.omp, [
+                #"{"type":"session","version":3,"id":"s","timestamp":"\#(iso)","cwd":"/tmp/example"}"#,
+                #"{"type":"model_change","model":"openai/gpt-6-astra"}"#,
+                #"{"type":"message","id":"a1","timestamp":"\#(iso)","message":{"role":"user","content":"work"}}"#,
+                #"{"type":"message","id":"a2","timestamp":"\#(iso)","message":{"role":"assistant","stopReason":"toolUse","usage":{"input":10,"output":2,"reasoningTokens":1}}}"#,
+                #"{"type":"model_usage","id":"m1","purpose":"session-title","timestamp":"\#(iso)","model":"auxiliary-model","usage":{"input":3,"output":2,"cost":{"total":0.001}}}"#,
+                #"{"type":"message","id":"a3","timestamp":"\#(iso)","message":{"role":"assistant","stopReason":"stop","usage":{"input":3,"output":7}}}"#
             ])
         ]
         for (provider, lines) in cases {
@@ -145,6 +160,7 @@ enum AgentUsageReadTests {
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+                case .pi, .omp: entries += AgentLogParser.parsePi(line, state: &cursor.state, now: now, provider: provider)
                 }
             }
             if provider == .copilot {
