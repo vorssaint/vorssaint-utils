@@ -950,6 +950,9 @@ enum ClipboardFeatureTests {
                    && !clipboardStrings.historyLayoutList.isEmpty
                    && clipboardStrings.historyLayoutCards != clipboardStrings.historyLayoutList,
                    "\(language.rawValue) clipboard history layout choice is localized")
+            suite.expect(!clipboardStrings.historyOpensIn.isEmpty
+                   && clipboardStrings.historyOpensIn != clipboardStrings.historyLayout,
+                   "\(language.rawValue) clipboard history destination choice is localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty

@@ -212,6 +212,7 @@ extension ClipboardFeatureStrings {
         clearRecentConfirmMessage: "고정된 항목과 이후에 복사한 내용은 유지됩니다. 되돌릴 수 없습니다.",
         historyLayout: "기록 레이아웃",
         historyLayoutCards: "카드",
+        historyOpensIn: "기록을 열 위치",
         historyLayoutList: "목록"
     )
 }
@@ -536,6 +537,7 @@ struct ClipboardFeatureStrings {
     let clearRecentConfirmMessage: String
     let historyLayout: String
     let historyLayoutCards: String
+    let historyOpensIn: String
     let historyLayoutList: String
 
     static let enUS = ClipboardFeatureStrings(
@@ -600,6 +602,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Pinned items stay, and so does anything copied after this. This can’t be undone.",
         historyLayout: "History layout",
         historyLayoutCards: "Cards",
+        historyOpensIn: "Open history in",
         historyLayoutList: "List"
     )
 
@@ -665,6 +668,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Os itens fixados ficam, e o que for copiado depois disso também. Não dá para desfazer.",
         historyLayout: "Layout do histórico",
         historyLayoutCards: "Cartões",
+        historyOpensIn: "Abrir o histórico em",
         historyLayoutList: "Lista"
     )
 
@@ -730,6 +734,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Sabitlenen öğeler ve bundan sonra kopyalananlar kalır. Bu işlem geri alınamaz.",
         historyLayout: "Geçmiş yerleşimi",
         historyLayoutCards: "Kartlar",
+        historyOpensIn: "Geçmişi şurada aç",
         historyLayoutList: "Liste"
     )
 
@@ -795,6 +800,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Закреплённые останутся, как и всё, что скопировано после этого. Отменить нельзя.",
         historyLayout: "Макет истории",
         historyLayoutCards: "Карточки",
+        historyOpensIn: "Открывать историю в",
         historyLayoutList: "Список"
     )
 
@@ -860,6 +866,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Los fijados se conservan, y también lo que copies después. No se puede deshacer.",
         historyLayout: "Diseño del historial",
         historyLayoutCards: "Tarjetas",
+        historyOpensIn: "Abrir el historial en",
         historyLayoutList: "Lista"
     )
 
@@ -925,6 +932,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Pripnuté položky zostanú, rovnako ako všetko, čo skopírujete potom. Nedá sa to vrátiť späť.",
         historyLayout: "Rozloženie histórie",
         historyLayoutCards: "Karty",
+        historyOpensIn: "Otvárať históriu v",
         historyLayoutList: "Zoznam"
     )
 
@@ -990,6 +998,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Angeheftete bleiben, ebenso alles, was du danach kopierst. Das lässt sich nicht widerrufen.",
         historyLayout: "Verlaufslayout",
         historyLayoutCards: "Karten",
+        historyOpensIn: "Verlauf öffnen in",
         historyLayoutList: "Liste"
     )
 
@@ -1055,6 +1064,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Les éléments épinglés restent, comme tout ce qui sera copié ensuite. Action irréversible.",
         historyLayout: "Disposition de l’historique",
         historyLayoutCards: "Cartes",
+        historyOpensIn: "Ouvrir l’historique dans",
         historyLayoutList: "Liste"
     )
 
@@ -1120,6 +1130,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Gli elementi fissati restano, come tutto ciò che copi dopo. Non si può annullare.",
         historyLayout: "Layout cronologia",
         historyLayoutCards: "Schede",
+        historyOpensIn: "Apri la cronologia in",
         historyLayoutList: "Elenco"
     )
 
@@ -1185,6 +1196,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "固定済みの項目と、このあとにコピーした内容は残ります。元に戻せません。",
         historyLayout: "履歴のレイアウト",
         historyLayoutCards: "カード",
+        historyOpensIn: "履歴を開く場所",
         historyLayoutList: "リスト"
     )
 
@@ -1250,6 +1262,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已固定的项目和此后拷贝的内容会保留。此操作无法撤销。",
         historyLayout: "历史布局",
         historyLayoutCards: "卡片",
+        historyOpensIn: "历史打开位置",
         historyLayoutList: "列表"
     )
 
@@ -1315,6 +1328,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。",
         historyLayout: "剪貼簿紀錄佈局",
         historyLayoutCards: "卡片",
+        historyOpensIn: "剪貼簿紀錄開啟位置",
         historyLayoutList: "列表"
     )
 
@@ -1380,6 +1394,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。",
         historyLayout: "剪貼簿記錄佈局",
         historyLayoutCards: "卡片",
+        historyOpensIn: "剪貼簿記錄開啟位置",
         historyLayoutList: "列表"
     )
 }
@@ -3250,6 +3265,7 @@ extension ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Закріплені залишаться, як і все, що скопійовано після цього. Скасувати не можна.",
         historyLayout: "Розкладка історії",
         historyLayoutCards: "Картки",
+        historyOpensIn: "Відкривати історію в",
         historyLayoutList: "Список"
     )
 }

@@ -18,6 +18,7 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryIncludeImagesFiles) private var includeImagesFiles = true
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.clipboardHistoryLayout) private var historyLayout = ClipboardHistoryLayout.list
+    @AppStorage(DefaultsKey.notchClipboardWindow) private var historyOpensInIsland = true
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreview) private var menuBarPreview = false
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreviewLength)
     private var menuBarPreviewLength = Defaults.defaultClipboardMenuBarPreviewLength
@@ -209,6 +210,17 @@ struct ClipboardSettings: View {
                 Text(text.historyLayoutCards).tag(ClipboardHistoryLayout.cards)
             }
             .pickerStyle(.segmented)
+            // With the island's clipboard page on, the shortcut opens that page
+            // or this layout. The island's settings make the same choice, but
+            // whoever picks a layout here should not have to find it there.
+            if NotchSupport.isEnabled(), NotchSupport.modules().contains(.clipboard) {
+                Picker(text.historyOpensIn, selection: $historyOpensInIsland) {
+                    Text(FeatureStrings.notch(l10n.language).title).tag(true)
+                    Text(historyLayout == .cards ? text.historyLayoutCards : text.historyLayoutList)
+                        .tag(false)
+                }
+                .pickerStyle(.segmented)
+            }
             Button {
                 ClipboardHistoryService.shared.showHistoryWindow()
             } label: {
