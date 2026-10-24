@@ -93,6 +93,23 @@ extension FeatureStrings {
             optimizeMedia: "Optimalizovať médiá",
             optimizeDropHint: "Presuňte obrázky alebo jedno video na Dynamic Island a pustite ich na Optimalizovať médiá, aby ste vybrali spôsob uloženia kópie.",
             resumeMedia: "Späť na médiá")
+        case .cs: return NotchFilesStrings(
+            archive: "Vytvořit ZIP",
+            archiveHint: "Každá vybraná položka se uloží jako samostatný ZIP. Originály zůstanou beze změny.",
+            saved: "Uloženo",
+            downloadsTitle: "Staženo",
+            downloadsDescription: "Sledujte soubory přicházející do vybrané složky přímo v Dynamic Island.",
+            downloadsHint: "Vyberte složku, kam váš prohlížeč ukládá stažené soubory. Sleduje se pouze tato složka.",
+            chooseFolder: "Vybrat složku…",
+            folderUnavailable: "Tato složka není dostupná. Vyberte ji znovu, abyste obnovili přístup.",
+            waiting: "V této složce nejsou žádné soubory",
+            inProgress: "Stahování",
+            totalUnknown: "Celková velikost není dostupná",
+            completed: "Stahování dokončeno",
+            clearFolder: "Zapomenout složku",
+            optimizeMedia: "Optimalizovat média",
+            optimizeDropHint: "Přetáhněte obrázky nebo jedno video na Dynamic Island a pusťte je na Optimalizovat média, abyste vybrali způsob uložení kopie.",
+            resumeMedia: "Zpět na média")
         case .de: return NotchFilesStrings(
             archive: "ZIP erstellen",
             archiveHint: "Jedes ausgewählte Objekt wird als eigene ZIP-Datei gesichert. Die Originale bleiben erhalten.",

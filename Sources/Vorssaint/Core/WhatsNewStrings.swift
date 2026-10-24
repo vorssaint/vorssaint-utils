@@ -111,6 +111,20 @@ extension FeatureStrings {
                 skipPreviewCheckbox: "Nezobrazovať novinky pred aktualizáciou",
                 showPreviewToggle: "Zobrazovať novinky pred aktualizáciou",
                 showPreviewCaption: "Zmeny vo vašich funkciách sa budú naďalej zobrazovať po každej aktualizácii.")
+        case .cs:
+            return WhatsNewStrings(
+                updatedFromFormat: "Aktualizováno z verze %@",
+                newFeatures: "Nové funkce",
+                yourFeatures: "Vaše funkce",
+                notInstalled: "Nenainstalováno",
+                kindNew: "Nové",
+                kindChanged: "Změněno",
+                kindFixed: "Opraveno",
+                updated: "Aktualizováno",
+                chooseFeatureHint: "Vyberte funkci a podívejte se, co se v ní změnilo.",
+                skipPreviewCheckbox: "Nezobrazovat novinky před aktualizací",
+                showPreviewToggle: "Zobrazovat novinky před aktualizací",
+                showPreviewCaption: "Změny ve vašich funkcích se budou nadále zobrazovat po každé aktualizaci.")
         case .de:
             return WhatsNewStrings(
                 updatedFromFormat: "Aktualisiert von Version %@",

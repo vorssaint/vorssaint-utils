@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -223,6 +224,34 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Spustiť šetrič obrazovky",
         screenSaverCaption: "Spustí sa hneď, na všetkých displejoch.",
         actionFailed: "Nepodarilo sa dokončiť."
+    )
+
+    static let cs = QuickToggleFeatureStrings(
+        pageTitle: "Rychlé přepínače",
+        hubDescription: "Akce na jedno kliknutí, jako tmavý režim a Koš",
+        panelCaption: "Systémové akce na jedno kliknutí v panelu na liště a v rychlém panelu.",
+        darkModeToDark: "Přepnout na tmavý režim",
+        darkModeToLight: "Přepnout na světlý režim",
+        darkModeCaption: "Změní vzhled celého systému.",
+        emptyTrashTitle: "Vysypat Koš",
+        emptyTrashCaption: "Odstraní vše z Koše.",
+        emptyTrashConfirmTitle: "Vysypat Koš?",
+        emptyTrashConfirmMessage: "Všechny položky v Koši budou odstraněny. Tuto akci nelze vrátit zpět.",
+        emptyTrashConfirmButton: "Vysypat Koš",
+        ejectTitle: "Vysunout všechny disky",
+        ejectCaption: "Bezpečně vysune každý externí disk.",
+        hiddenFilesShow: "Zobrazit skryté soubory",
+        hiddenFilesHide: "Skrýt skryté soubory",
+        desktopIconsHide: "Skrýt ikony na ploše",
+        desktopIconsShow: "Zobrazit ikony na ploše",
+        finderRestartCaption: "Finder se restartuje, aby změnu použil.",
+        lockScreenTitle: "Zamknout obrazovku",
+        lockScreenCaption: "Při návratu požádá o heslo.",
+        displayOffTitle: "Vypnout displej",
+        displayOffCaption: "Mac běží dál i s vypnutou obrazovkou.",
+        screenSaverTitle: "Spustit spořič obrazovky",
+        screenSaverCaption: "Spustí se hned, na všech displejích.",
+        actionFailed: "Nepodařilo se dokončit."
     )
 
     static let de = QuickToggleFeatureStrings(

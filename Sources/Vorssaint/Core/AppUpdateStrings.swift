@@ -67,6 +67,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -403,6 +404,60 @@ extension AppUpdateStrings {
         noVisibleUpdates: "Žiadne aktualizácie mimo vašich pravidiel",
         uncomparableVersions: "Verzie neboli porovnané",
         uncomparableVersionsNote: "Aktualizácia sa nezobrazí, keď verziu, ktorú aplikácia uvádza, nemožno porovnať s katalógom. Aktualizácie skontrolujte priamo v aplikácii."
+    )
+
+    static let cs = AppUpdateStrings(
+        pageTitle: "Aktualizace aplikací",
+        hubDescription: "Vyhledejte a nainstalujte aktualizace svých aplikací",
+        caption: "Hledá novější verze aplikací na tomto Macu a pomůže vám dokončit každou aktualizaci z jejího původního zdroje.",
+        panelCaption: "Zjistěte, které aplikace mají novější verzi",
+        checkNow: "Zkontrolovat nyní",
+        checking: "Probíhá kontrola",
+        lastCheckFormat: "Poslední kontrola %@",
+        neverChecked: "Zatím nezkontrolováno",
+        upToDate: "Nebyly nalezeny žádné aktualizace",
+        partialUpToDate: "Při této částečné kontrole nebyly nalezeny žádné aktualizace",
+        coverageNote: "Kontroluje původní zdroje nainstalovaných aplikací a veřejný katalog. Aktualizace se instalují přes původní zdroj.",
+        selectAll: "Vybrat vše",
+        clearSelection: "Zrušit výběr",
+        updateSelectedFormat: "Aktualizovat %d",
+        updateOne: "Aktualizovat",
+        openAppStore: "Otevřít App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Otevře App Store, kde se tato aktualizace nainstaluje",
+        frequencyLabel: "Kontrolovat na pozadí",
+        frequencyOff: "Vypnuto",
+        frequencyDaily: "Každý den",
+        frequencyWeekly: "Každý týden",
+        nextCheckFormat: "Další kontrola %@",
+        notifyToggle: "Upozornit mě, když má aplikace aktualizaci",
+        includeStoreToggle: "Zahrnout aplikace z App Storu",
+        includeStoreCaption: "Kontroluje verze v obchodě podle regionu tohoto Macu. Tyto aktualizace instaluje Apple.",
+        packageMissing: "Homebrew není nainstalovaný, takže aplikace odsud zatím nelze aktualizovat.",
+        notificationBodyFormat: "Počet aplikací s novější verzí: %@.",
+        notificationBodyOne: "Jedna aplikace má novější verzi.",
+        showInPanel: "Zobrazit v panelu",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Zdroje",
+        includeHomebrewToggle: "Zahrnout aplikace Homebrew",
+        onlineBadge: "Online",
+        openApp: "Otevřít",
+        openAppHint: "Otevře aplikaci, aby její vlastní aktualizátor mohl dokončit aktualizaci",
+        includeOnlineToggle: "Zahrnout ostatní nainstalované aplikace",
+        includeOnlineCaption: "Kde je to podporováno, kontroluje přímo u vývojářů a doplňuje to veřejným katalogem. Aktualizaci instaluje samotná aplikace.",
+        incompleteCheck: "Kontrola nedokončena",
+        onlineUnavailable: "Online kontrolu se nepodařilo dokončit. Ostatní výsledky se i tak zobrazují.",
+        skipVersionFormat: "Přeskočit verzi %@",
+        excludeApp: "Nekontrolovat tuto aplikaci",
+        rulesTitle: "Výjimky aktualizací",
+        addException: "Přidat aplikaci, která se nemá kontrolovat",
+        skippedVersionFormat: "Přeskočená verze %@",
+        excludedApp: "Nekontroluje se do odstranění pravidla",
+        removeRule: "Odstranit",
+        rulesHint: "Přeskočení verze neskryje novější vydání. Po odstranění výjimky obnovte seznam přes Zkontrolovat nyní.",
+        noVisibleUpdates: "Žádné aktualizace mimo vaše pravidla",
+        uncomparableVersions: "Verze nebyly porovnány",
+        uncomparableVersionsNote: "Aktualizace se nezobrazí, když verzi, kterou aplikace uvádí, nelze porovnat s katalogem. Aktualizace zkontrolujte přímo v aplikaci."
     )
 
     static let de = AppUpdateStrings(
