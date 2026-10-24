@@ -632,7 +632,8 @@ enum CommandBarCatalog {
                 subtitle: togglesArea,
                 icon: .symbol("trash"),
                 trouble: automationDenied ? .needsPermission : nil,
-                confirmationPrompt: togglesText.emptyTrashConfirmTitle,
+                confirmationPrompt: toggles.finderWarnsBeforeEmptyingTrash
+                    ? togglesText.emptyTrashConfirmTitle : nil,
                 run: { _ in QuickTogglesService.shared.emptyTrashConfirmed() }))
         }
 
