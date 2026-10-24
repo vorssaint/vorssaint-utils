@@ -46,6 +46,38 @@ struct NotchCalendarStrings {
 extension FeatureStrings {
     static func notchCalendar(_ language: AppLanguage) -> NotchCalendarStrings {
         switch language {
+        case .sv: return NotchCalendarStrings(
+            title: "Kalender",
+            description: "Bläddra bland månaden och dina kommande möten i Dynamic Island.",
+            permission: "Läs dina kalendrar för att visa kommande möten. Händelserna stannar på den här datorn.",
+            allow: "Tillåt kalenderåtkomst",
+            denied: "Tillåt kalenderåtkomst i Systeminställningar för att se dina möten.",
+            settings: "Öppna systeminställningar",
+            empty: "Inga kommande möten",
+            next: "Härnäst",
+            ongoing: "Pågår nu",
+            allDay: "Hela dagen",
+            untitled: "Namnlös händelse",
+            openCalendar: "Öppna Kalender",
+            week: "Kommande 7 dagar",
+            today: "I dag",
+            requestFailed: "Kunde inte begära kalenderåtkomst. Försök igen.",
+            previousMonth: "Föregående månad",
+            nextMonth: "Nästa månad",
+            previousWeek: "Föregående vecka",
+            nextWeek: "Nästa vecka",
+            month: "Månad",
+            emptyDay: "Inga möten den här dagen",
+            hasEvents: "Har möten",
+            countdown: "Nedräkning till händelse",
+            countdownHint: "Visa varje tidsbestämd händelse i den stängda ön under timmen innan den börjar. Om du bara vill räkna ned till vissa händelser stänger du av detta och högerklickar på dem på öns kalendersida. Titlar kan visas i skärminspelningar.",
+            addCountdown: "Lägg till nedräkning",
+            removeCountdown: "Ta bort nedräkning",
+            timeLeft: "Återstående tid i pågående händelse",
+            timeLeftHint: "Visa en pågående tidsbestämd händelse i den stängda ön under timmen innan den slutar. Titeln kan visas i skärminspelningar.",
+            weekNumbers: "Veckonummer",
+            weekNumber: "Vecka %d",
+            calendars: "Visade kalendrar")
         case .enUS: return NotchCalendarStrings(
             title: "Calendar",
             description: "Browse the month and your upcoming appointments in the Dynamic Island.",

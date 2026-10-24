@@ -18,6 +18,7 @@ struct CPUCoreFeatureStrings {
 extension FeatureStrings {
     static func cpuCores(_ language: AppLanguage) -> CPUCoreFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -37,6 +38,14 @@ extension FeatureStrings {
 }
 
 extension CPUCoreFeatureStrings {
+    static let sv = CPUCoreFeatureStrings(
+        title: "Logiska CPU-kärnor",
+        coreFormat: "Kärna %d",
+        hint: "Varje stapel är en logisk kärna. Fyllnadens höjd visar användningen, inte återstående prestanda.",
+        superCores: "Super", performanceCores: "Prestanda", efficiencyCores: "Energieffektiva",
+        apps: "Appar som använder CPU", perCore: "Per kärna"
+    )
+
     static let enUS = CPUCoreFeatureStrings(
         title: "Logical CPU cores",
         coreFormat: "Core %d",

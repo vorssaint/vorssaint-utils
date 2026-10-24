@@ -1,0 +1,24 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint använder Automatisering för att flytta filer, skicka objekt till papperskorgen, öppna begärda kommandon och styra uppspelning i dina medieappar.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint använder ljudet från varje app för att justera dess volym i mixern, flytta Dynamic Islands musikstaplar och ta med ljudet från din Mac i skärminspelningarna som du startar. Inget lämnar din Mac.";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint använder Bluetooth endast för att läsa batterinivån för ansluten kringutrustning. Inget lämnar din Mac.";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Vorssaint spelar bara in mikrofonen när du aktiverar den för en skärminspelning. Ljudet stannar på din Mac om du inte väljer att skapa en tillfällig länk.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint visar bara kameran i förhandsvisningsfönstret som du öppnar, så att du kan kontrollera hur du ser ut före ett samtal. Inget spelas in och inget lämnar din Mac.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint kontrollerar lokala metadata i Hämtade filer för att bara granska, organisera eller flytta bekräftade WhatsApp-filer som du väljer till papperskorgen. Rensning letar också efter bortglömda skärmavbilder när du sparar dem här.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint organiserar bekräftade WhatsApp-hämtningar i en målmapp som du uttryckligen väljer. Rensning letar också efter bortglömda skärmavbilder när du sparar dem här.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint organiserar bekräftade WhatsApp-hämtningar i en målmapp som du uttryckligen väljer. Rensning letar också efter bortglömda skärmavbilder när du sparar dem här.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint organiserar bekräftade WhatsApp-hämtningar i en målmapp som du uttryckligen väljer. Rensning letar också efter bortglömda skärmavbilder när du sparar dem här.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint organiserar bekräftade WhatsApp-hämtningar i en målmapp som du uttryckligen väljer. Rensning letar också efter bortglömda skärmavbilder när du sparar dem här.";
+"NSCalendarsFullAccessUsageDescription" = "Visa dina kommande möten högst upp på skärmen. Kalenderhändelser stannar på den här Macen.";

@@ -12,6 +12,13 @@ struct ShelfPromiseDeliveryStrings {
 
     static func localized(_ language: AppLanguage) -> ShelfPromiseDeliveryStrings {
         switch language {
+        case .sv:
+            return .init(
+                failedTitle: "Kunde inte lägga till bilagan",
+                failedBody: "Filen blev aldrig färdigsparad på hyllan.",
+                fullTitle: "Shelf is full",
+                fullBody: "Bilagan sparades färdigt men det finns inget utrymme kvar på hyllan.",
+                okButton: "OK")
         case .enUS:
             return .init(
                 failedTitle: "Couldn’t add attachment",
