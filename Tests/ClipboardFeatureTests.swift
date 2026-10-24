@@ -18,6 +18,7 @@ enum ClipboardFeatureTests {
     final class PanelPlacementHost {
         enum Screen {
             static let pointerVisibleFrame = CGRect(x: 0, y: 25, width: 1512, height: 920)
+            static let pointerFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
         }
         typealias NSScreen = Screen
         enum UserDefaults {
@@ -435,6 +436,96 @@ enum ClipboardFeatureTests {
         suite.expect(searchCache.foldCount == initialFoldCount,
                      "keystrokes reuse folded entries without refolding a single one")
 
+        // Groups: a stored list that cannot wedge the shelf, and membership
+        // that travels with the entry and ends with its pin.
+        let work = ClipboardPinboard(name: "  Work  ", tint: .green)
+        let stored = ClipboardPinboard.encodedList([work, work,
+                                                    ClipboardPinboard(name: "   ", tint: .red)])
+        let groups = ClipboardPinboard.decodedList(stored)
+        suite.expect(groups.count == 1 && groups.first?.name == "Work" && groups.first?.tint == .green,
+               "stored groups drop repeats and nameless entries and trim their names")
+        suite.expect(ClipboardPinboard.decodedList(#"[{"id":"\#(work.id.uuidString)","name":"A","tint":"chartreuse"}]"#)
+                        .first?.tint == .blue
+                && ClipboardPinboard.decodedList("junk").isEmpty
+                && ClipboardPinboard.decodedList(nil).isEmpty,
+               "an unknown color reads as blue and a broken list as no groups")
+        let many = (0..<40).map { ClipboardPinboard(name: "G\($0)", tint: .gray) }
+        suite.expect(ClipboardPinboard.decodedList(ClipboardPinboard.encodedList(many)).count == ClipboardPinboard.limit
+                && ClipboardPinboard.sanitizedName(String(repeating: "x", count: 90))?.count
+                    == ClipboardPinboard.nameLimit,
+               "groups and their names stay within their limits")
+        suite.expect(ClipboardPinboard.nextTint(after: []) != ClipboardPinboard.nextTint(after: [work]),
+               "a new group takes the next color")
+        var filed = ClipboardHistoryEntry(text: "Filed", pinnedAt: Date())
+        filed.pinboardID = work.id
+        let reread = (try? JSONEncoder().encode(filed)).flatMap {
+            try? JSONDecoder().decode(ClipboardHistoryEntry.self, from: $0)
+        }
+        suite.expect(reread?.pinboardID == work.id,
+               "an entry keeps its group through the saved history")
+        suite.expect(ClipboardHistoryEditing.unpinned(filed).pinboardID == nil,
+               "unpinning an entry takes it out of its group")
+        let legacy = #"{"id":"\#(UUID().uuidString)","text":"old","copiedAt":0}"#
+        suite.expect((try? JSONDecoder().decode(ClipboardHistoryEntry.self,
+                                                from: Data(legacy.utf8)))?.pinboardID == nil,
+               "a history written before groups still decodes")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.clipboardPinboards),
+               "the group list travels with a settings backup")
+        // The shelf's tabs turn with Tab and Shift-Tab, and with Command and a
+        // side arrow while nothing is typed; the list has no tabs.
+        func tabStep(_ key: Int, _ modifiers: NSEvent.ModifierFlags, layout: ClipboardHistoryLayout = .cards,
+                     query: Bool = false) -> Int? {
+            ClipboardHistoryNavigation.pinboardStep(keyCode: UInt16(key), modifiers: modifiers,
+                                                    layout: layout, queryIsEmpty: !query)
+        }
+        suite.expect(tabStep(kVK_Tab, []) == 1 && tabStep(kVK_Tab, [.shift]) == -1
+                && tabStep(kVK_RightArrow, [.command]) == 1 && tabStep(kVK_LeftArrow, [.command]) == -1,
+               "Tab, Shift-Tab and Command-arrows turn the shelf's tabs")
+        suite.expect(tabStep(kVK_LeftArrow, [.command], query: true) == nil
+                && tabStep(kVK_RightArrow, []) == nil
+                && tabStep(kVK_Tab, [], layout: .list) == nil,
+               "a typed search keeps Command-arrows for its caret, plain arrows walk cards, the list has no tabs")
+        // What the user gave an entry is theirs, so a copy taken again keeps it.
+        var named = ClipboardHistoryEntry(text: "Named", pinnedAt: Date())
+        named.pinboardID = UUID()
+        let recopied = ClipboardHistoryEditing.keepingUserChoices(
+            of: named, in: ClipboardHistoryEntry(id: named.id, text: "Named", pinnedAt: named.pinnedAt))
+        suite.expect(recopied.pinboardID == named.pinboardID, "a copy taken again keeps its group")
+        suite.expect(ClipboardHistoryEditing.keepingUserChoices(
+                        of: named, in: ClipboardHistoryEntry(id: named.id, text: "Named")).pinboardID == nil,
+               "only a pinned entry stays in a group")
+        // A card shows a link only for an entry that is one web address.
+        suite.expect(ClipboardHistoryEntry(text: "  https://example.com/home  ").linkURL?.host == "example.com"
+                && ClipboardHistoryEntry(text: "http://example.com/a?b=c").linkURL != nil,
+               "a copied web address reads as a link")
+        suite.expect(ClipboardHistoryEntry(text: "see https://example.com").linkURL == nil
+                && ClipboardHistoryEntry(text: "file:///Users/me/notes.txt").linkURL == nil
+                && ClipboardHistoryEntry(text: "mailto:me@example.com").linkURL == nil
+                && ClipboardHistoryEntry(text: "https://").linkURL == nil
+                && ClipboardHistoryEntry(text: "https://example.com", kind: .files,
+                                         filePaths: ["/tmp/a"]).linkURL == nil,
+               "text around an address, other schemes and non-text entries are not links")
+        // The header takes an icon's vivid color, never its gray or white,
+        // and stays dark enough for white text.
+        func pixels(_ rgba: [(UInt8, UInt8, UInt8, UInt8)]) -> [UInt8] {
+            rgba.flatMap { [$0.0, $0.1, $0.2, $0.3] }
+        }
+        let greenIcon = pixels(Array(repeating: (40, 200, 70, 255), count: 30)
+                               + Array(repeating: (250, 250, 250, 255), count: 30)
+                               + Array(repeating: (0, 0, 0, 0), count: 40))
+        if let tint = ClipboardCardTint.headerColor(rgba: greenIcon) {
+            suite.expect(tint.green > tint.red && tint.green > tint.blue,
+                   "an icon's vivid color wins over its white")
+        } else {
+            suite.expect(false, "an icon with a vivid color yields a header color")
+        }
+        let grayIcon = pixels(Array(repeating: (128, 128, 128, 255), count: 100))
+        suite.expect(ClipboardCardTint.headerColor(rgba: grayIcon) == nil,
+               "a gray icon has no color, so the card falls back to its kind's")
+        let yellow = ClipboardCardTint.readable(ClipboardCardTint.RGB(red: 1, green: 0.85, blue: 0.1))
+        suite.expect(0.2126 * yellow.red + 0.7152 * yellow.green + 0.0722 * yellow.blue <= 0.6201
+                && yellow.red > yellow.green && yellow.green > yellow.blue,
+               "a light color darkens for white text and keeps its hue")
         let newEntry = ClipboardHistoryEntry(text: "Brand new clipboard item")
         testEntries.append(newEntry)
         let updatedCandidates = searchCache.candidates(for: testEntries, stamp: 2, imageLabel: "Image")
@@ -737,10 +828,14 @@ enum ClipboardFeatureTests {
                                      backing: .buffered, defer: true)
         let placementScreen = PanelPlacementHost.Screen.pointerVisibleFrame
         placement.position(placementPanel)
+        let placementFullScreen = PanelPlacementHost.Screen.pointerFrame
         suite.expect(!placementPanel.styleMask.contains(.resizable)
-                     && placementPanel.frame == NSRect(x: placementScreen.minX + 16, y: placementScreen.minY + 8,
-                                                       width: placementScreen.width - 32, height: 318),
-               "the cards make a shelf along the bottom of the screen that does not resize")
+                     && placementPanel.frame == NSRect(x: placementFullScreen.minX + 8,
+                                                       y: placementFullScreen.minY + 8,
+                                                       width: placementFullScreen.width - 16,
+                                                       height: ClipboardHistoryWindowSizing.shelfHeight)
+                     && placementPanel.level == .mainMenu,
+               "the cards make a shelf along the screen's bottom edge, over the Dock, that does not resize")
         placement.quickLayout = .list
         placement.position(placementPanel)
         suite.expect(placementPanel.styleMask.contains(.resizable)
@@ -950,6 +1045,19 @@ enum ClipboardFeatureTests {
                    && !clipboardStrings.historyLayoutList.isEmpty
                    && clipboardStrings.historyLayoutCards != clipboardStrings.historyLayoutList,
                    "\(language.rawValue) clipboard history layout choice is localized")
+            suite.expect([clipboardStrings.cardKindText, clipboardStrings.cardKindLink,
+                          clipboardStrings.cardKindColor, clipboardStrings.cardKindFile]
+                            .allSatisfy { !$0.isEmpty }
+                   && String(format: clipboardStrings.cardCharacterCountFormat, 42).contains("42"),
+                   "\(language.rawValue) clipboard card kinds and character count are localized")
+            suite.expect([clipboardStrings.pinboardAll, clipboardStrings.pinboardNew,
+                          clipboardStrings.pinboardNameLabel, clipboardStrings.pinboardCreate,
+                          clipboardStrings.rename, clipboardStrings.pinboardDelete,
+                          clipboardStrings.pinboardColor, clipboardStrings.pinboardAddTo,
+                          clipboardStrings.pinboardRemoveFrom, clipboardStrings.pinboardEmpty]
+                            .allSatisfy { !$0.isEmpty }
+                   && String(format: clipboardStrings.pinboardDefaultNameFormat, 3).contains("3"),
+                   "\(language.rawValue) clipboard groups are localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty
@@ -1648,6 +1756,8 @@ enum ClipboardPreviewContract {
         func trimToLimit() {}
         func save() {}
         var quickQuery = ""
+        var quickPinboardID: UUID?
+        var pinboardFilterCache: (pinboard: UUID, query: String, stamp: Int, result: [ClipboardHistoryEntry])?
         var quickSelectionID: UUID?
         var quickSelectionIsVisible = false
         var quickBatchEntryIDs: Set<UUID> = []
