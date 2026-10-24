@@ -106,6 +106,8 @@ enum SettingsBackupSupport {
         // Codex homes are folders on this Mac whose sign-in the cards use,
         // never settings to bring to another one.
         DefaultsKey.notchAgentsCodexProfiles,
+        // Claude Code profiles are folders on this Mac too.
+        DefaultsKey.notchAgentsHiddenClaudeProfiles,
         DefaultsKey.dockPreviewRestoreAutohide,
         // The Space arrangement setting to put back, and a Dock restart still
         // owed, belong to this Mac's Dock.

@@ -37,6 +37,7 @@ enum NotchAgentTests {
         AgentCodexResetTests.run(suite)
         AgentClaudeServerTests.run(suite)
         CodexAccountLimitsTests.run(suite)
+        ClaudeAccountLimitsTests.run(suite)
         preferences(suite)
         limitUse(suite)
         agentDefaults(suite)

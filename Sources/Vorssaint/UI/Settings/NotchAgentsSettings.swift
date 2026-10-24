@@ -49,6 +49,7 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
+            if claude { ClaudeAccountsSettings() }
             if codex { CodexAccountsSettings() }
 
             Divider()
