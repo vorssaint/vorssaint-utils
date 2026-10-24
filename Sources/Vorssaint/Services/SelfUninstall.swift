@@ -166,6 +166,7 @@ enum SelfUninstall {
         // key is never left remapped behind a tap that is about to die.
         SuperKeyService.shared.suspend()
         DockClickService.shared.suspend()
+        DockDisplayLockService.shared.suspend()
         MiddleClickService.shared.suspend()
         QuitProtectionService.shared.suspend()
         PastePlainService.shared.suspend()

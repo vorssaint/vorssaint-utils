@@ -92,6 +92,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Dock clicks.** Click an active app's Dock icon to minimize, hide or cycle through its windows.
 - **Maximize windows.** Use the green button to fill the screen without creating another Space.
 - **Fixed Space order.** Keep Spaces in the order you set instead of rearranging them by recent use. Turning it off restores your previous setting.
+- **Keep the Dock on one display.** Stop the Dock from jumping to another display when the pointer reaches that display's edge, and call it back after sleep if you like.
 - **Quit on close.** Quit selected apps when their last window closes.
 - **Quit and close protection.** Prevent accidental ⌘Q or ⌘W with a hold, double press or extra modifier, per app.
 
