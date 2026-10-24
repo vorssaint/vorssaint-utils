@@ -35,6 +35,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarLabelStyle) private var labelStyle = "compact"
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var networkUploadFirst = false
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
+    @AppStorage(DefaultsKey.menuBarFanStacked) private var fanStacked = false
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.networkSpeedUnit) private var networkSpeedUnit = NetworkSpeedUnit.bytes
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
@@ -54,6 +55,7 @@ struct MenuBarMetricsPreview: View {
         let _ = labelStyle
         let _ = networkUploadFirst
         let _ = memoryStyle
+        let _ = fanStacked
         let _ = diskStyle
         let _ = temperatureUnit
         let _ = networkSpeedUnit
@@ -193,6 +195,20 @@ struct MenuBarMetricsPreview: View {
                     .lineLimit(1)
                 Text("W\(write)")
                     .lineLimit(1)
+            }
+            .font(.system(size: MenuBarRenderer.networkBlockFontSize(style: style),
+                          weight: .semibold,
+                          design: .monospaced))
+            .foregroundStyle(.white)
+            .frame(width: MenuBarRenderer.rateBlockWidth(style: style),
+                   height: style == .readable ? 22 : 20,
+                   alignment: .center)
+        case let .fanBlock(speeds, style):
+            VStack(alignment: .trailing, spacing: -0.6) {
+                ForEach(speeds, id: \.self) { speed in
+                    Text(speed)
+                        .lineLimit(1)
+                }
             }
             .font(.system(size: MenuBarRenderer.networkBlockFontSize(style: style),
                           weight: .semibold,

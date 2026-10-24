@@ -409,6 +409,7 @@ enum DefaultsKey {
     static let menuBarCombineTemperatures = "menuBarCombineTemperatures" // usage/charge + temperature in one block when possible
     static let menuBarSeparateMetrics = "menuBarSeparateMetrics" // one status item per active metric
     static let menuBarNetworkUploadFirst = "menuBarNetworkUploadFirst" // network menu bar block shows upload above download
+    static let menuBarFanStacked = "menuBarFanStacked" // two fans stack one above the other like the network block
     static let menuBarLabelStyle = "menuBarLabelStyle"     // compact | classic
     static let menuBarMemoryStyle = "menuBarMemoryStyle"   // dot | percent | both
     static let menuBarDiskStyle = "menuBarDiskStyle"       // percent | free | used
@@ -1654,6 +1655,7 @@ enum Defaults {
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,
         DefaultsKey.menuBarNetworkUploadFirst: false,
+        DefaultsKey.menuBarFanStacked: false,
         DefaultsKey.menuBarLabelStyle: "compact",
         DefaultsKey.menuBarMemoryStyle: "percent",
         DefaultsKey.menuBarDiskStyle: "percent",

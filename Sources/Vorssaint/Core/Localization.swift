@@ -927,6 +927,7 @@ struct Strings {
     let monitorSeparateMenuBarMetrics: String
     let monitorSeparateMenuBarMetricsCaption: String
     let monitorNetworkUploadFirst: String
+    let monitorFanStacked: String
     let monitorShowCPU: String
     let monitorShowMemory: String
     let monitorShowNetwork: String
@@ -2053,6 +2054,7 @@ extension Strings {
         monitorSeparateMenuBarMetrics: "Separar métricas em itens próprios",
         monitorSeparateMenuBarMetricsCaption: "Separa os blocos ativos na barra de menus e mantém uso e temperatura juntos quando combinar estiver ativo.",
         monitorNetworkUploadFirst: "Upload acima do download",
+        monitorFanStacked: "Empilhar ventoinhas",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Memória",
         monitorShowNetwork: "Rede",
@@ -3165,6 +3167,7 @@ extension Strings {
         monitorSeparateMenuBarMetrics: "Separate metrics into their own items",
         monitorSeparateMenuBarMetricsCaption: "Separates active blocks in the menu bar and keeps usage and temperature together when combine is on.",
         monitorNetworkUploadFirst: "Upload above download",
+        monitorFanStacked: "Stack fans",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Memory",
         monitorShowNetwork: "Network",
