@@ -65,9 +65,9 @@ enum CodexAccountLimitsTests {
 
         let ids = [UUID().uuidString, UUID().uuidString]
         let tiles = NotchAgentSupport.tiles(cards: [.limits, .resets], providers: [.claude, .codex, .opencode], codexAccounts: ids)
-        suite.expect(tiles.map(\.accountID) == [nil, ids[0], ids[1], nil, nil]
-                        && tiles.map(\.provider) == [.claude, .codex, .codex, .opencode, .codex]
-                        && Set(tiles.map(\.id)).count == 5 && tiles.last?.card == .resets,
+        suite.expect(tiles.map(\.accountID) == [nil, ids[0], ids[1], nil, nil, nil]
+                        && tiles.map(\.provider) == [.claude, .codex, .codex, .opencode, .claude, .codex]
+                        && Set(tiles.map(\.id)).count == 6 && tiles.last?.card == .resets,
                      "each Codex account has a card of its own in place of the logs' one, and the Resets card stays")
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .resets], providers: [.claude, .codex], codexAccounts: [])
                         == NotchAgentSupport.tiles(cards: [.limits, .resets], providers: [.claude, .codex])
@@ -75,8 +75,11 @@ enum CodexAccountLimitsTests {
                         && NotchAgentSupport.height(of: [tiles[0], tiles[3]]) == NotchAgentSupport.cardHeight,
                      "without accounts the page is unchanged, and a row with an account card makes room for its time")
         suite.expect(tiles.last?.namesDefaultAccount == true
-                        && NotchAgentSupport.height(of: [tiles[4]]) == NotchAgentSupport.accountCardHeight,
+                        && NotchAgentSupport.height(of: [tiles[5]]) == NotchAgentSupport.accountCardHeight,
                      "the Resets card beside accounts makes room for the account it names")
+        suite.expect(tiles[4].card == .resets && !tiles[4].namesDefaultAccount
+                        && NotchAgentSupport.height(of: [tiles[4]]) == NotchAgentSupport.cardHeight,
+                     "Claude's Resets card names no Codex account")
         func notes(windows: Bool, checking: Bool = false, failure: String?) -> (placeholder: String?, caption: String?) {
             NotchAgentSupport.accountNotes(hasWindows: windows, checking: checking, failure: failure, hint: "Refresh",
                                            loading: "Loading", updated: windows ? "Updated" : nil)

@@ -271,10 +271,15 @@ enum NotchAgentSupport {
                 guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
                 return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
             }
-            // Banked resets belong to a Codex account: the default one, which
-            // the card names once others have cards.
-            case .resets: return providers.contains(.codex)
-                ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
+            // Banked resets belong to a Claude account or to a Codex one: Codex's
+            // default, which the card names once others have cards.
+            case .resets: return providers.compactMap { provider -> NotchAgentTile? in
+                switch provider {
+                case .claude: return NotchAgentTile(card: .resets, provider: .claude)
+                case .codex: return NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)
+                default: return nil
+                }
+            }
             default: return [NotchAgentTile(card: card, provider: nil)]
             }
         }
