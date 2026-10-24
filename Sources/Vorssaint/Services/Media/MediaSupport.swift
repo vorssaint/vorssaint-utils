@@ -8,9 +8,54 @@ import ImageIO
 import UniformTypeIdentifiers
 
 enum MediaTool: String, CaseIterable, Identifiable {
-    case videoCompressor, gifMaker, imageCompressor, textExtractor
+    case videoCompressor, gifMaker, imageCompressor, textExtractor, pdfMerger
 
     var id: String { rawValue }
+
+    /// Tools that work on a list of files; the others take the first one only.
+    var acceptsMultipleInputs: Bool {
+        self == .imageCompressor || self == .pdfMerger
+    }
+
+    /// How many inputs the tool needs before it can run.
+    var minimumInputs: Int {
+        self == .pdfMerger ? 2 : 1
+    }
+
+    /// The files this tool works on. Drops, the open panel, the Notch and tool switches all
+    /// filter with this list.
+    var inputTypes: [UTType] {
+        switch self {
+        case .videoCompressor, .gifMaker: return [.movie, .video, .mpeg4Movie, .quickTimeMovie]
+        case .imageCompressor, .textExtractor: return [.image]
+        case .pdfMerger: return [.pdf, .image]
+        }
+    }
+
+    /// The inputs this tool can use, in order. A PDF collected for merging must not reach the
+    /// image tool, where ImageIO would open it and silently rasterize page one.
+    func usableInputs(_ urls: [URL]) -> [URL] {
+        urls.filter { MediaSupport.inputMatchesTool(contentType: MediaSupport.contentType(of: $0),
+                                                    inputTypes: inputTypes) }
+    }
+
+    /// The workspace's full input list after this tool's own inputs became `current`.
+    /// Files this tool can't use keep their places, so switching to a tool that can use them
+    /// brings them back; this tool's slots take `current` in order, and extra files are appended.
+    func updatingAllInputs(_ all: [URL], current: [URL]) -> [URL] {
+        var remaining = current[...]
+        let currentSet = Set(current)
+        var result: [URL] = []
+        for url in all {
+            if usableInputs([url]).isEmpty {
+                if !currentSet.contains(url) { result.append(url) }
+            } else if let next = remaining.popFirst() {
+                result.append(next)
+            }
+        }
+        result.append(contentsOf: remaining)
+        return result
+    }
 }
 
 /// A cancelled duration lookup remains resumable, while a successful lookup
@@ -870,6 +915,28 @@ enum MediaSupport {
             guard let path else { return }
             _ = chflags(path, visibleFlags)
         }
+    }
+
+    /// The file's type as the file system reports it; nil for a missing or unreadable item,
+    /// which no tool then accepts.
+    static func contentType(of url: URL) -> UTType? {
+        (try? url.resourceValues(forKeys: [.contentTypeKey]))?.contentType
+    }
+
+    /// Re-encodes `image` as JPEG and returns an image backed by that data. Drawing it into
+    /// a PDF context embeds the compressed JPEG instead of raw pixels, which keeps image
+    /// pages close to their source size.
+    static func jpegBackedImage(_ image: CGImage, quality: Double) -> CGImage? {
+        let jpegData = NSMutableData()
+        guard let encoder = CGImageDestinationCreateWithData(jpegData, UTType.jpeg.identifier as CFString, 1, nil) else {
+            return nil
+        }
+        CGImageDestinationAddImage(encoder, image, [
+            kCGImageDestinationLossyCompressionQuality: quality,
+        ] as CFDictionary)
+        guard CGImageDestinationFinalize(encoder),
+              let encodedSource = CGImageSourceCreateWithData(jpegData, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(encodedSource, 0, nil)
     }
 
     /// Whether a dropped file fits the selected tool, mirroring the open

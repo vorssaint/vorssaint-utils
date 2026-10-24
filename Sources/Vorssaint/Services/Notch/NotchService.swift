@@ -116,6 +116,8 @@ final class NotchService: ObservableObject {
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
     @Published private(set) var choosingFileDropDestination = false
+    /// The media tool a drop in progress would open, which names its destination.
+    @Published private(set) var fileDropTool: MediaTool?
     @Published private(set) var targetsMediaDrop = false
     @Published private(set) var selectedMetric: MetricDetailKind?
     @Published private(set) var captureControls: ScreenCaptureSelectionOptions?
@@ -2238,7 +2240,8 @@ final class NotchService: ObservableObject {
 
     func beginFileDrop(_ pasteboard: NSPasteboard) {
         guard canAcceptFileDrop else { return }
-        choosingFileDropDestination = NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil
+        fileDropTool = NotchFileToolsService.shared.mediaDropContent(for: pasteboard)?.tool
+        choosingFileDropDestination = fileDropTool != nil
         targetsMediaDrop = false
         open(.files, takeFocus: false)
     }
@@ -2254,6 +2257,7 @@ final class NotchService: ObservableObject {
     func endFileDrop() {
         let changed = choosingFileDropDestination
         if changed { choosingFileDropDestination = false }
+        if fileDropTool != nil { fileDropTool = nil }
         if targetsMediaDrop { targetsMediaDrop = false }
         if changed, acceptsUserInteraction { refreshPresentation() }
     }

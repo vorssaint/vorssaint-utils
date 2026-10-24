@@ -96,6 +96,12 @@ enum MediaFailure: Equatable {
     case gifTooLong(maxSeconds: Int)
     case targetTooSmall
     case watermarkUnavailable
+    /// The named PDF needs a password to open.
+    case passwordProtected(String)
+    /// The named PDF's owner disallowed copying its pages.
+    case restrictedPDF(String)
+    /// The named input could not be read as a PDF or image.
+    case unreadableInput(String)
     case cancelled
     case failed(String)
 }
@@ -146,6 +152,9 @@ private final class AsyncResultBox<T>: @unchecked Sendable {
 /// A workspace can outlive its visible panel while its requested export runs.
 final class MediaWorkspaceSelection: ObservableObject {
     @Published var inputURLs: [URL] = []
+    /// Every input the person added, including files the current tool can't use, so a tool
+    /// switch never discards them. `inputURLs` is the current tool's part of it.
+    var allInputs: [URL] = []
     @Published var inputImageSize: CGSize?
     @Published var outputURL: URL?
     @Published var outputWasChosenManually = false
@@ -225,6 +234,14 @@ final class MediaService: ObservableObject {
                                         options: options,
                                         operationID: id,
                                         token: token)
+        }
+    }
+
+    /// Merges `inputURLs`, in this order, into one PDF at `outputURL`.
+    func mergePDFs(inputURLs: [URL], outputURL: URL) {
+        run(.pdfMerger) { [weak self] id, token in
+            try self?.mergePDFsWork(inputURLs: inputURLs, outputURL: outputURL,
+                                    operationID: id, token: token)
         }
     }
 
@@ -756,6 +773,47 @@ final class MediaService: ObservableObject {
         publish(.completed(result), operationID: operationID)
     }
 
+    private func mergePDFsWork(inputURLs: [URL], outputURL: URL,
+                               operationID: UUID, token: MediaCancellationToken) throws {
+        let started = Date()
+        guard let first = inputURLs.first, inputURLs.count >= MediaTool.pdfMerger.minimumInputs else {
+            throw MediaFailureBox(.noInput)
+        }
+        // The merged file must not land on any of its own inputs.
+        for input in inputURLs where MediaSupport.fileURLsReferToSameItem(input, outputURL) {
+            throw MediaFailureBox(.sameOutput)
+        }
+        let stagedOutputURL = try stagedOutput(inputURL: first, outputURL: outputURL)
+        defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
+        do {
+            try MediaPDFMerger.merge(inputURLs, to: stagedOutputURL,
+                                     isCancelled: { token.isCancelled },
+                                     progress: { [weak self] value in
+                                         self?.publish(.running(progress: value, message: MediaTool.pdfMerger.rawValue),
+                                                       operationID: operationID)
+                                     })
+        } catch let failure as MediaPDFMerger.Failure {
+            switch failure {
+            case .cancelled: throw MediaFailureBox(.cancelled)
+            case let .passwordProtected(url): throw MediaFailureBox(.passwordProtected(url.lastPathComponent))
+            case let .restricted(url): throw MediaFailureBox(.restrictedPDF(url.lastPathComponent))
+            case .imageTooLarge: throw MediaFailureBox(.imageTooLarge)
+            case let .unreadable(url): throw MediaFailureBox(.unreadableInput(url.lastPathComponent))
+            case .writeFailed: throw MediaFailureBox(.failed(CocoaError(.fileWriteUnknown).localizedDescription))
+            }
+        }
+        try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
+        MediaSupport.makeVisibleIfNeeded(outputURL)
+        let result = MediaResult(tool: .pdfMerger,
+                                 inputURL: first,
+                                 outputURL: outputURL,
+                                 originalBytes: inputURLs.reduce(0) { $0 + fileSize($1) },
+                                 outputBytes: fileSize(outputURL),
+                                 elapsed: Date().timeIntervalSince(started),
+                                 text: nil)
+        publish(.completed(result), operationID: operationID)
+    }
+
     /// A dropped file that does not fit the selected tool: surface the same
     /// "unsupported" message a failed run would, instead of accepting it.
     func rejectUnsupportedInput() {
@@ -1116,16 +1174,7 @@ final class MediaService: ObservableObject {
     /// quality and drawing that image into a PDF context makes Quartz embed
     /// the JPEG stream as-is, so the quality slider keeps working for PDF.
     private func writePDF(image: CGImage, outputURL: URL, quality: Double) throws {
-        let jpegData = NSMutableData()
-        guard let encoder = CGImageDestinationCreateWithData(jpegData, UTType.jpeg.identifier as CFString, 1, nil) else {
-            throw MediaFailureBox(.unsupported)
-        }
-        CGImageDestinationAddImage(encoder, image, [
-            kCGImageDestinationLossyCompressionQuality: quality,
-        ] as CFDictionary)
-        guard CGImageDestinationFinalize(encoder),
-              let encodedSource = CGImageSourceCreateWithData(jpegData, nil),
-              let encoded = CGImageSourceCreateImageAtIndex(encodedSource, 0, nil) else {
+        guard let encoded = MediaSupport.jpegBackedImage(image, quality: quality) else {
             throw MediaFailureBox(.unsupported)
         }
         var mediaBox = CGRect(x: 0, y: 0, width: CGFloat(encoded.width), height: CGFloat(encoded.height))

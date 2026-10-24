@@ -18,17 +18,19 @@ enum NotchFileToolsSupport {
     static func optimizationTool(for urls: [URL]) -> MediaTool? {
         if accepts(urls, for: .imageCompressor) { return .imageCompressor }
         if accepts(urls, for: .videoCompressor) { return .videoCompressor }
+        // Two or more PDFs, or PDFs with images, open the merge tool; a single PDF has no tool
+        // and goes to the shelf. Images alone keep the image tool, and the workspace's tool
+        // picker reaches Text and PDF from there, as it reaches GIF from a video.
+        if accepts(urls, for: .pdfMerger) { return .pdfMerger }
         return nil
     }
 
     static func accepts(_ urls: [URL], for tool: MediaTool) -> Bool {
         guard !urls.isEmpty, urls.allSatisfy(\.isFileURL),
-              tool == .imageCompressor || urls.count == 1 else { return false }
-        let types: [UTType] = tool == .videoCompressor || tool == .gifMaker
-            ? [.movie, .video] : [.image]
+              tool.acceptsMultipleInputs || urls.count == 1,
+              urls.count >= tool.minimumInputs else { return false }
         return urls.allSatisfy { url in
-            let type = (try? url.resourceValues(forKeys: [.contentTypeKey]))?.contentType
-            return MediaSupport.inputMatchesTool(contentType: type, inputTypes: types)
+            MediaSupport.inputMatchesTool(contentType: MediaSupport.contentType(of: url), inputTypes: tool.inputTypes)
         }
     }
 

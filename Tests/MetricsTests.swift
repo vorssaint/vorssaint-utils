@@ -43,7 +43,10 @@ struct MetricsTests {
                 DiskImageHomebrewTests.run(suite)
             }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),
-            ("media", { MediaFeatureTests.run(suite) }),
+            ("media", {
+                MediaFeatureTests.run(suite)
+                MediaPDFMergeTests.run(suite)
+            }),
             ("mixer", {
                 MixerNativeDragTests.run(suite)
                 MixerOutputAdjustmentContract.run(suite)
