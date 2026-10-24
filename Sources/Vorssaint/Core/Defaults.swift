@@ -879,6 +879,12 @@ enum DefaultsKey {
     static let notchAgentsPeriod = "notchAgentsPeriod"
     static let notchAgentsLimitDisplay = "notchAgentsLimitDisplay"
     static let notchAgentsLimitFocus = "notchAgentsLimitFocus"
+    static let notchAgentsRestingLayout = "notchAgentsRestingLayout"
+    /// Retired: the resting island's ring follows "Limit to show". Read once
+    /// by `migrateRestingWindows`.
+    static let notchAgentsRestingSession = "notchAgentsRestingSession"
+    static let notchAgentsRestingWeekly = "notchAgentsRestingWeekly"
+    static let notchAgentsRestingHidden = "notchAgentsRestingHidden"
     static let notchAgentsLiveActivity = "notchAgentsLiveActivity"
     static let notchAgentsReadout = "notchAgentsReadout"
     static let notchAgentsFinishAlert = "notchAgentsFinishAlert"
@@ -887,6 +893,13 @@ enum DefaultsKey {
     static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
     static let notchAgentsDailyBudget = "notchAgentsDailyBudget"
     static let notchAgentsPriceUpdates = "notchAgentsPriceUpdates"
+    /// Who pays for Claude Code's requests: `AgentClaudeBilling`.
+    static let notchAgentsClaudeBilling = "notchAgentsClaudeBilling"
+    /// The API key's prepaid balance in US dollars as entered, when, and what
+    /// that day had already spent; 0 while none is entered.
+    static let notchAgentsClaudeCredits = "notchAgentsClaudeCredits"
+    static let notchAgentsClaudeCreditsSince = "notchAgentsClaudeCreditsSince"
+    static let notchAgentsClaudeCreditsBaseline = "notchAgentsClaudeCreditsBaseline"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     // How the island looks on a display without a camera housing.
@@ -961,6 +974,8 @@ enum DefaultsKey {
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
     static let simulateBetaUI = "simulateBetaUI"
+    // Dev-build only: stand-in usage for the resting AI meters, e.g. "claude.session=0.86".
+    static let simulateRestingUsage = "simulateRestingUsage"
 
     /// Features hub availability layer, one key per AppFeature raw value.
     /// Registered true: unavailable features vanish from every surface and
@@ -1464,10 +1479,12 @@ enum Defaults {
         DefaultsKey.notchAgentsOpenCode: true,
         DefaultsKey.notchAgentsCopilot: true,
         DefaultsKey.notchAgentsCardOrder: "",
-        DefaultsKey.notchAgentsHiddenCards: "",
+        DefaultsKey.notchAgentsHiddenCards: NotchAgentSupport.defaultHiddenCards,
         DefaultsKey.notchAgentsPeriod: AgentPeriod.today.rawValue,
         DefaultsKey.notchAgentsLimitDisplay: NotchAgentLimitDisplay.remaining.rawValue,
         DefaultsKey.notchAgentsLimitFocus: NotchAgentLimitFocus.mostUsed.rawValue,
+        DefaultsKey.notchAgentsRestingLayout: NotchAgentRestingLayout.single.rawValue,
+        DefaultsKey.notchAgentsRestingHidden: "",
         DefaultsKey.notchAgentsLiveActivity: true,
         DefaultsKey.notchAgentsReadout: NotchAgentReadout.elapsed.rawValue,
         DefaultsKey.notchAgentsFinishAlert: true,
@@ -1476,6 +1493,10 @@ enum Defaults {
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,
         DefaultsKey.notchAgentsDailyBudget: 0.0,
         DefaultsKey.notchAgentsPriceUpdates: true,
+        DefaultsKey.notchAgentsClaudeBilling: AgentClaudeBilling.automatic.rawValue,
+        DefaultsKey.notchAgentsClaudeCredits: 0.0,
+        DefaultsKey.notchAgentsClaudeCreditsSince: 0.0,
+        DefaultsKey.notchAgentsClaudeCreditsBaseline: 0.0,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,
@@ -1981,6 +2002,7 @@ enum Defaults {
         migrateSwitcherPreviewSize(in: defaults)
         migrateSwitcherPreviewExcludedApps(in: defaults)
         migrateNotchWatchAvailability(in: defaults)
+        migrateRestingWindows(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         activateBetaChannelIfRunningBeta(in: defaults)
@@ -2237,6 +2259,23 @@ enum Defaults {
               defaults.object(forKey: AppFeature.notch.availabilityKey) as? Bool == false
         else { return }
         defaults.set(false, forKey: AppFeature.notchWatch.availabilityKey)
+    }
+
+    /// The resting island's session ring and weekly bar had switches of
+    /// their own; its one ring now shows the limit "Limit to show" picks.
+    /// Whoever kept only one of them, and left that choice on Most used,
+    /// keeps seeing the same limit.
+    static func migrateRestingWindows(in defaults: UserDefaults) {
+        let session = defaults.object(forKey: DefaultsKey.notchAgentsRestingSession) as? Bool
+        let weekly = defaults.object(forKey: DefaultsKey.notchAgentsRestingWeekly) as? Bool
+        guard session != nil || weekly != nil else { return }
+        let focus = defaults.string(forKey: DefaultsKey.notchAgentsLimitFocus) ?? NotchAgentLimitFocus.mostUsed.rawValue
+        if (session ?? true) != (weekly ?? true), focus == NotchAgentLimitFocus.mostUsed.rawValue {
+            defaults.set((session ?? true) ? NotchAgentLimitFocus.session.rawValue : NotchAgentLimitFocus.weekly.rawValue,
+                         forKey: DefaultsKey.notchAgentsLimitFocus)
+        }
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsRestingSession)
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsRestingWeekly)
     }
 
     /// Linear scrolling reached development builds installed, before new

@@ -17,7 +17,8 @@ enum AgentClaudeServer {
         let organization: String?
     }
     static let timeout: TimeInterval = 25
-    /// While the AI page is on screen a reading this old is asked again.
+    /// While a limit is on screen, on the AI page or the resting island, a
+    /// reading this old is asked again.
     static let freshness: TimeInterval = 60
     /// Otherwise Claude Code starts at most this often, as the Codex check does.
     static let backgroundFreshness: TimeInterval = 5 * 60
@@ -149,6 +150,42 @@ enum AgentClaudeServer {
     static func limits(_ result: [String: Any], observed: Date) -> AgentLimits? {
         guard result["rate_limits_available"] as? Bool == true,
               let limits = result["rate_limits"] as? [String: Any] else { return nil }
+        return windows(limits, observed: observed)
+    }
+
+    /// The account usage Claude Code saves in its profile after each fetch,
+    /// and the organization it belongs to.
+    struct Cache: Equatable {
+        let limits: AgentLimits
+        let organization: String?
+    }
+
+    /// The usage every running Claude Code, the Claude app's included, saves
+    /// in its profile every minute or two while it works. Nil unless the copy
+    /// belongs to the account signed in there and was fetched by `now`: a
+    /// profile this check does not understand is left alone, not guessed at.
+    static func cache(_ profile: [String: Any], now: Date) -> Cache? {
+        guard let account = profile["oauthAccount"] as? [String: Any],
+              let accountID = account["accountUuid"] as? String, !accountID.isEmpty,
+              let cache = profile["cachedUsageUtilization"] as? [String: Any],
+              cache["accountUuid"] as? String == accountID,
+              let number = cache["fetchedAtMs"] as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue.isFinite, number.doubleValue > 0,
+              let usage = cache["utilization"] as? [String: Any] else { return nil }
+        let fetched = Date(timeIntervalSince1970: number.doubleValue / 1_000)
+        guard fetched <= now, let limits = windows(usage, observed: fetched) else { return nil }
+        return Cache(limits: limits, organization: account["organizationUuid"] as? String)
+    }
+
+    static func cache(home: URL, now: Date) -> Cache? {
+        guard let data = try? Data(contentsOf: home.appending(path: ".claude.json")),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        return cache(json, now: now)
+    }
+
+    /// The plan's windows in `limits`, as both get_usage and the profile's
+    /// saved copy name them; any other key is left out.
+    private static func windows(_ limits: [String: Any], observed: Date) -> AgentLimits? {
         let windows: [AgentLimitWindow] = [
             ("five_hour", AgentLimitWindow.Kind.session, 300, nil as String?),
             ("seven_day", .weekly, 10_080, nil),

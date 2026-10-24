@@ -205,7 +205,7 @@ struct NotchCapsuleRestingView: View {
                         .allowsHitTesting(false)
                 }
             }
-            .accessibilityHidden(true)
+            .modifier(NotchAgentRestingAccessibility(service: service, active: service.idleContent == .agents))
     }
 
     private var resting: some View {
@@ -225,8 +225,7 @@ struct NotchCapsuleRestingView: View {
                             .foregroundStyle(tint)
                     }
                 case .agents:
-                    NotchAgentRestingWing(leading: true)
-                    NotchAgentRestingWing(leading: false)
+                    NotchAgentRestingRow()
                 case .music:
                     if let artwork = music.artwork {
                         NotchMusicCover(artwork: artwork, side: CapsuleLayout.artworkSide(geometry),

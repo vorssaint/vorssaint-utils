@@ -2160,7 +2160,8 @@ def main():
                     .replace("private func", "func", 1)
                     for prefix in ["    private func readClaudeApp(", "    private func checkLimits(",
                                    "    private func reportRenewals(", "    private func claudeLimitsDue(",
-                                   "    private func noteClaudeCheck(", "    private func networkChanged("])
+                                   "    private func noteClaudeCheck(", "    private func networkChanged(",
+                                   "    private func noteClaudeCache(", "    private func takeClaudeCache("])
           + "}\n}\n")
 
     write("AgentUsagePolling.swift", "import Foundation\n"

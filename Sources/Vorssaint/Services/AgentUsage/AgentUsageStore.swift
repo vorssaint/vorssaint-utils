@@ -105,6 +105,15 @@ final class AgentUsageStore {
                     if !project.isEmpty { turn.project = project }
                     waiting[file] = turn
                 }
+            case .turnPlace(let place):
+                guard tracksTurns else { continue }
+                if var turn = turns[file] {
+                    turn.place = place
+                    turns[file] = turn
+                } else if var turn = waiting[file] {
+                    turn.place = place
+                    waiting[file] = turn
+                }
             case .turnActive(let date):
                 guard tracksTurns else { continue }
                 settled[file] = nil
@@ -254,6 +263,8 @@ final class AgentUsageStore {
         if !subagent {
             if !record.model.isEmpty { turn.model = record.model }
             if !record.project.isEmpty { turn.project = record.project }
+            // Each Claude response names the client it came from.
+            if record.provider == .claude { turn.place = record.claudeApp ? .app : .terminal }
         }
         turns[file] = turn
     }
@@ -926,5 +937,70 @@ final class AgentLogWatcher {
         FSEventStreamInvalidate(stream)
         FSEventStreamRelease(stream)
         self.stream = nil
+    }
+}
+
+/// Change notifications for one file that its writer replaces on save,
+/// delivered on the usage queue. The folder is watched for the replacement
+/// and the file for writes in place, and a burst of either arrives as one
+/// call a moment later.
+final class AgentFileWatcher {
+    static let delay: TimeInterval = 0.25
+    private let url: URL
+    private let queue: DispatchQueue
+    private let handler: () -> Void
+    private var folder: DispatchSourceFileSystemObject?
+    private var file: DispatchSourceFileSystemObject?
+    private var scheduled = false
+
+    init(_ url: URL, queue: DispatchQueue, handler: @escaping () -> Void) {
+        self.url = url
+        self.queue = queue
+        self.handler = handler
+    }
+
+    deinit { stop() }
+
+    /// Runs on `queue`.
+    func start() {
+        stop()
+        folder = source(url.deletingLastPathComponent().path, events: .write)
+        watchFile()
+    }
+
+    /// Runs on `queue`.
+    func stop() {
+        folder?.cancel()
+        file?.cancel()
+        folder = nil
+        file = nil
+        scheduled = false
+    }
+
+    /// A replaced file is a new one, so each change watches it afresh.
+    private func watchFile() {
+        file?.cancel()
+        file = source(url.path, events: [.write, .extend, .delete, .rename])
+    }
+
+    private func source(_ path: String, events: DispatchSource.FileSystemEvent) -> DispatchSourceFileSystemObject? {
+        let descriptor = open(path, O_EVTONLY)
+        guard descriptor >= 0 else { return nil }
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: events, queue: queue)
+        source.setEventHandler { [weak self] in self?.changed() }
+        source.setCancelHandler { close(descriptor) }
+        source.resume()
+        return source
+    }
+
+    private func changed() {
+        guard folder != nil, !scheduled else { return }
+        scheduled = true
+        queue.asyncAfter(deadline: .now() + Self.delay) { [weak self] in
+            guard let self, self.scheduled else { return }
+            self.scheduled = false
+            self.watchFile()
+            self.handler()
+        }
     }
 }

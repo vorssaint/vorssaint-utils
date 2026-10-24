@@ -766,16 +766,16 @@ final class NotchService: ObservableObject {
             AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
             display: NotchAgentSupport.limitDisplay(), focus: NotchAgentSupport.limitFocus(), now: Date()))
         let width = (shape as NSString).size(withAttributes: [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .semibold)
         ]).width
         let reading = width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
-        // The marks on the other side, drawn as the strip draws them: two
-        // working agents share a smaller size, each in a frame wider than it.
-        let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
-        let mark = CGFloat(working > 1 ? 11 : 14)
-        let frame = mark * 1.45 + 1
-        let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
-            + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
+        // The mark on the other side, drawn as the strip draws it: the
+        // longest-working agent's ring and the badges on it.
+        let budget = provisional.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
+        let layout = NotchAgentWorkingLayout(AgentUsageService.shared.snapshot.live, budget: budget)
+        let ring = layout?.ring ?? 14
+        let marks = (layout?.width ?? ring)
+            + provisional.compactActivityEdgeInset(boxHeight: ring, radius: ring / 2)
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
@@ -858,8 +858,9 @@ final class NotchService: ObservableObject {
         let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty) }
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
-            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts),
-            width: width))
+            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
+                                    claudeUsesAPI: AgentClaudeBilling.usesAPI()),
+            width: width), width: width, live: usage.live)
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
@@ -3998,10 +3999,12 @@ final class NotchService: ObservableObject {
         }
         if modules.contains(.agents) {
             // Only what changes the island's size or strip: a turn starting or
-            // ending, the first read landing, which agents have cards, and
-            // which are working, since each one's mark widens the strip.
+            // ending, the first read landing, which agents have cards, which
+            // are working, since each one's mark widens the strip, and how
+            // many sessions each card lists, a row each on the AI page.
             AgentUsageService.shared.$snapshot
-                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider))) }
+                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider)),
+                        $0.live.map { "\($0.provider.rawValue).\($0.place)" }.sorted()) }
                 .removeDuplicates(by: ==)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in

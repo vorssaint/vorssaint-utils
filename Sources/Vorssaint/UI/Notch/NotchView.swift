@@ -706,7 +706,7 @@ struct NotchRestingStrip: View {
                                 .foregroundStyle(batteryTint)
                                 .padding(.leading, restingBatteryInset)
                         case .agents:
-                            NotchAgentRestingWing(leading: true)
+                            NotchAgentRestingWing(side: .leading)
                                 .padding(.leading, restingBatteryInset)
                         case .none: EmptyView()
                         }
@@ -731,7 +731,7 @@ struct NotchRestingStrip: View {
                                     .padding(.trailing, restingBatteryInset)
                             }
                         case .agents:
-                            NotchAgentRestingWing(leading: false)
+                            NotchAgentRestingWing(side: .trailing)
                                 .padding(.trailing, restingBatteryInset)
                         case .none: EmptyView()
                         }
@@ -766,7 +766,8 @@ struct NotchRestingStrip: View {
         .frame(height: geometry.stripHeight)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(Rectangle())
-        .accessibilityHidden(true)
+        .modifier(NotchAgentRestingAccessibility(service: service,
+                                                 active: service.idleContent == .agents && geometry.restingWingWidth > 0))
     }
 }
 

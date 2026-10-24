@@ -13,11 +13,12 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsPeriod) private var period = AgentPeriod.today.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
-    @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
+    @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = NotchAgentSupport.defaultHiddenCards
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsClaudeBilling) private var billing = AgentClaudeBilling.automatic.rawValue
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -36,11 +37,18 @@ struct NotchAgentsView: View {
             .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty) }
     }
 
+    /// Whether an API key pays for Claude Code, which splits Claude's card.
+    private var claudeUsesAPI: Bool {
+        _ = billing
+        return AgentClaudeBilling.usesAPI()
+    }
+
     private var rows: [[NotchAgentTile]] {
         // The strings are read here so a change in Settings redraws the page.
         _ = (cardOrder, hiddenCards)
         return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
-                                                              codexAccounts: codexAccounts.map(\.id)),
+                                                              codexAccounts: codexAccounts.map(\.id),
+                                                              claudeUsesAPI: claudeUsesAPI),
                                       width: size.width)
     }
 
@@ -58,8 +66,9 @@ struct NotchAgentsView: View {
                 NotchEmptyView(symbol: "square.grid.2x2", message: text.noCards)
             } else {
                 let rows = rows
-                TimelineView(.periodic(from: .now, by: 15)) { context in
-                    if NotchAgentSupport.contentHeight(rows) > size.height + 0.5 {
+                TimelineView(.periodic(from: .now, by: 10)) { context in
+                    if NotchAgentSupport.contentHeight(rows, width: size.width, live: usage.snapshot.live)
+                        > size.height + 0.5 {
                         ScrollView { grid(rows, now: context.date) }
                             .scrollIndicators(.automatic)
                     } else {
@@ -100,7 +109,7 @@ struct NotchAgentsView: View {
                 HStack(spacing: NotchAgentSupport.spacing) {
                     ForEach(row) { tile in card(tile, now: now) }
                 }
-                .frame(height: NotchAgentSupport.height(of: row))
+                .frame(height: NotchAgentSupport.height(of: row, width: size.width, live: usage.snapshot.live))
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -111,13 +120,17 @@ struct NotchAgentsView: View {
         let shown = chosenPeriod
         switch tile.card {
         case .limits:
-            if let provider = tile.provider {
+            if tile.splitsBilling {
+                NotchAgentClaudeBillingCard(snapshot: snapshot, now: now,
+                                            display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text,
+                                            wide: size.width >= NotchAgentSupport.pairWidth)
+            } else if let provider = tile.provider {
                 NotchAgentLimitsCard(provider: provider, snapshot: snapshot, now: now,
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text,
-                                     account: account(tile, now: now))
+                                     account: account(tile, now: now), showsSessions: tile.showsSessions)
             }
         case .spend:
-            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
+            NotchAgentSpendCard(snapshot: snapshot, providers: providers, text: text, claudeUsesAPI: claudeUsesAPI)
         case .live:
             NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
         case .trend:
@@ -190,6 +203,9 @@ private struct NotchAgentLimitsCard: View {
     let display: NotchAgentLimitDisplay
     let text: NotchAgentStrings
     var account: NotchAgentAccount? = nil
+    /// Its sessions' row under the meters; the page sizes the card for it.
+    var showsSessions = false
+    @ObservedObject private var l10n = L10n.shared
     @Environment(\.locale) private var locale
 
     private var limits: AgentLimits? {
@@ -258,11 +274,37 @@ private struct NotchAgentLimitsCard: View {
                     estimate
                 } else {
                     meters(windows)
-                    if windows.count == 1 { caption }
+                    if provider == .claude {
+                        planValue(weekly: windows.count > 1)
+                    } else if windows.count == 1 {
+                        caption
+                    }
+                }
+                if showsSessions {
+                    Spacer(minLength: 0)
+                    NotchAgentSessionRow(provider: provider, snapshot: snapshot, text: text)
                 }
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// With a weekly limit beside the session, the plan's value this month
+    /// fits in a line; a plan with only the session gets the open window's
+    /// value and the month's on rows of their own.
+    @ViewBuilder private func planValue(weekly: Bool) -> some View {
+        let places = FeatureStrings.notchAgentPlaces(l10n.language)
+        let month = NotchAgentSupport.claudePlanMonth(snapshot, splitsBilling: false, now: now)
+        if weekly {
+            Text(places.monthCaption(AgentFormat.cost(month)))
+                .font(.system(size: 9.5))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+        } else {
+            NotchAgentAmountRow(label: places.thisSession,
+                                value: NotchAgentSupport.claudeSessionValue(snapshot, splitsBilling: false))
+            NotchAgentAmountRow(label: places.thisMonth, value: month)
+        }
     }
 
     private func meters(_ windows: [AgentLimitWindow]) -> some View {
@@ -283,74 +325,9 @@ private struct NotchAgentLimitsCard: View {
         }
     }
 
-    /// A usage-based forecast would read as a promise, so a row says only
-    /// what is spent and when the window renews.
     private func row(_ window: AgentLimitWindow) -> some View {
-        let pace = AgentLimitSupport.pace(for: window, now: now)
-        let tint = agentLimitTint(provider, usedFraction: window.usedFraction)
-        let remaining = display == .remaining
-        let fraction = remaining ? window.remainingFraction : window.usedFraction
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 5) {
-                Text(label(window))
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
-                    .layoutPriority(1)
-                Group {
-                    if let resets = AgentLimitSupport.displayedReset(window, now: now) {
-                        Label((window.estimatedResetsAt == nil ? "" : "≈ ") + countdown(to: resets),
-                              systemImage: "arrow.clockwise")
-                            .labelStyle(NotchAgentInlineLabel())
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .font(.system(size: 9.5))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                Spacer(minLength: 2)
-                Text(AgentFormat.percent(fraction))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(tint == provider.tint ? Color.white : tint)
-                    .contentTransition(.numericText())
-            }
-            NotchAgentMeter(value: fraction, pace: pace.map { remaining ? 1 - $0.elapsed : $0.elapsed },
-                            tint: tint, height: 4)
-        }
-        .help(help(window))
-    }
-
-    /// What the window covers: its length, or the model it is kept for.
-    private func label(_ window: AgentLimitWindow) -> String {
-        switch window.kind {
-        case .session: return text.session
-        case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
-        case .other:
-            guard let minutes = window.minutes else { return window.scope ?? text.readoutLimit }
-            return AgentFormat.duration(TimeInterval(minutes) * 60, locale: locale, units: 1)
-        }
-    }
-
-    /// How long until the window renews: days and hours, or hours and
-    /// minutes, never seconds on a card that redraws every few. The day and
-    /// time are in the tooltip.
-    private func countdown(to date: Date) -> String {
-        let seconds = date.timeIntervalSince(now)
-        return AgentFormat.duration(max(60, seconds), locale: locale, units: seconds >= 3600 ? 2 : 1)
-    }
-
-    private func help(_ window: AgentLimitWindow) -> String {
-        var parts = [label(window), text.usedShare(AgentFormat.percent(window.usedFraction)),
-                     text.left(AgentFormat.percent(window.remainingFraction))]
-        if let resets = AgentLimitSupport.displayedReset(window, now: now) {
-            parts.append(resets.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)))
-            if window.estimatedResetsAt != nil { parts.append(text.estimated) }
-        }
-        if let observed = limits?.observedAt, now.timeIntervalSince(observed) > 600 {
-            parts.append(text.updated(observed.formatted(.relative(presentation: .named).locale(locale))))
-        }
-        return parts.joined(separator: " · ")
+        NotchAgentLimitRow(window: window, provider: provider, now: now, display: display, text: text,
+                           observedAt: limits?.observedAt)
     }
 
     /// Without a recent reading from the Claude app, the session still ends
@@ -363,10 +340,10 @@ private struct NotchAgentLimitsCard: View {
                     Text(text.session)
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.white.opacity(0.85))
-                    Label(countdown(to: block.end), systemImage: "arrow.clockwise")
+                    Label(AgentFormat.resetTime(block.end, now: now, locale: locale), systemImage: "arrow.clockwise")
                         .labelStyle(NotchAgentInlineLabel())
                         .font(.system(size: 9.5))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(agentResetTint)
                     Spacer(minLength: 2)
                     Text(AgentFormat.cost(block.totals.cost))
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -449,6 +426,149 @@ private struct NotchAgentLimitsCard: View {
     }
 }
 
+/// The sessions one place runs for an agent, under the limits that pay for
+/// them: a row each, longest running first, and one row saying so when none
+/// does. The page grows the card to fit them.
+private struct NotchAgentSessionSlot: View {
+    let provider: AgentProvider
+    let place: AgentSessionPlace
+    let sessions: [AgentLiveSession]
+    /// The session whose time the closed island shows.
+    let timed: String?
+    /// An API key pays for these sessions, so each says what it cost.
+    var showsCost = false
+    let text: NotchAgentStrings
+    @ObservedObject private var l10n = L10n.shared
+
+    static let rowHeight = NotchAgentSupport.sessionRowHeight
+
+    var body: some View {
+        let places = FeatureStrings.notchAgentPlaces(l10n.language)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                NotchAgentPlaceIcon(place: place, provider: provider, size: 9, tint: .white.opacity(0.5))
+                Text((place == .app ? places.inApp(provider) : places.inTerminal).uppercased())
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .tracking(0.4)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                Spacer(minLength: 2)
+                if !sessions.isEmpty {
+                    Text("\(sessions.count)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(provider.tint)
+                    NotchAgentPulse(tint: provider.tint, size: 5)
+                }
+            }
+            if sessions.isEmpty {
+                Text(places.noSessions)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: Self.rowHeight)
+            } else {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    VStack(spacing: 0) {
+                        ForEach(sessions) { row($0, now: context.date, places: places) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func row(_ session: AgentLiveSession, now: Date, places: NotchAgentPlaceStrings) -> some View {
+        HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 4) {
+                    Text(session.project.isEmpty ? provider.displayName : session.project)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if session.id == timed {
+                        Text(places.inIsland.uppercased())
+                            .font(.system(size: 6.5, weight: .bold))
+                            .tracking(0.3)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 3)
+                            .padding(.vertical, 1)
+                            .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                    }
+                }
+                Text(detail(session))
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            Text(AgentFormat.clock(now.timeIntervalSince(session.started)))
+                .font(.system(size: 11, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(provider.tint)
+                .lineLimit(1)
+        }
+        .frame(height: Self.rowHeight)
+    }
+
+    private func detail(_ session: AgentLiveSession) -> String {
+        [AgentPricing.displayName(session.model),
+         session.tokens.output > 0 ? text.written(AgentFormat.tokens(session.tokens.output)) : "",
+         showsCost && session.cost > 0 ? AgentFormat.cost(session.cost) : ""]
+            .filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+}
+
+/// Where an agent's sessions run, side by side under its limits: the app
+/// and the terminal for Claude, the app alone for Codex unless its command
+/// line is working too.
+private struct NotchAgentSessionRow: View {
+    let provider: AgentProvider
+    let snapshot: AgentUsageSnapshot
+    let text: NotchAgentStrings
+
+    var body: some View {
+        let working = snapshot.working(provider)
+        let places = NotchAgentSupport.sessionPlaces(provider, live: snapshot.live)
+        VStack(alignment: .leading, spacing: 6) {
+            Rectangle().fill(.white.opacity(0.1)).frame(height: 1)
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(Array(places.enumerated()), id: \.offset) { index, place in
+                    if index > 0 { Rectangle().fill(.white.opacity(0.1)).frame(width: 1).frame(maxHeight: .infinity) }
+                    NotchAgentSessionSlot(provider: provider, place: place, sessions: working.filter { $0.place == place },
+                                          timed: snapshot.live.first?.id, text: text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// An amount at API prices beside its label, in spending's colors; grey
+/// while there is nothing to count.
+private struct NotchAgentAmountRow: View {
+    let label: String
+    let value: Double?
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(value == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.white.opacity(0.85)))
+                .lineLimit(1)
+            Spacer(minLength: 2)
+            Text(value.map { AgentFormat.cost($0) } ?? AgentFormat.cost(0))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(value.map { agentSpendTint($0) } ?? Color.secondary)
+                .lineLimit(1)
+                .contentTransition(.numericText())
+        }
+    }
+}
+
 /// A glyph and its words, closer together than a stock label.
 private struct NotchAgentInlineLabel: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -459,44 +579,371 @@ private struct NotchAgentInlineLabel: LabelStyle {
     }
 }
 
+/// One allowance: what it covers, when it renews, and how much is left.
+private struct NotchAgentLimitRow: View {
+    let window: AgentLimitWindow
+    let provider: AgentProvider
+    let now: Date
+    let display: NotchAgentLimitDisplay
+    let text: NotchAgentStrings
+    let observedAt: Date?
+    @Environment(\.locale) private var locale
+
+    /// A usage-based forecast would read as a promise, so a row says only
+    /// what is spent and when the window renews.
+    var body: some View {
+        let pace = AgentLimitSupport.pace(for: window, now: now)
+        let tint = agentLimitTint(provider, usedFraction: window.usedFraction)
+        let remaining = display == .remaining
+        let fraction = remaining ? window.remainingFraction : window.usedFraction
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                Text(label(window))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                Group {
+                    if let resets = AgentLimitSupport.displayedReset(window, now: now) {
+                        Label((window.estimatedResetsAt == nil ? "" : "≈ ")
+                              + AgentFormat.resetTime(resets, now: now, locale: locale),
+                              systemImage: "arrow.clockwise")
+                            .labelStyle(NotchAgentInlineLabel())
+                            .foregroundStyle(agentResetTint)
+                    }
+                }
+                .font(.system(size: 9.5))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                Spacer(minLength: 2)
+                Text(AgentFormat.percent(fraction))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(tint == provider.tint ? Color.white : tint)
+                    .contentTransition(.numericText())
+            }
+            NotchAgentMeter(value: fraction, pace: pace.map { remaining ? 1 - $0.elapsed : $0.elapsed },
+                            tint: tint, height: 4)
+        }
+        .help(help(window))
+    }
+
+    /// What the window covers: its length, or the model it is kept for.
+    private func label(_ window: AgentLimitWindow) -> String {
+        switch window.kind {
+        case .session: return text.session
+        case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
+        case .other:
+            guard let minutes = window.minutes else { return window.scope ?? text.readoutLimit }
+            return AgentFormat.duration(TimeInterval(minutes) * 60, locale: locale, units: 1)
+        }
+    }
+
+    private func help(_ window: AgentLimitWindow) -> String {
+        var parts = [label(window), text.usedShare(AgentFormat.percent(window.usedFraction)),
+                     text.left(AgentFormat.percent(window.remainingFraction))]
+        if let resets = AgentLimitSupport.displayedReset(window, now: now) {
+            parts.append(resets.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened)
+                .locale(AgentFormat.resetClock(locale))))
+            if window.estimatedResetsAt != nil { parts.append(text.estimated) }
+        }
+        if let observed = observedAt, now.timeIntervalSince(observed) > 600 {
+            parts.append(text.updated(observed.formatted(.relative(presentation: .named).locale(locale))))
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+/// Claude when the plan and an API key pay for different work: the plan's
+/// limits, which the Claude app's chats spend, beside what Claude Code's
+/// sessions took from the API credits.
+private struct NotchAgentClaudeBillingCard: View {
+    let snapshot: AgentUsageSnapshot
+    let now: Date
+    let display: NotchAgentLimitDisplay
+    let text: NotchAgentStrings
+    /// Halves side by side; one above the other where cards do not pair.
+    let wide: Bool
+    @ObservedObject private var l10n = L10n.shared
+    // Read so a balance saved in Settings redraws the card.
+    @AppStorage(DefaultsKey.notchAgentsClaudeCredits) private var balance = 0.0
+    @AppStorage(DefaultsKey.notchAgentsClaudeCreditsSince) private var since = 0.0
+    @Environment(\.locale) private var locale
+
+    private let provider = AgentProvider.claude
+    private var billing: ClaudeBillingStrings { FeatureStrings.claudeBilling(l10n.language) }
+
+    private var limits: AgentLimits? { snapshot.limits[.claude] }
+
+    private var stale: Bool {
+        NotchAgentSupport.limitsAreStale(limits, provider: provider, account: false, now: now)
+    }
+
+    /// The session and whichever longer window binds first, as on the usual card.
+    private var windows: [AgentLimitWindow] {
+        let all = (limits?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
+        let session = all.first { $0.kind == .session }
+        let longer = all.filter { $0.kind != .session }.max { $0.usedPercent < $1.usedPercent }
+        return [session, longer].compactMap { $0 }
+    }
+
+    var body: some View {
+        NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 6) {
+                NotchAgentCardHeader(title: provider.displayName, symbol: provider.symbol, tint: provider.tint,
+                                     provider: provider) {
+                    if let plan = snapshot.plans[provider] { NotchAgentChip(text: plan.name, tint: provider.tint) }
+                }
+                let layout = wide ? AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+                    : AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                layout {
+                    subscription.frame(maxWidth: .infinity, alignment: .topLeading)
+                    if wide {
+                        Rectangle().fill(.white.opacity(0.1)).frame(width: 1).frame(maxHeight: .infinity)
+                    }
+                    api.frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                sessions
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The Claude app's sessions under the plan and Claude Code's under the
+    /// API key, in one row so both start level.
+    private var sessions: some View {
+        let working = snapshot.working(provider)
+        let timed = snapshot.live.first?.id
+        let layout = wide ? AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+        return VStack(alignment: .leading, spacing: 6) {
+            Rectangle().fill(.white.opacity(0.1)).frame(height: 1)
+            layout {
+                NotchAgentSessionSlot(provider: provider, place: .app, sessions: working.filter { $0.place == .app },
+                                      timed: timed, text: text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if wide {
+                    Rectangle().fill(.white.opacity(0.1)).frame(width: 1).frame(maxHeight: .infinity)
+                }
+                NotchAgentSessionSlot(provider: provider, place: .terminal,
+                                      sessions: working.filter { $0.place == .terminal },
+                                      timed: timed, showsCost: true, text: text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// With a weekly limit the meters fill the column, and the plan's value
+    /// this month moves to the section's line; otherwise the open window's
+    /// value and the month's take rows of their own.
+    private var weekly: Bool { windows.count > 1 }
+
+    private var planMonth: Double {
+        NotchAgentSupport.claudePlanMonth(snapshot, splitsBilling: true, now: now)
+    }
+
+    private func section(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(size: 8.5, weight: .semibold))
+            .tracking(0.4)
+            .foregroundStyle(.tertiary)
+            .lineLimit(1)
+    }
+
+    private var subscription: some View {
+        let places = FeatureStrings.notchAgentPlaces(l10n.language)
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                section(billing.subscription)
+                Spacer(minLength: 2)
+                if weekly {
+                    Text(places.monthCaption(AgentFormat.cost(planMonth)))
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+            if windows.isEmpty {
+                Text(billing.noLimits)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(spacing: 5) {
+                    ForEach(windows) { window in
+                        NotchAgentLimitRow(window: window, provider: provider, now: now, display: display, text: text,
+                                           observedAt: limits?.observedAt)
+                    }
+                }
+                .opacity(stale ? 0.6 : 1)
+            }
+            if !weekly {
+                NotchAgentAmountRow(label: places.thisSession,
+                                    value: NotchAgentSupport.claudeSessionValue(snapshot, splitsBilling: true))
+                NotchAgentAmountRow(label: places.thisMonth, value: planMonth)
+            }
+        }
+    }
+
+    /// Today and this calendar month from the days the summary keeps, so a
+    /// month's first days are never mixed with the last one's.
+    private var api: some View {
+        let calendar = Calendar.autoupdatingCurrent
+        let month = calendar.dateInterval(of: .month, for: now)?.start ?? calendar.startOfDay(for: now)
+        let days = snapshot.days
+        let monthDays = days.filter { $0.start >= month }
+        let today = days.last.flatMap { calendar.isDate($0.start, inSameDayAs: now) ? $0 : nil }
+        return VStack(alignment: .leading, spacing: 4) {
+            section(billing.api)
+            figure(text.period(.today), cost(today.map { [$0] } ?? []))
+            figure(billing.thisMonth, cost(monthDays))
+            credits(days: days)
+        }
+    }
+
+    /// Only Claude Code outside the Claude app: the plan pays for the app's
+    /// sessions, and the Spending card counts everything.
+    private func cost(_ days: [AgentBucket]) -> String {
+        let totals = days.map(\.claudeAPI)
+        let spent = totals.reduce(0) { $0 + $1.cost }
+        return (totals.contains { $0.unpriced > 0 } ? "≥ " : "") + AgentFormat.cost(spent)
+    }
+
+    private func figure(_ label: String, _ value: String) -> some View {
+        HStack(spacing: 5) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(1)
+            Spacer(minLength: 2)
+            Text(value)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .contentTransition(.numericText())
+        }
+        .help(text.valueNote)
+    }
+
+    /// What is left of the balance entered, or where to enter it.
+    @ViewBuilder private func credits(days: [AgentBucket]) -> some View {
+        let _ = (balance, since)
+        if let stored = AgentClaudeCredits.stored(), let left = stored.remaining(days: days),
+           let fraction = stored.remainingFraction(days: days) {
+            let tint = agentLimitTint(provider, usedFraction: 1 - fraction)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text(billing.credits)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.green)
+                    Spacer(minLength: 2)
+                    Text("~ " + AgentFormat.cost(max(0, left)))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(tint == provider.tint ? Color.green : tint)
+                }
+                NotchAgentMeter(value: fraction, tint: tint, height: 4)
+            }
+            .help(billing.creditsLeft(AgentFormat.cost(max(0, left)),
+                                      since: stored.since.formatted(.relative(presentation: .named).locale(locale))))
+        } else {
+            Button {
+                NotchService.shared.openSettings(showing: .agents)
+            } label: {
+                Label(billing.addCredits, systemImage: "arrow.up.forward")
+                    .labelStyle(NotchAgentInlineLabel())
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(provider.tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
 // MARK: Spending
 
-/// The period it covers is chosen in the island's top row, which the trend,
-/// models and projects follow too; the plan multiples take its place here.
+/// Every agent's work at API prices since the ledger began, whatever period
+/// the island's top row shows, colored by how much it is, with the models
+/// that did most of it under it. The plan multiples stay on thirty days.
 private struct NotchAgentSpendCard: View {
     let snapshot: AgentUsageSnapshot
     let providers: [AgentProvider]
-    let period: AgentPeriod
     let text: NotchAgentStrings
+    /// Claude Code's spending was paid from API credits, not the plan.
+    var claudeUsesAPI = false
+    @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        let usage = snapshot.usage(period)
-        NotchAgentCardChrome {
+        var lifetime = AgentPeriodUsage()
+        for provider in providers {
+            guard let totals = snapshot.lifetime.byProvider[provider] else { continue }
+            lifetime.total += totals
+            lifetime.byProvider[provider] = totals
+        }
+        lifetime.models = snapshot.lifetime.models.filter { $0.provider.map(providers.contains) ?? false }
+        let thirty = snapshot.usage(.month)
+        let places = FeatureStrings.notchAgentPlaces(l10n.language)
+        return NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
                 NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) {
-                    if period == .month { multiples(usage) }
+                    multiples(thirty)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text((usage.fullyPriced ? "" : "≥ ") + AgentFormat.cost(usage.total.cost))
+                    Text((lifetime.fullyPriced ? "" : "≥ ") + AgentFormat.cost(lifetime.total.cost))
                         .font(.system(size: 22, weight: .medium, design: .rounded))
                         .monospacedDigit()
+                        .foregroundStyle(agentSpendTint(lifetime.total.cost))
                         .contentTransition(.numericText())
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                    Text(text.apiValue)
+                    Text(places.allAgentsLifetime)
                         .font(.system(size: 9.5))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     Spacer(minLength: 0)
                 }
-                .help(usage.fullyPriced ? text.valueNote : text.unpriced)
-                split(usage)
-                Text(footer(usage))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                    .help(text.saved(AgentFormat.cost(usage.total.savings)))
+                .help(lifetime.fullyPriced ? text.valueNote : text.unpriced)
+                split(lifetime)
+                models(lifetime)
+            }
+        }
+    }
+
+    /// The top three models, as the Models card listed them.
+    @ViewBuilder private func models(_ usage: AgentPeriodUsage) -> some View {
+        let shown = Array(usage.models.prefix(3))
+        let byCost = usage.fullyPriced
+        let peak = shown.map { $0.totals.weight(byCost: byCost) }.max() ?? 0
+        if !shown.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(text.modelsCard.uppercased())
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .tracking(0.4)
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 2)
+                ForEach(shown) { share in
+                    HStack(spacing: 6) {
+                        Text(share.name)
+                            .font(.system(size: 10, weight: .medium))
+                            .lineLimit(1)
+                            .frame(width: 70, alignment: .leading)
+                        NotchAgentMeter(value: peak > 0 ? share.totals.weight(byCost: byCost) / peak : 0,
+                                        tint: share.provider?.tint ?? .white, height: 3)
+                        Text(byCost ? AgentFormat.cost(share.totals.cost) : AgentFormat.tokens(share.totals.tokens.total))
+                            .font(.system(size: 10, weight: .medium))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .frame(minWidth: 34, alignment: .trailing)
+                    }
+                }
             }
         }
     }
@@ -505,7 +952,8 @@ private struct NotchAgentSpendCard: View {
     @ViewBuilder private func multiples(_ usage: AgentPeriodUsage) -> some View {
         HStack(spacing: 3) {
             ForEach(providers) { provider in
-                if let plan = snapshot.plans[provider], let price = plan.monthlyPrice, price > 0,
+                if !(provider == .claude && claudeUsesAPI),
+                   let plan = snapshot.plans[provider], let price = plan.monthlyPrice, price > 0,
                    let spent = usage.byProvider[provider]?.cost, spent > 0 {
                     let multiple = (spent / price).formatted(.number.precision(.fractionLength(spent / price < 10 ? 1 : 0))) + "×"
                     NotchAgentChip(text: multiple, tint: provider.tint)
@@ -539,12 +987,6 @@ private struct NotchAgentSpendCard: View {
         }
         .frame(height: 4)
         .accessibilityHidden(true)
-    }
-
-    private func footer(_ usage: AgentPeriodUsage) -> String {
-        var parts = [text.tokens(AgentFormat.tokens(usage.total.tokens.total))]
-        if let rate = usage.total.tokens.cacheHitRate, rate > 0 { parts.append(text.cached(AgentFormat.percent(rate))) }
-        return parts.joined(separator: " · ")
     }
 }
 
