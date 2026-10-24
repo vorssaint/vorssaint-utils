@@ -279,6 +279,47 @@ enum PreferencesFeatureTests {
         suite.expect(KeepAwakeAutomationSupport.conditionsSatisfied(
             matching: [.power], enabled: powerPlusUnnamedApps, requireAll: true
         ), "All stays usable while the app list is still empty")
+        let powerPlusAgentsOff = KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: false, powerEnabled: true, runningAppsEnabled: false,
+            agentWorkEnabled: true, agentWorkAvailable: false)
+        suite.expect(powerPlusAgentsOff == [.power],
+               "AI agents are no condition All has to satisfy while AI Agents cannot see them")
+        suite.expect(KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: false, powerEnabled: false, runningAppsEnabled: false,
+            agentWorkEnabled: true, agentWorkAvailable: true) == [.agentsWorking],
+               "AI agents are an enabled condition once AI Agents follows them")
+        suite.expect(KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: false, externalDisplayConnected: false,
+            powerEnabled: false, connectedToPower: false,
+            runningAppsEnabled: false, selectedAppsRunning: false,
+            agentWorkEnabled: true, agentsWorking: true) == [.agentsWorking],
+               "An agent at work matches when the condition is switched on")
+        suite.expect(KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: false, externalDisplayConnected: false,
+            powerEnabled: false, connectedToPower: false,
+            runningAppsEnabled: false, selectedAppsRunning: false,
+            agentWorkEnabled: false, agentsWorking: true).isEmpty,
+               "An agent at work does not match while the condition is switched off")
+        let agentNow = Date(timeIntervalSince1970: 1_000_000)
+        suite.expect(KeepAwakeAutomationSupport.agentWorkHolds(
+            working: true, lastWorking: nil, now: agentNow, grace: 300),
+               "An agent at work holds without a grace period")
+        suite.expect(KeepAwakeAutomationSupport.agentWorkHolds(
+            working: false, lastWorking: agentNow.addingTimeInterval(-299), now: agentNow, grace: 300),
+               "Agents hold until the grace period has passed")
+        suite.expect(!KeepAwakeAutomationSupport.agentWorkHolds(
+            working: false, lastWorking: agentNow.addingTimeInterval(-300), now: agentNow, grace: 300),
+               "Agents stop holding when the grace period ends")
+        suite.expect(!KeepAwakeAutomationSupport.agentWorkHolds(
+            working: false, lastWorking: nil, now: agentNow, grace: 300),
+               "Agents that never worked do not hold")
+        suite.expect(!KeepAwakeAutomationSupport.agentWorkHolds(
+            working: false, lastWorking: agentNow.addingTimeInterval(-1), now: agentNow, grace: 0),
+               "A grace period of zero ends with the work")
+        suite.expect(Defaults.sanitizedKeepAwakeAgentsGrace(7) == 5
+                     && Defaults.sanitizedKeepAwakeAgentsGrace(30) == 30
+                     && Defaults.sanitizedKeepAwakeAgentsGrace(0) == 0,
+               "the grace period is one of the offered values")
         suite.expect(KeepAwakeAutomationSupport.action(
             featureAvailable: true,
             matchingConditions: [.externalDisplay],

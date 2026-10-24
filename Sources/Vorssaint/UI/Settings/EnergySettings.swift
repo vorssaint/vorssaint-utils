@@ -125,9 +125,10 @@ struct EnergySettings: View {
         SettingsCard {
             // A running countdown only while there is one to run down; an
             // automatic session names its condition instead, as in the panel.
-            if awake.isActive, awake.sessionTrigger != .automation, let end = awake.endDate {
+            if awake.isActive, awake.sessionTrigger != .automation || awake.agentsIdle, let end = awake.endDate {
+                let prefix = awake.agentsIdle ? automationStrings.agentsIdleEndsIn : l10n.s.keepAwakeEndsIn
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    sessionRow(status: "\(l10n.s.keepAwakeEndsIn) \(KeepAwakeCard.remainingText(until: end))")
+                    sessionRow(status: "\(prefix) \(KeepAwakeCard.remainingText(until: end))")
                 }
             } else {
                 sessionRow(status: sessionStatus)

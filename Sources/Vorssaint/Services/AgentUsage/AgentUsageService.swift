@@ -147,6 +147,9 @@ final class AgentUsageService: ObservableObject {
         // A page torn down with the island never reports leaving, so the
         // minute cadence would outlive it.
         pageVisible = false
+        // Keep Awake follows the AI agents from here while the display is
+        // asleep or the Mac is locked, which is when it matters most.
+        guard !KeepAwakeAgentWork.isWatched() else { return }
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
@@ -601,12 +604,21 @@ final class AgentUsageService: ObservableObject {
         let claudePlan: AgentPlan?
         let claudeOrganization: String?
         let claudeApp: [AgentClaudeAppUsage.Sample]
+        let claudeCommandWaiting: Bool
     }
 
     /// Runs on `queue`.
     private var inputs: Inputs {
         Inputs(records: store.records.count, turns: store.turns, limits: store.limits, codexPlan: store.codexPlan,
-               claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeApp: claudeAppSamples)
+               claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeApp: claudeAppSamples,
+               claudeCommandWaiting: claudeWaitsOnCommand)
+    }
+
+    /// A quiet Claude turn still waits on a shell command of its own. Runs
+    /// on `queue`.
+    private var claudeWaitsOnCommand: Bool {
+        let commands = runningCommands
+        return store.waiting.contains { $0.value.provider == .claude && commands.contains($0.key) }
     }
 
     /// Runs on `queue` and hands the finished snapshot to the main thread.
@@ -616,7 +628,8 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        next.claudeCommandWaiting = enabled.contains(.claude) && claudeWaitsOnCommand
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
