@@ -953,6 +953,21 @@ final class NotchMascotHostView: NSView {
     override var isFlipped: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
+    /// only hit the visible character, not the whole animation track
+    func containsCompanion(_ pointInWindow: NSPoint) -> Bool {
+        guard !isHiddenOrHasHiddenAncestor, alphaValue > 0.01 else { return false }
+        let point = convert(pointInWindow, from: nil)
+        guard bounds.contains(point), placement.visible?.contains(where: { $0.contains(point) }) ?? true else { return false }
+        var ancestor = layer
+        while let current = ancestor {
+            if (current.presentation() ?? current).opacity < 0.01 || current.isHidden { return false }
+            ancestor = current.superlayer
+        }
+        let root = mascot.root.presentation() ?? mascot.root
+        guard root.opacity > 0.01, !root.isHidden else { return false }
+        return root.frame.insetBy(dx: -3, dy: -3).contains(point)
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let visibilityObserver { NotificationCenter.default.removeObserver(visibilityObserver) }
