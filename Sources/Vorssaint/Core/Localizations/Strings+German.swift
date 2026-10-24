@@ -735,6 +735,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "Wenn Auslastung und Temperatur desselben Elements aktiv sind, erscheinen sie in einem Block.",
         monitorSeparateMenuBarMetrics: "Messwerte in eigene Elemente trennen",
         monitorSeparateMenuBarMetricsCaption: "Trennt aktive Blöcke in der Menüleiste und hält Auslastung und Temperatur zusammen, wenn Kombinieren aktiv ist.",
+        monitorMenuBarReadingClicks: "Klick auf einen Messwert öffnet seine Details",
+        monitorMenuBarReadingClicksCaption: "Jeder Block in der Menüleiste öffnet seine eigenen Details, wie bei eigenen Elementen. Das Symbol öffnet weiterhin das Panel.",
         monitorNetworkUploadFirst: "Upload über Download",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Speicher",

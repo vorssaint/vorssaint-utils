@@ -3185,6 +3185,57 @@ enum SwitcherModelFeatureTests {
                "menu bar combines usage and temperature by default")
         suite.expect(registeredDefaults[DefaultsKey.menuBarSeparateMetrics] as? Bool == false,
                "separate menu bar metric items are opt-in")
+        suite.expect(registeredDefaults[DefaultsKey.menuBarReadingClicks] as? Bool == false,
+               "clicking a metric in the combined menu bar item opens the panel until turned on")
+        for readingClicks in [false, true] {
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.menuBarReadingClicks ? readingClicks : nil
+            }
+            suite.expect(SettingsBackupSupport.sanitizedSettings(from: backup)?[DefaultsKey.menuBarReadingClicks] as? Bool
+                    == readingClicks,
+                   "backup preserves the menu bar metric-click choice")
+        }
+        // A combined title like the status item's: the glyph's spacing, then
+        // two metric blocks joined by glue, each run marked with its metric.
+        func readingBlock(_ reading: String, width: CGFloat) -> NSAttributedString {
+            let attachment = NSTextAttachment()
+            attachment.image = NSImage(size: NSSize(width: width, height: 14))
+            attachment.bounds = NSRect(x: 0, y: -3, width: width, height: 14)
+            let block = NSMutableAttributedString(attachment: attachment)
+            block.addAttribute(MenuBarReadingHitTest.attribute, value: reading,
+                               range: NSRange(location: 0, length: block.length))
+            return block
+        }
+        let readingTitle = NSMutableAttributedString(string: " ")
+        readingTitle.append(readingBlock("cpu", width: 30))
+        readingTitle.append(NSAttributedString(string: "\u{200A}"))
+        readingTitle.append(readingBlock("memory", width: 20))
+        readingTitle.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: 11.6, weight: .medium),
+                                  range: NSRange(location: 0, length: readingTitle.length))
+        let readingSpans = MenuBarReadingHitTest.spans(in: readingTitle)
+        suite.expect(readingSpans.map(\.reading) == ["cpu", "memory"]
+                && readingSpans.allSatisfy { $0.minX > 0 }
+                && abs((readingSpans.first.map { $0.maxX - $0.minX } ?? 0) - 30) < 0.5
+                && abs((readingSpans.last.map { $0.maxX - $0.minX } ?? 0) - 20) < 0.5,
+               "each marked metric is measured where the title lays it out, after the glyph's spacing")
+        if readingSpans.count == 2, readingSpans[1].minX > readingSpans[0].maxX {
+            let cpu = readingSpans[0], memory = readingSpans[1]
+            let glueMiddle = (cpu.maxX + memory.minX) / 2
+            suite.expect(MenuBarReadingHitTest.reading(atX: cpu.minX + 1, in: readingSpans) == "cpu"
+                    && MenuBarReadingHitTest.reading(atX: memory.maxX - 1, in: readingSpans) == "memory",
+                   "a click on a metric opens that metric")
+            suite.expect(MenuBarReadingHitTest.reading(atX: glueMiddle - 0.1, in: readingSpans) == "cpu"
+                    && MenuBarReadingHitTest.reading(atX: glueMiddle + 0.1, in: readingSpans) == "memory",
+                   "the glue between two metrics belongs half to each, so no strip between them is dead")
+            suite.expect(MenuBarReadingHitTest.reading(atX: cpu.minX - 1, in: readingSpans) == nil
+                    && MenuBarReadingHitTest.reading(atX: memory.maxX + 1, in: readingSpans) == nil,
+                   "the glyph's spacing and the padding after the last metric open the panel as before")
+        } else {
+            suite.expect(false, "the combined title lays out two marked metrics with glue between them")
+        }
+        suite.expect(MenuBarReadingHitTest.spans(in: NSAttributedString(string: " CPU 42%")).isEmpty
+                && MenuBarReadingHitTest.reading(atX: 10, in: []) == nil,
+               "an unmarked title, as with metric clicks off, opens the panel wherever it is clicked")
         suite.expect(registeredDefaults[DefaultsKey.menuBarNetworkUploadFirst] as? Bool == false,
                "network menu bar upload-first layout is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.networkSpeedUnit] as? String == NetworkSpeedUnit.bytes.rawValue,

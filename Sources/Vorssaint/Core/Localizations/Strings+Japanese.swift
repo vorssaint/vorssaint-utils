@@ -735,6 +735,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "同じ項目の使用率と温度が有効な場合、1つのブロックにまとめて表示します。",
         monitorSeparateMenuBarMetrics: "メトリクスを個別の項目に分ける",
         monitorSeparateMenuBarMetricsCaption: "有効なブロックをメニューバーで分け、結合がオンなら使用率と温度は一緒に表示します。",
+        monitorMenuBarReadingClicks: "メトリクスをクリックして詳細を開く",
+        monitorMenuBarReadingClicksCaption: "メニューバーの各ブロックが、個別の項目と同じように自分の詳細を開きます。アイコンは引き続きパネルを開きます。",
         monitorNetworkUploadFirst: "アップロードをダウンロードの上に表示",
         monitorShowCPU: "CPU",
         monitorShowMemory: "メモリ",

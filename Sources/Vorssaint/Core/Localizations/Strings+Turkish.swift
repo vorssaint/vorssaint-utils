@@ -735,6 +735,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "Aynı öğe için kullanım ve sıcaklık etkinse, bunları tek blokta göster.",
         monitorSeparateMenuBarMetrics: "Metrikleri kendi öğelerine ayır",
         monitorSeparateMenuBarMetricsCaption: "Etkin blokları menü çubuğunda ayırır ve birleştirme açıkken kullanım ile sıcaklığı birlikte tutar.",
+        monitorMenuBarReadingClicks: "Ayrıntılarını açmak için bir metriğe tıklayın",
+        monitorMenuBarReadingClicksCaption: "Menü çubuğundaki her blok, ayrı öğeler gibi kendi ayrıntılarını açar. Simge yine paneli açar.",
         monitorNetworkUploadFirst: "Yükleme indirme üstünde",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Bellek",

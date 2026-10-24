@@ -735,6 +735,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "Keď sú pre tú istú položku zapnuté využitie aj teplota, zobrazia sa v jednom bloku.",
         monitorSeparateMenuBarMetrics: "Rozdeliť metriky do samostatných položiek",
         monitorSeparateMenuBarMetricsCaption: "Rozdelí aktívne bloky v lište s ponukami a pri zapnutom spájaní ponechá využitie a teplotu spolu.",
+        monitorMenuBarReadingClicks: "Kliknutím na metriku otvoriť jej podrobnosti",
+        monitorMenuBarReadingClicksCaption: "Každý blok v lište s ponukami otvorí vlastné podrobnosti ako samostatné položky. Ikona naďalej otvára panel.",
         monitorNetworkUploadFirst: "Odosielanie nad sťahovaním",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Pamäť",

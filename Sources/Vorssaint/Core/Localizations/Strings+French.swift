@@ -735,6 +735,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "Quand l’utilisation et la température du même élément sont activées, elles s’affichent dans un seul bloc.",
         monitorSeparateMenuBarMetrics: "Séparer les mesures en éléments dédiés",
         monitorSeparateMenuBarMetricsCaption: "Sépare les blocs actifs dans la barre des menus et garde utilisation et température ensemble quand combiner est actif.",
+        monitorMenuBarReadingClicks: "Cliquer sur une mesure ouvre ses détails",
+        monitorMenuBarReadingClicksCaption: "Chaque bloc de la barre des menus ouvre ses propres détails, comme les éléments dédiés. L’icône ouvre toujours le panneau.",
         monitorNetworkUploadFirst: "Envoi au-dessus du téléchargement",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Mémoire",

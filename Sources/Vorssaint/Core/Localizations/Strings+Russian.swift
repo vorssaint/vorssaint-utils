@@ -736,6 +736,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "Когда включены и нагрузка, и температура одного и того же элемента, показывать их одним блоком.",
         monitorSeparateMenuBarMetrics: "Выводить метрики отдельными элементами",
         monitorSeparateMenuBarMetricsCaption: "Разделяет активные блоки в строке меню и сохраняет нагрузку и температуру вместе, если включено объединение.",
+        monitorMenuBarReadingClicks: "Открывать подробности метрики по щелчку",
+        monitorMenuBarReadingClicksCaption: "Каждый блок в строке меню открывает свои подробности, как отдельные элементы. Значок по-прежнему открывает панель.",
         monitorNetworkUploadFirst: "Показывать отдачу над загрузкой",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Память",

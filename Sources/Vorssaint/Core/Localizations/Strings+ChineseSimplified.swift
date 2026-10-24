@@ -735,6 +735,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "同一项目的使用率和温度都启用时，在一个区块中显示。",
         monitorSeparateMenuBarMetrics: "将指标分成独立项目",
         monitorSeparateMenuBarMetricsCaption: "将已启用的区块拆成单独的菜单栏项目，合并开启时使用率和温度仍保持在一起。",
+        monitorMenuBarReadingClicks: "点按指标打开详细信息",
+        monitorMenuBarReadingClicksCaption: "菜单栏中的每个区块会打开自己的详细信息，与独立项目相同。图标仍会打开面板。",
         monitorNetworkUploadFirst: "上传显示在下载上方",
         monitorShowCPU: "CPU",
         monitorShowMemory: "内存",
