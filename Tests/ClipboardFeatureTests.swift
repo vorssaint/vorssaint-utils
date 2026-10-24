@@ -1959,6 +1959,42 @@ enum ClipboardPreviewContract {
         service.removeSelectedQuickEntries()
         suite.expect(service.entries == [fresh, a, c] && service.selectedQuickEntry == c,
                      "deleting the highlighted entry highlights the one that took its place")
+
+        let cycling = Service()
+        cycling.setEntries([a, b, c])
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == b && cycling.quickSelectionIsVisible,
+                     "repeating the opening shortcut advances from the initial entry to the second")
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == c,
+                     "another shortcut press advances to the next entry")
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == a,
+                     "the history shortcut wraps from the last entry to the first")
+
+        cycling.quickQuery = "B"
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == b && cycling.quickQuery == "B",
+                     "cycling uses the filtered entries and preserves the search")
+        cycling.quickQuery = "no match"
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == nil && !cycling.quickSelectionIsVisible,
+                     "cycling an empty result clears the highlight without selecting an unrelated entry")
+        cycling.quickQuery = ""
+        cycling.setEntries([a])
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == a && cycling.quickSelectionIsVisible,
+                     "cycling a one-entry history keeps that entry selected")
+
+        let arrows = Service()
+        arrows.setEntries([a, b])
+        arrows.moveQuickSelection(1)
+        suite.expect(arrows.selectedQuickEntry == a,
+                     "the first arrow still reveals the initial highlight without skipping it")
+        arrows.moveQuickSelection(1)
+        arrows.moveQuickSelection(1)
+        suite.expect(arrows.selectedQuickEntry == b,
+                     "arrow navigation still stops at the last entry instead of wrapping")
     }
 
     /// #1885: typing searches the history once per keystroke, so the folded

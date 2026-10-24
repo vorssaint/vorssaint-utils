@@ -579,6 +579,19 @@ final class ClipboardHistoryService: ObservableObject {
         quickSelectionIsVisible = true
     }
 
+    /// The opening shortcut already implies the initial entry. Repeating it
+    /// advances immediately, wrapping within the current search results.
+    func cycleQuickSelection() {
+        let matches = filteredQuickEntries
+        guard !matches.isEmpty else {
+            moveQuickSelection(1)
+            return
+        }
+        let current = selectedQuickIndex(in: matches)
+        quickSelectionIsVisible = true
+        moveQuickSelection(current + 1 < matches.count ? 1 : -current)
+    }
+
     /// The window leaves the screen at once; the paste waits for the write,
     /// because pasting before it lands would paste whatever the user had
     /// copied before. A stale entry leaves the clipboard untouched and pastes
@@ -1200,7 +1213,7 @@ final class ClipboardHistoryService: ObservableObject {
                 guard id.signature == 0x5655_434C, id.id == 3
                 else { return OSStatus(eventNotHandledErr) }
                 let service = Unmanaged<ClipboardHistoryService>.fromOpaque(userData).takeUnretainedValue()
-                DispatchQueue.main.async { service.toggleHistoryWindow() }
+                DispatchQueue.main.async { service.handleHistoryShortcut() }
                 return noErr
             }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &hotKeyHandler)
         }
@@ -1237,6 +1250,21 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     // MARK: - Quick window
+
+    private func handleHistoryShortcut() {
+        guard let panel, panel.isVisible else {
+            toggleHistoryWindow()
+            return
+        }
+        guard panel.attachedSheet == nil, editingEntryID == nil else { return }
+        if let textView = panel.firstResponder as? NSTextView,
+           ClipboardHistoryFocus.textViewOwnsKeys(isComposing: textView.hasMarkedText(),
+                                                  isFieldEditor: textView.isFieldEditor,
+                                                  isEditable: textView.isEditable) {
+            return
+        }
+        cycleQuickSelection()
+    }
 
     func toggleQuickPreview() {
         setQuickPreviewPresented(!quickPreviewPresented)
