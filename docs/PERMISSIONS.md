@@ -17,7 +17,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
-| Automation | Yes | Finder actions, Homebrew Terminal handoff and supported music playback controls |
+| Automation | Yes | Finder actions and supported music playback controls |
 | App Management | Yes | App installs, updates and removal |
 
 ## Accessibility
@@ -153,10 +153,9 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 - **Finder cut and paste**, which reads the current Finder selection and the destination folder, then moves the files.
 - **Uninstaller**, which moves leftover files to the Trash.
 - **Empty the Trash** in Quick toggles, which asks Finder to empty it. The other quick toggles, dark mode included, need no permission.
-- **Homebrew manager**, which can open Terminal with the exact Homebrew install or setup command when the app should not collect a password itself.
 - **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent. The shuffle button on the music page reads and switches only the shuffle setting the app declares, and reads whether shuffle is available for what is playing when the app declares that too. Until the app is allowed, its first press only asks for this permission, even for an app whose playback controls work without it.
 
-**If you say no.** Those Finder or Terminal handoff steps will not go through. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
+**If you say no.** Those Finder steps will not go through. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
 
 **Optional.** Yes.
 
