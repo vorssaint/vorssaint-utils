@@ -2034,6 +2034,34 @@ enum CommandBarFeatureTests {
         suite.expect(CommandBarDates.evaluate("hora em londres", now: tuesday, calendar: gregorian,
                                         locale: english)?.detail.hasPrefix("London") == true,
                "a city named the way the person's language names it")
+        func ask(_ question: String) -> CommandBarDates.Result? {
+            CommandBarDates.evaluate(question, now: tuesday, calendar: gregorian, locale: english)
+        }
+        // Beijing, Geneva, Munich, Cologne and Hamburg have no zone of their own.
+        // Each keeps the time of the zone it is in, under its own name.
+        for (city, zoneCity) in [("Beijing", "Shanghai"), ("Geneva", "Zurich"), ("Munich", "Berlin"),
+                                 ("Cologne", "Berlin"), ("Hamburg", "Berlin")] {
+            let answer = ask("time in \(city)")
+            suite.expect(answer?.detail.hasPrefix(city) == true
+                    && answer?.formatted == ask("time in \(zoneCity)")?.formatted,
+                   "\"time in \(city)\" says \(city) and keeps the time in \(zoneCity)")
+        }
+        // Questions as people write them. A joining word comes off the ends of the
+        // place only, so "ciudad de mexico" keeps its "de".
+        for (question, place) in [("hora de nova york", "New York"),
+                                  ("hora de ciudad de mexico", "Mexico City"),
+                                  ("hora en ciudad de mexico", "Mexico City"),
+                                  ("Uhrzeit in München", "Munich"), ("heure à Genève", "Geneva")] {
+            suite.expect(ask(question)?.detail.hasPrefix(place) == true,
+                   "\"\(question)\" tells the time in \(place)")
+        }
+        // An alias whose city the database does not know is dropped without a word,
+        // which is how the ones for Beijing and Munich went unanswered.
+        for (alias, city) in CommandBarDates.placeAliases.sorted(by: { $0.key < $1.key }) {
+            let place = city.replacingOccurrences(of: "_", with: " ")
+            suite.expect(ask("time in \(alias)")?.detail.hasPrefix(place) == true,
+                   "\"\(alias)\" tells the time in \(place)")
+        }
         suite.expect(CommandBarDates.evaluate("time", now: tuesday, calendar: gregorian,
                                         locale: english) == nil,
                "a time word with nowhere to look is not an answer")
