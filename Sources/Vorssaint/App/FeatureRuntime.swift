@@ -380,6 +380,7 @@ final class FeatureRuntime: ObservableObject {
         },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },
+        .touchBar: { TouchBarService.shared.syncWithPreferences() },
         .cleaner: {
             CleanerScheduler.shared.syncWithPreferences()
             WhatsAppDownloadScheduler.shared.syncWithPreferences()
@@ -426,6 +427,9 @@ extension AppFeature {
         case .fanControl:
             return FanControlHardware.hasControllableFan
                 ? nil : FeatureStrings.fanControl(L10n.shared.language).noFans
+        case .touchBar:
+            return TouchBarHardware.isAvailable
+                ? nil : FeatureStrings.touchBar(L10n.shared.language).unavailable
         default:
             return nil
         }
