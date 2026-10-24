@@ -12,7 +12,68 @@ import ImageIO
 import VMStatisticsCompat
 
 enum ShelfFeatureTests {
+    /// Run the shipped mouse handler without opening a browser or touching
+    /// the real Shelf selection. Only its service and workspace are doubles.
+    class LinkTileFixture: NSView {
+        struct Item {
+            enum Payload { case link(URL), file(URL), text(String), batch }
+            var id = UUID()
+            var payload: Payload = .text("")
+            var isBatch: Bool { if case .batch = payload { return true }; return false }
+        }
+        final class ShelfService {
+            static let shared = ShelfService()
+            var actions: [String] = []
+            func toggleBatchExpansion(_ id: UUID) { actions.append("batch") }
+            func extendSelection(to id: UUID) { actions.append("extend") }
+            func toggleSelection(_ id: UUID) { actions.append("select") }
+        }
+        final class NSWorkspace {
+            static let shared = NSWorkspace()
+            var opened: [URL] = []
+            func open(_ url: URL) { opened.append(url) }
+        }
+        var item = Item()
+        var didDrag = false
+    }
+
+    private static func linkClicks(_ suite: TestSuite) {
+        let tile = LinkTile(frame: .zero)
+        let url = URL(string: "https://example.com/saved?q=one#section")!
+        func click(_ count: Int, modifiers: NSEvent.ModifierFlags = [], dragged: Bool = false) -> ([URL], [String]) {
+            LinkTileFixture.ShelfService.shared.actions = []
+            LinkTileFixture.NSWorkspace.shared.opened = []
+            tile.didDrag = dragged
+            let event = NSEvent.mouseEvent(with: .leftMouseUp, location: .zero, modifierFlags: modifiers,
+                                           timestamp: 0, windowNumber: 0, context: nil,
+                                           eventNumber: 1, clickCount: count, pressure: 0)!
+            tile.mouseUp(with: event)
+            return (LinkTileFixture.NSWorkspace.shared.opened, LinkTileFixture.ShelfService.shared.actions)
+        }
+        tile.item.payload = .link(url)
+        let single = click(1)
+        suite.expect(single.0.isEmpty && single.1 == ["select"], "one link click still selects the Shelf tile")
+        let double = click(2)
+        suite.expect(double.0 == [url] && double.1.isEmpty, "double-click opens the exact saved link once")
+        let dragged = click(2, dragged: true)
+        suite.expect(dragged.0.isEmpty && dragged.1.isEmpty, "ending a link drag never opens it")
+        for modifier: NSEvent.ModifierFlags in [.shift, .command, .option, .control] {
+            let modified = click(2, modifiers: modifier)
+            suite.expect(modified.0.isEmpty && modified.1 == [modifier == .shift ? "extend" : "select"],
+                         "modified double-click retains selection without launching a link")
+        }
+        suite.expect(click(3).0.isEmpty, "a triple-click does not launch the link a second time")
+        tile.item.payload = .batch
+        suite.expect(click(2).1 == ["batch"], "double-click still expands or collapses a Shelf pile")
+        for payload: LinkTileFixture.Item.Payload in [.file(URL(fileURLWithPath: "/tmp/a.txt")), .text("https://example.com")] {
+            tile.item.payload = payload
+            let result = click(2)
+            suite.expect(result.0.isEmpty && result.1 == ["select"], "file and note double-clicks keep their selection behavior")
+        }
+    }
+
     static func run(_ suite: TestSuite) {
+        linkClicks(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",

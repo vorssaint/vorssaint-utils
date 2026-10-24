@@ -550,7 +550,13 @@ final class ShelfTileView: NSView, NSDraggingSource {
         pin.target = self
         pin.image = NSImage(systemSymbolName: isPinned ? "pin.slash" : "pin", accessibilityDescription: nil)
         menu.addItem(pin)
-        // Notes and links have nothing to open or reveal.
+        if case .link = item.payload {
+            menu.addItem(.separator())
+            let open = NSMenuItem(title: strings.shelfActionOpen, action: #selector(openLink), keyEquivalent: "")
+            open.target = self
+            menu.addItem(open)
+        }
+        // Notes and links have no file actions or Finder location.
         guard !urls.isEmpty else { return menu }
         menu.addItem(.separator())
 
@@ -623,6 +629,9 @@ final class ShelfTileView: NSView, NSDraggingSource {
         guard !didDrag else { return }
         if item.isBatch, event.clickCount >= 2 {
             ShelfService.shared.toggleBatchExpansion(item.id)
+        } else if case .link = item.payload, event.clickCount == 2,
+                  event.modifierFlags.intersection([.shift, .command, .option, .control]).isEmpty {
+            openLink()
         } else if event.modifierFlags.contains(.shift) {
             ShelfService.shared.extendSelection(to: item.id)
         } else {
@@ -640,6 +649,11 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     @objc private func toggleBatchExpansion() {
         ShelfService.shared.toggleBatchExpansion(item.id)
+    }
+
+    @objc private func openLink() {
+        guard case let .link(url) = item.payload else { return }
+        NSWorkspace.shared.open(url)
     }
 
     @objc private func openFiles() {

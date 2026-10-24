@@ -940,6 +940,11 @@ def main():
     write("OverlayPanelDeclaration.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/UI/OverlayPanel.swift", "class OverlayPanel:"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
+    shelf_tile = "Sources/Vorssaint/UI/Shelf/ShelfTilesView.swift"
+    write("ShelfLinkClicks.swift", "import AppKit\nextension ShelfFeatureTests {\nfinal class LinkTile: LinkTileFixture {\n"
+          + declaration(shelf_tile, "    override func mouseUp(with event:", scope="final class ShelfTileView:")
+          + declaration(shelf_tile, "    @objc private func openLink()").replace("@objc private func", "func", 1)
+          + "}\n}\n")
     write("ShelfDragCompletion.swift", "import Foundation\n\nextension ShelfDragCompletionContract {\n"
           + "final class Service {\nvar activeInternalDragIDs: [UUID] = []\n"
           + "weak var internalDragWindow: NSWindow?\nvar internalDragWasMerged = false\n"
