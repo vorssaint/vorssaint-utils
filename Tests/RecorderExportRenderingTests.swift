@@ -18,7 +18,8 @@ enum RecorderExportRenderingTests {
             }
             done.signal()
         }
-        suite.expect(done.wait(timeout: .now() + 300) == .success,
+        // AVFoundation can take just over five minutes on the newer CI runner.
+        suite.expect(done.wait(timeout: .now() + 360) == .success,
                      "export regression finishes within its deadline")
     }
 
