@@ -63,7 +63,7 @@ final class KeepAwakeManager: ObservableObject {
         didSet {
             guard dimScreenOnLidClose != oldValue else { return }
             UserDefaults.standard.set(dimScreenOnLidClose, forKey: DefaultsKey.dimScreenOnLidClose)
-            if !dimScreenOnLidClose { applyDimmingAction(LidDimmingSupport.restoring(saved: savedDisplayBrightness)) }
+            if !dimScreenOnLidClose && !continuityDimmingActive { applyDimmingAction(LidDimmingSupport.restoring(saved: savedDisplayBrightness)) }
             syncLidDimmingObserver()
         }
     }
@@ -99,6 +99,8 @@ final class KeepAwakeManager: ObservableObject {
     private var lidDimmingNotificationPort: IONotificationPortRef?
     private var lidDimmingNotification: io_object_t = 0
     private var lidClosedForDimming: Bool?
+    private var displayRestoreGeneration = 0
+    private var continuityDimmingActive = false
     private var savedDisplayBrightness: Double?
     private static let screenLockNotification = Notification.Name("com.apple.screenIsLocked")
     private static let screenUnlockNotification = Notification.Name("com.apple.screenIsUnlocked")
@@ -306,6 +308,7 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     func deactivate(reason: EndReason) {
+        restoreContinuityBrightness()
         let hadSession = isActive
         if reason == .quit {
             isTerminating = true
@@ -1005,6 +1008,30 @@ final class KeepAwakeManager: ObservableObject {
         syncLidDimmingObserver()
     }
 
+    /// Use the same recovery owner as closed-lid dimming. Capturing a second
+    /// zero baseline would leave the display dark when the other mode restores.
+    func dimForContinuity() -> Bool {
+        guard isActive, !sessionPausedForScreenLock, !isTerminating,
+              let value = savedDisplayBrightness ?? LidDisplayDimmer.currentBrightness(),
+              value.isFinite, (0...1).contains(value) else { return false }
+        displayRestoreGeneration &+= 1
+        continuityDimmingActive = true
+        savedDisplayBrightness = value
+        UserDefaults.standard.set(value, forKey: DefaultsKey.dimmedDisplaySavedBrightness)
+        guard LidDisplayDimmer.setBrightness(0) else {
+            restoreContinuityBrightness()
+            return false
+        }
+        syncLidDimmingObserver()
+        return true
+    }
+
+    func restoreContinuityBrightness() {
+        guard continuityDimmingActive || savedDisplayBrightness != nil else { return }
+        continuityDimmingActive = false
+        applyDimmingAction(LidDimmingSupport.restoring(saved: savedDisplayBrightness))
+    }
+
     // MARK: - Closed-lid screen dimming
 
     /// Runs whenever the closed-lid mode or the dimming preference changes.
@@ -1016,7 +1043,7 @@ final class KeepAwakeManager: ObservableObject {
     /// the mode ending, the same way `BrightnessService`'s own deferred
     /// display restoration outlives whatever asked for it.
     private func syncLidDimmingObserver() {
-        let armed = clamshellActive && dimScreenOnLidClose
+        let armed = (clamshellActive && dimScreenOnLidClose) || continuityDimmingActive
         if !armed { applyDimmingAction(LidDimmingSupport.restoring(saved: savedDisplayBrightness)) }
         guard armed || savedDisplayBrightness != nil else {
             if lidDimmingNotification != 0 { IOObjectRelease(lidDimmingNotification) }
@@ -1074,6 +1101,7 @@ final class KeepAwakeManager: ObservableObject {
     private func applyDimmingAction(_ action: LidDimmingSupport.Action) {
         switch action {
         case .dim(let save):
+            guard savedDisplayBrightness == nil else { return }
             savedDisplayBrightness = save
             UserDefaults.standard.set(save, forKey: DefaultsKey.dimmedDisplaySavedBrightness)
             LidDisplayDimmer.setBrightness(0)
@@ -1095,14 +1123,18 @@ final class KeepAwakeManager: ObservableObject {
     /// keeps `syncLidDimmingObserver` armed for an owed restore is what
     /// finds the next real lid-open event to try again.
     private func attemptDisplayRestore(_ value: Double, attemptsLeft: Int = 6) {
+        let generation = displayRestoreGeneration
         guard LidDisplayDimmer.setBrightness(value) else {
             Self.log.log("restoring the built-in display to \(value) found no panel yet, \(attemptsLeft - 1) retries left")
             guard attemptsLeft > 1 else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.attemptDisplayRestore(value, attemptsLeft: attemptsLeft - 1)
+                guard let self, self.displayRestoreGeneration == generation,
+                      self.savedDisplayBrightness == value else { return }
+                self.attemptDisplayRestore(value, attemptsLeft: attemptsLeft - 1)
             }
             return
         }
+        continuityDimmingActive = false
         savedDisplayBrightness = nil
         UserDefaults.standard.removeObject(forKey: DefaultsKey.dimmedDisplaySavedBrightness)
         Self.log.log("restored the built-in display to \(value)")

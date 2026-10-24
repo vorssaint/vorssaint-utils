@@ -29,6 +29,9 @@ enum DefaultsKey {
     static let keepAwakeAllowDisplaySleep = "keepAwakeAllowDisplaySleep"
     static let keepAwakeExternalDisplay = "keepAwakeExternalDisplay"
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
+    static let continuityHotspot = "continuityHotspot"
+    static let continuityQuitApps = "continuityQuitApps"
+    static let continuityDuration = "continuityDuration"
     static let keepAwakeRunningApps = "keepAwakeRunningApps"
     static let keepAwakeRunningAppBundleIDs = "keepAwakeRunningAppBundleIDs"
     // Match mode over the automation conditions: false is Any (one matching
@@ -1204,6 +1207,9 @@ enum Defaults {
         DefaultsKey.keepAwakeAllowDisplaySleep: false,
         DefaultsKey.keepAwakeExternalDisplay: false,
         DefaultsKey.keepAwakeConnectedToPower: false,
+        DefaultsKey.continuityHotspot: "",
+        DefaultsKey.continuityQuitApps: [String](),
+        DefaultsKey.continuityDuration: 60,
         DefaultsKey.keepAwakeRunningApps: false,
         DefaultsKey.keepAwakeRunningAppBundleIDs: [String](),
         DefaultsKey.keepAwakeAutomationRequireAll: false,
