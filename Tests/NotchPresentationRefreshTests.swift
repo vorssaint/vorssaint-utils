@@ -277,6 +277,7 @@ enum NotchPresentationRefreshContract {
         func syncHiddenHoverMonitoring() {}
         func schedulePointerFollow() {}
         func syncMirrors() {}
+        var mirrorHeldForArrival: CGDirectDisplayID?
         func finishMusicDeparture() {
             musicDepartureWork?.cancel(); musicDepartureWork = nil
             departingMusic = nil

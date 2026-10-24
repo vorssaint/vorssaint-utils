@@ -28,7 +28,14 @@ enum NotchMirrorContract {
         var isVisible = false
         var sharingType = NSWindow.SharingType.readOnly
         var orders = 0
+        var orderedBelow = 0
+        var windowNumber = 1
         func orderFrontRegardless() { isVisible = true; orders += 1 }
+        func order(_ place: NSWindow.OrderingMode, relativeTo otherWindow: Int) {
+            isVisible = true
+            orders += 1
+            if place == .below { orderedBelow += 1 }
+        }
     }
     final class Host {
         let panel = Panel()
@@ -68,6 +75,7 @@ enum NotchMirrorContract {
     class State {
         var showsOnAllDisplays = true, running = true, suspended = false
         var windowHost: Host? = Host()
+        var mirrorHeldForArrival: CGDirectDisplayID?
         var displayID: CGDirectDisplayID? = 1
         var mirrors: [CGDirectDisplayID: NotchMirror] = [:]
         var fullscreenDisplays: Set<CGDirectDisplayID> = []
@@ -148,6 +156,22 @@ enum NotchMirrorContract {
                      && capsule?.model.size.width == external2.restingSize(showsContent: false).width + 40
                      && capsule?.host.outline?.enabled == true && capsule?.host.outline?.color == .systemOrange,
                      "a timer starting reshapes each copy as the island does, in the timer's outline")
+
+        let trading = Service()
+        trading.syncMirrors()
+        let kept = trading.mirrors[2]
+        trading.windowHost?.panel.isVisible = true
+        trading.mirrorHeldForArrival = 2
+        trading.displayID = 2
+        trading.syncMirrors()
+        let underneath = trading.mirrors[1]
+        suite.expect(kept?.model.shown == true && kept?.host.hides == 0
+                     && underneath?.model.shown == true && underneath?.host.panel.orderedBelow == 1,
+                     "while the island moves, the copy it is joining stays up and the one it leaves sits underneath")
+        trading.mirrorHeldForArrival = nil
+        trading.syncMirrors()
+        suite.expect(kept?.model.shown == false && kept?.host.hides == 1 && underneath?.model.shown == true,
+                     "the copy steps aside once the island has arrived on its display")
 
         // The island follows the pointer to the external display.
         service.displayID = 2

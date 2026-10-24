@@ -95,6 +95,9 @@ enum NotchScreenRefreshContract {
         var settledCalls = 0
         func containsHover(_ point: CGPoint) -> Bool { rect.contains(point) }
         func whenSettled(_ body: @escaping () -> Void) { settledCalls += 1; body() }
+        func canRelocateOnScreen() -> Bool { false }
+        func orderOutForRelocation() -> Bool { false }
+        func orderFrontForRelocation() {}
     }
     class State {
         var hiddenInFullscreen = false
@@ -150,6 +153,14 @@ enum NotchScreenRefreshContract {
         var choosingFileDropDestination = false
         var screenUpdates = 0
         var consumerSyncs = 0
+        var mirrorHeldForArrival: CGDirectDisplayID?
+        var relocationTicket = 0
+        func syncMirrors() {}
+        func syncScreenEdgeClicks() {}
+        func holdMusicWave(on id: CGDirectDisplayID) {}
+        func matchMusicWave() {}
+        func keepMusicWave() {}
+        func releaseMusicWave() {}
         func NSMouseInRect(_ point: CGPoint, _ rect: CGRect, _ flipped: Bool) -> Bool { rect.contains(point) }
         /// The island takes the display its identifier names, as updateScreen does.
         func updateScreen() {

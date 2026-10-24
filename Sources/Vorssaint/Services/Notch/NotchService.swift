@@ -277,6 +277,12 @@ final class NotchService: ObservableObject {
     private var screenRefreshWork: DispatchWorkItem?
     private var preferenceSyncWork: DispatchWorkItem?
     private let menuSpaceQueue = DispatchQueue(label: "com.vorssaint.notch-menu-space", qos: .utility)
+    /// Set while the live window is on its way to another display, so the copy
+    /// there stays up until that window has been drawn for it and ordered in.
+    private var mirrorHeldForArrival: CGDirectDisplayID?
+    /// Bumped on every move, so a reveal queued for the display just left does
+    /// not order the window in after a newer move, or after the island stops.
+    private var relocationTicket = 0
     /// The display the island is on. The pointer choice keeps it there until
     /// the island rests, so a preference sync never moves an open island.
     private var displayID: CGDirectDisplayID?
@@ -2727,7 +2733,10 @@ final class NotchService: ObservableObject {
                     self.openCountdownEvent()
                 } else { self.toggle() }
             })
-        if panel?.isVisible != true { panel?.orderFrontRegardless() }
+        // A move between displays brings the window back on the next turn, once
+        // what it shows has been drawn for the display it landed on. Ordering
+        // it in here would flash the shape it had on the display it left.
+        if panel?.isVisible != true, mirrorHeldForArrival == nil { panel?.orderFrontRegardless() }
         let music = NotchMusicService.shared
         rememberPresentedMusic(playback: music.playback, artwork: music.artwork, tint: music.artworkTint)
         if contentTransition == .depart {
@@ -2827,12 +2836,83 @@ final class NotchService: ObservableObject {
     }
 
     private func move(to screen: NSScreen) {
-        displayID = screen.notchDisplayID
+        let destination = screen.notchDisplayID
+        // On screen now: a copy has to be underneath before this window leaves,
+        // or the display it leaves blinks empty, and the window server would
+        // stretch it across to the display the pointer entered.
+        let reveal = windowHost?.canRelocateOnScreen() == true
+        relocationTicket += 1
+        let ticket = relocationTicket
+        let origin = displayID
+        displayID = destination
+        if reveal {
+            // Keep the copy on the display being entered until this window is
+            // drawn for it. The copy on the display being left goes underneath.
+            mirrorHeldForArrival = destination
+            syncMirrors()
+            // Only the copy that was covered. The one on the display being
+            // entered is already drawing its wave; laying it out again flickers it.
+            if let origin { holdMusicWave(on: origin) }
+            _ = windowHost?.orderOutForRelocation()
+        } else {
+            releaseMusicWave()
+        }
         updateScreen()
         // The menu space measured so far belongs to the display it left.
         invalidateMenuSpace()
         syncVisibleConsumers()
         refreshPresentation(animated: false)
+        // A move that found the window already out is the one a display change
+        // did not finish. Bring it back onto the display this move chose.
+        guard reveal else {
+            windowHost?.orderFrontForRelocation()
+            return
+        }
+        // SwiftUI draws the new display's shape at the end of this turn, while
+        // the window is still out. It comes back on the next one, over the copy.
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.relocationTicket == ticket else { return }
+            self.mirrorHeldForArrival = nil
+            guard self.running, !self.suspended, self.displayID == destination else {
+                self.releaseMusicWave()
+                self.syncMirrors()
+                return
+            }
+            // Take the bars already on that display, then cover them. Hiding
+            // the copy while it still holds its wave keeps those bars from
+            // falling to dots on the way out.
+            self.matchMusicWave()
+            self.windowHost?.orderFrontForRelocation()
+            self.keepMusicWave()
+            self.syncMirrors()
+            self.releaseMusicWave()
+            self.syncScreenEdgeClicks()
+        }
+        DispatchQueue.main.async(execute: work)
+    }
+
+    /// The copy on `id` draws the wave before it is uncovered. A newer move
+    /// takes the hold over; this one lets it go.
+    private func holdMusicWave(on id: CGDirectDisplayID) {
+        guard let mirror = mirrors[id], mirror.model.shown else { return }
+        mirror.host.holdWave()
+    }
+
+    /// The window that is about to cover this display repeats the bars the
+    /// copy there is already showing.
+    private func matchMusicWave() {
+        guard let id = displayID, let mirror = mirrors[id], mirror.model.shown else { return }
+        windowHost?.matchWave(from: mirror.host.panel.contentView)
+    }
+
+    /// The copy about to leave this display keeps its bars through the hide.
+    private func keepMusicWave() {
+        guard let id = displayID, let mirror = mirrors[id] else { return }
+        mirror.host.keepWave()
+    }
+
+    private func releaseMusicWave() {
+        for mirror in mirrors.values { mirror.host.releaseWave() }
     }
 
     /// A new song's title shows in the capsule for a few seconds, then the
@@ -3071,6 +3151,9 @@ final class NotchService: ObservableObject {
                 if geometry.isNotched || geometry.compactSideRoom != nil { base = geometry }
             }
             guard let base else {
+                // The display the window is moving to. Its copy stays until the
+                // window is on it; hiding the copy first blinks that display.
+                if id == mirrorHeldForArrival { continue }
                 if let mirror = mirrors[id], mirror.model.shown {
                     mirror.model.shown = false
                     mirror.host.hide(animated: false)
@@ -3097,7 +3180,15 @@ final class NotchService: ObservableObject {
             mirror.host.setActivationArea(CGRect(origin: .zero, size: size),
                                           title: FeatureStrings.notch(L10n.shared.language).open,
                                           willPress: {}, activate: { [weak self] in self?.bringIsland(to: id) })
-            if !mirror.host.panel.isVisible { mirror.host.panel.orderFrontRegardless() }
+            guard !mirror.host.panel.isVisible else { continue }
+            // Under the window that is about to leave, so that display keeps
+            // an island when the window goes. In front, the copy would cover
+            // it and the two would blink as they traded.
+            if mirrorHeldForArrival != nil, let live = windowHost?.panel, live.isVisible, live.windowNumber > 0 {
+                mirror.host.panel.order(.below, relativeTo: live.windowNumber)
+            } else {
+                mirror.host.panel.orderFrontRegardless()
+            }
         }
     }
 
