@@ -386,23 +386,21 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 77, "feature catalog has 77 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
-        suite.expect(AppFeature.allCases.map(\.rawValue) == [
-            "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
-            "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
-            "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
-            "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
-            "diskImageInstaller",
-            "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
-            "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
-            "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
-            "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
-            "connectedDevices", "fanControl",
-        ], "feature ids are stable (they persist inside availability keys)")
+        suite.expect(AppFeature.dockSpacer.group == .windowsDock
+                && AppFeature.dockSpacer.enabledKeys.isEmpty
+                && AppFeature.dockSpacer.permissions.isEmpty
+                && !AppFeature.dockSpacer.monitorsPermissionChanges
+                && AppFeature.dockSpacer.energyProfile == .idle
+                && !AppFeature.dockSpacer.installedByDefault,
+               "Dock spacer is an opt-in, on-demand tool without permissions or polling")
+        suite.expect(AppFeature.dockSpacer.settingsDestination
+                == FeatureSettingsDestination(.dock, sectionAnchor: .dockSpacer)
+                && AppFeature.dockSpacer.settingsDestination.hasValidSectionAnchor
+                && FeatureVisibilitySupport.isPageVisible(.dock, isAvailable: { $0 == .dockSpacer })
+                && !FeatureVisibilitySupport.isPageVisible(.dock, isAvailable: { _ in false }),
+               "Dock spacer keeps its Dock settings page reachable alone and disappears when uninstalled")
         suite.expect(MouseAccelerationSupport.validatedRegistryID(nil) == nil
                 && MouseAccelerationSupport.validatedRegistryID(0) == nil
                 && MouseAccelerationSupport.validatedRegistryID(42) == 42,

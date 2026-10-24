@@ -90,6 +90,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Window layout.** Snap windows into layouts, move them between displays and restore earlier positions using shortcuts, screen edges or modifier-drag gestures.
 - **Dock Preview.** Hover over Dock icons to preview windows across desktops. Switch, close, move or snap them from the preview.
 - **Dock clicks.** Click an active app's Dock icon to minimize, hide or cycle through its windows.
+- **Dock spacer.** Add large or small gaps using the right-aligned controls in Dock settings. Turn on Restart Dock after adding spacer to apply each addition immediately, or leave it off and use Restart Dock when ready. The choice is saved with your settings. Enable the tool in Features; drag spacers within the Dock to arrange them or drag them out to remove them.
 - **Maximize windows.** Use the green button to fill the screen without creating another Space.
 - **Fixed Space order.** Keep Spaces in the order you set instead of rearranging them by recent use. Turning it off restores your previous setting.
 - **Quit on close.** Quit selected apps when their last window closes.
@@ -217,6 +218,7 @@ See the [permissions guide](docs/PERMISSIONS.md) for which features need access 
 git clone https://github.com/vorssaint/vorssaint-utils.git
 cd vorssaint-utils
 ./build.sh --dev            # build the separate Developer variant
+open "build/stage.noindex/Vorssaint (Developer).app"  # try it without installing
 ./build.sh --dev --install  # install and launch it
 ```
 

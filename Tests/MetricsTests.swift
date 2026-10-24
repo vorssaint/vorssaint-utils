@@ -39,6 +39,7 @@ struct MetricsTests {
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
+            ("dock-spacers", { DockSpacerTests.run(suite) }),
             ("app-management", {
                 AppManagementFeatureTests.run(suite)
                 DiskImageHomebrewTests.run(suite)

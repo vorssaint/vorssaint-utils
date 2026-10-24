@@ -3,8 +3,7 @@
 
 import SwiftUI
 
-/// The Dock page: Dock Preview, Dock clicks and the window previews Dock
-/// Preview shares with the switcher.
+/// The Dock page: previews, click actions, spacers and Spaces ordering.
 struct DockSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
@@ -47,6 +46,10 @@ struct DockSettings: View {
                 if AppFeature.dockClick.isAvailable {
                     dockClickCard
                         .settingsSectionAnchor(.dockClick, cornerRadius: 16)
+                }
+                if AppFeature.dockSpacer.isAvailable {
+                    DockSpacerCard(language: l10n.language)
+                        .settingsSectionAnchor(.dockSpacer, cornerRadius: 16)
                 }
                 if AppFeature.spacesOrder.isAvailable {
                     spacesOrderCard

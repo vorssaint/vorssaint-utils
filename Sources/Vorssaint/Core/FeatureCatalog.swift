@@ -14,7 +14,7 @@ import Foundation
 /// primary control when no enable choice was saved before.
 enum AppFeature: String, CaseIterable {
     // Windows and Dock
-    case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit, spacesOrder
+    case switcher, dockPreview, dockClick, dockSpacer, windowMaximizer, windowLayout, autoQuit, spacesOrder
     // Mouse and keyboard
     case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
@@ -83,7 +83,7 @@ extension AppFeature {
         // Watch asks when an area is chosen and checks on every reading. The
         // companion uses no permission at all.
         case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .wallpaper, .notchWatch,
-             .notchMascot:
+             .notchMascot, .dockSpacer:
             return false
         default:
             return true
@@ -101,7 +101,7 @@ extension AppFeature {
 
     var group: FeatureGroup {
         switch self {
-        case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder:
+        case .switcher, .dockPreview, .dockClick, .dockSpacer, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder:
             return .windowsDock
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
@@ -132,6 +132,7 @@ extension AppFeature {
         case .switcher: return "rectangle.on.rectangle"
         case .dockPreview: return "dock.rectangle"
         case .dockClick: return "dock.arrow.down.rectangle"
+        case .dockSpacer: return "rectangle.split.3x1"
         case .windowMaximizer: return "arrow.up.left.and.arrow.down.right"
         case .windowLayout: return "rectangle.3.group"
         case .autoQuit: return "xmark.rectangle"
@@ -285,7 +286,7 @@ extension AppFeature {
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]
-        case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
+        case .dockSpacer, .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
@@ -347,7 +348,7 @@ extension AppFeature {
         case .notchNotifications: return [.accessibility]
         case .notchCalendar: return [.calendar]
         case .notch: return [.accessibility, .automationPlayback]
-        case .mouseAcceleration, .spacesOrder:
+        case .mouseAcceleration, .spacesOrder, .dockSpacer:
             return []
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
@@ -484,7 +485,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .dockSpacer:
             return false
         }
     }
