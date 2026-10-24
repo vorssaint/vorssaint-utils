@@ -8,17 +8,20 @@ struct MonitorAlertsControls: View {
     @ObservedObject private var l10n = L10n.shared
     let compact: Bool
     @State private var notificationsDenied = false
+    @State private var testAuthorizationUnavailable = false
     @AppStorage(DefaultsKey.monitorAlertCPU) private var alertCPU = false
     @AppStorage(DefaultsKey.monitorAlertCPUTemperature) private var alertCPUTemperature = false
     @AppStorage(DefaultsKey.monitorAlertBatteryTemperature) private var alertBatteryTemperature = false
     @AppStorage(DefaultsKey.monitorAlertMemory) private var alertMemory = false
     @AppStorage(DefaultsKey.monitorAlertDisk) private var alertDisk = false
     @AppStorage(DefaultsKey.monitorAlertBattery) private var alertBattery = false
+    @AppStorage(DefaultsKey.monitorAlertHighCharge) private var alertHighCharge = false
     @AppStorage(DefaultsKey.monitorAlertCPUThreshold) private var alertCPUThreshold = 90
     @AppStorage(DefaultsKey.monitorAlertCPUTemperatureThreshold) private var alertCPUTemperatureThreshold = 90
     @AppStorage(DefaultsKey.monitorAlertBatteryTemperatureThreshold) private var alertBatteryTemperatureThreshold = 40
     @AppStorage(DefaultsKey.monitorAlertDiskFreePercent) private var alertDiskFreePercent = 10
     @AppStorage(DefaultsKey.monitorAlertBatteryPercent) private var alertBatteryPercent = 15
+    @AppStorage(DefaultsKey.monitorAlertHighChargePercent) private var alertHighChargePercent = 80
     @AppStorage(DefaultsKey.monitorAlertCooldownMinutes) private var alertCooldown = 15
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
 
@@ -54,11 +57,13 @@ struct MonitorAlertsControls: View {
         .onChange(of: alertMemory) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
         .onChange(of: alertDisk) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
         .onChange(of: alertBattery) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertHighCharge) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
         .onChange(of: alertCPUThreshold) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertCPUTemperatureThreshold) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertBatteryTemperatureThreshold) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertDiskFreePercent) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertBatteryPercent) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertHighChargePercent) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertCooldown) { _, _ in sanitizeAlertValues() }
     }
 
@@ -89,9 +94,17 @@ struct MonitorAlertsControls: View {
                     alertToken(text.battery, symbol: "battery.25percent", isOn: $alertBattery,
                                limit: .init(label: text.batteryThreshold, value: $alertBatteryPercent,
                                             range: 5...50, step: 5, formatValue: { "\($0)%" }))
+                    alertToken(text.highCharge, symbol: "battery.100percent.bolt", isOn: $alertHighCharge,
+                               limit: .init(label: text.highChargeThreshold, value: $alertHighChargePercent,
+                                            range: 60...100, step: 5, formatValue: { "\($0)%" }))
                 }
             }
             .monitorTokenGroup()
+            if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
+                Button(text.sendTest) {
+                    sendHighChargeTest()
+                }
+            }
             // One interval for every alert, each timed on its own, so it sits
             // outside the alerts box rather than under the last of them.
             SettingsRow(symbol: "bell.badge", title: text.cooldown) {
@@ -100,7 +113,7 @@ struct MonitorAlertsControls: View {
                     .fixedSize()
             }
             .disabled(!anyAlertEnabled)
-            if notificationsDenied, anyAlertEnabled {
+            if showsNotificationDenied {
                 Text(text.notificationsDenied)
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -192,6 +205,16 @@ struct MonitorAlertsControls: View {
                             in: 5...50,
                             step: 5)
                 }
+                Toggle(text.highCharge, isOn: $alertHighCharge)
+                if alertHighCharge {
+                    Stepper("\(text.highChargeThreshold) \(alertHighChargePercent)%",
+                            value: $alertHighChargePercent,
+                            in: 60...100,
+                            step: 5)
+                }
+                Button(text.sendTest) {
+                    sendHighChargeTest()
+                }
             }
             if anyAlertEnabled {
                 cooldownPicker
@@ -199,7 +222,7 @@ struct MonitorAlertsControls: View {
             // Alerts silently cannot fire when macOS notifications are denied
             // for the app; without this line that state is invisible (the
             // user just never hears anything).
-            if notificationsDenied, anyAlertEnabled {
+            if showsNotificationDenied {
                 Text(text.notificationsDenied)
                     .font(.system(size: 9.5))
                     .foregroundStyle(.orange)
@@ -214,6 +237,18 @@ struct MonitorAlertsControls: View {
     private var anyAlertEnabled: Bool {
         alertCPU || alertCPUTemperature || alertMemory || alertDisk
             || (PowerSampler.hasInternalBattery && (alertBatteryTemperature || alertBattery))
+            || (PowerSampler.hasInternalBattery && alertHighCharge)
+    }
+
+    private var showsNotificationDenied: Bool {
+        testAuthorizationUnavailable || (notificationsDenied && anyAlertEnabled)
+    }
+
+    private func sendHighChargeTest() {
+        MonitorAlertService.sendHighChargeTest { result in
+            testAuthorizationUnavailable = result == .authorizationUnavailable
+            if result == .accepted { notificationsDenied = false }
+        }
     }
 
     /// Checked slightly delayed so a just-fired authorization prompt has a
@@ -222,7 +257,9 @@ struct MonitorAlertsControls: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             UNUserNotificationCenter.current().getNotificationSettings { settings in
                 DispatchQueue.main.async {
-                    notificationsDenied = settings.authorizationStatus == .denied
+                    let denied = settings.authorizationStatus == .denied
+                    notificationsDenied = denied
+                    if !denied { testAuthorizationUnavailable = false }
                 }
             }
         }
@@ -236,6 +273,7 @@ struct MonitorAlertsControls: View {
                                                                      range: 30...50)
         alertDiskFreePercent = Defaults.sanitizedPercent(alertDiskFreePercent, fallback: 10, range: 5...30)
         alertBatteryPercent = Defaults.sanitizedPercent(alertBatteryPercent, fallback: 15, range: 5...50)
+        alertHighChargePercent = Defaults.sanitizedHighChargePercent(alertHighChargePercent)
         alertCooldown = Defaults.sanitizedMonitorAlertCooldown(alertCooldown)
     }
 }

@@ -31,6 +31,12 @@ enum MonitorSamplingKind: String {
 }
 
 enum MonitorSamplingPolicy {
+    static func powerNeededForAlerts(hasInternalBattery: Bool,
+                                     lowBatteryEnabled: Bool,
+                                     highChargeEnabled: Bool) -> Bool {
+        hasInternalBattery && (lowBatteryEnabled || highChargeEnabled)
+    }
+
     /// `forced` kinds sample on any tick: an event that changed them (a power
     /// source change) should not wait out a slow background stride.
     static func shouldSample(_ kind: MonitorSamplingKind,

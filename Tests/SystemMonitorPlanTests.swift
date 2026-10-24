@@ -5,7 +5,7 @@ import Foundation
 
 /// Runs the production sampling plan against scripted surfaces and features.
 enum SystemMonitorPlanTests {
-    enum PowerSampler { static let hasInternalBattery = false }
+    enum PowerSampler { static var hasInternalBattery = false }
 
     class Fixture {
         var menuPanelNeeds = SystemMonitorPanelNeeds.none
@@ -26,6 +26,7 @@ enum SystemMonitorPlanTests {
     }
 
     static func run(_ suite: TestSuite) {
+        alertPowerPlan(suite)
         let domain = "com.vorssaint.tests.system-monitor-plan"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
@@ -130,5 +131,77 @@ enum SystemMonitorPlanTests {
         suite.expect(monitor.currentPlan(defaults: defaults).needPeripheralBattery,
                      "the island's Battery detail still lists peripherals with the Power row hidden")
         monitor.notchDetailNeeds = .none
+    }
+
+    /// Exercise the extracted production plan with each battery-alert producer
+    /// alone, so a correct helper cannot hide a missing caller connection.
+    private static func alertPowerPlan(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.system-monitor-plan-alert-power"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        let previousHasBattery = PowerSampler.hasInternalBattery
+        defer {
+            PowerSampler.hasInternalBattery = previousHasBattery
+            defaults.removePersistentDomain(forName: domain)
+        }
+        for key in [DefaultsKey.menuBarPower, DefaultsKey.menuBarBattery,
+                    DefaultsKey.menuBarBatteryTime, DefaultsKey.monitorSysBattery,
+                    DefaultsKey.monitorAlertBattery, DefaultsKey.monitorAlertHighCharge,
+                    DefaultsKey.menuBarPeripheralBattery, DefaultsKey.monitorPwrPeripherals,
+                    DefaultsKey.monitorPwrTemperature, DefaultsKey.monitorAlertBatteryTemperature,
+                    DefaultsKey.menuBarBatteryTemperature] {
+            defaults.set(false, forKey: key)
+        }
+        defaults.set(true, forKey: AppFeature.monitorPower.availabilityKey)
+        let monitor = Monitor()
+        monitor.menuPanelNeeds = .none
+        monitor.notchDetailNeeds = .none
+        monitor.fullMonitorVisible = false
+        monitor.notchVisible = false
+        monitor.notchAccessoryMonitoring = false
+        func check(_ expectedPower: Bool, scenario: String) {
+            let plan = monitor.currentPlan(defaults: defaults)
+            let inputs = "scenario=\(scenario), battery=\(PowerSampler.hasInternalBattery), "
+                + "available=\(defaults.bool(forKey: AppFeature.monitorPower.availabilityKey)), "
+                + "high-charge=\(defaults.bool(forKey: DefaultsKey.monitorAlertHighCharge)), "
+                + "low-battery=\(defaults.bool(forKey: DefaultsKey.monitorAlertBattery))"
+            let outputs = "need-power=\(plan.needPower), need-power-draw=\(plan.needPowerDraw), "
+                + "need-peripheral=\(plan.needPeripheralBattery)"
+            suite.expect(plan.needPower == expectedPower && !plan.needPowerDraw && !plan.needPeripheralBattery,
+                         "the production alert plan isolates battery demand: \(inputs), \(outputs)")
+            print("ALERT POWER PLAN \(inputs), \(outputs)")
+        }
+        PowerSampler.hasInternalBattery = true
+        check(false, scenario: "idle")
+        defaults.set(true, forKey: DefaultsKey.monitorAlertHighCharge)
+        check(true, scenario: "high-charge-only")
+        // This explicit off-stride fixture joins the production demand plan
+        // to the event policy; it does not claim the ordinary wake grid uses it.
+        let highChargePlan = monitor.currentPlan(defaults: defaults)
+        let eventForcing: Set<MonitorSamplingKind> = [.power, .powerDraw]
+        let ordinaryPower = highChargePlan.needPower && MonitorSamplingPolicy.shouldSample(
+            highChargePlan.powerKind, tick: 3, intervalSeconds: 2, foreground: false)
+        let eventPower = highChargePlan.needPower && MonitorSamplingPolicy.shouldSample(
+            highChargePlan.powerKind, tick: 3, intervalSeconds: 2, foreground: false, forced: eventForcing)
+        let eventDisk = MonitorSamplingPolicy.shouldSample(
+            .disk, tick: 3, intervalSeconds: 2, foreground: false, forced: eventForcing)
+        let eventDiagnostics = "scenario=high-charge-only, fixture-tick=3, interval=2, foreground=false, "
+            + "need-power=\(highChargePlan.needPower), power-kind=\(highChargePlan.powerKind.rawValue), "
+            + "ordinary-power=\(ordinaryPower), event-power=\(eventPower), event-disk=\(eventDisk)"
+        suite.expect(highChargePlan.powerKind == .power && !ordinaryPower && eventPower && !eventDisk,
+                     "the demanded high-charge power samples off stride for an event without forcing disk: \(eventDiagnostics)")
+        print("ALERT POWER EVENT PLAN \(eventDiagnostics)")
+        defaults.set(false, forKey: DefaultsKey.monitorAlertHighCharge)
+        check(false, scenario: "high-charge-disabled")
+        defaults.set(true, forKey: DefaultsKey.monitorAlertHighCharge)
+        PowerSampler.hasInternalBattery = false
+        check(false, scenario: "no-internal-battery")
+        PowerSampler.hasInternalBattery = true
+        defaults.set(false, forKey: AppFeature.monitorPower.availabilityKey)
+        check(false, scenario: "power-unavailable")
+        defaults.set(true, forKey: AppFeature.monitorPower.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.monitorAlertHighCharge)
+        defaults.set(true, forKey: DefaultsKey.monitorAlertBattery)
+        check(true, scenario: "low-battery-only")
     }
 }
