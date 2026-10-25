@@ -142,6 +142,32 @@ enum SettingsFeatureTests {
                "a backup keeps the choice of every display")
         suite.expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
                "the cleaning mode keep screen visible choice travels with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.cleaningModeShortcutEnabled)
+                     && backupKeys.contains(DefaultsKey.cleaningModeShortcut),
+                     "the cleaning shortcut and its enabled state travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.cleaningModeAutoUnlockSeconds)
+                     && backupKeys.contains(DefaultsKey.cleaningModeAutoUnlockUsesUntil)
+                     && backupKeys.contains(DefaultsKey.cleaningModeAutoUnlockTime),
+                     "the optional Cleaning Mode timer travels with the settings backup")
+        let cleaningShortcut = GlobalShortcut(keyCode: 7, modifiers: [.control, .command])
+        let cleaningBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+            SettingsBackupSupport.settingsKey: [
+                DefaultsKey.cleaningModeShortcutEnabled: true,
+                DefaultsKey.cleaningModeShortcut: cleaningShortcut.storageValue,
+                DefaultsKey.cleaningModeAutoUnlockSeconds: 900,
+                DefaultsKey.cleaningModeAutoUnlockUsesUntil: true,
+                DefaultsKey.cleaningModeAutoUnlockTime: 12345.0,
+            ],
+        ]
+        let restoredCleaning = SettingsBackupSupport.sanitizedSettings(from: cleaningBackup)
+        suite.expect(restoredCleaning?[DefaultsKey.cleaningModeShortcutEnabled] as? Bool == true
+                     && restoredCleaning?[DefaultsKey.cleaningModeShortcut] as? String == cleaningShortcut.storageValue,
+                     "backup validation preserves an enabled custom Cleaning Mode shortcut")
+        suite.expect(restoredCleaning?[DefaultsKey.cleaningModeAutoUnlockSeconds] as? Int == 900
+                     && restoredCleaning?[DefaultsKey.cleaningModeAutoUnlockUsesUntil] as? Bool == true
+                     && restoredCleaning?[DefaultsKey.cleaningModeAutoUnlockTime] as? Double == 12345,
+                     "backup validation preserves the preset, Until selection and custom time")
         suite.expect(backupKeys.contains(DefaultsKey.appearance),
                "the light or dark choice travels with the settings backup")
         suite.expect(Set([

@@ -44,6 +44,8 @@ final class CleaningModeManager: ObservableObject {
     }
 
     @Published private(set) var isActive = false
+    @Published private(set) var shortcutRegistrationFailed = false
+    @Published private(set) var autoUnlockDate: Date?
     /// Consecutive Escape presses so far (0...unlockThreshold). The
     /// overlay shows this as progress.
     @Published private(set) var unlockProgress = 0
@@ -53,6 +55,7 @@ final class CleaningModeManager: ObservableObject {
     let unlockThreshold = 5
 
     private var tap: CFMachPort?
+    private let hotkey = QuickToolHotkey(id: 82)
     private var runLoopSource: CFRunLoopSource?
     private var overlays: [NSPanel] = []
     private var screenObserver: NSObjectProtocol?
@@ -62,6 +65,7 @@ final class CleaningModeManager: ObservableObject {
     private var mouseReleaseGate = CleaningMouseReleaseGate()
     /// Ends a user unlock's wait for a release this tap never sees.
     private var releaseDeadline: DispatchWorkItem?
+    private var autoUnlockTimer: Timer?
 
     /// The unlock-gesture state machine (pure, unit-tested separately).
     /// The 6s press window forgives hesitant, deliberate presses — at 2s a user
@@ -77,11 +81,13 @@ final class CleaningModeManager: ObservableObject {
                                                     pressWindow: 6.0)
 
     private init() {
+        hotkey.onPress = { [weak self] in self?.activateFromShortcut() }
         // A switched-away login session cannot keep a filter tap in the input
         // chain. Cleaning is a temporary local state, so leaving the session
         // ends it; suspended features resume only after this session returns.
         SessionActivity.shared.onChange { [weak self] active in
             guard let self else { return }
+            self.syncWithPreferences()
             if active {
                 guard self.shouldRestoreSuspendedFeaturesOnSessionReturn else { return }
                 self.shouldRestoreSuspendedFeaturesOnSessionReturn = false
@@ -94,9 +100,33 @@ final class CleaningModeManager: ObservableObject {
 
     func toggle() { isActive ? deactivate() : activate() }
 
+    func syncWithPreferences() {
+        let available = AppFeature.cleaningMode.isAvailable
+        let enabled = available && SessionActivity.shared.isActive && !ShortcutCapture.isCapturing
+            && UserDefaults.standard.bool(forKey: DefaultsKey.cleaningModeShortcutEnabled)
+        shortcutRegistrationFailed = !hotkey.sync(
+            enabled: enabled,
+            shortcut: GlobalShortcutRole.cleaningMode.savedShortcut,
+            storageKey: DefaultsKey.cleaningModeShortcut
+        )
+        if !available { deactivateForSystemTeardown() }
+    }
+
+    private func activateFromShortcut() {
+        // Carbon delivers the action asynchronously. Recheck preferences in case
+        // the feature was disabled or a recorder started before it arrived.
+        guard AppFeature.cleaningMode.isAvailable, SessionActivity.shared.isActive,
+              !ShortcutCapture.isCapturing,
+              UserDefaults.standard.bool(forKey: DefaultsKey.cleaningModeShortcutEnabled)
+        else { return }
+        // Activation is idempotent. Wiping this combination must never unlock.
+        activate()
+    }
+
     /// Starts the lock. No-op (and guides the user) when Accessibility is missing,
     /// because without the tap there would be no way to unlock the keyboard.
     func activate() {
+        guard AppFeature.cleaningMode.isAvailable, SessionActivity.shared.isActive else { return }
         guard !isActive else { return }
         // Check Accessibility explicitly (same gate the other event taps use) so a
         // missing grant is reported clearly, rather than inferred from a nil tap.
@@ -124,6 +154,7 @@ final class CleaningModeManager: ObservableObject {
         unlock.reset()
         unlockProgress = 0
         isActive = true
+        startAutoUnlockTimer()
         installScreenObserver()
         showOverlays()
     }
@@ -136,6 +167,32 @@ final class CleaningModeManager: ObservableObject {
         armReleaseDeadline()
         guard mouseReleaseGate.requestDeactivation() else { return }
         scheduleUserDeactivation()
+    }
+
+    private func startAutoUnlockTimer() {
+        cancelAutoUnlockTimer()
+        let defaults = UserDefaults.standard
+        guard let end = CleaningModeTimerSupport.deadline(
+            seconds: defaults.integer(forKey: DefaultsKey.cleaningModeAutoUnlockSeconds),
+            usesUntil: defaults.bool(forKey: DefaultsKey.cleaningModeAutoUnlockUsesUntil),
+            savedUntilTime: defaults.double(forKey: DefaultsKey.cleaningModeAutoUnlockTime),
+            now: Date()
+        ) else { return }
+        autoUnlockDate = end
+        let timer = Timer(fire: end, interval: 0, repeats: false) { [weak self] timer in
+            guard let self, self.isActive, self.autoUnlockTimer === timer else { return }
+            // Use the same release gate as Escape and Unlock so expiry never
+            // cuts a mouse click in half while the keyboard is being cleaned.
+            self.deactivate()
+        }
+        autoUnlockTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func cancelAutoUnlockTimer() {
+        autoUnlockTimer?.invalidate()
+        autoUnlockTimer = nil
+        autoUnlockDate = nil
     }
 
     /// Every unlock path waits on the gate, and the overlay can cover the menu
@@ -154,6 +211,7 @@ final class CleaningModeManager: ObservableObject {
 
     /// Permission teardown must remove the tap before Accessibility is reset.
     func deactivateForSystemTeardown() {
+        hotkey.unregister()
         deactivate(restoreSuspendedFeatures: true)
     }
 
@@ -177,6 +235,7 @@ final class CleaningModeManager: ObservableObject {
 
     private func finishDeactivation(restoreSuspendedFeatures: Bool) {
         guard isActive else { return }
+        cancelAutoUnlockTimer()
         releaseDeadline?.cancel()
         releaseDeadline = nil
         mouseReleaseGate.reset()
