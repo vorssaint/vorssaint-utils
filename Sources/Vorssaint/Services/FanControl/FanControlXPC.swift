@@ -79,6 +79,12 @@ enum FanControlIdentifiers {
     func applyConfiguration(_ configuration: Data, withReply reply: @escaping (Data) -> Void)
     func heartbeat(withReply reply: @escaping (Data) -> Void)
     func restoreAutomatic(withReply reply: @escaping (Data) -> Void)
+
+    // Battery charge limit. The helper is shared with fan control so the Mac
+    // asks for one Login Items approval, not two.
+    func chargeStatus(withReply reply: @escaping (Data) -> Void)
+    func applyChargeLimits(_ limits: Data, withReply reply: @escaping (Data) -> Void)
+    func restoreCharging(withReply reply: @escaping (Data) -> Void)
 }
 
 enum FanControlIPC {

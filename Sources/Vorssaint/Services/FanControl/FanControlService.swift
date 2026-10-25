@@ -293,6 +293,11 @@ final class FanControlService: ObservableObject {
             connection.invalidate()
             return false
         }
+        // The charge limit shares this daemon: its work ends before the daemon does.
+        if BatteryControlService.hasStoredConfiguration {
+            proxy.restoreCharging { _ in semaphore.signal() }
+            _ = semaphore.wait(timeout: .now() + 5)
+        }
         proxy.restoreAutomatic { data in
             if let response = FanControlIPC.decode(data) {
                 resultLock.withLock {
@@ -590,6 +595,7 @@ final class FanControlService: ObservableObject {
                 error = .authorizationRequired
                 return
             }
+            guard !AppFeature.chargeLimit.isAvailable else { return }
             do {
                 try Self.appService.unregister()
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlHelperVersion)
@@ -606,7 +612,8 @@ final class FanControlService: ObservableObject {
             self.isWorking = false
             guard let response, response.succeeded, !response.snapshot.isCooling else { return }
             UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
-            guard !AppFeature.fanControl.isAvailable else {
+            // The charge limit shares this daemon; it leaves with the last user.
+            guard !AppFeature.fanControl.isAvailable, !AppFeature.chargeLimit.isAvailable else {
                 self.stopIdleWorkIfPossible()
                 return
             }

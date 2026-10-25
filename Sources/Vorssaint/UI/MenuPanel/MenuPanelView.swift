@@ -78,6 +78,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
     @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
+    @AppStorage(DefaultsKey.panelShowBatteryChargeLimit) private var showChargeLimit = true
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.panelShowBrightness) private var showBrightness = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
@@ -300,6 +301,7 @@ struct MenuPanelView: View {
         case .disk: return 360
         case .power: return 170
         case .fanControl: return 220
+        case .chargeLimit: return 260
         case .utilities: return 500
         case .controls: return 360
         case .toggles: return 420
@@ -343,6 +345,8 @@ struct MenuPanelView: View {
             if showFanControl, notchSize != nil || panelFocus.popoverIsVisible {
                 FanControlSection(collapsible: collapsible)
             }
+        case .chargeLimit:
+            if showChargeLimit { BatteryControlSection(collapsible: collapsible) }
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
         case .toggles: QuickTogglesSection(collapsible: collapsible)
@@ -364,7 +368,8 @@ struct MenuPanelView: View {
     /// what keeps the tabs refreshing when Settings flips one of them.
     private func isSectionVisible(_ id: PanelSectionID) -> Bool {
         _ = (showKeepAwake, showBrightness, brightnessEnabled, showMixer, showSystem, showNetwork,
-             showDisk, showPower, showFanControl, showUtilities, showControls, showToggles, showWallpaper)
+             showDisk, showPower, showFanControl, showChargeLimit,
+             showUtilities, showControls, showToggles, showWallpaper)
         return PanelLayout.isVisibleInPanel(id)
     }
 

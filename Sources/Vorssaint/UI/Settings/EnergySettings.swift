@@ -65,6 +65,10 @@ struct EnergySettings: View {
                     bluetoothCard
                         .settingsSectionAnchor(.bluetoothSleep, cornerRadius: 16)
                 }
+                if (focus == nil || focus == .chargeLimit), AppFeature.chargeLimit.isAvailable {
+                    BatteryLimitCard()
+                        .settingsSectionAnchor(.chargeLimit, cornerRadius: 16)
+                }
             }
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)
@@ -103,6 +107,8 @@ struct EnergySettings: View {
         case .brightness: return FeatureStrings.brightness(l10n.language).pageTitle
         case .extraBrightness: return l10n.s.extraBrightnessName
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).pageTitle
+        case .chargeLimit:
+            return BatteryControlFeatureStrings.batteryControl(l10n.language).title
         default: return l10n.s.tabEnergy
         }
     }
@@ -113,6 +119,8 @@ struct EnergySettings: View {
         case .brightness: return FeatureStrings.brightness(l10n.language).hubDescription
         case .extraBrightness: return FeatureStrings.hub(l10n.language).descExtraBrightness
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).hubDescription
+        case .chargeLimit:
+            return BatteryControlFeatureStrings.batteryControl(l10n.language).hubDescription
         default: return FeatureStrings.settingsPages(l10n.language).energyDescription
         }
     }
