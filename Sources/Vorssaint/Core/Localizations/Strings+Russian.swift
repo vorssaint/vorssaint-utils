@@ -762,6 +762,7 @@ extension Strings {
         networkMeasuring: "Измерение…",
         networkApps: "Приложения, использующие сеть",
         networkAppsIdle: "Сейчас нет приложений, использующих сеть",
+        networkUsageSinceStartup: "Общий объём данных",
 
         diskSection: "Диски",
         diskUsed: "занято",
