@@ -1067,6 +1067,18 @@ extension NSPasteboard {
         guard let bundleID = Bundle.main.bundleIdentifier else { return }
         setString(bundleID, forType: .source)
     }
+
+    /// Signs a write with the app its content came from, such as the app
+    /// whose window a screenshot shows, so a clipboard history (this one or
+    /// another) shows that app; Vorssaint's own mark when there is none.
+    func declareSource(_ bundleID: String?) {
+        guard let bundleID, !bundleID.isEmpty, bundleID.utf8.count <= 255,
+              bundleID != Bundle.main.bundleIdentifier else {
+            declareVorssaintSource()
+            return
+        }
+        setString(bundleID, forType: .source)
+    }
 }
 
 enum ClipboardHistorySensitiveText {

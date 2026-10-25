@@ -188,6 +188,20 @@ enum ClipboardFeatureTests {
                      && cleanerBoard.string(forType: .source) == nil,
                      "a rewritten copy that named no app gains no mark, so the app that copied it is still credited")
         cleanerBoard.releaseGlobally()
+        // A screenshot copy names the app it shows, so a history credits it
+        // instead of Vorssaint; with no app to name it keeps Vorssaint's mark.
+        let sourceBoard = NSPasteboard(name: NSPasteboard.Name("com.vorssaint.tests.source-\(UUID().uuidString)"))
+        sourceBoard.clearContents()
+        sourceBoard.declareSource("com.google.Chrome")
+        suite.expect(sourceBoard.string(forType: .source) == "com.google.Chrome",
+                     "a copy names the app its picture shows")
+        for unnamed in [nil, "", String(repeating: "a", count: 300)] as [String?] {
+            sourceBoard.clearContents()
+            sourceBoard.declareSource(unnamed)
+            suite.expect(sourceBoard.string(forType: .source) == Bundle.main.bundleIdentifier,
+                         "a copy with no usable app to name keeps Vorssaint's own mark")
+        }
+        sourceBoard.releaseGlobally()
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",

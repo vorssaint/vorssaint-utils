@@ -445,6 +445,7 @@ final class ScreenshotService: ObservableObject {
     /// exists to reach for.
     private func route(_ capture: ScreenshotSelectionController.Capture) {
         beginLatestCapture(capture)
+        let capture = Self.attributingSource(capture)
         // The island's companion blinks hard, as a flash, if it is there to see.
         NotchService.shared.reactMascot(.flash, patience: 1)
         preview?.close()
@@ -474,6 +475,18 @@ final class ScreenshotService: ObservableObject {
                        completedActions: result.performed,
                        dismissInterval: dismissInterval,
                        latestCapture: latestCaptureToken)
+    }
+
+    /// Names the app the picture shows, so its copy credits that app: the
+    /// topmost window at the middle of the area, read once the surface is
+    /// gone. A window capture already names its own window's app.
+    private static func attributingSource(
+        _ capture: ScreenshotSelectionController.Capture) -> ScreenshotSelectionController.Capture {
+        guard capture.sourceBundleID == nil, capture.anchorRect != .zero else { return capture }
+        var capture = capture
+        capture.sourceBundleID = ScreenshotCaptureEngine.ownerBundleID(
+            at: CGPoint(x: capture.anchorRect.midX, y: capture.anchorRect.midY))
+        return capture
     }
 
     /// Thrown away, the latest capture is no longer one the upload shortcut
@@ -839,7 +852,8 @@ final class ScreenshotService: ObservableObject {
                 try? FileManager.default.removeItem(at: output.0)
                 return
             }
-            guard ScreenshotEditorController.copyFile(output.0, payload: output.1)
+            guard ScreenshotEditorController.copyFile(output.0, payload: output.1,
+                                                      source: capture.sourceBundleID)
             else {
                 try? FileManager.default.removeItem(at: output.0)
                 NSSound.beep()
@@ -941,7 +955,7 @@ final class ScreenshotService: ObservableObject {
     private func copyDirect(_ capture: ScreenshotSelectionController.Capture) -> Bool {
         guard let export = flatten(capture) else { return false }
         guard ScreenshotEditorController.copyImage(
-            export, fileNamePrefix: strings.fileNamePrefix) else {
+            export, fileNamePrefix: strings.fileNamePrefix, source: capture.sourceBundleID) else {
             NSSound.beep()
             return false
         }
@@ -991,7 +1005,8 @@ final class ScreenshotService: ObservableObject {
         }
 
         let copied = ScreenshotEditorController.copyFile(
-            url, payload: ScreenshotEditorController.clipboardPayload(from: export, png: data))
+            url, payload: ScreenshotEditorController.clipboardPayload(from: export, png: data),
+            source: capture.sourceBundleID)
         let format = copied ? strings.savedAndCopiedHUDFormat : strings.savedHUDFormat
         QuickToolHUD.show(icon: "camera.viewfinder",
                           message: String(format: format,
