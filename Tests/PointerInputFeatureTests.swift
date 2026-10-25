@@ -34,6 +34,92 @@ enum PointerInputFeatureTests {
             return Unmanaged<CFData>.fromOpaque(pointer).takeUnretainedValue() as Data
         }
 
+        // MARK: Selection bar
+
+        suite.expect(!SelectionBarSupport.isSelectionGesture(clickCount: 1, down: CGPoint(x: 10, y: 10),
+                                                             up: CGPoint(x: 12, y: 11)),
+                     "selection bar: a single click that barely moves only places the caret")
+        suite.expect(SelectionBarSupport.isSelectionGesture(clickCount: 1, down: CGPoint(x: 10, y: 10),
+                                                            up: CGPoint(x: 40, y: 10)),
+                     "selection bar: a drag selects text")
+        suite.expect(SelectionBarSupport.isSelectionGesture(clickCount: 2, down: nil, up: .zero)
+                        && SelectionBarSupport.isSelectionGesture(clickCount: 3, down: nil, up: .zero),
+                     "selection bar: a double or triple click selects text")
+        suite.expect(!SelectionBarSupport.isSelectionGesture(clickCount: 2, down: .zero, up: .zero,
+                                                             includesClicks: false)
+                        && SelectionBarSupport.isSelectionGesture(clickCount: 2, down: .zero,
+                                                                  up: CGPoint(x: 40, y: 0), includesClicks: false),
+                     "selection bar: with double clicks off, only a drag opens the bar")
+        suite.expect(!SelectionBarSupport.isSelectionGesture(clickCount: 1, down: nil, up: .zero),
+                     "selection bar: a release without a seen press is not a drag")
+
+        let selected = CGRect(x: 200, y: 400, width: 100, height: 18)
+        suite.expect(SelectionBarSupport.isCurrent(release: CGPoint(x: 305, y: 405), selection: selected),
+                     "selection bar: a release at the end of the selection keeps it")
+        suite.expect(!SelectionBarSupport.isCurrent(release: CGPoint(x: 900, y: 900), selection: selected),
+                     "selection bar: a release far from an old selection does not show the bar")
+        suite.expect(SelectionBarSupport.isCurrent(release: CGPoint(x: 900, y: 405), press: CGPoint(x: 200, y: 405),
+                                                   selection: selected)
+                        && !SelectionBarSupport.isCurrent(release: CGPoint(x: 900, y: 900),
+                                                          press: CGPoint(x: 900, y: 600), selection: selected),
+                     "selection bar: a drag that starts on the text and ends past the line keeps the selection")
+        suite.expect(SelectionBarSupport.isCurrent(release: CGPoint(x: 900, y: 900), selection: nil)
+                        && SelectionBarSupport.isCurrent(release: CGPoint(x: 900, y: 900), selection: .zero),
+                     "selection bar: apps without geometry still show the bar")
+
+        suite.expect(!SelectionBarSupport.offers("selection.copy", isEditable: true)
+                        && !SelectionBarSupport.offers("selection.search", isEditable: true),
+                     "selection bar: the plain text copy and search rows stay in the command bar")
+        suite.expect(SelectionBarSupport.offers("selection.upper", isEditable: true)
+                        && !SelectionBarSupport.offers("selection.upper", isEditable: false)
+                        && !SelectionBarSupport.offers("selection.titleCase", isEditable: false),
+                     "selection bar: case rows type over the selection only where it can be edited")
+        suite.expect(SelectionBarSupport.offers("selection.cleanLink", isEditable: false)
+                        && SelectionBarSupport.offers("selection.count", isEditable: false),
+                     "selection bar: rows that do not type stay on read only text")
+
+        suite.expect(SelectionBarSupport.shows("word") && !SelectionBarSupport.shows("")
+                        && !SelectionBarSupport.shows(String(repeating: "a", count: SelectionBarSupport.maximumLength + 1)),
+                     "selection bar: no bar for an empty selection or one the size of a document")
+
+        suite.expect(SelectionBarSupport.enabledActionIDs(nil) == Set(SelectionBarSupport.actionIDs),
+                     "selection bar: every tool is on until the person chooses")
+        suite.expect(SelectionBarSupport.enabledActionIDs(["copy", "selection.count", "removed.tool"])
+                        == ["copy", "selection.count"],
+                     "selection bar: chosen tools are kept and unknown ids are dropped")
+        suite.expect(SelectionBarSupport.enabledActionIDs([]).isEmpty,
+                     "selection bar: turning every tool off is kept, not reset to all")
+        suite.expect(Set(SelectionBarSupport.actionIDs).isDisjoint(with: SelectionBarSupport.excludedEntryIDs),
+                     "selection bar: no tool can be chosen that the bar never shows")
+
+        let screen = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let barSize = CGSize(width: 120, height: 34)
+        let above = SelectionBarSupport.frame(size: barSize, selection: selected,
+                                              pointer: CGPoint(x: 300, y: 405), visible: screen)
+        suite.expect(above.minY == selected.maxY + 8 && above.midX == 300,
+                     "selection bar: the bar sits above the selection, centred on the pointer")
+        let nearTop = CGRect(x: 200, y: 770, width: 100, height: 18)
+        let below = SelectionBarSupport.frame(size: barSize, selection: nearTop,
+                                              pointer: CGPoint(x: 300, y: 775), visible: screen)
+        suite.expect(below.maxY == nearTop.minY - 8,
+                     "selection bar: the bar goes below a selection at the top of the screen")
+        let atEdge = SelectionBarSupport.frame(size: barSize, selection: selected,
+                                               pointer: CGPoint(x: 995, y: 405), visible: screen)
+        suite.expect(atEdge.maxX <= screen.maxX - 8,
+                     "selection bar: the bar stays inside the screen")
+        let tall = CGRect(x: 100, y: 100, width: 600, height: 400)
+        let followsPointer = SelectionBarSupport.frame(size: barSize, selection: tall,
+                                                       pointer: CGPoint(x: 400, y: 300), visible: screen)
+        suite.expect(followsPointer.minY < tall.maxY && followsPointer.minY > 300,
+                     "selection bar: on a selection of many lines the bar follows the pointer")
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.selectionBar(language)
+            suite.expect(!strings.title.isEmpty && !strings.caption.isEmpty && !strings.copy.isEmpty
+                            && !strings.tools.isEmpty && !strings.doubleClick.isEmpty && !strings.caption.contains("\u{2014}"),
+                         "selection bar strings are complete for \(language)")
+        }
+
         // MARK: Keyboard debounce
 
         var debounceState = KeyboardDebounceState()

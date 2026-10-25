@@ -90,7 +90,7 @@ extension AppFeature {
     var energyProfile: FeatureEnergyProfile {
         switch self {
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .windowMaximizer, .middleClick,
-             .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
+             .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .selectionBar,
              .dockPreview, .dockClick, .shelf:
             return .mouse
         case .keyboardDebounce, .finderCutPaste, .finderRename, .quitWindowProtection, .musicBlock:

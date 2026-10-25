@@ -128,6 +128,13 @@ final class MouseAppExceptions: ObservableObject {
         reload()
     }
 
+    /// True when `app` is on this feature's list. Call it on the main thread.
+    func excludes(_ scope: MouseExceptionScope, app: NSRunningApplication) -> Bool {
+        let exceptions = lookup(scope).exceptions
+        return !exceptions.isEmpty
+            && MouseAppExceptionSupport.isExcepted(identities(for: app), exceptions: exceptions)
+    }
+
     // MARK: - The question the taps ask
 
     /// True when the app under the pointer or the app that posted the event is
