@@ -1463,7 +1463,8 @@ enum FeatureCatalogTests {
                "dock preview keeps screen recording in use regardless of switcher mode")
         suite.expect(AppFeature.dockClick.enabledKeys == [DefaultsKey.dockClickMinimize,
                                                     DefaultsKey.dockClickHide,
-                                                    DefaultsKey.dockClickCycleWindows],
+                                                    DefaultsKey.dockClickCycleWindows,
+                                                    DefaultsKey.dockClickFinderReplacement],
                "the Dock click feature tracks every action that can keep its shared tap alive")
 
         suite.expect(activeSet(.notifications) == [],
@@ -2064,7 +2065,8 @@ enum FeatureCatalogTests {
             FeatureVisibilitySupport.isPermissionNeeded(
                 on: .dock, activeFeatures: Array(activeSet(.accessibility, available: available, on: on)))
         }
-        suite.expect([DefaultsKey.dockClickMinimize, DefaultsKey.dockClickHide, DefaultsKey.dockClickCycleWindows]
+        suite.expect([DefaultsKey.dockClickMinimize, DefaultsKey.dockClickHide,
+                      DefaultsKey.dockClickCycleWindows, DefaultsKey.dockClickFinderReplacement]
                 .allSatisfy { dockNeedsAccessibility(available: [.dockClick], on: [$0]) }
                 && dockNeedsAccessibility(available: [.dockPreview], on: [DefaultsKey.dockPreviewEnabled])
                 && !dockNeedsAccessibility(available: [.dockPreview], on: [DefaultsKey.dockClickMinimize])
