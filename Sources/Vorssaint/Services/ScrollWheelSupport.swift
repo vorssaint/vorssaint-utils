@@ -21,12 +21,8 @@ enum ScrollHorizontalModifier: String, CaseIterable {
     }
 }
 
-enum ScrollZoomMode: String, CaseIterable {
-    case keyboard, pinch
-}
-
 enum ScrollZoomModifier: String, CaseIterable {
-    case none, shift, option, control, command
+    case none, option, control, command
 
     init(storageValue: String?) {
         self = storageValue.flatMap(Self.init(rawValue:)) ?? .none
@@ -54,36 +50,24 @@ struct ScrollZoomAction {
 
 struct ScrollZoomPreferences: Equatable {
     let verticalZoom: ScrollHorizontalModifier?
-    let horizontalZoom: ScrollHorizontalModifier?
     let pinchZoom: ScrollHorizontalModifier?
 
     var isEnabled: Bool {
-        verticalZoom != nil || horizontalZoom != nil || pinchZoom != nil
+        verticalZoom != nil || pinchZoom != nil
     }
 
     init(isAvailable: Bool, boolFor: (String) -> Bool, stringFor: (String) -> String?) {
         func modifier(_ enabled: String, _ key: String) -> ScrollHorizontalModifier? {
             isAvailable && boolFor(enabled) ? ScrollZoomModifier(storageValue: stringFor(key)).modifier : nil
         }
-        let candidates = [
-            modifier(DefaultsKey.verticalZoomEnabled, DefaultsKey.verticalZoomModifier),
-            modifier(DefaultsKey.horizontalZoomEnabled, DefaultsKey.horizontalZoomModifier),
-            modifier(DefaultsKey.pinchZoomEnabled, DefaultsKey.pinchZoomModifier),
-        ]
-        var assigned: [ScrollHorizontalModifier] = []
-        let unique = candidates.map { candidate -> ScrollHorizontalModifier? in
-            guard let candidate, !assigned.contains(candidate) else { return nil }
-            assigned.append(candidate)
-            return candidate
-        }
-        verticalZoom = unique[0]
-        horizontalZoom = unique[1]
-        pinchZoom = unique[2]
+        verticalZoom = modifier(DefaultsKey.verticalZoomEnabled, DefaultsKey.verticalZoomModifier)
+        let pinch = modifier(DefaultsKey.pinchZoomEnabled, DefaultsKey.pinchZoomModifier)
+        pinchZoom = pinch == verticalZoom ? nil : pinch
     }
 
     func action(for event: CGEvent) -> ScrollZoomAction? {
         let choices: [(ScrollZoomEffect, ScrollWheelAxis, ScrollHorizontalModifier?)] = [
-            (.zoom, .vertical, verticalZoom), (.zoom, .horizontal, horizontalZoom),
+            (.zoom, .vertical, verticalZoom),
             (.pinch, .vertical, pinchZoom), (.pinch, .horizontal, pinchZoom),
         ]
         for (effect, axis, modifier) in choices {
@@ -146,6 +130,17 @@ struct ScrollZoomStepLimiter {
     }
 
     mutating func reset() { lastStep = nil }
+}
+
+struct ScrollZoomTargetSnapshot {
+    let windows: [ScrollWheelTargetCache.Window]
+    let modifier: ScrollHorizontalModifier
+    let resolvedAt: TimeInterval
+
+    func target(at point: CGPoint, modifier: ScrollHorizontalModifier, now: TimeInterval) -> WindowServerWindowCandidate? {
+        guard self.modifier == modifier, now >= resolvedAt, now - resolvedAt < 0.5 else { return nil }
+        return windows.first { $0.frame.contains(point) }?.zoomTarget
+    }
 }
 
 /// Both independently installed direction features share one tap. Resolve their
@@ -599,6 +594,7 @@ final class ScrollWheelTargetCache {
     struct Window {
         let frame: CGRect
         let isOwn: Bool
+        let zoomTarget: WindowServerWindowCandidate?
     }
 
     private struct Snapshot {
@@ -626,6 +622,10 @@ final class ScrollWheelTargetCache {
     private var ownWindows: [OwnWindow] = []
     private var orderedWindowIDs: [CGWindowID] = []
     private var snapshot: Snapshot?
+
+    var clickThroughWindowIDs: Set<CGWindowID> {
+        lock.withLock { Set(ownWindows.filter(\.ignoresMouseEvents).map(\.id)) }
+    }
 
     init(ownProcessID: Int32, now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          lookup: @escaping () -> [[String: Any]] = WindowServerSupport.onScreenWindowInfo) {
@@ -693,7 +693,15 @@ final class ScrollWheelTargetCache {
             let isOwn = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownProcessID
             if isOwn, let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                clickThroughWindowIDs.contains(number) { return nil }
-            return Window(frame: frame, isOwn: isOwn)
+            let target: WindowServerWindowCandidate?
+            if !isOwn, (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+               let pid = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pid > 0,
+               let id = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value {
+                target = WindowServerWindowCandidate(pid: pid, windowID: id, frame: frame)
+            } else {
+                target = nil
+            }
+            return Window(frame: frame, isOwn: isOwn, zoomTarget: target)
         }
     }
 }

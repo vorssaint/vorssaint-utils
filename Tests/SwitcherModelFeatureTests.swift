@@ -163,10 +163,6 @@ enum SwitcherModelFeatureTests {
         // turned the controlling computer's way.
         suite.expect(switcher.contains("let directionApplies = direction.isEnabled\n                && ScrollWheelHIDStage.shared.passed(event)\n"),
                      "the open switcher leaves a remote screen's scroll as it came")
-        let inverter = code("Sources/Vorssaint/Services/ScrollInverter.swift")
-        suite.expect(inverter.contains("guard !AppSwitcher.shared.scrollNavigationActive else { return false }")
-                && inverter.contains("ScrollWheelSupport.applyDirection("),
-                     "zoom yields its wheel to the switcher while ordinary direction handling remains available")
     }
 
     static func run(_ suite: TestSuite) {

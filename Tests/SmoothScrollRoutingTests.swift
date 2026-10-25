@@ -19,6 +19,12 @@ enum SmoothScrollRoutingTests {
     final class Inverter {
         static let shared = Inverter()
         var isRunning = true
+        var consumesZoom = false
+        var zoomRequests = 0
+        func consumeZoom(_ event: CGEvent, direction: ScrollDirectionPreferences) -> Bool {
+            zoomRequests += 1
+            return consumesZoom
+        }
     }
     final class Switcher {
         static let shared = Switcher()
@@ -85,6 +91,8 @@ enum SmoothScrollRoutingTests {
             defaults.removePersistentDomain(forName: domain)
             Exceptions.shared.scopes = []
             HIDStage.shared.passes = true
+            Inverter.shared.consumesZoom = false
+            Inverter.shared.zoomRequests = 0
             posted = []
         }
         let a = CGPoint(x: 120, y: 240), b = CGPoint(x: 900, y: 600)
@@ -236,6 +244,20 @@ enum SmoothScrollRoutingTests {
         let zoom = wheel(flags: .maskControl)
         suite.expect(tick(ignored, zoom) === zoom && !ignored.engine.isActive,
                      "native Control-wheel zoom cancels the previous glide and passes through")
+
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.verticalZoomEnabled)
+        defaults.set(ScrollZoomModifier.control.rawValue, forKey: DefaultsKey.verticalZoomModifier)
+        _ = tick(ignored, wheel())
+        let pendingZoom = wheel(flags: .maskControl)
+        suite.expect(tick(ignored, pendingZoom) === pendingZoom && !ignored.engine.isActive
+                        && Inverter.shared.zoomRequests == 1,
+                     "an unresolved configured Zoom tick stays raw and cancels the previous glide")
+        Inverter.shared.consumesZoom = true
+        suite.expect(tick(ignored, wheel(flags: .maskControl)) == nil && !ignored.engine.isActive,
+                     "a handled Zoom tick is consumed without starting a glide")
+        defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
+        Inverter.shared.consumesZoom = false
         _ = tick(ignored, wheel())
         let trackpad = wheel()
         trackpad.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)

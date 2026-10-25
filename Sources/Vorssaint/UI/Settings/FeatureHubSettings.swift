@@ -1098,7 +1098,7 @@ extension AppFeature {
         case .scrollHorizontal: return L10n.shared.s.scrollHorizontalCaption
         case .scrollZoom:
             let s = L10n.shared.s
-            return [s.verticalZoom, s.horizontalZoom, s.pinchZoom].joined(separator: ", ")
+            return [s.verticalZoom, s.pinchZoom].joined(separator: ", ")
         case .focusFollowsMouse: return L10n.shared.s.focusFollowsMouseCaption
         case .smoothScroll: return hub.descSmoothScroll
         case .linearScroll: return L10n.shared.s.linearScrollCaption

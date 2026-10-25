@@ -77,13 +77,17 @@ final class ScrollInverter: ObservableObject {
     private var zoomState = ScrollZoomGestureState()
     private var zoomStepLimiter = ScrollZoomStepLimiter()
     private let zoomTargetQueue = DispatchQueue(label: "com.vorssaint.mouse.zoom-target", qos: .userInitiated)
-    private var zoomTarget: (modifier: ScrollHorizontalModifier, window: WindowServerWindowCandidate)?
-    private var zoomTargetPending: (modifier: ScrollHorizontalModifier, point: CGPoint)?
+    private var zoomTargetTimer: DispatchSourceTimer?
+    private var zoomTarget: ScrollZoomTargetSnapshot?
+    private var zoomFocusedTarget: WindowServerWindowCandidate?
+    private var zoomTargetPending: (modifier: ScrollHorizontalModifier, point: CGPoint, activate: Bool)?
     private var zoomTargetMiss: (modifier: ScrollHorizontalModifier, point: CGPoint, at: TimeInterval)?
     private var zoomTargetGeneration: UInt64 = 0
     private var zoomInKeyStroke: (keyCode: CGKeyCode, needsShift: Bool)?
     private var zoomOutKeyStroke: (keyCode: CGKeyCode, needsShift: Bool)?
     private var zoomKeyboardObserver: NSObjectProtocol?
+    private var zoomForegroundObserver: NSObjectProtocol?
+    private var zoomForegroundPID: pid_t?
     private var tapCreationRetryUsed = false
     private var tapCreationRetryWork: DispatchWorkItem?
 
@@ -99,6 +103,7 @@ final class ScrollInverter: ObservableObject {
     func syncWithPreferences() {
         let direction = ScrollDirectionPreferences()
         pinchZoomLock.withLock {
+            stopZoomTargetTimerLocked()
             if zoomState.update(direction.zoom) {
                 postPinch(phase: 4, magnification: 0)
             }
@@ -107,7 +112,7 @@ final class ScrollInverter: ObservableObject {
         if SessionActivitySupport.tapShouldRun(featureWanted: direction.isEnabled || Self.linearScrollWanted,
                                                accessibilityGranted: Permissions.shared.accessibility,
                                                sessionIsActive: SessionActivity.shared.isActive) {
-            ScrollWheelTarget.shared.setEnabled(direction.horizontalModifier != nil)
+            ScrollWheelTarget.shared.setEnabled(direction.horizontalModifier != nil || direction.zoom.isEnabled)
             start(zoom: direction.zoom)
         } else {
             stop()
@@ -195,6 +200,7 @@ final class ScrollInverter: ObservableObject {
     private func stop() {
         syncZoomKeyboardLayout(zoom: nil)
         pinchZoomLock.withLock {
+            stopZoomTargetTimerLocked()
             if zoomState.stop() { postPinch(phase: 4, magnification: 0) }
             invalidateZoomTargetLocked()
         }
@@ -225,18 +231,38 @@ final class ScrollInverter: ObservableObject {
     }
 
     private func syncZoomKeyboardLayout(zoom: ScrollZoomPreferences?) {
-        guard zoom?.verticalZoom != nil || zoom?.horizontalZoom != nil else {
+        guard zoom?.verticalZoom != nil else {
             if let zoomKeyboardObserver {
                 NotificationCenter.default.removeObserver(zoomKeyboardObserver)
                 self.zoomKeyboardObserver = nil
             }
+            if let zoomForegroundObserver {
+                NSWorkspace.shared.notificationCenter.removeObserver(zoomForegroundObserver)
+                self.zoomForegroundObserver = nil
+            }
             pinchZoomLock.withLock {
                 zoomInKeyStroke = nil
                 zoomOutKeyStroke = nil
+                zoomForegroundPID = nil
             }
             return
         }
         refreshZoomKeyboardLayout()
+        pinchZoomLock.withLock {
+            zoomForegroundPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        }
+        if zoomForegroundObserver == nil {
+            zoomForegroundObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                self.pinchZoomLock.withLock {
+                    self.zoomForegroundPID = pid
+                    self.zoomFocusedTarget = nil
+                }
+            }
+        }
         if zoomKeyboardObserver == nil {
             zoomKeyboardObserver = NotificationCenter.default.addObserver(
                 forName: GlobalShortcut.keyboardLayoutDidChange, object: nil, queue: .main
@@ -265,6 +291,9 @@ final class ScrollInverter: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         if type == .flagsChanged {
+            guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
+                return Unmanaged.passUnretained(event)
+            }
             pinchZoomLock.withLock {
                 if let modifier = zoomState.pinchModifier,
                    event.flags.intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand]) != modifier.flag {
@@ -315,7 +344,8 @@ final class ScrollInverter: ObservableObject {
         let directionApplies = direction.isEnabled
             && !MouseAppExceptions.shared.excludesPointerTarget(
                 .scrollDirection, at: event.location, sourceProcessID: sourceProcessID)
-        if directionApplies, direction.zoom.action(for: event) != nil {
+        if directionApplies, !AppSwitcher.shared.scrollNavigationActive,
+           direction.zoom.action(for: event) != nil {
             return consumeZoom(event, direction: direction) ? nil : Unmanaged.passUnretained(event)
         }
         // Control-wheel is native zoom. Only the explicit Control-to-horizontal
@@ -395,6 +425,13 @@ final class ScrollInverter: ObservableObject {
     func consumeZoom(_ event: CGEvent, direction: ScrollDirectionPreferences) -> Bool {
         guard !AppSwitcher.shared.scrollNavigationActive else { return false }
         guard let action = direction.zoom.action(for: event) else { return false }
+        guard !ScrollWheelTarget.shared.contains(event.location) else {
+            pinchZoomLock.withLock {
+                endPinchZoomLocked()
+                invalidateZoomTargetLocked()
+            }
+            return false
+        }
         let delta = ScrollWheelSupport.zoomDelta(action.delta, axis: action.axis,
                                                   invertVertical: direction.invertVertical,
                                                   invertHorizontal: direction.invertHorizontal)
@@ -404,16 +441,16 @@ final class ScrollInverter: ObservableObject {
                 postPinchZoomLocked(delta, modifier: action.modifier)
                 return true
             }
-            guard let zoomTarget,
-                  zoomTarget.modifier == action.modifier,
-                  zoomTarget.window.frame.contains(event.location) else {
-                requestZoomTargetLocked(at: event.location, modifier: action.modifier)
+            guard let target = zoomTarget?.target(at: event.location, modifier: action.modifier,
+                                                  now: ProcessInfo.processInfo.systemUptime),
+                  zoomFocusedTarget == target else {
+                requestZoomTargetLocked(at: event.location, modifier: action.modifier, activate: true)
                 return false
             }
             if !zoomStepLimiter.allows(delta, at: EventTimestamp.nanoseconds(of: event)) {
                 return true
             }
-            guard postKeyboardZoom(delta, targetProcessID: zoomTarget.window.pid) else {
+            guard postKeyboardZoom(delta, targetProcessID: target.pid, restoringModifiers: event.flags) else {
                 zoomStepLimiter.reset()
                 return false
             }
@@ -425,59 +462,180 @@ final class ScrollInverter: ObservableObject {
     private func prepareZoomTargetLocked(for event: CGEvent) {
         let held = event.flags.intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand])
         if let zoom = zoomState.preferences, zoomState.accepts(zoom),
-           let modifier = [zoom.verticalZoom, zoom.horizontalZoom].compactMap({ $0 }).first(where: { $0.flag == held }) {
+           let modifier = zoom.verticalZoom, modifier.flag == held {
             requestZoomTargetLocked(at: event.location, modifier: modifier)
         } else {
+            stopZoomTargetTimerLocked()
             invalidateZoomTargetLocked()
         }
+    }
+
+    private func stopZoomTargetTimerLocked() {
+        zoomTargetTimer?.cancel()
+        zoomTargetTimer = nil
+    }
+
+    private func startZoomTargetTimerLocked() {
+        guard zoomTargetTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: zoomTargetQueue)
+        timer.schedule(deadline: .now() + 0.2, repeating: 0.2, leeway: .milliseconds(20))
+        timer.setEventHandler { [weak self] in
+            guard let self, let pointer = CGEvent(source: nil) else { return }
+            let held = CGEventSource.flagsState(.combinedSessionState)
+                .intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand])
+            self.pinchZoomLock.withLock {
+                guard !AppSwitcher.shared.scrollNavigationActive, AXIsProcessTrusted(),
+                      let zoom = self.zoomState.preferences, self.zoomState.accepts(ScrollDirectionPreferences().zoom),
+                      let modifier = zoom.verticalZoom, modifier.flag == held else {
+                    self.stopZoomTargetTimerLocked()
+                    self.invalidateZoomTargetLocked()
+                    return
+                }
+                self.requestZoomTargetLocked(at: pointer.location, modifier: modifier, refresh: true)
+            }
+        }
+        zoomTargetTimer = timer
+        timer.resume()
     }
 
     private func invalidateZoomTargetLocked() {
         zoomTargetGeneration &+= 1
         zoomTarget = nil
+        zoomFocusedTarget = nil
         zoomTargetPending = nil
         zoomTargetMiss = nil
         zoomStepLimiter.reset()
     }
 
-    private func requestZoomTargetLocked(at point: CGPoint, modifier: ScrollHorizontalModifier) {
-        if let zoomTarget, zoomTarget.modifier == modifier,
-           zoomTarget.window.frame.contains(point) { return }
-        if let zoomTargetPending, zoomTargetPending.modifier == modifier,
-           zoomTargetPending.point == point { return }
+    private func requestZoomTargetLocked(at point: CGPoint, modifier: ScrollHorizontalModifier,
+                                         activate: Bool = false, refresh: Bool = false) {
+        startZoomTargetTimerLocked()
+        if !refresh, let target = zoomTarget?.target(at: point, modifier: modifier, now: ProcessInfo.processInfo.systemUptime),
+           !activate || zoomFocusedTarget == target { return }
+        if let pending = zoomTargetPending, pending.modifier == modifier, pending.point == point {
+            if activate { zoomTargetPending?.activate = true }
+            return
+        }
         if let zoomTargetMiss, zoomTargetMiss.modifier == modifier,
            zoomTargetMiss.point == point,
            ProcessInfo.processInfo.systemUptime - zoomTargetMiss.at < 0.5 { return }
-        invalidateZoomTargetLocked()
-        zoomTargetPending = (modifier, point)
+        if refresh {
+            zoomTargetGeneration &+= 1
+        } else {
+            invalidateZoomTargetLocked()
+        }
+        zoomTargetPending = (modifier, point, activate)
         let generation = zoomTargetGeneration
         zoomTargetQueue.async { [weak self] in
             guard let self else { return }
             guard self.pinchZoomLock.withLock({ self.zoomTargetGeneration == generation }) else { return }
-            let window = WindowServerSupport.keyboardZoomTarget(
-                in: WindowServerSupport.onScreenWindowInfo(), at: point,
-                ownProcessID: getpid(), focusedWindowID: WindowActivator.focusedWindowID(for:))
-            self.pinchZoomLock.withLock {
-                guard self.zoomTargetGeneration == generation else { return }
-                self.zoomTargetPending = nil
+            let resolvedAt = ProcessInfo.processInfo.systemUptime
+            let snapshot = ScrollZoomTargetSnapshot(
+                windows: ScrollWheelTargetCache.windows(in: WindowServerSupport.onScreenWindowInfo(),
+                    ownProcessID: getpid(), clickThroughWindowIDs: ScrollWheelTarget.shared.clickThroughWindowIDs),
+                modifier: modifier, resolvedAt: resolvedAt)
+            let window = snapshot.target(at: point, modifier: modifier, now: resolvedAt)
+            let focused = window.map { WindowActivator.focusedWindowID(for: $0.pid) == $0.windowID } ?? false
+            let needsActivation = self.pinchZoomLock.withLock { () -> Bool in
+                guard self.zoomTargetGeneration == generation else { return false }
+                let needsActivation = self.zoomTargetPending?.activate == true && window != nil
+                    && (!focused || self.zoomForegroundPID != window?.pid)
+                if !needsActivation { self.zoomTargetPending = nil }
                 if let window {
-                    self.zoomTarget = (modifier, window)
+                    if self.zoomFocusedTarget != window { self.zoomStepLimiter.reset() }
+                    self.zoomTarget = snapshot
+                    self.zoomFocusedTarget = focused && self.zoomForegroundPID == window.pid ? window : nil
                 } else {
                     self.zoomTargetMiss = (modifier, point, ProcessInfo.processInfo.systemUptime)
                 }
+                return needsActivation
+            }
+            if needsActivation, let window {
+                self.activateZoomTarget(window, snapshot: snapshot, point: point, generation: generation)
             }
         }
     }
 
-    private func postKeyboardZoom(_ delta: Double, targetProcessID: pid_t) -> Bool {
-        guard let keyStroke = delta > 0 ? zoomInKeyStroke : zoomOutKeyStroke else { return false }
-        let source = CGEventSource(stateID: .hidSystemState)
+    private func activateZoomTarget(_ window: WindowServerWindowCandidate, snapshot: ScrollZoomTargetSnapshot,
+                                    point: CGPoint, generation: UInt64) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard self.zoomActivationIsCurrent(window, snapshot: snapshot, generation: generation),
+                  let app = NSRunningApplication(processIdentifier: window.pid),
+                  app.activationPolicy == .regular, !app.isTerminated,
+                  !SpaceWindowBridge.isParkedOnHiddenSpace(window.windowID),
+                  !MouseAppExceptions.shared.excludesPointerTarget(.scrollDirection, at: point) else {
+                self.finishZoomActivation(window, generation: generation, focused: false)
+                return
+            }
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier != window.pid {
+                WindowActivator.activateAppCooperatively(app, allWindows: false)
+            }
+            self.zoomTargetQueue.async { [weak self] in
+                guard let self else { return }
+                guard self.zoomActivationIsCurrent(window, snapshot: snapshot, generation: generation) else {
+                    self.finishZoomActivation(window, generation: generation, focused: false)
+                    return
+                }
+                let focused = WindowActivator.focusWindow(windowID: window.windowID, pid: window.pid,
+                                                          makeAppFrontmost: false)
+                    && WindowActivator.focusedWindowID(for: window.pid) == window.windowID
+                self.finishZoomActivation(window, generation: generation, focused: focused)
+            }
+        }
+    }
+
+    private func zoomActivationIsCurrent(_ window: WindowServerWindowCandidate, snapshot: ScrollZoomTargetSnapshot,
+                                         generation: UInt64) -> Bool {
+        guard !AppSwitcher.shared.scrollNavigationActive, AXIsProcessTrusted(),
+              let pointer = CGEvent(source: nil),
+              CGEventSource.flagsState(.combinedSessionState)
+                .intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand]) == snapshot.modifier.flag,
+              snapshot.target(at: pointer.location, modifier: snapshot.modifier,
+                              now: ProcessInfo.processInfo.systemUptime) == window,
+              !ScrollWheelTarget.shared.contains(pointer.location) else { return false }
+        let preferences = ScrollDirectionPreferences().zoom
+        return pinchZoomLock.withLock { zoomTargetGeneration == generation && zoomState.accepts(preferences) }
+    }
+
+    private func finishZoomActivation(_ window: WindowServerWindowCandidate, generation: UInt64, focused: Bool) {
+        pinchZoomLock.withLock {
+            guard zoomTargetGeneration == generation else { return }
+            zoomTargetPending = nil
+            zoomFocusedTarget = focused && zoomForegroundPID == window.pid ? window : nil
+        }
+    }
+
+    private func postKeyboardZoom(_ delta: Double, targetProcessID: pid_t, restoringModifiers: CGEventFlags) -> Bool {
+        guard let keyStroke = delta > 0 ? zoomInKeyStroke : zoomOutKeyStroke,
+              let source = CGEventSource(stateID: .privateState) else { return false }
+        source.keyboardType = CGEventSource(stateID: .hidSystemState)?.keyboardType ?? source.keyboardType
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyStroke.keyCode, keyDown: true),
-              let up = CGEvent(keyboardEventSource: source, virtualKey: keyStroke.keyCode, keyDown: false) else { return false }
+              let up = CGEvent(keyboardEventSource: source, virtualKey: keyStroke.keyCode, keyDown: false),
+              let restore = CGEvent(keyboardEventSource: source, virtualKey: keyStroke.keyCode, keyDown: true) else { return false }
         down.flags = keyStroke.needsShift ? [.maskCommand, .maskShift] : .maskCommand
         up.flags = down.flags
         down.postToPid(targetProcessID)
         up.postToPid(targetProcessID)
+        let shortcutFlags: CGEventFlags = [.maskShift, .maskAlternate, .maskControl, .maskCommand]
+        let held = restoringModifiers.intersection(shortcutFlags)
+        let simulated = down.flags.intersection(shortcutFlags)
+        let added = held.subtracting(simulated)
+        let changed = added.isEmpty ? simulated.subtracting(held) : added
+        let keys: [(CGEventFlags, Int, Int, Int32)] = [
+            (.maskShift, kVK_Shift, kVK_RightShift, NX_DEVICERSHIFTKEYMASK),
+            (.maskAlternate, kVK_Option, kVK_RightOption, NX_DEVICERALTKEYMASK),
+            (.maskControl, kVK_Control, kVK_RightControl, NX_DEVICERCTLKEYMASK),
+            (.maskCommand, kVK_Command, kVK_RightCommand, NX_DEVICERCMDKEYMASK),
+        ]
+        if let key = keys.first(where: { changed.contains($0.0) }) {
+            restore.type = .flagsChanged
+            let right = restoringModifiers.rawValue & UInt64(key.3) != 0
+            restore.setIntegerValueField(.keyboardEventKeycode, value: Int64(right ? key.2 : key.1))
+            restore.flags = restoringModifiers
+            restore.setIntegerValueField(.eventSourceUserData, value: ScrollWheelSupport.syntheticTag)
+            restore.postToPid(targetProcessID)
+        }
         return true
     }
 

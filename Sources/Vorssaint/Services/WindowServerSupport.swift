@@ -17,7 +17,7 @@ struct TrafficLightCandidate {
     let frame: CGRect
 }
 
-struct WindowServerWindowCandidate {
+struct WindowServerWindowCandidate: Equatable {
     let pid: pid_t
     let windowID: CGWindowID
     let frame: CGRect
@@ -150,23 +150,6 @@ enum WindowServerSupport {
         return nil
     }
 
-    static func keyboardZoomTarget(in windows: [[String: Any]],
-                                   at point: CGPoint,
-                                   ownProcessID: pid_t,
-                                   focusedWindowID: (pid_t) -> CGWindowID?) -> WindowServerWindowCandidate? {
-        for window in windows {
-            guard let bounds = bounds(from: window), bounds.contains(point),
-                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
-                  let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue,
-                  MouseAppExceptionSupport.appWindowLayers.contains(layer),
-                  let processID = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value else { continue }
-            guard processID != ownProcessID, layer == 0,
-                  let windowID = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
-                  focusedWindowID(processID) == windowID else { return nil }
-            return WindowServerWindowCandidate(pid: processID, windowID: windowID, frame: bounds)
-        }
-        return nil
-    }
 
     /// The traffic light a click landed on, if any. `CGRect.contains` decides
     /// what the point is over, so the far edge belongs to the window next to

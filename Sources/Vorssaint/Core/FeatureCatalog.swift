@@ -245,7 +245,6 @@ extension AppFeature {
                                       DefaultsKey.scrollInverterHorizontalEnabled]
         case .scrollHorizontal: return [DefaultsKey.scrollHorizontalEnabled]
         case .scrollZoom: return [DefaultsKey.verticalZoomEnabled,
-                                  DefaultsKey.horizontalZoomEnabled,
                                   DefaultsKey.pinchZoomEnabled]
         case .focusFollowsMouse: return [DefaultsKey.focusFollowsMouseEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]

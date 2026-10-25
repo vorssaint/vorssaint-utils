@@ -20,11 +20,9 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.scrollHorizontalModifier) private var horizontalScrollModifier =
         ScrollHorizontalModifier.shift
     @AppStorage(DefaultsKey.verticalZoomEnabled) private var verticalZoomEnabled = false
-    @AppStorage(DefaultsKey.verticalZoomModifier) private var verticalZoomModifier = ScrollZoomModifier.control
-    @AppStorage(DefaultsKey.horizontalZoomEnabled) private var horizontalZoomEnabled = false
-    @AppStorage(DefaultsKey.horizontalZoomModifier) private var horizontalZoomModifier = ScrollZoomModifier.shift
+    @AppStorage(DefaultsKey.verticalZoomModifier) private var verticalZoomModifier = ScrollZoomModifier.command.rawValue
     @AppStorage(DefaultsKey.pinchZoomEnabled) private var pinchZoomEnabled = false
-    @AppStorage(DefaultsKey.pinchZoomModifier) private var pinchZoomModifier = ScrollZoomModifier.command
+    @AppStorage(DefaultsKey.pinchZoomModifier) private var pinchZoomModifier = ScrollZoomModifier.control.rawValue
     @AppStorage(DefaultsKey.focusFollowsMouseEnabled) private var focusFollowsMouseEnabled = false
     @AppStorage(DefaultsKey.focusFollowsMouseRaise) private var focusFollowsMouseRaise = true
     @AppStorage(DefaultsKey.focusFollowsMouseWaitForStop) private var focusFollowsMouseWaitForStop = true
@@ -223,7 +221,7 @@ struct MouseSettings: View {
                         .padding(.leading, settingsRowTextInset)
                 }
             }
-            if scrollDirectionEnabled, inverter.isRunning {
+            if scrollInversionEnabled, inverter.isRunning {
                 activeBadge(l10n.s.scrollActiveNow)
             }
             Text(l10n.s.scrollTrackpadNote)
@@ -240,10 +238,12 @@ struct MouseSettings: View {
         SettingsCard(title: l10n.s.zoomSection) {
             scrollZoomControl(l10n.s.verticalZoom, enabled: $verticalZoomEnabled,
                               modifier: $verticalZoomModifier, setting: .verticalZoom)
-            scrollZoomControl(l10n.s.horizontalZoom, enabled: $horizontalZoomEnabled,
-                              modifier: $horizontalZoomModifier, setting: .horizontalZoom)
             scrollZoomControl(l10n.s.pinchZoom, enabled: $pinchZoomEnabled,
                               modifier: $pinchZoomModifier, setting: .pinchZoom)
+            Text(l10n.s.zoomControlNote)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -291,17 +291,18 @@ struct MouseSettings: View {
         }
     }
 
-    private enum ScrollZoomSetting { case verticalZoom, horizontalZoom, pinchZoom }
+    private enum ScrollZoomSetting { case verticalZoom, pinchZoom }
 
     private func scrollZoomControl(_ title: String, enabled: Binding<Bool>,
-                                    modifier: Binding<ScrollZoomModifier>, setting: ScrollZoomSetting) -> some View {
+                                    modifier: Binding<String>, setting: ScrollZoomSetting) -> some View {
         let modifierStrings = FeatureStrings.quitProtection(l10n.language)
+        let selection = Binding(get: { ScrollZoomModifier(storageValue: modifier.wrappedValue) },
+                                set: { modifier.wrappedValue = $0.rawValue })
         return HStack(spacing: 16) {
             Text(title)
                 .frame(width: 180, alignment: .leading)
-            Picker("", selection: modifier) {
+            Picker("", selection: selection) {
                 Text(l10n.s.shortcutNone).tag(ScrollZoomModifier.none)
-                Text("⇧ \(modifierStrings.shiftKey)").tag(ScrollZoomModifier.shift)
                 Text("⌥ \(modifierStrings.optionKey)").tag(ScrollZoomModifier.option)
                 Text("⌃ \(modifierStrings.controlKey)").tag(ScrollZoomModifier.control)
                 Text("⌘ \(l10n.s.scrollHorizontalCommandKey)").tag(ScrollZoomModifier.command)
@@ -311,7 +312,7 @@ struct MouseSettings: View {
             .disabled(!enabled.wrappedValue)
             .accessibilityLabel(title)
             .onChange(of: modifier.wrappedValue) { _, selected in
-                clearZoomModifierConflicts(for: setting, selected: selected)
+                clearZoomModifierConflicts(for: setting, selected: ScrollZoomModifier(storageValue: selected))
             }
             Toggle(title, isOn: enabled)
                 .labelsHidden()
@@ -328,9 +329,12 @@ struct MouseSettings: View {
             ScrollInverter.shared.syncWithPreferences()
             return
         }
-        if setting != .verticalZoom, verticalZoomModifier == selected { verticalZoomModifier = .none }
-        if setting != .horizontalZoom, horizontalZoomModifier == selected { horizontalZoomModifier = .none }
-        if setting != .pinchZoom, pinchZoomModifier == selected { pinchZoomModifier = .none }
+        if setting != .verticalZoom, verticalZoomModifier == selected.rawValue {
+            verticalZoomModifier = ScrollZoomModifier.none.rawValue
+        }
+        if setting != .pinchZoom, pinchZoomModifier == selected.rawValue {
+            pinchZoomModifier = ScrollZoomModifier.none.rawValue
+        }
         ScrollInverter.shared.syncWithPreferences()
     }
 
@@ -628,9 +632,8 @@ struct MouseSettings: View {
     }
 
     private var scrollZoomEnabled: Bool {
-        (verticalZoomEnabled && verticalZoomModifier != .none)
-            || (horizontalZoomEnabled && horizontalZoomModifier != .none)
-            || (pinchZoomEnabled && pinchZoomModifier != .none)
+        (verticalZoomEnabled && ScrollZoomModifier(storageValue: verticalZoomModifier) != .none)
+            || (pinchZoomEnabled && ScrollZoomModifier(storageValue: pinchZoomModifier) != .none)
     }
 
     private var smoothScrollStepBinding: Binding<Double> {

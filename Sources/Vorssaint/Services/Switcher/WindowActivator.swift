@@ -444,7 +444,7 @@ enum WindowActivator {
         }
     }
 
-    private static func activateAppCooperatively(_ app: NSRunningApplication, allWindows: Bool) {
+    static func activateAppCooperatively(_ app: NSRunningApplication, allWindows: Bool) {
         let options: NSApplication.ActivationOptions = allWindows ? [.activateAllWindows] : []
         ActivationHandoff.yield(to: app)
         if !app.activate(from: NSRunningApplication.current, options: options) {
@@ -745,8 +745,8 @@ enum WindowActivator {
     }
 
     @discardableResult
-    private static func focusWindow(windowID: CGWindowID, pid: pid_t, makeAppFrontmost: Bool = true) -> Bool {
-        guard Permissions.shared.accessibility else { return false }
+    static func focusWindow(windowID: CGWindowID, pid: pid_t, makeAppFrontmost: Bool = true) -> Bool {
+        guard AXIsProcessTrusted() else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
         guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }

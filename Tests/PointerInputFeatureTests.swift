@@ -3893,7 +3893,7 @@ enum PointerInputFeatureTests {
                "Smooth Scrolling consumes configured zoom before creating a glide")
         suite.expect(!scrollInverterSource.contains("eventTargetUnixProcessID")
                 && scrollInverterSource.contains("zoomTargetQueue.async")
-                && scrollInverterSource.contains("WindowServerSupport.keyboardZoomTarget(")
+                && scrollInverterSource.contains("WindowActivator.focusedWindowID(for:")
                 && scrollInverterSource.contains("AppSwitcher.shared.scrollNavigationActive")
                 && scrollInverterSource.contains("postToPid(targetProcessID)")
                 && scrollInverterSource.contains("GlobalShortcut.keyboardLayoutDidChange")

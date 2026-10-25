@@ -123,7 +123,9 @@ enum MouseNavigationKeys {
         // Plain keys first: a shortcut that needs Shift is a worse match than
         // the same character sitting on a key of its own.
         for needsShift in [false, true] {
-            for keyCode in UInt16(0)...127 where producedCharacter(from: data, keyCode: keyCode, shift: needsShift) == character {
+            for keyCode in UInt16(0)...127
+                where keyCode != UInt16(kVK_ANSI_KeypadPlus) && keyCode != UInt16(kVK_ANSI_KeypadMinus)
+                    && producedCharacter(from: data, keyCode: keyCode, shift: needsShift) == character {
                 return (CGKeyCode(keyCode), needsShift)
             }
         }

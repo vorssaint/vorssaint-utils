@@ -13,6 +13,24 @@ import VMStatisticsCompat
 
 enum SettingsFeatureTests {
     static func run(_ suite: TestSuite) {
+        for (language, strings) in LocalizationTests.languages {
+            let mouse = SettingsDirectory.sections(strings, language: language)
+                .flatMap(\.items).first { $0.page == .mouse }!
+            let zoomKeywords = zip(mouse.keywords, mouse.keywordFeatures)
+                .filter { $0.1 == .scrollZoom }.map(\.0)
+            suite.expect(zoomKeywords == [strings.zoomSection, strings.verticalZoom,
+                                           strings.pinchZoom],
+                         "settings discovery includes every Zoom row in \(language.rawValue)")
+            for query in [strings.verticalZoom, strings.pinchZoom] {
+                suite.expect(SettingsSearchSupport.matches(query: query, title: mouse.title, keywords: mouse.keywords),
+                             "search finds a localized Zoom option on the Mouse page")
+            }
+            let sidebar = SettingsSidebarSupport.items(page: .mouse, title: mouse.title, icon: mouse.icon,
+                preferredFeatures: mouse.keywordFeatures.compactMap { $0 }, includePage: false,
+                isAvailable: { _ in true }, featureTitle: { $0.rawValue })
+            suite.expect(sidebar.prefix(3).map(\.id) == [.feature(.scrollInverter), .feature(.scrollHorizontal), .feature(.scrollZoom)],
+                         "the sidebar places Zoom beside scrolling in \(language.rawValue)")
+        }
         let isCodeLine: (String) -> Bool = {
             !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
         }
