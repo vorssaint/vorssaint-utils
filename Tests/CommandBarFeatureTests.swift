@@ -1222,6 +1222,22 @@ enum CommandBarFeatureTests {
         suite.expect(unitValue("1.5 l to ml").map { abs($0 - 1500) < 0.001 } == true,
                "a decimal amount converts")
         suite.expect(units("100 km to kg") == nil, "two different families never meet")
+        suite.expect(units("100 kilometres to miles") != nil
+                && units("100 kilometres to miles") == units("100 kilometers to miles")
+                && units("5 centimetres to inches") == units("5 cm to in")
+                && units("3 millimetres to inches") == units("3 mm to in")
+                && units("500 millilitres to cups") == units("500 ml to cups")
+                && units("1 kilometre to miles") == units("1 kilometer to miles")
+                && units("1 centimetre to inches") == units("1 cm to in")
+                && units("1 millimetre to inches") == units("1 mm to in")
+                && units("1 millilitre to cups") == units("1 ml to cups"),
+               "British spellings convert like the American ones, as metres and litres already do")
+        suite.expect(units("8 fl oz to ml") != nil
+                && units("8 fl oz to ml") == units("8 floz to ml")
+                && units("8 fluid ounces to ml") == units("8 floz to ml")
+                && units("1 fluid ounce to ml") == units("1 floz to ml")
+                && units("236 ml to fl oz") == units("236 ml to floz"),
+               "fluid ounces written as two words, the way a bottle prints them, convert")
         suite.expect(units("100 km") == nil, "without the word there is no conversion")
         suite.expect(units("to") == nil && units("in") == nil,
                "the little words alone convert nothing")
@@ -1309,6 +1325,23 @@ enum CommandBarFeatureTests {
                                                    locale: Locale(identifier: "pt_BR"))?.formatted)
                 == ["5", "10,87"],
                "feet and inches follow the person's number format")
+
+        // The number shown must read back as the answer; a tiny one is not 0.
+        let unitShown: (String) -> Double? = { input in
+            units(input)?.split(separator: " ").first.flatMap { Double($0) }
+        }
+        for (input, expected) in [("1 mm to km", 1e-6), ("1 mg to t", 1e-9), ("3 ms to h", 3 / 3_600_000.0)] {
+            suite.expect(unitShown(input).map { abs($0 - expected) <= expected * 0.01 } == true,
+                         "\(input) shows \(expected), not \(units(input) ?? "nil")")
+        }
+        suite.expect(unitNumbers(units("0 mm to km")) == ["0"], "zero still reads as plain 0")
+        for input in ["32 f to c", "-459.67 f to k", "273.15 k to c"] {
+            let numbers = unitNumbers(units(input))
+            suite.expect(numbers.count == 1 && numbers.first.flatMap(Double.init) == 0,
+                         "\(input) rounds temperature offset noise back to zero, found \(units(input) ?? "nil")")
+        }
+        suite.expect(unitNumbers(units("0.0001 c to c")) == ["0.0001"],
+                     "small temperatures retain their existing four-decimal precision")
 
         // MARK: Command bar emoji
 
@@ -1982,6 +2015,9 @@ enum CommandBarFeatureTests {
         suite.expect(dated("today + 10 days") == "August 7, 2026"
                 && dated("today - 10 days") == "July 18, 2026",
                "a plain sign decides the direction")
+        suite.expect(dated("in -9223372036854775808 days") == nil
+                && dated("-9223372036854775808 days ago") == nil,
+               "the smallest whole number is out of range, not a crash")
         suite.expect(dated("3 days") == nil && dated("2+2") == nil && dated("100 km to mi") == nil,
                "without a direction it is not a question, and a sum is not a date")
         suite.expect(CommandBarDates.evaluate("in 3 weeks", now: tuesday, calendar: gregorian,

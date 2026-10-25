@@ -14,28 +14,22 @@ enum SpaceHopSupport {
 
     /// What a hop does right after activating the app.
     enum FirstStage: Equatable {
-        /// Raising the window or activating the app travels on its own, so
-        /// wait for it to land.
+        /// Activating the app travels on its own, so wait for it to land.
         case waitForActivationTravel
         /// Activation cannot travel; the move has to be asked for right away.
         case moveASpace
-
-        /// Whether the window server fronts the exact window before the app is
-        /// activated. Fronting a window on a hidden Space cancels any travel,
-        /// before or after the activation (measured on macOS 26.6), so a hop
-        /// that waits for one leaves the window to the arrival pulses
-        /// (issue #2591).
-        var frontsTargetWindowFirst: Bool { self == .moveASpace }
     }
 
     /// macOS follows an activation to another Space only when the app has no
     /// window where the user is already looking. With one there, activating
     /// just raises that window, so waiting for a travel that cannot happen is
     /// pure delay and the hop asks for the move immediately (issue #422).
-    /// Raising the exact window travels straight to its Space either way, so
-    /// a raise that went through is always waited on (issue #2591).
-    static func firstStage(raisedTargetWindow: Bool, appHasWindowOnVisibleSpace: Bool) -> FirstStage {
-        guard !raisedTargetWindow else { return .waitForActivationTravel }
+    /// An accepted Accessibility raise gets a chance to travel directly to the
+    /// target Space. Arrival still has to be verified; success is only an
+    /// acknowledgement of the request (issue #2210).
+    static func firstStage(appHasWindowOnVisibleSpace: Bool,
+                           directRaiseSucceeded: Bool = false) -> FirstStage {
+        if directRaiseSucceeded { return .waitForActivationTravel }
         return appHasWindowOnVisibleSpace ? .moveASpace : .waitForActivationTravel
     }
 

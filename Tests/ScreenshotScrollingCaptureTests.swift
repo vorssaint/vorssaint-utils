@@ -53,7 +53,7 @@ enum ScreenshotScrollingCaptureTests {
             await checks(suite)
             completed = true
         }
-        let deadline = Date().addingTimeInterval(12)
+        let deadline = Date().addingTimeInterval(30)
         while !completed && Date() < deadline {
             RunLoop.main.run(until: Date().addingTimeInterval(0.005))
         }
@@ -61,11 +61,12 @@ enum ScreenshotScrollingCaptureTests {
         suite.expect(completed, "scrolling capture completes without wheel events or desktop access")
     }
 
-    static func frame(offset: Int, height: Int = 120, seed: Int = 0) -> CGImage {
-        let width = 32
+    static func frame(offset: Int, width: Int = 32, height: Int = 120, seed: Int = 0,
+                      contentWidth: Int? = nil, sparse: Bool = false) -> CGImage {
         var pixels = [UInt8](repeating: 0, count: width * height)
         for row in 0..<height {
             for column in 0..<width {
+                guard column < (contentWidth ?? width) else { continue }
                 let r = row + offset
                 if seed == 0 {
                     pixels[row * width + column] = UInt8(
@@ -75,6 +76,12 @@ enum ScreenshotScrollingCaptureTests {
                     value = (value ^ (value >> 16)) &* 0x45d9f3b
                     value = (value ^ (value >> 16)) &* 0x45d9f3b
                     pixels[row * width + column] = UInt8(truncatingIfNeeded: value ^ (value >> 16))
+                }
+                if sparse {
+                    // Text-like rows separated by white space. Random pixels
+                    // alone do not expose false matches against blank bands.
+                    pixels[row * width + column] = r % 24 < 8
+                        ? 215 + pixels[row * width + column] % 40 : 255
                 }
             }
         }
@@ -107,6 +114,28 @@ enum ScreenshotScrollingCaptureTests {
         return bytes
     }
 
+    /// Sparse, repeated lines at the reported 120-column Terminal width. Draw
+    /// once and crop viewports so the expected output includes every source row.
+    @MainActor static func terminalDocument() -> CGImage {
+        let width = 1_800, height = 150 * 28
+        let context = CGContext(data: nil, width: width, height: height,
+                                bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(CGColor(gray: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        for line in 1...150 {
+            (String(line) as NSString).draw(
+                at: CGPoint(x: 12, y: height - line * 28 + 2),
+                withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 24, weight: .regular),
+                                 .foregroundColor: NSColor.white])
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        return context.makeImage()!
+    }
+
     @MainActor static func checks(_ suite: TestSuite) async {
         // Match the reported output dimensions. Small synthetic images miss
         // rounding at the edges of strips drawn far down a tall bitmap.
@@ -131,8 +160,8 @@ enum ScreenshotScrollingCaptureTests {
                          "tall Retina bitmap stitching never creates transparent seam rows")
         } else { suite.expect(false, "tall screenshot strips can be joined") }
 
-        let retinaStart = frame(offset: 0, height: 1340, seed: 91)
-        let retinaNext = frame(offset: 83, height: 1340, seed: 91)
+        let retinaStart = frame(offset: 0, width: 256, height: 1340, seed: 91)
+        let retinaNext = frame(offset: 83, width: 256, height: 1340, seed: 91)
         func sample(_ image: CGImage) -> ScreenshotSupport.ScrollingSample {
             .init(width: image.width, height: image.height,
                   pixels: Array(image.dataProvider!.data! as Data))
@@ -142,7 +171,7 @@ enum ScreenshotScrollingCaptureTests {
             previous: sample(retinaStart), current: sample(retinaNext))
         let matchingDuration = ProcessInfo.processInfo.systemUptime - matchingStarted
         suite.expect(transition == .advanced(overlap: 1257, direction: .forward,
-                                             contentColumns: 0..<32),
+                                             contentColumns: 0..<256),
                      "Retina-height matching preserves the exact native-pixel overlap")
         // A generous bound for a ~0.1 s operation; the original unoptimized
         // nested loops took ~7 s, missing whole viewports during normal input.
@@ -162,6 +191,37 @@ enum ScreenshotScrollingCaptureTests {
                          "scrolling session resolves its capture configuration only once")
             return result
         }
+        let terminal = terminalDocument()
+        let terminalFrames = stride(from: 0, through: 120, by: 15).map { line in
+            terminal.cropping(to: CGRect(x: 0, y: line * 28,
+                                        width: terminal.width, height: 30 * 28))!
+        }
+        if case .success(let capture) = await capture(terminalFrames) {
+            suite.expect(capture.image.width == terminal.width,
+                         "sparse Terminal output preserves all 120 selected columns")
+            suite.expect(capture.image.height == terminal.height,
+                         "Terminal capture keeps every line from 1 through 150 (got \(capture.image.height) rows)")
+            suite.expect(pixels(capture.image) == pixels(terminal),
+                         "repeated Terminal text is joined without missing, duplicated or shifted lines")
+        } else { suite.expect(false, "Terminal sequence frames have a recoverable overlap") }
+
+        let irregularTerminalFrames = [0, 211, 87, 587, 1_000, 1_400].map { offset in
+            terminal.cropping(to: CGRect(x: 0, y: offset,
+                                        width: terminal.width, height: 30 * 28))!
+        }
+        if case .success(let capture) = await capture(irregularTerminalFrames),
+           let expected = terminal.cropping(to: CGRect(x: 0, y: 0, width: terminal.width, height: 2_240)) {
+            suite.expect(pixels(capture.image) == pixels(expected),
+                         "Terminal backtracking and partial text rows preserve exact pixel alignment")
+        } else { suite.expect(false, "irregular Terminal scrolling has a recoverable overlap") }
+
+        if case .success(let capture) = await capture([
+            frame(offset: 0, contentWidth: 8), frame(offset: 42, contentWidth: 8)
+        ]) {
+            suite.expect(pixels(capture.image) == pixels(frame(offset: 0, height: 162, contentWidth: 8)),
+                         "matching a narrow text column never crops the selected blank side area")
+        } else { suite.expect(false, "a narrow moving column has a recoverable overlap") }
+
         if case .success(let capture) = await capture([frame(offset: 0), frame(offset: 42)]) {
             suite.expect(capture.image.height == 162 && capture.scale == 2
                          && capture.anchorRect == region.anchorRect,
@@ -177,6 +237,25 @@ enum ScreenshotScrollingCaptureTests {
                          "transparent capture-edge padding never becomes a seam or loses content rows")
         } else { suite.expect(false, "padded screen captures must still join") }
 
+        // A larger advance halfway through a long page must not strand the
+        // matcher on its last accepted frame and discard every later viewport.
+        let longPageOffsets = [0, 42, 84, 180, 276, 372, 468, 564, 660]
+        if case .success(let capture) = await capture(longPageOffsets.map {
+            frame(offset: $0, seed: 91)
+        }) {
+            suite.expect(pixels(capture.image) == pixels(frame(offset: 0, height: 780, seed: 91)),
+                         "a long capture preserves every row after a near-page advance")
+        } else { suite.expect(false, "long pages keep capturing after smaller overlaps") }
+
+        let sparsePageOffsets = [0, 8, 94, 180, 266, 352, 438, 524, 610]
+        if case .success(let capture) = await capture(sparsePageOffsets.map {
+            frame(offset: $0, seed: 91, sparse: true)
+        }) {
+            suite.expect(pixels(capture.image)
+                == pixels(frame(offset: 0, height: 730, seed: 91, sparse: true)),
+                         "white bands on a long page never turn forward scrolling into backtracking")
+        } else { suite.expect(false, "long pages with white space preserve their full content") }
+
         if case .success(let capture) = await capture([frame(offset: 0)]) {
             suite.expect(capture.image.height == 120, "Done without scrolling returns the initial capture")
         } else { suite.expect(false, "Done must also work without any scroll movement") }
@@ -184,6 +263,14 @@ enum ScreenshotScrollingCaptureTests {
         if case .partial(let capture) = await capture([frame(offset: 0), frame(offset: 0, seed: 91)]) {
             suite.expect(capture.image.height == 120, "unmatched scrolling preserves the first frame")
         } else { suite.expect(false, "Done preserves a partial image when no overlap is found") }
+
+        if case .partial(let capture) = await capture([
+            frame(offset: 0, seed: 91, sparse: true),
+            frame(offset: 104, seed: 731, sparse: true)
+        ]) {
+            suite.expect(capture.image.height == 120,
+                         "unrelated sparse pages cannot be stitched together just on white space")
+        } else { suite.expect(false, "white space alone cannot establish page continuity") }
 
         if case .partial(let capture) = await capture([
             frame(offset: 0), frame(offset: 42), frame(offset: 0, seed: 91)

@@ -28,6 +28,8 @@ final class NotchBrowserArtwork {
     private var failedAt: [String: Date] = [:]
     private var wanted: String?
     private var inFlight: String?
+    private var generation = UUID()
+    private var downloadSession: URLSession?
     /// The YouTube tabs of the last session file read, or nil when it could
     /// not be read, so an attempt that finds the same file unchanged decodes
     /// nothing. Every other tab is dropped as the file is read, and these go
@@ -36,6 +38,7 @@ final class NotchBrowserArtwork {
 
     private struct Lookup {
         let key: String
+        let generation: UUID
         let bundle: String
         let title: String
         let artist: String?
@@ -50,45 +53,96 @@ final class NotchBrowserArtwork {
     }
 
     /// Starts one lookup per track. `found` runs on the lookup queue once a
-    /// cover is ready for `artwork(for:)`. A lookup already running keeps the
-    /// `found` it started with, even across a restart of the adapter. A
-    /// reading with nothing to look up, or none at all, stops the lookup of
-    /// the track before it.
+    /// cover is ready for `artwork(for:)`. Repeated readings of the same track
+    /// keep the running lookup and its `found` callback. A reading with
+    /// nothing to look up, or none at all, stops the previous lookup.
     func request(for playback: NotchPlayback?, found: @escaping () -> Void) {
         guard let playback, let key = NotchBrowserArtworkSupport.lookupKey(for: playback),
               let bundle = playback.track.appBundleIdentifier,
               let title = playback.track.title else { return cancel() }
-        let starts = lock.withLock { () -> Bool in
+        var previous: URLSession?
+        let requested = lock.withLock { () -> UUID? in
             wanted = key
-            guard covers[key] == nil, inFlight != key,
-                  failedAt[key].map({ Date().timeIntervalSince($0) >= Self.failureCooldown }) ?? true else { return false }
+            guard inFlight != key else { return nil }
+            generation = UUID()
+            previous = downloadSession
+            downloadSession = nil
+            inFlight = nil
+            guard covers[key] == nil,
+                  failedAt[key].map({ Date().timeIntervalSince($0) >= Self.failureCooldown }) ?? true else { return nil }
             inFlight = key
-            return true
+            return generation
         }
-        guard starts else { return }
-        attempt(0, Lookup(key: key, bundle: bundle, title: title, artist: playback.track.artist,
+        previous?.invalidateAndCancel()
+        guard let requested else {
+            queue.async { [self] in
+                if lock.withLock({ inFlight == nil }) { session = nil }
+            }
+            return
+        }
+        attempt(0, Lookup(key: key, generation: requested, bundle: bundle, title: title, artist: playback.track.artist,
                           started: Date(), found: found))
     }
 
-    /// Stops the running lookup at its next attempt, as when music stops or
-    /// the island lets go of the player.
+    /// Stops the download too. A late reply cannot continue a cancelled lookup,
+    /// even when the same track has already started a new one.
     func cancel() {
-        lock.withLock { wanted = nil }
+        let previous = lock.withLock { () -> URLSession? in
+            generation = UUID()
+            wanted = nil
+            inFlight = nil
+            let previous = downloadSession
+            downloadSession = nil
+            return previous
+        }
+        previous?.invalidateAndCancel()
+        queue.async { [self] in
+            if lock.withLock({ inFlight == nil }) { session = nil }
+        }
+    }
+
+    private func accepts(_ lookup: Lookup) -> Bool {
+        NotchBrowserArtworkSupport.isEnabled()
+            && lock.withLock { generation == lookup.generation && wanted == lookup.key && inFlight == lookup.key }
+    }
+
+    /// Each response returns to the lookup queue and rechecks consent and
+    /// identity before it can decode, retry, download another URL or publish.
+    private func load(_ url: URL, accept: String, for lookup: Lookup, completion: @escaping (Data?) -> Void) {
+        guard accepts(lookup) else { return finish(lookup, failed: false) }
+        let download = NotchBrowserArtworkDownload.load(url, accept: accept) { [self] data in
+            queue.async { [self] in
+                guard accepts(lookup) else { return finish(lookup, failed: false) }
+                let current = lock.withLock { () -> Bool in
+                    guard generation == lookup.generation, wanted == lookup.key else { return false }
+                    downloadSession = nil
+                    return true
+                }
+                guard current else { return }
+                completion(data)
+            }
+        }
+        let kept = lock.withLock { () -> Bool in
+            guard generation == lookup.generation, wanted == lookup.key else { return false }
+            downloadSession = download
+            return true
+        }
+        if !kept { download.invalidateAndCancel() }
     }
 
     private func attempt(_ index: Int, _ lookup: Lookup, askedApple: Bool = false) {
         queue.asyncAfter(deadline: .now() + Self.attemptDelays[index]) { [self] in
             // A newer track took over, music stopped or the option went off.
             // A newer track's own request runs its own lookup.
-            guard NotchBrowserArtworkSupport.isEnabled(), lock.withLock({ wanted == lookup.key }) else {
-                return finish(lookup.key, failed: false)
+            guard accepts(lookup) else {
+                return finish(lookup, failed: false)
             }
             let saved = youTubeTabs(bundle: lookup.bundle)
             let urls = NotchBrowserArtworkSupport.artworkURLs(forTrack: lookup.title, artist: lookup.artist,
                                                               in: saved?.tabs ?? [])
             if !urls.isEmpty {
-                download(urls) { [self] data in
-                    if let data { store(data, for: lookup) } else { finish(lookup.key, failed: true) }
+                download(urls, for: lookup) { [self] data in
+                    if let data { store(data, for: lookup) } else { finish(lookup, failed: true) }
                 }
                 return
             }
@@ -99,42 +153,48 @@ final class NotchBrowserArtwork {
                   let search = NotchBrowserArtworkSupport.appleMusicSearchURL(
                       title: lookup.title, artist: lookup.artist, country: Locale.current.region?.identifier)
             else { return retry(index, lookup, askedApple: askedApple) }
-            NotchBrowserArtworkDownload.load(search, accept: "application/json") { [self] reply in
-                queue.async { [self] in
-                    guard let reply, let cover = NotchBrowserArtworkSupport.appleMusicArtworkURL(
-                        inSearch: reply, title: lookup.title, artist: lookup.artist)
-                    else { return retry(index, lookup, askedApple: true) }
-                    download([cover]) { [self] data in
-                        if let data { store(data, for: lookup) } else { retry(index, lookup, askedApple: true) }
-                    }
+            load(search, accept: "application/json", for: lookup) { [self] reply in
+                guard let reply, let cover = NotchBrowserArtworkSupport.appleMusicArtworkURL(
+                    inSearch: reply, title: lookup.title, artist: lookup.artist)
+                else { return retry(index, lookup, askedApple: true) }
+                download([cover], for: lookup) { [self] data in
+                    if let data { store(data, for: lookup) } else { retry(index, lookup, askedApple: true) }
                 }
             }
         }
     }
 
     private func retry(_ index: Int, _ lookup: Lookup, askedApple: Bool) {
+        guard accepts(lookup) else { return finish(lookup, failed: false) }
         if index + 1 < Self.attemptDelays.count {
             attempt(index + 1, lookup, askedApple: askedApple)
         } else {
-            finish(lookup.key, failed: true)
+            finish(lookup, failed: true)
         }
     }
 
     private func store(_ data: Data, for lookup: Lookup) {
-        lock.withLock {
+        guard accepts(lookup) else { return finish(lookup, failed: false) }
+        let stored = lock.withLock { () -> Bool in
+            guard generation == lookup.generation, wanted == lookup.key else { return false }
             covers[lookup.key] = data
             coverOrder.removeAll { $0 == lookup.key }
             coverOrder.append(lookup.key)
             while coverOrder.count > Self.rememberedCovers { covers[coverOrder.removeFirst()] = nil }
+            return true
         }
-        finish(lookup.key, failed: false)
+        guard stored else { return }
+        finish(lookup, failed: false)
         lookup.found()
     }
 
     /// Runs on the lookup queue whenever a lookup ends.
-    private func finish(_ key: String, failed: Bool) {
+    private func finish(_ lookup: Lookup, failed: Bool) {
         let idle = lock.withLock { () -> Bool in
+            guard generation == lookup.generation else { return false }
+            let key = lookup.key
             if inFlight == key { inFlight = nil }
+            downloadSession = nil
             if failed {
                 // Only failures still inside their cooldown matter.
                 let now = Date()
@@ -183,15 +243,14 @@ final class NotchBrowserArtwork {
     }
 
     /// Tries each address in turn and keeps the first real image.
-    private func download(_ urls: [URL], completion: @escaping (Data?) -> Void) {
+    private func download(_ urls: [URL], for lookup: Lookup, completion: @escaping (Data?) -> Void) {
+        guard accepts(lookup) else { return finish(lookup, failed: false) }
         guard let url = urls.first else { return completion(nil) }
-        NotchBrowserArtworkDownload.load(url, accept: "image/jpeg") { [self] data in
-            queue.async {
-                if let data, let square = Self.squareCover(data) {
-                    completion(square)
-                } else {
-                    self.download(Array(urls.dropFirst()), completion: completion)
-                }
+        load(url, accept: "image/jpeg", for: lookup) { [self] data in
+            if let data, let square = Self.squareCover(data) {
+                completion(square)
+            } else {
+                download(Array(urls.dropFirst()), for: lookup, completion: completion)
             }
         }
     }
@@ -223,7 +282,7 @@ private final class NotchBrowserArtworkDownload: NSObject, URLSessionDataDelegat
     private let completion: (Data?) -> Void
     private init(completion: @escaping (Data?) -> Void) { self.completion = completion }
 
-    static func load(_ url: URL, accept: String, completion: @escaping (Data?) -> Void) {
+    static func load(_ url: URL, accept: String, completion: @escaping (Data?) -> Void) -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 15
@@ -236,6 +295,7 @@ private final class NotchBrowserArtworkDownload: NSObject, URLSessionDataDelegat
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
         session.dataTask(with: url).resume()
         session.finishTasksAndInvalidate()
+        return session
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,

@@ -4,18 +4,14 @@
 import AppKit
 
 /// Takes a switcher or dock-preview selection to a window that lives on a
-/// Space the user is not looking at (issue #339). Accessibility cannot focus
-/// what it cannot see, so the hop runs in stages, each one verified against
-/// the window server and escalating only when the previous stage did not make
-/// the window's Space visible:
+/// Space the user is not looking at (issue #339). The hop runs in stages, each
+/// verified against the window server and escalating only when the previous
+/// stage did not make the window's Space visible:
 ///
-///  1. The exact window is raised through Accessibility and the app is
-///     activated cooperatively. macOS answers the raise by going straight to
-///     the window's Space, skipping the Spaces in between (issue #2591). When
-///     the raise is unavailable, activation alone travels only if the app has
-///     no window on a visible Space, the way Command-Tab does; with one here
-///     it cannot, so the window server fronts the exact window and this stage
-///     is not waited on.
+///  1. Accessibility is asked to raise the exact window, including windows an
+///     app omits from its published list, and the app is activated cooperatively.
+///     A successful raise or an app with no visible window gets time to travel
+///     natively. Otherwise the window server fronts the target before stepping.
 ///  2. If the Space still is not visible, the user's own "move a space"
 ///     shortcut is replayed (key and modifiers read from the system, honoring
 ///     remaps; skipped entirely when the user disabled it), one step at a
@@ -97,20 +93,21 @@ final class SpaceHop {
 
     private func start() {
         if app.isHidden { app.unhide() }
+        // Snapshot before raising: the target may already become visible while
+        // Accessibility is processing the request.
         let appIsAlreadyHere = appHasWindowOnVisibleSpace()
-        let raisedTargetWindow = WindowActivator.raiseWindowOnHiddenSpace(windowID: windowID,
-                                                                          pid: windowOwnerPID)
-        let firstStage = SpaceHopSupport.firstStage(raisedTargetWindow: raisedTargetWindow,
-                                                    appHasWindowOnVisibleSpace: appIsAlreadyHere)
-        if firstStage.frontsTargetWindowFirst {
+        let directRaiseSucceeded = WindowActivator.raiseWindowOnHiddenSpace(windowID: windowID,
+                                                                             pid: windowOwnerPID)
+        let firstStage = SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: appIsAlreadyHere,
+                                                    directRaiseSucceeded: directRaiseSucceeded)
+        if firstStage == .moveASpace {
             SpaceWindowBridge.frontWindow(windowID, ownerPID: windowOwnerPID)
         }
-        // Activating every window would drag the app's windows on the current
-        // Space forward too, or send a raised window's travel to another of
-        // the app's Spaces; activate quietly then and let the travel decide
-        // what comes up.
+        // frontWindow's synthetic press or activating all windows can divert
+        // native travel to a sibling. Hand off keyboard focus cooperatively
+        // even when the app already has a visible window.
         let options: NSApplication.ActivationOptions =
-            appIsAlreadyHere || raisedTargetWindow ? [] : [.activateAllWindows]
+            appIsAlreadyHere || directRaiseSucceeded ? [] : [.activateAllWindows]
         ActivationHandoff.yield(to: app)
         if !app.activate(from: NSRunningApplication.current, options: options) {
             app.activate(options: options)

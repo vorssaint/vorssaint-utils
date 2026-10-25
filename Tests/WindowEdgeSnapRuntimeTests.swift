@@ -40,6 +40,7 @@ enum WindowEdgeSnapRuntimeTests {
     static var appIgnored = false
     /// Whether the window's server ID can be read from its Accessibility element.
     static var windowIDReadable = true
+    static var reserveStageManager = false
     /// A real timer fires at or after its deadline, here a millisecond after,
     /// so a look set for exactly the rest of a pause finds it complete.
     static let timerLatency: TimeInterval = 0.001
@@ -147,6 +148,12 @@ enum WindowEdgeSnapRuntimeTests {
     final class NSScreen {
         let frame: CGRect
         let visibleFrame: CGRect
+        var windowLayoutVisibleFrame: CGRect {
+            WindowStageManagerSupport.adjustedFrame(
+                visibleFrame: visibleFrame, screenFrame: frame, enabled: reserveStageManager,
+                stageManagerEnabled: true, autoHide: false, dockPosition: nil,
+                stripFrames: [CGRect(x: frame.minX + 8, y: frame.minY + 200, width: 120, height: 400)])
+        }
         init(frame: CGRect, visibleFrame: CGRect) {
             self.frame = frame
             self.visibleFrame = visibleFrame
@@ -256,6 +263,8 @@ enum WindowEdgeSnapRuntimeTests {
         var enabledEdgeSnapZones = WindowEdgeSnapZone.allEnabled
         var previews = 0
         var previewShown = false
+        var previewFrame: CGRect?
+        var placementVisibleFrames: [CGRect] = []
         var placements: [WindowLayoutFrame] = []
         var placedActions: [WindowLayoutAction] = []
 
@@ -265,6 +274,7 @@ enum WindowEdgeSnapRuntimeTests {
         var menuBarScreenTopY: CGFloat { NSScreen.primary.frame.maxY }
         static var uptimeSeconds: TimeInterval { clockStart + clock }
         func showEdgeSnapPreview(frame: CGRect) {
+            previewFrame = frame
             previews += 1
             previewShown = true
         }
@@ -326,6 +336,7 @@ enum WindowEdgeSnapRuntimeTests {
                             visibleFrame: CGRect, historyFrame: WindowLayoutFrame,
                             cyclesRepeatedAction: Bool) -> Bool {
             placements.append(historyFrame)
+            placementVisibleFrames.append(visibleFrame)
             placedActions.append(action)
             return true
         }
@@ -348,6 +359,7 @@ enum WindowEdgeSnapRuntimeTests {
         zoneActions = nil
         appIgnored = false
         windowIDReadable = true
+        reserveStageManager = false
         NSScreen.screens = [NSScreen.primary]
         WindowEdgeSnapSupport.isSystemTilingEnabled = false
         WindowEdgeSnapSupport.isSystemTopWindowOverviewDragEnabled = false
@@ -457,6 +469,26 @@ enum WindowEdgeSnapRuntimeTests {
 
     static func run(_ suite: TestSuite) {
         defer { reset() }
+
+        reset()
+        reserveStageManager = true
+        let stageManager = Host()
+        send(stageManager, .leftMouseDown, pressPoint)
+        currentFrame = initialFrame.offsetBy(dx: 40, dy: 0)
+        send(stageManager, .leftMouseDragged, CGPoint(x: 240, y: 200))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        currentFrame = movedToEdge
+        send(stageManager, .leftMouseDragged, edgePoint)
+        let stageFrame = CGRect(x: 136, y: 0, width: 1304, height: 875)
+        let expectedPreview = WindowLayoutGeometry.rect(for: .rightHalf, current: stageFrame,
+                                                        visibleFrame: stageFrame)
+        suite.expect(stageManager.previewFrame == expectedPreview,
+                     "edge snap previews a half of the available space beside Stage Manager")
+        send(stageManager, .leftMouseUp, edgePoint)
+        suite.expect(stageManager.placementVisibleFrames == [stageFrame]
+                && stageManager.placements == [WindowLayoutFrame(origin: initialFrame.origin, size: initialFrame.size)],
+                     "edge snap places in the preview's Stage Manager frame while Restore keeps the original")
 
         reset()
         let content = Host()

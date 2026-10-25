@@ -399,6 +399,18 @@ enum NetworkFeatureTests {
                "watts pinned to the menu bar refresh every second at a 1 second interval")
         suite.expect(MonitorSamplingPolicy.wakeTicks(for: [.powerDraw], intervalSeconds: 5, foreground: false) == 1,
                "watts pinned to the menu bar refresh at the chosen 5 second interval")
+        suite.expect(MonitorSamplingPolicy.sampleStride(for: .gpuUsage, intervalSeconds: 1, foreground: false) == 10,
+               "GPU usage read only for the panel keeps the slow background stride")
+        suite.expect(MonitorSamplingPolicy.sampleStride(for: .temperature, intervalSeconds: 1, foreground: false) == 15,
+               "temperature read only for alerts or battery keeps the slow background stride")
+        suite.expect(MonitorSamplingPolicy.sampleStride(for: .fanSpeed, intervalSeconds: 1, foreground: false) == 5,
+               "fan speed read only for the panel keeps the slow background stride")
+        for kind in [MonitorSamplingKind.gpuUsageMenuBar, .temperatureMenuBar, .fanSpeedMenuBar] {
+            suite.expect(MonitorSamplingPolicy.wakeTicks(for: [kind], intervalSeconds: 1, foreground: false) == 1,
+                   "\(kind.rawValue) pinned to the menu bar refreshes every second at a 1 second interval")
+            suite.expect(MonitorSamplingPolicy.sampleStride(for: kind, intervalSeconds: 5, foreground: false) == 1,
+                   "\(kind.rawValue) pinned to the menu bar refreshes at the chosen 5 second interval")
+        }
         // Exactness invariant: the cadence always divides every needed stride,
         // so grid-aligned ticks keep hitting each stride exactly on schedule.
         let wakeKinds: [MonitorSamplingKind] = [.disk, .power, .gpuUsage, .temperature,

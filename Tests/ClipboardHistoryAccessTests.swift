@@ -48,6 +48,17 @@ struct ClipboardHistoryAccessTests {
         suite.expect(accepted(103, 100, 102) == 103,
                "a copy after that write is still recorded")
 
+        // A return after an explicitly temporary write has a bounded window.
+        let restore = ClipboardHistoryPasteRestore.self
+        let copied = Date(timeIntervalSinceReferenceDate: 1000)
+        suite.expect(restore.isWithinWindow(capturedAt: copied, now: copied.addingTimeInterval(1.5)),
+               "the clipboard returning soon after a marked temporary write is restored silently")
+        suite.expect(!restore.isWithinWindow(capturedAt: copied,
+                                             now: copied.addingTimeInterval(restore.window + 1)),
+               "copying the old thing again later is a copy of its own")
+        suite.expect(!restore.isWithinWindow(capturedAt: copied, now: copied.addingTimeInterval(-1)),
+               "a clock set back does not qualify as a temporary restore")
+
         let clock = TestClock()
         let deadlines = ManualDeadlineScheduler(clock: clock)
         let lane = GeneralPasteboardAccess(

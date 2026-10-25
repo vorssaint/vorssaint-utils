@@ -13,6 +13,7 @@ enum SwitcherFullscreenScopeTests {
         typealias WindowUseTracker = SwitcherFullscreenScopeTests.Tracker
         typealias UserDefaults = SwitcherFullscreenScopeTests.Preferences
         typealias AXWindowResolver = SwitcherFullscreenScopeTests.Resolver
+        typealias ProcessInfo = SwitcherFullscreenScopeTests.Clock
         static let minimumSize = CGSize(width: 80, height: 60)
         static let maximumCount = 48
         static var raw: [[String: Any]] = []
@@ -38,8 +39,16 @@ enum SwitcherFullscreenScopeTests {
         static func accessibilityTitle(for window: AXUIElement) -> String {
             var id: pid_t = 0
             AXUIElementGetPid(window, &id)
+            Resolver.titleReads.append(CGWindowID(id))
+            Clock.processInfo.systemUptime += Resolver.titleReadDuration
             return Resolver.titles[CGWindowID(id)] ?? ""
         }
+    }
+
+    final class Clock {
+        static let processInfo = Clock()
+        let processIdentifier = Foundation.ProcessInfo.processInfo.processIdentifier
+        var systemUptime: TimeInterval = 0
     }
 
     /// Remote elements of windows on hidden Spaces, with each app's lookup
@@ -48,11 +57,19 @@ enum SwitcherFullscreenScopeTests {
         static let remoteLookupBudget: TimeInterval = 0.15
         static var titles: [CGWindowID: String] = [:]
         static var lookups: [pid_t] = []
+        static var titleReads: [CGWindowID] = []
+        static var titleReadDuration: TimeInterval = 0
+        static var lookupDuration: TimeInterval = 0
         static func elementsOnHiddenSpace(windowIDs: Set<CGWindowID>, pid: pid_t,
-                                          budget: TimeInterval) -> [CGWindowID: AXUIElement] {
+                                          budget: TimeInterval, isCancelled: () -> Bool) -> [CGWindowID: AXUIElement] {
+            guard budget > 0, !isCancelled() else { return [:] }
             lookups.append(pid)
+            Clock.processInfo.systemUptime += lookupDuration
             return Dictionary(uniqueKeysWithValues: windowIDs.filter { titles[$0] != nil }
                 .map { ($0, AXUIElementCreateApplication(pid_t($0))) })
+        }
+        static func prepareForRequest(_ element: AXUIElement, deadline: TimeInterval) -> Bool {
+            Clock.processInfo.systemUptime < deadline
         }
     }
 
@@ -148,6 +165,10 @@ enum SwitcherFullscreenScopeTests {
             Bridge.hiddenWithApp = nil
             Resolver.titles = [:]
             Resolver.lookups = []
+            Resolver.titleReads = []
+            Resolver.titleReadDuration = 0
+            Resolver.lookupDuration = 0
+            Clock.processInfo.systemUptime = 0
             Preferences.standard.values = [:]
         }
         let frame = CGRect(x: 0, y: 0, width: 900, height: 600)
@@ -233,6 +254,38 @@ enum SwitcherFullscreenScopeTests {
                      "a window on another desktop takes its title from its remote element, found \(Resolver.lookups)")
         suite.expect(untitled.first { $0.windowID == 2 }?.title == "Window 2",
                      "a window on another desktop that Accessibility describes keeps that title")
+        let untitledRaw = Enumerator.raw
+        var sibling = Enumerator.raw.first { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == 3 }!
+        sibling[kCGWindowNumber as String] = NSNumber(value: 7)
+        Enumerator.raw.append(sibling)
+        Bridge.memberships[7] = [3]
+        Resolver.titles[7] = "Second tab"
+        Resolver.lookups = []
+        suite.expect(enumerate(currentSpaceOnly: false).items.first { $0.windowID == 7 }?.title == "Second tab"
+                     && Resolver.lookups == [3], "hidden siblings share one remote lookup per app")
+        var otherAppWindow = sibling
+        otherAppWindow[kCGWindowNumber as String] = NSNumber(value: 8)
+        otherAppWindow[kCGWindowOwnerPID as String] = NSNumber(value: 2)
+        Enumerator.raw.append(otherAppWindow)
+        Bridge.memberships[8] = [3]
+        Resolver.titles[8] = "Another app"
+        Resolver.lookups = []
+        Resolver.titleReads = []
+        Resolver.lookupDuration = Resolver.remoteLookupBudget
+        _ = enumerate(currentSpaceOnly: false)
+        suite.expect(Resolver.titleReads.isEmpty && Resolver.lookups == [3],
+                     "an exhausted remote budget skips title reads and the next app's lookup")
+        Resolver.lookupDuration = 0
+        Resolver.titleReadDuration = Resolver.remoteLookupBudget
+        Resolver.titleReads = []
+        Resolver.lookups = []
+        _ = enumerate(currentSpaceOnly: false)
+        suite.expect(Resolver.titleReads.count == 1 && Resolver.lookups == [3],
+                     "a slow title read consumes the shared budget before the next title or app")
+        Resolver.titleReadDuration = 0
+        Enumerator.raw = untitledRaw
+        Bridge.memberships.removeValue(forKey: 7)
+        Bridge.memberships.removeValue(forKey: 8)
         Resolver.titles = [:]
         Resolver.lookups = []
         suite.expect(enumerate(currentSpaceOnly: false).items.first { $0.windowID == 3 }?.title == "",
