@@ -86,7 +86,42 @@ enum ClipboardFeatureTests {
     }
 
     static func run(_ suite: TestSuite) {
-        ClipboardSensitiveTextPreferenceTests.run(suite)
+        do {
+            let registrationDomain = UserDefaults.standard.volatileDomain(
+                forName: UserDefaults.registrationDomain)
+            defer {
+                UserDefaults.standard.setVolatileDomain(registrationDomain,
+                                                        forName: UserDefaults.registrationDomain)
+            }
+            // Deliberately differ from the app's registered defaults so a
+            // missing restore cannot pass when another test registered them.
+            var fixtureRegistration = registrationDomain
+            fixtureRegistration[DefaultsKey.whatsAppDownloadsEnabled] = true
+            fixtureRegistration[DefaultsKey.switcherPreviewSize] = "large"
+            fixtureRegistration[DefaultsKey.monitorPwrTemperature] = false
+            fixtureRegistration.removeValue(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText)
+            UserDefaults.standard.setVolatileDomain(fixtureRegistration,
+                                                    forName: UserDefaults.registrationDomain)
+            let observerDomain = "com.vorssaint.tests.clipboard-registration-observer.\(UUID().uuidString)"
+            let observer = UserDefaults(suiteName: observerDomain)!
+            observer.removePersistentDomain(forName: observerDomain)
+            defer { observer.removePersistentDomain(forName: observerDomain) }
+            let downloadsBefore = observer.object(forKey: DefaultsKey.whatsAppDownloadsEnabled) as? Bool
+            let previewBefore = observer.string(forKey: DefaultsKey.switcherPreviewSize)
+            let temperatureBefore = observer.object(forKey: DefaultsKey.monitorPwrTemperature) as? Bool
+            suite.expect(downloadsBefore == true && previewBefore == "large" && temperatureBefore == false,
+                         "an independent defaults suite sees the registration values before the clipboard fixture")
+
+            ClipboardSensitiveTextPreferenceTests.run(suite)
+
+            suite.expect(NSDictionary(dictionary: UserDefaults.standard.volatileDomain(
+                forName: UserDefaults.registrationDomain)).isEqual(to: fixtureRegistration),
+                         "the clipboard fixture restores the entire registration domain after returning")
+            suite.expect((observer.object(forKey: DefaultsKey.whatsAppDownloadsEnabled) as? Bool) == downloadsBefore
+                         && observer.string(forKey: DefaultsKey.switcherPreviewSize) == previewBefore
+                         && (observer.object(forKey: DefaultsKey.monitorPwrTemperature) as? Bool) == temperatureBefore,
+                         "the clipboard fixture leaves an independent defaults suite's effective values unchanged")
+        }
         ClipboardPreviewContract.run(suite)
         ClipboardCaptureRestoreTests.run(suite)
         let source = SourceHost()
@@ -987,6 +1022,13 @@ enum ClipboardFeatureTests {
                          "\(language.rawValue) CPU temperature alert format")
             expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
+            expectFormat(alertStrings.highChargeBodyFormat, ["d"],
+                         "\(language.rawValue) high-charge alert format")
+            suite.expect(!alertStrings.highCharge.isEmpty
+                    && !alertStrings.highChargeThreshold.isEmpty
+                    && !alertStrings.highChargeTitle.isEmpty
+                    && !alertStrings.sendTest.isEmpty,
+                   "\(language.rawValue) high-charge controls and test action are localized")
             expectFormat(alertStrings.batteryTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) battery temperature alert format")
         }

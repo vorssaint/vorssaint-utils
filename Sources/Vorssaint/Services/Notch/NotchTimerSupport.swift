@@ -199,6 +199,7 @@ enum NotchTimerSupport {
         static let spacing: CGFloat = 14
         static let labelSize: CGFloat = 12
         static let labelPadding: CGFloat = 4
+        static let menuLabelPadding: CGFloat = 2
         static let menuSpacing: CGFloat = 3
         /// macOS 15 draws Japanese kana about 4% wider than macOS 26, so the
         /// stopwatch's name needs about 0.74 of its size beside the widest
@@ -215,7 +216,7 @@ enum NotchTimerSupport {
             let widest = names.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
             let chevron = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold))?.size.width ?? 8
-            return widest * menuMinimumScale * 1.05 + menuSpacing + chevron + labelPadding * 2 <= room
+            return widest * menuMinimumScale * 1.05 + menuSpacing + chevron + menuLabelPadding * 2 <= room
         }
 
         /// The glyph a menu with no room for the name shows: the closed
