@@ -20,9 +20,27 @@ struct NotchFilesView: View {
     @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
+    /// Dragging media over the island asks where it goes.
+    private var choosesDropDestination: Bool {
+        service.choosingFileDropDestination && AppFeature.mediaTools.isAvailable
+    }
+
+    private var presentedMediaSession: NotchMediaSession? {
+        archives.mediaPresented && AppFeature.mediaTools.isAvailable ? archives.mediaSession : nil
+    }
+
+    private var showsTiles: Bool {
+        !choosesDropDestination && presentedMediaSession == nil && !shelf.items.isEmpty
+    }
+
+    /// An archive's outcome, below whatever the shelf shows.
+    private var showsArchiveStatus: Bool {
+        !service.choosingFileDropDestination && !archives.mediaPresented && AppFeature.mediaTools.isAvailable
+    }
+
     var body: some View {
         VStack(spacing: NotchLayout.rowSpacing) {
-            if service.choosingFileDropDestination, AppFeature.mediaTools.isAvailable {
+            if choosesDropDestination {
                 HStack(spacing: NotchFileToolsSupport.dropSpacing) {
                     dropDestination(FeatureStrings.notch(l10n.language).files, symbol: "tray.and.arrow.down",
                                     selected: !service.targetsMediaDrop)
@@ -30,7 +48,7 @@ struct NotchFilesView: View {
                                     available: archives.canAcceptMediaDrop)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let session = archives.mediaSession, archives.mediaPresented, AppFeature.mediaTools.isAvailable {
+            } else if let session = presentedMediaSession {
                 MediaWorkspaceView(compact: true, onClose: archives.closeMedia,
                                    media: media, initialInputs: session.inputs,
                                    initialTool: session.tool, preservesServiceState: true,
@@ -53,38 +71,8 @@ struct NotchFilesView: View {
                                revealSerial: shelf.addSerial,
                                sideways: true)
                     .frame(maxHeight: .infinity)
-                HStack {
-                    Text(shelf.selection.isEmpty ? l10n.s.shelfHint
-                         : String(format: l10n.s.shelfSelectedFormat, shelf.selection.count))
-                        .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
-                    Spacer()
-                    if AppFeature.mediaTools.isAvailable {
-                        NotchIconButton(symbol: "wand.and.stars", title: l10n.s.mediaName) {
-                            actionInputs = shelf.fileURLsForActions()
-                            supportedTools = MediaTool.allCases.filter { NotchFileToolsSupport.accepts(actionInputs, for: $0) }
-                            showingActions = !actionInputs.isEmpty
-                        }
-                        .disabled(!shelf.hasFilesForActions || !archives.canAcceptMediaDrop)
-                        .popover(isPresented: $showingActions) { fileActions.padding(14).frame(width: 270) }
-                    }
-                    NotchIconButton(symbol: "square.and.arrow.up", title: l10n.s.shelfActionShare) {
-                        shareAnchor.present(shelf.fileURLsForActions())
-                    }
-                    .background(ShelfSharePickerAnchor(anchor: shareAnchor))
-                    .disabled(!shelf.hasFilesForActions)
-                    // The shelf's trash takes the selection first, the whole
-                    // shelf only when nothing is selected.
-                    if shelf.selection.isEmpty {
-                        clearMenu
-                    } else {
-                        NotchIconButton(symbol: "trash.fill", title: l10n.s.shelfRemoveSelected) {
-                            shelf.removeItems(Array(shelf.selection))
-                        }
-                        .disabled(archives.isRunning)
-                    }
-                }
             }
-            if !service.choosingFileDropDestination, !archives.mediaPresented, AppFeature.mediaTools.isAvailable {
+            if showsArchiveStatus {
                 archiveStatus
                 if archives.mediaSession != nil {
                     Button(action: archives.showMedia) {
@@ -94,6 +82,17 @@ struct NotchFilesView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The shelf's hint and its actions sit in the island's top row, so the
+        // tiles take the whole page; a running archive shows its progress there.
+        .notchBand(leading: {
+            if showsArchiveStatus, archives.isRunning {
+                archiveProgress
+            } else if showsTiles {
+                shelfHint
+            }
+        }, trailing: {
+            if showsTiles { shelfActions }
+        })
         .onChange(of: archives.mediaSession?.id) {
             service.refreshPresentation()
         }
@@ -183,16 +182,68 @@ struct NotchFilesView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Two lines of quiet guidance, or how many tiles are selected.
+    @ViewBuilder private var shelfHint: some View {
+        if shelf.selection.isEmpty {
+            Text(l10n.s.shelfHint)
+                .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
+                .help(l10n.s.shelfHint)
+        } else {
+            Text(String(format: l10n.s.shelfSelectedFormat, shelf.selection.count))
+                .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+        }
+    }
+
+    private var shelfActions: some View {
+        HStack(spacing: 6) {
+            if AppFeature.mediaTools.isAvailable {
+                NotchIconButton(symbol: "wand.and.stars", title: l10n.s.mediaName) {
+                    actionInputs = shelf.fileURLsForActions()
+                    supportedTools = MediaTool.allCases.filter { NotchFileToolsSupport.accepts(actionInputs, for: $0) }
+                    showingActions = !actionInputs.isEmpty
+                }
+                .disabled(!shelf.hasFilesForActions || !archives.canAcceptMediaDrop)
+                .popover(isPresented: $showingActions) { fileActions.padding(14).frame(width: 270) }
+            }
+            NotchIconButton(symbol: "square.and.arrow.up", title: l10n.s.shelfActionShare) {
+                shareAnchor.present(shelf.fileURLsForActions())
+            }
+            .background(ShelfSharePickerAnchor(anchor: shareAnchor))
+            .disabled(!shelf.hasFilesForActions)
+            // The shelf's trash takes the selection first, the whole
+            // shelf only when nothing is selected.
+            if shelf.selection.isEmpty {
+                clearMenu
+            } else {
+                NotchIconButton(symbol: "trash.fill", title: l10n.s.shelfRemoveSelected) {
+                    shelf.removeItems(Array(shelf.selection))
+                }
+                .disabled(archives.isRunning)
+            }
+        }
+    }
+
+    /// The count alone where the whole status would be cut beside the camera.
+    private var archiveProgress: some View {
+        let count = "\(archives.completed)/\(archives.total)"
+        return HStack(spacing: 6) {
+            ProgressView().controlSize(.small)
+            ViewThatFits(in: .horizontal) {
+                Text("\(text.archive) · \(count)")
+                Text(count)
+            }
+            .font(.system(size: 12)).monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
+            NotchIconButton(symbol: "xmark", title: l10n.s.uninstallerCancel, action: archives.cancel)
+                .disabled(archives.wasCancelled)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(text.archive) · \(count)")
+    }
+
+    /// How the last archive ended; its progress shows in the island's top row.
     @ViewBuilder private var archiveStatus: some View {
         if archives.isRunning {
-            HStack(spacing: 10) {
-                ProgressView().controlSize(.small)
-                Text("\(text.archive) · \(archives.completed)/\(archives.total)")
-                    .font(.caption).monospacedDigit()
-                Spacer()
-                Button(l10n.s.uninstallerCancel, action: archives.cancel)
-                    .controlSize(.small).disabled(archives.wasCancelled)
-            }
+            EmptyView()
         } else if let failure = archives.failure {
             Text(failure).font(.caption).foregroundStyle(.orange).lineLimit(3)
         } else if !archives.outputURLs.isEmpty {

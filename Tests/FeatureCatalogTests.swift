@@ -386,11 +386,11 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 74, "feature catalog has 74 features")
+        suite.expect(AppFeature.allCases.count == 77, "feature catalog has 77 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
-            "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
+            "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
             "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
@@ -399,7 +399,7 @@ enum FeatureCatalogTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices", "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -573,7 +573,7 @@ enum FeatureCatalogTests {
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview", "radialMenu",
             "scratchpad", "commandBar", "screenRecorder",
             "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories",
-            "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
+            "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices",
         ]
@@ -587,7 +587,8 @@ enum FeatureCatalogTests {
                "every feature an update already had stays installed and every other one ships uninstalled")
         suite.expect((AppFeature.availabilityDefaults[AppFeature.linearScroll.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false,
+                && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.notchMascot.availabilityKey] as? Bool) == false,
                "features added after the list was frozen wait on the Features page instead of installing themselves")
         let linearScrollSuiteName = "com.vorssaint.tests.linear-scroll-availability.\(UUID().uuidString)"
         if let linearDefaults = UserDefaults(suiteName: linearScrollSuiteName) {
@@ -605,6 +606,36 @@ enum FeatureCatalogTests {
             linearDefaults.removePersistentDomain(forName: linearScrollSuiteName)
         } else {
             suite.expect(false, "linear scrolling availability suite can be created")
+        }
+
+        let watchSuiteName = "com.vorssaint.tests.notch-watch-availability.\(UUID().uuidString)"
+        if let watchDefaults = UserDefaults(suiteName: watchSuiteName) {
+            Defaults.migrateNotchWatchAvailability(in: watchDefaults)
+            suite.expect(watchDefaults.object(forKey: AppFeature.notchWatch.availabilityKey) == nil,
+                   "Watch keeps its installed default where the island was never left out")
+            watchDefaults.set(true, forKey: AppFeature.notch.availabilityKey)
+            Defaults.migrateNotchWatchAvailability(in: watchDefaults)
+            suite.expect(watchDefaults.object(forKey: AppFeature.notchWatch.availabilityKey) == nil,
+                   "an installed island keeps Watch among its extensions")
+            // A first-run setup saved every feature it knew, Watch not yet among them.
+            for feature in AppFeature.features(in: .dynamicIsland) where feature != .notchWatch {
+                watchDefaults.set(false, forKey: feature.availabilityKey)
+            }
+            Defaults.migrateNotchWatchAvailability(in: watchDefaults)
+            let isAvailable: (AppFeature) -> Bool = { feature in
+                watchDefaults.object(forKey: feature.availabilityKey) as? Bool
+                    ?? (AppFeature.availabilityDefaults[feature.availabilityKey] as? Bool ?? false)
+            }
+            suite.expect(watchDefaults.object(forKey: AppFeature.notchWatch.availabilityKey) as? Bool == false
+                    && !FeatureVisibilitySupport.isPageVisible(.notch, isAvailable: isAvailable),
+                   "a setup that left the island out keeps Watch and the Dynamic Island page out after updating")
+            watchDefaults.set(true, forKey: AppFeature.notchWatch.availabilityKey)
+            Defaults.migrateNotchWatchAvailability(in: watchDefaults)
+            suite.expect(watchDefaults.object(forKey: AppFeature.notchWatch.availabilityKey) as? Bool == true,
+                   "a Watch install chosen later is never undone by the migration")
+            watchDefaults.removePersistentDomain(forName: watchSuiteName)
+        } else {
+            suite.expect(false, "Watch availability suite can be created")
         }
 
         // The Features page offers installed switches that were never turned
@@ -657,14 +688,23 @@ enum FeatureCatalogTests {
                "no hub group is empty")
         suite.expect(AppFeature.features(in: .dynamicIsland) == [
             .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer,
-            .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents,
+            .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
+            .notchMascot,
         ], "the Dynamic Island heads its own hub section, followed by its extensions")
         suite.expect(AppFeature.dynamicIslandExtensions
                 == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),
                "the Dynamic Island's extensions are every other feature of its section")
-        suite.expect(AppFeature.notch.initialInstallGroup == AppFeature.features(in: .dynamicIsland)
+        suite.expect(AppFeature.notch.initialInstallGroup
+                        == AppFeature.features(in: .dynamicIsland).filter { $0 != .notchMascot && $0 != .notchAgents }
                      && AppFeature.mixer.initialInstallGroup == [.mixer],
-                     "choosing the island for the first time includes its extensions without changing other features")
+                     "choosing the island keeps Agents and the companion as separate installs")
+        suite.expect(AppFeature.dynamicIslandExtensions.contains(.notchMascot)
+                        && !AppFeature.notch.initialInstallGroup.contains(.notchMascot)
+                        && AppFeature.notchMascot.permissions.isEmpty
+                        && AppFeature.notchMascot.enabledKeys == [DefaultsKey.notchMascotEnabled]
+                        && AppFeature.notchMascot.settingsDestination == FeatureSettingsDestination(.notchMascot)
+                        && FeatureVisibilitySupport.features(for: .notchMascot) == [.notchMascot],
+                     "the companion leaves with the island but only comes when picked, with a page of its own")
         suite.expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
             "automationFinder", "automationTerminal", "automationPlayback", "audioCapture", "microphone", "camera",
@@ -695,7 +735,8 @@ enum FeatureCatalogTests {
                 == [.screenRecording, .accessibility],
                "the recorder choice explains both permissions it needs")
         suite.expect(AppFeature.cleaner.onboardingPermissions.isEmpty
-                && AppFeature.cameraPreview.onboardingPermissions.isEmpty,
+                && AppFeature.cameraPreview.onboardingPermissions.isEmpty
+                && AppFeature.notchWatch.onboardingPermissions.isEmpty,
                "contextual grants are not requested during first setup")
         suite.expect(AppFeature.fanControl.group == .monitor
                 && AppFeature.fanControl.enabledKeys.isEmpty
@@ -721,21 +762,44 @@ enum FeatureCatalogTests {
                "both feature pickers refuse an unsupported install from the same rule")
         suite.expect(featureHubSource.contains("installableCount"),
                "the hub counts against what this Mac can install, so install-all can finish")
+        // The first top-level member opened by `declaration`, with comment lines
+        // and whitespace dropped, so a layout check reads structure only.
+        func compactMember(_ declaration: String, in source: String) -> String {
+            let code = source
+                .components(separatedBy: declaration).dropFirst().first?
+                .components(separatedBy: "\n    }\n").first ?? ""
+            return code.split(separator: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined()
+                .filter { !$0.isWhitespace }
+        }
         // Issue #2270: nested in the page's plain stack, the lazy stack resized
         // it as group cards came into view and could keep redoing its layout
         // until Settings froze. A source check on the page's `content` with
         // comment lines dropped: it keeps that structure from coming back, not
         // the scrolling itself, which only a scroll run shows.
-        let hubContentCode = featureHubSource
-            .components(separatedBy: "private var content: some View {").dropFirst().first?
-            .components(separatedBy: "\n    }\n").first ?? ""
-        let compactHubContent = hubContentCode.split(separator: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined()
-            .filter { !$0.isWhitespace }
+        let compactHubContent = compactMember("private var content: some View {", in: featureHubSource)
         suite.expect(compactHubContent.components(separatedBy: "LazyVStack(").count == 2
                 && compactHubContent.contains("ScrollView{LazyVStack("),
                "the hub's one lazy stack is its scroll view's own content, never nested in another stack")
+        // A lazy stack on the Monitor page re-measures and re-anchors its rows
+        // without settling once the Bars options make the menu bar card taller,
+        // which hangs Settings on the first scroll. The same kind of source
+        // check: it keeps the eager stack and the preview above the scroll
+        // view, not the scrolling itself.
+        let monitorSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/MonitorSettings.swift",
+            encoding: .utf8)) ?? ""
+        let compactMonitorBody = compactMember("var body: some View {", in: monitorSettingsSource)
+        let monitorPreviewAboveScroll: Bool = {
+            guard let preview = compactMonitorBody.range(of: "MenuBarMetricsPreview()"),
+                  let scroll = compactMonitorBody.range(of: "ScrollView{VStack(") else { return false }
+            return preview.upperBound <= scroll.lowerBound
+        }()
+        suite.expect(compactMonitorBody.hasPrefix("VStack(spacing:0){")
+                && monitorPreviewAboveScroll
+                && !compactMonitorBody.contains("LazyVStack("),
+               "the Monitor page lays its rows out eagerly, with the live preview above its scroll view")
         suite.expect(AppFeature.diskImageInstaller.group == .clipboardFiles
                 && AppFeature.diskImageInstaller.enabledKeys.isEmpty
                 && AppFeature.diskImageInstaller.permissions == [.appManagement]
@@ -1013,6 +1077,8 @@ enum FeatureCatalogTests {
                 && FanControlConfiguration.decodeResume("not json") == nil,
                "only a valid manual speed or curve is ever kept or brought back after a restart")
         FanControlResumeContract.run(suite)
+        FanControlRecoveryContract.run(suite)
+        FanControlHardwareContract.run(suite)
         let addedPoints = FanControlPolicy.addingCurvePoint(to: defaultCurve.points)
         suite.expect(FanControlPolicy.nextCurvePoint(for: defaultCurve.points) == FanControlCurvePoint(temperature: 60, coolingLevel: 50)
                 && addedPoints == [
@@ -1056,6 +1122,93 @@ enum FeatureCatalogTests {
         suite.expectClose(m3FanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
                     48.5,
                     "M3 fan curves exclude auxiliary Tf readings from the CPU average")
+        let m4MaxPlatform = TemperatureSensorSelector.platform(
+            brandString: "Apple M4 Max", modelIdentifier: "Mac16,5",
+            performanceCoreCount: 10, efficiencyCoreCount: 4
+        )
+        let otherM4MaxConfigurations: [(String?, Int?, Int?)] = [
+            ("Mac16,5", 12, 4), ("Mac16,6", 10, 4), ("Mac16,5", 10, 3),
+            (nil, 10, 4), ("Mac16,5", nil, 4), ("Mac16,5", 10, nil),
+            (nil, nil, nil),
+        ]
+        for (model, performance, efficiency) in otherM4MaxConfigurations {
+            let platform = TemperatureSensorSelector.platform(
+                brandString: "Apple M4 Max", modelIdentifier: model,
+                performanceCoreCount: performance, efficiencyCoreCount: efficiency
+            )
+            let temperatures = FanControlPolicy.aggregatedTemperatures(
+                cpuReadings: [("Tp01", 80), ("Te05", 60), ("Tpx5", 100), ("Tp3X", 110)],
+                gpuReadings: [40], platform: platform
+            )
+            let expectedReadings: [(FanControlTemperatureSource, Double, Int)] = [
+                (.hottestCPU, 80, 80), (.averageCPU, 70, 60),
+                (.hottestSoC, 80, 80), (.averageSoC, 60, 40),
+            ]
+            for (source, expected, expectedLevel) in expectedReadings {
+                suite.expectClose(temperatures.first { $0.source == source }?.celsius ?? -1,
+                                  expected, "other M4 Max configurations preserve existing CPU and SoC fan inputs")
+                let curve = FanControlCurve(sensor: source, points: [
+                    .init(temperature: 40, coolingLevel: 0), .init(temperature: 90, coolingLevel: 100),
+                ])
+                suite.expect(FanControlPolicy.curveCoolingLevel(curves: [curve],
+                                                               temperatures: temperatures) == expectedLevel,
+                             "other M4 Max configurations keep CPU and SoC curves evaluable at their existing levels")
+            }
+            let auxiliaryOnly = FanControlPolicy.aggregatedTemperatures(
+                cpuReadings: [("Tp0M", 88)], gpuReadings: [40], platform: platform
+            )
+            suite.expect(!auxiliaryOnly.contains { $0.source == .hottestCPU || $0.source == .averageCPU },
+                         "other M4 Max configurations still require mapped readings for CPU fan inputs")
+            suite.expectClose(auxiliaryOnly.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                              40, "missing mapped CPU readings retain the existing GPU-only SoC fallback")
+        }
+        for (name, sample) in [("loaded", M4MaxTemperatureFixtures.loaded),
+                               ("parked", M4MaxTemperatureFixtures.parked),
+                               ("idle", M4MaxTemperatureFixtures.idle)] {
+            let temperatures = FanControlPolicy.aggregatedTemperatures(
+                cpuReadings: sample.cpu + [("Tp3X", 110)],
+                gpuReadings: sample.gpu, platform: m4MaxPlatform
+            )
+            suite.expectClose(temperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                              sample.hottest, "M4 Max hottest CPU uses measured \(name) regions")
+            suite.expectClose(temperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                              sample.average, "M4 Max CPU mean excludes auxiliary and invalid \(name) readings")
+            suite.expectClose(temperatures.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                              sample.hottest, "M4 Max hottest SoC excludes auxiliary CPU hotspots when \(name)")
+            let hottestCurve = FanControlCurve(sensor: .hottestCPU,
+                                              points: FanControlConfiguration.defaultCurve.points)
+            suite.expect(FanControlPolicy.curveCoolingLevel(curves: [hottestCurve],
+                                                           temperatures: temperatures) == sample.defaultLevel,
+                         "M4 Max \(name) temperatures reach CPU curve evaluation")
+            let balancedCurve = FanControlCurve(sensor: .hottestSoC, points: [
+                .init(temperature: 60, coolingLevel: 0), .init(temperature: 95, coolingLevel: 100),
+            ])
+            suite.expect(FanControlPolicy.curveCoolingLevel(curves: [balancedCurve],
+                                                           temperatures: temperatures) == sample.balancedLevel,
+                         "M4 Max \(name) hottest SoC reaches shadow curve evaluation")
+        }
+        let m4MaxUnavailable = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tex0", .nan), ("Tex1", .infinity), ("Tex2", 9), ("Tex3", 125),
+                          ("Tpx0", 0), ("Tpx1", -4), ("Tp0M", 88)],
+            gpuReadings: [51], platform: m4MaxPlatform
+        )
+        suite.expect(!m4MaxUnavailable.contains { $0.source == .hottestCPU || $0.source == .averageCPU },
+                     "M4 Max fan CPU sources stay unavailable when no mapped region answers")
+        suite.expectClose(m4MaxUnavailable.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                          51, "M4 Max SoC fallback preserves GPU-only readings")
+        let missingCPUCurve = FanControlCurve(sensor: .hottestCPU,
+                                             points: FanControlConfiguration.defaultCurve.points)
+        suite.expect(FanControlPolicy.curveCoolingLevel(curves: [missingCPUCurve],
+                                                       temperatures: m4MaxUnavailable) == nil,
+                     "M4 Max CPU curves reject missing mapped readings instead of using auxiliaries")
+        let m4MaxPartial = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tex1", 53.234375), ("Tpx5", .nan), ("Tp0M", 88)],
+            gpuReadings: [59], platform: m4MaxPlatform
+        )
+        suite.expectClose(m4MaxPartial.first { $0.source == .averageCPU }?.celsius ?? -1,
+                          53.234375, "one valid M4 Max region remains a valid CPU curve input")
+        suite.expectClose(m4MaxPartial.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                          59, "M4 Max hottest SoC still includes a genuinely hotter GPU")
         let unmappedFanTemperatures = FanControlPolicy.aggregatedTemperatures(
             cpuReadings: [("Tp00", 48), ("Tp0W", 113)],
             gpuReadings: [],
@@ -1063,6 +1216,113 @@ enum FeatureCatalogTests {
         )
         suite.expect(unmappedFanTemperatures.isEmpty,
                "fan curves reject unknown Apple Silicon sensors instead of treating them as CPU")
+        // Apple M1 MacBook Pro 13-inch (MacBookPro17,1) under load. It carries
+        // none of the first M1 layout's keys; its Tg keys read zero.
+        let m1AlternateCPUReadings: [(key: String, value: Double)] = [
+            ("Te0a", 62.95), ("Te0z", 65.42), ("Te3a", 59.55), ("Te3z", 80.88),
+            ("Tp2a", 71.69), ("Tp2z", 90.19), ("Tp3a", 75.11), ("Tp3b", 82.51),
+            ("Tp4a", 71.72), ("Tp5a", 67.30), ("Tp7a", 71.16), ("Tp8a", 74.52),
+            ("Tp9a", 72.42), ("Tp9z", 93.88),
+        ]
+        let m1AlternateFanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: m1AlternateCPUReadings,
+            gpuReadings: [0, 0],
+            platform: TemperatureSensorSelector.platform(brandString: "Apple M1")
+        )
+        suite.expectClose(m1AlternateFanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    75.11,
+                    "M1 fan curves follow the hottest core of the second M1 layout")
+        suite.expectClose(m1AlternateFanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                    69.60,
+                    "M1 fan curves average only the a variants of the second layout", tol: 0.01)
+        suite.expectClose(m1AlternateFanTemperatures.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                    75.11,
+                    "the default SoC curve has a reading on the second M1 layout")
+        suite.expect(m1AlternateFanTemperatures.first { $0.source == .hottestGPU } == nil,
+               "zero GPU keys do not become a fan curve reading")
+        let invalidM1Temperatures: [Double?] = [nil, 0, 9.99, 125, .nan, .infinity]
+        for invalidTemperature in invalidM1Temperatures {
+            let unavailableCores = m1AlternateCPUReadings.compactMap { reading -> (key: String, value: Double)? in
+                guard reading.key.hasSuffix("a") else { return reading }
+                return invalidTemperature.map { (reading.key, $0) }
+            }
+            let unavailableTemperatures = FanControlPolicy.aggregatedTemperatures(
+                cpuReadings: unavailableCores, gpuReadings: [0, 0], platform: .appleM1Family
+            )
+            suite.expect(unavailableTemperatures.isEmpty
+                    && FanControlPolicy.curveCoolingLevel(curves: [defaultCurve],
+                                                          temperatures: unavailableTemperatures,
+                                                          previousLevel: 70) == nil
+                    && FanControlPolicy.curveCoolingLevel(curves: [cpuCurve],
+                                                          temperatures: unavailableTemperatures,
+                                                          previousLevel: 70) == nil,
+                   "missing or invalid M1 cores cannot drive CPU or SoC curves through auxiliary variants")
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: unavailableCores, platform: .appleM1Family
+            ) ?? -1, 93.88, "the monitor keeps its compatibility reading when M1 cores are unavailable")
+        }
+        let m1PartialReadings: [(key: String, value: Double)] = [
+            ("Te0a", 42), ("Te3a", .nan), ("Tp2a", 0), ("Tp3a", 125), ("Tp9z", 93.88),
+        ]
+        let m1PartialTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: m1PartialReadings, gpuReadings: [0, 0], platform: .appleM1Family
+        )
+        suite.expect(m1PartialTemperatures.count == 4
+                && m1PartialTemperatures.allSatisfy { $0.celsius == 42 },
+               "one valid alternate M1 core keeps CPU and SoC curves available without auxiliary readings")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m1PartialReadings, platform: .appleM1Family
+        ) ?? -1, 42, "the monitor follows a valid alternate M1 core while other cores are invalid")
+        let m1OriginalFanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tp09", 43), ("Tp01", 49), ("Tp2z", 70)],
+            gpuReadings: [], platform: .appleM1Family
+        )
+        suite.expectClose(m1OriginalFanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    49, "the original M1 fan curve keeps its hottest mapped core")
+        suite.expectClose(m1OriginalFanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                    46, "the original M1 fan curve keeps auxiliary variants out of its average")
+        // Apple M4 Pro (Mac16,8) under load: the base M4 set tops out at Tp0Y,
+        // 10 °C below the core that Tpx5 repeats.
+        let m4ProPlatform = TemperatureSensorSelector.platform(brandString: "Apple M4 Pro")
+        let m4ProFanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Te05", 74.15), ("Tp01", 77.10), ("Tp0Y", 87.08),
+                          ("Tp0U", 97.84), ("Tpx5", 97.84), ("Tp29", 95.81),
+                          ("Tex1", 79.64)],
+            gpuReadings: [71.2],
+            platform: m4ProPlatform
+        )
+        suite.expectClose(m4ProFanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    97.84,
+                    "M4 Pro fan curves follow its hottest CPU core")
+        suite.expectClose(m4ProFanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                    88.74,
+                    "M4 Pro fan curves average its own CPU sensor set")
+        suite.expectClose(m4ProFanTemperatures.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                    97.84,
+                    "M4 Pro fan curves keep the CPU in the SoC reading")
+        // The same Mac at light idle with its P cores parked, plus a key
+        // outside the set running hot the way Tp0W does on the base M4: the
+        // hottest SoC curve must not raise the fans for it.
+        let m4ProIdleFanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Te05", 54.80), ("Te06", 58.05), ("Tex1", 58.05),
+                          ("Tex3", 57.19), ("Tpx5", 0), ("Tp0W", 68.0)],
+            gpuReadings: [50.0],
+            platform: m4ProPlatform
+        )
+        suite.expectClose(m4ProIdleFanTemperatures.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                    58.05,
+                    "an idle M4 Pro keeps an auxiliary hotspot out of the hottest SoC curve")
+        suite.expectClose(m4ProIdleFanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    58.05,
+                    "an idle M4 Pro fan curve reads its hottest E core")
+        let m4FanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tp01", 46.12), ("Te05", 45.01), ("Tp0W", 62.56)],
+            gpuReadings: [],
+            platform: TemperatureSensorSelector.platform(brandString: "Apple M4")
+        )
+        suite.expectClose(m4FanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    46.12,
+                    "base M4 fan curves keep using its mapped cores")
         suite.expect(FanControlPolicy.telemetryReadings(expectedCount: 1, readings: [1_200]) == [1_200]
                 && FanControlPolicy.telemetryReadings(expectedCount: 2,
                                                       readings: [1_200, 1_350]) == [1_200, 1_350],
@@ -1253,6 +1513,7 @@ enum FeatureCatalogTests {
                }
                && !AppFeature.screenshot.monitorsPermissionChanges
                && !AppFeature.screenRecorder.monitorsPermissionChanges
+               && !AppFeature.notchWatch.monitorsPermissionChanges
                && AppFeature.switcher.monitorsPermissionChanges
                && AppFeature.focusFollowsMouse.monitorsPermissionChanges
                && AppFeature.mouseNavigation.monitorsPermissionChanges,
@@ -1431,6 +1692,8 @@ enum FeatureCatalogTests {
 
         suite.expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true }, boolFor: { _ in false }),
                "no alert keys means no monitor alerts")
+        suite.expect(AppFeature.mixer.symbolName == NotchModule.mixer.symbol,
+               "Features and General use the Dynamic Island Mixer’s speaker symbol")
         suite.expect(AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true },
                                                  boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "one alert on an available metric arms the alert service")
@@ -1791,6 +2054,13 @@ enum FeatureCatalogTests {
         let previousWindowGestureEnergy = UserDefaults.standard.object(
             forKey: DefaultsKey.windowGestureEnabled
         )
+        let previousWindowDirectionalEnergy = UserDefaults.standard.object(
+            forKey: DefaultsKey.windowDirectionalEnabled
+        )
+        let previousWindowDirectionalShortcut = UserDefaults.standard.object(
+            forKey: DefaultsKey.windowDirectionalShortcut
+        )
+        UserDefaults.standard.set(false, forKey: DefaultsKey.windowDirectionalEnabled)
         UserDefaults.standard.set(true, forKey: DefaultsKey.windowGestureEnabled)
         suite.expect(AppFeature.windowLayout.energyProfile == .pointer,
                "window dragging reports trackpad and mouse pointer input")
@@ -1817,6 +2087,19 @@ enum FeatureCatalogTests {
         )
         suite.expect(AppFeature.windowLayout.energyProfile == .idle,
                "edge snapping keeps no pointer listener when every visual zone is off")
+        UserDefaults.standard.set(true, forKey: DefaultsKey.windowDirectionalEnabled)
+        UserDefaults.standard.set("modifiers:control+command",
+                                  forKey: DefaultsKey.windowDirectionalShortcut)
+        suite.expect(AppFeature.windowLayout.energyProfile == .inputs,
+               "a modifier-only pointer layout trigger passively observes keyboard and pointer input")
+        UserDefaults.standard.set(true, forKey: DefaultsKey.windowGestureEnabled)
+        suite.expect(AppFeature.windowLayout.energyProfile == .inputs,
+               "window layout reports mouse and keyboard when pointer and modifier taps both run")
+        UserDefaults.standard.set(false, forKey: DefaultsKey.windowGestureEnabled)
+        UserDefaults.standard.set(GlobalShortcut.windowDirectionalDefault.storageValue,
+                                  forKey: DefaultsKey.windowDirectionalShortcut)
+        suite.expect(AppFeature.windowLayout.energyProfile == .idle,
+               "a key-based pointer layout trigger keeps no event tap at rest")
         if let previousWindowEdgeSnapZones {
             UserDefaults.standard.set(previousWindowEdgeSnapZones,
                                       forKey: DefaultsKey.windowEdgeSnapDisabledZones)
@@ -1834,6 +2117,18 @@ enum FeatureCatalogTests {
                                       forKey: DefaultsKey.windowGestureEnabled)
         } else {
             UserDefaults.standard.removeObject(forKey: DefaultsKey.windowGestureEnabled)
+        }
+        if let previousWindowDirectionalShortcut {
+            UserDefaults.standard.set(previousWindowDirectionalShortcut,
+                                      forKey: DefaultsKey.windowDirectionalShortcut)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.windowDirectionalShortcut)
+        }
+        if let previousWindowDirectionalEnergy {
+            UserDefaults.standard.set(previousWindowDirectionalEnergy,
+                                      forKey: DefaultsKey.windowDirectionalEnabled)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.windowDirectionalEnabled)
         }
         let radialMenuEnergyKeys = [DefaultsKey.radialMenuProfiles, DefaultsKey.radialMenuMouseButton]
         let previousRadialMenuEnergy = radialMenuEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
@@ -1959,6 +2254,14 @@ enum FeatureCatalogTests {
                 == FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl),
                "shared monitor destinations distinguish the dedicated fan controls")
         let settingsRouter = SettingsRouter.shared
+        let companionRouter = SettingsRouter()
+        companionRouter.request(AppFeature.notchMascot.settingsDestination)
+        suite.expect(companionRouter.page == .notch && companionRouter.notchCompanion
+                     && pageVisible(companionRouter.page, available: [.notchMascot]),
+                     "the companion's settings remain reachable when it alone is installed, including the install-island prompt")
+        suite.expect(pageVisible(companionRouter.page, available: [.notch, .notchMascot])
+                     && !pageVisible(companionRouter.page, available: []),
+                     "the companion shares the installed island's page without exposing it when every extension is uninstalled")
         var settingsRequestCount = 0
         var settingsRequestsPublishedReady = true
         let settingsRequestObservation = settingsRouter.$requestID
@@ -2183,15 +2486,19 @@ enum FeatureCatalogTests {
 
         var ddcReply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32]
         ddcReply.append(ddcReply.reduce(UInt8(0x50)) { $0 ^ $1 })
-        suite.expect(BrightnessSupport.parseReply(ddcReply)?.current == 0x32
-                && BrightnessSupport.parseReply(ddcReply)?.maximum == 0x64,
+        suite.expect(BrightnessSupport.parseReply(ddcReply, code: 0x10)?.current == 0x32
+                && BrightnessSupport.parseReply(ddcReply, code: 0x10)?.maximum == 0x64,
                "a valid DDC reply yields the current and maximum values")
         var corrupted = ddcReply
         corrupted[7] ^= 0xFF
-        suite.expect(BrightnessSupport.parseReply(corrupted) == nil,
+        suite.expect(BrightnessSupport.parseReply(corrupted, code: 0x10) == nil,
                "a corrupted DDC reply fails its checksum and reads as no reply")
-        suite.expect(BrightnessSupport.parseReply([0x6E, 0x88]) == nil,
+        suite.expect(BrightnessSupport.parseReply([0x6E, 0x88], code: 0x10) == nil,
                "a short DDC reply reads as no reply")
+        var staleReply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x62, 0x00, 0x00, 0x64, 0x00, 0x2C]
+        staleReply.append(staleReply.reduce(UInt8(0x50)) { $0 ^ $1 })
+        suite.expect(BrightnessSupport.parseReply(staleReply, code: 0x10) == nil,
+               "a reply for another control reads as no reply instead of that control's value")
 
         suite.expect(BrightnessSupport.sanitizedMaximum(0) == 100 && BrightnessSupport.sanitizedMaximum(255) == 255,
                "a display reporting no range falls back to the conventional scale")
@@ -2387,6 +2694,20 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.drawableDisplayIDs(
             onlineDisplayIDs: [1, 2], activeDisplayIDs: [1, 2, 9], virtualDisplayIDs: [2]) == [1],
                "only online active displays with a visible picture prevent recovery")
+        // Measured on a MacBook whose panel (1) mirrors an HDMI monitor (2)
+        // beside an extended one (3): the active list was [2, 3].
+        let mirrored = BrightnessSupport.participatingDisplayIDs(
+            activeDisplayIDs: [2, 3], mirrorSources: [1: 2])
+        suite.expect(mirrored == [1, 2, 3],
+               "a panel mirroring an active monitor keeps its controls")
+        suite.expect(BrightnessSupport.canDisableDisplay(
+            drawableDisplayIDs: BrightnessSupport.drawableDisplayIDs(
+                onlineDisplayIDs: [1, 2, 3], activeDisplayIDs: mirrored, virtualDisplayIDs: []),
+            target: 1),
+               "a mirroring panel is a drawable display its power button can switch off")
+        suite.expect(BrightnessSupport.participatingDisplayIDs(
+            activeDisplayIDs: [3], mirrorSources: [1: 2]) == [3],
+               "a display mirroring a source that is off shows no picture")
         suite.expect(BrightnessSupport.drawableDisplayIDs(
             onlineDisplayIDs: [2], activeDisplayIDs: [2], virtualDisplayIDs: [2]).isEmpty,
                "a virtual-only active display leaves the machine effectively headless")

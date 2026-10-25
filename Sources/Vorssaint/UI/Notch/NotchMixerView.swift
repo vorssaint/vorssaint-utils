@@ -4,15 +4,16 @@
 import AppKit
 import SwiftUI
 
-/// The mixer as a desk: the output fader on the left, one fader per app
+/// The mixer as a desk: the output and microphone faders on the left, one fader per app
 /// running sideways, pinned ones first. Every row action of the panel's list
 /// is here: the app's menu pins, moves and routes it, Command-drag reorders,
-/// a click on a level types a new one. The toolbar opens
-/// the options: where sound effects and the microphone go, the switches the
-/// panel keeps under Options, and the hidden rows.
+/// a click on a level types a new one. The island's top row holds the output
+/// and opens the options: where sound effects and the microphone go, the
+/// switches the panel keeps under Options, and the hidden rows.
 struct NotchMixerView: View {
     let size: CGSize
     @ObservedObject private var mixer = AppVolumeMixer.shared
+    @ObservedObject private var input = AudioInputDeviceManager.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.mixerAppArrangement) private var arrangementValue = ""
     @AppStorage(DefaultsKey.mixerHideInactiveApps) private var hideInactiveApps = false
@@ -24,7 +25,10 @@ struct NotchMixerView: View {
     @Environment(\.notchSettingsPreview) private var preview
     private static let masterWidth: CGFloat = 72
     private static let columnWidth: CGFloat = 96
-    private var faderHeight: CGFloat { max(104, size.height - 40) }
+    private var faderHeight: CGFloat { max(NotchLayout.mixerMinimumHeight, size.height) }
+    /// A microphone that reports no level has nothing to fade, as in the options.
+    private var showsMicrophone: Bool { input.inputVolume != nil }
+    private var leadingWidth: CGFloat { showsMicrophone ? Self.masterWidth * 2 + 10 : Self.masterWidth }
 
     private var arrangement: MixerAppArrangement { MixerAppArrangement(rawValue: arrangementValue) }
 
@@ -38,15 +42,7 @@ struct NotchMixerView: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                NotchOutputDeviceMenu(width: size.width - 40, showsFullName: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                NotchIconButton(symbol: showingOptions ? "xmark" : "slider.horizontal.3",
-                                title: showingOptions ? l10n.s.menuClose : l10n.s.keepAwakeOptions,
-                                selected: showingOptions, action: toggleOptions)
-            }
-            .frame(height: 32)
+        Group {
             if showingOptions {
                 NotchMixerOptions(editingVolumeID: $editingVolumeID)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -54,6 +50,10 @@ struct NotchMixerView: View {
                 HStack(alignment: .top, spacing: 10) {
                     NotchMasterFader(height: faderHeight, editingVolumeID: $editingVolumeID)
                         .frame(width: Self.masterWidth)
+                    if showsMicrophone {
+                        NotchMicrophoneFader(height: faderHeight, editingVolumeID: $editingVolumeID)
+                            .frame(width: Self.masterWidth)
+                    }
                     Rectangle().fill(.white.opacity(0.12)).frame(width: 1)
                         .accessibilityHidden(true)
                     desk.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -61,6 +61,13 @@ struct NotchMixerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // The output and the options sit in the island's top row, beside the
+        // camera where they fit, so the faders take the whole page.
+        .notchBand(leading: { NotchOutputDeviceMenu(inBand: true) }, trailing: {
+            NotchIconButton(symbol: showingOptions ? "xmark" : "slider.horizontal.3",
+                            title: showingOptions ? l10n.s.menuClose : l10n.s.keepAwakeOptions,
+                            selected: showingOptions, action: toggleOptions)
+        })
         .onAppear { mixer.refreshApps() }
         // Escape closes the options before the island.
         .onChange(of: showingOptions) { _, showing in
@@ -92,7 +99,7 @@ struct NotchMixerView: View {
             let apps = apps
             let ids = apps.compactMap(\.persistenceID)
             NotchRail(items: apps, rows: 1, itemWidth: Self.columnWidth,
-                      width: size.width - Self.masterWidth - 21) { app in
+                      width: size.width - leadingWidth - 21) { app in
                 NotchAppFader(app: app, height: faderHeight, editingVolumeID: $editingVolumeID,
                               isPinned: arrangement.isPinned(app.persistenceID),
                               togglePin: { updateArrangement { $0.togglePin(app.persistenceID ?? "") } },
@@ -192,10 +199,10 @@ private struct NotchMasterFader: View {
     private var level: Double? { mixer.systemOutputVolume.map { mixer.systemOutputMuted == true ? 0 : $0 } }
     private var muted: Bool { mixer.systemOutputMuted == true }
 
-    /// The fader already shows the level it sets, so the open header keeps
-    /// its title instead of repeating it.
+    /// The fader already shows the level it sets, so the island's top row
+    /// stays in view instead of repeating it.
     private func adjustOutput(volume: Double? = nil, muted: Bool? = nil) {
-        NotchService.shared.noteOwnVolumeAdjustment()
+        NotchService.shared.noteOwnLevelAdjustment(.volume)
         mixer.requestOutputAdjustment(volume: volume, muted: muted)
     }
 
@@ -219,7 +226,7 @@ private struct NotchMasterFader: View {
                 NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),
                                  label: l10n.s.mixerSystemOutputTitle, vertical: true, trackThickness: 28)
                     .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
-                NotchEditablePercent(percent: Int((level * 100).rounded()), maximum: 100,
+                NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: level), maximum: 100,
                                      editorID: "notch-system-output", editingID: $editingVolumeID,
                                      label: l10n.s.mixerSystemOutputTitle, height: 28) {
                     adjustOutput(volume: $0)
@@ -235,6 +242,56 @@ private struct NotchMasterFader: View {
     }
 }
 
+/// The microphone beside the output: the same column, its mute and level.
+private struct NotchMicrophoneFader: View {
+    let height: CGFloat
+    @Binding var editingVolumeID: String?
+    @ObservedObject private var input = AudioInputDeviceManager.shared
+    @ObservedObject private var micMute = MicMuteService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(spacing: 6) {
+            // The mute is its own feature; without it the column keeps the
+            // plain icon the options row shows.
+            if AppFeature.micMute.isAvailable {
+                Button(action: micMute.toggle) {
+                    icon(muted: micMute.isMuted).foregroundStyle(micMute.isMuted ? Color.red : Color.white)
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+                .accessibilityLabel(micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName)
+            } else {
+                icon(muted: (input.inputVolume ?? 0) <= 0.001).foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            if let volume = input.inputVolume {
+                NotchLevelSlider(value: Binding(get: { volume }, set: { input.setInputVolume($0) }),
+                                 label: l10n.s.mixerInputTitle, vertical: true, trackThickness: 28)
+                    .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
+                    .disabled(micMute.isMuted)
+                NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: volume), maximum: 100,
+                                     editorID: "notch-microphone-fader", editingID: $editingVolumeID,
+                                     label: l10n.s.mixerInputTitle, height: 28) {
+                    input.setInputVolume($0)
+                }
+                .disabled(micMute.isMuted)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: height, alignment: .top)
+    }
+
+    private func icon(muted: Bool) -> some View {
+        Image(systemName: muted ? "mic.slash.fill" : "mic.fill")
+            .font(.system(size: 15, weight: .medium))
+            .contentTransition(.symbolEffect(.replace))
+            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
+            .frame(width: 32, height: 32)
+            .contentShape(Circle())
+    }
+}
+
 /// Both the output and app columns reserve the same header, gaps and footer.
 private enum NotchMixerFaderLayout {
     static func trackHeight(in height: CGFloat) -> CGFloat {
@@ -245,7 +302,9 @@ private enum NotchMixerFaderLayout {
 private struct NotchOutputDeviceMenu: View {
     var width: CGFloat = 150
     var lines = 1
-    var showsFullName = false
+    /// In the island's top row: one line, as wide as the row leaves it, cut
+    /// short beside the camera and whole across a full row.
+    var inBand = false
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
     private var deviceName: String {
@@ -262,16 +321,9 @@ private struct NotchOutputDeviceMenu: View {
     }
 
     var body: some View {
-        if showsFullName {
-            NotchMenuButton(title: l10n.s.mixerSystemOutputTitle, items: items) {
-                Text("\(current) \(Image(systemName: "chevron.down"))")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: width, minHeight: 32, alignment: .leading)
-                    .contentShape(Rectangle())
+        if inBand {
+            NotchMenuButton(title: l10n.s.mixerSystemOutputTitle, items: items, cornerRadius: 9) {
+                NotchBandMenuLabel(title: current)
             }
             .help(current)
             .accessibilityValue(current)
@@ -389,7 +441,7 @@ private struct NotchMixerOptions: View {
                                  label: l10n.s.mixerInputTitle)
                     .frame(height: 22)
                     .disabled(micMute.isMuted)
-                NotchEditablePercent(percent: Int((volume * 100).rounded()), maximum: 100,
+                NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: volume), maximum: 100,
                                      editorID: "notch-microphone-input", editingID: $editingVolumeID,
                                      label: l10n.s.mixerInputTitle) {
                     input.setInputVolume($0)
@@ -441,7 +493,8 @@ private struct NotchAppFader: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
     private var strings: MixerFeatureStrings { FeatureStrings.mixer(l10n.language) }
-    private var percent: Int { Int((app.volume * 100).rounded()) }
+    private var percent: Int { MixerRoutingSupport.displayPercent(forVolume: app.volume) }
+    private var sharingStrings: MixerScreenSharingStrings { .localized(l10n.language) }
     private var boosting: Bool { percent > 100 }
     private var muted: Bool { app.volume <= 0.001 }
     private var routed: Bool { !app.isBypassed && app.selectedOutputDeviceUID != nil }
@@ -456,7 +509,7 @@ private struct NotchAppFader: View {
             icon
                 .frame(maxWidth: .infinity)
                 .frame(height: 32)
-                .help(app.name)
+                .help(app.supportsVolumeOverride && !app.isBypassed ? sharingStrings.sharingWarning : app.name)
                 .overlay(alignment: .trailing) {
                     if app.persistenceID != nil || !app.isBypassed { actionsMenu }
                 }
@@ -467,9 +520,7 @@ private struct NotchAppFader: View {
                     }
                 }
             if app.isBypassed {
-                // Conferencing and pro audio apps manage their own sound: listed so
-                // their absence never reads as a bug, never tapped.
-                Text(l10n.s.mixerBypassedCaption)
+                Text(app.supportsVolumeOverride ? sharingStrings.protectedCaption : l10n.s.mixerBypassedCaption)
                     .font(.system(size: 9)).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -577,6 +628,13 @@ private struct NotchAppFader: View {
                 .disabled(moveBack == nil)
             Button { moveForward?() } label: { Label(strings.moveRight, systemImage: "arrow.right") }
                 .disabled(moveForward == nil)
+        }
+        if app.supportsVolumeOverride {
+            Divider()
+            Toggle(sharingStrings.allowVolumeControl, isOn: Binding(
+                get: { !app.isBypassed },
+                set: { mixer.setCallAppVolumeControl($0, for: app) }))
+                .help(sharingStrings.sharingWarning)
         }
         if !app.isBypassed {
             if app.persistenceID != nil { Divider() }

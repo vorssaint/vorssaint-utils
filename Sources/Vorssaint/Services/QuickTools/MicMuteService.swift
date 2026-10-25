@@ -245,8 +245,11 @@ final class MicMuteService: ObservableObject {
                               message: muted ? L10n.shared.s.micMutePartialHUD : L10n.shared.s.micUnmutePartialHUD)
             return
         }
-        // With Dynamic Island on, the switch reports there like the volume.
-        guard !NotchService.shared.showMicrophone(muted: muted) else { return }
+        // With Dynamic Island on, the switch reports there like the volume,
+        // and the companion hushes or perks up, in its notice or where it is.
+        let shownInIsland = NotchService.shared.showMicrophone(muted: muted)
+        NotchService.shared.reactMascot(muted ? .hush : .perk)
+        guard !shownInIsland else { return }
         QuickToolHUD.show(icon: muted ? "mic.slash.fill" : "mic.fill",
                           message: muted ? L10n.shared.s.micMutedHUD : L10n.shared.s.micUnmutedHUD)
     }

@@ -1354,6 +1354,14 @@ final class ShelfService: ObservableObject {
         internalDragWasMerged = false
     }
 
+    /// Where a tile drag is now, so the island can step aside once its
+    /// tile leaves it.
+    func internalDragMoved(to screenPoint: CGPoint) {
+        guard !activeInternalDragIDs.isEmpty, let window = internalDragWindow,
+              window === NotchService.shared.presentationWindow else { return }
+        NotchService.shared.shelfDragMoved(to: screenPoint)
+    }
+
     func finishInternalDrag(dropAccepted: Bool) -> [UUID] {
         defer {
             activeInternalDragIDs = []
@@ -1477,7 +1485,7 @@ final class ShelfService: ObservableObject {
 
     func accept(draggingInfo: NSDraggingInfo) -> Bool {
         let accepted = acceptDrop(pasteboard: draggingInfo.draggingPasteboard)
-        if accepted, draggingInfo.draggingDestinationWindow === dockedPanel { dockDidAccept() }
+        if accepted { noteAcceptedDrop(draggingInfo) }
         return accepted
     }
 
@@ -1489,8 +1497,17 @@ final class ShelfService: ObservableObject {
         let accepted = receivers.isEmpty
             ? mergePasteboard(pasteboard, into: targetID)
             : beginPromisedFileReceive(receivers, additions: nonPromisedItems(from: pasteboard), mergeInto: targetID)
-        if accepted, draggingInfo.draggingDestinationWindow === dockedPanel { dockDidAccept() }
+        if accepted { noteAcceptedDrop(draggingInfo) }
         return accepted
+    }
+
+    /// A promised file reaches `append`, and with it `noteInteraction()`, only
+    /// once its asynchronous delivery completes, which can be after the grace
+    /// window in `endEdgePeekDrag` has retracted an edge peek. Noting the drop
+    /// here clears `edgePeekMatch` first, so that retract does nothing.
+    private func noteAcceptedDrop(_ draggingInfo: NSDraggingInfo) {
+        if draggingInfo.draggingDestinationWindow === dockedPanel { dockDidAccept() }
+        noteInteraction()
     }
 
     private func filePromiseReceivers(from pasteboard: NSPasteboard) -> [NSFilePromiseReceiver] {
@@ -1618,6 +1635,28 @@ final class ShelfService: ObservableObject {
         defer { pasteboard.releaseGlobally() }
         pasteboard.writeObjects(urls.map { $0 as NSURL })
         return accept(pasteboard: pasteboard)
+    }
+
+    /// A picture another feature made, like a capture or an edited
+    /// screenshot, kept in the shelf's own store under its name. It leaves
+    /// with its item the way a pasted image does, so nothing is left behind
+    /// in the person's folders. Nothing waits on its thumbnail, so that is
+    /// decoded off the main thread. Answers the item's id, so the feature
+    /// can take it back, as a discarded capture does.
+    func shelveGeneratedFile(_ data: Data, named name: String) -> UUID? {
+        guard AppFeature.shelf.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled),
+              ShelfPersistenceSupport.canAdd(existingLeaves: itemCount, newLeaves: 1) else { return nil }
+        let store = Self.storeDirectory ?? tempDir
+        guard let url = ShelfPersistenceSupport.writeGeneratedFile(data, named: name, in: store) else {
+            return nil
+        }
+        let item = fileItem(for: url, deferImageThumbnail: true)
+        guard append(item) else {
+            ShelfFilePromiseTransfer.discard([url], in: store)
+            return nil
+        }
+        return item.id
     }
 
     /// The pasteboard representation used when dragging an item out of the shelf.

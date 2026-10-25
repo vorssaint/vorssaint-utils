@@ -52,6 +52,8 @@ struct NotchAgentStrings {
     let limitsAs: String
     let remaining: String
     let used: String
+    let limitFocus: String
+    let mostUsed: String
     let liveTitle: String
     let liveActivity: String
     let readout: String
@@ -73,6 +75,10 @@ struct NotchAgentStrings {
     let claudeLimitsMenuBar: String
     let claudeLimitsNoApp: String
     let claudeLimitsPrivacy: String
+    let claudeCodeMissing: String
+    let claudeCodeSignedOut: String
+    let claudeCodeOutdated: String
+    let claudeCodeUnreachable: String
     let openClaude: String
     let getClaude: String
     let priceUpdates: String
@@ -110,6 +116,16 @@ struct NotchAgentStrings {
     func pricesFrom(_ day: String) -> String { String(format: pricesFromFormat, day) }
     func resetsExpiry(_ when: String) -> String { String(format: resetsExpiryFormat, when) }
 
+    /// Why Claude Code could not check the account's limits.
+    func claudeCode(_ failure: AgentClaudeServer.Failure) -> String {
+        switch failure {
+        case .missing: return claudeCodeMissing
+        case .needsSignIn: return claudeCodeSignedOut
+        case .outdated: return claudeCodeOutdated
+        case .unreachable: return claudeCodeUnreachable
+        }
+    }
+
     func period(_ period: AgentPeriod) -> String {
         switch period {
         case .today: return today
@@ -139,6 +155,14 @@ struct NotchAgentStrings {
         case .limit: return readoutLimit
         }
     }
+
+    func limitFocus(_ focus: NotchAgentLimitFocus) -> String {
+        switch focus {
+        case .mostUsed: return mostUsed
+        case .session: return session
+        case .weekly: return weekly
+        }
+    }
 }
 
 extension FeatureStrings {
@@ -166,8 +190,8 @@ extension FeatureStrings {
 extension NotchAgentStrings {
     static let enUS = NotchAgentStrings(
         title: "AI Agents",
-        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude and Codex in the Dynamic Island.",
-        settingsDescription: "Reads the usage Claude Code and Codex record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
+        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island.",
+        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode and GitHub Copilot record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
         spendCard: "Spending",
@@ -193,7 +217,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ the price of %2$@",
         idle: "Idle",
         noActivity: "Nothing in this period",
-        empty: "No usage from Claude Code or Codex yet. It appears here as soon as either one works on this Mac.",
+        empty: "No usage from Claude Code, Codex, OpenCode or GitHub Copilot yet. It appears here as soon as any of them works on this Mac.",
         loading: "Reading usage…",
         noCards: "Choose what this page shows in Dynamic Island settings.",
         unpriced: "Some models have no known price, so this is a minimum.",
@@ -213,6 +237,8 @@ extension NotchAgentStrings {
         limitsAs: "Show limits as",
         remaining: "Left",
         used: "Used",
+        limitFocus: "Limit to show",
+        mostUsed: "Most used",
         liveTitle: "While an agent works",
         liveActivity: "Show it in the closed Dynamic Island",
         readout: "Beside the camera",
@@ -232,8 +258,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Read from the Claude app, updated %@",
         claudeLimitsStaleFormat: "The Claude app last checked them %@.",
         claudeLimitsMenuBar: "Claude checks your limits only while its icon is in the menu bar. Turn the icon on in the Claude app settings, and your limits appear here within minutes.",
-        claudeLimitsNoApp: "Plan limits come from the Claude app, which is not on this Mac. Until then, the 5-hour session is estimated from Claude Code activity.",
-        claudeLimitsPrivacy: "Vorssaint reads the percentages the Claude app saves on this Mac. No sign-in is used and nothing is sent.",
+        claudeLimitsNoApp: "Plan limits come from Claude Code or from the Claude app, which is not on this Mac. Until then, the 5-hour session is estimated from Claude Code activity.",
+        claudeLimitsPrivacy: "Claude Code checks your account’s limits, including use on other machines, with its own sign-in, which Vorssaint never reads. No prompt is sent. When it cannot check, the percentages the Claude app saves on this Mac are used.",
+        claudeCodeMissing: "Claude Code was not found on this Mac.",
+        claudeCodeSignedOut: "Sign in to Claude Code so it can check your account’s limits.",
+        claudeCodeOutdated: "Update Claude Code so it can check your account’s limits.",
+        claudeCodeUnreachable: "Claude Code could not check your account’s limits. It tries again later.",
         openClaude: "Open Claude",
         getClaude: "Get the Claude app",
         priceUpdates: "Keep prices up to date",
@@ -259,8 +289,8 @@ extension NotchAgentStrings {
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
-        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude і Codex у Dynamic Island.",
-        settingsDescription: "Читає дані про використання, які Claude Code і Codex записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
+        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude, Codex, OpenCode і GitHub Copilot у Dynamic Island.",
+        settingsDescription: "Читає дані про використання, які Claude Code, Codex, OpenCode і GitHub Copilot записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
         restingTitle: "Ліміти ШІ",
         limitsCard: "Ліміти",
         spendCard: "Витрати",
@@ -286,7 +316,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ від ціни %2$@",
         idle: "Неактивно",
         noActivity: "За цей період нічого немає",
-        empty: "Claude Code або Codex ще не використовувалися. Дані з’являться тут, щойно один із них почне працювати на цьому Mac.",
+        empty: "Claude Code, Codex, OpenCode або GitHub Copilot ще не використовувалися. Дані з’являться тут, щойно один із них почне працювати на цьому Mac.",
         loading: "Читання даних…",
         noCards: "Виберіть, що показувати на цій сторінці в налаштуваннях Dynamic Island.",
         unpriced: "Ціна деяких моделей невідома, тому це мінімальна оцінка.",
@@ -306,6 +336,8 @@ extension NotchAgentStrings {
         limitsAs: "Показувати ліміти як",
         remaining: "Залишок",
         used: "Використано",
+        limitFocus: "Який ліміт показувати",
+        mostUsed: "Найбільш використаний",
         liveTitle: "Поки агент працює",
         liveActivity: "Показувати в закритому Dynamic Island",
         readout: "Поруч із камерою",
@@ -325,8 +357,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Прочитано з програми Claude, оновлено %@",
         claudeLimitsStaleFormat: "Програма Claude востаннє перевіряла їх %@.",
         claudeLimitsMenuBar: "Claude перевіряє ліміти, лише коли його значок є на смузі меню. Увімкніть значок у налаштуваннях програми Claude, і ліміти з’являться тут протягом кількох хвилин.",
-        claudeLimitsNoApp: "Ліміти плану надходять із програми Claude, якої немає на цьому Mac. Поки що п’ятигодинний сеанс оцінюється за активністю Claude Code.",
-        claudeLimitsPrivacy: "Vorssaint читає відсотки, які програма Claude зберігає на цьому Mac. Вхід в обліковий запис не потрібен, і нічого не надсилається.",
+        claudeLimitsNoApp: "Ліміти плану надходять із Claude Code або з програми Claude, якої немає на цьому Mac. Поки що п’ятигодинний сеанс оцінюється за активністю Claude Code.",
+        claudeLimitsPrivacy: "Claude Code перевіряє ліміти облікового запису, включно з використанням на інших комп’ютерах, через власний вхід, який Vorssaint ніколи не читає. Жодних запитів до моделі не надсилається. Якщо перевірити не вдається, використовуються відсотки, які програма Claude зберігає на цьому Mac.",
+        claudeCodeMissing: "Claude Code не знайдено на цьому Mac.",
+        claudeCodeSignedOut: "Увійдіть у Claude Code, щоб він міг перевіряти ліміти облікового запису.",
+        claudeCodeOutdated: "Оновіть Claude Code, щоб він міг перевіряти ліміти облікового запису.",
+        claudeCodeUnreachable: "Claude Code не зміг перевірити ліміти облікового запису. Він спробує знову пізніше.",
         openClaude: "Відкрити Claude",
         getClaude: "Завантажити програму Claude",
         priceUpdates: "Підтримувати ціни актуальними",
@@ -352,8 +388,8 @@ extension NotchAgentStrings {
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
-        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude e do Codex.",
-        settingsDescription: "Lê o uso que o Claude Code e o Codex registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
+        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude, do Codex, do OpenCode e do GitHub Copilot.",
+        settingsDescription: "Lê o uso que o Claude Code, o Codex, o OpenCode e o GitHub Copilot registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
         restingTitle: "Limites de IA",
         limitsCard: "Limites",
         spendCard: "Gastos",
@@ -379,7 +415,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ o preço do %2$@",
         idle: "Parado",
         noActivity: "Nada neste período",
-        empty: "Ainda não há uso do Claude Code nem do Codex. Ele aparece aqui assim que um deles trabalhar neste Mac.",
+        empty: "Ainda não há uso do Claude Code, do Codex, do OpenCode nem do GitHub Copilot. Ele aparece aqui assim que um deles trabalhar neste Mac.",
         loading: "Lendo o uso…",
         noCards: "Escolha o que esta página mostra nos ajustes do Dynamic Island.",
         unpriced: "Alguns modelos não têm preço conhecido, então este é um valor mínimo.",
@@ -399,6 +435,8 @@ extension NotchAgentStrings {
         limitsAs: "Mostrar limites como",
         remaining: "Restante",
         used: "Usado",
+        limitFocus: "Limite exibido",
+        mostUsed: "Mais usado",
         liveTitle: "Enquanto um agente trabalha",
         liveActivity: "Mostrar no Dynamic Island fechado",
         readout: "Ao lado da câmera",
@@ -418,8 +456,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Lidos do app Claude, atualizados %@",
         claudeLimitsStaleFormat: "O app Claude verificou os limites pela última vez %@.",
         claudeLimitsMenuBar: "O Claude só verifica os limites enquanto o ícone dele está na barra de menus. Ative o ícone nos ajustes do app Claude, e os limites aparecem aqui em poucos minutos.",
-        claudeLimitsNoApp: "Os limites do plano vêm do app Claude, que não está neste Mac. Até lá, a sessão de 5 horas é estimada pela atividade do Claude Code.",
-        claudeLimitsPrivacy: "O Vorssaint lê os percentuais que o app Claude salva neste Mac. Nenhum login é usado e nada é enviado.",
+        claudeLimitsNoApp: "Os limites do plano vêm do Claude Code ou do app Claude, que não está neste Mac. Até lá, a sessão de 5 horas é estimada pela atividade do Claude Code.",
+        claudeLimitsPrivacy: "O Claude Code verifica os limites da sua conta, incluindo o uso em outras máquinas, com o próprio login, que o Vorssaint nunca lê. Nenhum prompt é enviado. Quando ele não consegue verificar, são usados os percentuais que o app Claude salva neste Mac.",
+        claudeCodeMissing: "O Claude Code não foi encontrado neste Mac.",
+        claudeCodeSignedOut: "Entre no Claude Code para que ele possa verificar os limites da sua conta.",
+        claudeCodeOutdated: "Atualize o Claude Code para que ele possa verificar os limites da sua conta.",
+        claudeCodeUnreachable: "O Claude Code não conseguiu verificar os limites da sua conta. Ele tenta de novo mais tarde.",
         openClaude: "Abrir o Claude",
         getClaude: "Baixar o app Claude",
         priceUpdates: "Manter os preços atualizados",
@@ -445,8 +487,8 @@ extension NotchAgentStrings {
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
-        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude y Codex.",
-        settingsDescription: "Lee el uso que Claude Code y Codex registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
+        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude, Codex, OpenCode y GitHub Copilot.",
+        settingsDescription: "Lee el uso que Claude Code, Codex, OpenCode y GitHub Copilot registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
         restingTitle: "Límites de IA",
         limitsCard: "Límites",
         spendCard: "Gasto",
@@ -472,7 +514,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ el precio de %2$@",
         idle: "Inactivo",
         noActivity: "Nada en este periodo",
-        empty: "Aún no hay uso de Claude Code ni de Codex. Aparece aquí en cuanto cualquiera de los dos trabaje en este Mac.",
+        empty: "Aún no hay uso de Claude Code, Codex, OpenCode ni de GitHub Copilot. Aparece aquí en cuanto cualquiera de ellos trabaje en este Mac.",
         loading: "Leyendo el uso…",
         noCards: "Elige qué muestra esta página en los ajustes del Dynamic Island.",
         unpriced: "Algunos modelos no tienen precio conocido, así que es un mínimo.",
@@ -492,6 +534,8 @@ extension NotchAgentStrings {
         limitsAs: "Mostrar límites como",
         remaining: "Restante",
         used: "Usado",
+        limitFocus: "Límite a mostrar",
+        mostUsed: "El más usado",
         liveTitle: "Mientras un agente trabaja",
         liveActivity: "Mostrarlo en el Dynamic Island cerrado",
         readout: "Junto a la cámara",
@@ -511,8 +555,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Leídos de la app de Claude, actualizados %@",
         claudeLimitsStaleFormat: "La app de Claude los revisó por última vez %@.",
         claudeLimitsMenuBar: "Claude solo revisa los límites mientras su icono está en la barra de menús. Activa el icono en los ajustes de la app de Claude, y los límites aparecerán aquí en pocos minutos.",
-        claudeLimitsNoApp: "Los límites del plan vienen de la app de Claude, que no está en este Mac. Mientras tanto, la sesión de 5 horas se estima a partir de la actividad de Claude Code.",
-        claudeLimitsPrivacy: "Vorssaint lee los porcentajes que la app de Claude guarda en este Mac. No se usa ningún inicio de sesión y no se envía nada.",
+        claudeLimitsNoApp: "Los límites del plan vienen de Claude Code o de la app de Claude, que no está en este Mac. Mientras tanto, la sesión de 5 horas se estima a partir de la actividad de Claude Code.",
+        claudeLimitsPrivacy: "Claude Code comprueba los límites de tu cuenta, incluido el uso en otros equipos, con su propio inicio de sesión, que Vorssaint nunca lee. No se envía ninguna instrucción al modelo. Si no puede comprobarlos, se usan los porcentajes que la app de Claude guarda en este Mac.",
+        claudeCodeMissing: "No se encontró Claude Code en este Mac.",
+        claudeCodeSignedOut: "Inicia sesión en Claude Code para que pueda comprobar los límites de tu cuenta.",
+        claudeCodeOutdated: "Actualiza Claude Code para que pueda comprobar los límites de tu cuenta.",
+        claudeCodeUnreachable: "Claude Code no pudo comprobar los límites de tu cuenta. Volverá a intentarlo más tarde.",
         openClaude: "Abrir Claude",
         getClaude: "Descargar la app de Claude",
         priceUpdates: "Mantener los precios al día",
@@ -538,8 +586,8 @@ extension NotchAgentStrings {
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
-        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude a Codex.",
-        settingsDescription: "Číta využitie, ktoré si Claude Code a Codex zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
+        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude, Codex, OpenCode a GitHub Copilot.",
+        settingsDescription: "Číta využitie, ktoré si Claude Code, Codex, OpenCode a GitHub Copilot zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
         restingTitle: "Limity AI",
         limitsCard: "Limity",
         spendCard: "Výdavky",
@@ -565,7 +613,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ ceny %2$@",
         idle: "Nečinné",
         noActivity: "V tomto období nič",
-        empty: "Zatiaľ žiadne využitie z Claude Code ani Codexu. Zobrazí sa tu hneď, ako niektorý z nich začne na tomto Macu pracovať.",
+        empty: "Zatiaľ žiadne využitie z Claude Code, Codexu, OpenCode ani GitHub Copilot. Zobrazí sa tu hneď, ako niektorý z nich začne na tomto Macu pracovať.",
         loading: "Načítava sa využitie…",
         noCards: "V nastaveniach Dynamic Island vyberte, čo má táto stránka zobrazovať.",
         unpriced: "Pri niektorých modeloch nie je známa cena, takže ide o minimum.",
@@ -585,6 +633,8 @@ extension NotchAgentStrings {
         limitsAs: "Zobraziť limity ako",
         remaining: "Zostatok",
         used: "Využité",
+        limitFocus: "Zobrazený limit",
+        mostUsed: "Najviac využitý",
         liveTitle: "Kým agent pracuje",
         liveActivity: "Zobraziť v zatvorenom Dynamic Island",
         readout: "Vedľa kamery",
@@ -604,8 +654,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Načítané z aplikácie Claude, aktualizované %@",
         claudeLimitsStaleFormat: "Aplikácia Claude ich naposledy skontrolovala %@.",
         claudeLimitsMenuBar: "Claude kontroluje vaše limity, len kým je jeho ikona v lište. Zapnite ikonu v nastaveniach aplikácie Claude a limity sa tu zobrazia do niekoľkých minút.",
-        claudeLimitsNoApp: "Limity plánu pochádzajú z aplikácie Claude, ktorá na tomto Macu nie je. Dovtedy sa 5-hodinová relácia odhaduje z aktivity Claude Code.",
-        claudeLimitsPrivacy: "Vorssaint číta percentá, ktoré aplikácia Claude ukladá na tomto Macu. Nepoužíva sa žiadne prihlásenie a nič sa neodosiela.",
+        claudeLimitsNoApp: "Limity plánu pochádzajú z Claude Code alebo z aplikácie Claude, ktorá na tomto Macu nie je. Dovtedy sa 5-hodinová relácia odhaduje z aktivity Claude Code.",
+        claudeLimitsPrivacy: "Claude Code kontroluje limity vášho účtu vrátane používania na iných počítačoch, a to vlastným prihlásením, ktoré Vorssaint nikdy nečíta. Neodosiela sa žiadny prompt. Ak kontrola nie je možná, použijú sa percentá, ktoré aplikácia Claude ukladá na tomto Macu.",
+        claudeCodeMissing: "Claude Code sa na tomto Macu nenašiel.",
+        claudeCodeSignedOut: "Prihláste sa do Claude Code, aby mohol kontrolovať limity vášho účtu.",
+        claudeCodeOutdated: "Aktualizujte Claude Code, aby mohol kontrolovať limity vášho účtu.",
+        claudeCodeUnreachable: "Claude Code nemohol skontrolovať limity vášho účtu. Skúsi to znova neskôr.",
         openClaude: "Otvoriť Claude",
         getClaude: "Získať aplikáciu Claude",
         priceUpdates: "Udržiavať ceny aktuálne",
@@ -631,8 +685,8 @@ extension NotchAgentStrings {
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
-        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude und Codex.",
-        settingsDescription: "Liest die Nutzung, die Claude Code und Codex auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
+        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude, Codex, OpenCode und GitHub Copilot.",
+        settingsDescription: "Liest die Nutzung, die Claude Code, Codex, OpenCode und GitHub Copilot auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
         restingTitle: "KI-Limits",
         limitsCard: "Limits",
         spendCard: "Ausgaben",
@@ -658,7 +712,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ so viel wie %2$@",
         idle: "Inaktiv",
         noActivity: "Nichts in diesem Zeitraum",
-        empty: "Noch keine Nutzung von Claude Code oder Codex. Sie erscheint hier, sobald eines davon auf diesem Mac arbeitet.",
+        empty: "Noch keine Nutzung von Claude Code, Codex, OpenCode oder GitHub Copilot. Sie erscheint hier, sobald eines davon auf diesem Mac arbeitet.",
         loading: "Nutzung wird gelesen…",
         noCards: "Wähle in den Dynamic Island-Einstellungen, was diese Seite zeigt.",
         unpriced: "Für einige Modelle ist kein Preis bekannt, daher ist dies ein Mindestwert.",
@@ -678,6 +732,8 @@ extension NotchAgentStrings {
         limitsAs: "Limits anzeigen als",
         remaining: "Übrig",
         used: "Genutzt",
+        limitFocus: "Angezeigtes Limit",
+        mostUsed: "Am meisten genutzt",
         liveTitle: "Während ein Agent arbeitet",
         liveActivity: "Im geschlossenen Dynamic Island zeigen",
         readout: "Neben der Kamera",
@@ -697,8 +753,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Aus der Claude-App gelesen, aktualisiert %@",
         claudeLimitsStaleFormat: "Die Claude-App hat sie zuletzt %@ geprüft.",
         claudeLimitsMenuBar: "Claude prüft die Limits nur, solange sein Symbol in der Menüleiste ist. Schalte das Symbol in den Einstellungen der Claude-App ein, dann erscheinen die Limits hier innerhalb weniger Minuten.",
-        claudeLimitsNoApp: "Die Planlimits kommen aus der Claude-App, die nicht auf diesem Mac ist. Bis dahin wird die 5-Stunden-Sitzung aus der Aktivität von Claude Code geschätzt.",
-        claudeLimitsPrivacy: "Vorssaint liest die Prozentwerte, die die Claude-App auf diesem Mac speichert. Es wird keine Anmeldung verwendet und nichts gesendet.",
+        claudeLimitsNoApp: "Die Planlimits kommen aus Claude Code oder aus der Claude-App, die nicht auf diesem Mac ist. Bis dahin wird die 5-Stunden-Sitzung aus der Aktivität von Claude Code geschätzt.",
+        claudeLimitsPrivacy: "Claude Code prüft die Limits deines Kontos, einschließlich der Nutzung auf anderen Geräten, mit seiner eigenen Anmeldung, die Vorssaint nie liest. Es wird kein Prompt gesendet. Kann es nicht prüfen, werden die Prozentwerte verwendet, die die Claude-App auf diesem Mac speichert.",
+        claudeCodeMissing: "Claude Code wurde auf diesem Mac nicht gefunden.",
+        claudeCodeSignedOut: "Melde dich in Claude Code an, damit es die Limits deines Kontos prüfen kann.",
+        claudeCodeOutdated: "Aktualisiere Claude Code, damit es die Limits deines Kontos prüfen kann.",
+        claudeCodeUnreachable: "Claude Code konnte die Limits deines Kontos nicht prüfen. Es versucht es später erneut.",
         openClaude: "Claude öffnen",
         getClaude: "Claude-App laden",
         priceUpdates: "Preise aktuell halten",
@@ -724,8 +784,8 @@ extension NotchAgentStrings {
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
-        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude et Codex.",
-        settingsDescription: "Lit l’usage que Claude Code et Codex enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
+        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude, Codex, OpenCode et GitHub Copilot.",
+        settingsDescription: "Lit l’usage que Claude Code, Codex, OpenCode et GitHub Copilot enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
         restingTitle: "Limites IA",
         limitsCard: "Limites",
         spendCard: "Dépenses",
@@ -751,7 +811,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ le prix de %2$@",
         idle: "Inactif",
         noActivity: "Rien sur cette période",
-        empty: "Aucun usage de Claude Code ou de Codex pour l’instant. Il apparaît ici dès que l’un d’eux travaille sur ce Mac.",
+        empty: "Aucun usage de Claude Code, Codex, d’OpenCode ou de GitHub Copilot pour l’instant. Il apparaît ici dès que l’un d’eux travaille sur ce Mac.",
         loading: "Lecture de l’usage…",
         noCards: "Choisissez ce que montre cette page dans les réglages du Dynamic Island.",
         unpriced: "Certains modèles n’ont pas de prix connu, ce montant est donc un minimum.",
@@ -771,6 +831,8 @@ extension NotchAgentStrings {
         limitsAs: "Afficher les limites en",
         remaining: "Restant",
         used: "Utilisé",
+        limitFocus: "Limite affichée",
+        mostUsed: "La plus utilisée",
         liveTitle: "Pendant qu’un agent travaille",
         liveActivity: "L’afficher dans le Dynamic Island fermé",
         readout: "À côté de la caméra",
@@ -790,8 +852,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Lues dans l’app Claude, mises à jour %@",
         claudeLimitsStaleFormat: "L’app Claude les a vérifiées pour la dernière fois %@.",
         claudeLimitsMenuBar: "Claude ne vérifie les limites que lorsque son icône est dans la barre des menus. Activez l’icône dans les réglages de l’app Claude, et les limites apparaîtront ici en quelques minutes.",
-        claudeLimitsNoApp: "Les limites du forfait viennent de l’app Claude, absente de ce Mac. En attendant, la session de 5 heures est estimée d’après l’activité de Claude Code.",
-        claudeLimitsPrivacy: "Vorssaint lit les pourcentages que l’app Claude enregistre sur ce Mac. Aucune connexion n’est utilisée et rien n’est envoyé.",
+        claudeLimitsNoApp: "Les limites du forfait viennent de Claude Code ou de l’app Claude, absente de ce Mac. En attendant, la session de 5 heures est estimée d’après l’activité de Claude Code.",
+        claudeLimitsPrivacy: "Claude Code vérifie les limites de votre compte, y compris l’utilisation sur d’autres machines, avec sa propre connexion, que Vorssaint ne lit jamais. Aucune requête n’est envoyée au modèle. S’il ne peut pas vérifier, les pourcentages que l’app Claude enregistre sur ce Mac sont utilisés.",
+        claudeCodeMissing: "Claude Code est introuvable sur ce Mac.",
+        claudeCodeSignedOut: "Connectez-vous à Claude Code pour qu’il puisse vérifier les limites de votre compte.",
+        claudeCodeOutdated: "Mettez à jour Claude Code pour qu’il puisse vérifier les limites de votre compte.",
+        claudeCodeUnreachable: "Claude Code n’a pas pu vérifier les limites de votre compte. Il réessaiera plus tard.",
         openClaude: "Ouvrir Claude",
         getClaude: "Télécharger l’app Claude",
         priceUpdates: "Garder les prix à jour",
@@ -817,8 +883,8 @@ extension NotchAgentStrings {
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
-        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude e Codex.",
-        settingsDescription: "Legge l’utilizzo che Claude Code e Codex registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
+        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude, Codex, OpenCode e GitHub Copilot.",
+        settingsDescription: "Legge l’utilizzo che Claude Code, Codex, OpenCode e GitHub Copilot registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
         restingTitle: "Limiti IA",
         limitsCard: "Limiti",
         spendCard: "Spesa",
@@ -844,7 +910,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ il prezzo di %2$@",
         idle: "Inattivo",
         noActivity: "Niente in questo periodo",
-        empty: "Ancora nessun utilizzo di Claude Code o Codex. Compare qui appena uno dei due lavora su questo Mac.",
+        empty: "Ancora nessun utilizzo di Claude Code, Codex, OpenCode o GitHub Copilot. Compare qui appena uno di loro lavora su questo Mac.",
         loading: "Lettura dell’utilizzo…",
         noCards: "Scegli cosa mostra questa pagina nelle impostazioni del Dynamic Island.",
         unpriced: "Alcuni modelli non hanno un prezzo noto, quindi questo è un minimo.",
@@ -864,6 +930,8 @@ extension NotchAgentStrings {
         limitsAs: "Mostra i limiti come",
         remaining: "Rimasto",
         used: "Usato",
+        limitFocus: "Limite mostrato",
+        mostUsed: "Il più usato",
         liveTitle: "Mentre un agente lavora",
         liveActivity: "Mostralo nel Dynamic Island chiuso",
         readout: "Accanto alla fotocamera",
@@ -883,8 +951,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Letti dall’app Claude, aggiornati %@",
         claudeLimitsStaleFormat: "L’app Claude li ha controllati l’ultima volta %@.",
         claudeLimitsMenuBar: "Claude controlla i limiti solo mentre la sua icona è nella barra dei menu. Attiva l’icona nelle impostazioni dell’app Claude, e i limiti compariranno qui in pochi minuti.",
-        claudeLimitsNoApp: "I limiti del piano arrivano dall’app Claude, che non è su questo Mac. Nel frattempo, la sessione di 5 ore è stimata dall’attività di Claude Code.",
-        claudeLimitsPrivacy: "Vorssaint legge le percentuali che l’app Claude salva su questo Mac. Non usa alcun accesso e non invia nulla.",
+        claudeLimitsNoApp: "I limiti del piano arrivano da Claude Code o dall’app Claude, che non è su questo Mac. Nel frattempo, la sessione di 5 ore è stimata dall’attività di Claude Code.",
+        claudeLimitsPrivacy: "Claude Code controlla i limiti del tuo account, incluso l’uso su altri computer, con il proprio accesso, che Vorssaint non legge mai. Non viene inviato alcun prompt. Se non può controllare, vengono usate le percentuali che l’app Claude salva su questo Mac.",
+        claudeCodeMissing: "Claude Code non è stato trovato su questo Mac.",
+        claudeCodeSignedOut: "Accedi a Claude Code perché possa controllare i limiti del tuo account.",
+        claudeCodeOutdated: "Aggiorna Claude Code perché possa controllare i limiti del tuo account.",
+        claudeCodeUnreachable: "Claude Code non è riuscito a controllare i limiti del tuo account. Riproverà più tardi.",
         openClaude: "Apri Claude",
         getClaude: "Scarica l’app Claude",
         priceUpdates: "Mantieni i prezzi aggiornati",
@@ -910,8 +982,8 @@ extension NotchAgentStrings {
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
-        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude и Codex.",
-        settingsDescription: "Читает сведения об использовании, которые Claude Code и Codex записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
+        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude, Codex, OpenCode и GitHub Copilot.",
+        settingsDescription: "Читает сведения об использовании, которые Claude Code, Codex, OpenCode и GitHub Copilot записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
         restingTitle: "Лимиты ИИ",
         limitsCard: "Лимиты",
         spendCard: "Расходы",
@@ -937,7 +1009,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ от цены %2$@",
         idle: "Простой",
         noActivity: "За этот период ничего нет",
-        empty: "Пока нет данных об использовании Claude Code или Codex. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
+        empty: "Пока нет данных об использовании Claude Code, Codex, OpenCode или GitHub Copilot. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
         loading: "Чтение данных…",
         noCards: "Выберите, что показывает эта страница, в настройках Dynamic Island.",
         unpriced: "Для некоторых моделей цена неизвестна, поэтому это минимальная сумма.",
@@ -957,6 +1029,8 @@ extension NotchAgentStrings {
         limitsAs: "Показывать лимиты",
         remaining: "Остаток",
         used: "Использовано",
+        limitFocus: "Показ лимита",
+        mostUsed: "Наиболее использованный",
         liveTitle: "Пока агент работает",
         liveActivity: "Показывать в закрытом Dynamic Island",
         readout: "Рядом с камерой",
@@ -976,8 +1050,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Из приложения Claude, обновлено %@",
         claudeLimitsStaleFormat: "Приложение Claude в последний раз проверяло их %@.",
         claudeLimitsMenuBar: "Claude проверяет лимиты, только пока его значок есть в строке меню. Включите значок в настройках приложения Claude, и лимиты появятся здесь через несколько минут.",
-        claudeLimitsNoApp: "Лимиты тарифа берутся из приложения Claude, которого нет на этом Mac. Пока его нет, 5-часовая сессия оценивается по активности Claude Code.",
-        claudeLimitsPrivacy: "Vorssaint читает проценты, которые приложение Claude сохраняет на этом Mac. Вход в аккаунт не используется, и ничего не отправляется.",
+        claudeLimitsNoApp: "Лимиты тарифа берутся из Claude Code или из приложения Claude, которого нет на этом Mac. Пока лимитов нет, 5-часовая сессия оценивается по активности Claude Code.",
+        claudeLimitsPrivacy: "Claude Code проверяет лимиты аккаунта, включая использование на других компьютерах, через собственный вход, который Vorssaint никогда не читает. Никакие запросы к модели не отправляются. Если проверить не удаётся, используются проценты, которые приложение Claude сохраняет на этом Mac.",
+        claudeCodeMissing: "Claude Code не найден на этом Mac.",
+        claudeCodeSignedOut: "Войдите в Claude Code, чтобы он мог проверять лимиты аккаунта.",
+        claudeCodeOutdated: "Обновите Claude Code, чтобы он мог проверять лимиты аккаунта.",
+        claudeCodeUnreachable: "Claude Code не смог проверить лимиты аккаунта. Он попробует снова позже.",
         openClaude: "Открыть Claude",
         getClaude: "Скачать приложение Claude",
         priceUpdates: "Обновлять цены",
@@ -1003,8 +1081,8 @@ extension NotchAgentStrings {
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
-        hubDescription: "Claude ve Codex için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
-        settingsDescription: "Claude Code ve Codex’in bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
+        hubDescription: "Claude, Codex, GitHub Copilot ve OpenCode için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
+        settingsDescription: "Claude Code, Codex, GitHub Copilot ve OpenCode’un bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
         restingTitle: "YZ sınırları",
         limitsCard: "Sınırlar",
         spendCard: "Harcama",
@@ -1030,7 +1108,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ fiyatının %1$@",
         idle: "Boşta",
         noActivity: "Bu dönemde bir şey yok",
-        empty: "Henüz Claude Code veya Codex kullanımı yok. İkisinden biri bu Mac’te çalışır çalışmaz burada görünür.",
+        empty: "Henüz Claude Code, Codex, GitHub Copilot veya OpenCode kullanımı yok. Herhangi biri bu Mac’te çalışır çalışmaz burada görünür.",
         loading: "Kullanım okunuyor…",
         noCards: "Bu sayfada nelerin görüneceğini Dynamic Island ayarlarından seçin.",
         unpriced: "Bazı modellerin fiyatı bilinmediğinden bu bir alt sınırdır.",
@@ -1050,6 +1128,8 @@ extension NotchAgentStrings {
         limitsAs: "Sınırları göster",
         remaining: "Kalan",
         used: "Kullanılan",
+        limitFocus: "Gösterilen sınır",
+        mostUsed: "En çok kullanılan",
         liveTitle: "Bir ajan çalışırken",
         liveActivity: "Kapalı Dynamic Island’da göster",
         readout: "Kameranın yanında",
@@ -1069,8 +1149,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Claude uygulamasından okundu, %@ güncellendi",
         claudeLimitsStaleFormat: "Claude uygulaması bunları en son %@ kontrol etti.",
         claudeLimitsMenuBar: "Claude, sınırları yalnızca simgesi menü çubuğundayken kontrol eder. Simgeyi Claude uygulamasının ayarlarından açtığınızda sınırlar birkaç dakika içinde burada görünür.",
-        claudeLimitsNoApp: "Plan sınırları, bu Mac’te olmayan Claude uygulamasından gelir. O zamana kadar 5 saatlik oturum, Claude Code etkinliğinden tahmin edilir.",
-        claudeLimitsPrivacy: "Vorssaint, Claude uygulamasının bu Mac’e kaydettiği yüzdeleri okur. Hiçbir oturum açma bilgisi kullanılmaz ve hiçbir şey gönderilmez.",
+        claudeLimitsNoApp: "Plan sınırları Claude Code’dan ya da bu Mac’te olmayan Claude uygulamasından gelir. O zamana kadar 5 saatlik oturum, Claude Code etkinliğinden tahmin edilir.",
+        claudeLimitsPrivacy: "Claude Code, diğer makinelerdeki kullanım dahil hesap sınırlarınızı Vorssaint’in hiçbir zaman okumadığı kendi oturumuyla kontrol eder. Hiçbir istem gönderilmez. Kontrol edemezse Claude uygulamasının bu Mac’e kaydettiği yüzdeler kullanılır.",
+        claudeCodeMissing: "Claude Code bu Mac’te bulunamadı.",
+        claudeCodeSignedOut: "Hesap sınırlarınızı kontrol edebilmesi için Claude Code’da oturum açın.",
+        claudeCodeOutdated: "Hesap sınırlarınızı kontrol edebilmesi için Claude Code’u güncelleyin.",
+        claudeCodeUnreachable: "Claude Code hesap sınırlarınızı kontrol edemedi. Daha sonra yeniden dener.",
         openClaude: "Claude’u Aç",
         getClaude: "Claude uygulamasını indir",
         priceUpdates: "Fiyatları güncel tut",
@@ -1096,8 +1180,8 @@ extension NotchAgentStrings {
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
-        hubDescription: "ClaudeとCodexのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
-        settingsDescription: "Claude CodeとCodexがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
+        hubDescription: "Claude、Codex、OpenCode、GitHub Copilotのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
+        settingsDescription: "Claude Code、Codex、OpenCode、GitHub CopilotがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
         restingTitle: "AIの上限",
         limitsCard: "上限",
         spendCard: "使用額",
@@ -1123,7 +1207,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@の料金の%1$@",
         idle: "待機中",
         noActivity: "この期間の記録はありません",
-        empty: "Claude CodeとCodexの使用状況はまだありません。どちらかがこのMacで動作するとここに表示されます。",
+        empty: "Claude Code、Codex、OpenCode、GitHub Copilotの使用状況はまだありません。いずれかがこのMacで動作するとここに表示されます。",
         loading: "使用状況を読み込み中…",
         noCards: "このページに表示する内容はDynamic Islandの設定で選べます。",
         unpriced: "一部のモデルは料金が不明なため、最低額を表示しています。",
@@ -1143,6 +1227,8 @@ extension NotchAgentStrings {
         limitsAs: "上限の表示",
         remaining: "残り",
         used: "使用済み",
+        limitFocus: "表示する上限",
+        mostUsed: "使用率が最大",
         liveTitle: "エージェントの作業中",
         liveActivity: "閉じたDynamic Islandに表示",
         readout: "カメラの横",
@@ -1162,8 +1248,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Claudeアプリから取得（最終更新：%@）",
         claudeLimitsStaleFormat: "Claudeアプリが最後に確認したのは%@です。",
         claudeLimitsMenuBar: "Claudeは、アイコンがメニューバーにあるあいだだけ上限を確認します。Claudeアプリの設定でアイコンをオンにすると、数分で上限がここに表示されます。",
-        claudeLimitsNoApp: "プラン上限はClaudeアプリから取得しますが、このMacにはありません。それまでは、5時間のセッションをClaude Codeのアクティビティから推定します。",
-        claudeLimitsPrivacy: "Vorssaintは、ClaudeアプリがこのMacに保存する割合を読み取ります。サインイン情報は使わず、何も送信しません。",
+        claudeLimitsNoApp: "プラン上限はClaude CodeかClaudeアプリから取得しますが、ClaudeアプリはこのMacにありません。それまでは、5時間のセッションをClaude Codeのアクティビティから推定します。",
+        claudeLimitsPrivacy: "Claude Codeが、ほかのマシンでの使用分も含めたアカウントの上限を、Vorssaintが読み取ることのない自身のサインインで確認します。プロンプトは送信しません。確認できない場合は、ClaudeアプリがこのMacに保存する割合を使います。",
+        claudeCodeMissing: "このMacにClaude Codeが見つかりません。",
+        claudeCodeSignedOut: "アカウントの上限を確認できるよう、Claude Codeにサインインしてください。",
+        claudeCodeOutdated: "アカウントの上限を確認できるよう、Claude Codeをアップデートしてください。",
+        claudeCodeUnreachable: "Claude Codeがアカウントの上限を確認できませんでした。あとでもう一度試します。",
         openClaude: "Claudeを開く",
         getClaude: "Claudeアプリを入手",
         priceUpdates: "価格を最新に保つ",
@@ -1189,8 +1279,8 @@ extension NotchAgentStrings {
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
-        hubDescription: "Claude와 Codex의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
-        settingsDescription: "Claude Code와 Codex가 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
+        hubDescription: "Claude, Codex, OpenCode, GitHub Copilot의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
+        settingsDescription: "Claude Code, Codex, OpenCode, GitHub Copilot이 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
         restingTitle: "AI 한도",
         limitsCard: "한도",
         spendCard: "사용 금액",
@@ -1216,7 +1306,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 요금의 %1$@",
         idle: "대기 중",
         noActivity: "이 기간에는 기록이 없습니다",
-        empty: "아직 Claude Code나 Codex 사용량이 없습니다. 둘 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
+        empty: "아직 Claude Code, Codex, OpenCode, GitHub Copilot 사용량이 없습니다. 이 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
         loading: "사용량을 읽는 중…",
         noCards: "Dynamic Island 설정에서 이 페이지에 표시할 항목을 선택하세요.",
         unpriced: "일부 모델은 가격을 알 수 없어 최소 금액으로 표시합니다.",
@@ -1236,6 +1326,8 @@ extension NotchAgentStrings {
         limitsAs: "한도 표시 방식",
         remaining: "남은 양",
         used: "사용량",
+        limitFocus: "표시할 한도",
+        mostUsed: "가장 많이 사용",
         liveTitle: "에이전트가 작업하는 동안",
         liveActivity: "닫힌 Dynamic Island에 표시",
         readout: "카메라 옆",
@@ -1255,8 +1347,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "Claude 앱에서 읽음, %@ 업데이트됨",
         claudeLimitsStaleFormat: "Claude 앱이 %@ 마지막으로 확인했습니다.",
         claudeLimitsMenuBar: "Claude는 아이콘이 메뉴 막대에 있을 때만 한도를 확인합니다. Claude 앱 설정에서 아이콘을 켜면 몇 분 안에 한도가 여기에 표시됩니다.",
-        claudeLimitsNoApp: "플랜 한도는 Claude 앱에서 가져오지만 이 Mac에는 앱이 없습니다. 그동안에는 5시간 세션을 Claude Code 활동으로 추정합니다.",
-        claudeLimitsPrivacy: "Vorssaint는 Claude 앱이 이 Mac에 저장하는 비율을 읽습니다. 로그인 정보는 사용하지 않으며 아무것도 전송하지 않습니다.",
+        claudeLimitsNoApp: "플랜 한도는 Claude Code나 Claude 앱에서 가져오지만 이 Mac에는 Claude 앱이 없습니다. 그동안에는 5시간 세션을 Claude Code 활동으로 추정합니다.",
+        claudeLimitsPrivacy: "Claude Code가 Vorssaint가 읽지 않는 자체 로그인으로 다른 기기의 사용량을 포함한 계정 한도를 확인합니다. 프롬프트는 전송하지 않습니다. 확인할 수 없으면 Claude 앱이 이 Mac에 저장하는 비율을 사용합니다.",
+        claudeCodeMissing: "이 Mac에서 Claude Code를 찾을 수 없습니다.",
+        claudeCodeSignedOut: "계정 한도를 확인할 수 있도록 Claude Code에 로그인하세요.",
+        claudeCodeOutdated: "계정 한도를 확인할 수 있도록 Claude Code를 업데이트하세요.",
+        claudeCodeUnreachable: "Claude Code가 계정 한도를 확인하지 못했습니다. 나중에 다시 시도합니다.",
         openClaude: "Claude 열기",
         getClaude: "Claude 앱 받기",
         priceUpdates: "가격을 최신으로 유지",
@@ -1282,8 +1378,8 @@ extension NotchAgentStrings {
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
-        hubDescription: "在 Dynamic Island 中查看 Claude 和 Codex 的套餐额度、令牌、API 价值与正在进行的工作。",
-        settingsDescription: "读取 Claude Code 和 Codex 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 和 GitHub Copilot 的套餐额度、令牌、API 价值与正在进行的工作。",
+        settingsDescription: "读取 Claude Code、Codex、OpenCode 和 GitHub Copilot 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
         restingTitle: "AI 额度",
         limitsCard: "额度",
         spendCard: "花费",
@@ -1309,7 +1405,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 价格的 %1$@",
         idle: "空闲",
         noActivity: "此期间没有记录",
-        empty: "还没有 Claude Code 或 Codex 的用量。只要其中任何一个在这台 Mac 上工作，就会显示在这里。",
+        empty: "还没有 Claude Code、Codex、OpenCode 或 GitHub Copilot 的用量。只要其中任何一个在这台 Mac 上工作，就会显示在这里。",
         loading: "正在读取用量…",
         noCards: "在 Dynamic Island 设置中选择此页面显示的内容。",
         unpriced: "部分模型价格未知，因此这是最低金额。",
@@ -1329,6 +1425,8 @@ extension NotchAgentStrings {
         limitsAs: "额度显示为",
         remaining: "剩余",
         used: "已用",
+        limitFocus: "显示的额度",
+        mostUsed: "用量最高",
         liveTitle: "智能体工作时",
         liveActivity: "在收起的 Dynamic Island 中显示",
         readout: "摄像头旁",
@@ -1348,8 +1446,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "读取自 Claude App，上次更新：%@",
         claudeLimitsStaleFormat: "Claude App 上次检查是%@。",
         claudeLimitsMenuBar: "只有当 Claude 的图标在菜单栏中时，它才会检查额度。在 Claude App 的设置中打开图标，几分钟内额度就会显示在这里。",
-        claudeLimitsNoApp: "套餐额度来自 Claude App，但这台 Mac 上没有安装。在此之前，5 小时会话根据 Claude Code 的活动估算。",
-        claudeLimitsPrivacy: "Vorssaint 读取 Claude App 在这台 Mac 上保存的百分比。不使用任何登录信息，也不发送任何内容。",
+        claudeLimitsNoApp: "套餐额度来自 Claude Code 或 Claude App，但这台 Mac 上没有安装 Claude App。在此之前，5 小时会话根据 Claude Code 的活动估算。",
+        claudeLimitsPrivacy: "Claude Code 使用自己的登录信息检查账户额度，包括其他设备上的使用量，Vorssaint 从不读取这些登录信息。不发送任何提示词。无法检查时，使用 Claude App 在这台 Mac 上保存的百分比。",
+        claudeCodeMissing: "在这台 Mac 上找不到 Claude Code。",
+        claudeCodeSignedOut: "请登录 Claude Code，以便它检查账户额度。",
+        claudeCodeOutdated: "请更新 Claude Code，以便它检查账户额度。",
+        claudeCodeUnreachable: "Claude Code 无法检查账户额度，稍后会再试。",
         openClaude: "打开 Claude",
         getClaude: "获取 Claude App",
         priceUpdates: "保持价格最新",
@@ -1375,8 +1477,8 @@ extension NotchAgentStrings {
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude 與 Codex 的方案額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code 與 Codex 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 與 GitHub Copilot 的方案額度、Token、API 價值與進行中的工作。",
+        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1402,7 +1504,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 價格的 %1$@",
         idle: "閒置",
         noActivity: "此期間沒有紀錄",
-        empty: "目前還沒有 Claude Code 或 Codex 的用量。只要其中一個在這台 Mac 上運作，就會顯示在這裡。",
+        empty: "目前還沒有 Claude Code、Codex、OpenCode 或 GitHub Copilot 的用量。只要其中一個在這台 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
         noCards: "在 Dynamic Island 設定中選擇此頁面顯示的內容。",
         unpriced: "部分模型價格不明，因此這是最低金額。",
@@ -1422,6 +1524,8 @@ extension NotchAgentStrings {
         limitsAs: "額度顯示為",
         remaining: "剩餘",
         used: "已用",
+        limitFocus: "顯示的額度",
+        mostUsed: "用量最高",
         liveTitle: "代理運作時",
         liveActivity: "在收合的 Dynamic Island 中顯示",
         readout: "相機旁",
@@ -1441,8 +1545,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "讀取自 Claude App，上次更新：%@",
         claudeLimitsStaleFormat: "Claude App 上次檢查是%@。",
         claudeLimitsMenuBar: "只有當 Claude 的圖像在選單列中時，它才會檢查額度。在 Claude App 的設定中開啟圖像，幾分鐘內額度就會顯示在這裡。",
-        claudeLimitsNoApp: "方案額度來自 Claude App，但這台 Mac 上沒有安裝。在此之前，5 小時工作階段會依 Claude Code 的活動估算。",
-        claudeLimitsPrivacy: "Vorssaint 讀取 Claude App 在這台 Mac 上儲存的百分比。不會使用任何登入資訊，也不會傳送任何內容。",
+        claudeLimitsNoApp: "方案額度來自 Claude Code 或 Claude App，但這台 Mac 上沒有安裝 Claude App。在此之前，5 小時工作階段會依 Claude Code 的活動估算。",
+        claudeLimitsPrivacy: "Claude Code 使用自己的登入資訊檢查帳戶額度，包含其他裝置上的使用量，Vorssaint 從不讀取這些登入資訊。不會傳送任何提示詞。無法檢查時，會使用 Claude App 在這台 Mac 上儲存的百分比。",
+        claudeCodeMissing: "在這台 Mac 上找不到 Claude Code。",
+        claudeCodeSignedOut: "請登入 Claude Code，讓它檢查帳戶額度。",
+        claudeCodeOutdated: "請更新 Claude Code，讓它檢查帳戶額度。",
+        claudeCodeUnreachable: "Claude Code 無法檢查帳戶額度，稍後會再試一次。",
         openClaude: "打開 Claude",
         getClaude: "取得 Claude App",
         priceUpdates: "保持價格最新",
@@ -1468,8 +1576,8 @@ extension NotchAgentStrings {
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude 與 Codex 的計劃額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code 與 Codex 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 與 GitHub Copilot 的計劃額度、Token、API 價值與進行中的工作。",
+        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1495,7 +1603,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 價格的 %1$@",
         idle: "閒置",
         noActivity: "此期間沒有記錄",
-        empty: "目前還沒有 Claude Code 或 Codex 的用量。只要其中一個在這部 Mac 上運作，就會顯示在這裡。",
+        empty: "目前還沒有 Claude Code、Codex、OpenCode 或 GitHub Copilot 的用量。只要其中一個在這部 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
         noCards: "在 Dynamic Island 設定中選擇此頁面顯示的內容。",
         unpriced: "部分模型價格不明，因此這是最低金額。",
@@ -1515,6 +1623,8 @@ extension NotchAgentStrings {
         limitsAs: "額度顯示為",
         remaining: "剩餘",
         used: "已用",
+        limitFocus: "顯示的額度",
+        mostUsed: "用量最高",
         liveTitle: "代理運作時",
         liveActivity: "在收合的 Dynamic Island 中顯示",
         readout: "相機旁",
@@ -1534,8 +1644,12 @@ extension NotchAgentStrings {
         claudeLimitsCurrentFormat: "讀取自 Claude App，上次更新：%@",
         claudeLimitsStaleFormat: "Claude App 上次檢查是%@。",
         claudeLimitsMenuBar: "只有當 Claude 的圖示在選單列中時，它才會檢查額度。在 Claude App 的設定中開啟圖示，幾分鐘內額度就會顯示在這裡。",
-        claudeLimitsNoApp: "計劃額度來自 Claude App，但這部 Mac 上沒有安裝。在此之前，5 小時工作階段會按 Claude Code 的活動估算。",
-        claudeLimitsPrivacy: "Vorssaint 讀取 Claude App 在這部 Mac 上儲存的百分比。不會使用任何登入資料，也不會傳送任何內容。",
+        claudeLimitsNoApp: "計劃額度來自 Claude Code 或 Claude App，但這部 Mac 上沒有安裝 Claude App。在此之前，5 小時工作階段會按 Claude Code 的活動估算。",
+        claudeLimitsPrivacy: "Claude Code 使用自己的登入資料檢查帳戶額度，包括其他裝置上的用量，Vorssaint 從不讀取這些登入資料。不會傳送任何提示詞。無法檢查時，會使用 Claude App 在這部 Mac 上儲存的百分比。",
+        claudeCodeMissing: "在這部 Mac 上找不到 Claude Code。",
+        claudeCodeSignedOut: "請登入 Claude Code，讓它檢查帳戶額度。",
+        claudeCodeOutdated: "請更新 Claude Code，讓它檢查帳戶額度。",
+        claudeCodeUnreachable: "Claude Code 無法檢查帳戶額度，稍後會再試一次。",
         openClaude: "打開 Claude",
         getClaude: "取得 Claude App",
         priceUpdates: "保持價格最新",

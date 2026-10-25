@@ -60,10 +60,12 @@ enum AgentUsageArchiveTests {
         suite.expect(decoded == contents, "saved progress reads back as it was written")
         var sourced = contents
         sourced.store.limits = [AgentLimits.Source.sessionLog, .claudeApp, .account].map {
-            AgentLimits(provider: .codex, windows: [], observedAt: now, source: $0)
+            AgentLimits(provider: .codex, windows: [AgentLimitWindow(id: "test", kind: .session, minutes: 300,
+                scope: nil, usedPercent: 90, resetsAt: now.addingTimeInterval(18_000),
+                estimatedResetsAt: now.addingTimeInterval(9_000))], observedAt: now, source: $0)
         }
         suite.expect(AgentUsageArchive.decode(AgentUsageArchive.encode(sourced, build: build), build: build) == sourced,
-                     "limits keep where they came from: a log, the Claude app or the account")
+                     "limits keep their source and preserve the estimate separately from the expiry deadline")
         suite.expect(!first.saved.records.isEmpty && !first.saved.limits.isEmpty && first.saved.codexPlan != nil
                         && !first.saved.turns.isEmpty && cursor.state.fast && !cursor.state.model.isEmpty,
                      "the fixture saves records, limits, a plan, an open turn and parser context")
@@ -233,6 +235,8 @@ enum AgentUsageArchiveTests {
                         && relaunch.cursors.isEmpty && relaunch.store.saved == rewrittenNow.store.saved,
                      "a log written again in place while the app runs is read again at once, and the next launch counts only what it holds")
 
+        openCode(suite, now: now)
+
         // Developer builds keep the version of their release, and each one
         // may parse differently.
         let release: [String: Any] = ["CFBundleShortVersionString": "3.5", "CFBundleVersion": "120"]
@@ -270,7 +274,8 @@ enum AgentUsageArchiveTests {
         // The layout lists every stored property by hand. One added later
         // must find its place there, or the archive would drop it without a
         // word while the restored cursors skip the lines that set it. A
-        // property that is not kept between launches is listed here too.
+        // property that is not kept between launches is listed here too, as
+        // is everything only OpenCode sets, since nothing of it is saved.
         func labels(_ value: Any) -> [String] { Mirror(reflecting: value).children.compactMap(\.label) }
         let sample = first.saved
         guard let sampleRecord = sample.records.first, let sampleLimits = sample.limits.first,
@@ -282,31 +287,104 @@ enum AgentUsageArchiveTests {
             ("AgentUsageArchive.Contents", labels(contents), ["providers", "store", "cursors"]),
             ("AgentUsageStore", labels(first),
              ["records", "billables", "sources", "index", "summary", "limits", "codexPlan", "codexPlanObserved",
-              "turns", "waiting", "registered", "reportsTransitions"]),
+              "turns", "waiting", "registered", "settled", "replies", "reportsTransitions"]),
             ("AgentUsageStore.Saved", labels(sample),
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),
             ("AgentUsageStore.Saved.Record", labels(sampleRecord), ["key", "record", "billable", "sources"]),
             ("AgentUsageRecord", labels(sampleRecord.record),
-             ["provider", "date", "model", "project", "session", "tokens", "cost", "savings"]),
+             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost"]),
             ("AgentBillable", labels(sampleRecord.billable),
-             ["tokens", "longCacheWrite", "fast", "domestic", "webSearches"]),
+             ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),
             ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
-            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt"]),
+            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt"]),
             ("AgentLiveSession", labels(sampleTurn),
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
             ("AgentLogCursor", labels(cursor),
-             ["path", "provider", "tracksTurns", "parent", "offset", "identity", "pending", "discarding", "state",
-              "modified", "restarted", "fingerprinted"]),
+             ["path", "provider", "parent", "openCode", "offset", "identity", "pending", "discarding",
+              "state", "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
             ("AgentLogState", labels(cursor.state),
-             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast"])
+             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
+              "codexSubagent", "codexHeaderRead", "codexRoot", "codexTotalsSession",
+              "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
+              "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "runningCommands"])
         ]
         for layout in layouts {
             suite.expect(layout.stored == layout.written,
                          "every stored property of \(layout.name) has its place in the archive's layout or is listed as not kept")
         }
+    }
+
+    /// OpenCode's database is read again at each launch. Nothing from it is
+    /// saved, and a launch that resumes the other logs counts it once, as a
+    /// fresh read would.
+    private static func openCode(_ suite: TestSuite, now: Date) {
+        guard let (folder, database) = NotchAgentTests.openCodeDatabase("""
+        INSERT INTO session VALUES ('s_k', '/Users/me/code/web', NULL, 1790088000000, 1790088000000);
+        INSERT INTO message VALUES ('u1', 's_k', 1790088000000, 1790088000000, '{"role":"user","time":{"created":1790088000000}}');
+        INSERT INTO message VALUES ('a1', 's_k', 1790088001000, 1790088009000, '{"role":"assistant","parentID":"u1","modelID":"stealth/ox-alpha","cost":0.004,"tokens":{"input":100,"output":20,"reasoning":5,"cache":{"read":40,"write":10}},"finish":"stop","time":{"created":1790088001000,"completed":1790088009000}}');
+        INSERT INTO message VALUES ('u2', 's_k', 1790088100000, 1790088100000, '{"role":"user","time":{"created":1790088100000}}');
+        INSERT INTO message VALUES ('a2', 's_k', 1790088101000, 1790088105000, '{"role":"assistant","parentID":"u2","modelID":"stealth/ox-alpha","cost":0.001,"tokens":{"input":50,"output":5},"time":{"created":1790088101000}}');
+        """) else {
+            suite.expect(false, "the archive's OpenCode database opens")
+            return
+        }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let log = folder.appending(path: "rollout.jsonl")
+        try? Data(((firstHalf + secondHalf).joined(separator: "\n") + "\n").utf8).write(to: log)
+
+        // Each launch reads the log and the database as the service does,
+        // with OpenCode's turns kept by database and session.
+        func launch(_ store: AgentUsageStore, resuming saved: [String: AgentLogCursor] = [:]) -> [AgentLogCursor] {
+            [(log.path, AgentProvider.codex), (database, .opencode)].map { path, provider in
+                let cursor = saved[path] ?? AgentLogCursor(path: path, provider: provider)
+                AgentLogReader.readAppended(cursor) { line in
+                    if provider == .opencode {
+                        let entries = AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
+                        store.apply(entries, file: "\(path)#\(cursor.state.session)", provider: provider,
+                                    tracksTurns: true, modified: cursor.modified, now: now)
+                    } else {
+                        let entries = AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
+                        store.apply(entries, file: path, provider: provider, tracksTurns: cursor.tracksTurns,
+                                    parent: cursor.parent, modified: cursor.modified, now: now)
+                    }
+                }
+                return cursor
+            }
+        }
+        func saving(_ store: AgentUsageStore, _ cursors: [AgentLogCursor]) -> AgentUsageArchive.Contents {
+            AgentUsageArchive.Contents(providers: [.codex, .opencode], store: store.saved,
+                                       cursors: cursors.filter { $0.provider != .opencode }.map(\.saved))
+        }
+
+        let first = AgentUsageStore()
+        let contents = saving(first, launch(first))
+        suite.expect(first.records.filter { $0.provider == .opencode }.count == 2
+                        && first.turns["\(database)#s_k"] != nil
+                        && !contents.store.records.contains { $0.record.provider == .opencode }
+                        && !(contents.store.turns + contents.store.waiting).contains { $0.provider == .opencode },
+                     "nothing OpenCode gave is saved, not even the turn of a reply still being written")
+
+        // The reply completes while the app is closed.
+        NotchAgentTests.openCodeExec(database, """
+        UPDATE message SET time_updated = 1790088110000, data = '{"role":"assistant","parentID":"u2","modelID":"stealth/ox-alpha","cost":0.003,"tokens":{"input":60,"output":8},"finish":"stop","time":{"created":1790088101000,"completed":1790088110000}}' WHERE id = 'a2';
+        """)
+        let decoded = AgentUsageArchive.decode(AgentUsageArchive.encode(contents, build: build), build: build)
+        let resumed = decoded.map { AgentUsageArchive.resume($0, logs: [log.path, database], since: .distantPast) }
+        suite.expect(resumed?.unchanged == true && resumed?.cursors.keys.sorted() == [log.path],
+                     "a launch with OpenCode on resumes the other logs and keeps what was saved as it was")
+        let store = resumed?.store ?? AgentUsageStore()
+        let again = launch(store, resuming: resumed?.cursors ?? [:])
+        let fresh = AgentUsageStore()
+        _ = launch(fresh)
+        let replies = store.records.filter { $0.provider == .opencode }
+        suite.expect(store.records == fresh.records && store.turns == fresh.turns && replies.count == 2
+                        && abs(replies.compactMap(\.cost).reduce(0, +) - 0.007) < 0.000001
+                        && replies.allSatisfy(\.reportedCost),
+                     "the database read again counts each reply once, at the cost OpenCode recorded, as a fresh read does")
+        suite.expect(saving(store, again) == contents, "with only OpenCode read again, the next save holds what the last one did")
     }
 }
 
@@ -396,11 +474,22 @@ enum AgentUsageArchiveSaveTests {
         AgentLogReader.readAppended(replaced) { _ in }
         try? Data("{}\n{}\n".utf8).write(to: replacedLog, options: .atomic)
         AgentLogReader.readAppended(replaced) { _ in }
-        host.cursors = [keptLog.path: kept, replacedLog.path: replaced]
+        // OpenCode's database is read again at each launch, so neither where
+        // its reading stopped nor what it gave is saved.
+        let database = AgentLogCursor(path: folder.appending(path: "opencode.db").path, provider: .opencode)
+        database.offset = 9
+        let reply = AgentUsageRecord(provider: .opencode, date: Date(), model: "stealth/ox-alpha", project: "web",
+                                     session: "s", tokens: AgentTokens(input: 10), cost: 0.01, savings: 0,
+                                     reportedCost: true)
+        host.store.apply([.usage(key: "opencode:s:a", record: reply, billable: AgentBillable(tokens: reply.tokens))],
+                         file: "\(database.path)#s", provider: .opencode, tracksTurns: true, modified: Date())
+        host.cursors = [keptLog.path: kept, replacedLog.path: replaced, database.path: database]
         host.progressMark = 2
         host.saveProgress()
         suite.expect(replaced.restarted && !kept.restarted
                         && AgentUsageArchive.saved.last?.cursors.map(\.path) == [keptLog.path],
-                     "a log replaced or written again while the app ran is left out of saved progress")
+                     "a log replaced or written again while the app ran is left out of saved progress, as is OpenCode's database")
+        suite.expect(host.store.records.count == 1 && AgentUsageArchive.saved.last?.store.records.isEmpty == true,
+                     "what OpenCode's database gave stays out of saved progress")
     }
 }

@@ -9,12 +9,15 @@ struct ClipboardSettings: View {
     @ObservedObject private var history = ClipboardHistoryService.shared
     @ObservedObject private var pastePlain = PastePlainService.shared
     @ObservedObject private var permissions = Permissions.shared
+    @State private var clearingIDs: [UUID: Date]?
     @AppStorage(DefaultsKey.pastePlainEnabled) private var pastePlainEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var enabled = false
     @AppStorage(DefaultsKey.clipboardHistoryLimit) private var limit = 50
-    @AppStorage(DefaultsKey.clipboardHistorySkipSensitive) private var skipSensitive = true
+    @AppStorage(DefaultsKey.clipboardHistoryRetentionDays) private var retentionDays = 0
+    @AppStorage(DefaultsKey.clipboardHistoryFilterSensitiveText) private var skipSensitive = false
     @AppStorage(DefaultsKey.clipboardHistoryIncludeImagesFiles) private var includeImagesFiles = true
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
+    @AppStorage(DefaultsKey.clipboardHistoryLayout) private var historyLayout = ClipboardHistoryLayout.list
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreview) private var menuBarPreview = false
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreviewLength)
     private var menuBarPreviewLength = Defaults.defaultClipboardMenuBarPreviewLength
@@ -29,6 +32,10 @@ struct ClipboardSettings: View {
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
+    }
+
+    private var retentionText: ClipboardRetentionStrings {
+        FeatureStrings.clipboardRetention(l10n.language)
     }
 
     var body: some View {
@@ -75,6 +82,15 @@ struct ClipboardSettings: View {
                         }
                     }
                     .disabled(!enabled)
+                    Picker(retentionText.title, selection: $retentionDays) {
+                        ForEach(Defaults.allowedClipboardHistoryRetentionDays, id: \.self) { value in
+                            Text(retentionText.label(days: value)).tag(value)
+                        }
+                    }
+                    .disabled(!enabled)
+                    Text(retentionText.caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 // Its own section because it is the one setting here that keeps
@@ -137,12 +153,18 @@ struct ClipboardSettings: View {
         .formStyle(.grouped)
         .onAppear {
             limit = Defaults.sanitizedClipboardHistoryLimit(limit)
+            retentionDays = Defaults.sanitizedClipboardHistoryRetentionDays(retentionDays)
             autoClearDelay = Defaults.sanitizedClipboardAutoClearDelay(autoClearDelay)
             menuBarPreviewLength = Defaults.sanitizedClipboardMenuBarPreviewLength(menuBarPreviewLength)
         }
         .onChange(of: limit) { _, value in
             let sanitized = Defaults.sanitizedClipboardHistoryLimit(value)
             if sanitized != value { limit = sanitized }
+            ClipboardHistoryService.shared.trimToLimit()
+        }
+        .onChange(of: retentionDays) { _, value in
+            let sanitized = Defaults.sanitizedClipboardHistoryRetentionDays(value)
+            if sanitized != value { retentionDays = sanitized }
             ClipboardHistoryService.shared.trimToLimit()
         }
         // No syncWithPreferences() here, unlike the auto-clear toggles: the
@@ -180,6 +202,13 @@ struct ClipboardSettings: View {
             Text(text.shortcutCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            // Not disabled with capture off: the window still opens on the
+            // saved items, like the button below.
+            Picker(text.historyLayout, selection: $historyLayout) {
+                Text(text.historyLayoutList).tag(ClipboardHistoryLayout.list)
+                Text(text.historyLayoutCards).tag(ClipboardHistoryLayout.cards)
+            }
+            .pickerStyle(.segmented)
             Button {
                 ClipboardHistoryService.shared.showHistoryWindow()
             } label: {
@@ -279,13 +308,10 @@ struct ClipboardSettings: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button(text.clearRecent) {
-                        history.clearRecent()
+                        clearingIDs = history.recentEntriesSnapshot
                     }
                     .disabled(history.recentEntries.isEmpty)
-                    Button(text.clearAll) {
-                        history.clearAll()
-                    }
-                    .disabled(history.recentEntries.isEmpty)
+                    .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
                 }
             }
     }

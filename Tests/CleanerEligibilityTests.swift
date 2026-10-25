@@ -87,6 +87,44 @@ enum CleanerEligibilityTests {
                      && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-03-01 at 09.00.00.png",
                                                                    created: taken, timeZone: utc),
                      "a renamed capture is no longer a default screenshot")
+        // A rename that keeps the name macOS gave it and adds to it is still a
+        // rename. Duplicating a capture in Finder is the everyday case, and the
+        // day period on a twelve hour Mac has to survive the same check.
+        suite.expect(CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 2.13.20\u{202F}PM.png",
+                                                               created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 14.13.20 copy.png",
+                                                                   created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 2.13.20\u{202F}PM copy.png",
+                                                                   created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 14.13.20 ui.png",
+                                                                   created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 14.13.20 ok.png",
+                                                                   created: taken, timeZone: utc)
+                     // A mark is a rename too, and must not reduce to the empty
+                     // tail that an untouched twenty four hour name carries.
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 14.13.20 !.png",
+                                                                   created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 14.13.20 \u{1F525}.png",
+                                                                   created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 2.13.20\u{202F}PM!.png",
+                                                                   created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 2.13.20\u{202F}PM \u{2B50}.png",
+                                                                   created: taken, timeZone: utc)
+                     // A single letter is a day period in some locale, so only
+                     // a twelve hour clock may carry one: 14.13.20 cannot.
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 14.13.20 M.png",
+                                                                   created: taken, timeZone: utc)
+                     // An invisible character is not the absence of a suffix.
+                     && !CleanerSupport.screenshotKeepsDefaultName("Screenshot 2026-09-21 at 14.13.20 \u{200B}.png",
+                                                                   created: taken, timeZone: utc)
+                     // The day periods themselves keep working, spacing and all.
+                     && CleanerSupport.screenshotKeepsDefaultName("Captura de pantalla 2026-09-21 a las 2.13.20 p. m..png",
+                                                                  created: taken, timeZone: utc)
+                     && CleanerSupport.screenshotKeepsDefaultName("\u{622A}\u{5C4F}2026-09-21 2.13.20\u{4E0B}\u{5348}.png",
+                                                                  created: taken, timeZone: utc)
+                     && !CleanerSupport.screenshotKeepsDefaultName("button spacing 2026-09-21.png",
+                                                                   created: taken, timeZone: utc),
+                     "a capture renamed by adding to its name is no longer a default screenshot")
         let now = taken.addingTimeInterval(31 * 86_400)
         suite.expect(CleanerSupport.isForgottenScreenshot(created: taken, modified: taken, lastUsed: nil,
                                                           now: now, days: 30)
@@ -187,7 +225,7 @@ enum CleanerEligibilityTests {
                              "a previously listed localized directory \(name) cannot be removed")
             }
 
-            for id in ["com.vendor.editor", "com.vendor.localized.editor", "com.vendor.localized"] {
+            for id in ["com.vendor.editor", "com.vendor.localized.editor", "com.vendor.localized", "io.app"] {
                 let preference = root.appendingPathComponent(id + ".plist")
                 try Data().write(to: preference)
                 suite.expect(owner(preference) == id,

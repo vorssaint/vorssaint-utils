@@ -60,6 +60,9 @@ struct SettingsView: View {
     @State private var directoryCache = SettingsDirectoryCache()
     @State private var collapsedSectionIDs: Set<Int> = []
     @State private var navigationFromSidebar = false
+    /// The row just picked in the sidebar, until the router has taken it.
+    @State private var sidebarPick: SettingsSidebarItem.ID?
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
     @FocusState private var sidebarSearchFocused: Bool
 
     private struct SearchResultsSnapshot: Equatable {
@@ -99,22 +102,32 @@ struct SettingsView: View {
     private var sidebarSelection: Binding<SettingsSidebarItem.ID?> {
         Binding(
             get: {
-                SettingsSidebarSupport.selection(for: router.destination, in: sidebarItems,
-                                                 preferredID: router.sidebarFeature.map { .feature($0) })
+                sidebarPick ?? SettingsSidebarSupport.selection(
+                    for: router.destination, in: sidebarItems,
+                    preferredID: router.sidebarFeature.map { .feature($0) })
             },
+            // The list sets its selection during a view update, where the
+            // router must not publish, so the pick is routed once it ends.
             set: { selectedID in
                 guard let selectedID,
-                      let item = sidebarItems.first(where: { $0.id == selectedID }) else { return }
-                let feature: AppFeature?
-                if case .feature(let selectedFeature) = selectedID {
-                    feature = selectedFeature
-                } else {
-                    feature = nil
-                }
-                navigationFromSidebar = true
-                router.request(item.destination, sidebarFeature: feature)
+                      sidebarItems.contains(where: { $0.id == selectedID }) else { return }
+                sidebarPick = selectedID
             }
         )
+    }
+
+    private func routeSidebarPick(_ selectedID: SettingsSidebarItem.ID?) {
+        guard let selectedID else { return }
+        sidebarPick = nil
+        guard let item = sidebarItems.first(where: { $0.id == selectedID }) else { return }
+        let feature: AppFeature?
+        if case .feature(let selectedFeature) = selectedID {
+            feature = selectedFeature
+        } else {
+            feature = nil
+        }
+        navigationFromSidebar = true
+        router.request(item.destination, sidebarFeature: feature)
     }
 
     var body: some View {
@@ -131,7 +144,7 @@ struct SettingsView: View {
                     isAvailable: { features.isAvailable($0) }))
         }()
 
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar(searchResults: searchResults)
                 .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
@@ -152,6 +165,19 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
+            // SwiftUI adds its sidebar button only to windows it creates, and
+            // this one is AppKit's. Without it, a sidebar dragged shut could
+            // only be dragged back from a one-point strip at the window's
+            // edge, and a full-screen window could only peek at it.
+            ToolbarItem(placement: .navigation) {
+                let strings = SettingsNavigationStrings.localized(l10n.language)
+                let title = sidebarShown ? strings.hideSidebar : strings.showSidebar
+                Button(action: toggleSidebar) {
+                    Label(title, systemImage: "sidebar.left")
+                }
+                .keyboardShortcut("s", modifiers: [.control, .command])
+                .help(title)
+            }
             ToolbarItemGroup(placement: .navigation) {
                 let strings = SettingsNavigationStrings.localized(l10n.language)
                 Button {
@@ -226,6 +252,18 @@ struct SettingsView: View {
         !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// A sidebar dragged shut reports `.detailOnly` here as well.
+    private var sidebarShown: Bool { columnVisibility != .detailOnly }
+
+    private func toggleSidebar() {
+        let next: NavigationSplitViewVisibility = sidebarShown ? .detailOnly : .all
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            columnVisibility = next
+        } else {
+            withAnimation { columnVisibility = next }
+        }
+    }
+
     @ViewBuilder
     private func sidebarList(searchResults: SearchResultsSnapshot) -> some View {
         ScrollViewReader { proxy in
@@ -237,6 +275,7 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.sidebar)
+            .onChange(of: sidebarPick) { _, selectedID in routeSidebarPick(selectedID) }
             .onChange(of: activeSearchIndex) { _, index in
                 guard let index, searchResults.items.indices.contains(index) else { return }
                 let id = searchResults.items[index].id
@@ -537,6 +576,7 @@ struct SettingsView: View {
         case .features: FeatureHubSettings()
         case .textSnippets: TextSnippetsSettings()
         case .notch: NotchSettings()
+        case .notchMascot: NotchMascotSettings()
         case .radialMenu: RadialMenuSettings()
         case .commandBar: CommandBarSettings()
         case .energy: EnergySettings(focus: router.destination.sectionAnchor)
@@ -578,6 +618,8 @@ struct UpdatesView: View {
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = true
     @AppStorage(DefaultsKey.includeBetaUpdates) private var includeBetas = AppInfo.isBeta
+    @AppStorage(DefaultsKey.showReleaseNotesBeforeUpdate) private var showReleaseNotesFirst = true
+    @AppStorage(DefaultsKey.releaseNotesOnUpdate) private var showWhatsNewAfter = true
 
     var body: some View {
         Section(l10n.s.updatesSection) {
@@ -593,6 +635,16 @@ struct UpdatesView: View {
                     }
                 SettingsCaptionText(l10n.s.includeBetaUpdatesCaption)
             }
+
+            VStack(alignment: .leading, spacing: 4) {
+                let whatsNew = FeatureStrings.whatsNew(l10n.language)
+                Toggle(whatsNew.showPreviewToggle, isOn: $showReleaseNotesFirst)
+                if showWhatsNewAfter {
+                    SettingsCaptionText(whatsNew.showPreviewCaption)
+                }
+            }
+
+            Toggle(l10n.s.releaseNotesOnUpdateToggle, isOn: $showWhatsNewAfter)
 
             statusRow
 
@@ -867,11 +919,19 @@ struct ReleaseNotesSettings: View {
     }
 }
 
-// MARK: - Support and community
+// MARK: - Support
 
 struct SupportSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var donateThanksText: String {
+        let thanks = l10n.s.donateThanks
+        return colorScheme == .dark
+            ? thanks.replacingOccurrences(of: "🖤", with: "🤍")
+            : thanks
+    }
 
     var body: some View {
         ScrollView {
@@ -938,39 +998,7 @@ struct SupportSettings: View {
                         .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45))
                 )
 
-                HStack(alignment: .top, spacing: 14) {
-                    DiscordMark(width: 24)
-                        .frame(width: 38, height: 38)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color(red: 0.35, green: 0.40, blue: 0.94))
-                        )
-
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(l10n.s.discordIntroTitle)
-                            .font(.headline)
-                        Text(l10n.s.discordIntroMessage)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        communityActions
-                            .padding(.top, 3)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(16)
-                .frame(maxWidth: 510)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45))
-                )
-
-                Text(l10n.s.donateThanks)
+                Text(donateThanksText)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -978,48 +1006,6 @@ struct SupportSettings: View {
             .padding(.horizontal, 28)
             .padding(.vertical, 26)
         }
-    }
-
-    private var communityActions: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 9) {
-                discordButton
-                socialButton
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                discordButton
-                socialButton
-            }
-        }
-    }
-
-    private var discordButton: some View {
-        Button {
-            openURL(AppInfo.discordURL)
-        } label: {
-            HStack(spacing: 8) {
-                DiscordMark(width: 19)
-                Text(l10n.s.discordIntroJoinButton)
-            }
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .tint(Color(red: 0.35, green: 0.40, blue: 0.94))
-    }
-
-    private var socialButton: some View {
-        Button {
-            openURL(AppInfo.socialURL)
-        } label: {
-            HStack(spacing: 7) {
-                XLogoShape()
-                    .fill(Color.primary, style: FillStyle(eoFill: true))
-                    .frame(width: 12, height: 12)
-                Text(l10n.s.communityIntroFollowButton)
-            }
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
     }
 }
 
@@ -1131,33 +1117,51 @@ struct PermissionRow: View {
 /// Secure Event Input blocks every synthetic keystroke. Typing a snippet
 /// trigger then does nothing at all, while the snippet library and the
 /// Command Bar's typing actions beep; none of the four paths says what is
-/// wrong or who is holding it. This row is the only place the app explains
-/// that, and it names the holder when the session can attribute it.
+/// wrong or who is holding it. It also hides every key from the switcher's
+/// tap, so the switcher hands ⌘Tab back to macOS for as long as it lasts and
+/// the macOS switcher shows up instead. This row is the only place the app
+/// explains either. macOS never names the holder, only the app that was
+/// active when it turned on, so the row offers that app as a lead rather than
+/// as the holder.
 ///
-/// Both call sites instantiate it only once secure input is on, and the
-/// snippets page waits for one of its own toggles as well, so the `.off`
-/// branch below is there to keep the switch exhaustive and for nothing else.
-/// What drives the feature is the polling demand on each page; see
+/// Every call site instantiates it only once secure input is on, and the
+/// snippets and switcher pages wait for their own toggles as well, so the
+/// `.off` branch below is there to keep the switch exhaustive and for nothing
+/// else. What drives the feature is the polling demand on each page; see
 /// `SecureInputObservation`.
 struct SecureInputRow: View {
+    /// What secure input blocks on the page showing the row, which is what
+    /// its caption has to explain.
+    enum Blocked {
+        /// Snippets and the Command Bar's typing actions.
+        case typing
+        /// The switcher's shortcuts, which macOS's own switcher then answers.
+        case switcher
+    }
+
+    var blocking: Blocked = .typing
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SecureInputMonitor.shared
 
     var body: some View {
+        let switcher = blocking == .switcher
         switch monitor.holder {
         case .off:
             EmptyView()
         case .app(let name, _):
-            row(caption: String(format: l10n.s.secureInputHeldFormat, name)) {
+            row(caption: String(format: switcher ? l10n.s.secureInputSwitcherHeldFormat
+                                                 : l10n.s.secureInputHeldFormat, name)) {
                 Button(String(format: l10n.s.secureInputRevealFormat, name)) {
                     monitor.revealHolder()
                 }
                 .controlSize(.small)
             }
         case .unattributed:
-            row(caption: l10n.s.secureInputUnattributed) { EmptyView() }
+            row(caption: switcher ? l10n.s.secureInputSwitcherUnattributed
+                                  : l10n.s.secureInputUnattributed) { EmptyView() }
         case .unknown:
-            row(caption: l10n.s.secureInputUnidentified) { EmptyView() }
+            row(caption: switcher ? l10n.s.secureInputSwitcherUnidentified
+                                  : l10n.s.secureInputUnidentified) { EmptyView() }
         }
     }
 

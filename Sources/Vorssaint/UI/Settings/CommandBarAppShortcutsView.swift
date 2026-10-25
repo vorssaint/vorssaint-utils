@@ -14,6 +14,7 @@ struct CommandBarAppShortcutsView: View {
     @State private var query = ""
     @State private var filter = AppFilter.all
     @State private var message: String?
+    @State private var pendingTakeOver: (entry: CommandBarEntry, shortcut: GlobalShortcut)?
     @State private var sortOrder = [AppColumnOrder(column: .name)]
 
     private enum AppFilter { case all, pinned, shortcuts }
@@ -122,6 +123,20 @@ struct CommandBarAppShortcutsView: View {
                 }
             }
 
+            if let pendingTakeOver {
+                SystemShortcutTakeOverOffer(
+                    shortcut: pendingTakeOver.shortcut,
+                    onAccept: {
+                        self.pendingTakeOver = nil
+                        report(service.takeOverRowShortcut(pendingTakeOver.shortcut, for: pendingTakeOver.entry),
+                               for: pendingTakeOver.entry)
+                    },
+                    onDismiss: {
+                        self.pendingTakeOver = nil
+                        report(String(format: l10n.s.shortcutConflictFormat, "macOS"), for: pendingTakeOver.entry)
+                    })
+            }
+
             HStack(alignment: .center, spacing: 16) {
                 Text(message ?? text.shortcutCaptureHint)
                     .font(.caption)
@@ -171,9 +186,9 @@ struct CommandBarAppShortcutsView: View {
                 emptyTitle: shortcut == nil ? text.appShortcutRecord : nil,
                 clearAction: { report(service.setRowShortcut(nil, for: entry), for: entry) },
                 notCapturedAction: { report(l10n.s.shortcutNotCaptured, for: entry) },
-                recordingChanged: { if $0 { message = nil } },
+                recordingChanged: { if $0 { message = nil; pendingTakeOver = nil } },
                 invalidAction: { report(l10n.s.shortcutInvalid, for: entry) },
-                captureAction: { report(service.setRowShortcut($0, for: entry), for: entry) })
+                captureAction: { record($0, for: entry) })
                 .frame(width: 140)
                 .accessibilityLabel("\(entry.title): \(text.appShortcutLabel)")
             if service.refusedRowShortcutKeys.contains(entry.stableKey) {
@@ -191,6 +206,18 @@ struct CommandBarAppShortcutsView: View {
                 .accessibilityLabel("\(entry.title): \(text.actionShortcutRemove)")
             }
         }
+    }
+
+    /// The offer is the last word on a combination, as in every other
+    /// shortcut field: it only appears once nothing but macOS is in the way.
+    private func record(_ shortcut: GlobalShortcut, for entry: CommandBarEntry) {
+        pendingTakeOver = nil
+        if service.rowShortcutTakeOverOffer(shortcut, for: entry) {
+            message = nil
+            pendingTakeOver = (entry, shortcut)
+            return
+        }
+        report(service.setRowShortcut(shortcut, for: entry), for: entry)
     }
 
     private func report(_ error: String?, for entry: CommandBarEntry) {

@@ -43,6 +43,13 @@ struct NotchMusicExtrasStrings {
     let liveEqualizerDescription: String
     let liveEqualizerHint: String
     let liveEqualizerUnavailable: String
+    let shuffle: String
+    let preferredPlayer: String
+    let preferredPlayerHint: String
+    /// "Open Spotify", with the app's name in place of %@.
+    let openNamedPlayer: String
+    let browserCovers: String
+    let browserCoversHint: String
 }
 
 extension FeatureStrings {
@@ -53,7 +60,7 @@ extension FeatureStrings {
             lyricsDescription: "Follow the lyrics of the current song in the Dynamic Island.",
             enableLyrics: "Show lyrics",
             online: "Find lyrics online",
-            onlineHint: "While lyrics are open, send the song title, artist, album and duration to lrclib.net. Imported lyrics stay on this Mac.",
+            onlineHint: "While lyrics are open, send the song title, artist, album and duration to lrclib.net. Imported lyrics stay on this Mac. Song titles, artist names and albums may also be checked with musicbrainz.org.",
             importLyrics: "Import lyrics…",
             importHint: "Choose timed lyrics for the current recording. They are kept only while this song is open.",
             loading: "Loading lyrics…",
@@ -86,13 +93,19 @@ extension FeatureStrings {
             liveEqualizer: "Bars follow the music",
             liveEqualizerDescription: "Move the Dynamic Island bars with the sound your player makes.",
             liveEqualizerHint: "Listens to the player’s own audio output to move the bars. macOS asks once to allow system audio recording. Nothing is stored or sent. Without it, the bars keep their usual motion.",
-            liveEqualizerUnavailable: "Needs macOS 14.4 or later.")
+            liveEqualizerUnavailable: "Needs macOS 14.4 or later.",
+            shuffle: "Shuffle",
+            preferredPlayer: "Open when nothing is playing",
+            preferredPlayerHint: "The cover and the playback buttons open this app. Automatic opens the music app that played last, then Spotify or Apple Music.",
+            openNamedPlayer: "Open %@",
+            browserCovers: "Find covers for Firefox and Zen",
+            browserCoversHint: "When Firefox, Zen or another Firefox-based browser plays without a sharp cover, read its saved session on this Mac to find the song’s YouTube tab and load its thumbnail from i.ytimg.com. If no tab shows the song but a YouTube Music tab is open, send the song title, artist and region to itunes.apple.com and load the album art from mzstatic.com.")
         case .ptBR: return NotchMusicExtrasStrings(
             lyrics: "Letra",
             lyricsDescription: "Acompanhe a letra da música atual no Dynamic Island.",
             enableLyrics: "Mostrar letra",
             online: "Buscar letras on-line",
-            onlineHint: "Enquanto a letra estiver aberta, envie título, artista, álbum e duração da música para lrclib.net. Letras importadas ficam neste Mac.",
+            onlineHint: "Enquanto a letra estiver aberta, envie título, artista, álbum e duração da música para lrclib.net. Letras importadas ficam neste Mac. Títulos de músicas, nomes de artistas e álbuns também podem ser verificados em musicbrainz.org.",
             importLyrics: "Importar letra…",
             importHint: "Escolha a letra sincronizada desta gravação. Ela fica guardada apenas enquanto esta música estiver aberta.",
             loading: "Carregando letra…",
@@ -125,13 +138,19 @@ extension FeatureStrings {
             liveEqualizer: "Barras seguem a música",
             liveEqualizerDescription: "Mova as barras do Dynamic Island com o som do seu reprodutor.",
             liveEqualizerHint: "Ouve a saída de áudio do próprio reprodutor para mover as barras. O macOS pede uma vez permissão para gravar o áudio do sistema. Nada é guardado nem enviado. Sem ela, as barras mantêm o movimento habitual.",
-            liveEqualizerUnavailable: "Requer macOS 14.4 ou posterior.")
+            liveEqualizerUnavailable: "Requer macOS 14.4 ou posterior.",
+            shuffle: "Aleatório",
+            preferredPlayer: "Abrir quando nada estiver tocando",
+            preferredPlayerHint: "A capa e os botões de reprodução abrem este app. Automático abre o app de música que tocou por último, depois o Spotify ou o Apple Music.",
+            openNamedPlayer: "Abrir %@",
+            browserCovers: "Buscar capas para Firefox e Zen",
+            browserCoversHint: "Quando o Firefox, o Zen ou outro navegador baseado no Firefox tocar sem uma capa nítida, leia a sessão salva do navegador neste Mac para achar a aba do YouTube com a música e carregar a miniatura de i.ytimg.com. Se nenhuma aba mostrar a música, mas houver uma aba do YouTube Music aberta, envie título, artista e região para itunes.apple.com e carregue a capa do álbum de mzstatic.com.")
         case .es: return NotchMusicExtrasStrings(
             lyrics: "Letra",
             lyricsDescription: "Sigue la letra de la canción actual en el Dynamic Island.",
             enableLyrics: "Mostrar letra",
             online: "Buscar letras en línea",
-            onlineHint: "Mientras la letra esté abierta, envía el título, artista, álbum y duración a lrclib.net. Las letras importadas se quedan en este Mac.",
+            onlineHint: "Mientras la letra esté abierta, envía el título, artista, álbum y duración a lrclib.net. Las letras importadas se quedan en este Mac. Los títulos de canciones y los nombres de artistas y álbumes también pueden verificarse en musicbrainz.org.",
             importLyrics: "Importar letra…",
             importHint: "Elige la letra sincronizada de esta grabación. Solo se conserva mientras esta canción esté abierta.",
             loading: "Cargando letra…",
@@ -164,13 +183,19 @@ extension FeatureStrings {
             liveEqualizer: "Las barras siguen la música",
             liveEqualizerDescription: "Mueve las barras del Dynamic Island con el sonido del reproductor.",
             liveEqualizerHint: "Escucha la salida de audio del propio reproductor para mover las barras. macOS pide una vez permiso para grabar el audio del sistema. No se guarda ni se envía nada. Sin él, las barras mantienen su movimiento habitual.",
-            liveEqualizerUnavailable: "Necesita macOS 14.4 o posterior.")
+            liveEqualizerUnavailable: "Necesita macOS 14.4 o posterior.",
+            shuffle: "Aleatorio",
+            preferredPlayer: "Abrir cuando no suena nada",
+            preferredPlayerHint: "La carátula y los botones de reproducción abren esta app. Automática abre la app de música que sonó por última vez, y luego Spotify o Apple Music.",
+            openNamedPlayer: "Abrir %@",
+            browserCovers: "Buscar portadas para Firefox y Zen",
+            browserCoversHint: "Cuando Firefox, Zen u otro navegador basado en Firefox reproduce sin una portada nítida, lee la sesión guardada del navegador en este Mac para encontrar la pestaña de YouTube de la canción y cargar su miniatura desde i.ytimg.com. Si ninguna pestaña muestra la canción pero hay una pestaña de YouTube Music abierta, envía el título, el artista y la región a itunes.apple.com y carga la portada del álbum desde mzstatic.com.")
         case .sk: return NotchMusicExtrasStrings(
             lyrics: "Text piesne",
             lyricsDescription: "Sledujte text aktuálnej skladby v Dynamic Island.",
             enableLyrics: "Zobraziť text piesne",
             online: "Hľadať text online",
-            onlineHint: "Kým je text otvorený, názov skladby, interpret, album a dĺžka sa odošlú na lrclib.net. Importované texty zostávajú v tomto Macu.",
+            onlineHint: "Kým je text otvorený, názov skladby, interpret, album a dĺžka sa odošlú na lrclib.net. Importované texty zostávajú v tomto Macu. Názvy skladieb, mená interpretov a albumov sa môžu overiť aj na musicbrainz.org.",
             importLyrics: "Importovať text…",
             importHint: "Vyberte synchronizovaný text tohto záznamu. Zostane uložený, len kým je táto skladba otvorená.",
             loading: "Načítava sa text…",
@@ -203,13 +228,19 @@ extension FeatureStrings {
             liveEqualizer: "Pruhy sledujú hudbu",
             liveEqualizerDescription: "Pohybujte pruhmi Dynamic Island podľa zvuku vášho prehrávača.",
             liveEqualizerHint: "Sleduje zvukový výstup samotného prehrávača, aby pohyboval pruhmi. macOS raz požiada o povolenie na nahrávanie systémového audia. Nič sa neukladá ani neodosiela. Bez neho si pruhy zachovávajú svoj obvyklý pohyb.",
-            liveEqualizerUnavailable: "Vyžaduje macOS 14.4 alebo novší.")
+            liveEqualizerUnavailable: "Vyžaduje macOS 14.4 alebo novší.",
+            shuffle: "Náhodné poradie",
+            preferredPlayer: "Otvoriť, keď nič nehrá",
+            preferredPlayerHint: "Obal a tlačidlá prehrávania otvoria túto aplikáciu. Automaticky otvorí hudobnú aplikáciu, ktorá hrala naposledy, potom Spotify alebo Apple Music.",
+            openNamedPlayer: "Otvoriť %@",
+            browserCovers: "Hľadať obaly pre Firefox a Zen",
+            browserCoversHint: "Keď Firefox, Zen alebo iný prehliadač založený na Firefoxe prehráva bez ostrého obalu, prečíta sa jeho uložená relácia v tomto Macu, aby sa našla karta YouTube so skladbou a jej miniatúra sa načítala z i.ytimg.com. Ak skladbu neukazuje žiadna karta, ale je otvorená karta YouTube Music, názov skladby, interpret a región sa odošlú na itunes.apple.com a obal albumu sa načíta z mzstatic.com.")
         case .de: return NotchMusicExtrasStrings(
             lyrics: "Liedtext",
             lyricsDescription: "Verfolge den Text des aktuellen Songs im Dynamic Island.",
             enableLyrics: "Liedtext anzeigen",
             online: "Liedtexte online suchen",
-            onlineHint: "Bei geöffnetem Liedtext werden Titel, Interpret, Album und Dauer an lrclib.net gesendet. Importierte Texte bleiben auf diesem Mac.",
+            onlineHint: "Bei geöffnetem Liedtext werden Titel, Interpret, Album und Dauer an lrclib.net gesendet. Importierte Texte bleiben auf diesem Mac. Liedtitel, Interpreten- und Albumnamen können auch bei musicbrainz.org geprüft werden.",
             importLyrics: "Liedtext importieren…",
             importHint: "Wähle einen synchronisierten Text für diese Aufnahme. Er bleibt nur gespeichert, solange dieser Song geöffnet ist.",
             loading: "Liedtext wird geladen…",
@@ -242,13 +273,19 @@ extension FeatureStrings {
             liveEqualizer: "Balken folgen der Musik",
             liveEqualizerDescription: "Bewege die Balken im Dynamic Island mit dem Klang deines Players.",
             liveEqualizerHint: "Hört die Audioausgabe des Players ab, um die Balken zu bewegen. macOS fragt einmal nach der Erlaubnis, Systemaudio aufzunehmen. Nichts wird gespeichert oder gesendet. Ohne sie behalten die Balken ihre gewohnte Bewegung.",
-            liveEqualizerUnavailable: "Benötigt macOS 14.4 oder neuer.")
+            liveEqualizerUnavailable: "Benötigt macOS 14.4 oder neuer.",
+            shuffle: "Zufallswiedergabe",
+            preferredPlayer: "Öffnen, wenn nichts läuft",
+            preferredPlayerHint: "Cover und Wiedergabetasten öffnen diese App. Automatisch öffnet die Musik-App, die zuletzt lief, danach Spotify oder Apple Music.",
+            openNamedPlayer: "%@ öffnen",
+            browserCovers: "Cover für Firefox und Zen suchen",
+            browserCoversHint: "Spielt Firefox, Zen oder ein anderer Firefox-basierter Browser ohne scharfes Cover, wird seine gespeicherte Sitzung auf diesem Mac gelesen, um den YouTube-Tab des Songs zu finden und sein Vorschaubild von i.ytimg.com zu laden. Zeigt kein Tab den Song, ist aber ein YouTube-Music-Tab geöffnet, werden Titel, Interpret und Region an itunes.apple.com gesendet und das Albumcover von mzstatic.com geladen.")
         case .fr: return NotchMusicExtrasStrings(
             lyrics: "Paroles",
             lyricsDescription: "Suivez les paroles du morceau en cours dans le Dynamic Island.",
             enableLyrics: "Afficher les paroles",
             online: "Chercher les paroles en ligne",
-            onlineHint: "Lorsque les paroles sont ouvertes, le titre, l’artiste, l’album et la durée sont envoyés à lrclib.net. Les paroles importées restent sur ce Mac.",
+            onlineHint: "Lorsque les paroles sont ouvertes, le titre, l’artiste, l’album et la durée sont envoyés à lrclib.net. Les paroles importées restent sur ce Mac. Les titres de chansons et les noms d’artistes et d’albums peuvent aussi être vérifiés sur musicbrainz.org.",
             importLyrics: "Importer des paroles…",
             importHint: "Choisissez les paroles synchronisées de cet enregistrement. Elles restent disponibles uniquement tant que ce morceau est ouvert.",
             loading: "Chargement des paroles…",
@@ -281,13 +318,19 @@ extension FeatureStrings {
             liveEqualizer: "Les barres suivent la musique",
             liveEqualizerDescription: "Animez les barres du Dynamic Island avec le son de votre lecteur.",
             liveEqualizerHint: "Écoute la sortie audio du lecteur pour animer les barres. macOS demande une fois l’autorisation d’enregistrer l’audio du système. Rien n’est conservé ni envoyé. Sans elle, les barres gardent leur mouvement habituel.",
-            liveEqualizerUnavailable: "Nécessite macOS 14.4 ou ultérieur.")
+            liveEqualizerUnavailable: "Nécessite macOS 14.4 ou ultérieur.",
+            shuffle: "Lecture aléatoire",
+            preferredPlayer: "Ouvrir quand rien ne joue",
+            preferredPlayerHint: "La pochette et les boutons de lecture ouvrent cette app. Automatique ouvre la dernière app de musique utilisée, puis Spotify ou Apple Music.",
+            openNamedPlayer: "Ouvrir %@",
+            browserCovers: "Chercher les pochettes pour Firefox et Zen",
+            browserCoversHint: "Quand Firefox, Zen ou un autre navigateur basé sur Firefox lit un morceau sans pochette nette, sa session enregistrée est lue sur ce Mac pour trouver l’onglet YouTube du morceau et charger sa miniature depuis i.ytimg.com. Si aucun onglet n’affiche le morceau mais qu’un onglet YouTube Music est ouvert, le titre, l’artiste et la région sont envoyés à itunes.apple.com et la pochette de l’album est chargée depuis mzstatic.com.")
         case .it: return NotchMusicExtrasStrings(
             lyrics: "Testo",
             lyricsDescription: "Segui il testo del brano attuale nel Dynamic Island.",
             enableLyrics: "Mostra testo",
             online: "Cerca testi online",
-            onlineHint: "Quando il testo è aperto, titolo, artista, album e durata vengono inviati a lrclib.net. I testi importati restano su questo Mac.",
+            onlineHint: "Quando il testo è aperto, titolo, artista, album e durata vengono inviati a lrclib.net. I testi importati restano su questo Mac. I titoli dei brani e i nomi degli artisti e degli album possono essere verificati anche su musicbrainz.org.",
             importLyrics: "Importa testo…",
             importHint: "Scegli il testo sincronizzato di questa registrazione. Viene conservato solo mentre questo brano è aperto.",
             loading: "Caricamento del testo…",
@@ -320,13 +363,19 @@ extension FeatureStrings {
             liveEqualizer: "Le barre seguono la musica",
             liveEqualizerDescription: "Muovi le barre nel Dynamic Island con il suono del lettore.",
             liveEqualizerHint: "Ascolta l’uscita audio del lettore per muovere le barre. macOS chiede una volta il permesso di registrare l’audio di sistema. Nulla viene salvato o inviato. Senza, le barre mantengono il movimento abituale.",
-            liveEqualizerUnavailable: "Richiede macOS 14.4 o successivo.")
+            liveEqualizerUnavailable: "Richiede macOS 14.4 o successivo.",
+            shuffle: "Riproduzione casuale",
+            preferredPlayer: "Apri quando non c’è nulla in riproduzione",
+            preferredPlayerHint: "La copertina e i pulsanti di riproduzione aprono questa app. Automatico apre l’app musicale usata per ultima, poi Spotify o Apple Music.",
+            openNamedPlayer: "Apri %@",
+            browserCovers: "Cerca copertine per Firefox e Zen",
+            browserCoversHint: "Quando Firefox, Zen o un altro browser basato su Firefox riproduce senza una copertina nitida, la sua sessione salvata su questo Mac viene letta per trovare la scheda YouTube del brano e caricarne la miniatura da i.ytimg.com. Se nessuna scheda mostra il brano ma è aperta una scheda di YouTube Music, titolo, artista e regione vengono inviati a itunes.apple.com e la copertina dell’album viene caricata da mzstatic.com.")
         case .ru: return NotchMusicExtrasStrings(
             lyrics: "Текст песни",
             lyricsDescription: "Следите за текстом текущей песни в вырезе.",
             enableLyrics: "Показывать текст",
             online: "Искать тексты в интернете",
-            onlineHint: "Пока текст открыт, название песни, исполнитель, альбом и длительность отправляются на lrclib.net. Импортированные тексты остаются на этом Mac.",
+            onlineHint: "Пока текст открыт, название песни, исполнитель, альбом и длительность отправляются на lrclib.net. Импортированные тексты остаются на этом Mac. Названия песен, имена исполнителей и названия альбомов также могут проверяться на musicbrainz.org.",
             importLyrics: "Импортировать текст…",
             importHint: "Выберите синхронизированный текст этой записи. Он хранится только пока эта песня открыта.",
             loading: "Загрузка текста…",
@@ -359,13 +408,19 @@ extension FeatureStrings {
             liveEqualizer: "Полоски следуют музыке",
             liveEqualizerDescription: "Двигайте полоски в вырезе звуком самого плеера.",
             liveEqualizerHint: "Слушает вывод звука самого плеера, чтобы двигать полоски. macOS один раз попросит разрешение на запись системного звука. Ничего не сохраняется и не отправляется. Без него полоски двигаются как обычно.",
-            liveEqualizerUnavailable: "Требуется macOS 14.4 или новее.")
+            liveEqualizerUnavailable: "Требуется macOS 14.4 или новее.",
+            shuffle: "Перемешать",
+            preferredPlayer: "Открывать, когда ничего не играет",
+            preferredPlayerHint: "Обложка и кнопки воспроизведения открывают это приложение. «Автоматически» открывает музыкальное приложение, игравшее последним, затем Spotify или Apple Music.",
+            openNamedPlayer: "Открыть %@",
+            browserCovers: "Искать обложки для Firefox и Zen",
+            browserCoversHint: "Когда Firefox, Zen или другой браузер на основе Firefox воспроизводит музыку без чёткой обложки, его сохранённый на этом Mac сеанс читается для поиска вкладки YouTube с песней, а её миниатюра загружается с i.ytimg.com. Если ни одна вкладка не показывает песню, но открыта вкладка YouTube Music, название песни, исполнитель и регион отправляются на itunes.apple.com, а обложка альбома загружается с mzstatic.com.")
         case .tr: return NotchMusicExtrasStrings(
             lyrics: "Şarkı sözleri",
             lyricsDescription: "Çalan şarkının sözlerini çentikte takip edin.",
             enableLyrics: "Şarkı sözlerini göster",
             online: "Sözleri çevrimiçi bul",
-            onlineHint: "Sözler açıkken şarkı adı, sanatçı, albüm ve süre lrclib.net adresine gönderilir. İçe aktarılan sözler bu Mac’te kalır.",
+            onlineHint: "Sözler açıkken şarkı adı, sanatçı, albüm ve süre lrclib.net adresine gönderilir. İçe aktarılan sözler bu Mac’te kalır. Şarkı, sanatçı ve albüm adları musicbrainz.org üzerinden de doğrulanabilir.",
             importLyrics: "Şarkı sözü içe aktar…",
             importHint: "Bu kaydın zamanlanmış sözlerini seçin. Yalnızca bu şarkı açıkken saklanırlar.",
             loading: "Şarkı sözleri yükleniyor…",
@@ -398,13 +453,19 @@ extension FeatureStrings {
             liveEqualizer: "Çubuklar müziği izler",
             liveEqualizerDescription: "Çentikteki çubukları oynatıcının sesiyle hareket ettirin.",
             liveEqualizerHint: "Çubukları hareket ettirmek için oynatıcının kendi ses çıkışını dinler. macOS sistem sesini kaydetme iznini bir kez sorar. Hiçbir şey saklanmaz veya gönderilmez. İzin verilmezse çubuklar her zamanki hareketini sürdürür.",
-            liveEqualizerUnavailable: "macOS 14.4 veya üstü gerekir.")
+            liveEqualizerUnavailable: "macOS 14.4 veya üstü gerekir.",
+            shuffle: "Karıştır",
+            preferredPlayer: "Hiçbir şey çalmıyorken aç",
+            preferredPlayerHint: "Kapak ve oynatma düğmeleri bu uygulamayı açar. Otomatik, en son çalan müzik uygulamasını, ardından Spotify veya Apple Music’i açar.",
+            openNamedPlayer: "%@ uygulamasını aç",
+            browserCovers: "Firefox ve Zen için kapak bul",
+            browserCoversHint: "Firefox, Zen veya Firefox tabanlı başka bir tarayıcı net bir kapak olmadan çaldığında, şarkının YouTube sekmesini bulmak ve küçük resmini i.ytimg.com adresinden yüklemek için tarayıcının bu Mac’teki kayıtlı oturumu okunur. Hiçbir sekme şarkıyı göstermiyor ancak bir YouTube Music sekmesi açıksa şarkı adı, sanatçı ve bölge itunes.apple.com adresine gönderilir ve albüm kapağı mzstatic.com adresinden yüklenir.")
         case .ja: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
             lyricsDescription: "再生中の曲の歌詞をDynamic Islandに表示します。",
             enableLyrics: "歌詞を表示",
             online: "オンラインで歌詞を検索",
-            onlineHint: "歌詞を開いている間、曲名、アーティスト、アルバム、再生時間を lrclib.net に送信します。読み込んだ歌詞はこのMacに保持されます。",
+            onlineHint: "歌詞を開いている間、曲名、アーティスト、アルバム、再生時間を lrclib.net に送信します。読み込んだ歌詞はこのMacに保持されます。 曲名、アーティスト名とアルバム名を musicbrainz.org で確認する場合もあります。",
             importLyrics: "歌詞を読み込む…",
             importHint: "この音源に合った同期歌詞を選択してください。この曲を開いている間だけ保持されます。",
             loading: "歌詞を読み込み中…",
@@ -437,13 +498,19 @@ extension FeatureStrings {
             liveEqualizer: "バーが音楽に合わせて動く",
             liveEqualizerDescription: "Dynamic Islandのバーをプレーヤーの音に合わせて動かします。",
             liveEqualizerHint: "プレーヤー自身の音声出力を聞き取ってバーを動かします。macOS はシステム音声の録音許可を一度だけ求めます。何も保存や送信はされません。許可がない場合、バーは通常の動きのままです。",
-            liveEqualizerUnavailable: "macOS 14.4 以降が必要です。")
+            liveEqualizerUnavailable: "macOS 14.4 以降が必要です。",
+            shuffle: "シャッフル",
+            preferredPlayer: "再生中でないときに開く",
+            preferredPlayerHint: "ジャケットと再生ボタンでこのアプリを開きます。「自動」では、最後に再生した音楽アプリ、次にSpotifyまたはApple Musicを開きます。",
+            openNamedPlayer: "%@を開く",
+            browserCovers: "FirefoxとZenのジャケットを探す",
+            browserCoversHint: "Firefox、Zen、またはFirefoxベースのほかのブラウザが鮮明なジャケットなしで再生しているとき、このMacに保存されたブラウザのセッションを読み取り、曲のYouTubeタブを見つけて i.ytimg.com からサムネイルを読み込みます。曲を表示しているタブがなく、YouTube Musicのタブが開いている場合は、曲名、アーティスト、地域を itunes.apple.com に送信し、アルバムのジャケットを mzstatic.com から読み込みます。")
         case .ko: return NotchMusicExtrasStrings(
             lyrics: "가사",
             lyricsDescription: "현재 곡의 가사를 Dynamic Island에서 확인합니다.",
             enableLyrics: "가사 표시",
             online: "온라인에서 가사 찾기",
-            onlineHint: "가사가 열려 있는 동안 곡 제목, 아티스트, 앨범 및 재생 시간을 lrclib.net으로 보냅니다. 가져온 가사는 이 Mac에만 유지됩니다.",
+            onlineHint: "가사가 열려 있는 동안 곡 제목, 아티스트, 앨범 및 재생 시간을 lrclib.net으로 보냅니다. 가져온 가사는 이 Mac에만 유지됩니다. 곡 제목, 아티스트 및 앨범 이름은 musicbrainz.org에서도 확인할 수 있습니다.",
             importLyrics: "가사 가져오기…",
             importHint: "이 녹음에 맞는 시간 정보가 있는 가사를 선택하세요. 이 곡이 열려 있는 동안만 유지됩니다.",
             loading: "가사 불러오는 중…",
@@ -476,13 +543,19 @@ extension FeatureStrings {
             liveEqualizer: "막대가 음악을 따라 움직임",
             liveEqualizerDescription: "Dynamic Island의 막대를 플레이어의 소리에 맞춰 움직입니다.",
             liveEqualizerHint: "플레이어의 오디오 출력을 듣고 막대를 움직입니다. macOS가 시스템 오디오 녹음 권한을 한 번 요청합니다. 아무것도 저장하거나 전송하지 않습니다. 권한이 없으면 막대는 평소처럼 움직입니다.",
-            liveEqualizerUnavailable: "macOS 14.4 이상이 필요합니다.")
+            liveEqualizerUnavailable: "macOS 14.4 이상이 필요합니다.",
+            shuffle: "셔플",
+            preferredPlayer: "재생 중인 항목이 없을 때 열기",
+            preferredPlayerHint: "커버와 재생 버튼을 누르면 이 앱이 열립니다. 자동은 마지막으로 재생한 음악 앱을, 그다음 Spotify 또는 Apple Music을 엽니다.",
+            openNamedPlayer: "%@ 열기",
+            browserCovers: "Firefox 및 Zen 커버 찾기",
+            browserCoversHint: "Firefox, Zen 또는 다른 Firefox 기반 브라우저가 선명한 커버 없이 재생하면 이 Mac에 저장된 브라우저 세션을 읽어 곡의 YouTube 탭을 찾고 i.ytimg.com에서 썸네일을 불러옵니다. 곡을 보여 주는 탭이 없지만 YouTube Music 탭이 열려 있으면 곡 제목, 아티스트 및 지역을 itunes.apple.com으로 보내고 mzstatic.com에서 앨범 커버를 불러옵니다.")
         case .zhHans: return NotchMusicExtrasStrings(
             lyrics: "歌词",
             lyricsDescription: "在Dynamic Island中跟随当前歌曲的歌词。",
             enableLyrics: "显示歌词",
             online: "在线查找歌词",
-            onlineHint: "歌词打开时，会将歌曲标题、艺人、专辑和时长发送至 lrclib.net。导入的歌词保留在此 Mac 上。",
+            onlineHint: "歌词打开时，会将歌曲标题、艺人、专辑和时长发送至 lrclib.net。导入的歌词保留在此 Mac 上。 也可能通过 musicbrainz.org 核对歌曲标题、艺人和专辑名称。",
             importLyrics: "导入歌词…",
             importHint: "选择与当前录音匹配的同步歌词。仅在此歌曲打开期间保留。",
             loading: "正在载入歌词…",
@@ -515,13 +588,19 @@ extension FeatureStrings {
             liveEqualizer: "音柱跟随音乐",
             liveEqualizerDescription: "让Dynamic Island的音柱随播放器的声音起伏。",
             liveEqualizerHint: "监听播放器自身的音频输出来驱动音柱。macOS 会请求一次系统音频录制权限。不会保存或发送任何内容。未授权时音柱保持原有动画。",
-            liveEqualizerUnavailable: "需要 macOS 14.4 或更高版本。")
+            liveEqualizerUnavailable: "需要 macOS 14.4 或更高版本。",
+            shuffle: "随机播放",
+            preferredPlayer: "没有播放内容时打开",
+            preferredPlayerHint: "点按封面或播放按钮会打开此 App。“自动”会打开最近播放过的音乐 App，其次是 Spotify 或 Apple Music。",
+            openNamedPlayer: "打开 %@",
+            browserCovers: "为 Firefox 和 Zen 查找封面",
+            browserCoversHint: "当 Firefox、Zen 或其他基于 Firefox 的浏览器播放时没有清晰的封面，会读取浏览器保存在此 Mac 上的会话，找到这首歌的 YouTube 标签页，并从 i.ytimg.com 载入其缩略图。如果没有标签页显示这首歌，但打开了 YouTube Music 标签页，会将歌曲标题、艺人和地区发送至 itunes.apple.com，并从 mzstatic.com 载入专辑封面。")
         case .zhTW: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
             lyricsDescription: "在Dynamic Island中跟隨目前歌曲的歌詞。",
             enableLyrics: "顯示歌詞",
             online: "線上尋找歌詞",
-            onlineHint: "歌詞開啟時，會將歌曲名稱、演出者、專輯和長度傳送至 lrclib.net。匯入的歌詞保留在此 Mac 上。",
+            onlineHint: "歌詞開啟時，會將歌曲名稱、演出者、專輯和長度傳送至 lrclib.net。匯入的歌詞保留在此 Mac 上。 也可能透過 musicbrainz.org 核對歌曲名稱、演出者和專輯名稱。",
             importLyrics: "匯入歌詞…",
             importHint: "選擇與目前錄音相符的同步歌詞。僅在這首歌曲開啟期間保留。",
             loading: "正在載入歌詞…",
@@ -554,13 +633,19 @@ extension FeatureStrings {
             liveEqualizer: "音柱跟隨音樂",
             liveEqualizerDescription: "讓Dynamic Island的音柱隨播放器的聲音起伏。",
             liveEqualizerHint: "監聽播放器本身的音訊輸出來驅動音柱。macOS 會請求一次系統音訊錄製權限。不會儲存或傳送任何內容。未授權時音柱保持原有動畫。",
-            liveEqualizerUnavailable: "需要 macOS 14.4 或更新版本。")
+            liveEqualizerUnavailable: "需要 macOS 14.4 或更新版本。",
+            shuffle: "隨機播放",
+            preferredPlayer: "沒有播放內容時開啟",
+            preferredPlayerHint: "點按封面或播放按鈕會開啟此 App。「自動」會開啟最近播放過的音樂 App，其次是 Spotify 或 Apple Music。",
+            openNamedPlayer: "開啟 %@",
+            browserCovers: "為 Firefox 和 Zen 尋找封面",
+            browserCoversHint: "當 Firefox、Zen 或其他以 Firefox 為基礎的瀏覽器播放時沒有清晰的封面，會讀取瀏覽器儲存在此 Mac 上的工作階段，找到這首歌的 YouTube 分頁，並從 i.ytimg.com 載入其縮圖。如果沒有分頁顯示這首歌，但開啟了 YouTube Music 分頁，會將歌曲名稱、演出者和地區傳送至 itunes.apple.com，並從 mzstatic.com 載入專輯封面。")
         case .zhHK: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
             lyricsDescription: "在Dynamic Island中跟隨目前歌曲的歌詞。",
             enableLyrics: "顯示歌詞",
             online: "網上尋找歌詞",
-            onlineHint: "歌詞開啟時，會將歌曲名稱、演出者、專輯和長度傳送至 lrclib.net。匯入的歌詞保留在此 Mac 上。",
+            onlineHint: "歌詞開啟時，會將歌曲名稱、演出者、專輯和長度傳送至 lrclib.net。匯入的歌詞保留在此 Mac 上。 也可能透過 musicbrainz.org 核對歌曲名稱、演出者和專輯名稱。",
             importLyrics: "匯入歌詞…",
             importHint: "選擇與目前錄音相符的同步歌詞。僅在這首歌曲開啟期間保留。",
             loading: "正在載入歌詞…",
@@ -593,13 +678,19 @@ extension FeatureStrings {
             liveEqualizer: "音柱跟隨音樂",
             liveEqualizerDescription: "讓Dynamic Island的音柱隨播放器的聲音起伏。",
             liveEqualizerHint: "監聽播放器本身的音訊輸出來驅動音柱。macOS 會請求一次系統音訊錄製權限。不會儲存或傳送任何內容。未授權時音柱保持原有動畫。",
-            liveEqualizerUnavailable: "需要 macOS 14.4 或更新版本。")
+            liveEqualizerUnavailable: "需要 macOS 14.4 或更新版本。",
+            shuffle: "隨機播放",
+            preferredPlayer: "沒有播放內容時開啟",
+            preferredPlayerHint: "點按封面或播放按鈕會開啟此 App。「自動」會開啟最近播放過的音樂 App，其次是 Spotify 或 Apple Music。",
+            openNamedPlayer: "開啟 %@",
+            browserCovers: "為 Firefox 和 Zen 尋找封面",
+            browserCoversHint: "當 Firefox、Zen 或其他以 Firefox 為基礎的瀏覽器播放時沒有清晰的封面，會讀取瀏覽器儲存在此 Mac 上的工作階段，找到這首歌的 YouTube 分頁，並從 i.ytimg.com 載入其縮圖。如果沒有分頁顯示這首歌，但開啟了 YouTube Music 分頁，會將歌曲名稱、演出者和地區傳送至 itunes.apple.com，並從 mzstatic.com 載入專輯封面。")
         case .uk: return NotchMusicExtrasStrings(
             lyrics: "Текст пісні",
             lyricsDescription: "Слідкуйте за текстом поточної пісні у Dynamic Island.",
             enableLyrics: "Показувати текст пісні",
             online: "Шукати тексти онлайн",
-            onlineHint: "Поки текст відкрито, програма надсилає назву пісні, виконавця, альбом та тривалість на lrclib.net. Імпортовані тексти залишаються на цьому Mac.",
+            onlineHint: "Поки текст відкрито, програма надсилає назву пісні, виконавця, альбом та тривалість на lrclib.net. Імпортовані тексти залишаються на цьому Mac. Назви пісень, імена виконавців і назви альбомів також можуть перевірятися на musicbrainz.org.",
             importLyrics: "Імпортувати текст…",
             importHint: "Виберіть синхронізований текст для поточного запису. Він зберігається, лише поки відкрита ця пісня.",
             loading: "Завантаження тексту…",
@@ -632,7 +723,13 @@ extension FeatureStrings {
             liveEqualizer: "Смужки слідують за музикою",
             liveEqualizerDescription: "Рухайте смужки Dynamic Island разом зі звуком, який видає програвач.",
             liveEqualizerHint: "Слухає власний аудіовихід програвача, щоб рухати смужками. macOS один раз запитає дозвіл на запис системного звуку. Нічого не зберігається та не надсилається. Без дозволу смужки рухаються як завжди.",
-            liveEqualizerUnavailable: "Потрібен macOS 14.4 або новіше.")
+            liveEqualizerUnavailable: "Потрібен macOS 14.4 або новіше.",
+            shuffle: "Перемішати",
+            preferredPlayer: "Відкривати, коли нічого не грає",
+            preferredPlayerHint: "Обкладинка й кнопки відтворення відкривають цей застосунок. «Автоматично» відкриває музичний застосунок, що грав останнім, потім Spotify або Apple Music.",
+            openNamedPlayer: "Відкрити %@",
+            browserCovers: "Шукати обкладинки для Firefox і Zen",
+            browserCoversHint: "Коли Firefox, Zen або інший браузер на основі Firefox відтворює без чіткої обкладинки, програма читає його збережений сеанс на цьому Mac, щоб знайти вкладку YouTube з піснею й завантажити її мініатюру з i.ytimg.com. Якщо жодна вкладка не показує пісню, але відкрито вкладку YouTube Music, програма надсилає назву пісні, виконавця та регіон на itunes.apple.com і завантажує обкладинку альбому з mzstatic.com.")
         }
     }
 }

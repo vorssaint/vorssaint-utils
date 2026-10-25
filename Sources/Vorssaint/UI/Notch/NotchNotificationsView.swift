@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 struct NotchNotificationsView: View {
@@ -43,6 +44,33 @@ struct NotchNotificationsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .environment(\.locale, l10n.language.formattingLocale())
+    }
+}
+
+/// The page shows only the cards, so clearing sits in the island's header
+/// like the captures page's. Observes the inbox on its own, so a new message
+/// does not redraw the island.
+struct NotchClearNotificationsButton: View {
+    @ObservedObject private var notifications = NotchNotificationService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        NotchIconButton(symbol: "trash", title: FeatureStrings.notchNotifications(l10n.language).clearAll,
+                        action: Self.confirmClearAboveIsland)
+            .disabled(notifications.items.isEmpty || notifications.openingID != nil)
+    }
+
+    /// With the system banner dismissed, a banner shown while the island was
+    /// closed may never reach Notification Center before macOS 27, so the
+    /// island can hold the only copy. Clearing asks first, above the island.
+    static func confirmClearAboveIsland() {
+        DispatchQueue.main.async {
+            let l10n = L10n.shared
+            let title = FeatureStrings.notchNotifications(l10n.language).clearAll
+            guard NSAlert.confirmAboveIsland(title, message: "", action: title, destructive: true,
+                                             cancel: l10n.s.uninstallerCancel) else { return }
+            NotchNotificationService.shared.clearAll()
+        }
     }
 }
 

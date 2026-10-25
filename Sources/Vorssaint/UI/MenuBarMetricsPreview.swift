@@ -36,6 +36,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var networkUploadFirst = false
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
+    @AppStorage(DefaultsKey.networkSpeedUnit) private var networkSpeedUnit = NetworkSpeedUnit.bytes
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMetrics = false
@@ -55,6 +56,7 @@ struct MenuBarMetricsPreview: View {
         let _ = memoryStyle
         let _ = diskStyle
         let _ = temperatureUnit
+        let _ = networkSpeedUnit
         let _ = metricSpacing
         let metrics = activeMetrics
         let lines = separateMetrics ? [] : MenuBarRenderer.lines(for: monitor.snapshot, metrics: metrics)
@@ -65,9 +67,9 @@ struct MenuBarMetricsPreview: View {
                 .map { MenuBarRenderer.lines(for: monitor.snapshot, metrics: $0.metrics) }
                 .filter { !$0.isEmpty }
             : []
-        // The steady state of the hide option: a pending update or a muted
-        // microphone brings the real icon back, and the preview does not
-        // pretend to know about either.
+        // The steady state of the hide option: a pending update, a running
+        // Keep Awake or a muted microphone brings the real icon back, and the
+        // preview does not pretend to know about any of them.
         let iconHidden = hideIconWithMetrics && (!lines.isEmpty || !items.isEmpty)
 
         HStack(spacing: 12) {
@@ -158,12 +160,13 @@ struct MenuBarMetricsPreview: View {
                 .font(.system(size: 13.6, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 14.2, height: 14.2)
-        case let .metricBlock(label, value, minimumValue, style, pressure):
+        case let .metricBlock(label, value, minimumValue, style, pressure, warning):
             metricBlock(label: label,
                         value: value,
                         minimumValue: minimumValue,
                         style: style,
-                        pressure: pressure)
+                        pressure: pressure,
+                        warning: warning)
         case let .usageBarBlock(label, fraction, style, pressure):
             usageBarBlock(label: label,
                           fraction: fraction,
@@ -198,9 +201,11 @@ struct MenuBarMetricsPreview: View {
             .frame(width: MenuBarRenderer.rateBlockWidth(style: style),
                    height: style == .readable ? 22 : 20,
                    alignment: .center)
-        case let .batteryBlock(percent, isCharging, style):
+        case let .batteryBlock(percent, isCharging, externalConnected, warning, style):
             HStack(spacing: style == .readable ? 5 : 4) {
-                Image(systemName: MenuBarRenderer.batterySymbol(for: percent, isCharging: isCharging))
+                Image(systemName: BatteryPowerSupport.menuBarSymbol(percent: percent,
+                                                                    isCharging: isCharging,
+                                                                    externalConnected: externalConnected))
                     .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
                 Text("\(max(0, min(100, percent)))%")
                     .font(.system(size: style == .readable ? 13 : 12,
@@ -208,7 +213,7 @@ struct MenuBarMetricsPreview: View {
                                   design: .monospaced))
                     .frame(minWidth: style == .readable ? 33 : 30, alignment: .leading)
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(MenuBarRenderer.nsColor(for: warning).map { Color(nsColor: $0) } ?? .white)
             .fixedSize(horizontal: true, vertical: true)
         case let .dot(pressure):
             Circle()
@@ -228,7 +233,8 @@ struct MenuBarMetricsPreview: View {
                              value: String,
                              minimumValue: String,
                              style: MenuBarBlockStyle,
-                             pressure: MemoryPressure?) -> some View {
+                             pressure: MemoryPressure?,
+                             warning: BatteryWarning) -> some View {
         VStack(spacing: -1) {
             Text(label)
                 .font(.system(size: style == .readable ? 7.2 : 6.6, weight: .medium))
@@ -241,6 +247,7 @@ struct MenuBarMetricsPreview: View {
                 }
                 if !value.isEmpty {
                     Text(value)
+                        .foregroundStyle(MenuBarRenderer.nsColor(for: warning).map { Color(nsColor: $0) } ?? .white)
                         .font(.system(size: style == .readable ? 13 : 12,
                                       weight: .semibold,
                                       design: .monospaced))

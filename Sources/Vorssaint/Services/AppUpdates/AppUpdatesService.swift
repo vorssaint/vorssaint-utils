@@ -33,6 +33,10 @@ final class AppUpdatesService: ObservableObject {
     @Published private(set) var onlineCatalogAvailable = true
     @Published private(set) var appStoreAvailable = true
     @Published private(set) var uncheckedAppNames: [String] = []
+    /// Apps the catalog knows whose own version cannot be compared with it.
+    /// They are named instead of listed, so nothing claims an update for them
+    /// or implies they are current.
+    @Published private(set) var uncomparableAppNames: [String] = []
     /// A check finished in THIS process. The time of the last check survives
     /// relaunches, but its findings do not, so nothing may claim the Mac is
     /// up to date until a scan has actually run here.
@@ -61,7 +65,10 @@ final class AppUpdatesService: ObservableObject {
     private var knownIDs = Set<String>()
     /// The person was sent elsewhere to finish an update, so the list is
     /// about to be wrong until it is read again.
-    private(set) var updateHandoffPending = false
+    private var pendingUpdateHandoffs = Set<UUID>()
+    var updateHandoffPending: Bool {
+        !pendingUpdateHandoffs.isEmpty
+    }
     private var onlineCatalogCache: (loadedAt: Date, entries: [AppUpdatesSupport.CatalogEntry])?
     /// Alive only while an upgrade this service started is running, so the
     /// list refreshes itself even when no window is on screen to notice.
@@ -214,7 +221,7 @@ final class AppUpdatesService: ObservableObject {
             }
             group.notify(queue: self.workQueue) {
                 let resolvedFeed = feedResult.resolvingCatalogFallback(
-                    checkedPaths: onlineResult.checkedPaths, candidates: onlineCandidates)
+                    answeredBy: onlineResult, candidates: onlineCandidates)
                 DispatchQueue.main.async {
                     guard generation == self.scanGeneration else { return }
                     self.finishCheck(items: AppUpdatesSupport.merged(packageResult.items,
@@ -229,6 +236,7 @@ final class AppUpdatesService: ObservableObject {
                                      uncheckedAppNames: AppUpdatesSupport.uncheckedAppNames(
                                         storeResult.uncheckedApps + resolvedFeed.uncheckedApps + onlineResult.uncheckedApps,
                                         checkedPaths: resolvedFeed.checkedPaths),
+                                     uncomparableAppNames: onlineResult.uncomparableAppNames(coveredBy: resolvedFeed),
                                      automatic: automatic)
                 }
             }
@@ -240,6 +248,7 @@ final class AppUpdatesService: ObservableObject {
                              onlineCatalogAvailable catalogAvailable: Bool,
                              appStoreAvailable storeAvailable: Bool,
                              uncheckedAppNames: [String],
+                             uncomparableAppNames: [String],
                              automatic: Bool) {
         // The feature can be switched off in the hub while a scan is in
         // flight; its findings belong to a surface that no longer exists.
@@ -274,6 +283,7 @@ final class AppUpdatesService: ObservableObject {
         onlineCatalogAvailable = catalogAvailable
         appStoreAvailable = storeAvailable
         self.uncheckedAppNames = uncheckedAppNames
+        self.uncomparableAppNames = uncomparableAppNames
         hasCheckedThisSession = true
         isChecking = false
         let now = Date()
@@ -428,6 +438,11 @@ final class AppUpdatesService: ObservableObject {
         var checkedPaths: Set<String> = []
         var uncheckedApps: [AppUpdatesSupport.InstalledApp] = []
         var catalogFallbackPaths: Set<String> = []
+        var uncomparableApps: [AppUpdatesSupport.InstalledApp] = []
+
+        /// A catalog match whose version cannot be compared still answers for
+        /// a missing feed; that app is named for its version instead.
+        var answeredPaths: Set<String> { checkedPaths.union(uncomparableApps.map(\.path)) }
 
         func resolvingCatalogFallback(checkedPaths catalogPaths: Set<String>,
                                       candidates: [AppUpdatesSupport.InstalledApp]) -> SourceResult {
@@ -435,6 +450,18 @@ final class AppUpdatesService: ObservableObject {
             return SourceResult(items: items, available: available && missing.isEmpty,
                                 checkedPaths: checkedPaths,
                                 uncheckedApps: uncheckedApps + candidates.filter { missing.contains($0.path) })
+        }
+
+        /// The feeds, with a missing one answered by whatever the catalog
+        /// found for that app, compared or only named.
+        func resolvingCatalogFallback(answeredBy catalog: SourceResult,
+                                      candidates: [AppUpdatesSupport.InstalledApp]) -> SourceResult {
+            resolvingCatalogFallback(checkedPaths: catalog.answeredPaths, candidates: candidates)
+        }
+
+        /// The catalog's uncompared apps, less those their own feed compared.
+        func uncomparableAppNames(coveredBy feeds: SourceResult) -> [String] {
+            AppUpdatesSupport.uncheckedAppNames(uncomparableApps, checkedPaths: feeds.checkedPaths)
         }
     }
 
@@ -548,7 +575,8 @@ final class AppUpdatesService: ObservableObject {
             operatingSystemVersion: operatingSystemVersion,
             ignoredTokens: Self.ownPackageTokens)
         return SourceResult(items: findings.items, available: true,
-                            checkedPaths: findings.checkedPaths)
+                            checkedPaths: findings.checkedPaths,
+                            uncomparableApps: findings.uncomparableApps)
     }
 
     // MARK: - Update rules
@@ -562,10 +590,25 @@ final class AppUpdatesService: ObservableObject {
         setRule(for: item, version: nil)
     }
 
+    /// Excludes an app straight from its bundle, so one that is not in the list
+    /// (up to date, or never matched by a source) can still be left out.
+    func addExclusion(appAt url: URL) {
+        guard !isChecking,
+              let app = Self.scannedApp(at: url, includePublisherFeeds: false) else { return }
+        storeRule(bundleID: app.bundleID, name: app.name, version: nil)
+    }
+
     private func setRule(for item: AppUpdatesSupport.Item, version: String?) {
-        guard !isChecking, let bundleID = item.bundleID, !bundleID.isEmpty,
-              items.contains(item) else { return }
-        let rule = AppUpdatesSupport.UpdateRule(bundleID: bundleID, name: item.name, version: version)
+        guard !isChecking, let bundleID = item.bundleID, items.contains(item) else { return }
+        storeRule(bundleID: bundleID, name: item.name, version: version)
+    }
+
+    private func storeRule(bundleID: String, name: String, version: String?) {
+        // Same shape `decodedRules` accepts, so a rule saved now survives a reload.
+        guard !bundleID.isEmpty, bundleID.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              !bundleID.contains("/"),
+              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let rule = AppUpdatesSupport.UpdateRule(bundleID: bundleID, name: name, version: version)
         saveRules(rules.filter { $0.bundleID != bundleID } + [rule])
     }
 
@@ -667,11 +710,14 @@ final class AppUpdatesService: ObservableObject {
     }
 
     /// The destination installs its own update, so open it and tell the truth
-    /// again the moment the person is back.
+    /// again the moment the person is back. Opening runs off the main thread,
+    /// since launching a large app can take a while.
     private func handOff(_ url: URL) {
-        updateHandoffPending = true
-        if !NSWorkspace.shared.open(url) {
-            updateHandoffPending = false
+        let request = UUID()
+        pendingUpdateHandoffs.insert(request)
+        NSWorkspace.shared.open(url, configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
+            guard error != nil else { return }
+            DispatchQueue.main.async { self?.pendingUpdateHandoffs.remove(request) }
         }
     }
 
@@ -727,7 +773,7 @@ final class AppUpdatesService: ObservableObject {
     /// behind. Reading it clears the flag, so the window is restored once.
     func consumeUpdateHandoffReturn() -> Bool {
         guard updateHandoffPending else { return false }
-        updateHandoffPending = false
+        pendingUpdateHandoffs.removeAll()
         return true
     }
 
@@ -802,12 +848,17 @@ final class AppUpdatesService: ObservableObject {
                 ? (try? String(contentsOf: configurationURL, encoding: .utf8)) : nil
             updateFeed = AppUpdateFeedSupport.feed(info: plist, configuration: configuration)
         }
+        // Positron keeps its own release beside its code, not in its bundle.
+        let productURL = url.appendingPathComponent("Contents/Resources/app/product.json")
+        let productSize = (try? productURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+        let productFile = productSize.map { $0 <= 256 * 1_024 } == true ? (try? Data(contentsOf: productURL)) : nil
+        let product = AppUpdatesSupport.productRelease(productFile)
         return AppUpdatesSupport.InstalledApp(name: name,
                                               bundleID: bundleID,
                                               path: url.standardizedFileURL.path,
-                                              version: version,
+                                              version: product?.version ?? version,
                                               isFromAppStore: hasReceipt,
-                                              buildVersion: plist["CFBundleVersion"] as? String ?? "",
+                                              buildVersion: product?.build ?? plist["CFBundleVersion"] as? String ?? "",
                                               storeID: storeID,
                                               updateFeed: updateFeed)
     }

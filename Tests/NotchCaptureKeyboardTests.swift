@@ -13,10 +13,14 @@ enum NotchCaptureKeyboardContract {
         var firstResponder: Any?
     }
     final class NSText {}
-    final class ScreenshotOverlayPanel: NSPanel { var overlayView = Overlay() }
+    final class ScreenshotOverlayPanel: NSPanel {
+        var overlayView = Overlay()
+        let screenFrame = CGRect(x: 0, y: 0, width: 100, height: 100)
+    }
     final class Overlay { var isDragging = false }
     enum ShortcutCapture { static var isCapturing = false }
     struct NSEvent {
+        static let mouseLocation = CGPoint(x: 23, y: 61)
         struct ModifierFlags: OptionSet {
             let rawValue: Int
             static let command = Self(rawValue: 1)
@@ -211,7 +215,20 @@ enum NotchCaptureKeyboardTests {
         }
         selection.actions = []
         selection.screenCaptureOptions?.controlsInNotch = false
-        suite.expect(Event.handler?(Event(window: overlay, keyCode: UInt16(kVK_Return))) == nil && selection.actions == ["fullDisplay"],
-               "the original floating chooser keeps full-display capture")
+        for key in [kVK_Return, kVK_ANSI_KeypadEnter] {
+            selection.actions = []
+            suite.expect(Event.handler?(Event(window: overlay, keyCode: UInt16(key))) == nil
+                         && selection.actions == ["fullDisplay"],
+                   "Return and keypad Enter keep full-display capture in the floating chooser")
+        }
+        selection.isPickingColor = true
+        selection.draggingPanel = overlay
+        selection.panels = [overlay]
+        for key in [kVK_Return, kVK_ANSI_KeypadEnter] {
+            selection.actions = []
+            suite.expect(Event.handler?(Event(window: overlay, keyCode: UInt16(key))) == nil
+                         && selection.actions == ["color"],
+                   "Return and keypad Enter confirm the color instead of capturing the display")
+        }
     }
 }

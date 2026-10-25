@@ -51,12 +51,14 @@ enum ScreenshotSelectionRefreshContract {
         var windows: [ScreenshotSupport.PickableWindow] = []
         var fullScreenHost = Host()
         var isCapturePending = false
+        var isDragging = false
         var loupeImage: CGImage?
         var dragOrigin: CGPoint?
         var selection = CGRect.zero
         var hoverPoint = CGPoint.zero
         var pointerIsInside = false
         var hoveredWindow: ScreenshotSupport.PickableWindow?
+        var highlightWindows = true
         var needsLayout = false, needsDisplay = false
         var guideVisibilityRefreshes = 0
         var notchCaptureControlsHeight: CGFloat?
@@ -89,7 +91,12 @@ enum ScreenshotSelectionRefreshContract {
             overlayView.windows = windows
         }
     }
-    enum RecorderSupport { struct Region { let windowID: CGWindowID? } }
+    enum RecorderSupport {
+        struct Region {
+            let windowID: CGWindowID?
+            let viewRect: CGRect
+        }
+    }
     @MainActor enum ScreenshotCaptureEngine {
         struct Request {
             let excluded: Set<CGWindowID>
@@ -114,8 +121,11 @@ enum ScreenshotSelectionRefreshContract {
                 protectedWindowIDs: protectedWindowIDs)
                 ? [(CGWindowID(11), CGRect(x: 0, y: 0, width: 50, height: 50))] : []
         }
-        static func captureWindow(_ id: CGWindowID, scale: CGFloat) async -> CGImage? {
-            CGImage(excluded: [])
+        /// The scale a window capture reports, like a composite recaptured
+        /// on a 2x display; `nil` echoes the scale asked for.
+        static var windowCaptureScale: CGFloat?
+        static func captureWindow(_ id: CGWindowID, scale: CGFloat) async -> (image: CGImage, scale: CGFloat)? {
+            (CGImage(excluded: []), windowCaptureScale ?? scale)
         }
         static func complete(_ index: Int, displays: [CGDirectDisplayID]) {
             let request = requests[index]
@@ -160,10 +170,10 @@ enum ScreenshotSelectionRefreshContract {
         var sourceRefreshPending = false
         var sourceGeneration = 0, finished = false, scrollingCaptureEnabled = false,
             loupeEnabled = false, selectionInProgress = false
-        var currentPointerLocation: CGPoint?
-        var requiresDraggedRegion = false
         var panels: [ScreenshotOverlayPanel]
         var outcome: Outcome?
+        var currentPointerLocation: CGPoint? = CGPoint(x: 23, y: 61)
+        var requiresDraggedRegion = false
         var captureExcludedWindowIDs: Set<CGWindowID> {
             ScreenshotCapturePolicy.protectedWindowIDs(
                 workflowWindowIDs: [12], contentWindowIDs: [11, 13],
@@ -202,7 +212,7 @@ enum ScreenshotSelectionRefreshContract {
         }
         func region(fromView: CGRect, on: ScreenshotOverlayPanel, windowID: CGWindowID?)
             -> RecorderSupport.Region
-        { .init(windowID: windowID) }
+        { .init(windowID: windowID, viewRect: fromView) }
         func finish(_ outcome: Outcome) {
             self.outcome = outcome
             finished = true
@@ -213,8 +223,10 @@ enum ScreenshotSelectionRefreshContract {
     }
 
     enum QuickToolsSupport {
+        static var sampledPoint: CGPoint?
         static func sampledColor(in image: CGImage, x: Int, y: Int) -> NSColor? {
-            image.excluded.contains(11) ? .red : .green
+            sampledPoint = CGPoint(x: x, y: y)
+            return image.excluded.contains(11) ? .red : .green
         }
     }
     static func run(_ suite: TestSuite) {
@@ -236,6 +248,50 @@ enum ScreenshotSelectionRefreshContract {
         ScreenshotCaptureEngine.requests = []
         let previousRegion = Chooser.lastRegion
         defer { Chooser.lastRegion = previousRegion }
+        let color = Chooser(.color)
+        color.confirmSelectionWithKeyboard()
+        if case .color(let picked) = color.outcome {
+            expect(picked == .green, "keyboard confirmation returns the displayed color")
+        } else {
+            expect(false, "keyboard confirmation produces a color result")
+        }
+        expect(color.finished, "keyboard color confirmation ends the picker session")
+        expect(QuickToolsSupport.sampledPoint == CGPoint(x: 23, y: 39),
+               "keyboard confirmation samples the nudged pointer in flipped display coordinates")
+        for blocked in ["refresh", "drag", "finished", "missing image"] {
+            let c = Chooser(.color)
+            switch blocked {
+            case "refresh": c.sourceRefreshPending = true
+            case "drag": c.panels[0].overlayView.isDragging = true
+            case "finished": c.finished = true
+            default: c.panels[0].frozenImage = nil
+            }
+            c.confirmSelectionWithKeyboard()
+            expect(c.outcome == nil, "keyboard color confirmation is ignored during \(blocked)")
+        }
+        for tool in [ScreenCaptureTool.screenshot, .text, .recording] {
+            let c = Chooser(tool)
+            c.confirmSelectionWithKeyboard()
+            switch c.outcome {
+            case .captured(let capture):
+                expect(tool != .recording && capture.anchorRect == c.panels[0].screenFrame
+                       && capture.scale == c.panels[0].pixelScale,
+                       "screenshot and text confirmation capture the full display")
+            case .region(let region):
+                expect(tool == .recording && region.windowID == nil
+                       && region.viewRect == CGRect(origin: .zero, size: c.panels[0].screenFrame.size),
+                       "recording confirmation selects a full-display region without a window target")
+            default:
+                expect(false, "keyboard confirmation returns the existing capture result for \(tool)")
+            }
+        }
+        for restricted in ["dragged region", "scrolling"] {
+            let c = Chooser(.screenshot)
+            c.requiresDraggedRegion = restricted == "dragged region"
+            c.scrollingCaptureEnabled = restricted == "scrolling"
+            c.confirmSelectionWithKeyboard()
+            expect(c.outcome == nil, "keyboard confirmation preserves the \(restricted) restriction")
+        }
         for tool in ScreenCaptureTool.allCases {
             for display in [nil, 1, 2, 3] as [CGDirectDisplayID?] {
                 let c = Chooser(tool)
@@ -319,6 +375,19 @@ enum ScreenshotSelectionRefreshContract {
         hoverView.updatePointerHover(CGPoint(x: 20, y: 20))
         expect(hoverView.hoveredWindow?.windowID == 11,
                "window highlighting resumes immediately outside the full-screen action")
+        hoverView.highlightWindows = false
+        hoverView.updatePointerHover(CGPoint(x: 25, y: 25))
+        expect(hoverView.hoveredWindow == nil,
+               "disabling window highlights clears the previous hover target")
+        expect(hoverView.pointerIsInside && hoverView.hoverPoint == CGPoint(x: 25, y: 25),
+               "disabling window highlights keeps pointer tracking for the magnifier")
+        expect(hover.acceptsWindowClick
+                && ScreenshotSupport.window(at: CGPoint(x: 25, y: 25), in: hoverView.windows)?.windowID == 11,
+               "window capture remains available when its hover highlight is hidden")
+        hoverView.highlightWindows = true
+        hoverView.updatePointerHover(CGPoint(x: 25, y: 25))
+        expect(hoverView.hoveredWindow?.windowID == 11,
+               "enabling window highlights restores the hover target")
         hoverView.setNotchCaptureControlsHeight(180)
         hoverView.needsLayout = false
         hoverView.fullScreenControlHoverChanged(true)
@@ -410,6 +479,21 @@ enum ScreenshotSelectionRefreshContract {
                 expect(false, "failed selection cannot subsequently save a stale screenshot")
             }
         }
+        // A 1x panel whose window came back as a 2x composite records 2x, so
+        // the editor, pinned image and 1x export size it by its own pixels.
+        for reported: CGFloat? in [nil, 2] {
+            ScreenshotCaptureEngine.windowCaptureScale = reported
+            let window = Chooser(.screenshot)
+            window.confirmWindow(11, frame: CGRect(x: 0, y: 0, width: 50, height: 50), on: window.panels[0])
+            await drain()
+            if case .captured(let capture)? = window.outcome {
+                expect(capture.scale == (reported ?? window.panels[0].pixelScale),
+                       "a window capture records the scale the engine captured it at")
+            } else {
+                expect(false, "a window capture records the scale the engine captured it at")
+            }
+        }
+        ScreenshotCaptureEngine.windowCaptureScale = nil
         let rapid = Chooser(.recording)
         let r3 = ScreenshotCaptureEngine.requests.count
         rapid.select(.screenshot)

@@ -6,6 +6,8 @@ import AVFoundation
 enum RecorderWriterTests {
     static func run(_ suite: TestSuite) {
         checkClock(suite)
+        checkAudioNormalization(suite)
+        checkPreparation(suite)
         let finished = DispatchSemaphore(value: 0)
         Task.detached {
             do {
@@ -15,13 +17,107 @@ enum RecorderWriterTests {
                 try await check(suite, changingMicrophone: true)
                 try await check(suite, delayedVideo: true, changingMicrophone: true)
                 try await check(suite, changingMicrophone: true, microphoneChannels: 4)
+                try await check(suite, changingMicrophone: true, microphoneChannels: 1,
+                                microphoneFormat: .pcmFormatInt16)
+                try await check(suite, changingMicrophone: true, microphoneChannels: 1,
+                                microphoneFormat: .pcmFormatInt16, malformedMicrophone: true)
                 try await check(suite, changingSystemAudio: true)
             }
             catch { suite.expect(false, "recorder writer fixture failed: \(error)") }
             finished.signal()
         }
-        suite.expect(finished.wait(timeout: .now() + 30) == .success,
+        suite.expect(finished.wait(timeout: .now() + 90) == .success,
                      "recorder writer scenarios finish within their bounded fixture deadline")
+    }
+
+    private static func checkAudioNormalization(_ suite: TestSuite) {
+        var converter: AVAudioConverter?
+        let levels: [Int16] = [-24_576, -8_192, 0, 8_192, 24_576]
+        for rate: CMTimeScale in [44_100, 48_000] {
+            for count in [3, 512] {
+                let source = RecorderSampleTimingTests.audio(count: count, rate: rate, time: time(100))
+                let values = (0..<(count * 2)).map { levels[$0 % levels.count] }
+                precondition(CMBlockBufferReplaceDataBytes(with: values, blockBuffer: CMSampleBufferGetDataBuffer(source)!,
+                    offsetIntoDestination: 0, dataLength: values.count * 2) == noErr)
+                for channels: AVAudioChannelCount in [1, 2, 4] {
+                    for format: AVAudioCommonFormat in [.pcmFormatInt16, .pcmFormatFloat32] {
+                        for interleaved in [false, true] {
+                            let sample = audioSample(source, interleaved: interleaved, channels: channels, format: format)
+                            guard let normalized = RecorderWriter.interleavedAudioSample(sample, converter: &converter) else {
+                                suite.expect(false, "valid mono, stereo and multichannel PCM can be normalized")
+                                continue
+                            }
+                            let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(
+                                CMSampleBufferGetFormatDescription(normalized)!)!.pointee
+                            let isFloat = asbd.mFormatFlags & kAudioFormatFlagIsFloat != 0
+                                && asbd.mFormatFlags & kAudioFormatFlagIsNonInterleaved == 0
+                                && asbd.mBitsPerChannel == 32 && asbd.mBytesPerFrame == channels * 4
+                            suite.expect(isFloat, "both integer and float PCM reach the encoder as interleaved Float32")
+                            suite.expect(asbd.mSampleRate == Double(rate) && asbd.mChannelsPerFrame == channels
+                                && CMSampleBufferGetNumSamples(normalized) == count
+                                && CMSampleBufferGetDuration(normalized) == CMSampleBufferGetDuration(sample)
+                                && CMSampleBufferGetPresentationTimeStamp(normalized) == CMSampleBufferGetPresentationTimeStamp(sample),
+                                "normalization preserves channels, sample rate, frame count and timing")
+                            guard isFloat else { continue }
+                            var decoded = [Float](repeating: 0, count: count * Int(channels))
+                            let status = CMBlockBufferCopyDataBytes(CMSampleBufferGetDataBuffer(normalized)!, atOffset: 0,
+                                dataLength: decoded.count * 4, destination: &decoded)
+                            suite.expect(status == noErr && decoded.enumerated().allSatisfy { index, value in
+                                let frame = index / Int(channels), channel = index % Int(channels)
+                                return abs(value - Float(values[frame * 2 + channel % 2]) / 32_768) < 0.00001
+                            }, "normalization preserves signed sample amplitudes and channel order without noise")
+                        }
+                    }
+                }
+            }
+        }
+        for length in [512, 2_048] {
+            suite.expect(RecorderWriter.interleavedAudioSample(malformedAudio(byteCount: length), converter: &converter) == nil,
+                "Int16 mono buffers with fewer or more bytes than their 512 declared frames are rejected")
+        }
+    }
+
+    /// Reproduce the issue's 512 Int16 mono frames carrying 2,048 bytes,
+    /// plus a truncated packet. Core Media accepts both inconsistent buffers.
+    private static func malformedAudio(byteCount: Int) -> CMSampleBuffer {
+        let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 48_000, channels: 1, interleaved: true)!
+        var block: CMBlockBuffer?
+        precondition(CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault,
+            memoryBlock: nil, blockLength: byteCount, blockAllocator: kCFAllocatorDefault,
+            customBlockSource: nil, offsetToData: 0, dataLength: byteCount, flags: 0,
+            blockBufferOut: &block) == noErr)
+        precondition(CMBlockBufferFillDataBytes(with: 0x30, blockBuffer: block!, offsetIntoDestination: 0,
+            dataLength: byteCount) == noErr)
+        var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: 48_000),
+            presentationTimeStamp: time(100), decodeTimeStamp: .invalid)
+        var size = 2
+        var sample: CMSampleBuffer?
+        precondition(CMSampleBufferCreateReady(allocator: kCFAllocatorDefault, dataBuffer: block,
+            formatDescription: format.formatDescription, sampleCount: 512, sampleTimingEntryCount: 1,
+            sampleTimingArray: &timing, sampleSizeEntryCount: 1, sampleSizeArray: &size,
+            sampleBufferOut: &sample) == noErr)
+        return sample!
+    }
+
+    private static func checkPreparation(_ suite: TestSuite) {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("recorder-prepare-\(UUID()).mov")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var returned = false
+        var completed = false
+        RecorderWriter.prepare(url: url, pixelSize: CGSize(width: 64, height: 64), frameRate: 30,
+                               capturesSystemAudio: false, capturesMicrophone: false,
+                               pauseClock: RecorderPauseClock()) { writer in
+            suite.expect(returned && Thread.isMainThread && writer != nil,
+                         "writer preparation returns asynchronously to the main thread with a usable encoder")
+            writer?.cancel()
+            completed = true
+        }
+        returned = true
+        let deadline = Date(timeIntervalSinceNow: 30)
+        while !completed, Date() < deadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.005))
+        }
+        suite.expect(completed, "writer preparation finishes within its fixture deadline")
     }
 
     private static func checkClock(_ suite: TestSuite) {
@@ -46,7 +142,9 @@ enum RecorderWriterTests {
                               delayedVideo: Bool = false, capturesAudio: Bool = true,
                               changingMicrophone: Bool = false,
                               microphoneChannels: AVAudioChannelCount = 2,
-                               changingSystemAudio: Bool = false) async throws {
+                              microphoneFormat: AVAudioCommonFormat = .pcmFormatFloat32,
+                              malformedMicrophone: Bool = false,
+                              changingSystemAudio: Bool = false) async throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("recorder-sync-\(UUID()).mov")
         defer { try? FileManager.default.removeItem(at: url) }
         let pause = RecorderPauseClock()
@@ -56,6 +154,10 @@ enum RecorderWriterTests {
             capturesSystemAudio: capturesAudio, capturesMicrophone: capturesAudio, pauseClock: pause)!
         precondition(writer.start())
         writer.beginSession(at: origin)
+        if malformedMicrophone {
+            suite.expect(writer.append(malformedAudio(byteCount: 2_048), kind: .microphone) == .dropped,
+                         "inconsistent microphone PCM is dropped before it can corrupt the AAC track")
+        }
         var pointer = RecorderPointerTrack()
         var typing = RecorderTypingTrack()
 
@@ -63,7 +165,7 @@ enum RecorderWriterTests {
         // Video and system audio must retain their earlier timestamps.
         let firstAudio = RecorderSampleTimingTests.audio(count: 480, time: origin + time(0.1))
         let firstMicrophone = changingMicrophone
-            ? audioSample(firstAudio, interleaved: false, channels: microphoneChannels)
+            ? audioSample(firstAudio, interleaved: false, channels: microphoneChannels, format: microphoneFormat)
             : firstAudio
         try await feed(firstMicrophone, kind: .microphone, to: writer, required: capturesAudio)
         for index in 0..<100 {
@@ -96,7 +198,7 @@ enum RecorderWriterTests {
             try await feed(systemAudio, kind: .systemAudio, to: writer, required: capturesAudio)
             if index > 10 {
                 let captured = changingMicrophone
-                    ? audioSample(audio, interleaved: index >= 50, channels: microphoneChannels)
+                    ? audioSample(audio, interleaved: index >= 50, channels: microphoneChannels, format: microphoneFormat)
                     : audio
                 // Exercise the additional clock-conversion pass the microphone uses.
                 let microphone = RecorderSampleTiming.retimed(captured, to: source + time(400))!
@@ -158,6 +260,7 @@ enum RecorderWriterTests {
             reader.add(output)
             precondition(reader.startReading())
             var markers: [Double] = []
+            var quietPeak: Float = 0
             while let sample = output.copyNextSampleBuffer() {
                 let block = CMSampleBufferGetDataBuffer(sample)!
                 let frames = CMSampleBufferGetNumSamples(sample)
@@ -165,12 +268,19 @@ enum RecorderWriterTests {
                 precondition(CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: values.count * 4,
                     destination: &values) == noErr)
                 let start = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+                for frame in 0..<frames {
+                    let position = start + Double(frame) / 48_000
+                    if (0.15..<0.35).contains(position) || (0.55..<0.75).contains(position) {
+                        quietPeak = max(quietPeak, abs(values[frame * 2]), abs(values[frame * 2 + 1]))
+                    }
+                }
                 for frame in 0..<frames where abs(values[frame * 2]) > 0.1 {
                     let marker = start + Double(frame) / 48_000
                     if markers.last.map({ marker - $0 > 0.1 }) ?? true { markers.append(marker) }
                 }
             }
             suite.expect(reader.status == .completed, "the saved audio decodes fully")
+            suite.expect(quietPeak < 0.001, "silent sections remain quiet after AAC encoding and decoding")
             suite.expect(markers.count == 2 && abs(markers[0] - 0.4) < 0.025 && abs(markers[1] - 0.8) < 0.025,
                    "audio markers align with video before and after the pause")
             suite.expect(eventTimes.allSatisfy { event in markers.contains { abs($0 - event) < 0.025 } },
@@ -219,12 +329,14 @@ enum RecorderWriterTests {
     /// production writer must keep both representations in the same movie.
     private static func audioSample(_ sample: CMSampleBuffer,
                                     interleaved: Bool,
-                                    channels: AVAudioChannelCount) -> CMSampleBuffer {
+                                    channels: AVAudioChannelCount,
+                                    format: AVAudioCommonFormat = .pcmFormatFloat32) -> CMSampleBuffer {
         let count = AVAudioFrameCount(CMSampleBufferGetNumSamples(sample))
         var source = [Int16](repeating: 0, count: Int(count) * 2)
         precondition(CMBlockBufferCopyDataBytes(CMSampleBufferGetDataBuffer(sample)!, atOffset: 0,
             dataLength: source.count * 2, destination: &source) == noErr)
-        let deviceFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48_000,
+        let rate = CMAudioFormatDescriptionGetStreamBasicDescription(CMSampleBufferGetFormatDescription(sample)!)!.pointee.mSampleRate
+        let deviceFormat = AVAudioFormat(commonFormat: format, sampleRate: rate,
             interleaved: interleaved, channelLayout: AVAudioChannelLayout(
                 layoutTag: kAudioChannelLayoutTag_DiscreteInOrder | channels)!)
         let device = AVAudioPCMBuffer(pcmFormat: deviceFormat, frameCapacity: count)!
@@ -233,7 +345,12 @@ enum RecorderWriterTests {
             for channel in 0..<Int(channels) {
                 let buffer = interleaved ? 0 : channel
                 let index = interleaved ? frame * Int(channels) + channel : frame
-                device.floatChannelData![buffer][index] = Float(source[frame * 2 + channel % 2]) / 32_768
+                let value = source[frame * 2 + channel % 2]
+                if format == .pcmFormatInt16 {
+                    device.int16ChannelData![buffer][index] = value
+                } else {
+                    device.floatChannelData![buffer][index] = Float(value) / 32_768
+                }
             }
         }
         // A multichannel device need not provide speaker labels.
@@ -241,7 +358,7 @@ enum RecorderWriterTests {
         precondition(CMAudioFormatDescriptionCreate(allocator: kCFAllocatorDefault,
             asbd: deviceFormat.streamDescription, layoutSize: 0, layout: nil,
             magicCookieSize: 0, magicCookie: nil, extensions: nil, formatDescriptionOut: &description) == noErr)
-        var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: 48_000),
+        var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: CMTimeScale(rate)),
             presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sample), decodeTimeStamp: .invalid)
         var result: CMSampleBuffer?
         precondition(CMSampleBufferCreate(allocator: kCFAllocatorDefault, dataBuffer: nil, dataReady: false,

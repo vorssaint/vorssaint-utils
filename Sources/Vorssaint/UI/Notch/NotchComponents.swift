@@ -93,6 +93,54 @@ struct NotchRollingDigits: ViewModifier {
     }
 }
 
+/// Draws a strip from what its activity reported while it was on the island.
+/// An activity that ends says so before the island swaps its strip out, and
+/// the strip on its way out drew the empty reading for those frames and
+/// through the fade into what comes next.
+struct NotchStripHold<Value: Equatable, Content: View>: View {
+    private let value: Value
+    private let shows: Bool
+    private let content: (Value) -> Content
+    @State private var held: Value
+
+    /// `shows` is whether the activity is still on the island.
+    init(_ value: Value, shows: Bool, @ViewBuilder content: @escaping (Value) -> Content) {
+        self.value = value
+        self.shows = shows
+        self.content = content
+        _held = State(initialValue: value)
+    }
+
+    var body: some View {
+        content(shows ? value : held)
+            .onChange(of: value) { _, value in
+                if shows { held = value }
+            }
+    }
+}
+
+/// Swaps a strip and the companion at rest through black: the one leaving is
+/// gone halfway through the island's crossfade and the one arriving comes in
+/// over the rest of it, so the companion never shows half faded over the
+/// strip's text in the same place.
+struct NotchFadeThrough: ViewModifier, Animatable {
+    var progress: Double
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content.opacity(max(0, progress * 2 - 1))
+    }
+}
+
+extension AnyTransition {
+    static var notchFadeThrough: AnyTransition {
+        .modifier(active: NotchFadeThrough(progress: 0), identity: NotchFadeThrough(progress: 1))
+    }
+}
+
 struct NotchIconButton: View {
     let symbol: String
     let title: String
@@ -119,20 +167,37 @@ struct NotchIconButton: View {
     }
 }
 
+/// The island's way to its sections, in its top row or on a page that
+/// lays out its own top, while nothing floating beside the island offers it.
+struct NotchSectionsButton: View {
+    let action: () -> Void
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        NotchIconButton(symbol: "square.grid.2x2", title: FeatureStrings.notch(l10n.language).sectionsTitle, action: action)
+    }
+}
+
 /// A short island puts the glyph beside its message; taller ones stack them.
-struct NotchEmptyView: View {
+/// Actions, when a page has a next step to offer, follow the message.
+struct NotchEmptyView<Actions: View>: View {
     let symbol: String
     let message: String
+    @ViewBuilder var actions: () -> Actions
 
     var body: some View {
         ViewThatFits(in: .vertical) {
             VStack(spacing: 12) {
                 glyph
-                label.frame(maxWidth: 250)
+                label.multilineTextAlignment(.center).frame(maxWidth: 250)
+                actions()
             }
             HStack(spacing: 14) {
                 glyph
-                label.frame(maxWidth: 260, alignment: .leading)
+                VStack(alignment: .leading, spacing: 10) {
+                    label.frame(maxWidth: 260, alignment: .leading)
+                    actions()
+                }
             }
         }
         .padding(12)
@@ -156,14 +221,49 @@ struct NotchEmptyView: View {
     }
 }
 
+extension NotchEmptyView where Actions == EmptyView {
+    init(symbol: String, message: String) {
+        self.init(symbol: symbol, message: message) { EmptyView() }
+    }
+}
+
+/// An empty page's next step, as a word on a pill. The step the page leads
+/// to is filled, and any other stays plain beside it.
+struct NotchPillButton: View {
+    let title: String
+    var prominent = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: prominent ? .semibold : .medium))
+                .foregroundStyle(.white.opacity(prominent ? 1 : 0.7))
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+                .frame(height: 28)
+                .background(.white.opacity(prominent ? 0.14 : 0), in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+    }
+}
+
 struct NotchArtwork: View {
     let image: NSImage?
     let size: CGFloat
+    /// A player that sends no cover, as Firefox and Zen do, shows its own
+    /// icon in its place, so the song still says where it plays.
+    var source: RadialNowPlayingSnapshot? = nil
 
     var body: some View {
         Group {
             if let image {
                 Image(nsImage: image).resizable().scaledToFill()
+            } else if let icon = source.flatMap(RadialNowPlayingApplication.icon(for:)) {
+                Color.black.overlay {
+                    Image(nsImage: icon).resizable().interpolation(.high).scaledToFit().padding(size * 0.14)
+                }
             } else {
                 Color.black.overlay {
                     Image(systemName: "music.note")
@@ -185,13 +285,15 @@ struct NotchArtwork: View {
 /// Items fill each column top to bottom and continue sideways, so a short
 /// island scrolls to the side and never down. Whenever everything fits
 /// without scrolling, the items read left to right instead, in rows of equal
-/// cells across the full width, and a short last row sits centered.
+/// cells across the full width, and a short last row sits centered. A rail
+/// given `leastSpacing` closes its gaps toward it before it scrolls.
 struct NotchRail<Item: Identifiable, Content: View>: View {
     let items: [Item]
     let rows: Int
     let itemWidth: CGFloat
     let width: CGFloat
     var spacing: CGFloat = 8
+    var leastSpacing: CGFloat? = nil
     var rowSpacing: CGFloat = 8
     var scrollTarget: Item.ID? = nil
     @ViewBuilder let content: (Item) -> Content
@@ -200,8 +302,10 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     private var columns: Int { NotchLayout.railColumns(count: items.count, rows: rows) }
     private var starts: [Int] { Array(stride(from: 0, to: items.count, by: max(1, rows))) }
     private var rowStarts: [Int] { Array(stride(from: 0, to: items.count, by: max(1, columns))) }
-    private var fits: Bool {
-        NotchLayout.railFits(columns: columns, itemWidth: itemWidth, spacing: spacing, width: width)
+    /// Nil while the rail scrolls.
+    private var gap: CGFloat? {
+        NotchLayout.railGap(columns: columns, itemWidth: itemWidth, spacing: spacing,
+                            least: leastSpacing ?? spacing, width: width)
     }
 
     // Scroll to the column itself: its identity is known before lazy children
@@ -212,10 +316,10 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     }
 
     var body: some View {
-        if fits {
-            let cell = (width - CGFloat(max(0, columns - 1)) * spacing) / CGFloat(max(1, columns))
+        if let gap {
+            let cell = (width - CGFloat(max(0, columns - 1)) * gap) / CGFloat(max(1, columns))
             VStack(spacing: rowSpacing) {
-                ForEach(rowStarts, id: \.self) { start in row(start, cell: cell) }
+                ForEach(rowStarts, id: \.self) { start in row(start, cell: cell, gap: gap) }
             }
         } else {
             ScrollViewReader { proxy in
@@ -242,8 +346,8 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
         }
     }
 
-    private func row(_ start: Int, cell: CGFloat) -> some View {
-        HStack(alignment: .top, spacing: spacing) {
+    private func row(_ start: Int, cell: CGFloat, gap: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: gap) {
             ForEach(items[start..<min(items.count, start + max(1, columns))]) { item in
                 content(item).frame(width: cell)
             }
@@ -280,6 +384,99 @@ extension EnvironmentValues {
 
 private struct NotchSettingsPreviewKey: EnvironmentKey {
     static let defaultValue = false
+}
+
+private struct NotchBandEnvironmentKey: EnvironmentKey {
+    static let defaultValue = NotchBand()
+}
+
+extension EnvironmentValues {
+    /// The open island's top row, where the page's own controls go: beside
+    /// the camera, or across the top of an island without one.
+    var notchBand: NotchBand {
+        get { self[NotchBandEnvironmentKey.self] }
+        set { self[NotchBandEnvironmentKey.self] = newValue }
+    }
+}
+
+/// Controls a page hands the island's top row. The island names no page, so
+/// the row holds what the page needs at hand, and the island adds its own
+/// around them: the way back on its leading side, an update or the pin on
+/// its trailing side.
+struct NotchBandItems {
+    var leading: AnyView?
+    var trailing: AnyView?
+}
+
+struct NotchBandKey: PreferenceKey {
+    static var defaultValue = NotchBandItems()
+
+    static func reduce(value: inout NotchBandItems, nextValue: () -> NotchBandItems) {
+        let next = nextValue()
+        if let leading = next.leading { value.leading = leading }
+        if let trailing = next.trailing { value.trailing = trailing }
+    }
+}
+
+extension View {
+    /// Puts controls in the island's top row, beside the camera where they
+    /// fit there. The page keeps their state: they are drawn from its body.
+    /// Each call sets only its own sides, so an outer call leaves the other
+    /// side to what the page inside it set.
+    func notchBand<Leading: View, Trailing: View>(@ViewBuilder leading: () -> Leading,
+                                                  @ViewBuilder trailing: () -> Trailing) -> some View {
+        let leading = AnyView(leading()), trailing = AnyView(trailing())
+        return transformPreference(NotchBandKey.self) { $0.leading = leading; $0.trailing = trailing }
+    }
+
+    func notchBand<Leading: View>(@ViewBuilder leading: () -> Leading) -> some View {
+        let leading = AnyView(leading())
+        return transformPreference(NotchBandKey.self) { $0.leading = leading }
+    }
+
+    func notchBand<Trailing: View>(@ViewBuilder trailing: () -> Trailing) -> some View {
+        let trailing = AnyView(trailing())
+        return transformPreference(NotchBandKey.self) { $0.trailing = trailing }
+    }
+}
+
+/// The open island's top row: a page's controls on either side of the
+/// camera, each side kept clear of it, or one row across an island without
+/// one, its leading controls at the start and its trailing ones at the end.
+struct NotchBandRow<Leading: View, Trailing: View>: View {
+    let band: NotchBand
+    /// A side a level reading covers for a moment: its controls stay in place
+    /// and keep their state, out of sight and out of reach.
+    var covered: HorizontalEdge? = nil
+    @ViewBuilder let leading: () -> Leading
+    @ViewBuilder let trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: 0) {
+            side(covered == .leading) {
+                HStack(spacing: 6) { leading() }
+            }
+            .frame(width: band.besideCamera ? band.side : nil, alignment: .leading)
+            .frame(maxWidth: band.besideCamera ? nil : .infinity, alignment: .leading)
+            Spacer(minLength: band.besideCamera ? 0 : 12)
+            side(covered == .trailing) {
+                HStack(spacing: 6) { trailing() }
+            }
+            .frame(width: band.besideCamera ? band.side : nil, alignment: .trailing)
+            // Across the top the trailing controls take what they need first,
+            // measured against the room the row has, so whatever has to give
+            // way (the island's own marks first) is told how much there is.
+            .layoutPriority(band.besideCamera ? 0 : 1)
+        }
+        .frame(height: band.height)
+    }
+
+    private func side<Content: View>(_ hidden: Bool, @ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .opacity(hidden ? 0 : 1)
+            .allowsHitTesting(!hidden)
+            .accessibilityHidden(hidden)
+    }
 }
 
 /// The native host publishes the same path used by its animated mask. Keeping
@@ -373,8 +570,7 @@ struct NotchSurfaceBackground: View {
                     .environment(\.appearsActive, true)
                     .materialActiveAppearance(.active)
                     .overlay {
-                        LinearGradient(stops: Self.shade(openness: presentation.openness, contrast: contrast,
-                                                             height: presentation.contourBottom),
+                        LinearGradient(stops: Self.shade(openness: presentation.openness, contrast: contrast),
                                        startPoint: .top, endPoint: .bottom)
                             .frame(height: presentation.contourBottom)
                             .frame(maxHeight: .infinity, alignment: .top)
@@ -394,11 +590,13 @@ struct NotchSurfaceBackground: View {
     /// The dimming over the glass, from the top of the island to its lip. Near
     /// a black strip the lip closes up, so the last frames of a collapse
     /// already match the resting island.
-    /// The black holds over the whole page, and the lip opens in the margin
-    /// below it (NotchGlassLip), measured in points over an island `height` tall.
-    static func shade(openness: Double, contrast: ColorSchemeContrast, height: CGFloat) -> [Gradient.Stop] {
-        NotchGlassLip.stops(height: height, openness: openness, increasedContrast: contrast == .increased)
-            .map { Gradient.Stop(color: .black.opacity($0.opacity), location: $0.location) }
+    static func shade(openness: Double, contrast: ColorSchemeContrast) -> [Gradient.Stop] {
+        (0...64).map { index in
+            let t = Double(index) / 64
+            return Gradient.Stop(
+                color: .black.opacity(1 - openness * (contrast == .increased ? 0.10 : 0.45) * pow(t, 2.5)),
+                location: t)
+        }
     }
 }
 
@@ -557,6 +755,57 @@ struct NotchMenuButton<Label: View>: View {
     }
 }
 
+/// The way back in the island's top row. It names where it is, as a title
+/// did above a detail before the island stopped naming its pages.
+struct NotchBandBackButton: View {
+    let title: String
+    let action: () -> Void
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.55))
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 7)
+            .frame(height: 28)
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 9))
+        .help(l10n.s.obBack)
+        .accessibilityLabel(l10n.s.obBack)
+        .accessibilityValue(title)
+    }
+}
+
+/// What a menu in the island's top row reads: its current choice, cut to the
+/// room its side leaves, with the chevron that says a list opens from it.
+struct NotchBandMenuLabel: View {
+    let title: String
+    var symbol: String? = nil
+    var truncation: Text.TruncationMode = .tail
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let symbol {
+                Image(systemName: symbol).foregroundStyle(.white.opacity(0.55))
+            }
+            Text(title).lineLimit(1).truncationMode(truncation)
+            Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.white.opacity(0.85))
+        .padding(.horizontal, 7)
+        .frame(height: 28)
+        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+}
+
 /// A chooser whose current choice reads in full: up to two centred lines, or
 /// one line cut in the middle, with the list as a native menu below it.
 struct NotchDeviceMenu: View {
@@ -678,6 +927,32 @@ extension NSAlert {
                 NotificationCenter.default.addObserver(forName: $0, object: nil, queue: .main, using: raise)
             }
             DispatchQueue.main.async { alertWindow.level = level }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let response = runModal()
+        observers.forEach(NotificationCenter.default.removeObserver)
+        // A closed island declines key status, so this only returns to an open one.
+        if let island, island.isVisible { island.makeKey() }
+        return response
+    }
+}
+
+extension NSSavePanel {
+    /// Runs an open or save panel from inside the island just above it, like
+    /// `NSAlert.confirmAboveIsland`: an application-modal panel would open
+    /// below the island, and a sheet would move and reskin its surface.
+    func runAboveIsland() -> NSApplication.ModalResponse {
+        let island = NotchService.shared.presentationWindow
+        var observers: [NSObjectProtocol] = []
+        if let island {
+            // The modal session resets the level when it activates the app or
+            // makes the panel key. Raise it once running and after each reset.
+            let level = NSWindow.Level(rawValue: island.level.rawValue + 1)
+            let raise: (Notification) -> Void = { [weak self] _ in self?.level = level }
+            observers = [NSWindow.didBecomeKeyNotification, NSApplication.didBecomeActiveNotification].map {
+                NotificationCenter.default.addObserver(forName: $0, object: nil, queue: .main, using: raise)
+            }
+            DispatchQueue.main.async { [weak self] in self?.level = level }
         }
         NSApp.activate(ignoringOtherApps: true)
         let response = runModal()

@@ -10,11 +10,30 @@ struct PanelClipboardView: View {
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @State private var query = ""
     @State private var copiedID: UUID?
+    /// Counts copies, so the list also follows an entry copied again while
+    /// it still carries the tick.
+    @State private var copyCount = 0
+    @State private var clearingIDs: [UUID: Date]?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchPresentation) private var inNotch
 
     var onClose: () -> Void
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
+    }
+
+    /// The alert would hang from the island as a sheet; there it asks on its own.
+    private func confirmClearAboveIsland(_ ids: [UUID: Date]) {
+        let text = text
+        DispatchQueue.main.async {
+            guard NSAlert.confirmAboveIsland(String(format: text.clearRecentConfirmFormat, ids.count),
+                                             message: text.clearRecentConfirmMessage,
+                                             action: text.clearRecent, destructive: true,
+                                             cancel: text.cancel) else { return }
+            history.clearRecent(ids)
+            copiedID = nil
+        }
     }
 
     private var filteredEntries: [ClipboardHistoryEntry] {
@@ -78,8 +97,8 @@ struct PanelClipboardView: View {
                     .font(.system(size: 11))
                     .disabled(history.entries.isEmpty)
                 Button {
-                    history.clearRecent()
-                    copiedID = nil
+                    let ids = history.recentEntriesSnapshot
+                    if inNotch { confirmClearAboveIsland(ids) } else { clearingIDs = ids }
                 } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 11, weight: .semibold))
@@ -89,6 +108,7 @@ struct PanelClipboardView: View {
                 .controlSize(.mini)
                 .help(text.clearRecent)
                 .disabled(history.recentEntries.isEmpty)
+                .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
                 Button {
                     history.showHistoryWindow()
                 } label: {
@@ -111,16 +131,25 @@ struct PanelClipboardView: View {
         } else if filteredEntries.isEmpty {
             emptyState(text.noResults)
         } else {
-            ScrollView {
-                // Lazy: a large history would otherwise build every row, and
-                // decode every image thumbnail, each time the panel opens.
-                LazyVStack(alignment: .leading, spacing: 7) {
-                    ForEach(filteredEntries) { entry in
-                        entryRow(entry)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    // Lazy: a large history would otherwise build every row, and
+                    // decode every image thumbnail, each time the panel opens.
+                    LazyVStack(alignment: .leading, spacing: 7) {
+                        ForEach(filteredEntries) { entry in
+                            entryRow(entry)
+                                .id(entry.id)
+                        }
                     }
                 }
+                .frame(maxHeight: 260)
+                // A copied recent entry moves to the top, so the list follows
+                // it and the tick stays in view.
+                .onChange(of: copyCount) { _, _ in
+                    guard let id = copiedID else { return }
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { proxy.scrollTo(id) }
+                }
             }
-            .frame(maxHeight: 260)
         }
     }
 
@@ -253,12 +282,18 @@ struct PanelClipboardView: View {
                     .accessibilityLabel(text.edit)
                 }
                 Button {
+                    // A copied recent entry moves to the top, so the second
+                    // click of a double click would copy whichever entry took
+                    // its place.
+                    if let event = NSApp.currentEvent, [.leftMouseDown, .leftMouseUp].contains(event.type),
+                       event.clickCount > 1 { return }
                     // The tick means "it is on the clipboard", so it waits for
                     // the write instead of announcing one still queued behind
                     // a stalled pasteboard provider.
                     history.copy(entry) { copied in
                         if copied {
                             copiedID = entry.id
+                            copyCount += 1
                         } else {
                             NSSound.beep()
                         }

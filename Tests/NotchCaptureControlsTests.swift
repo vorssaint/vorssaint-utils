@@ -71,6 +71,12 @@ extension NotchPresentationRefreshContract {
         suite.expect(timedCloseCount == 0 && timed.captureID != nil && timed.captureContent == true,
                      "capture controls leave a timed preview owned by its existing dismissal timer")
         timed.endCaptureControls()
+        let bar = Service()
+        bar.showingCommandBar = true
+        bar.presentCaptureControls(CaptureOptions(), cancel: {})
+        suite.expect(!bar.showingCommandBar && !bar.expanded && bar.commandBarClosings == 1,
+                     "capture controls close a Command Bar open in the island")
+        bar.endCaptureControls()
         NSEvent.monitorRemovals = 0
 
         let idle = begin()

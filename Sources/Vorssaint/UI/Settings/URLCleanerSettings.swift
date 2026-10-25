@@ -15,10 +15,13 @@ struct URLCleanerSettings: View {
     @State private var siteDraft = ""
     @State private var siteParameterDraft = ""
     @State private var input = ""
-    @State private var output = ""
-    @State private var message: String?
+    @State private var copied: String?
     @State private var showingAddSite = false
-    private var canClearInput: Bool { !input.isEmpty || !output.isEmpty || message != nil }
+    /// Worked out from the field on every render, so Copy always takes the
+    /// link that is in the field now under the rules in force now.
+    private var result: URLCleaning.Result? {
+        cleaner.clean(input)
+    }
     private var rules: URLCleaning.Rules {
         URLCleaning.rules(globalNames: globalNames,
                           siteNames: siteNames,
@@ -64,20 +67,7 @@ struct URLCleanerSettings: View {
                             Spacer()
                             Text(countLabel(group.enabledCount))
                                 .foregroundStyle(.secondary)
-                            // Two dozen names for one site is a lot of clicking
-                            // to say "not this site". The names stay listed and
-                            // can be switched back on one at a time.
-                            Button {
-                                disableEverything(in: group)
-                            } label: {
-                                Image(systemName: "minus.circle")
-                                    .frame(width: 20, height: 20)
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
-                            .disabled(group.enabledCount == 0)
-                            .help(l10n.s.urlCleanerRulesRemoveSiteButton)
-                            .accessibilityLabel(l10n.s.urlCleanerRulesRemoveSiteButton)
+                            siteSwitch(for: group)
                         }
                     }
                 }
@@ -106,45 +96,58 @@ struct URLCleanerSettings: View {
                         .textFieldStyle(.roundedBorder)
                         .labelsHidden()
                         .accessibilityLabel(l10n.s.urlCleanerInputPlaceholder)
-                        .onSubmit { clean() }
                     Button {
                         clearInput()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Color.secondary.opacity(canClearInput ? 1 : 0.35))
+                            .foregroundStyle(Color.secondary.opacity(input.isEmpty ? 0.35 : 1))
                             .frame(width: 22, height: 22)
                     }
                     .buttonStyle(.plain)
                     .help(l10n.s.urlCleanerClearButton)
-                    .disabled(!canClearInput)
+                    .disabled(input.isEmpty)
                 }
                 HStack {
                     Button(l10n.s.urlCleanerPasteButton) { paste() }
-                    Button(l10n.s.urlCleanerCleanButton) { clean() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Spacer()
                     Button(l10n.s.urlCleanerCopyButton) { copy() }
-                        .disabled(output.isEmpty)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(result == nil)
                 }
-                if output.isEmpty {
-                    Text(message ?? l10n.s.urlCleanerOutputPlaceholder)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                } else {
+                if let output = result?.url {
                     Text(output)
                         .font(.system(.caption, design: .monospaced))
                         .lineLimit(3)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
-                    if let message {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(input.isEmpty ? l10n.s.urlCleanerOutputPlaceholder : message)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// Two dozen names for one site is a lot of clicking to say "not this
+    /// site", or to take it back.
+    private func siteSwitch(for group: URLCleaning.RuleGroup) -> some View {
+        let isOff = group.enabledCount == 0
+        let label = isOff ? l10n.s.urlCleanerRulesRestoreSiteButton : l10n.s.urlCleanerRulesRemoveSiteButton
+        return Button {
+            setSite(group, enabled: isOff)
+        } label: {
+            Image(systemName: isOff ? "plus.circle" : "minus.circle")
+                .frame(width: 20, height: 20)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help(label)
+        .accessibilityLabel(label)
     }
 
     /// Two columns keep a long site list (Bilibili has two dozen names) inside
@@ -278,30 +281,21 @@ struct URLCleanerSettings: View {
         }
     }
 
-    /// Switches off every built-in name for a site and drops the ones the user
-    /// added to it, which is what "not this site" means in a model that stores
-    /// edits as a difference from the shipped tables rather than a copy.
-    private func disableEverything(in group: URLCleaning.RuleGroup) {
+    /// Off switches off every name the row lists, the user's own included,
+    /// so on can clear the row's record and turn every name it lists on
+    /// again, one switched off by hand before included.
+    private func setSite(_ group: URLCleaning.RuleGroup, enabled: Bool) {
         var disabled = URLCleaning.tokens(from: disabledNames)
-        for entry in group.entries where entry.isBuiltIn {
-            disabled[group.site, default: []].insert(entry.name)
-        }
+        disabled[group.site] = enabled ? nil : Set(group.entries.map(\.name))
         disabledNames = URLCleaning.storageValue(forTokens: disabled)
-
-        let added = group.entries.filter { !$0.isBuiltIn }.map(\.name)
-        guard !added.isEmpty else { return }
-        if group.site == URLCleaning.allSites {
-            var names = URLCleaning.customParameters(from: globalNames)
-            for name in added { names.remove(name) }
-            globalNames = URLCleaning.storageValue(forNames: names)
-        } else {
-            var siteTokens = URLCleaning.tokens(from: siteNames)
-            for name in added { siteTokens[group.site]?.remove(name) }
-            siteNames = URLCleaning.storageValue(forTokens: siteTokens)
-        }
     }
 
     private func remove(_ name: String, from site: String) {
+        // A deleted name takes its switched off record with it, so adding it
+        // again later brings it back on, as typing it back in already does.
+        var disabled = URLCleaning.tokens(from: disabledNames)
+        disabled[site]?.remove(name)
+        disabledNames = URLCleaning.storageValue(forTokens: disabled)
         if site == URLCleaning.allSites {
             var names = URLCleaning.customParameters(from: globalNames)
             names.remove(name)
@@ -321,30 +315,27 @@ struct URLCleanerSettings: View {
             NSPasteboard.general.string(forType: .string) ?? ""
         }, then: { pasted in
             self.input = pasted
-            self.clean()
         })
     }
 
-    private func clean() {
-        let result = cleaner.clean(input)
-        output = result?.url ?? ""
+    private var message: String {
+        if let copied, copied == result?.url { return l10n.s.urlCleanerCopied }
         switch URLCleaning.outcome(for: result, input: input) {
-        case .notAURL: message = l10n.s.urlCleanerNoURL
-        case .unchanged: message = l10n.s.urlCleanerNoChange
-        case .rewritten: message = l10n.s.urlCleanerCleaned
-        case .removed(let names): message = removedSummary(names)
+        case .notAURL: return l10n.s.urlCleanerNoURL
+        case .unchanged: return l10n.s.urlCleanerNoChange
+        case .rewritten: return l10n.s.urlCleanerCleaned
+        case .removed(let names): return removedSummary(names)
         }
     }
 
     private func copy() {
-        guard !output.isEmpty else { return }
-        cleaner.copy(output)
-        message = l10n.s.urlCleanerCopied
+        guard let url = result?.url else { return }
+        cleaner.copy(url)
+        copied = url
     }
 
     private func clearInput() {
         input = ""
-        output = ""
-        message = nil
+        copied = nil
     }
 }

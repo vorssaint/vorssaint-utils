@@ -103,9 +103,12 @@ enum NotchScreenRefreshContract {
         var suspended = false
         var expanded = false
         var hiddenUntilHover = false
+        /// Hidden until hover and set to show activity, as Settings has it.
+        var hiddenShowsActivity = false
         var captureControls: Bool?
         var idleContent = NotchIdleContent.music
         var compactActivity: Bool?
+        var mascotWantsRoom = false
         var accessibilityGranted = true
         var coversMenus = false
         var menuSpaceTimer: Timer?
@@ -235,6 +238,18 @@ enum NotchScreenRefreshContract {
         fullscreen.syncMenuSpaceMonitoring()
         suite.expect(fullscreen.menuSpaceTimer != nil, "leaving fullscreen restores menu monitoring")
 
+        // A bare camera measures nothing, unless the companion wants its wings.
+        let companion = Service()
+        companion.idleContent = .none
+        companion.syncMenuSpaceMonitoring()
+        suite.expect(companion.menuSpaceTimer == nil, "a bare notch with nothing to show reads no menus")
+        companion.mascotWantsRoom = true
+        companion.syncMenuSpaceMonitoring()
+        suite.expect(companion.menuSpaceTimer != nil,
+                     "the companion measures the menus, so it rests beside the camera only where its wings fit")
+        companion.hiddenInFullscreen = true
+        companion.syncMenuSpaceMonitoring()
+
         let virtual = Service()
         virtual.geometry.compactSideRoom = nil
         virtual.accessibilityGranted = false
@@ -264,6 +279,18 @@ enum NotchScreenRefreshContract {
         virtual.syncMenuSpaceMonitoring()
         suite.expect(virtual.menuSpaceTimer == nil && virtual.reads == 2,
                "permission alone cannot start menu polling for a disabled island")
+
+        // Set to show activity, a hidden island keeps measuring, so an
+        // activity bringing it into view finds the room it needs.
+        let waiting = Service()
+        waiting.hiddenUntilHover = true
+        waiting.hiddenShowsActivity = true
+        waiting.syncMenuSpaceMonitoring()
+        suite.expect(waiting.menuSpaceTimer != nil && waiting.reads == 1,
+               "a hidden island set to show activity keeps measuring the menus for an activity to come")
+        waiting.hiddenShowsActivity = false
+        waiting.syncMenuSpaceMonitoring()
+        suite.expect(waiting.menuSpaceTimer == nil, "a hidden island not set to show activity stops measuring")
 
         let simulated = Service()
         simulated.geometry = NotchGeometry(screen: simulated.geometry.screen, safeAreaTop: 0, cameraWidth: 0)

@@ -82,7 +82,7 @@ final class KeepAwakeManager: ObservableObject {
     private var screenParametersObserver: NSObjectProtocol?
     private var screenLockObservers: [NSObjectProtocol] = []
     private var powerSourceRunLoopSource: CFRunLoopSource?
-    private var runningAppsObservers: [NSObjectProtocol] = []
+    private var runningAppsObservation: NSKeyValueObservation?
     private var automationEvaluationWorkItem: DispatchWorkItem?
     private var lastExternalDisplayConnected: Bool?
     private var screenLocked = false
@@ -467,22 +467,20 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     private func setRunningAppsMonitoringEnabled(_ enabled: Bool) {
-        let center = NSWorkspace.shared.notificationCenter
         if enabled {
-            guard runningAppsObservers.isEmpty else { return }
-            let handler: (Notification) -> Void = { [weak self] _ in
-                self?.scheduleAutomationEvaluation(after: 0.1)
+            guard runningAppsObservation == nil else { return }
+            // The running-apps list rather than launch and terminate
+            // notifications: macOS posts neither for some background helper
+            // apps nested in another app's bundle, while the list still gains
+            // and loses them (#1468).
+            runningAppsObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
+                DispatchQueue.main.async {
+                    self?.scheduleAutomationEvaluation(after: 0.1)
+                }
             }
-            runningAppsObservers = [
-                center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification,
-                                   object: nil, queue: .main, using: handler),
-                center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification,
-                                   object: nil, queue: .main, using: handler),
-            ]
         } else {
-            guard !runningAppsObservers.isEmpty else { return }
-            for observer in runningAppsObservers { center.removeObserver(observer) }
-            runningAppsObservers.removeAll()
+            runningAppsObservation?.invalidate()
+            runningAppsObservation = nil
         }
     }
 

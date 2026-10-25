@@ -40,8 +40,16 @@ final class ScreenTextService: ObservableObject {
     }
 
     func receiveUnifiedCapture(_ capture: ScreenshotSelectionController.Capture) {
-        recognitionGeneration += 1
-        recognize(capture.image)
+        recognize(capture.image,
+                  detectQRCodes: UserDefaults.standard.bool(
+                    forKey: DefaultsKey.screenOCRDetectQRCodes))
+    }
+
+    /// Copies text from an image that has already been captured. Screenshot
+    /// previews expose QR results separately, so this path deliberately runs
+    /// text recognition even when the image also contains a code.
+    func copyText(from image: CGImage) {
+        recognize(image, detectQRCodes: false)
     }
 
     /// What a captured region turned out to hold.
@@ -51,18 +59,25 @@ final class ScreenTextService: ObservableObject {
         case empty
     }
 
-    private func recognize(_ image: CGImage) {
+    private func recognize(_ image: CGImage, detectQRCodes: Bool) {
+        guard AppFeature.screenOCR.isAvailable else { return }
+        recognitionGeneration += 1
         let generation = recognitionGeneration
-        let detectQRCodes = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRDetectQRCodes)
+        let pasteboardChangeCount = NSPasteboard.general.changeCount
         let removeLineBreaks = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks)
         let fallbackLanguages = MediaSupport.recognitionLanguages(for: L10n.shared.language.rawValue)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let outcome = ScreenTextService.outcome(for: image,
+            let outcome = ScreenTextService.outcome(for: ScreenTextService.recognitionImage(image),
                                                     detectQRCodes: detectQRCodes,
                                                     removeLineBreaks: removeLineBreaks,
                                                     fallbackLanguages: fallbackLanguages)
             DispatchQueue.main.async { [weak self] in
-                guard self?.recognitionGeneration == generation else { return }
+                // A later copy belongs to the user, even if this recognition
+                // is still the latest OCR request. Never replace it with a
+                // result from an earlier capture.
+                guard self?.recognitionGeneration == generation,
+                      AppFeature.screenOCR.isAvailable,
+                      NSPasteboard.general.changeCount == pasteboardChangeCount else { return }
                 let strings = L10n.shared.s
                 switch outcome {
                 case .qr(let reading):
@@ -77,6 +92,26 @@ final class ScreenTextService: ObservableObject {
                 }
             }
         }
+    }
+
+    /// A capture can run to tens of megapixels, like a long scrolling
+    /// capture in a screenshot preview or a large area on an 8K display.
+    /// Past the bound the clipboard history's Copy text uses, either is
+    /// scaled down here, off the main thread, before Vision reads it.
+    private static func recognitionImage(_ image: CGImage) -> CGImage {
+        guard let size = ClipboardImageRecognition.scaledSize(width: image.width, height: image.height),
+              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(data: nil,
+                                      width: size.width,
+                                      height: size.height,
+                                      bitsPerComponent: 8,
+                                      bytesPerRow: 0,
+                                      space: colorSpace,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return image }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: size.width, height: size.height))
+        return context.makeImage() ?? image
     }
 
     /// Decides what a captured region holds. A QR code wins over the text:
@@ -135,9 +170,10 @@ final class ScreenTextService: ObservableObject {
         }
     }
 
-    private static func copyToPasteboard(_ value: String) {
+    static func copyToPasteboard(_ value: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+        pasteboard.declareVorssaintSource()
         pasteboard.setString(value, forType: .string)
     }
 }

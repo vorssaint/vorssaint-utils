@@ -7,11 +7,12 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Permission | Optional | Powers |
 |---|---|---|
 | Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
-| Screen Recording | Yes | Window previews, screenshots, copy text from screen and screen recordings |
+| Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
 | Calendars | Yes | Upcoming appointments in the notch |
+| Bluetooth | Yes | Accessory battery levels in Monitor, optional accessory alerts in the notch and Bluetooth on sleep |
 | Files and Folders | Yes | Monitoring downloads in a folder you choose |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
@@ -48,6 +49,8 @@ You can review or change every grant in System Settings, under Privacy and Secur
 **Why it comes up.** On macOS, reading other windows' titles and grabbing their thumbnails counts as screen recording.
 
 **What uses it.** The window switcher and Dock Preview for live thumbnails and titles, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
+
+The color picker also uses this permission for Vorssaint's magnifier and keyboard controls. Arrow keys select a pixel; Return or keypad Enter copies its color and closes the picker. C copies without closing. Without this permission, the native macOS color picker remains available.
 
 **If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
 
@@ -86,6 +89,20 @@ You can review or change every grant in System Settings, under Privacy and Secur
 ## Calendars
 
 The optional notch calendar asks for access when you press its permission button. macOS calls this full calendar access; Vorssaint uses it only to read appointments and never modifies them. If access is denied, the calendar shows a System Settings shortcut while the rest of the notch remains available. Event content stays on this Mac.
+
+## Bluetooth
+
+**Why it comes up.** macOS asks before an app can use Bluetooth. Some accessories report their battery level only when an app talks to them over Bluetooth, and recent macOS versions also ask before an app checks or switches Bluetooth itself.
+
+**What uses it.**
+
+- **Monitor**, for the battery level of keyboards, mice, headphones and other accessories. It is read only while the battery details are open or while you show it in the menu bar or in the Power card. Both stay off until you turn them on.
+- **Notch**, for the optional accessory alerts when an accessory connects or runs low.
+- **Bluetooth on sleep**, which checks and switches Bluetooth around sleep while you have it turned on.
+
+**If you say no.** Accessories that report their battery to macOS directly, as many keyboards, mice and trackpads do, still show it. Others can be missing from the list and from accessory alerts. Bluetooth on sleep may be unable to switch Bluetooth off and back on.
+
+**Optional.** Yes. Battery levels and the Bluetooth state are read on your Mac and never leave it.
 
 ## Files and Folders
 
@@ -137,7 +154,7 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 - **Uninstaller**, which moves leftover files to the Trash.
 - **Empty the Trash** in Quick toggles, which asks Finder to empty it. The other quick toggles, dark mode included, need no permission.
 - **Homebrew manager**, which can open Terminal with the exact Homebrew install or setup command when the app should not collect a password itself.
-- **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent.
+- **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent. The shuffle button on the music page reads and switches only the shuffle setting the app declares, and reads whether shuffle is available for what is playing when the app declares that too. Until the app is allowed, its first press only asks for this permission, even for an app whose playback controls work without it.
 
 **If you say no.** Those Finder or Terminal handoff steps will not go through. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
 

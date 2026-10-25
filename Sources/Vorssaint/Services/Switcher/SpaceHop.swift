@@ -4,17 +4,14 @@
 import AppKit
 
 /// Takes a switcher or dock-preview selection to a window that lives on a
-/// Space the user is not looking at (issue #339). Accessibility cannot focus
-/// what it cannot see, so the hop runs in stages, each one verified against
-/// the window server and escalating only when the previous stage did not make
-/// the window's Space visible:
+/// Space the user is not looking at (issue #339). The hop runs in stages, each
+/// verified against the window server and escalating only when the previous
+/// stage did not make the window's Space visible:
 ///
-///  1. The window server is asked to front the exact window and the app is
-///     activated cooperatively. When the app has no window on any visible
-///     Space, macOS itself travels to one that has (standard system behavior),
-///     and older macOS also honors the Space of the fronted window. When the
-///     app does have a window here, that travel cannot happen, so this stage
-///     is not waited on at all.
+///  1. Accessibility is asked to raise the exact window, including windows an
+///     app omits from its published list, and the app is activated cooperatively.
+///     A successful raise or an app with no visible window gets time to travel
+///     natively. Otherwise the window server fronts the target before stepping.
 ///  2. If the Space still is not visible, the user's own "move a space"
 ///     shortcut is replayed (key and modifiers read from the system, honoring
 ///     remaps; skipped entirely when the user disabled it), one step at a
@@ -95,18 +92,27 @@ final class SpaceHop {
     }
 
     private func start() {
-        app.unhide()
-        SpaceWindowBridge.frontWindow(windowID, ownerPID: windowOwnerPID)
-        // Activating every window would drag the app's windows on the current
-        // Space forward too; when the app has one here, activate quietly and
-        // let the travel decide what comes up.
+        if app.isHidden { app.unhide() }
+        // Snapshot before raising: the target may already become visible while
+        // Accessibility is processing the request.
         let appIsAlreadyHere = appHasWindowOnVisibleSpace()
-        ActivationHandoff.yield(to: app)
-        if !app.activate(from: NSRunningApplication.current,
-                         options: appIsAlreadyHere ? [] : [.activateAllWindows]) {
-            app.activate(options: appIsAlreadyHere ? [] : [.activateAllWindows])
+        let directRaiseSucceeded = WindowActivator.raiseWindowOnHiddenSpace(windowID: windowID,
+                                                                             pid: windowOwnerPID)
+        let firstStage = SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: appIsAlreadyHere,
+                                                    directRaiseSucceeded: directRaiseSucceeded)
+        if firstStage == .moveASpace {
+            SpaceWindowBridge.frontWindow(windowID, ownerPID: windowOwnerPID)
         }
-        switch SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: appIsAlreadyHere) {
+        // frontWindow's synthetic press or activating all windows can divert
+        // native travel to a sibling. Hand off keyboard focus cooperatively
+        // even when the app already has a visible window.
+        let options: NSApplication.ActivationOptions =
+            appIsAlreadyHere || directRaiseSucceeded ? [] : [.activateAllWindows]
+        ActivationHandoff.yield(to: app)
+        if !app.activate(from: NSRunningApplication.current, options: options) {
+            app.activate(options: options)
+        }
+        switch firstStage {
         case .moveASpace:
             stepWithSpaceShortcut()
         case .waitForActivationTravel:
@@ -230,11 +236,21 @@ final class SpaceHop {
     }
 
     /// Accessibility starts describing the window shortly after its Space
-    /// becomes visible; a couple of pulses cover the settling time.
+    /// becomes visible; a couple of pulses cover the settling time. Only the
+    /// first one raises unconditionally; the others retry unless the target's
+    /// Space is visible and it is the focused window of the process that owns it, with that process in front.
     private func focusOnArrival() {
-        for delay in [0.15, 0.45, 0.9] {
+        for (index, delay) in [0.15, 0.45, 0.9].enumerated() {
             schedule(after: delay) {
                 guard !self.cancelled, !self.app.isTerminated else { return }
+                guard SpaceHopSupport.arrivalPulseShouldFocus(
+                    isFirstPulse: index == 0,
+                    targetSpaceIsVisible: self.windowSpaceIsVisible(),
+                    targetWindowID: self.windowID,
+                    windowOwnerPID: self.windowOwnerPID,
+                    frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                    focusedWindowID: WindowActivator.focusedWindowID(for: self.windowOwnerPID))
+                else { return }
                 WindowActivator.focusAfterSpaceHop(windowID: self.windowID,
                                                    appPID: self.appPID,
                                                    windowOwnerPID: self.windowOwnerPID,

@@ -3,13 +3,17 @@
 
 import SwiftUI
 
+/// The screen map of the drop areas. Each area draws where it puts the window,
+/// and a click opens its menu: on or off, which placement, and for an edge
+/// how many areas it is split into.
 struct WindowEdgeSnapZonePicker: View {
     @Binding var disabledZonesStorage: String
+    @Binding var zoneActionsStorage: String
     let text: WindowLayoutFeatureStrings
     let resetTitle: String
     var compact = false
 
-    @State private var hoveredZone: WindowEdgeSnapZone?
+    @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
         HStack(alignment: .top, spacing: compact ? 6 : 9) {
@@ -17,7 +21,7 @@ struct WindowEdgeSnapZonePicker: View {
                 zoneRow(left: .topLeft, center: .top, right: .topRight,
                         height: compact ? 36 : 50)
                 zoneRow(left: .left, center: nil, right: .right,
-                        height: compact ? 44 : 62)
+                        height: sideRowHeight)
                 zoneRow(left: .bottomLeft, center: .bottom, right: .bottomRight,
                         height: compact ? 36 : 50)
             }
@@ -34,6 +38,7 @@ struct WindowEdgeSnapZonePicker: View {
 
             Button {
                 disabledZonesStorage = ""
+                zoneActionsStorage = ""
             } label: {
                 Image(systemName: "arrow.counterclockwise")
                     .font(.system(size: compact ? 10 : 11, weight: .semibold))
@@ -45,20 +50,38 @@ struct WindowEdgeSnapZonePicker: View {
                     )
             }
             .buttonStyle(.plain)
-            .disabled(disabledZones.isEmpty)
-            .opacity(disabledZones.isEmpty ? 0.35 : 1)
+            .disabled(isStandard)
+            .opacity(isStandard ? 0.35 : 1)
             .help(resetTitle)
             .accessibilityLabel(resetTitle)
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .animation(.easeInOut(duration: 0.14), value: disabledZonesStorage)
+        .animation(.easeInOut(duration: 0.14), value: zoneActionsStorage)
     }
 
     private var cellSpacing: CGFloat { compact ? 4 : 5 }
+    private var partSpacing: CGFloat { compact ? 2 : 3 }
     private var sideCellWidth: CGFloat { compact ? 56 : 78 }
+
+    /// The side edges grow with the areas stacked on them, so each area keeps
+    /// room for its drawing.
+    private var sideRowHeight: CGFloat {
+        let parts = CGFloat(max(layout.actions(for: .left).count, layout.actions(for: .right).count))
+        let stacked = parts * (compact ? 16 : 22) + (parts - 1) * partSpacing
+        return max(compact ? 44 : 62, stacked)
+    }
 
     private var disabledZones: Set<WindowEdgeSnapZone> {
         WindowEdgeSnapZone.disabledZones(from: disabledZonesStorage)
+    }
+
+    private var layout: WindowEdgeSnapLayout {
+        WindowEdgeSnapLayout(storageValue: zoneActionsStorage)
+    }
+
+    private var isStandard: Bool {
+        disabledZones.isEmpty && layout == .standard
     }
 
     private func zoneRow(left: WindowEdgeSnapZone,
@@ -66,10 +89,10 @@ struct WindowEdgeSnapZonePicker: View {
                          right: WindowEdgeSnapZone,
                          height: CGFloat) -> some View {
         HStack(spacing: cellSpacing) {
-            zoneButton(left)
+            zoneCell(left)
                 .frame(width: sideCellWidth)
             if let center {
-                zoneButton(center)
+                zoneCell(center)
                     .frame(maxWidth: .infinity)
             } else {
                 RoundedRectangle(cornerRadius: compact ? 5 : 7, style: .continuous)
@@ -82,57 +105,257 @@ struct WindowEdgeSnapZonePicker: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityHidden(true)
             }
-            zoneButton(right)
+            zoneCell(right)
                 .frame(width: sideCellWidth)
         }
         .frame(height: height)
     }
 
-    private func zoneButton(_ zone: WindowEdgeSnapZone) -> some View {
-        let selected = !disabledZones.contains(zone)
-        let hovered = hoveredZone == zone
-        return Button {
-            toggle(zone)
-        } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: compact ? 5 : 7, style: .continuous)
-                    .fill(selected
-                        ? Color.accentColor.opacity(hovered ? 0.2 : 0.13)
-                        : Color.primary.opacity(hovered ? 0.065 : 0.025))
-                RoundedRectangle(cornerRadius: compact ? 5 : 7, style: .continuous)
-                    .strokeBorder(selected
-                        ? Color.accentColor.opacity(hovered ? 0.65 : 0.42)
-                        : Color.primary.opacity(hovered ? 0.2 : 0.09))
-                Image(systemName: zone.action.symbolName)
-                    .font(.system(size: compact ? 10 : 13, weight: .semibold))
-                    .foregroundStyle(selected ? Color.accentColor : Color.secondary.opacity(0.45))
-            }
-            .overlay(alignment: .topTrailing) {
-                if !selected {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: compact ? 7 : 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(compact ? 3 : 4)
-                }
-            }
-            .contentShape(RoundedRectangle(cornerRadius: compact ? 5 : 7, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .onHover { inside in
-            withAnimation(.easeInOut(duration: 0.1)) {
-                hoveredZone = inside ? zone : (hoveredZone == zone ? nil : hoveredZone)
+    /// One zone: a single area, or the areas of a split edge side by side
+    /// along the top and bottom and stacked along the sides.
+    private func zoneCell(_ zone: WindowEdgeSnapZone) -> some View {
+        let isOn = !disabledZones.contains(zone)
+        let actions = layout.actions(for: zone)
+        let place = zoneName(zone)
+        let areas = ForEach(actions.indices, id: \.self) { part in
+            WindowEdgeSnapAreaButton(action: actions[part],
+                                     isOn: isOn,
+                                     // Areas of a split edge also say which one they are.
+                                     place: actions.count > 1 ? "\(place) \(part + 1)/\(actions.count)" : place,
+                                     title: actions[part].title(text),
+                                     compact: compact) {
+                menu(for: zone, part: part)
             }
         }
-        .help(zone.action.title(text))
-        .accessibilityLabel(zone.action.title(text))
-        .accessibilityValue(selected ? "1" : "0")
-        .accessibilityAddTraits(selected ? .isSelected : [])
+        return Group {
+            if zone.isVerticalEdge {
+                VStack(spacing: partSpacing) { areas }
+            } else {
+                HStack(spacing: partSpacing) { areas }
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if !isOn {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: compact ? 7 : 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(compact ? 3 : 4)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
     }
 
-    private func toggle(_ zone: WindowEdgeSnapZone) {
+    /// Where the zone sits on the map, named like the same spot on the
+    /// screenshot watermark's grid of positions, so VoiceOver tells apart two
+    /// areas that hold the same placement.
+    private func zoneName(_ zone: WindowEdgeSnapZone) -> String {
+        let positions = FeatureStrings.screenshot(l10n.language)
+        switch zone {
+        case .topLeft: return positions.watermarkPositionTopLeading
+        case .top: return positions.watermarkPositionTop
+        case .topRight: return positions.watermarkPositionTopTrailing
+        case .left: return positions.watermarkPositionLeading
+        case .right: return positions.watermarkPositionTrailing
+        case .bottomLeft: return positions.watermarkPositionBottomLeading
+        case .bottom: return positions.watermarkPositionBottom
+        case .bottomRight: return positions.watermarkPositionBottomTrailing
+        }
+    }
+
+    private func menu(for zone: WindowEdgeSnapZone, part: Int) -> [WindowEdgeSnapMenuEntry] {
+        let isOn = !disabledZones.contains(zone)
+        let actions = layout.actions(for: zone)
+        let current = actions[part]
+        // A split edge turns on and off as a whole, so the switch names the
+        // edge rather than the area that opened the menu.
+        let useTitle = zone.maximumParts > 1 ? text.edgeSnapUseEdge : text.edgeSnapUseCorner
+        var entries: [WindowEdgeSnapMenuEntry] = [
+            .item(useTitle, checked: isOn) { setZone(zone, on: !isOn) },
+            .separator,
+        ]
+        for group in WindowEdgeSnapPlacementGroup.allCases {
+            let items = group.actions.map { action in
+                WindowEdgeSnapMenuEntry.item(action.title(text), checked: action == current) {
+                    choose(action, for: zone, part: part)
+                }
+            }
+            if group == .other {
+                entries += items
+            } else {
+                entries.append(.submenu(group.title(text), checked: group.actions.contains(current), items))
+            }
+        }
+        if zone.maximumParts > 1 {
+            entries.append(.separator)
+            let counts = (1...zone.maximumParts).map { count in
+                WindowEdgeSnapMenuEntry.item("\(count)", checked: count == actions.count) {
+                    split(zone, into: count)
+                }
+            }
+            entries.append(.submenu(text.edgeSnapAreasOnEdge, checked: false, counts))
+        }
+        return entries
+    }
+
+    /// Choosing a placement for an area that is off also turns it on.
+    private func choose(_ action: WindowLayoutAction, for zone: WindowEdgeSnapZone, part: Int) {
+        var layout = layout
+        layout.setAction(action, for: zone, part: part)
+        zoneActionsStorage = layout.storageValue
+        setZone(zone, on: true)
+    }
+
+    private func split(_ zone: WindowEdgeSnapZone, into count: Int) {
+        var layout = layout
+        layout.setPartCount(count, for: zone)
+        zoneActionsStorage = layout.storageValue
+        setZone(zone, on: true)
+    }
+
+    private func setZone(_ zone: WindowEdgeSnapZone, on: Bool) {
         var disabled = disabledZones
-        if !disabled.insert(zone).inserted { disabled.remove(zone) }
+        if on {
+            disabled.remove(zone)
+        } else {
+            disabled.insert(zone)
+        }
         disabledZonesStorage = WindowEdgeSnapZone.disabledZonesStorageValue(disabled)
+    }
+}
+
+/// One drop area on the map. It draws where its placement puts the window and
+/// opens the area's menu when clicked.
+private struct WindowEdgeSnapAreaButton: View {
+    let action: WindowLayoutAction
+    let isOn: Bool
+    let place: String
+    let title: String
+    let compact: Bool
+    let menu: () -> [WindowEdgeSnapMenuEntry]
+
+    @State private var hovered = false
+    @State private var anchor = WindowEdgeSnapMenuAnchor()
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: compact ? 5 : 7, style: .continuous)
+        Button {
+            anchor.popUp(menu())
+            // The open menu takes the pointer's moves, so the area would keep
+            // its hover after the pointer left it to pick an item.
+            hovered = false
+        } label: {
+            ZStack {
+                shape
+                    .fill(isOn
+                        ? Color.accentColor.opacity(hovered ? 0.2 : 0.13)
+                        : Color.primary.opacity(hovered ? 0.065 : 0.025))
+                shape
+                    .strokeBorder(isOn
+                        ? Color.accentColor.opacity(hovered ? 0.65 : 0.42)
+                        : Color.primary.opacity(hovered ? 0.2 : 0.09))
+                WindowEdgeSnapPlacementGlyph(action: action, compact: compact)
+                    .foregroundStyle(isOn ? Color.accentColor : Color.secondary.opacity(0.45))
+            }
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .background(WindowEdgeSnapMenuAnchorView(anchor: anchor))
+        .onHover { inside in
+            withAnimation(.easeInOut(duration: 0.1)) { hovered = inside }
+        }
+        .help(title)
+        .accessibilityLabel("\(place): \(title)")
+        .accessibilityValue(isOn ? "1" : "0")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+/// A small screen with the placement filled in, so every choice on the map
+/// reads apart, the ones that share a symbol elsewhere included.
+private struct WindowEdgeSnapPlacementGlyph: View {
+    let action: WindowLayoutAction
+    let compact: Bool
+
+    var body: some View {
+        let size = compact ? CGSize(width: 18, height: 12) : CGSize(width: 24, height: 16)
+        let inset: CGFloat = compact ? 2 : 2.5
+        let inner = CGSize(width: size.width - inset * 2, height: size.height - inset * 2)
+        let placement = WindowEdgeSnapLayout.previewRect(for: action)
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: compact ? 2 : 2.5, style: .continuous)
+                .strokeBorder(lineWidth: 1)
+                .opacity(0.55)
+            RoundedRectangle(cornerRadius: 1, style: .continuous)
+                .frame(width: max(1.5, placement.width * inner.width),
+                       height: max(1.5, placement.height * inner.height))
+                .offset(x: inset + placement.minX * inner.width,
+                        y: inset + placement.minY * inner.height)
+        }
+        .frame(width: size.width, height: size.height)
+        .accessibilityHidden(true)
+    }
+}
+
+private enum WindowEdgeSnapMenuEntry {
+    case item(String, checked: Bool, perform: () -> Void)
+    case submenu(String, checked: Bool, [WindowEdgeSnapMenuEntry])
+    case separator
+}
+
+/// Opens an area's menu right under the area. AppKit draws the menu, so the
+/// area keeps its own drawing on every supported macOS.
+private final class WindowEdgeSnapMenuAnchor: NSObject {
+    weak var view: NSView?
+    private var handlers: [() -> Void] = []
+
+    func popUp(_ entries: [WindowEdgeSnapMenuEntry]) {
+        guard let view else { return }
+        handlers = []
+        makeMenu(entries).popUp(positioning: nil, at: .zero, in: view)
+    }
+
+    private func makeMenu(_ entries: [WindowEdgeSnapMenuEntry]) -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        for entry in entries {
+            switch entry {
+            case .separator:
+                menu.addItem(.separator())
+            case .item(let title, let checked, let perform):
+                let item = NSMenuItem(title: title, action: #selector(choose(_:)), keyEquivalent: "")
+                item.target = self
+                item.tag = handlers.count
+                item.state = checked ? .on : .off
+                handlers.append(perform)
+                menu.addItem(item)
+            case .submenu(let title, let checked, let children):
+                let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                item.state = checked ? .on : .off
+                item.submenu = makeMenu(children)
+                menu.addItem(item)
+            }
+        }
+        return menu
+    }
+
+    @objc private func choose(_ sender: NSMenuItem) {
+        guard handlers.indices.contains(sender.tag) else { return }
+        handlers[sender.tag]()
+    }
+}
+
+private struct WindowEdgeSnapMenuAnchorView: NSViewRepresentable {
+    let anchor: WindowEdgeSnapMenuAnchor
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        anchor.view = view
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        anchor.view = nsView
     }
 }
 

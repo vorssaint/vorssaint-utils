@@ -38,16 +38,34 @@ enum MetricsFeatureTests {
         expectEqual(MetricFormat.bytes(10 * 1024), "10 KB", "bytes 10K drops decimal")
         expectEqual(MetricFormat.bytes(1024 * 1024), "1.0 MB", "bytes 1M")
         expectEqual(MetricFormat.bytes(3 * 1024 * 1024 * 1024), "3.0 GB", "bytes 3G")
+        // A value that only reaches the next unit after rounding used to print as
+        // "1,024 KB", one unit behind the compact menu-bar form, which already
+        // promoted that edge. Both must name the unit the number reads as.
+        expectEqual(MetricFormat.bytes(1023), "1023 B", "bytes just under a kilobyte stay in bytes")
+        expectEqual(MetricFormat.bytes(1_048_063), "1023 KB", "a total just short of the kilobyte edge stays in kilobytes")
+        expectEqual(MetricFormat.bytes(1_048_064), "1.0 MB", "a total that rounds to a megabyte is shown in megabytes")
+        expectEqual(MetricFormat.bytes(1_048_575), "1.0 MB", "a megabyte total is never labelled 1,024 KB")
+        expectEqual(MetricFormat.bytes(1_000_000_000), "954 MB", "byte totals keep the binary 1024 base")
         expectEqual(MetricFormat.diskBytes(245_107_195_904), "245 GB", "disk bytes use decimal storage units")
         expectEqual(MetricFormat.diskBytes(1_000_204_845_056), "1.0 TB", "disk bytes show decimal terabytes")
         expectEqual(MetricFormat.diskBytes(123_456_789_000), "123 GB", "disk bytes match Finder-style GB")
+        expectEqual(MetricFormat.diskBytes(1_000_000_000), "1.0 GB", "disk bytes keep the decimal 1000 base")
         expectEqual(MetricFormat.diskBytesPrecise(14_878_047_232_000), "14.88 TB",
                     "precise disk bytes keep SMART totals readable")
 
         expectEqual(MetricFormat.bytesPerSec(0), "0 B/s", "rate zero")
         expectEqual(MetricFormat.bytesPerSec(2 * 1024 * 1024), "2.0 MB/s", "rate 2M")
         expectEqual(MetricFormat.bytesPerSec(1500 * 1024), "1.5 MB/s", "rate 1.5M")
+        expectEqual(MetricFormat.bytesPerSec(1023.4), "1023 B/s", "a rate just under a kilobyte stays in bytes")
+        expectEqual(MetricFormat.bytesPerSec(1023.6), "1.0 KB/s", "a rate that rounds to a kilobyte is shown in kilobytes")
+        expectEqual(MetricFormat.bytesPerSec(1023.6 * 1024), "1.0 MB/s", "a rate that rounds to a megabyte is shown in megabytes")
 
+        suite.expect(MetricFormat.graphCeiling(1.3 * 1024 * 1024, unitStep: 1024) == 2 * 1024 * 1024,
+                     "a byte-rate graph tops out on a round rate")
+        suite.expect(MetricFormat.graphCeiling(600 * 1024, unitStep: 1024) == 1024 * 1024,
+                     "past 500 KB/s the next step is 1 MB/s")
+        suite.expect(MetricFormat.graphCeiling(12.4, unitStep: 1000) == 20, "a power graph tops out on 20 W")
+        suite.expect(MetricFormat.graphCeiling(20, unitStep: 1000) == 20, "a peak on a step keeps that step")
         expectEqual(MetricFormat.bytesPerSecCompact(0), "0B", "compact zero")
         expectEqual(MetricFormat.bytesPerSecCompact(320 * 1024), "320K", "compact 320K")
         expectEqual(MetricFormat.bytesPerSecCompact(1.2 * 1024 * 1024), "1.2M", "compact 1.2M")
@@ -57,6 +75,68 @@ enum MetricsFeatureTests {
         expectEqual(MetricFormat.bytesPerSecCompact(9.96 * 1024), "10K", "compact drops redundant decimal at 10K")
         expectEqual(MetricFormat.bytesPerSecCompact(1023.6 * 1024), "1.0M", "compact promotes rounded megabyte edge")
         expectEqual(MetricFormat.bytesPerSecCompact(9.96 * 1024 * 1024), "10M", "compact drops redundant decimal at 10M")
+
+        expectEqual(MetricFormat.bitsPerSec(0), "0 bps", "bit rate zero")
+        expectEqual(MetricFormat.bitsPerSec(100), "800 bps", "bit rate sub-kilobit")
+        expectEqual(MetricFormat.bitsPerSec(1_500), "12 Kbps", "bit rate 12 Kbps")
+        expectEqual(MetricFormat.bitsPerSec(1_200_000), "9.6 Mbps", "bit rate 9.6 Mbps")
+        expectEqual(MetricFormat.bitsPerSec(125_000_000), "1.0 Gbps", "bit rate gigabit")
+        expectEqual(MetricFormat.bitsPerSec(124.9), "999 bps", "bit rate keeps 999 bps")
+        expectEqual(MetricFormat.bitsPerSec(124.95), "1.0 Kbps", "bit rate promotes the rounded kilobit edge")
+        expectEqual(MetricFormat.bitsPerSec(124_950), "1.0 Mbps", "bit rate promotes the rounded megabit edge")
+        expectEqual(MetricFormat.bitsPerSec(.infinity), "0 bps", "bit rate non-finite")
+
+        expectEqual(MetricFormat.networkRate(1_500, inBits: true), "12 Kbps", "network rate in bits")
+        expectEqual(MetricFormat.networkRate(1_500 * 1024, inBits: false), "1.5 MB/s", "network rate in bytes")
+        expectEqual(MetricFormat.networkRateCompact(40_000, inBits: true), "320Kb", "compact network rate in bits")
+        expectEqual(MetricFormat.networkRateCompact(320 * 1024, inBits: false), "320K", "compact network rate in bytes")
+
+        // Someone who never picked a unit keeps the bytes they always saw,
+        // and a stray value does not switch them to bits either.
+        let savedSpeedUnit = UserDefaults.standard.object(forKey: DefaultsKey.networkSpeedUnit)
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.networkSpeedUnit)
+        expectEqual(MetricFormat.networkRateCompact(320 * 1024), "320K", "network rate keeps bytes with no unit saved")
+        UserDefaults.standard.set("bit", forKey: DefaultsKey.networkSpeedUnit)
+        expectEqual(MetricFormat.networkRate(1_500 * 1024), "1.5 MB/s", "an unknown network unit reads as bytes")
+        UserDefaults.standard.set(NetworkSpeedUnit.bits.rawValue, forKey: DefaultsKey.networkSpeedUnit)
+        expectEqual(MetricFormat.networkRateCompact(40_000), "320Kb", "network rate follows a saved choice of bits")
+        if let savedSpeedUnit {
+            UserDefaults.standard.set(savedSpeedUnit, forKey: DefaultsKey.networkSpeedUnit)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.networkSpeedUnit)
+        }
+
+        // The menu bar sizes the rate block from five monospaced characters
+        // after the arrow, the same in both units, so no compact rate may
+        // print longer in either one.
+        var widestRate = ""
+        var sweptRate = 0.1
+        while sweptRate < 1e14 {
+            for inBits in [false, true] {
+                let text = MetricFormat.networkRateCompact(sweptRate, inBits: inBits)
+                if text.count > widestRate.count { widestRate = text }
+            }
+            sweptRate *= 1.01
+        }
+        suite.expect(widestRate.count == 5, "compact network rates fit the reserved menu bar block, widest \(widestRate)")
+
+        let bitsCeiling = MetricFormat.networkGraphCeiling(2_000, inBits: true)
+        suite.expect(bitsCeiling == 2_500, "bit graph ceiling rounds in bits and plots in bytes")
+        expectEqual(MetricFormat.networkRate(bitsCeiling, inBits: true), "20 Kbps", "bit graph ceiling label")
+        let bytesCeiling = MetricFormat.networkGraphCeiling(1_500, inBits: false)
+        suite.expect(bytesCeiling == 2_048, "byte graph ceiling keeps the 1024 steps")
+        expectEqual(MetricFormat.networkRate(bytesCeiling, inBits: false), "2.0 KB/s", "byte graph ceiling label")
+
+        expectEqual(MetricFormat.bitsPerSecCompact(0), "0b", "bits zero")
+        expectEqual(MetricFormat.bitsPerSecCompact(.nan), "0b", "bits non-finite")
+        expectEqual(MetricFormat.bitsPerSecCompact(100), "800b", "bits sub-kilobit")
+        expectEqual(MetricFormat.bitsPerSecCompact(124.9), "999b", "bits keeps 999b")
+        expectEqual(MetricFormat.bitsPerSecCompact(124.95), "1.0Kb", "bits promotes rounded kilobit edge")
+        expectEqual(MetricFormat.bitsPerSecCompact(40_000), "320Kb", "bits 320Kb")
+        expectEqual(MetricFormat.bitsPerSecCompact(1_200_000), "9.6Mb", "bits 9.6Mb")
+        expectEqual(MetricFormat.bitsPerSecCompact(1_245_000), "10Mb", "bits drops redundant decimal at 10Mb")
+        expectEqual(MetricFormat.bitsPerSecCompact(124_950), "1.0Mb", "bits promotes rounded megabit edge")
+        expectEqual(MetricFormat.bitsPerSecCompact(1_000_000_000), "8.0Gb", "bits gigabit")
 
         // MARK: Disk helpers
 
@@ -74,6 +154,8 @@ enum MetricsFeatureTests {
                "SMART health subtracts percentage used")
         suite.expect(DiskSupport.healthPercent(fromPercentageUsed: 150) == 0,
                "SMART health clamps exhausted drives")
+        suite.expect(DiskSupport.healthPercent(fromPercentageUsed: UInt64.max) == 0,
+               "A percentage-used value beyond Int.max clamps to 0 instead of aborting the process")
         suite.expect(DiskSupport.fileSystemLabel(type: "apfs") == "APFS",
                "file system label maps apfs")
         suite.expect(DiskSupport.fileSystemLabel(type: " APFS \n") == "APFS",
@@ -230,8 +312,64 @@ enum MetricsFeatureTests {
                "battery time ignores the public unavailable sentinel")
         suite.expect(BatteryTimeSupport.formatted(seconds: 13_320) == "3h 42m",
                "battery time formats hours and minutes")
+        suite.expect(BatteryTimeSupport.formatted(seconds: 3600) == "1h 0m",
+               "battery time formats an exact hour")
         suite.expect(BatteryTimeSupport.formatted(seconds: 30) == "0h 1m",
                "battery time keeps a positive final minute visible")
+        suite.expect(BatteryTimeSupport.formatted(seconds: 1e21) == nil,
+               "battery time returns nil rather than trapping on an absurd input")
+
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 80,
+                                                      isCharging: false,
+                                                      externalConnected: true),
+                    "battery.100.bolt",
+                    "a charge held at a limit still reads as external power")
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 100,
+                                                      isCharging: false,
+                                                      externalConnected: true),
+                    "battery.100.bolt",
+                    "a full battery on its adapter still reads as external power")
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 42,
+                                                      isCharging: true,
+                                                      externalConnected: true),
+                    "battery.100.bolt",
+                    "a charge in progress keeps the bolt")
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 42,
+                                                      isCharging: true,
+                                                      externalConnected: false),
+                    "battery.100.bolt",
+                    "a charge reported before its adapter keeps the bolt")
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 42,
+                                                      isCharging: false,
+                                                      externalConnected: false),
+                    "battery.50",
+                    "an unplugged Mac shows its charge level, never the bolt")
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 5,
+                                                      isCharging: false,
+                                                      externalConnected: false),
+                    "battery.0",
+                    "an unplugged Mac keeps the level thresholds it always had")
+
+        suite.expect(BatteryPowerSupport.state(isCharging: false,
+                                               externalConnected: true,
+                                               hasBattery: true) == .externalPower,
+               "a stopped charge on the adapter is external power, not battery power")
+        suite.expect(BatteryPowerSupport.state(isCharging: true,
+                                               externalConnected: true,
+                                               hasBattery: true) == .charging,
+               "a charge in progress is named as charging")
+        suite.expect(BatteryPowerSupport.state(isCharging: false,
+                                               externalConnected: false,
+                                               hasBattery: true) == .onBattery,
+               "an unplugged Mac with a battery is on battery power")
+        suite.expect(BatteryPowerSupport.state(isCharging: false,
+                                               externalConnected: false,
+                                               hasBattery: false) == .unavailable,
+               "a Mac with no battery and no adapter reading has nothing to report")
+        suite.expect(BatteryPowerSupport.state(isCharging: true,
+                                               externalConnected: false,
+                                               hasBattery: true) == .charging,
+               "a charge claimed without an adapter flag is still never battery power")
 
         suite.expect(MetricFormat.systemPowerWatts(measured: 3,
                                              batteryWatts: 10,
@@ -249,6 +387,49 @@ enum MetricsFeatureTests {
                                              batteryWatts: -4,
                                              externalConnected: true) == nil,
                "battery flow alone does not claim total system power while plugged in")
+        suite.expect(MetricFormat.systemPowerWatts(measured: nil,
+                                             batteryWatts: nil,
+                                             externalConnected: true) == nil,
+               "a desktop without a system sensor does not claim adapter input as system power")
+        suite.expect(MetricFormat.systemPowerWatts(measured: 30,
+                                             batteryWatts: nil,
+                                             externalConnected: true) == 30,
+               "a desktop keeps its independent system total sensor")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: nil,
+                                                   dcInRailWatts: 198,
+                                                   hasInternalBattery: false,
+                                                   externalConnected: true) == 198,
+               "a desktop reports its DC-In rail as adapter input when the adapter total is unavailable")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: 210,
+                                                   dcInRailWatts: 198,
+                                                   hasInternalBattery: false,
+                                                   externalConnected: true) == 210,
+               "the measured adapter total takes priority over the desktop rail")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: 210,
+                                                   dcInRailWatts: 198,
+                                                   hasInternalBattery: false,
+                                                   externalConnected: false) == 210,
+               "the measured adapter total does not depend on a power-connection flag")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: nil,
+                                                   dcInRailWatts: 198,
+                                                   hasInternalBattery: false,
+                                                   externalConnected: false) == nil,
+               "a desktop without a confirmed power connection does not use the DC-In rail")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: nil,
+                                                   dcInRailWatts: 13,
+                                                   hasInternalBattery: true,
+                                                   externalConnected: true) == nil,
+               "a Mac with a battery never uses the desktop DC-In rail fallback")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: 13,
+                                                   dcInRailWatts: 198,
+                                                   hasInternalBattery: true,
+                                                   externalConnected: true) == 13,
+               "a Mac with a battery keeps its measured adapter input")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: nil,
+                                                   dcInRailWatts: nil,
+                                                   hasInternalBattery: false,
+                                                   externalConnected: true) == nil,
+               "an unavailable desktop rail does not create an adapter reading")
 
         // MARK: Peripheral battery helpers
 
@@ -258,6 +439,32 @@ enum MetricsFeatureTests {
                "peripheral battery rounds numeric values")
         suite.expect(PeripheralBatterySupport.percent(from: 140) == nil,
                "peripheral battery ignores invalid percentages")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: UInt64.max)) == nil,
+               "peripheral battery returns nil rather than trapping on a huge device number")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: Double.greatestFiniteMagnitude)) == nil,
+               "peripheral battery returns nil rather than trapping on the largest finite number")
+        suite.expect(PeripheralBatterySupport.percent(from: "1e300") == nil,
+               "peripheral battery returns nil rather than trapping on an absurd percentage string")
+        suite.expect(PeripheralBatterySupport.percent(from: 55) == 55,
+               "peripheral battery keeps an integer percentage")
+        suite.expect(PeripheralBatterySupport.percent(from: "80") == 80,
+               "peripheral battery parses a bare percentage string")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: 42.6)) == 43,
+               "peripheral battery rounds a fractional percentage up")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: 42.4)) == 42,
+               "peripheral battery rounds a fractional percentage down")
+        suite.expect(PeripheralBatterySupport.percent(from: -5) == nil,
+               "peripheral battery ignores a negative percentage")
+        suite.expect(PeripheralBatterySupport.percent(from: 0) == 0,
+               "peripheral battery keeps an empty battery as zero rather than nil")
+        suite.expect(PeripheralBatterySupport.percent(from: 100) == 100,
+               "peripheral battery keeps a full battery")
+        suite.expect(PeripheralBatterySupport.percent(from: Double.nan) == nil,
+               "peripheral battery ignores a not-a-number reading")
+        suite.expect(PeripheralBatterySupport.percent(from: "abc") == nil,
+               "peripheral battery ignores unreadable text")
+        suite.expect(PeripheralBatterySupport.percent(from: nil) == nil,
+               "peripheral battery ignores a missing value")
         let usageMouse = [["DeviceUsagePage": 1, "DeviceUsage": 2]]
         suite.expect(PeripheralBatterySupport.kind(product: "Wireless Device",
                                              primaryUsagePage: nil,
@@ -430,6 +637,84 @@ enum MetricsFeatureTests {
 
         // MARK: Temperature sensor selection
 
+        let m4MaxPlatform = TemperatureSensorSelector.platform(
+            brandString: "Apple M4 Max", modelIdentifier: "Mac16,5",
+            performanceCoreCount: 10, efficiencyCoreCount: 4
+        )
+        suite.expect(m4MaxPlatform == .appleM4MaxFamily,
+                     "the measured M4 Max configuration enables the verified Pro/Max map")
+        let otherM4MaxConfigurations: [(String?, Int?, Int?)] = [
+            ("Mac16,5", 12, 4), ("Mac16,6", 10, 4), ("Mac16,5", 10, 3),
+            (nil, 10, 4), ("Mac16,5", nil, 4), ("Mac16,5", 10, nil),
+            (nil, nil, nil),
+        ]
+        for (model, performance, efficiency) in otherM4MaxConfigurations {
+            let platform = TemperatureSensorSelector.platform(
+                brandString: "Apple M4 Max", modelIdentifier: model,
+                performanceCoreCount: performance, efficiencyCoreCount: efficiency
+            )
+            suite.expect(platform == .appleM4Family,
+                         "other or incompletely identified M4 Max configurations preserve the existing M4 map")
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: [("Tp01", 80), ("Te05", 60), ("Tpx5", 100), ("Tp3X", 110)], platform: platform
+            ) ?? -1, 80, "other M4 Max configurations keep their mapped display and alert temperature")
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: [("Tp0M", 67)], platform: platform
+            ) ?? -1, 67, "other M4 Max configurations preserve display fallback when no mapped sensor answers")
+        }
+        suite.expect(TemperatureSensorSelector.platform(brandString: "  Apple M4 Max\n") == .appleM4Family,
+                     "M4 Max identification by brand alone preserves the existing M4 map")
+        suite.expect(TemperatureSensorSelector.platform(
+            brandString: "  Apple M4 Max\n", modelIdentifier: "Mac16,5",
+            performanceCoreCount: 10, efficiencyCoreCount: 4
+        ) == m4MaxPlatform,
+                     "M4 Max identification ignores surrounding whitespace")
+        suite.expect(TemperatureSensorSelector.isCPUCoreKey("Tpx5", platform: m4MaxPlatform)
+                     && !TemperatureSensorSelector.isCPUCoreKey("Tp01", platform: m4MaxPlatform),
+                     "M4 Max selects its measured regions instead of the base M4 map")
+        for (name, sample) in [("loaded", M4MaxTemperatureFixtures.loaded),
+                               ("parked", M4MaxTemperatureFixtures.parked),
+                               ("idle", M4MaxTemperatureFixtures.idle)] {
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: sample.cpu, platform: m4MaxPlatform
+            ) ?? -1, sample.hottest, "M4 Max reads the measured hottest region when \(name)")
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: sample.cpu + [("Tp3X", 110)], platform: m4MaxPlatform
+            ) ?? -1, sample.hottest, "an auxiliary hotspot cannot override mapped M4 Max \(name) regions")
+        }
+        let m4MaxBroken: [(key: String, value: Double)] = [
+            ("Tex0", .nan), ("Tex1", .infinity), ("Tex2", 9), ("Tex3", 125),
+            ("Tpx0", 0), ("Tpx1", -4), ("Tp0M", 88),
+        ]
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m4MaxBroken, platform: m4MaxPlatform
+        ) ?? -1, 88, "M4 Max display preserves family fallback when its mapped set has no valid reading")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m4MaxBroken + [("Tex1", 53.234375)], platform: m4MaxPlatform
+        ) ?? -1, 53.234375, "one valid M4 Max region outranks auxiliary readings despite missing or invalid peers")
+        suite.expect(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: Array(m4MaxBroken.dropLast()), platform: m4MaxPlatform
+        ) == nil, "M4 Max does not fabricate temperatures from invalid readings")
+        suite.expect(TemperatureSensorSelector.isCPUTemperatureKey("Tex1", platform: m4MaxPlatform)
+                     && TemperatureSensorSelector.isCPUTemperatureKey("Tp0M", platform: m4MaxPlatform)
+                     && !TemperatureSensorSelector.isCPUTemperatureKey("Tf26", platform: m4MaxPlatform)
+                     && !TemperatureSensorSelector.isCPUTemperatureKey("Tg05", platform: m4MaxPlatform),
+                     "M4 Max discovery keeps CPU families without admitting Tf or GPU sensors")
+        let otherM4Platforms: [(String, CPUTemperaturePlatform)] = [
+            ("Apple M4", .appleM4Family), ("Apple M4 Pro", .appleM4ProFamily),
+            ("Apple M4 Ultra", .appleM4Family), ("Apple M5 Max", .appleM5Family),
+        ]
+        for (brand, expected) in otherM4Platforms {
+            suite.expect(TemperatureSensorSelector.platform(
+                brandString: brand, modelIdentifier: nil,
+                performanceCoreCount: nil, efficiencyCoreCount: nil
+            ) == expected, "M4 Max hardware validation does not restrict \(brand)")
+            suite.expect(TemperatureSensorSelector.platform(
+                brandString: brand, modelIdentifier: "Mac16,5",
+                performanceCoreCount: 10, efficiencyCoreCount: 4
+            ) == expected, "matching model and core counts cannot opt another chip into the M4 Max map")
+        }
+
         suite.expect(TemperatureSensorSelector.platform(brandString: "Apple M1") == .appleM1Family,
                "Apple M1 uses the mapped CPU core sensor set")
         suite.expect(TemperatureSensorSelector.platform(brandString: "Apple M2 Pro") == .appleM2Family,
@@ -593,8 +878,8 @@ enum MetricsFeatureTests {
         // machines that lost it rather than against invented keys.
         //
         // Mac mini (2020), Macmini9,1, Apple M1, reported on 3.3.2 (issue
-        // #1353): not one of its sensors is in this chip generation's mapped
-        // core set, which is what 3.3.3 then required before showing anything.
+        // #1353): none of its sensors were in the original M1 core set,
+        // which is what 3.3.3 required before showing anything.
         let macMini9_1M1Sensors: [(key: String, value: Double)] = [
             ("Te0a", 36.31), ("Te0b", 36.31), ("Te0x", 38.08), ("Te0z", 38.08),
             ("Te3a", 37.95), ("Te3b", 46.65), ("Te3x", 40.02), ("Te3z", 60.02),
@@ -608,12 +893,51 @@ enum MetricsFeatureTests {
         ]
         suite.expect(macMini9_1M1Sensors.allSatisfy {
             TemperatureSensorSelector.isCPUTemperatureKey($0.key, platform: .appleM1Family)
-        } && !macMini9_1M1Sensors.contains {
+        }, "this M1 exposes every one of its sensors as a CPU sensor")
+        suite.expect(macMini9_1M1Sensors.filter {
             TemperatureSensorSelector.isCPUCoreKey($0.key, platform: .appleM1Family)
-        }, "this M1 exposes CPU sensors, none of them in the mapped core set")
+        }.map(\.key) == ["Te0a", "Te3a", "Tp2a", "Tp3a", "Tp4a", "Tp5a", "Tp7a", "Tp8a", "Tp9a"],
+               "this M1 layout maps only its a variants as cores")
+        let otherMappedPlatforms: [CPUTemperaturePlatform] = [
+            .appleM2Family, .appleM3Family, .appleM4Family, .appleM4ProFamily, .appleM5Family,
+        ]
+        for platform in otherMappedPlatforms {
+            suite.expect(!macMini9_1M1Sensors.contains {
+                TemperatureSensorSelector.isCPUCoreKey($0.key, platform: platform)
+            }, "the alternate M1 layout does not become a core set on another chip generation")
+        }
+        // 3.3.4 showed 64.61 here, the Tp4z variant, which reads well above
+        // the die sensors.
         suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
             readings: macMini9_1M1Sensors, platform: .appleM1Family
-        ) ?? -1, 64.61, "this M1 shows the CPU temperature it showed on 3.3.2 again")
+        ) ?? -1, 40.71, "this M1 shows its hottest core instead of an offset variant")
+
+        // MacBook Pro 13-inch, MacBookPro17,1, Apple M1, macOS 27, read with
+        // --sensors after a minute of full CPU load. The named HID die
+        // sensors peaked at 78.23 in the same sample; the hottest variant
+        // the compatibility reading would pick is Tp9z at 93.88.
+        let macBookPro17_1M1Sensors: [(key: String, value: Double)] = [
+            ("Te0a", 62.95), ("Te0b", 62.95), ("Te0x", 65.42), ("Te0z", 65.42),
+            ("Te3a", 59.55), ("Te3b", 68.25), ("Te3x", 60.88), ("Te3z", 80.88),
+            ("Tp2a", 71.69), ("Tp2b", 80.79), ("Tp2x", 75.19), ("Tp2z", 90.19),
+            ("Tp3a", 75.11), ("Tp3b", 82.51), ("Tp3x", 79.67), ("Tp3z", 91.67),
+            ("Tp4a", 71.72), ("Tp4b", 81.82), ("Tp4x", 75.33), ("Tp4z", 92.33),
+            ("Tp5a", 67.30), ("Tp5b", 77.50), ("Tp5x", 68.91), ("Tp5z", 84.91),
+            ("Tp7a", 71.16), ("Tp7b", 80.26), ("Tp7x", 75.34), ("Tp7z", 90.34),
+            ("Tp8a", 74.52), ("Tp8b", 81.92), ("Tp8x", 79.39), ("Tp8z", 91.39),
+            ("Tp9a", 72.42), ("Tp9b", 82.52), ("Tp9x", 76.88), ("Tp9z", 93.88),
+        ]
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: macBookPro17_1M1Sensors, platform: .appleM1Family
+        ) ?? -1, 75.11, "a loaded MacBook Pro M1 shows its hottest core, not an offset variant")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: macBookPro17_1M1Sensors.filter { !$0.key.hasSuffix("a") },
+            platform: .appleM1Family
+        ) ?? -1, 93.88, "an offset variant is only the compatibility reading when no core answers")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("Tp09", 43.0), ("Tp01", 49.0), ("Tp2z", 70.0)],
+            platform: .appleM1Family
+        ) ?? -1, 49.0, "the first M1 layout keeps its cores ahead of the second layout's variants")
 
         // This project's own Mac, Apple M4, read with --sensors: its mapped
         // cores answer and sit well below the hottest auxiliary sensor, so it
@@ -625,6 +949,85 @@ enum MetricsFeatureTests {
         suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
             readings: appleM4Sensors, platform: .appleM4Family
         ) ?? -1, 46.12, "a mapped M4 keeps reading its own cores, not the hotter hotspot")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4Sensors,
+            platform: TemperatureSensorSelector.platform(brandString: "Apple M4")
+        ) ?? -1, 46.12, "a base M4 identified by its brand keeps its mapped cores")
+
+        // MacBook Pro 14-inch, Mac16,8, Apple M4 Pro, macOS 15.7.1 (issue
+        // #2460). Te09, Te0H and Tp0V of the base M4 set do not exist here,
+        // and the keys it does map sit well below the hottest cores. Each
+        // Tpx/Tex key repeats the hottest of a few Tp/Te sensors next to it.
+        // One sample of --sensors under load:
+        let appleM4ProSensors: [(key: String, value: Double)] = [
+            ("Te05", 74.15), ("Te0S", 72.94), ("Te06", 79.64), ("Tex1", 79.64),
+            ("Tp01", 77.10), ("Tp05", 79.19), ("Tp09", 73.73), ("Tp0D", 74.44),
+            ("Tp0Y", 87.08), ("Tp0b", 77.96), ("Tp0e", 73.06),
+            ("Tp06", 91.91), ("Tp0c", 92.77), ("Tpx1", 92.77),
+            ("Tp0M", 96.59), ("Tp23", 96.59), ("TpxD", 96.59),
+            ("Tp0U", 97.84), ("Tpx5", 97.84), ("Tp29", 95.81),
+            ("Tp1o", 93.22), ("Tpx9", 93.22), ("Tp2G", 92.84),
+        ]
+        // Light idle (CPU 85 % idle), every P core parked: their sensors read
+        // 0, negative or a few degrees, and only the E-core family answers.
+        let appleM4ProIdleParked: [(key: String, value: Double)] = [
+            ("Te04", 49.00), ("Te05", 54.80), ("Te06", 58.05), ("Te0R", 48.93),
+            ("Te0S", 54.53), ("Te0T", 57.19),
+            ("Tex0", 53.00), ("Tex1", 58.05), ("Tex2", 52.93), ("Tex3", 57.19),
+            ("Tpx0", 0), ("Tpx1", 0), ("Tpx5", 0), ("Tpx9", 0), ("TpxD", 0),
+            ("Tp01", 2.20), ("Tp05", 1.50), ("Tp0Y", 0), ("Tp0U", 0),
+            ("Tp0W", -4.00), ("Tp00", -4.00), ("Tp2W", 5.20), ("Tp0v", 5.20),
+        ]
+        // Light idle (CPU 87 % idle) with part of the P cores awake: the base
+        // M4 set stops at Te05 while TpxD repeats a core at 76.48.
+        let appleM4ProIdleAwake: [(key: String, value: Double)] = [
+            ("Te05", 54.51), ("Te0S", 53.94), ("Tex1", 59.67), ("Tex3", 57.88),
+            ("Tpx5", 0), ("Tpx8", 56.84), ("Tpx9", 75.73), ("TpxB", 62.69),
+            ("TpxD", 76.48), ("Tp23", 76.48), ("Tp29", 75.84), ("Tp1o", 75.73),
+            ("Tp20", 68.09), ("Tp01", 2.20), ("Tp0Y", 0), ("Tp0W", -4.00),
+        ]
+        // Light idle (CPU 88 % idle) with the P-core summaries at 0 while ten
+        // parked P sensors, Tp0Y of the base M4 set among them, hold at 40.
+        let appleM4ProIdleHeld: [(key: String, value: Double)] = [
+            ("Te05", 60.81), ("Te0S", 60.93), ("Te06", 64.52),
+            ("Tex0", 59.45), ("Tex1", 64.52), ("Tex2", 59.34), ("Tex3", 63.88),
+            ("Tpx0", 0), ("Tpx5", 0), ("TpxD", 0),
+            ("Tp01", 40.00), ("Tp0Y", 40.00), ("Tp0W", 40.00), ("Tp23", 0),
+        ]
+        let m4ProPlatform = TemperatureSensorSelector.platform(brandString: "Apple M4 Pro")
+        suite.expect(TemperatureSensorSelector.platform(brandString: " Apple M4 Pro\n") == m4ProPlatform,
+               "M4 Pro identification ignores surrounding whitespace")
+        suite.expect(TemperatureSensorSelector.hasCPUCoreSet(platform: m4ProPlatform),
+               "an M4 Pro has its own CPU sensor set")
+        let m4ProCPUReadings = appleM4ProSensors.filter {
+            TemperatureSensorSelector.isCPUTemperatureKey($0.key, platform: m4ProPlatform)
+        }
+        suite.expect(m4ProCPUReadings.count == appleM4ProSensors.count
+                && !TemperatureSensorSelector.isCPUTemperatureKey("Tg0k", platform: m4ProPlatform)
+                && !TemperatureSensorSelector.isCPUTemperatureKey("TB0T", platform: m4ProPlatform),
+               "M4 Pro discovery keeps both CPU families and excludes GPU and battery")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m4ProCPUReadings, platform: m4ProPlatform
+        ) ?? -1, 97.84, "an M4 Pro under load shows its hottest core, not the base M4 set")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4ProIdleParked, platform: m4ProPlatform
+        ) ?? -1, 58.05, "an idle M4 Pro with its P cores parked reads its hottest E core")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4ProIdleAwake, platform: m4ProPlatform
+        ) ?? -1, 76.48, "an idle M4 Pro reads a P core that is awake")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4ProIdleHeld, platform: m4ProPlatform
+        ) ?? -1, 64.52, "an idle M4 Pro ignores parked P sensors holding a fixed value")
+        // A key outside the set that runs hot at idle, as Tp0W does on the
+        // base M4, must not become the reading while the set answers.
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4ProIdleParked + [("Tp0W", 68.0), ("Tp3X", 69.0)],
+            platform: m4ProPlatform
+        ) ?? -1, 58.05, "an M4 Pro keeps a hotter auxiliary sensor out of the idle reading")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("Tex1", 0), ("Tpx5", 7.0), ("TpxD", 130.0), ("Te05", 54.80)],
+            platform: m4ProPlatform
+        ) ?? -1, 54.80, "an M4 Pro whose set has no plausible reading still shows its CPU family")
         let genericCPU = TemperatureSensorSelector.displayedCPUTemperature(
             readings: [("Tp00", 44.5), ("Tp01", 51.6)],
             platform: .generic
@@ -671,6 +1074,63 @@ enum MetricsFeatureTests {
                "a missing temperature does not alert")
         suite.expect(!quietGate.shouldAlert(reading: 99, threshold: 90, readAt: nil),
                "a temperature with no reading time does not alert")
+
+        // MARK: CPU cores
+
+        let idleTicks = CPUCoreTicks(user: 0, system: 0, idle: 0, nice: 0)
+        suite.expect(CPUCoreTicks(user: 20, system: 20, idle: 50, nice: 10).usage(since: idleTicks) == 0.5,
+               "per-core usage counts user, system and nice as busy")
+        suite.expect(idleTicks.usage(since: idleTicks) == nil,
+               "unchanged counters do not invent a zero reading")
+        let earlierTicks = CPUCoreTicks(user: 100, system: 100, idle: 100, nice: 100)
+        suite.expect(CPUCoreTicks(user: 110, system: 110, idle: 120, nice: 100).usage(since: earlierTicks) == 0.5,
+               "per-core readings use the interval delta, not lifetime totals")
+        suite.expect(idleTicks.usage(since: earlierTicks) == nil,
+               "reset counters need a fresh baseline")
+        let beforeWrap = CPUCoreTicks(user: UInt32.max - 4, system: 0, idle: 0, nice: 0)
+        suite.expect(CPUCoreTicks(user: 5, system: 0, idle: 10, nice: 0).usage(since: beforeWrap) == 0.5,
+               "a 32-bit tick rollover keeps the interval delta")
+
+        let twoLevels = [(name: "Performance", count: 4), (name: "Efficiency", count: 6)]
+        let registryCores = (0..<10).map { (id: $0, type: $0 < 6 ? "E" : "P") }
+        suite.expect(CPUCoreTopology.groups(levels: twoLevels, cores: registryCores.reversed(), slots: Array(0..<10))
+                == [CPUCoreGroup(name: "Performance", indices: Array(6..<10)),
+                    CPUCoreGroup(name: "Efficiency", indices: Array(0..<6))],
+               "core classes follow the registry's logical IDs, not perflevel order")
+        suite.expect(CPUCoreTopology.groups(levels: twoLevels, cores: registryCores,
+                                            slots: [6, 0, 7, 1, 8, 2, 9, 3, 4, 5]).first?.indices == [0, 2, 4, 6],
+               "group indices address the sampler's processor order")
+        for broken in [Array(registryCores.dropLast()), registryCores + [registryCores[0]],
+                       registryCores.map { (id: $0.id, type: "?") }] {
+            suite.expect(CPUCoreTopology.groups(levels: twoLevels, cores: broken, slots: Array(0..<10)).map(\.name) == ["CPU"],
+                   "missing, duplicated or unknown registry cores fall back to one CPU group")
+        }
+        for width in [160.0, 280, 500] {
+            for counts in [[4, 6], [2, 4, 6], [32, 16], [1]] {
+                var start = 0
+                let groups = counts.enumerated().map { index, count in
+                    defer { start += count }
+                    return CPUCoreGroup(name: ["Super", "Performance", "Efficiency"][index % 3],
+                                        indices: Array(start..<(start + count)))
+                }
+                let rows = CPUCoreLayout.rows(groups: groups, width: width)
+                suite.expect(rows.flatMap { $0 }.flatMap(\.group.indices) == Array(0..<start),
+                       "the core layout keeps every core exactly once (\(counts) at \(width))")
+                suite.expect(rows.allSatisfy { row in
+                    row.reduce(0, { $0 + $1.width }) + Double(max(0, row.count - 1)) * 12 <= width + 0.01
+                }, "core rows stay inside their width (\(counts) at \(width))")
+                suite.expect(rows.joined().allSatisfy { segment in
+                    let count = Double(segment.group.indices.count)
+                    return count * segment.barWidth + (count - 1) * 4 <= segment.width + 0.01
+                }, "core bars stay inside their group (\(counts) at \(width))")
+            }
+        }
+        let wrapped = CPUCoreLayout.rows(groups: [CPUCoreGroup(name: "Performance", indices: Array(0..<10)),
+                                                  CPUCoreGroup(name: "Efficiency", indices: Array(10..<14))], width: 272)
+        let performanceBar = wrapped.joined().first { $0.group.name == "Performance" }?.barWidth ?? 0
+        let efficiencyBar = wrapped.joined().first { $0.group.name == "Efficiency" }?.barWidth ?? .infinity
+        suite.expect(wrapped.count == 2 && performanceBar > efficiencyBar,
+               "efficiency cores wrapped onto a row of their own never get wider bars than performance cores")
 
         // MARK: Uptime formatting
 

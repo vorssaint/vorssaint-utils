@@ -174,13 +174,13 @@ struct MixerSection: View {
                                       maximum: 1,
                                       accessibilityLabel: l10n.s.mixerSystemOutputTitle)
 
-                    EditableVolumePercent(currentPercent: Int((volume * 100).rounded()),
+                    EditableVolumePercent(currentPercent: MixerRoutingSupport.displayPercent(forVolume: volume),
                                           maximumPercent: 100,
                                           width: 36,
                                           editorID: "system-output",
                                           editingID: $editingVolumeID,
                                           accessibilityLabel: l10n.s.mixerSystemOutputTitle) {
-                        Text("\(Int((volume * 100).rounded()))%")
+                        Text("\(MixerRoutingSupport.displayPercent(forVolume: volume))%")
                             .font(.system(size: 10.5, weight: .medium))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
@@ -262,7 +262,7 @@ struct MixerSection: View {
     private func setSystemOutputVolume(_ value: Double) {
         if inNotch {
             // The slider shows the level; the island's header need not repeat it.
-            NotchService.shared.noteOwnVolumeAdjustment()
+            NotchService.shared.noteOwnLevelAdjustment(.volume)
             mixer.requestOutputAdjustment(volume: value)
         } else { mixer.setCurrentOutputVolume(value) }
     }
@@ -340,13 +340,13 @@ struct MixerSection: View {
                                       maximum: 1,
                                       accessibilityLabel: l10n.s.mixerInputTitle)
 
-                    EditableVolumePercent(currentPercent: Int((volume * 100).rounded()),
+                    EditableVolumePercent(currentPercent: MixerRoutingSupport.displayPercent(forVolume: volume),
                                           maximumPercent: 100,
                                           width: 36,
                                           editorID: "microphone-input",
                                           editingID: $editingVolumeID,
                                           accessibilityLabel: l10n.s.mixerInputTitle) {
-                        Text("\(Int((volume * 100).rounded()))%")
+                        Text("\(MixerRoutingSupport.displayPercent(forVolume: volume))%")
                             .font(.system(size: 10.5, weight: .medium))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
@@ -475,7 +475,6 @@ struct MixerSection: View {
                                     visibleIDs: visibleApps.compactMap(\.persistenceID))
                         }
                     }))
-                .help(FeatureStrings.mixer(l10n.language).arrange)
         }
     }
 
@@ -893,6 +892,7 @@ private struct MixerRow: View {
     let moveDown: (() -> Void)?
 
     private var arrangementStrings: MixerFeatureStrings { FeatureStrings.mixer(l10n.language) }
+    private var sharingStrings: MixerScreenSharingStrings { .localized(l10n.language) }
 
     /// Warm accent to flag the boost range, darkened in Light Mode for contrast.
     private var boostColor: Color { PanelMetricColor.orange(for: colorScheme) }
@@ -920,6 +920,7 @@ private struct MixerRow: View {
                         .offset(x: -1, y: -1)
                 }
             }
+            .help(arrangementStrings.arrange)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
@@ -927,6 +928,7 @@ private struct MixerRow: View {
                         .font(.system(size: 11.5, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.middle)
+                        .help(arrangementStrings.arrange)
 
                     if isPinned {
                         Image(systemName: "pin.fill")
@@ -943,8 +945,8 @@ private struct MixerRow: View {
                         .menuStyle(.borderlessButton)
                         .menuIndicator(.hidden)
                         .fixedSize()
-                        .help(isPinned ? arrangementStrings.unpin : arrangementStrings.pin)
-                        .accessibilityLabel("\(isPinned ? arrangementStrings.unpin : arrangementStrings.pin): \(app.name)")
+                        .help(arrangementStrings.actions)
+                        .accessibilityLabel("\(arrangementStrings.actions): \(app.name)")
                     }
                     if !app.isBypassed {
                         outputPicker
@@ -952,13 +954,10 @@ private struct MixerRow: View {
                 }
 
                 if app.isBypassed {
-                    // Zoom and pro audio apps are listed but never tapped
-                    // (issue #177): the row explains itself instead of the
-                    // app silently missing from the mixer.
-                    Text(l10n.s.mixerBypassedCaption)
+                    Text(app.supportsVolumeOverride ? sharingStrings.protectedCaption : l10n.s.mixerBypassedCaption)
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(app.supportsVolumeOverride ? nil : 2)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     HStack(spacing: 8) {
@@ -971,7 +970,7 @@ private struct MixerRow: View {
                                           maximum: AppVolumeMixer.maxVolume,
                                           accessibilityLabel: app.name)
 
-                        EditableVolumePercent(currentPercent: Int((app.volume * 100).rounded()),
+                        EditableVolumePercent(currentPercent: MixerRoutingSupport.displayPercent(forVolume: app.volume),
                                               maximumPercent: Int(AppVolumeMixer.maxVolume * 100),
                                               width: 42,
                                               editorID: "app:\(app.id)",
@@ -983,7 +982,7 @@ private struct MixerRow: View {
                                         .font(.system(size: 8, weight: .bold))
                                         .foregroundStyle(boostColor)
                                 }
-                                Text("\(Int((app.volume * 100).rounded()))%")
+                                Text("\(MixerRoutingSupport.displayPercent(forVolume: app.volume))%")
                                     .font(.system(size: 10.5, weight: .medium))
                                     .monospacedDigit()
                                     .foregroundStyle(isBoosting ? boostColor : Color.secondary)
@@ -1018,6 +1017,12 @@ private struct MixerRow: View {
                         .buttonStyle(.plain)
                     }
 
+                    if app.supportsVolumeOverride {
+                        Label(sharingStrings.sharingWarning, systemImage: "exclamationmark.triangle")
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if app.outputDeviceUnavailable {
                         Label(l10n.s.mixerOutputFallback, systemImage: "speaker.badge.exclamationmark")
                             .font(.system(size: 9.5))
@@ -1047,6 +1052,13 @@ private struct MixerRow: View {
         Button(action: togglePin) {
             Label(isPinned ? arrangementStrings.unpin : arrangementStrings.pin,
                   systemImage: isPinned ? "pin.slash" : "pin")
+        }
+        if app.supportsVolumeOverride {
+            Divider()
+            Toggle(sharingStrings.allowVolumeControl, isOn: Binding(
+                get: { !app.isBypassed },
+                set: { mixer.setCallAppVolumeControl($0, for: app) }))
+                .help(sharingStrings.sharingWarning)
         }
     }
 
@@ -1352,7 +1364,7 @@ private struct MixerVolumeSlider: View {
     let accessibilityLabel: String
 
     private var activeTint: Color { isBoosting ? boostTint : normalTint }
-    private var percentage: Int { Int((value * 100).rounded()) }
+    private var percentage: Int { MixerRoutingSupport.displayPercent(forVolume: value) }
 
     var body: some View {
         Group {
@@ -1437,7 +1449,7 @@ private struct LiquidGlassMixerSlider: View {
         }
         .frame(height: knobHeight)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityValue("\(Int((value * 100).rounded()))%")
+        .accessibilityValue("\(MixerRoutingSupport.displayPercent(forVolume: value))%")
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment:

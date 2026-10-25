@@ -68,6 +68,7 @@ enum UninstallerFlowTests {
         typealias L10n = Localization
         var phase: Phase = .empty
         var target: Target?
+        var refusal: UninstallerSupport.RefusedApp?
         var homebrewPackage: Package?
         var homebrewRemovalSize: Int64 = 0
         var homebrewRemovedApplication = false
@@ -89,10 +90,6 @@ enum UninstallerFlowTests {
         static func collect(appURL: URL, primaryBundleID: String, exclusiveBundleIDs: Set<String>, teamIDs: Set<String>, exclusiveGroupIDs: Set<String>, cancellation: UninstallerSupport.ScanCancellation) -> [Leftover] {
             collects += 1
             return [Leftover(url: appURL)]
-        }
-        static func applicationIdentityMatches(_ url: URL, appIdentity: UninstallerSupport.FileIdentity?, infoIdentity: UninstallerSupport.FileIdentity?) -> Bool {
-            UninstallerSupport.fileIdentity(at: url) == appIdentity
-                && UninstallerSupport.fileIdentity(at: url.appendingPathComponent("Contents/Info.plist")) == infoIdentity
         }
         func removeSelected() { if !items.isEmpty { phase = .removing } }
         func finishRemovalAfterHomebrew(package: Package) {}
@@ -270,7 +267,15 @@ enum UninstallerFlowTests {
             let link = root.appendingPathComponent("Link.app")
             try fm.createSymbolicLink(at: link, withDestinationURL: b)
             suite.expect(!uninstaller.select(appURL: link), "a symlink cannot be accepted as a removable bundle")
+            suite.expect(uninstaller.refusal == UninstallerSupport.RefusedApp(name: "Link", refusal: .link)
+                         && uninstaller.phase == .empty && uninstaller.target == nil,
+                         "a refused selection keeps the empty state and records why")
+            uninstaller.reset()
+            suite.expect(uninstaller.refusal == nil, "a reset drops the last refusal")
+            suite.expect(!uninstaller.select(appURL: link) && uninstaller.refusal != nil,
+                         "the symlink is refused again before another app is chosen")
             service.beginUninstallReview(appURL: b, entryID: "b")
+            suite.expect(uninstaller.refusal == nil, "an accepted selection clears the last refusal")
             service.mode = .uninstallHomebrewConfirm(entryID: "b")
             service.uninstallFinderRequestID = UUID()
             service.query = "A new search"

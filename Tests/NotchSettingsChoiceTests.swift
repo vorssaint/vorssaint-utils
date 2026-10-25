@@ -23,7 +23,8 @@ enum NotchSettingsChoiceTests {
             let destinations = [FeatureStrings.notch(language).files, FeatureStrings.clipboard(language).title,
                                 FeatureStrings.scratchpad(language).pageTitle]
             let choices = destinations.map { ($0, AnyView(Destination(language: language, title: $0))) }
-                + [(FeatureStrings.notchAgents(language).limitsAs, AnyView(Limits(language: language)))]
+                + [(FeatureStrings.notchAgents(language).limitsAs, AnyView(Limits(language: language))),
+                   (FeatureStrings.notchClipboardSize(language).entrySize, AnyView(ClipboardEntrySize(language: language)))]
             for (title, row) in choices {
                 let overflow = problems(row, width: narrowest, textColumn: column)
                 suite.expect(overflow.isEmpty, "\(language.rawValue): \(title) fits the narrowest Dynamic Island "
@@ -37,6 +38,7 @@ enum NotchSettingsChoiceTests {
                 (agents.finishAfter, AnyView(FinishAfter(language: language)), indentedColumn),
                 (agents.limitAt, AnyView(LimitAt(language: language)), indentedColumn),
                 (agents.budget, AnyView(Budget(language: language)), column),
+                (agents.limitFocus, AnyView(LimitFocus(language: language)), column),
             ]
             for (title, row, textColumn) in menus {
                 let overflow = problems(row, width: narrowest, textColumn: textColumn)
@@ -45,6 +47,36 @@ enum NotchSettingsChoiceTests {
                 suite.expect(drawsChoiceBesideTitle(row, width: 1000, segments: false),
                              "\(language.rawValue): \(title) keeps its menu beside the title where it fits")
             }
+        }
+        // The entry size reads a stored value as the island's page does:
+        // anything it does not know, nothing stored included, is comfortable.
+        for (stored, segment) in [("compact", 0), ("comfortable", 1), ("", 1), ("huge", 1)] {
+            let row = AnyView(ClipboardEntrySize(language: .enUS, clipboardCardSize: stored))
+            let segments = controls(in: host(row, width: 1000)).compactMap { $0 as? NSSegmentedControl }.first
+            suite.expect(segments?.selectedSegment == segment,
+                         "the clipboard entry size shows \"\(stored)\" as \(segment == 0 ? "compact" : "comfortable")")
+        }
+        // An option that cannot be used reads off and cannot be switched,
+        // whatever was saved: its feature is uninstalled, or something else
+        // rules it out.
+        for (installed, enabled) in [(true, true), (false, true), (true, false)] {
+            FeatureRuntime.shared.installed = installed
+            let row = AnyView(SettingsFeatureSwitchRow(symbol: "text.quote", title: "Lyrics", isOn: .constant(true),
+                                                       feature: .notchLyrics, enabled: enabled))
+            let toggle = switches(in: host(row, width: 500)).first
+            let usable = installed && enabled
+            suite.expect(toggle?.state == (usable ? NSControl.StateValue.on : .off) && toggle?.isEnabled == usable,
+                         "a saved option switched on reads \(usable ? "on" : "off and disabled") while its feature is "
+                         + (installed ? "installed" : "uninstalled") + (enabled ? "" : " and something else rules it out"))
+        }
+        FeatureRuntime.shared.installed = true
+    }
+
+    /// The switches a row draws: SwiftUI draws its switch style as an AppKit switch.
+    private static func switches(in view: NSView) -> [NSSwitch] {
+        view.subviews.flatMap { subview -> [NSSwitch] in
+            if let control = subview as? NSSwitch { return [control] }
+            return switches(in: subview)
         }
     }
 

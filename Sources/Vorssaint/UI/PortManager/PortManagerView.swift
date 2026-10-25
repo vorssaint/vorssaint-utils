@@ -102,7 +102,7 @@ struct PortManagerView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
-                    Text("\(entry.port)")
+                    Text(String(entry.port))
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
                     Text(entry.protocolName)
                         .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -116,7 +116,7 @@ struct PortManagerView: View {
                 Text(entry.processName)
                     .font(.system(size: 11))
                     .lineLimit(1)
-                Text("PID \(entry.pid)  •  \(entry.address)")
+                Text("PID \(String(entry.pid))  •  \(entry.address)")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
@@ -138,6 +138,38 @@ struct PortManagerView: View {
             }
         }
         .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .contextMenu {
+            PortManagerRowActions(entry: entry, language: l10n.language)
+        }
+    }
+}
+
+struct PortManagerRowActions: View {
+    let entry: PortManagerEntry
+    let language: AppLanguage
+
+    var body: some View {
+        let strings = FeatureStrings.portManager(language)
+        Button(strings.copyPort) { copy(String(entry.port)) }
+        Button(FeatureStrings.killProcess(language).copyPID) { copy(String(entry.pid)) }
+        Button(strings.copyAddress) { copy(entry.address) }
+        if let url = PortManagerSupport.browserURL(for: entry) {
+            Divider()
+            Button(FeatureStrings.commandBar(language).openInBrowser) {
+                if !NSWorkspace.shared.open(url) { NSSound.beep() }
+            }
+        }
+    }
+
+    private func copy(_ value: String) {
+        GeneralPasteboardAccess.shared.async({
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.declareVorssaintSource()
+            return NSPasteboard.general.setString(value, forType: .string)
+        }, then: { copied in
+            if !copied { NSSound.beep() }
+        })
     }
 }
 

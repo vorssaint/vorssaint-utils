@@ -153,7 +153,7 @@ struct MenuPanelView: View {
         case .system: return SystemMonitorPanelNeeds(system: true)
         case .network: return SystemMonitorPanelNeeds(network: true)
         case .disk: return SystemMonitorPanelNeeds(disk: true)
-        case .power: return SystemMonitorPanelNeeds(power: true)
+        case .power: return SystemMonitorPanelNeeds(power: true, powerCard: true)
         default: return .none
         }
     }
@@ -327,7 +327,13 @@ struct MenuPanelView: View {
         case .keepAwake: KeepAwakeCard(collapsible: collapsible)
         case .brightness: if showBrightness { BrightnessSection(collapsible: collapsible) }
         case .mixer: if showMixer { mixerOrPrioritySection(collapsible: collapsible) }
-        case .system: if showSystem { SystemSection(collapsible: collapsible) }
+        case .system:
+            if showSystem {
+                SystemSection(collapsible: collapsible) {
+                    focusedSection = nil
+                    selectedMetric = .connectedDevices
+                }
+            }
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }
@@ -1108,7 +1114,7 @@ struct UtilitiesSection: View {
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, linearScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
          dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
-         mouseClickDebounce, notch
+         mouseClickDebounce, notch, spacesOrder
 
     var id: String { rawValue }
 
@@ -1132,6 +1138,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .middleClick: return .middleClick
         case .textSnippets: return .textSnippets
         case .notch: return .notch
+        case .spacesOrder: return .spacesOrder
         case .radialMenu: return .radialMenu
         case .mouseButtonShortcuts: return .mouseButtonShortcuts
         case .superKey: return .superKey
@@ -1149,7 +1156,8 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
 
     static func category(for item: ControlPanelItem) -> ControlCategory {
         switch item {
-        case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit, .notch:
+        case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit, .notch,
+             .spacesOrder:
             return .windows
         case .mouseScroll, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
              .textSnippets, .radialMenu, .superKey, .mouseClickDebounce:
@@ -1191,6 +1199,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickEnabled = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHideEnabled = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleEnabled = false
+    @AppStorage(DefaultsKey.spacesOrderEnabled) private var spacesOrderEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
     @AppStorage(DefaultsKey.notchEnabled) private var notchEnabled = false
@@ -1220,6 +1229,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlDockClick) private var showDockClick = true
     @AppStorage(DefaultsKey.panelControlDockClickHide) private var showDockClickHide = true
     @AppStorage(DefaultsKey.panelControlDockClickCycle) private var showDockClickCycle = true
+    @AppStorage(DefaultsKey.panelControlSpacesOrder) private var showSpacesOrder = true
     @AppStorage(DefaultsKey.panelControlMiddleClick) private var showMiddleClick = true
     @AppStorage(DefaultsKey.panelControlTextSnippets) private var showTextSnippets = true
     @AppStorage(DefaultsKey.panelControlRadialMenu) private var showRadialMenu = true
@@ -1342,6 +1352,7 @@ struct QuickControlsSection: View {
         case .dockClick: return dockClickEnabled
         case .dockClickHide: return dockClickHideEnabled
         case .dockClickCycle: return dockClickCycleEnabled
+        case .spacesOrder: return spacesOrderEnabled
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
         case .notch: return notchEnabled
@@ -1421,6 +1432,7 @@ struct QuickControlsSection: View {
         case .dockClick: return showDockClick
         case .dockClickHide: return showDockClickHide
         case .dockClickCycle: return showDockClickCycle
+        case .spacesOrder: return showSpacesOrder
         case .middleClick: return showMiddleClick
         case .textSnippets: return showTextSnippets
         case .notch: return showNotch
@@ -1682,7 +1694,7 @@ struct QuickControlsSection: View {
                            showsDragHandle: true,
                            visibility: $showMiddleClick,
                            needsAttention: middleClickEnabled
-                               && (!permissions.accessibility || middleClick.systemDragGestureConflict),
+                               && (!permissions.accessibility || middleClick.touchDeviceMissing),
                            permissionButtonTitle: l10n.s.permissionRequest,
                            permissionAction: accessibilityPermissionAction(middleClickEnabled))
                 .onChange(of: middleClickEnabled) { _, enabled in
@@ -1789,11 +1801,20 @@ struct QuickControlsSection: View {
         case .superKey:
             let superKeyStrings = FeatureStrings.superKey(l10n.language)
             let superKeySource = SuperKeySource.sanitized(superKeySourceRaw)
+            let keyCaps = SuperKeySupport.modifiers(from: superKeyModifierStorage).keyCaps.joined()
             let modifierCaption = String(
                 format: superKeyStrings.panelCaptionFormat,
                 superKeyStrings.sourceLabel(superKeySource),
-                SuperKeySupport.modifiers(from: superKeyModifierStorage).keyCaps.joined()
+                keyCaps
             )
+            // Issue #2896: while the key is on with Accessibility, the
+            // Settings link names the mapping. Only the key and its key caps,
+            // because the sentence gets cut in a mini button at the panel
+            // width in several languages (in Italian the cut hides the key
+            // caps). Without Accessibility nothing is mapped yet, so the link
+            // keeps Set up… beside the warning, and a switched-off row shows
+            // no link, like Text Snippets, Radial Menu and Mouse buttons.
+            let mappingLabel = "\(superKeyStrings.sourceLabel(superKeySource)) \(keyCaps)"
             PanelToggleRow(title: superKeyStrings.pageTitle,
                            caption: caption(modifierCaption,
                                             needsAccessibility: superKeyEnabled),
@@ -1805,7 +1826,9 @@ struct QuickControlsSection: View {
                            needsAttention: superKeyEnabled && !permissions.accessibility,
                            permissionButtonTitle: l10n.s.permissionRequest,
                            permissionAction: accessibilityPermissionAction(superKeyEnabled),
-                           accessoryTitle: superKeyEnabled ? superKeyStrings.manageButton : nil,
+                           accessoryTitle: superKeyEnabled
+                               ? (permissions.accessibility ? mappingLabel : superKeyStrings.manageButton)
+                               : nil,
                            accessoryAction: {
                                SettingsRouter.shared.page = .superKey
                                appDelegate()?.openSettingsWindow()
@@ -1824,6 +1847,17 @@ struct QuickControlsSection: View {
                            visibility: $showMouseAcceleration)
                 .onChange(of: mouseAccelerationDisabled) { _, _ in
                     MouseAccelerationService.shared.syncWithPreferences()
+                }
+        case .spacesOrder:
+            PanelToggleRow(title: l10n.s.spacesOrderName,
+                           caption: l10n.s.spacesOrderCaption,
+                           systemImage: "rectangle.split.3x1",
+                           isOn: $spacesOrderEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showSpacesOrder)
+                .onChange(of: spacesOrderEnabled) { _, _ in
+                    SpacesOrderHold.shared.syncWithPreferences()
                 }
         case .mouseClickDebounce:
             let debounceStrings = FeatureStrings.mouseClickDebounce(l10n.language)
@@ -1848,6 +1882,8 @@ struct QuickControlsSection: View {
     private var middleClickCaption: String {
         guard middleClickEnabled else { return l10n.s.middleClickEnableCaption }
         if !permissions.accessibility { return missingPermission(l10n.s.permissionAccessibility) }
+        // Without a readable trackpad, turning off three-finger drag would not help yet.
+        if middleClick.touchDeviceMissing { return l10n.s.middleClickNoTrackpad }
         if middleClick.systemDragGestureConflict { return l10n.s.middleClickDragConflict }
         return l10n.s.middleClickEnableCaption
     }
@@ -1868,6 +1904,7 @@ struct QuickControlsSection: View {
         showDockClick = true
         showDockClickHide = true
         showDockClickCycle = true
+        showSpacesOrder = true
         showMiddleClick = true
         showTextSnippets = true
         showRadialMenu = true

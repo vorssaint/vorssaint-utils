@@ -4,7 +4,7 @@
 import AppKit
 import QuartzCore
 
-/// Small decorative layers, with no timers or frame callbacks in the app.
+/// Small decorative layers, stepped at a limited rate while they show.
 /// Settings retains its view hierarchy when closed, so disappearance alone
 /// cannot stop motion: observe the actual window's visibility as well.
 final class NotchAgentAnimationView: NSView {
@@ -17,7 +17,8 @@ final class NotchAgentAnimationView: NSView {
     private var size: CGFloat = 0
     private var animates = false
     private var visibilityObserver: NSObjectProtocol?
-    private static let animationKey = "notch.agent"
+    private(set) var motionStart: CFTimeInterval = 0
+    private lazy var clock = NotchDecorativeClock { [weak self] time in self?.step(at: time) }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -121,47 +122,56 @@ final class NotchAgentAnimationView: NSView {
     override func viewDidUnhide() { super.viewDidUnhide(); updateLayers() }
     override func layout() { super.layout(); updateLayers() }
 
+    var isMoving: Bool { clock.isRunning }
+
     private func updateLayers() {
         let moving = animates && !isHiddenOrHasHiddenAncestor
             && window?.isVisible == true && window?.occlusionState.contains(.visible) == true
+        // Snapshot, time and geometry updates keep the motion's phase.
+        if moving, !clock.isRunning { motionStart = CACurrentMediaTime() }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        defer { CATransaction.commit() }
         artwork.isHidden = isPulse
         dot.isHidden = !isPulse
         ring.isHidden = !isPulse || !moving
-        let frame = CGRect(x: bounds.midX - size / 2, y: bounds.midY - size / 2, width: size, height: size)
-        artwork.frame = frame
-        for shape in [dot, ring] where shape.frame != frame {
-            shape.frame = frame
-            shape.path = CGPath(ellipseIn: CGRect(origin: .zero, size: frame.size), transform: nil)
+        // Bounds and position rather than frames: the moving layer is scaled.
+        let box = CGRect(x: 0, y: 0, width: size, height: size)
+        for layer in [artwork, dot, ring] {
+            layer.bounds = box
+            layer.position = CGPoint(x: bounds.midX, y: bounds.midY)
         }
-        artwork.opacity = 1
-        ring.opacity = 0
-        let target = isPulse ? ring : artwork
-        let inactive = isPulse ? artwork : ring
-        inactive.removeAnimation(forKey: Self.animationKey)
-        guard moving else {
-            target.removeAnimation(forKey: Self.animationKey)
-            return
+        for shape in [dot, ring] where shape.path?.boundingBox != box {
+            shape.path = CGPath(ellipseIn: box, transform: nil)
         }
-        // Snapshot/time/geometry updates keep the existing animation phase.
-        guard target.animation(forKey: Self.animationKey) == nil else { return }
-        let scale = CABasicAnimation(keyPath: "transform.scale")
-        scale.fromValue = isPulse ? 1 : 0.84
-        scale.toValue = isPulse ? 1.9 : 1
-        let opacity = CABasicAnimation(keyPath: "opacity")
-        opacity.fromValue = isPulse ? 0.6 : 0.7
-        opacity.toValue = isPulse ? 0 : 1
-        let animation = CAAnimationGroup()
-        animation.duration = isPulse ? 1.6 : 1.2
-        scale.duration = animation.duration
-        opacity.duration = animation.duration
-        animation.animations = [scale, opacity]
-        animation.autoreverses = !isPulse
-        animation.repeatCount = .infinity
-        animation.timingFunction = CAMediaTimingFunction(name: isPulse ? .easeOut : .easeInEaseOut)
-        animation.beginTime = target.convertTime(CACurrentMediaTime(), from: nil)
-        target.add(animation, forKey: Self.animationKey)
+        show(at: moving ? CACurrentMediaTime() : nil)
+        CATransaction.commit()
+        if moving { clock.start(in: self) } else { clock.stop() }
+    }
+
+    /// The glyph grows and brightens and settles back, and the pulse's ring
+    /// spreads from the dot as it fades, in the rhythm of the animations they
+    /// replace. With no time, both rest.
+    private func show(at time: CFTimeInterval?) {
+        var glyph = (scale: 1.0, opacity: 1.0)
+        var spreading = (scale: 1.0, opacity: 0.0)
+        if let time, isPulse {
+            let spread = NotchDecorativeClock.pulse(time - motionStart, period: 1.6)
+            spreading = (1 + 0.9 * spread, 0.6 * (1 - spread))
+        } else if let time {
+            let breath = NotchDecorativeClock.swing((time - motionStart) / 1.2)
+            glyph = (0.84 + 0.16 * breath, 0.7 + 0.3 * breath)
+        }
+        artwork.transform = CATransform3DMakeScale(glyph.scale, glyph.scale, 1)
+        artwork.opacity = Float(glyph.opacity)
+        ring.transform = CATransform3DMakeScale(spreading.scale, spreading.scale, 1)
+        ring.opacity = Float(spreading.opacity)
+    }
+
+    func step(at time: CFTimeInterval) {
+        guard clock.isRunning else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        show(at: time)
+        CATransaction.commit()
     }
 }

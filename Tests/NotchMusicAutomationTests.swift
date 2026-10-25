@@ -52,6 +52,29 @@ enum NotchMusicAutomationFlowContract {
                           capabilities: NotchMusicAutomationCapabilities, pid: Int32) -> Event? {
             Event(command: command, pid: pid)
         }
+        /// The player's shuffle answer, which it gives only once allowed.
+        static var shuffleState: Bool? = false
+        static var shuffleOffered = true
+        static var switches: [Bool] = []
+        static var switchSucceeds = true
+        static func shuffle(of availability: Availability) -> Bool? { permission == .granted ? shuffleState : nil }
+        static func shuffleAllowed(by availability: Availability) -> Bool { shuffleOffered }
+        static func setShuffle(_ enabled: Bool, availability: Availability) -> Bool { switches.append(enabled); return switchSucceeds }
+    }
+    /// Keeps the delayed check apart, so it lands only when a test lets time pass.
+    final class ShuffleQueue {
+        var jobs: [() -> Void] = []
+        var later: [() -> Void] = []
+        func async(execute action: @escaping () -> Void) { jobs.append(action) }
+        func asyncAfter(deadline: DispatchTime, execute action: @escaping () -> Void) { later.append(action) }
+        func drain() { while !jobs.isEmpty { jobs.removeFirst()() } }
+        func elapse() { let due = later; later = []; due.forEach { $0() } }
+    }
+    final class NotchMusicService {
+        static var shared = NotchMusicService()
+        var playback: NotchPlayback?
+        var refreshes = 0
+        func refreshAutomation() { refreshes += 1 }
     }
     static func reset() {
         DispatchQueue.main = Scheduler(); DispatchQueue.worker = Scheduler()
@@ -61,6 +84,11 @@ enum NotchMusicAutomationFlowContract {
         NotchMusicAutomation.deliveries = []
         NotchMusicAutomation.capabilities = nil
         NotchMusicAutomation.inspections = 0
+        NotchMusicAutomation.shuffleState = false
+        NotchMusicAutomation.shuffleOffered = true
+        NotchMusicAutomation.switches = []
+        NotchMusicAutomation.switchSucceeds = true
+        NotchMusicService.shared = NotchMusicService()
     }
 }
 
@@ -93,6 +121,8 @@ enum NotchMusicAutomationTests {
     static func run(_ suite: TestSuite) {
         parsing(suite)
         descriptors(suite)
+        shuffle(suite)
+        shuffleFlow(suite)
         lifecycle(suite)
         refresh(suite)
     }
@@ -158,6 +188,188 @@ enum NotchMusicAutomationTests {
         suite.expect(NotchMusicAutomation.event(.seek(.nan), playback: value, capabilities: capabilities, pid: pid) == nil
                && NotchMusicAutomation.event(.queueStop, playback: value, capabilities: capabilities, pid: pid) == nil,
                "non-finite positions and queue operations cannot become unrelated Apple Events")
+    }
+
+    private static func shuffle(_ suite: TestSuite) {
+        func parse(_ source: String) -> NotchMusicAutomationCapabilities? { .parse(Data(source.utf8)) }
+        func with(_ properties: String) -> String {
+            dictionary.replacingOccurrences(of: "type=\"real\"/>", with: "type=\"real\"/>" + properties)
+        }
+        // Some players declare a read-only availability flag beside the switch.
+        let flagged = with("<property name=\"shuffling enabled\" code=\"pReE\" type=\"boolean\" access=\"r\"/>"
+                           + "<property name=\"shuffling\" code=\"pShu\" type=\"boolean\"/>")
+        let unflagged = with("<property name=\"shuffle enabled\" code=\"pShE\" type=\"boolean\"/>"
+                             + "<property name=\"shuffle mode\" code=\"pShM\" type=\"eShM\"/>")
+        suite.expect(parse(flagged)?.shuffle == 0x70536875 && parse(unflagged)?.shuffle == 0x70536845,
+               "the shuffle switch comes from the player's own dictionary, under either name it uses")
+        suite.expect(parse(dictionary)?.shuffle == nil, "a player that declares no shuffle switch shows none")
+        suite.expect(parse(flagged)?.shuffleAllowed == 0x70526545 && parse(unflagged)?.shuffleAllowed == nil,
+               "a player that says when shuffle is offered is asked, and one that does not is not")
+        suite.expect(parse(with("<property name=\"shuffling enabled\" code=\"pReE\" type=\"integer\" access=\"r\"/>"))?.shuffleAllowed == nil,
+               "only a Boolean says whether shuffle is offered")
+        for changed in [with("<property name=\"shuffling\" code=\"pShu\" type=\"integer\"/>"),
+                        with("<property name=\"shuffling\" code=\"pShu\" type=\"boolean\" access=\"r\"/>"),
+                        with("<property name=\"shuffling\" code=\"bad\" type=\"boolean\"/>"),
+                        dictionary.replacingOccurrences(of: "</suite>",
+                            with: "<class name=\"track\" code=\"cTrk\"><property name=\"shuffling\" code=\"pShu\" type=\"boolean\"/></class></suite>")] {
+            suite.expect(parse(changed)?.shuffle == nil, "only a writable Boolean of the application can switch shuffle")
+        }
+        let both = with("<property name=\"shuffling\" code=\"pShu\" type=\"boolean\"/>"
+                        + "<property name=\"shuffle enabled\" code=\"pShE\" type=\"boolean\"/>")
+        suite.expect(parse(both)?.shuffle == nil, "two shuffle switches are ambiguous and fail closed")
+        let only = parse("<dictionary><suite><class name=\"application\" code=\"capp\">"
+                         + "<property name=\"shuffling\" code=\"pShu\" type=\"boolean\"/></class></suite></dictionary>")
+        suite.expect(only == nil,
+               "a dictionary with only the shuffle switch is not a player the island can command")
+
+        let capabilities = parse(flagged)!
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let address = NSAppleEventDescriptor(processIdentifier: pid)
+        // The property the event's object specifier names, so a mixup of the two fails.
+        func property(_ event: NSAppleEventDescriptor?) -> OSType? {
+            event?.paramDescriptor(forKeyword: keyDirectObject)?.forKeyword(AEKeyword(keyAEKeyData))?.typeCodeValue
+        }
+        let read = NotchMusicAutomation.shuffleEvent(nil, capabilities: capabilities, pid: pid)
+        let allowed = NotchMusicAutomation.shuffleAllowedEvent(capabilities: capabilities, pid: pid)
+        suite.expect(allowed?.eventID == kAEGetData && allowed?.paramDescriptor(forKeyword: keyAEData) == nil
+               && property(allowed) == 0x70526545
+               && NotchMusicAutomation.shuffleAllowedEvent(capabilities: parse(unflagged)!, pid: pid) == nil,
+               "whether shuffle is offered is only read, from the availability flag, and only where the player declares it")
+        let set = NotchMusicAutomation.shuffleEvent(false, capabilities: capabilities, pid: pid)
+        suite.expect(read?.eventClass == kAECoreSuite && read?.eventID == kAEGetData
+               && read?.paramDescriptor(forKeyword: keyDirectObject)?.descriptorType == typeObjectSpecifier
+               && property(read) == 0x70536875
+               && read?.paramDescriptor(forKeyword: keyAEData) == nil,
+               "reading shuffle asks for the declared property only")
+        suite.expect(set?.eventClass == kAECoreSuite && set?.eventID == kAESetData
+               && property(set) == 0x70536875
+               && set?.paramDescriptor(forKeyword: keyAEData)?.descriptorType == typeBoolean
+               && set?.paramDescriptor(forKeyword: keyAEData)?.booleanValue == false,
+               "switching shuffle sets the declared property to a Boolean")
+        suite.expect(set?.attributeDescriptor(forKeyword: keyAddressAttr)?.data == address.data,
+               "the shuffle event is addressed to the playing process")
+        suite.expect(NotchMusicAutomation.shuffleEvent(true, capabilities: parse(dictionary)!, pid: pid) == nil
+               && NotchMusicAutomation.shuffleEvent(true, capabilities: capabilities, pid: 0) == nil,
+               "no shuffle event exists without a declared switch or a process")
+        let on = NSAppleEventDescriptor.record()
+        on.setDescriptor(NSAppleEventDescriptor(boolean: true), forKeyword: keyDirectObject)
+        let wrong = NSAppleEventDescriptor.record()
+        wrong.setDescriptor(NSAppleEventDescriptor(string: "true"), forKeyword: keyDirectObject)
+        suite.expect(NotchMusicAutomation.shuffleState(in: on) == true && NotchMusicAutomation.shuffleState(in: wrong) == nil
+               && NotchMusicAutomation.shuffleState(in: NSAppleEventDescriptor.record()) == nil,
+               "only a Boolean reply is taken as the shuffle state")
+    }
+
+    /// The shuffle button asks for consent only when pressed, sends one
+    /// switch at a time, and lets a reply land only on the player and the
+    /// page it was sent from.
+    private static func shuffleFlow(_ suite: TestSuite) {
+        typealias Context = NotchMusicAutomationFlowContract
+        typealias Automation = Context.NotchMusicAutomation
+        Context.reset()
+        defer { Context.reset() }
+        Automation.capabilities = NotchMusicAutomationCapabilities.parse(Data(dictionary.replacingOccurrences(
+            of: "type=\"real\"/>", with: "type=\"real\"/><property name=\"shuffling\" code=\"pShu\" type=\"boolean\"/>").utf8))
+        let service = Context.ShuffleService()
+        func land() {
+            while !service.queue.jobs.isEmpty || !Context.DispatchQueue.worker.jobs.isEmpty
+                    || !Context.DispatchQueue.main.jobs.isEmpty {
+                service.queue.drain(); Context.DispatchQueue.worker.drain(); Context.DispatchQueue.main.drain()
+            }
+        }
+        func song(_ title: String, pid: Int32 = 42) -> NotchPlayback {
+            let track = RadialNowPlayingSnapshot(title: title, artist: "Artist", album: "Album", artworkData: nil,
+                                                appBundleIdentifier: "local.test.player", appPID: pid)
+            return NotchPlayback(track: track, isPlaying: true, elapsed: 3, duration: 180, rate: 1, sampledAt: Date(),
+                                 canSeek: false, itemIdentifier: title, commandContext: .init(pid: pid, revision: UUID()))
+        }
+        let first = song("First")
+        Context.NotchMusicService.shared.playback = first
+        Automation.permission = .consent
+        service.refresh(for: first)
+        land()
+        suite.expect(service.availability?.access == .consent && service.isOffered && service.enabled == nil
+               && Context.AppleScriptRunner.prompts.isEmpty && Automation.switches.isEmpty,
+               "opening the page on a player not yet allowed neither asks for consent nor switches shuffle")
+        service.toggle()
+        service.toggle()
+        Automation.permission = .granted
+        land()
+        suite.expect(Context.AppleScriptRunner.prompts == ["local.test.player"] && Automation.switches.isEmpty,
+               "a press before consent asks once and sends nothing")
+        suite.expect(Context.NotchMusicService.shared.refreshes == 1 && service.availability?.access == .granted
+               && service.enabled == false && !service.requestingAccess,
+               "a grant through shuffle also refreshes the playback buttons, and shuffle shows the player's state")
+
+        service.toggle()
+        service.toggle()
+        suite.expect(service.pending && Automation.switches.isEmpty, "a press waits for the player")
+        land()
+        suite.expect(Automation.switches == [true] && !service.pending && service.enabled == true,
+               "a press sends the opposite of the shown state, and a second press while it is on its way sends nothing")
+        Automation.shuffleState = false
+        service.queue.elapse(); land()
+        suite.expect(service.enabled == false, "the player's own answer a moment later has the last word")
+
+        service.toggle()
+        service.refresh(for: song("Second"))
+        suite.expect(service.pending, "a new song on the same player keeps the switch on its way")
+        land()
+        suite.expect(Automation.switches == [true, true] && !service.pending,
+               "the reply still ends the wait after a new song")
+        Automation.shuffleState = true
+        service.queue.elapse(); land()
+        suite.expect(service.enabled == true,
+               "the check a moment later still lands after a new song, over the player's stale answer")
+
+        service.toggle()
+        service.refresh(for: song("Other", pid: 43))
+        suite.expect(!service.pending && service.availability == nil, "another player drops the switch on its way")
+        Automation.shuffleState = true
+        land()
+        Automation.shuffleState = false
+        service.queue.elapse(); land()
+        suite.expect(Automation.switches == [true, true, false] && service.availability?.target.pid == 43
+               && service.enabled == true,
+               "a reply or check from one player never shows on another")
+
+        service.toggle()
+        service.stop()
+        Automation.shuffleState = true
+        land(); service.queue.elapse(); land()
+        suite.expect(Automation.switches == [true, true, false, false] && service.availability == nil
+               && service.enabled == nil && !service.pending,
+               "a reply or check that comes back after the page closed changes nothing")
+
+        Automation.shuffleOffered = false
+        Automation.shuffleState = false
+        service.refresh(for: first)
+        land()
+        service.toggle()
+        land()
+        suite.expect(!service.allowed && Automation.switches.count == 4,
+               "songs the player cannot shuffle send no switch")
+
+        Automation.shuffleOffered = true
+        Automation.permission = .consent
+        service.stop()
+        service.refresh(for: first)
+        land()
+        service.toggle()
+        service.refresh(for: song("Third"))
+        service.queue.drain(); Context.DispatchQueue.main.drain()
+        Automation.permission = .granted
+        land()
+        suite.expect(Context.NotchMusicService.shared.refreshes == 2 && service.availability?.access == .granted
+               && service.enabled != nil && !service.requestingAccess,
+               "a grant whose dialog was up across a new song still refreshes shuffle and the playback buttons")
+
+        Automation.switchSucceeds = false
+        Automation.permission = .consent
+        service.toggle()
+        land()
+        suite.expect(service.availability?.access == .consent && !service.pending,
+               "a switch that does not go through looks again, so consent taken back shows on the button")
     }
 
     private static func lifecycle(_ suite: TestSuite) {

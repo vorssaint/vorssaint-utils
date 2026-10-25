@@ -54,10 +54,13 @@ enum CommandBarUnits {
         add(["f", "fahrenheit", "°f"], .temperature, UnitTemperature.fahrenheit)
         add(["k", "kelvin"], .temperature, UnitTemperature.kelvin)
         // Length
-        add(["mm", "millimeter", "millimeters", "milimetro", "milimetros"], .length, UnitLength.millimeters)
-        add(["cm", "centimeter", "centimeters", "centimetro", "centimetros"], .length, UnitLength.centimeters)
+        add(["mm", "millimeter", "millimeters", "millimetre", "millimetres", "milimetro", "milimetros"],
+            .length, UnitLength.millimeters)
+        add(["cm", "centimeter", "centimeters", "centimetre", "centimetres", "centimetro", "centimetros"],
+            .length, UnitLength.centimeters)
         add(["m", "meter", "meters", "metro", "metros", "metre", "metres"], .length, UnitLength.meters)
-        add(["km", "kilometer", "kilometers", "quilometro", "quilometros"], .length, UnitLength.kilometers)
+        add(["km", "kilometer", "kilometers", "kilometre", "kilometres", "quilometro", "quilometros"],
+            .length, UnitLength.kilometers)
         add(["in", "inch", "inches", "polegada", "polegadas", "\""], .length, UnitLength.inches)
         add(["ft", "foot", "feet", "pe", "pes"], .length, UnitLength.feet)
         add(["yd", "yard", "yards", "jarda", "jardas"], .length, UnitLength.yards)
@@ -87,7 +90,8 @@ enum CommandBarUnits {
         add(["min", "mins", "minute", "minutes", "minuto", "minutos"], .duration, UnitDuration.minutes)
         add(["h", "hr", "hrs", "hour", "hours", "hora", "horas"], .duration, UnitDuration.hours)
         // Volume
-        add(["ml", "milliliter", "milliliters", "mililitro", "mililitros"], .volume, UnitVolume.milliliters)
+        add(["ml", "milliliter", "milliliters", "millilitre", "millilitres", "mililitro", "mililitros"],
+            .volume, UnitVolume.milliliters)
         add(["l", "liter", "liters", "litre", "litres", "litro", "litros"], .volume, UnitVolume.liters)
         add(["gal", "gallon", "gallons", "galao", "galoes"], .volume, UnitVolume.gallons)
         add(["qt", "quart", "quarts"], .volume, UnitVolume.quarts)
@@ -141,8 +145,22 @@ enum CommandBarUnits {
             tokens.append(String(digits))
             if !rest.isEmpty { tokens.append(String(rest)) }
         }
-        return tokens
+        // The unit printed on a bottle is two words, "fl oz", and so is its
+        // name; each reads as the single word the lexicon knows.
+        var joined: [String] = []
+        for token in tokens {
+            if let last = joined.last, let unit = twoWordUnits[last + " " + token] {
+                joined[joined.count - 1] = unit
+            } else {
+                joined.append(token)
+            }
+        }
+        return joined
     }
+
+    private static let twoWordUnits = [
+        "fl oz": "floz", "fluid ounce": "fluidounce", "fluid ounces": "fluidounces",
+    ]
 
     private static func parseValue(_ tokens: [String],
                                    decimalSeparator: String,
@@ -156,16 +174,41 @@ enum CommandBarUnits {
         return (value, unit)
     }
 
-    /// Reads the number with the separators of this Mac, the same way the
-    /// calculator does.
+    /// Like the calculator, accepts an alternate decimal separator unless it
+    /// forms grouped thousands. When both separators occur, the last is decimal.
+    /// The tokenizer never keeps a space or an apostrophe inside a number, so
+    /// where thousands are grouped with one of those the alternate is whichever
+    /// of "." and "," is not the decimal, as in the calculator.
     private static func number(_ token: String,
                                decimalSeparator: String,
                                groupingSeparator: String) -> Double? {
+        let groupsWithPunctuation = (groupingSeparator == "." || groupingSeparator == ",")
+            && groupingSeparator != decimalSeparator
+        let alternate = groupsWithPunctuation ? groupingSeparator : (decimalSeparator == "," ? "." : ",")
         var normalized = token
-        if decimalSeparator != groupingSeparator {
-            normalized = normalized.replacingOccurrences(of: groupingSeparator, with: "")
+        let hasDecimal = token.contains(decimalSeparator)
+        let hasAlternate = token.contains(alternate)
+        if hasDecimal, hasAlternate {
+            let decimalRange = token.range(of: decimalSeparator, options: .backwards)
+            let alternateRange = token.range(of: alternate, options: .backwards)
+            if let decimalRange, let alternateRange, alternateRange.lowerBound > decimalRange.lowerBound {
+                normalized = token.replacingOccurrences(of: decimalSeparator, with: "")
+                    .replacingOccurrences(of: alternate, with: ".")
+            } else {
+                normalized = token.replacingOccurrences(of: alternate, with: "")
+                    .replacingOccurrences(of: decimalSeparator, with: ".")
+            }
+        } else if hasAlternate {
+            // No grouped number opens with a 0 group, so "0,250" is a decimal.
+            let unsigned = token.hasPrefix("-") ? String(token.dropFirst()) : token
+            let groups = unsigned.components(separatedBy: alternate)
+            let isGrouping = groups.count >= 2 && (1...3).contains(groups[0].count)
+                && !groups[0].hasPrefix("0")
+                && groups.dropFirst().allSatisfy { $0.count == 3 }
+            normalized = token.replacingOccurrences(of: alternate, with: isGrouping ? "" : ".")
+        } else if hasDecimal {
+            normalized = token.replacingOccurrences(of: decimalSeparator, with: ".")
         }
-        normalized = normalized.replacingOccurrences(of: decimalSeparator, with: ".")
         guard !normalized.isEmpty, normalized.filter({ $0 == "." }).count <= 1,
               normalized.allSatisfy({ $0.isNumber || $0 == "." || $0 == "-" })
         else { return nil }
@@ -207,6 +250,15 @@ enum CommandBarUnits {
         formatter.numberFormatter.locale = locale
         formatter.numberFormatter.maximumFractionDigits = fractionDigits(for: measurement.value)
         formatter.numberFormatter.minimumFractionDigits = 0
+        // Four decimals would print a millionth as "0", which reads as a
+        // wrong answer, so a tiny value keeps its significant digits instead.
+        // Temperature offsets can leave a tiny rounding remainder at zero;
+        // keep their existing decimal precision instead of exposing it.
+        let magnitude = abs(measurement.value)
+        if magnitude != 0, magnitude < 0.001, !(measurement.unit is UnitTemperature) {
+            formatter.numberFormatter.usesSignificantDigits = true
+            formatter.numberFormatter.maximumSignificantDigits = 4
+        }
         return formatter.string(from: measurement)
     }
 

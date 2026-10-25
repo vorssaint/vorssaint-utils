@@ -11,6 +11,8 @@ final class NotchTimerService: ObservableObject {
     @Published private(set) var session = NotchTimerSession()
     private let origin = ContinuousClock.now
     private var completionTask: Task<Void, Never>?
+    /// Wakes for the last seconds of a countdown, which the companion watches.
+    private var countdownTask: Task<Void, Never>?
     private var suspended = true
     private let alert = NotchTimerAlert()
     private init() {}
@@ -34,6 +36,7 @@ final class NotchTimerService: ObservableObject {
         alert.stop()
         session.start(mode: mode, minutes: minutes, now: now, configuration: .load())
         scheduleCompletion()
+        NotchService.shared.reactMascot(.ready)
     }
 
     func pauseOrResume() {
@@ -50,11 +53,14 @@ final class NotchTimerService: ObservableObject {
         alert.stop()
         session.startNext(at: now)
         scheduleCompletion()
+        NotchService.shared.reactMascot(.ready)
     }
 
     func cancel() {
         alert.stop()
         completionTask?.cancel(); completionTask = nil
+        countdownTask?.cancel(); countdownTask = nil
+        NotchService.shared.endMascotCountdown(retreating: false)
         session.cancel()
     }
 
@@ -62,6 +68,8 @@ final class NotchTimerService: ObservableObject {
         suspended = true
         alert.suspend()
         completionTask?.cancel(); completionTask = nil
+        countdownTask?.cancel(); countdownTask = nil
+        NotchService.shared.endMascotCountdown(retreating: false)
     }
 
     func stop() { suspend(); cancel() }
@@ -69,15 +77,21 @@ final class NotchTimerService: ObservableObject {
     private func finishIfDue() {
         guard session.finishIfDue(at: now) else { return }
         alert.stop()
+        // The notice takes the strip it watched from.
+        NotchService.shared.endMascotCountdown(retreating: false)
         let text = FeatureStrings.notchActivities(L10n.shared.language)
+        let reaction = NotchMascotSupport.timerReaction(finishing: session.phase)
         NotchService.shared.show(NotchNotice(event: .timer,
             title: session.cycleFinished ? text.pomodoroFinished : text.finished,
-            detail: text.phase(session.phase), symbol: "timer"))
+            detail: text.phase(session.phase), symbol: "timer", mascot: reaction))
+        // It takes the news in the notice, or where it is when the notice cannot show.
+        NotchService.shared.reactMascot(reaction)
         alert.start(enabled: NotchTimerSupport.isSoundEnabled())
     }
 
     private func scheduleCompletion() {
         completionTask?.cancel(); completionTask = nil
+        scheduleCountdown()
         guard !suspended, let deadline = session.deadline else { return }
         let remaining = max(0, deadline - now)
         completionTask = Task { @MainActor [weak self] in
@@ -86,6 +100,26 @@ final class NotchTimerService: ObservableObject {
             guard let self, !Task.isCancelled, !self.suspended, NotchTimerSupport.isEnabled() else { return }
             self.completionTask = nil
             self.finishIfDue()
+        }
+    }
+
+    /// The companion comes out for a countdown's last seconds. Paused, the
+    /// countdown sends it back behind the camera.
+    private func scheduleCountdown() {
+        countdownTask?.cancel(); countdownTask = nil
+        guard !suspended, let deadline = session.deadline else {
+            NotchService.shared.endMascotCountdown(retreating: true)
+            return
+        }
+        let remaining = deadline - now
+        guard remaining > 1.5 else { return }
+        let wait = max(0, remaining - NotchMascotMotion.countdownLead)
+        countdownTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(wait), clock: .continuous) }
+            catch { return }
+            guard let self, !Task.isCancelled, !self.suspended, let deadline = self.session.deadline else { return }
+            self.countdownTask = nil
+            NotchService.shared.watchMascotCountdown(remaining: deadline - self.now)
         }
     }
 }

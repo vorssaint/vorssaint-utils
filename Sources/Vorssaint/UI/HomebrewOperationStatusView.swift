@@ -272,6 +272,7 @@ struct HomebrewOperationStatusView: View {
         guard let text, !text.isEmpty else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+        pasteboard.declareVorssaintSource()
         pasteboard.setString(text, forType: .string)
     }
 }

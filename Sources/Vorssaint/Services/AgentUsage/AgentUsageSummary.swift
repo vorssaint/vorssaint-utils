@@ -26,7 +26,7 @@ struct AgentTotals: Equatable {
 
     mutating func add(_ record: AgentUsageRecord) {
         tokens += record.tokens
-        requests += 1
+        requests += max(0, record.requests)
         savings += record.savings
         if let price = record.cost { cost += price } else { unpriced += 1 }
     }
@@ -228,9 +228,9 @@ enum AgentUsageSummary {
         return low
     }
 
-    /// Windows start on the hour of the first request after the previous
-    /// one ended, the way the service counts them: the hour in UTC, as the
-    /// Claude app's readings are placed.
+    /// Windows start at the first request after the previous one ended and
+    /// last five hours from that moment, the renewal time the provider's own
+    /// usage page shows.
     static func currentBlock(_ records: [AgentUsageRecord], now: Date) -> AgentBlock? {
         var block: AgentBlock?
         // Sorting positions moves no strings: a day of records is thousands.
@@ -240,8 +240,7 @@ enum AgentUsageSummary {
                 block?.totals.add(record)
                 continue
             }
-            let hour = AgentClaudeAppUsage.hour(of: record.date)
-            var next = AgentBlock(start: hour, end: hour.addingTimeInterval(blockLength), totals: AgentTotals())
+            var next = AgentBlock(start: record.date, end: record.date.addingTimeInterval(blockLength), totals: AgentTotals())
             next.totals.add(record)
             block = next
         }
@@ -375,7 +374,7 @@ final class AgentUsageSummaryCache {
                                         reasoning: -previous.tokens.reasoning)
             delta.cost -= previous.cost ?? 0
             delta.savings -= previous.savings
-            delta.requests -= 1
+            delta.requests -= previous.requests
             delta.unpriced -= previous.cost == nil ? 1 : 0
         }
         history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
@@ -412,8 +411,16 @@ enum AgentLimitSupport {
                                 scope: window.scope, usedPercent: 0, resetsAt: nil)
     }
 
+    /// Once an estimate has passed, the countdown is unknown until another
+    /// reading places it. That does not mean the allowance has renewed.
+    static func displayedReset(_ window: AgentLimitWindow, now: Date) -> Date? {
+        guard let reset = window.estimatedResetsAt ?? window.resetsAt, reset > now else { return nil }
+        return reset
+    }
+
     static func pace(for window: AgentLimitWindow, now: Date) -> AgentPace? {
-        guard let minutes = window.minutes, minutes > 0, let resets = window.resetsAt, resets > now else { return nil }
+        guard let minutes = window.minutes, minutes > 0,
+              let resets = displayedReset(window, now: now) else { return nil }
         let length = TimeInterval(minutes) * 60
         let elapsed = now.timeIntervalSince(resets.addingTimeInterval(-length))
         guard elapsed > 0 else { return nil }
@@ -435,9 +442,28 @@ enum AgentLimitSupport {
         guard threshold > 0 else { return [] }
         return current.windows.filter { window in
             guard window.usedPercent >= threshold else { return false }
-            guard let before = previous?.windows.first(where: { $0.id == window.id }) else { return false }
-            if let was = before.resetsAt, let now = window.resetsAt, now.timeIntervalSince(was) > 60 { return true }
-            return before.usedPercent < threshold
+            guard let previous, let before = previous.windows.first(where: { $0.id == window.id }) else { return false }
+            return before.usedPercent < threshold || renewed(before, to: window, observedAt: current.observedAt)
+                || current.source == .account && began(window, after: previous.observedAt)
         }
+    }
+
+    /// Whether the account's exact renewal places the start of `window`
+    /// after `time`. Read after a gap, a session the reading before never saw
+    /// is a new one, however late that reading placed the old one's end.
+    private static func began(_ window: AgentLimitWindow, after time: Date) -> Bool {
+        guard let minutes = window.minutes, let resets = window.resetsAt else { return false }
+        return resets.addingTimeInterval(-TimeInterval(minutes) * 60) > time
+    }
+
+    /// Whether `window`, read at `observedAt`, comes after the one `before`
+    /// saw: its usage fell, as a renewal or a reset used early leaves it, or
+    /// its renewal moved on once the old one went by. A renewal that only
+    /// moves before then is the same window read another way, as the Claude
+    /// app's latest possible end is the account's exact one minutes later.
+    static func renewed(_ before: AgentLimitWindow, to window: AgentLimitWindow, observedAt: Date) -> Bool {
+        if window.usedPercent + 1 < before.usedPercent { return true }
+        guard let was = before.resetsAt, let resets = window.resetsAt else { return false }
+        return resets.timeIntervalSince(was) > 60 && observedAt >= was
     }
 }

@@ -5,17 +5,27 @@ import Darwin
 import Foundation
 
 /// What one log line says, reduced to the few facts the island keeps. Only
-/// usage counters, model names, times and folder names leave a line; prompts,
-/// replies and tool output are never decoded into anything that is stored.
+/// usage counters, model names, times and folder names leave a line, besides
+/// the identifiers of Claude's shell commands still running, held in memory
+/// only; prompts, replies and tool output are never decoded into anything
+/// that is stored.
 enum AgentLogEntry: Equatable {
     /// `key` identifies the response across duplicate lines and files.
     case usage(key: String, record: AgentUsageRecord, billable: AgentBillable)
+    /// A later chunk can identify the model of an already-counted request.
+    case usageModel(key: String, model: String)
     case limits(AgentLimits)
     case plan(String, observedAt: Date)
     case turnBegan(Date)
+    /// Model and folder context known before usage is reported.
+    case turnContext(model: String, project: String)
     /// Work continues; nil when the line was not worth decoding for its time.
     case turnActive(Date?)
+    /// A step ended expecting the agent to go on; unless work follows soon,
+    /// the agent stopped there and its turn is over.
+    case turnSettled(Date)
     case turnEnded(Date?, completed: Bool, duration: TimeInterval?)
+    case reset(Date)
 }
 
 /// Per-file context carried from line to line.
@@ -30,6 +40,54 @@ struct AgentLogState: Equatable {
     var lastTotal: AgentTokens?
     /// Codex runs the thread on the fast tier, which bills at a premium.
     var fast = false
+    /// A Codex subagent, review or memory task owns no turn. Only the log's
+    /// metadata says so: a reverted thread goes on in a log named after both
+    /// the thread and a new rollout.
+    var codexSubagent = false
+    /// The first Codex metadata line describes the log's own thread; a later
+    /// one is history copied from the thread it came from.
+    var codexHeaderRead = false
+    /// The thread a person started that a Codex subagent works for, whose
+    /// turn its responses count toward.
+    var codexRoot = ""
+    /// The thread whose running totals the lines read now report: history
+    /// copied from another thread keeps that thread's, as in its own log.
+    var codexTotalsSession = ""
+    /// Copilot shutdown counters are cumulative for the life of a session.
+    var copilotTotals: [String: AgentTokens] = [:]
+    /// Counted requests by model; the empty key holds unresolved attribution.
+    var copilotRequests: [String: Int] = [:]
+    var copilotRequestModels: [String: String] = [:]
+    var copilotReportedRequests: [String: Int] = [:]
+    var copilotTurnID: String?
+    var copilotFinalResponse = false
+    /// The parent session when a database row belongs to a subagent.
+    var parentSession = ""
+    /// OpenCode stores all sessions in one database, tracking per-session state.
+    var openCodeSessions: [String: OpenCodeSessionState] = [:]
+    /// Claude's shell commands still waiting for their result, by tool call.
+    /// They run on the Mac, so the turn goes on without the network.
+    var runningCommands: Set<String> = []
+}
+
+/// Per-session turn and model tracking for OpenCode databases.
+struct OpenCodeSessionState: Equatable {
+    var project = ""
+    var model = ""
+    var turnOpen = false
+    var turnStarted: Date?
+    var activeUserMessageID = ""
+    /// The newest moment the session's rows tell of.
+    var lastActivity: Date?
+    /// When a step ended expecting the loop to go on, until a row follows.
+    var settledAt: Date?
+    /// The reply being written, until it completes.
+    var writingReplyID = ""
+    /// When the prompt the session answers now was written.
+    var activePromptDate: Date?
+    var seenUserMessageIDs: Set<String> = []
+    var completedAssistantMessageIDs: Set<String> = []
+    var completedUserMessageIDs: Set<String> = []
 }
 
 enum AgentLogParser {
@@ -64,215 +122,24 @@ enum AgentLogParser {
         }
     }
 
-    private static let codexEvents: Set<String> = [
+    static let codexEvents: Set<String> = [
         "token_count", "task_started", "task_complete", "turn_aborted", "thread_settings_applied",
     ]
 
-    private static func object(_ line: Data) -> [String: Any]? {
+    static func object(_ line: Data) -> [String: Any]? {
         (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
     }
 
     // MARK: Claude Code
 
     static func parseClaude(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        if contains(line, #""type":"assistant""#) { return claudeAssistant(line, state: &state, now: now) }
-        guard contains(line, #""type":"user""#) else { return [] }
-        // A local command prints its output without asking the model anything,
-        // so the command line that opened a turn closes it again. Only the
-        // person's own text counts: a tool result can quote the same words.
-        if contains(line, "[Request interrupted by user") || contains(line, "<local-command-std"),
-           let json = object(line), json["type"] as? String == "user", endsTurn(json) {
-            let open = state.turnOpen
-            state.turnOpen = false
-            return open ? [.turnEnded(nil, completed: false, duration: nil)] : []
-        }
-        // Tool results arrive inside a turn and can be large; while a turn is
-        // open, the line only has to say that work goes on.
-        if state.turnOpen { return [.turnActive(nil)] }
-        // A subagent's prompts and tool output never open a turn, and its
-        // tool output can be large: no need to decode it to know that.
-        if contains(line, #""isSidechain":true"#) { return [] }
-        guard let json = object(line), json["type"] as? String == "user",
-              json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true else { return [] }
-        adopt(json, into: &state)
-        state.turnOpen = true
-        return [.turnBegan(timestamp(json["timestamp"]) ?? now)]
-    }
-
-    private static func claudeAssistant(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        guard let json = object(line), json["type"] as? String == "assistant",
-              let message = json["message"] as? [String: Any] else { return [] }
-        adopt(json, into: &state)
-        let date = timestamp(json["timestamp"]) ?? now
-        var entries: [AgentLogEntry] = []
-        let model = native(message["model"] as? String ?? "")
-        if let usage = message["usage"] as? [String: Any], !model.isEmpty, !model.hasPrefix("<") {
-            state.model = model
-            var billable = AgentBillable()
-            billable.tokens = AgentTokens(
-                input: int(usage["input_tokens"]),
-                cacheWrite: int(usage["cache_creation_input_tokens"]),
-                cacheRead: int(usage["cache_read_input_tokens"]),
-                output: int(usage["output_tokens"]),
-                reasoning: int((usage["output_tokens_details"] as? [String: Any])?["thinking_tokens"]))
-            billable.longCacheWrite = int((usage["cache_creation"] as? [String: Any])?["ephemeral_1h_input_tokens"])
-            billable.fast = usage["speed"] as? String == "fast"
-            billable.domestic = usage["inference_geo"] as? String == "us"
-            billable.webSearches = int((usage["server_tool_use"] as? [String: Any])?["web_search_requests"])
-            let id = message["id"] as? String ?? ""
-            let request = json["requestId"] as? String ?? ""
-            let key = id.isEmpty && request.isEmpty
-                ? "claude:\(state.session):\(date.timeIntervalSince1970)" : "claude:\(id):\(request)"
-            let priced = AgentPricing.cost(billable, model: model)
-            entries.append(.usage(key: key, record: AgentUsageRecord(
-                provider: .claude, date: date, model: model, project: state.project, session: state.session,
-                tokens: billable.tokens, cost: priced.cost, savings: priced.savings), billable: billable))
-        }
-        // A subagent's own ending is not the end of the turn it serves.
-        guard json["isSidechain"] as? Bool != true else { return entries }
-        switch message["stop_reason"] as? String {
-        case "end_turn", "stop_sequence", "max_tokens", "refusal":
-            // An error written in place of a reply, like a spent limit, stops
-            // the turn without finishing it.
-            let failed = json["isApiErrorMessage"] as? Bool == true || model.hasPrefix("<")
-            if state.turnOpen { entries.append(.turnEnded(date, completed: !failed, duration: nil)) }
-            state.turnOpen = false
-        default:
-            if !state.turnOpen { entries.append(.turnBegan(date)) }
-            else { entries.append(.turnActive(date)) }
-            state.turnOpen = true
-        }
-        return entries
-    }
-
-    /// The interruption or local command output the person's message holds,
-    /// never text inside a tool result.
-    private static func endsTurn(_ json: [String: Any]) -> Bool {
-        let content = (json["message"] as? [String: Any])?["content"]
-        let texts: [String]
-        if let text = content as? String {
-            texts = [text]
-        } else if let blocks = content as? [[String: Any]] {
-            texts = blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
-        } else {
-            texts = []
-        }
-        return texts.contains {
-            $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std")
-        }
-    }
-
-    private static func adopt(_ json: [String: Any], into state: inout AgentLogState) {
-        if let session = json["sessionId"] as? String, !session.isEmpty { state.session = native(session) }
-        if let cwd = json["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
+        ClaudeReader().parse(line, state: &state, now: now)
     }
 
     // MARK: Codex
 
     static func parseCodex(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        guard let kind = firstType(line) else { return [] }
-        switch kind.name {
-        case "token_usage_record", "turn_context", "session_meta": break
-        case "event_msg":
-            guard let event = firstType(line, from: kind.end), codexEvents.contains(event.name) else { return [] }
-        default: return []
-        }
-        guard let json = object(line), let payload = json["payload"] as? [String: Any] else { return [] }
-        let date = timestamp(json["timestamp"]) ?? now
-        switch json["type"] as? String {
-        case "session_meta":
-            if let id = payload["id"] as? String, !id.isEmpty { state.session = native(id) }
-            if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
-            return []
-        case "turn_context":
-            if let model = payload["model"] as? String, !model.isEmpty { state.model = native(model) }
-            if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
-            if let tier = payload["service_tier"] as? String { state.fast = fastTier(tier) }
-            return []
-        case "token_usage_record":
-            guard let usage = payload["usage"] as? [String: Any] else { return [] }
-            state.sawUsageRecords = true
-            if let session = payload["session_id"] as? String, !session.isEmpty, state.session.isEmpty {
-                state.session = native(session)
-            }
-            let response = payload["response_id"] as? String ?? ""
-            let key = response.isEmpty ? "codex:\(state.session):\(date.timeIntervalSince1970)" : "codex:\(response)"
-            return [codexUsage(codexTokens(usage), key: key, date: date, state: state)]
-        case "event_msg":
-            return codexEvent(payload, date: date, state: &state)
-        default:
-            return []
-        }
-    }
-
-    private static func codexEvent(_ payload: [String: Any], date: Date, state: inout AgentLogState) -> [AgentLogEntry] {
-        switch payload["type"] as? String {
-        case "token_count":
-            var entries: [AgentLogEntry] = []
-            if let limits = payload["rate_limits"] as? [String: Any] {
-                if isMainBucket(limits), let windows = codexWindows(limits, observed: date), !windows.isEmpty {
-                    entries.append(.limits(AgentLimits(provider: .codex, windows: windows,
-                                                       observedAt: date, source: .sessionLog)))
-                }
-                if let plan = limits["plan_type"] as? String, !plan.isEmpty {
-                    entries.append(.plan(plan, observedAt: date))
-                }
-            }
-            // Running totals repeat when only the limits changed; a response
-            // is whatever the total grew by since the previous reading.
-            if !state.sawUsageRecords, let info = payload["info"] as? [String: Any],
-               let totalUsage = info["total_token_usage"] as? [String: Any] {
-                let total = codexTokens(totalUsage)
-                if total != state.lastTotal, total.total > (state.lastTotal?.total ?? 0) {
-                    let delta: AgentTokens
-                    if let last = info["last_token_usage"] as? [String: Any] {
-                        delta = codexTokens(last)
-                    } else {
-                        let previous = state.lastTotal ?? AgentTokens()
-                        delta = AgentTokens(input: max(0, total.input - previous.input),
-                                            cacheWrite: max(0, total.cacheWrite - previous.cacheWrite),
-                                            cacheRead: max(0, total.cacheRead - previous.cacheRead),
-                                            output: max(0, total.output - previous.output),
-                                            reasoning: max(0, total.reasoning - previous.reasoning))
-                    }
-                    let key = "codex:\(state.session):total:\(total.total)"
-                    entries.append(codexUsage(delta, key: key, date: date, state: state))
-                }
-                state.lastTotal = total
-            }
-            return entries
-        case "thread_settings_applied":
-            if let tier = (payload["thread_settings"] as? [String: Any])?["service_tier"] as? String {
-                state.fast = fastTier(tier)
-            }
-            return []
-        case "task_started":
-            state.turnOpen = true
-            return [.turnBegan(seconds(payload["started_at"]) ?? date)]
-        case "task_complete", "turn_aborted":
-            let open = state.turnOpen
-            state.turnOpen = false
-            guard open else { return [] }
-            let duration = (payload["duration_ms"] as? NSNumber).map { $0.doubleValue / 1000 }
-            return [.turnEnded(seconds(payload["completed_at"]) ?? date,
-                               completed: payload["type"] as? String == "task_complete", duration: duration)]
-        default:
-            return []
-        }
-    }
-
-    /// Fast mode, named priority before July 2026.
-    static func fastTier(_ tier: String) -> Bool {
-        ["fast", "priority"].contains(tier.lowercased())
-    }
-
-    private static func codexUsage(_ tokens: AgentTokens, key: String, date: Date, state: AgentLogState) -> AgentLogEntry {
-        var billable = AgentBillable(tokens: tokens)
-        billable.fast = state.fast
-        let priced = AgentPricing.cost(billable, model: state.model)
-        return .usage(key: key, record: AgentUsageRecord(
-            provider: .codex, date: date, model: state.model, project: state.project, session: state.session,
-            tokens: tokens, cost: priced.cost, savings: priced.savings), billable: billable)
+        CodexReader().parse(line, state: &state, now: now)
     }
 
     /// Input counts include what came from the cache.
@@ -282,6 +149,36 @@ enum AgentLogParser {
         let written = min(input - cached, int(usage["cache_write_input_tokens"]))
         return AgentTokens(input: input - cached - written, cacheWrite: written, cacheRead: cached,
                            output: int(usage["output_tokens"]), reasoning: int(usage["reasoning_output_tokens"]))
+    }
+
+    /// Fast mode, named priority before July 2026.
+    static func fastTier(_ tier: String) -> Bool {
+        ["fast", "priority"].contains(tier.lowercased())
+    }
+
+    // MARK: OpenCode
+
+    /// OpenCode starts the next step the moment a step's tools return, so
+    /// a turn that goes this long without one after a step ended has stopped,
+    /// as when a permission was rejected or a question dismissed.
+    static let openCodeSettle: TimeInterval = 30
+
+    static func parseOpenCode(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        OpenCodeReader().parse(line, state: &state, now: now)
+    }
+
+    // MARK: GitHub Copilot
+
+    /// Copilot CLI and the GitHub Copilot app share an append-only event log.
+    /// Only session context, turn boundaries and cumulative model counters are
+    /// decoded; prompts, replies, reasoning and tool arguments are ignored.
+    static func parseCopilot(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        CopilotReader().parse(line, state: &state, now: now)
+    }
+
+    static func copilotEvent(_ type: String) -> Bool {
+        ["user.message", "assistant.turn_start", "assistant.message", "assistant.turn_end",
+         "session.start", "session.context_changed", "session.model_change", "session.shutdown", "abort"].contains(type)
     }
 
     /// Codex logs a reading for each allowance: the main one under "codex",
@@ -295,11 +192,14 @@ enum AgentLogParser {
 
     /// The names a log gives a window's figures; Codex's server spells the
     /// same ones in camel case.
-    typealias WindowKeys = (used: String, minutes: String, resets: String)
-    static let logWindowKeys: WindowKeys = ("used_percent", "window_minutes", "resets_at")
+    typealias WindowKeys = (used: String, minutes: String, resets: String, individual: String, remaining: String)
+    static let logWindowKeys: WindowKeys = ("used_percent", "window_minutes", "resets_at",
+                                            "individual_limit", "remaining_percent")
 
     /// Windows are told apart by their length, never by their slot: an
-    /// account can report only its weekly window, and in either slot.
+    /// account can report only its weekly window, and in either slot. A
+    /// Business account can leave both slots empty and report its allowance
+    /// as the share left of its own limit instead.
     static func codexWindows(_ limits: [String: Any], observed: Date,
                              keys: WindowKeys = logWindowKeys) -> [AgentLimitWindow]? {
         var windows: [AgentLimitWindow] = []
@@ -314,6 +214,12 @@ enum AgentLogParser {
             windows.append(AgentLimitWindow(id: "codex.\(minutes.map(String.init) ?? slot)",
                                             kind: kind(minutes: minutes), minutes: minutes, scope: nil,
                                             usedPercent: min(100, max(0, used)), resetsAt: resets))
+        }
+        if windows.isEmpty, let individual = limits[keys.individual] as? [String: Any],
+           let remaining = (individual[keys.remaining] as? NSNumber)?.doubleValue, remaining.isFinite {
+            windows.append(AgentLimitWindow(id: "codex.individual", kind: .other, minutes: nil, scope: nil,
+                                            usedPercent: min(100, max(0, 100 - remaining)),
+                                            resetsAt: seconds(individual[keys.resets])))
         }
         return windows.sorted { ($0.minutes ?? .max) < ($1.minutes ?? .max) }
     }
