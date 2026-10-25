@@ -112,8 +112,9 @@ final class CleaningModeManager: ObservableObject {
         KeyboardDebounceService.shared.suspend()
         MouseClickDebounceService.shared.suspend()
         // Wiping the trackpad is nothing but stray three-finger contacts;
-        // middle-click emulation must not fire from them.
+        // middle-click emulation and gestures must not fire from them.
         MiddleClickService.shared.suspend()
+        TrackpadGestureService.shared.suspend()
         MouseNavigationService.shared.suspend()
         // A stray side-button press while wiping the mouse must not type a
         // key combination into the frontmost app (the synthesized keys are
@@ -199,6 +200,8 @@ final class CleaningModeManager: ObservableObject {
         // so a feature changed while Cleaning Mode was active stays changed.
         KeyboardDebounceService.shared.syncWithPreferences()
         MouseClickDebounceService.shared.syncWithPreferences()
+        // Also resumes the gesture recognizer, which follows every middle
+        // click sync.
         MiddleClickService.shared.syncWithPreferences()
         MouseNavigationService.shared.syncWithPreferences()
         MouseButtonShortcutService.shared.syncWithPreferences()

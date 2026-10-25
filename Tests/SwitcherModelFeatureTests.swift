@@ -3332,6 +3332,7 @@ enum SwitcherModelFeatureTests {
             DefaultsKey.windowLayoutShortcutBottomRightSixth,
             DefaultsKey.windowLayoutShortcutPreviousDisplay,
             DefaultsKey.windowLayoutShortcutMarginMaximize,
+            DefaultsKey.windowLayoutShortcutMinimize,
         ]
         suite.expect(unassignedLayoutShortcutKeys.allSatisfy {
                    registeredDefaults[$0] as? String == WindowLayoutAction.clearedShortcutStorageValue

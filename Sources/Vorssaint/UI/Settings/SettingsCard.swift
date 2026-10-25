@@ -234,3 +234,31 @@ struct TrailingSwitchToggleStyle: ToggleStyle {
         }
     }
 }
+
+/// One choice of a row of chips, lit while selected: the middle click's tap
+/// fingers and the trackpad gesture group shown.
+struct SettingsChip: View {
+    let title: String
+    let symbol: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(selected ? Color.accentColor : .primary)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}

@@ -3,7 +3,8 @@
 
 import Foundation
 
-enum MouseNavigationDirection: Hashable, CaseIterable {
+/// Raw values persist inside trackpad gesture mappings; never rename them.
+enum MouseNavigationDirection: String, Codable, Hashable, CaseIterable {
     case back
     case forward
 }
@@ -34,6 +35,10 @@ enum MouseNavigationSupport {
         case forwardButtonNumber: return .forward
         default: return nil
         }
+    }
+
+    static func buttonNumber(for direction: MouseNavigationDirection) -> Int64 {
+        direction == .back ? backButtonNumber : forwardButtonNumber
     }
 
     /// What apps declare the two commands as. Where a keyboard cannot type it,
@@ -141,6 +146,19 @@ enum MouseNavigationSupport {
                              pressedOverApp: Bool,
                              pointerOverApp: Bool) -> Bool {
         miss == .absent && appStillInFront && pressedOverApp && pointerOverApp
+    }
+
+    /// Whether a trigger with no click of its own (a trackpad gesture) sends
+    /// the side button a mouse would, once the menus pressed nothing. As for
+    /// a returned click, only an app that answered in full and has neither
+    /// shortcut gets it: a browser that keeps Back and Forward out of its
+    /// menus navigates with the raw button. The button goes to the window
+    /// under the pointer, so it is held back when that is another app's, and
+    /// when another feature would take the button for itself.
+    static func sendsSideButton(miss: MouseNavigationMenuMiss,
+                                pointerOverApp: Bool,
+                                buttonClaimed: Bool) -> Bool {
+        miss == .absent && pointerOverApp && !buttonClaimed
     }
 
     /// Apps whose side buttons must reach them untouched. These handle Back

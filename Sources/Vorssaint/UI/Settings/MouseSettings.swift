@@ -39,6 +39,7 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
+    @AppStorage(DefaultsKey.trackpadGesturesEnabled) private var trackpadGesturesEnabled = false
     @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
     @AppStorage(DefaultsKey.mouseClickDebounceWindowMs) private var mouseClickDebounceWindow =
         Defaults.defaultMouseClickDebounceWindowMs
@@ -98,6 +99,10 @@ struct MouseSettings: View {
                     middleClickCard
                         .settingsSectionAnchor(.middleClick, cornerRadius: 16)
                 }
+                if AppFeature.trackpadGestures.isAvailable {
+                    TrackpadGesturesSection()
+                        .settingsSectionAnchor(.trackpadGestures, cornerRadius: 16)
+                }
                 if accessibilityNoteVisible {
                     SettingsCard(title: l10n.s.permissionRequired) {
                         PermissionRow(kind: .accessibility)
@@ -119,7 +124,7 @@ struct MouseSettings: View {
     /// The mouse features on this page, in page order, for the legend.
     private var legendFeatures: [AppFeature] {
         [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration,
-         .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick]
+         .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick, .trackpadGestures]
             .filter(\.isAvailable)
     }
 
@@ -137,6 +142,7 @@ struct MouseSettings: View {
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .mouseClickDebounce: return mouseClickDebounceEnabled
         case .middleClick: return middleClickEnabled
+        case .trackpadGestures: return trackpadGesturesEnabled
         default: return false
         }
     }
@@ -504,26 +510,10 @@ struct MouseSettings: View {
     }
 
     private func tapChip(_ fingers: Int, title: String, symbol: String) -> some View {
-        let selected = middleClickTapFingers == fingers
-        return Button {
+        SettingsChip(title: title, symbol: symbol, selected: middleClickTapFingers == fingers) {
             middleClickTapFingers = fingers
             MiddleClickService.shared.syncWithPreferences()
-        } label: {
-            Label(title, systemImage: symbol)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(selected ? Color.accentColor : .primary)
-                .padding(.horizontal, 10)
-                .frame(height: 28)
-                .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06),
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1)
-                }
-                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func activeBadge(_ text: String) -> some View {
@@ -549,6 +539,7 @@ struct MouseSettings: View {
                 && AppFeature.mouseButtonShortcuts.isAvailable)
             || (mouseClickDebounceEnabled && AppFeature.mouseClickDebounce.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)
+            || (trackpadGesturesEnabled && AppFeature.trackpadGestures.isAvailable)
         return anyEngaged && !permissions.accessibility
     }
 

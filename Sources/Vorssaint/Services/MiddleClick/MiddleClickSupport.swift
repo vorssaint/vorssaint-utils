@@ -54,6 +54,9 @@ enum MiddleClickSupport {
     }
 
     // MARK: - Tap to middle click (issue #161, opt-in)
+    //
+    // The tap itself is recognized by `TrackpadGestureRecognizer`, which owns
+    // every multi-finger tap and judges it with these thresholds.
 
     /// A touch that lasts longer than this is a rest or a press, not a tap.
     static let tapMaxDuration: TimeInterval = 0.35
@@ -72,29 +75,6 @@ enum MiddleClickSupport {
     /// Briefly ignore tap candidates after ordinary typing so incidental
     /// trackpad contact cannot move focus while the user is entering text.
     static let tapKeyboardIdle: TimeInterval = 0.5
-
-    /// Decides whether a finished touch was a deliberate tap. `tapFingers` is
-    /// the user's chosen count (3 or 4); with the system three-finger drag
-    /// gesture enabled a three-finger tap belongs to macOS, so only the
-    /// four-finger option stays available.
-    static func tapShouldFire(duration: TimeInterval,
-                              maxMovement: Float,
-                              maxSpreadChange: Float,
-                              exceededFingerCount: Bool,
-                              buttonPressedDuring: Bool,
-                              positionUnavailable: Bool,
-                              systemDragGestureEnabled: Bool,
-                              tapFingers: Int,
-                              secondsSinceLastKeyDown: TimeInterval = .infinity) -> Bool {
-        guard tapFingers == 3 || tapFingers == 4 else { return false }
-        guard !exceededFingerCount, !buttonPressedDuring, !positionUnavailable else { return false }
-        guard secondsSinceLastKeyDown >= tapKeyboardIdle else { return false }
-        guard duration > 0, duration <= tapMaxDuration else { return false }
-        guard maxMovement <= tapMovementLimit else { return false }
-        guard maxSpreadChange <= tapSpreadChangeLimit else { return false }
-        if tapFingers == 3, systemDragGestureEnabled { return false }
-        return true
-    }
 
     /// The finger count whose tap opens the radial menu, or 0 for none. Only
     /// four fingers: macOS keeps no gesture of its own there, while three
