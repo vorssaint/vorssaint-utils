@@ -386,11 +386,12 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 77, "feature catalog has 77 features")
+        suite.expect(AppFeature.allCases.count == 78, "feature catalog has 78 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
+            "dockTweaks",
             "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
@@ -2212,6 +2213,19 @@ enum FeatureCatalogTests {
                 && pageVisible(.dock, available: [.dockClick])
                 && !pageVisible(.switcher, available: [.dockPreview, .dockClick]),
                "Dock Preview and Dock clicks have their own page, apart from the switcher")
+        suite.expect(AppFeature.dockTweaks.group == .windowsDock
+                && !AppFeature.dockTweaks.installedByDefault
+                && AppFeature.dockTweaks.permissions.isEmpty
+                && AppFeature.dockTweaks.settingsDestination
+                    == FeatureSettingsDestination(.dock, sectionAnchor: .dockTweaks)
+                && pageVisible(.dock, available: [.dockTweaks])
+                && !pageVisible(.dock, available: [])
+                && AppLanguage.allCases.allSatisfy {
+                    let pages = FeatureStrings.settingsPages($0)
+                    return ![pages.dockTweaks, pages.dockTweaksDescription,
+                             pages.dockSizeLock, pages.dockSizeLockCaption].contains(where: \.isEmpty)
+                },
+               "Dock tweaks is an opt-in Dock feature that keeps the Dock page on its own")
         func dockNeedsAccessibility(available: Set<AppFeature>, on: Set<String>) -> Bool {
             FeatureVisibilitySupport.isPermissionNeeded(
                 on: .dock, activeFeatures: Array(activeSet(.accessibility, available: available, on: on)))
