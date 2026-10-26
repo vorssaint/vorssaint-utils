@@ -21,16 +21,16 @@ struct ScratchpadStore {
         canSave = false
         lastSavedDocument = nil
         guard let directoryURL else { throw CocoaError(.fileReadUnknown) }
-        let url = directoryURL.appendingPathComponent("Scratchpad.json")
+        let url = directoryURL.appendingPathComponent("Scratchpad-v2.json")
         let legacyURL = directoryURL.appendingPathComponent("Scratchpad.txt")
-        let storedData = try Self.readIfPresent(at: url)
+        let currentData = try Self.readIfPresent(at: url)
+        let storedData = try currentData ?? Self.readIfPresent(at: directoryURL.appendingPathComponent("Scratchpad.json"))
         let preference = defaults.object(forKey: DefaultsKey.scratchpadDocument)
         let decoded: ScratchpadDocument
-        var migratedLegacyFile = false
 
         if let storedData {
             decoded = try JSONDecoder().decode(ScratchpadDocument.self, from: storedData)
-            lastSavedDocument = decoded
+            if currentData != nil { lastSavedDocument = decoded }
         } else if let preference {
             guard let data = preference as? Data else { throw CocoaError(.fileReadCorruptFile) }
             decoded = try JSONDecoder().decode(ScratchpadDocument.self, from: data)
@@ -41,7 +41,6 @@ struct ScratchpadStore {
             let attributes = try FileManager.default.attributesOfItem(atPath: legacyURL.path)
             decoded = .initial(defaultName: defaultName, text: text,
                                modifiedAt: attributes[.modificationDate] as? Date)
-            migratedLegacyFile = true
         } else {
             decoded = .initial(defaultName: defaultName)
         }
@@ -49,10 +48,8 @@ struct ScratchpadStore {
         var loaded = decoded.sanitized(defaultName: defaultName)
         loaded.applyRetention(retention, now: now)
         canSave = true
-        if save(loaded) {
-            if preference != nil { defaults.removeObject(forKey: DefaultsKey.scratchpadDocument) }
-            if migratedLegacyFile { try? FileManager.default.removeItem(at: legacyURL) }
-        }
+        // Migration sources are recovery copies, including legacy preferences.
+        _ = save(loaded)
         return loaded
     }
 
@@ -61,7 +58,7 @@ struct ScratchpadStore {
         guard canSave else { return false }
         if document == lastSavedDocument { return true }
         guard let directoryURL, let data = document.encoded() else { return false }
-        let url = directoryURL.appendingPathComponent("Scratchpad.json")
+        let url = directoryURL.appendingPathComponent("Scratchpad-v2.json")
         guard PrivateFileStore.createDirectory(at: directoryURL),
               PrivateFileStore.write(data, to: url),
               (try? Data(contentsOf: url)) == data else { return false }

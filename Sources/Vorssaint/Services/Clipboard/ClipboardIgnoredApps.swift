@@ -36,19 +36,22 @@ final class ClipboardIgnoredApps: ObservableObject {
     /// lives.
     private var historyIsRunning = false
     private let ownBundleID = Bundle.main.bundleIdentifier
+    private let defaults: UserDefaults
     /// Whether the history's own panel held the keys at the last check, so a
     /// copy made in it is still known as one when the check its closing
     /// makes could not run.
     private var historyPanelWasKey = false
 
-    private init() {
+    /// Independent consumers need separate activation windows; sharing one
+    /// tracker would let either poll consume the other's exclusion evidence.
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         reload()
     }
 
     // MARK: - The list
 
     func reload() {
-        let defaults = UserDefaults.standard
         let raw = defaults.stringArray(forKey: DefaultsKey.clipboardHistoryIgnoredApps) ?? []
         let sanitized = Defaults.sanitizedBundleIdentifierList(raw)
         if raw != sanitized {
@@ -61,13 +64,13 @@ final class ClipboardIgnoredApps: ObservableObject {
     func add(_ bundleID: String) {
         let bundleID = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !bundleID.isEmpty, !apps.contains(bundleID) else { return }
-        UserDefaults.standard.set(apps + [bundleID], forKey: DefaultsKey.clipboardHistoryIgnoredApps)
+        defaults.set(apps + [bundleID], forKey: DefaultsKey.clipboardHistoryIgnoredApps)
         reload()
     }
 
     func remove(_ bundleID: String) {
         guard apps.contains(bundleID) else { return }
-        UserDefaults.standard.set(apps.filter { $0 != bundleID },
+        defaults.set(apps.filter { $0 != bundleID },
                                   forKey: DefaultsKey.clipboardHistoryIgnoredApps)
         reload()
     }

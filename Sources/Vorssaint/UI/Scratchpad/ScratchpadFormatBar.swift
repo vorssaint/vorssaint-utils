@@ -24,6 +24,7 @@ struct ScratchpadFormatBar: View {
     /// The island edits through its own text view; the floating pad lets the
     /// service find the one belonging to its panel.
     var editor: NSTextView?
+    var activeMarks: Set<ScratchpadMark> = []
 
     @ObservedObject private var service = ScratchpadService.shared
     @ObservedObject private var l10n = L10n.shared
@@ -51,12 +52,15 @@ struct ScratchpadFormatBar: View {
                     Image(systemName: mark.symbol).font(.system(size: 12, weight: .medium))
                 }
             }
-            .foregroundStyle(tint)
+            .foregroundStyle(activeMarks.contains(mark) ? (style.isDark ? Color.white : Color.accentColor) : tint)
             .frame(width: style.buttonSize, height: style.buttonSize)
+            .background(activeMarks.contains(mark) ? Color.accentColor.opacity(0.2) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .help(text.label(for: mark))
         .accessibilityLabel(text.label(for: mark))
+        .accessibilityAddTraits(activeMarks.contains(mark) ? .isSelected : [])
     }
 }

@@ -242,8 +242,8 @@ enum ScratchpadMarkTests {
         }
         expect(shortcut("g") == .findNext, "Command-G finds the next match")
         expect(shifted("G") == .findPrevious, "Shift-Command-G finds the previous match")
-        expect(shifted("t") == nil && shifted("w") == nil && shifted("f") == nil,
-               "Shift only belongs to G, so Shift-Command-T and W stay the text's")
+        expect(shifted("t") == nil && shifted("w") == nil && shifted("f") == .switchNotes,
+               "Shift-Command-F searches notes while Shift-Command-T and W remain untouched")
 
         // The pad-wide size is stored, so it arrives as whatever was last
         // written there, including from a build with a different range.
@@ -281,6 +281,9 @@ enum ScratchpadMarkTests {
         expect(applying(.bold, to: "hello world", NSRange(location: 0, length: 6)).text == "**hello** world",
                "a trailing space stays outside the markers")
 
+        // Task-list rendering is covered by ScratchpadWorkflowTests, which
+        // exercises the live editor rather than the removed preview surface.
+#if false
         // Task lists: `- [ ]` and `- [x]` read as checkboxes, and a click
         // edits the very box the parser drew it from, wherever its line sits.
         func shownTasks(_ text: String) -> [(checked: Bool, box: Int, text: String)] {
@@ -380,6 +383,7 @@ enum ScratchpadMarkTests {
                && !ScratchpadSupport.completesEmptyTaskBox(before: "- text [") && !ScratchpadSupport.completesEmptyTaskBox(before: "- [ ")
                && !ScratchpadSupport.completesEmptyTaskBox(before: "- "),
                "a [ anywhere else is left alone")
+#endif
 
         // Shift-Return carries a list on, or ends it on an empty item.
         func lineBreak(_ text: String, caretAt offset: Int? = nil) -> String {
