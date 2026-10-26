@@ -88,6 +88,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 
 - **App switcher.** Switch between apps and windows with live previews, search and display filters. A simpler mode works without screen capture.
 - **Window layout.** Snap windows into layouts, move them between displays and restore earlier positions using shortcuts, screen edges or modifier-drag gestures.
+- **Instant Spaces.** Switch desktops without the slide animation using your macOS shortcuts or trackpad swipes. Optional, requires Accessibility and macOS 15–27.
 - **Dock Preview.** Hover over Dock icons to preview windows across desktops. Switch, close, move or snap them from the preview.
 - **Dock clicks.** Click an active app's Dock icon to minimize, hide or cycle through its windows.
 - **Maximize windows.** Use the green button to fill the screen without creating another Space.
@@ -244,10 +245,13 @@ Vorssaint is free and will stay that way. If it earned its place in your menu ba
 ## Acknowledgements
 
 - App icon designed by [@divisionseven](https://github.com/divisionseven)
+- Instant Spaces gesture encoding adapted from [Space Rabbit](https://github.com/Tahul/space-rabbit); see [license and attribution](Resources/Licenses/SpaceRabbit.txt).
 
 ## License
 
 [GPL 3.0 or later](LICENSE), copyright 2026 Vorssaint. The license covers the source code; the Vorssaint name, logo and look are covered separately in [TRADEMARKS.md](TRADEMARKS.md).
+
+The adapted Instant Spaces gesture encoder is also available under MPL-2.0, as identified in its file header and [notice](Resources/Licenses/SpaceRabbit.txt).
 
 <p align="center">
   <sub>Made by <a href="https://x.com/vorssaint">@vorssaint</a></sub>

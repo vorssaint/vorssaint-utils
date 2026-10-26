@@ -14,7 +14,7 @@ import Foundation
 /// primary control when no enable choice was saved before.
 enum AppFeature: String, CaseIterable {
     // Windows and Dock
-    case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit, spacesOrder
+    case instantSpaces, switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit, spacesOrder
     // Mouse and keyboard
     case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
@@ -101,7 +101,7 @@ extension AppFeature {
 
     var group: FeatureGroup {
         switch self {
-        case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder:
+        case .instantSpaces, .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder:
             return .windowsDock
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
@@ -129,6 +129,7 @@ extension AppFeature {
 
     var symbolName: String {
         switch self {
+        case .instantSpaces: return "rectangle.split.3x1"
         case .switcher: return "rectangle.on.rectangle"
         case .dockPreview: return "dock.rectangle"
         case .dockClick: return "dock.arrow.down.rectangle"
@@ -232,6 +233,7 @@ extension AppFeature {
     /// the permissions portal.
     var enabledKeys: [String] {
         switch self {
+        case .instantSpaces: return [DefaultsKey.instantSpacesKeyboard, DefaultsKey.instantSpacesTrackpad]
         case .switcher: return [DefaultsKey.switcherEnabled]
         case .dockPreview: return [DefaultsKey.dockPreviewEnabled]
         case .dockClick: return [DefaultsKey.dockClickMinimize,
@@ -351,7 +353,7 @@ extension AppFeature {
             return []
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
-             .dockClick, .windowMaximizer, .windowLayout,
+             .instantSpaces, .dockClick, .windowMaximizer, .windowLayout,
              .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
              // The bar reads other apps' menus and windows and types at the
              // caret, all of it through Accessibility.
@@ -483,7 +485,7 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices:
             return true
-        case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
+        case .instantSpaces, .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
              .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder:
             return false
         }
