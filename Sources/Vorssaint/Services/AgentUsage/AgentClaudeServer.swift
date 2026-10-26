@@ -15,6 +15,7 @@ enum AgentClaudeServer {
     struct Summary: Equatable {
         let limits: AgentLimits
         let organization: String?
+        var accountScope: String? = nil
     }
     static let timeout: TimeInterval = 25
     /// While the AI page is on screen a reading this old is asked again.
@@ -112,14 +113,17 @@ enum AgentClaudeServer {
     /// The organization Claude Code signs in to, and when it last fetched
     /// the account's usage. After a failed fetch, get_usage answers from
     /// that saved copy, up to an hour old, with nothing to say so.
-    static func profile(home: URL) -> (organization: String?, usageFetched: Date?) {
+    static func profile(home: URL) -> (organization: String?, usageFetched: Date?, accountScope: String?) {
         guard let data = try? Data(contentsOf: home.appending(path: ".claude.json")),
-              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return (nil, nil) }
-        let organization = (json["oauthAccount"] as? [String: Any])?["organizationUuid"] as? String
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return (nil, nil, nil) }
+        let account = json["oauthAccount"] as? [String: Any]
+        let organization = account?["organizationUuid"] as? String
+        let scope = AgentWeeklyAccount.scope(identifier: account?["accountUuid"] as? String ?? account?["emailAddress"] as? String,
+                                             organization: organization)
         guard let number = (json["cachedUsageUtilization"] as? [String: Any])?["fetchedAtMs"] as? NSNumber,
               CFGetTypeID(number) != CFBooleanGetTypeID(), number.doubleValue.isFinite,
-              number.doubleValue > 0 else { return (organization, nil) }
-        return (organization, Date(timeIntervalSince1970: number.doubleValue / 1_000))
+              number.doubleValue > 0 else { return (organization, nil, scope) }
+        return (organization, Date(timeIntervalSince1970: number.doubleValue / 1_000), scope)
     }
 
     /// The app's environment for a check: Claude Code never updates itself
@@ -203,7 +207,8 @@ enum AgentClaudeServer {
                  timeout: TimeInterval = AgentClaudeServer.timeout) -> Result<Summary, Failure> {
             guard !lock.withLock({ cancelled }) else { return .failure(.unreachable) }
             let started = Date()
-            let organization = AgentClaudeServer.organization(home: home)
+            let profile = AgentClaudeServer.profile(home: home)
+            let organization = profile.organization
             let environment = AgentClaudeServer.environment(environment, home: home)
             let arguments = ["--print", "--input-format", "stream-json", "--output-format", "stream-json",
                 "--verbose", "--no-session-persistence", "--tools", "", "--strict-mcp-config", "--mcp-config",
@@ -234,7 +239,7 @@ enum AgentClaudeServer {
                     channel.waitForExit(timeout: 3)
                     let saved = AgentClaudeServer.profile(home: home)
                     guard !self.lock.withLock({ self.cancelled }),
-                          organization == saved.organization else { return .failure(.unreachable) }
+                          organization == saved.organization, profile.accountScope == saved.accountScope else { return .failure(.unreachable) }
                     // A copy saved before this check began was answered in place
                     // of the account, which was not reached.
                     if let fetched = saved.usageFetched, started.timeIntervalSince(fetched) > AgentClaudeServer.reuse {
@@ -242,7 +247,7 @@ enum AgentClaudeServer {
                     }
                     guard let reading = AgentClaudeServer.limits(result, observed: min(Date(), saved.usageFetched ?? Date()))
                     else { return .failure(.unreachable) }
-                    return .success(Summary(limits: reading, organization: organization))
+                    return .success(Summary(limits: reading, organization: organization, accountScope: saved.accountScope))
                 }
         }
 

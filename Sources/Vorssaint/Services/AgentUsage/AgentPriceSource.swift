@@ -50,7 +50,7 @@ enum AgentPriceSource {
 
 /// One bounded request without cookies or cache that follows no redirect off
 /// its own host.
-private final class AgentDownload: NSObject, URLSessionDataDelegate {
+final class AgentDownload: NSObject, URLSessionDataDelegate {
     private let limit: Int
     private let host: String?
     private var data = Data()
@@ -63,9 +63,11 @@ private final class AgentDownload: NSObject, URLSessionDataDelegate {
         self.completion = completion
     }
 
-    static func start(_ url: URL, limit: Int, completion: @escaping (Data?) -> Void) {
+    @discardableResult
+    static func start(_ url: URL, limit: Int, userAgent: String? = nil,
+                      completion: @escaping (Data?) -> Void) -> URLSessionDataTask {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
-        request.setValue("Vorssaint/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
+        request.setValue(userAgent ?? "Vorssaint/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 15
         configuration.timeoutIntervalForResource = 30
@@ -74,8 +76,10 @@ private final class AgentDownload: NSObject, URLSessionDataDelegate {
         configuration.urlCache = nil
         let delegate = AgentDownload(limit: limit, host: url.host, completion: completion)
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
-        session.dataTask(with: request).resume()
+        let task = session.dataTask(with: request)
+        task.resume()
         session.finishTasksAndInvalidate()
+        return task
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,

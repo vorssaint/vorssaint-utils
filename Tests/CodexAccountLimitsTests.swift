@@ -22,6 +22,12 @@ enum CodexAccountLimitsTests {
             try boundaries(suite, root: root, profiles: profiles)
             try conversations(suite, root: root, profiles: profiles)
             lifecycle(suite, profiles: profiles)
+            weeklyLifecycle(suite, profiles: profiles)
+            weeklyForwarding(suite)
+            weeklyRecreation(suite)
+            weeklyCheckCadence(suite)
+            try weeklyCadenceBoundaries(suite, root: root)
+            try weeklySymlink(suite, root: root)
         } catch { suite.expect(false, "Codex account contract: \(error)") }
     }
 
@@ -199,13 +205,13 @@ enum CodexAccountLimitsTests {
                 if [ -f "$CODEX_HOME/signed-out" ]; then
                     printf '%s\n' '{"id":2,"result":{"account":{"type":"apiKey"}}}'
                 else
-                    printf '{"id":2,"result":{"account":{"type":"chatgpt","planType":"%s"}}}\n' "$PLAN"
+                    printf '{"id":2,"result":{"account":{"type":"chatgpt","email":"shared@example.invalid","planType":"%s"}}}\n' "$PLAN"
                 fi;;
             *'"method":"account/rateLimits/read"'*)
                 if [ -f "$CODEX_HOME/failure" ]; then
                     printf '%s\n' '{"id":3,"error":{"code":-32601,"message":"method not found"}}'
                 else
-                    printf '{"id":3,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":%s,"windowDurationMins":300,"resetsAt":4102444800},"secondary":{"usedPercent":%s,"windowDurationMins":10080,"resetsAt":4102444800}}}}\n' "$USED" "$WEEK"
+                    printf '{"id":3,"result":{"accountId":"%s","rateLimits":{"limitId":"codex","primary":{"usedPercent":%s,"windowDurationMins":300,"resetsAt":4102444800},"secondary":{"usedPercent":%s,"windowDurationMins":10080,"resetsAt":4102444800}}}}\n' "$PLAN" "$USED" "$WEEK"
                 fi;;
             *) exit 6;;
         esac
@@ -221,6 +227,9 @@ enum CodexAccountLimitsTests {
             CodexAccountUsageReader.read(profile, executable: cli, searchPath: nil, cancellation: cancellation, timeout: timeout)
         }
         let readings = profiles.map { try? read($0).get() }
+        suite.expect(readings[0]?.limits.accountScope?.count == 64
+                     && readings[0]?.limits.accountScope != readings[1]?.limits.accountScope,
+                     "the official account response supplies separate opaque history scopes without persisting email")
         suite.expect(readings.map { $0?.limits.windows.first?.usedPercent } == [14, 100]
                         && readings.map { $0?.limits.windows.last?.usedPercent } == [61, 41]
                         && readings.map { $0?.plan } == ["Plus", "Business"],
@@ -280,12 +289,15 @@ enum CodexAccountLimitsTests {
     /// check until it is let go or cancelled.
     private final class Probe: @unchecked Sendable {
         private let lock = NSLock()
-        private var asked: [(id: String, path: String?)] = []
+        private var asked: [(id: String, path: String?, directory: String)] = []
         private var stopped: [String] = []
         private var holding = false
         private var failures: [String: CodexAccountUsageError] = [:]
+        private let reading: CodexAccountReading?
+        init(reading: CodexAccountReading? = nil) { self.reading = reading }
         var calls: [String] { lock.withLock { asked.map(\.id) } }
         var paths: [String?] { lock.withLock { asked.map(\.path) } }
+        var directories: [String] { lock.withLock { asked.map(\.directory) } }
         /// The checks that ended because they were cancelled.
         var cancelled: [String] { lock.withLock { stopped } }
         func hold(_ on: Bool) { lock.withLock { holding = on } }
@@ -293,7 +305,7 @@ enum CodexAccountLimitsTests {
 
         func read(_ profile: CodexAccountProfile, _ path: String?,
                   _ cancellation: BoundedProcessCancellation) -> Result<CodexAccountReading, CodexAccountUsageError> {
-            lock.withLock { asked.append((profile.id, path)) }
+            lock.withLock { asked.append((profile.id, path, profile.directory)) }
             let end = Date().addingTimeInterval(3)
             while lock.withLock({ holding }), !cancellation.isCancelled, Date() < end { usleep(5_000) }
             if cancellation.isCancelled {
@@ -301,6 +313,7 @@ enum CodexAccountLimitsTests {
                 return .failure(.cancelled)
             }
             if let failure = lock.withLock({ failures[profile.id] }) { return .failure(failure) }
+            if let reading { return .success(reading) }
             let window = AgentLimitWindow(id: "codex.300", kind: .session, minutes: 300, scope: nil, usedPercent: 42,
                                           resetsAt: Date().addingTimeInterval(3600))
             return .success(CodexAccountReading(limits: AgentLimits(provider: .codex, windows: [window], observedAt: Date(),
@@ -459,5 +472,440 @@ enum CodexAccountLimitsTests {
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
         suite.expect(probe.calls.count == beforeOpen + 1 && service.timer == nil && service.states.allSatisfy { !$0.checking },
                      "with Codex turned off no account is checked, even when asked")
+    }
+
+    class WeeklyForwardFixture {
+        final class Usage {
+            var history = AgentWeeklyUsage()
+            func noteWeeklyCodexLimits(_ reading: AgentLimits?) {
+                history.selectAccount(reading?.accountScope, provider: .codex)
+                if let reading { history.record(reading, now: Date()) }
+            }
+        }
+        let usage = Usage()
+    }
+
+    private static func weeklyForwarding(_ suite: TestSuite) {
+        let now = Date()
+        let profile = CodexAccountProfile(id: UUID().uuidString, name: "Default",
+                                          directory: CodexProfileLimitsService.defaultDirectory)
+        let limits = AgentLimits(provider: .codex, windows: [
+            AgentLimitWindow(id: "weekly", kind: .weekly, minutes: 10_080, scope: nil,
+                             usedPercent: 42, resetsAt: now.addingTimeInterval(3600))
+        ], observedAt: now, source: .account, accountScope: "forwarding-account")
+        let host = WeeklyForwardHost()
+        var state = CodexProfileLimitsState(profile: profile, limits: limits)
+        host.forwardWeeklyCodex([state])
+        let original = host.usage.history.current(.codex)
+        state.checking = true
+        host.forwardWeeklyCodex([state])
+        suite.expect(original != nil && host.usage.history.current(.codex) == original,
+                     "an in-flight Codex refresh retains Weekly observations without adding a sample")
+        state.checking = false
+        for failure in [CodexAccountUsageError.unavailable, .outdated, .missingCLI, .cancelled] {
+            state.failure = failure
+            host.forwardWeeklyCodex([state])
+            let current = host.usage.history.current(.codex)
+            suite.expect(current == original && current?.latest.flatMap {
+                AgentWeeklyPlan(sample: $0, now: now.addingTimeInterval(601))
+            } == nil, "an inconclusive Codex refresh retains real history while its budget expires: \(failure)")
+        }
+        state.limits = nil
+        state.failure = .needsSignIn
+        host.forwardWeeklyCodex([state])
+        suite.expect(host.usage.history.current(.codex) == nil && host.usage.history.cycles.count == 1,
+                     "a sign-out clears the selected Weekly account without deleting its observations")
+    }
+
+    private static func weeklyRecreation(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.weekly-recreation." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        defaults.set("", forKey: DefaultsKey.notchAgentsCodexProfiles)
+        let now = Date()
+        let limits = AgentLimits(provider: .codex, windows: [
+            AgentLimitWindow(id: "weekly", kind: .weekly, minutes: 10_080, scope: nil,
+                             usedPercent: 42, resetsAt: now.addingTimeInterval(3600))
+        ], observedAt: now, source: .account, accountScope: "recreation-account")
+        let probe = Probe(reading: CodexAccountReading(limits: limits, plan: "Plus"))
+        let service = CodexProfileLimitsService(defaults: defaults, reader: probe.read, loginShellPath: { nil })
+        defer { service.pause() }
+        let host = WeeklyForwardHost()
+        service.pageDidAppear(includeWeekly: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        host.forwardWeeklyCodex(service.states)
+        let original = host.usage.history.current(.codex)
+        suite.expect(original?.samples.count == 1, "a successful transient Weekly check selects its genuine observation")
+        for failure in [CodexAccountUsageError.unavailable, .outdated, .missingCLI] {
+            service.pageDidDisappear()
+            host.forwardWeeklyCodex(service.states)
+            suite.expect(service.states.isEmpty && host.usage.history.current(.codex) == original,
+                         "removing the transient Weekly state leaves its history selected")
+            probe.hold(true)
+            probe.fail(CodexProfileLimitsService.weeklyProfileID, failure)
+            service.pageDidAppear(includeWeekly: true)
+            service.refresh(id: CodexProfileLimitsService.weeklyProfileID, now: Date().addingTimeInterval(1801))
+            host.forwardWeeklyCodex(service.states)
+            suite.expect(service.states.first?.checking == true && service.states.first?.limits == limits
+                         && host.usage.history.current(.codex) == original,
+                         "reopening Weekly keeps selected observations while its new check runs")
+            probe.hold(false)
+            wait { service.states.allSatisfy { !$0.checking } }
+            host.forwardWeeklyCodex(service.states)
+            suite.expect(service.states.first?.failure == failure && host.usage.history.current(.codex) == original,
+                         "an inconclusive first check after reopening cannot hide Weekly observations: \(failure)")
+        }
+        for failure in [CodexAccountUsageError.needsSignIn, .invalidProfile] {
+            service.pageDidDisappear()
+            host.usage.noteWeeklyCodexLimits(limits)
+            probe.fail(CodexProfileLimitsService.weeklyProfileID, failure)
+            service.pageDidAppear(includeWeekly: true)
+            service.refresh(id: CodexProfileLimitsService.weeklyProfileID, now: Date().addingTimeInterval(1801))
+            wait { service.states.allSatisfy { !$0.checking } }
+            host.forwardWeeklyCodex(service.states)
+            suite.expect(service.states.first?.failure == failure && host.usage.history.current(.codex) == nil
+                         && host.usage.history.cycles.count == 1,
+                         "a definitive recreated-home failure clears selection without deleting history: \(failure)")
+        }
+    }
+
+    private static func weeklyCheckCadence(_ suite: TestSuite) {
+        let cases: [(CodexAccountUsageError?, TimeInterval)] = [
+            (nil, 300), (.unavailable, 300), (.missingCLI, 1800),
+            (.needsSignIn, 1800), (.outdated, 1800), (.invalidProfile, 1800)
+        ]
+        for (failure, interval) in cases {
+            let domain = "com.vorssaint.tests.weekly-cadence." + UUID().uuidString
+            let defaults = UserDefaults(suiteName: domain)!
+            defer { defaults.removePersistentDomain(forName: domain) }
+            for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+            for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
+            defaults.set(true, forKey: DefaultsKey.notchEnabled)
+            defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+            defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+            defaults.set("", forKey: DefaultsKey.notchAgentsCodexProfiles)
+            let probe = Probe()
+            probe.fail(CodexProfileLimitsService.weeklyProfileID, failure)
+            let service = CodexProfileLimitsService(defaults: defaults, reader: probe.read, loginShellPath: { nil })
+            defer { service.pause() }
+            service.pageDidAppear(includeWeekly: true)
+            wait { service.states.allSatisfy { !$0.checking } }
+            guard let attempted = service.states.first?.attempted else {
+                suite.expect(false, "the initial Weekly check records its attempt time")
+                continue
+            }
+            for _ in 0..<2 {
+                service.pageDidDisappear()
+                suite.expect(service.states.isEmpty && service.timer == nil,
+                             "retaining Weekly cadence never leaves its virtual home visible in Settings")
+                service.pageDidAppear(includeWeekly: true)
+                wait { service.states.allSatisfy { !$0.checking } }
+            }
+            suite.expect(probe.calls.count == 1 && service.states.first?.attempted == attempted
+                         && service.states.first?.failure == failure,
+                         "reopening Weekly preserves the completed check and its retry cadence: \(String(describing: failure))")
+            service.refresh(now: attempted.addingTimeInterval(interval - 1))
+            wait { service.states.allSatisfy { !$0.checking } }
+            suite.expect(probe.calls.count == 1, "the recreated Weekly home still waits until its documented interval")
+            service.refresh(now: attempted.addingTimeInterval(interval + 5))
+            wait { service.states.allSatisfy { !$0.checking } }
+            suite.expect(probe.calls.count == 2, "the recreated Weekly home is checked again when its interval is due")
+            service.pause()
+            service.pageDidAppear(includeWeekly: true)
+            wait { service.states.allSatisfy { !$0.checking } }
+            suite.expect(probe.calls.count == 2, "pausing and reopening also preserves a completed Weekly backoff")
+
+            let beforeSave = service.states.first!
+            let saved = CodexAccountProfile(id: UUID().uuidString, name: "Saved default",
+                                             directory: URL(fileURLWithPath: CodexProfileLimitsService.defaultDirectory)
+                                                .resolvingSymlinksInPath().path)
+            probe.fail(saved.id, failure)
+            defaults.set("", forKey: DefaultsKey.notchAgentsHiddenCards)
+            defaults.set(CodexAccountProfile.encode([saved]), forKey: DefaultsKey.notchAgentsCodexProfiles)
+            service.synchronize()
+            wait { service.states.allSatisfy { !$0.checking } }
+            suite.expect(probe.calls.count == 2 && service.states.map(\.id) == [saved.id]
+                         && service.states.first?.attempted == beforeSave.attempted
+                         && service.states.first?.failure == beforeSave.failure
+                         && service.states.first?.limits == beforeSave.limits,
+                         "saving the canonical default home transfers its completed Weekly state without checking again")
+            service.refresh(now: beforeSave.attempted!.addingTimeInterval(interval - 1))
+            wait { service.states.allSatisfy { !$0.checking } }
+            suite.expect(probe.calls.count == 2, "a newly saved default home retains the full existing retry interval")
+            let manualFailure: CodexAccountUsageError? = failure == nil ? .needsSignIn : nil
+            probe.fail(saved.id, manualFailure)
+            service.refresh(force: true)
+            wait { service.states.allSatisfy { !$0.checking } }
+            suite.expect(probe.calls.count == 3 && probe.calls.last == saved.id
+                         && service.states.first?.failure == manualFailure
+                         && (manualFailure == nil ? service.states.first?.limits != nil : service.states.first?.limits == nil),
+                         "a saved default's manual response replaces the adopted Weekly state, including sign-out and recovery")
+            let afterManual = service.states.first!
+            defaults.set("", forKey: DefaultsKey.notchAgentsCodexProfiles)
+            service.synchronize()
+            wait { service.states.allSatisfy { !$0.checking } }
+            suite.expect(probe.calls.count == 3 && service.states.map(\.id) == [CodexProfileLimitsService.weeklyProfileID]
+                         && service.states.first?.attempted == afterManual.attempted
+                         && service.states.first?.failure == afterManual.failure
+                         && service.states.first?.limits == afterManual.limits,
+                         "removing the saved default transfers its latest manual result back to Weekly")
+        }
+    }
+
+    private static func weeklyCadenceBoundaries(_ suite: TestSuite, root: URL) throws {
+        let domain = "com.vorssaint.tests.weekly-cadence-boundaries." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        defaults.set("", forKey: DefaultsKey.notchAgentsCodexProfiles)
+        let now = Date()
+        let limits = AgentLimits(provider: .codex, windows: [
+            AgentLimitWindow(id: "session", kind: .session, minutes: 300, scope: nil,
+                             usedPercent: 42, resetsAt: now.addingTimeInterval(30))
+        ], observedAt: now, source: .account)
+        let probe = Probe(reading: CodexAccountReading(limits: limits, plan: "Plus"))
+        let service = CodexProfileLimitsService(defaults: defaults, reader: probe.read, loginShellPath: { nil })
+        defer { service.pause() }
+        service.pageDidAppear(includeWeekly: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        let attempted = service.states.first!.attempted!
+        service.pageDidDisappear()
+        service.pageDidAppear(includeWeekly: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(probe.calls.count == 1, "reopening Weekly before renewal does not query again")
+        service.refresh(now: attempted.addingTimeInterval(70))
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(probe.calls.count == 2, "reopening retains the one-minute cadence after a known window renews")
+        probe.fail(CodexProfileLimitsService.weeklyProfileID, .cancelled)
+        service.refresh(now: attempted.addingTimeInterval(301))
+        wait { service.states.allSatisfy { !$0.checking } }
+        let beforeRetry = probe.calls.count
+        probe.fail(CodexProfileLimitsService.weeklyProfileID, nil)
+        service.pageDidDisappear()
+        service.pageDidAppear(includeWeekly: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(probe.calls.count == beforeRetry + 1, "a completed cancellation remains retryable after reopening")
+        service.pause()
+
+        let homes = try ["cadence-a", "cadence-b"].map { name -> URL in
+            let home = root.appendingPathComponent(name)
+            try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            try Data().write(to: home.appendingPathComponent("config.toml"))
+            return home
+        }
+        let alias = root.appendingPathComponent("cadence-alias")
+        for failure in [nil, CodexAccountUsageError.missingCLI] {
+            try? FileManager.default.removeItem(at: alias)
+            try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: homes[0])
+            var oldLimits = limits
+            oldLimits.accountScope = "old-home"
+            var newLimits = limits
+            newLimits.accountScope = "new-home"
+            let oldProbe = Probe(reading: CodexAccountReading(limits: oldLimits, plan: "Plus"))
+            let newProbe = Probe(reading: CodexAccountReading(limits: newLimits, plan: "Plus"))
+            oldProbe.hold(true)
+            oldProbe.fail(CodexProfileLimitsService.weeklyProfileID, failure)
+            let linked = CodexProfileLimitsService(defaults: defaults, reader: { profile, path, cancellation in
+                profile.directory == homes[0].resolvingSymlinksInPath().path
+                    ? oldProbe.read(profile, path, cancellation) : newProbe.read(profile, path, cancellation)
+            }, defaultDirectory: alias.path, loginShellPath: { nil })
+            defer { linked.pause() }
+            var publishedOldAccount = false
+            let subscription = linked.$states.sink { states in
+                if states.contains(where: { $0.limits?.accountScope == "old-home" || $0.failure == .missingCLI }) {
+                    publishedOldAccount = true
+                }
+            }
+            defer { subscription.cancel() }
+            linked.pageDidAppear(includeWeekly: true)
+            wait { oldProbe.calls.count == 1 }
+            suite.expect(oldProbe.directories.first == homes[0].resolvingSymlinksInPath().path,
+                         "the transient check is bound to its canonical home before dispatch")
+            try FileManager.default.removeItem(at: alias)
+            try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: homes[1])
+            oldProbe.hold(false)
+            wait { linked.states.allSatisfy { !$0.checking } }
+            suite.expect(newProbe.calls.count == 1 && linked.states.first?.limits?.accountScope == "new-home"
+                         && linked.states.first?.failure == nil && !publishedOldAccount,
+                         "retargeting an open Weekly home discards the old result and immediately checks the new account")
+            linked.pageDidDisappear()
+            linked.pageDidAppear(includeWeekly: true)
+            wait { linked.states.allSatisfy { !$0.checking } }
+            suite.expect(newProbe.calls.count == 1 && oldProbe.calls.count == 1,
+                         "reopening after retarget retains only the new home's completed cadence")
+        }
+
+        try FileManager.default.removeItem(at: alias)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: homes[0])
+        let saved = CodexAccountProfile(id: UUID().uuidString, name: "Linked saved home", directory: alias.path)
+        defaults.set("", forKey: DefaultsKey.notchAgentsHiddenCards)
+        defaults.set(CodexAccountProfile.encode([saved]), forKey: DefaultsKey.notchAgentsCodexProfiles)
+        let oldProbe = Probe()
+        let newProbe = Probe()
+        let manual = CodexProfileLimitsService(defaults: defaults, reader: { profile, path, cancellation in
+            profile.directory == homes[0].resolvingSymlinksInPath().path
+                ? oldProbe.read(profile, path, cancellation) : newProbe.read(profile, path, cancellation)
+        }, defaultDirectory: alias.path, loginShellPath: { nil })
+        defer { manual.pause() }
+        manual.pageDidAppear(includeWeekly: true)
+        wait { manual.states.allSatisfy { !$0.checking } }
+        oldProbe.hold(true)
+        oldProbe.fail(saved.id, .needsSignIn)
+        manual.refresh(force: true)
+        wait { oldProbe.calls.count == 2 }
+        manual.pageDidDisappear()
+        var renamed = saved
+        renamed.name = "Renamed linked home"
+        defaults.set(CodexAccountProfile.encode([renamed]), forKey: DefaultsKey.notchAgentsCodexProfiles)
+        manual.synchronize()
+        try FileManager.default.removeItem(at: alias)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: homes[1])
+        oldProbe.hold(false)
+        wait { manual.states.allSatisfy { !$0.checking } }
+        suite.expect(oldProbe.calls.count == 2 && newProbe.calls == [saved.id]
+                     && manual.states.first?.profile == renamed
+                     && manual.states.first?.failure == nil && manual.states.first?.limits != nil,
+                     "a manually requested saved-home check follows retarget even after the page closes")
+    }
+
+    private static func weeklySymlink(_ suite: TestSuite, root: URL) throws {
+        let directory = root.appendingPathComponent("default-home")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
+        try Data().write(to: directory.appendingPathComponent("config.toml"))
+        let alias = root.appendingPathComponent("default-alias")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: directory)
+        let domain = "com.vorssaint.tests.weekly-symlink." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        defaults.set("", forKey: DefaultsKey.notchAgentsHiddenCards)
+        let profile = CodexAccountProfile(id: UUID().uuidString, name: "Saved default", directory: directory.path)
+        defaults.set(CodexAccountProfile.encode([profile]), forKey: DefaultsKey.notchAgentsCodexProfiles)
+        let probe = Probe()
+        let service = CodexProfileLimitsService(defaults: defaults, reader: probe.read, defaultDirectory: alias.path,
+                                                loginShellPath: { nil })
+        defer { service.pause() }
+        service.pageDidAppear(includeWeekly: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(service.states.map(\.id) == [profile.id] && probe.calls == [profile.id],
+                     "a saved symlink to the default Codex home runs one check shared by Limits and Weekly")
+        suite.expect(CodexProfileLimitsService.isDefaultHome(profile, directory: alias.path),
+                     "the resolved default home is recognized through its symlink")
+        let next = root.appendingPathComponent("next-default-home")
+        try FileManager.default.createDirectory(at: next, withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
+        try Data().write(to: next.appendingPathComponent("config.toml"))
+        try FileManager.default.removeItem(at: alias)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: next)
+        service.timer?.fire()
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(service.states.map(\.id) == [profile.id, CodexProfileLimitsService.weeklyProfileID]
+                     && probe.calls == [profile.id, CodexProfileLimitsService.weeklyProfileID]
+                     && service.states.last?.limits != nil
+                     && service.states.filter { CodexProfileLimitsService.isDefaultHome($0.profile, directory: alias.path) }
+                        .map(\.id) == [CodexProfileLimitsService.weeklyProfileID],
+                     "a periodic tick discovers the new default while retaining the old saved canonical home")
+        try FileManager.default.removeItem(at: alias)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: directory)
+        service.timer?.fire()
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(service.states.map(\.id) == [profile.id] && probe.calls.count == 2,
+                     "a periodic tick removes the virtual home when the default again matches its saved canonical home")
+    }
+
+    private static func weeklyLifecycle(_ suite: TestSuite, profiles: [CodexAccountProfile]) {
+        let domain = "com.vorssaint.tests.weekly-accounts." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        defaults.set(CodexAccountProfile.encode(profiles), forKey: DefaultsKey.notchAgentsCodexProfiles)
+        let probe = Probe()
+        probe.hold(true)
+        let service = CodexProfileLimitsService(defaults: defaults, reader: probe.read, loginShellPath: { nil })
+        defer { service.pause() }
+        service.pageDidAppear(includeWeekly: true)
+        wait { !probe.calls.isEmpty }
+        suite.expect(service.states.map(\.id) == [CodexProfileLimitsService.weeklyProfileID]
+                     && probe.calls == [CodexProfileLimitsService.weeklyProfileID],
+                     "Weekly reads only the default account when Limits and its added-account cards are hidden")
+        defaults.set("limits,weekly", forKey: DefaultsKey.notchAgentsHiddenCards)
+        service.synchronize()
+        wait { !probe.cancelled.isEmpty }
+        suite.expect(service.timer == nil && service.states.isEmpty
+                     && probe.cancelled == [CodexProfileLimitsService.weeklyProfileID],
+                     "hiding Weekly cancels its default-account check and timer without reviving hidden accounts")
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        probe.hold(false)
+        service.pageDidAppear(includeWeekly: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        let beforeHiddenManual = probe.calls.count
+        service.refresh(force: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(service.states.map(\.id) == [CodexProfileLimitsService.weeklyProfileID]
+                     && probe.calls.count == beforeHiddenManual,
+                     "Settings cannot refresh the transient Weekly home while the AI page is still visible and Limits is hidden")
+        service.refresh(id: CodexProfileLimitsService.weeklyProfileID, force: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(probe.calls.count == beforeHiddenManual,
+                     "a manual request naming the virtual Weekly profile cannot bypass the saved-home boundary")
+        service.refresh(id: CodexProfileLimitsService.weeklyProfileID, now: Date().addingTimeInterval(301))
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(Array(probe.calls.dropFirst(beforeHiddenManual)) == [CodexProfileLimitsService.weeklyProfileID],
+                     "automatic due checks still refresh the default home while Weekly is visible")
+        service.pageDidDisappear()
+        let beforeManual = probe.calls.count
+        service.refresh(force: true)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        suite.expect(service.states.isEmpty && service.timer == nil && probe.calls.count == beforeManual,
+                     "closing Weekly removes its virtual profile so Settings cannot refresh a hidden default home")
+        defaults.set("", forKey: DefaultsKey.notchAgentsHiddenCards)
+        service.pageDidAppear(includeWeekly: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        let beforeConcurrentManual = probe.calls.count
+        service.refresh(force: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(Array(probe.calls.dropFirst(beforeConcurrentManual)) == profiles.map(\.id),
+                     "Settings checks only the displayed saved homes while Weekly and the AI page are concurrently visible")
+        service.pageDidDisappear()
+        let beforeSaved = probe.calls.count
+        service.refresh(force: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(service.states.map(\.id) == profiles.map(\.id)
+                     && Array(probe.calls.dropFirst(beforeSaved)) == profiles.map(\.id),
+                     "Settings refreshes only saved non-default homes after Weekly closes")
+        service.pageDidAppear(includeWeekly: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        service.pause()
+        suite.expect(!service.states.contains { $0.id == CodexProfileLimitsService.weeklyProfileID } && service.timer == nil,
+                     "pausing also removes the transient Weekly home from shared settings state")
+        let savedDefault = CodexAccountProfile(id: UUID().uuidString, name: "Main", directory: CodexProfileLimitsService.defaultDirectory)
+        defaults.set(CodexAccountProfile.encode([savedDefault]), forKey: DefaultsKey.notchAgentsCodexProfiles)
+        service.pageDidAppear(includeWeekly: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        service.pageDidDisappear()
+        let beforeDefault = probe.calls.count
+        service.refresh(force: true)
+        wait { service.states.allSatisfy { !$0.checking } }
+        suite.expect(service.states.map(\.id) == [savedDefault.id]
+                     && Array(probe.calls.dropFirst(beforeDefault)) == [savedDefault.id],
+                     "a default home explicitly saved by the person survives closing Weekly and remains manually refreshable")
     }
 }

@@ -55,7 +55,8 @@ struct CodexAccountsSettings: View {
                     .disabled(profiles.count >= CodexAccountProfile.maximum)
                 if !profiles.isEmpty {
                     Button(text.check) { service.refresh(force: true) }
-                        .disabled(!service.isEnabled || service.states.allSatisfy(\.checking))
+                        .disabled(!NotchAgentSupport.showsCodexAccounts() || !service.isEnabled
+                                  || service.states.filter { $0.id != CodexProfileLimitsService.weeklyProfileID }.allSatisfy(\.checking))
                 }
             }
             Text(profiles.isEmpty ? text.fallback : text.resetsNote)
