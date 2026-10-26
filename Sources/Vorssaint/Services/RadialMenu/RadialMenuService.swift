@@ -324,6 +324,7 @@ final class RadialMenuService: ObservableObject {
     /// A four-finger tap: opens the wheel that claims it as a sticky session,
     /// or closes it, like a second press of its shortcut.
     func toggleFromTrackpad() {
+        guard !TrackpadGuardInputGate.isActive else { return }
         let defaults = UserDefaults.standard
         guard AppFeature.radialMenu.isAvailable,
               defaults.bool(forKey: DefaultsKey.radialMenuEnabled),

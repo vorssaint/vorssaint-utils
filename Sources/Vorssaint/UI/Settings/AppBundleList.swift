@@ -107,11 +107,13 @@ struct AppBundleList<Accessory: View>: View {
             // belongs under the list it adds to.
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(caption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if !caption.isEmpty {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         } label: {
             HStack {
                 Text(title)

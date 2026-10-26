@@ -39,6 +39,7 @@ struct MetricsTests {
             }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
+            ("trackpad-guard", { TrackpadGuardTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", {
                 AppManagementFeatureTests.run(suite)

@@ -335,6 +335,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             || MouseAccelerationRecovery.hasPendingEntries() {
             MouseAccelerationService.shared.stop()
         }
+        if AppFeature.trackpadGuard.isAvailable { TrackpadGuardService.shared.stop() }
+        if TrackpadGuardRecovery.hasPendingEntry { _ = TrackpadGuardRecovery.restorePending() }
         MouseNavigationService.shared.suspend()
         DockPreviewService.shared.stop()
         SoundOutputSwitcher.shared.stop()

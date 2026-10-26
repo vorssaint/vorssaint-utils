@@ -122,6 +122,8 @@ extension AppFeature {
         case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
         // It reads only while something is being watched, and stops on its own.
         case .notchWatch: return .idle
+        // A heartbeat runs only while the built-in trackpad is ignored.
+        case .trackpadGuard: return .periodic
         // A blink every few seconds and a visit every few minutes, both
         // drawn by Core Animation, with one timer waiting for the next visit.
         case .notchMascot: return .periodic

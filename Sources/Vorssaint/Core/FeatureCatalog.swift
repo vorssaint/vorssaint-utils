@@ -16,7 +16,7 @@ enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit, spacesOrder
     // Mouse and keyboard
-    case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
+    case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, trackpadGuard, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
@@ -103,7 +103,7 @@ extension AppFeature {
         switch self {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder:
             return .windowsDock
-        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .trackpadGuard, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
@@ -142,6 +142,7 @@ extension AppFeature {
         case .smoothScroll: return "cursorarrow.motionlines"
         case .linearScroll: return "arrow.up.and.down.text.horizontal"
         case .mouseAcceleration: return "cursorarrow.rays"
+        case .trackpadGuard: return "hand.raised.slash"
         case .mouseNavigation: return "arrow.left.arrow.right"
         case .mouseButtonShortcuts: return "button.programmable"
         case .middleClick: return "hand.tap"
@@ -247,6 +248,7 @@ extension AppFeature {
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .linearScroll: return [DefaultsKey.linearScrollEnabled]
         case .mouseAcceleration: return [DefaultsKey.mouseAccelerationDisabled]
+        case .trackpadGuard: return [DefaultsKey.trackpadGuardEnabled]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
         case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled,
                                             DefaultsKey.mouseSpacesGestureEnabled]
@@ -347,7 +349,7 @@ extension AppFeature {
         case .notchNotifications: return [.accessibility]
         case .notchCalendar: return [.calendar]
         case .notch: return [.accessibility, .automationPlayback]
-        case .mouseAcceleration, .spacesOrder:
+        case .mouseAcceleration, .trackpadGuard, .spacesOrder:
             return []
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
@@ -433,7 +435,7 @@ extension AppFeature {
     /// switcher and text snippets that feed the Command Bar.
     static let offeredWhenNeverSwitchedOn: [AppFeature] = [
         .dockPreview, .dockClick, .windowMaximizer, .autoQuit,
-        .scrollInverter, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation,
+        .scrollInverter, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .trackpadGuard, .mouseNavigation,
         .mouseButtonShortcuts, .middleClick, .keyboardDebounce, .mouseClickDebounce, .superKey,
         .finderCutPaste,
     ]
@@ -483,7 +485,7 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices:
             return true
-        case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
+        case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .trackpadGuard, .diskImageInstaller, .audioPriority,
              .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder:
             return false
         }

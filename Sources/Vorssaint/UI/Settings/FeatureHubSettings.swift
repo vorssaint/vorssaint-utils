@@ -1152,6 +1152,7 @@ extension AppFeature {
         case .smoothScroll: return s.smoothScrollName
         case .linearScroll: return s.linearScrollName
         case .mouseAcceleration: return s.mouseAccelerationName
+        case .trackpadGuard: return FeatureStrings.trackpadGuard(L10n.shared.language).title
         case .mouseNavigation: return hub.titleMouseNavigation
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).pageTitle
         case .middleClick: return s.middleClickSection
@@ -1236,6 +1237,7 @@ extension AppFeature {
         case .smoothScroll: return hub.descSmoothScroll
         case .linearScroll: return L10n.shared.s.linearScrollCaption
         case .mouseAcceleration: return L10n.shared.s.mouseAccelerationCaption
+        case .trackpadGuard: return FeatureStrings.trackpadGuard(L10n.shared.language).description
         case .mouseNavigation: return hub.descMouseNavigation
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).hubDescription
         case .middleClick: return hub.descMiddleClick

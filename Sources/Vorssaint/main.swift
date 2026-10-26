@@ -3,6 +3,9 @@
 
 import AppKit
 
+TrackpadGuardWatchdog.runIfRequestedAndExit()
+if TrackpadGuardRecovery.hasPendingEntry { _ = TrackpadGuardRecovery.restorePending() }
+
 SuperKeyMappingGuard.runIfRequestedAndExit()
 Defaults.register()
 NotchControlItem.keyboardLightIsSupported = { BrightnessService.keyboardLightIsSupported }

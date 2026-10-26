@@ -306,12 +306,15 @@ enum SettingsBackupSupport {
     /// `valueLooksRight` cannot catch, since the value is a perfectly good
     /// `[String]`.
     ///
-    /// Driven from `MouseExceptionScope.allCases` rather than a list of keys
-    /// spelled here, so a scope that renames its key, or two scopes that come
-    /// to share one, are covered without this file being edited.
+    /// The mouse exception scopes and trackpad app selection use the same
+    /// bundle/path identities, so they share the same portability rules.
+    static var mouseAppListKeys: Set<String> {
+        Set(MouseExceptionScope.allCases.map(\.defaultsKey) + [DefaultsKey.trackpadGuardApps])
+    }
+
     private static func portableMouseExceptions(_ source: [String: Any]) -> [String: Any] {
         var settings = source
-        for key in Set(MouseExceptionScope.allCases.map(\.defaultsKey)) {
+        for key in mouseAppListKeys {
             guard let stored = settings[key] as? [String] else { continue }
             let portable = stored.filter { !MouseAppExceptionSupport.isExecutablePathIdentity($0) }
             guard portable.count != stored.count else { continue }
