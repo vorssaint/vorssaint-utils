@@ -835,17 +835,17 @@ enum WindowActivator {
         return frontmost.bundleIdentifier == bundleIdentifier
     }
 
-    static func supersedePendingActivations(for pid: pid_t) -> UInt64 {
+    static func supersedePendingActivations(for pid: pid_t? = nil) -> UInt64 {
         let generation = beginActivation(for: pid)
         cancelPendingMinimizeRestore()
         SpaceHop.cancelPending()
         return generation
     }
 
-    private static func beginActivation(for pid: pid_t) -> UInt64 {
+    private static func beginActivation(for pid: pid_t?) -> UInt64 {
         activationLock.withLock {
             activationGeneration &+= 1
-            activationGenerationsByPID[pid] = activationGeneration
+            if let pid { activationGenerationsByPID[pid] = activationGeneration }
             return activationGeneration
         }
     }
