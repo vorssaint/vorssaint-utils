@@ -184,6 +184,75 @@ enum NotchTests {
                "the player is a small cover beside the camera, the song below it, the timeline and one row of buttons")
     }
 
+    private static func musicVolumeLayoutContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let volumeRow = NotchLayout.levelRowHeight + NotchLayout.rowSpacing
+        for notched in [false, true] {
+            for layout: NotchSize in [.compact, .spacious] {
+                var geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                             cameraWidth: notched ? 210 : 0, layout: layout, silhouette: .capsule)
+                geometry.pageTop = NotchModule.music.pageTop
+                for playing in [false, true] {
+                    let original = geometry.expandedSize(module: .music, musicHasContent: playing)
+                    let disabled = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: false)
+                    let enabled = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: true)
+                    let player = NotchLayout.musicPlayerHeight(band: geometry.musicBandHeight, playing: playing, showVolume: true)
+                    let content = geometry.contentSize(for: enabled)
+                    suite.expect(disabled == original && enabled.width == original.width
+                                 && enabled.height == original.height + volumeRow && content.height == player,
+                                 "optional volume adds one complete row without changing the preset player's width or making it scroll: \(layout), notched \(notched), playing \(playing)")
+                    suite.expect(player == NotchLayout.musicPlayerHeight(band: geometry.musicBandHeight, playing: playing) + volumeRow,
+                                 "the volume row has the same height in the playing and idle player")
+
+                    let extras = geometry.musicExtrasHeight
+                    let opened = geometry.contentSize(for: geometry.expandedSize(module: .music, musicHasContent: playing,
+                                                                                 musicShowsVolume: true, musicExtraHeight: extras))
+                    let split = NotchLayout.musicSplit(height: opened.height, extras: extras, resting: player, keepsPlayer: true)
+                    suite.expect(split.showsPlayer && split.player == player && split.extra == extras - NotchLayout.rowSpacing,
+                                 "opening lyrics or the queue keeps the optional volume row and the list's full height")
+                    for height in stride(from: content.height, through: opened.height, by: 12) {
+                        let growing = NotchLayout.musicSplit(height: height, extras: extras, resting: player, keepsPlayer: true)
+                        suite.expect(growing.showsPlayer && growing.player == player,
+                                     "the optional volume row stays with the player while lyrics or the queue grows")
+                    }
+                }
+            }
+
+            for width in [360.0, 480] {
+                for height in [NotchSize.heightRange.lowerBound, 340, 500] {
+                    var geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                                 cameraWidth: notched ? 210 : 0, layout: .custom,
+                                                 customWidth: width, customHeight: height, silhouette: .capsule)
+                    geometry.pageTop = NotchModule.music.pageTop
+                    for playing in [false, true] {
+                        let player = NotchLayout.musicPlayerHeight(band: geometry.musicBandHeight, playing: playing, showVolume: true)
+                        let closed = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: true)
+                        let opened = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: true,
+                                                           musicExtraHeight: geometry.musicExtrasHeight)
+                        let available = geometry.contentSize(for: opened).height
+                        suite.expect(closed.height <= CGFloat(height) && opened.height <= CGFloat(height)
+                                     && geometry.contentSize(for: closed).height == min(geometry.contentBudget, player),
+                                     "optional volume respects the custom height with and without an open list: \(width) × \(height), notched \(notched)")
+                        let split = NotchLayout.musicSplit(height: available, extras: geometry.musicExtrasHeight,
+                                                           resting: player, keepsPlayer: false)
+                        suite.expect(split.showsPlayer
+                                     ? split.player == player && split.extra >= NotchLayout.musicMinimumExtraHeight
+                                         && split.player + NotchLayout.rowSpacing + split.extra <= available
+                                     : split.extra <= available && available - player - NotchLayout.rowSpacing < NotchLayout.musicMinimumExtraHeight,
+                                     "a short custom island gives lyrics or the queue the player's space before cutting the optional volume row")
+                    }
+                }
+            }
+        }
+        let player = NotchLayout.musicPlayerHeight(band: 36, showVolume: true)
+        let boundary = player + NotchLayout.rowSpacing + NotchLayout.musicMinimumExtraHeight
+        let below = NotchLayout.musicSplit(height: boundary - 1, extras: 216, resting: player, keepsPlayer: false)
+        let fits = NotchLayout.musicSplit(height: boundary, extras: 216, resting: player, keepsPlayer: false)
+        suite.expect(!below.showsPlayer && fits.showsPlayer && fits.player == player
+                     && fits.extra == NotchLayout.musicMinimumExtraHeight,
+                     "a custom island keeps the player and volume exactly when a readable lyrics or queue list fits")
+    }
+
     private static func presentationSpacingContracts(_ suite: TestSuite) {
         let screen = CGRect(x: -1470, y: 80, width: 1470, height: 956)
         for width in [360.0, 480, 560, 720] {
@@ -1689,6 +1758,7 @@ enum NotchTests {
         NotchMissionControlPollingTests.run(suite)
         activitySelectionContracts(suite)
         railContracts(suite)
+        musicVolumeLayoutContracts(suite)
         presentationSpacingContracts(suite)
         captureControlsLayoutContracts(suite)
         pageTopContracts(suite)

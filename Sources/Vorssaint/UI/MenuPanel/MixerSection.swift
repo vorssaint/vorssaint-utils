@@ -263,8 +263,9 @@ struct MixerSection: View {
         if inNotch {
             // The slider shows the level; the island's header need not repeat it.
             NotchService.shared.noteOwnLevelAdjustment(.volume)
-            mixer.requestOutputAdjustment(volume: value)
-        } else { mixer.setCurrentOutputVolume(value) }
+        }
+        // Both panels share the key queue, so a drag supersedes an older key.
+        mixer.requestOutputAdjustment(volume: value)
     }
 
     private var systemOutputVolumeBinding: Binding<Double> {

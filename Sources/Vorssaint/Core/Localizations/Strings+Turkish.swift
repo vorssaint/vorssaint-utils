@@ -306,7 +306,7 @@ extension Strings {
         autoQuitHowTitle: "Nasıl çalışır",
         autoQuitStep1: "Bir uygulamanın son penceresini kapat (⌘W veya kırmızı düğme).",
         autoQuitStep2: "Uygulama kendiliğinden çıkar. “Değişiklikler kaydedilsin mi?” iletişimleri yine görünür.",
-        autoQuitPredictableNote: "Normalde penceresiz çalışan uygulamalardan asla çıkılmaz.",
+        autoQuitPredictableNote: "Henüz pencere açmamış uygulamalar açık kalır. Menü çubuğu uygulamaları, sonlandırılmalarına açıkça izin vermediğiniz sürece açık kalır.",
         autoQuitOngoingWorkNote: "Bazı uygulamalar son penceresini kapattıktan sonra da çalışmayı sürdürür, örneğin kayıt başladığında bir ekran kaydedici. İstisnalar listesinde değillerse bunlardan da çıkılır.",
         autoQuitExceptionsTitle: "İstisnalar",
         autoQuitExceptionsCaption: "Bu listedeki uygulamalar penceresiz kalsa bile açık kalır.",

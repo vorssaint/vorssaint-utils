@@ -306,7 +306,7 @@ extension Strings {
         autoQuitHowTitle: "So funktioniert’s",
         autoQuitStep1: "Schließe das letzte Fenster einer App (⌘W oder der rote Knopf).",
         autoQuitStep2: "Die App beendet sich von selbst. „Sichern?“-Dialoge erscheinen weiterhin.",
-        autoQuitPredictableNote: "Apps, die normalerweise ohne Fenster laufen, werden nie beendet.",
+        autoQuitPredictableNote: "Apps, die noch kein Fenster geöffnet haben, bleiben geöffnet. Menüleisten-Apps bleiben geöffnet, solange du ihr Beenden nicht ausdrücklich erlaubst.",
         autoQuitOngoingWorkNote: "Manche Apps schließen ihr letztes Fenster und arbeiten weiter, etwa eine Bildschirmaufnahme nach dem Start der Aufnahme. Sie werden ebenfalls beendet, sofern sie nicht in den Ausnahmen stehen.",
         autoQuitExceptionsTitle: "Ausnahmen",
         autoQuitExceptionsCaption: "Apps in dieser Liste bleiben auch ohne Fenster geöffnet.",

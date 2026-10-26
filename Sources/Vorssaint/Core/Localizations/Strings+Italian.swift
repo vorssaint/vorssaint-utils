@@ -306,7 +306,7 @@ extension Strings {
         autoQuitHowTitle: "Come funziona",
         autoQuitStep1: "Chiudi l’ultima finestra di un’app (⌘W o il pulsante rosso).",
         autoQuitStep2: "L’app esce da sola. I dialoghi “Salvare le modifiche?” continuano ad apparire.",
-        autoQuitPredictableNote: "Le app che di norma funzionano senza finestre non vengono mai chiuse.",
+        autoQuitPredictableNote: "Le app che non hanno ancora aperto una finestra restano aperte. Le app della barra dei menu restano aperte, a meno che tu non ne autorizzi esplicitamente la chiusura.",
         autoQuitOngoingWorkNote: "Alcune app chiudono l’ultima finestra e continuano a lavorare, come un registratore dello schermo dopo l’avvio della registrazione. Anche queste vengono chiuse, a meno che non siano tra le eccezioni.",
         autoQuitExceptionsTitle: "Eccezioni",
         autoQuitExceptionsCaption: "Le app in questo elenco restano aperte anche senza finestre.",

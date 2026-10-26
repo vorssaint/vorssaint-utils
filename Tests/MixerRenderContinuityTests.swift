@@ -17,22 +17,44 @@ enum MixerRenderContinuityTests {
         func increment() { value += 1 }
     }
 
+    final class Configuration {
+        var canRender = true
+    }
+
     final class Renderer {
         let box = FloatBox(1)
         let compensation = FloatBox(1)
         let release = FloatBox(BoostLimiter.release(sampleRate: 48_000))
         let ramp = TapLevelRamp()
         let cycles = Counter()
-        let tapChannels = 2
-        let limiterBox = LimiterBox(channelCapacity: 2)
+        let configuration = Configuration()
+        let tapChannels: Int
+        let limiterBox: LimiterBox
 
-        func render(_ source: [Float]?, frames: Int, layout: [UInt32]) -> [Float] {
-            let input = AudioBufferList.allocate(maximumBuffers: 1)
+        init(tapChannels: Int = 2, channelCapacity: Int? = nil) {
+            self.tapChannels = tapChannels
+            limiterBox = LimiterBox(channelCapacity: channelCapacity ?? tapChannels)
+        }
+
+        func render(_ source: [Float]?, frames: Int, layout: [UInt32],
+                    microphone: [Float]? = nil) -> [Float] {
+            let input = AudioBufferList.allocate(maximumBuffers: microphone == nil ? 1 : 2)
             let samples = UnsafeMutablePointer<Float>.allocate(capacity: max(1, source?.count ?? 0))
             if let source { samples.update(from: source, count: source.count) }
-            input[0] = AudioBuffer(mNumberChannels: 2,
-                                   mDataByteSize: UInt32((source?.count ?? 0) * MemoryLayout<Float>.size),
-                                   mData: source == nil ? nil : samples)
+            let microphoneSamples = microphone.map { values -> UnsafeMutablePointer<Float> in
+                let pointer = UnsafeMutablePointer<Float>.allocate(capacity: max(1, values.count))
+                pointer.update(from: values, count: values.count)
+                return pointer
+            }
+            if let microphone {
+                input[0] = AudioBuffer(mNumberChannels: UInt32(tapChannels),
+                                       mDataByteSize: UInt32(microphone.count * MemoryLayout<Float>.size),
+                                       mData: microphoneSamples.map { UnsafeMutableRawPointer($0) })
+            }
+            input[input.count - 1] = AudioBuffer(
+                mNumberChannels: UInt32(tapChannels),
+                mDataByteSize: UInt32((source?.count ?? 0) * MemoryLayout<Float>.size),
+                mData: source == nil ? nil : samples)
             let output = AudioBufferList.allocate(maximumBuffers: layout.count)
             let storage = layout.map { channels -> UnsafeMutablePointer<Float> in
                 let pointer = UnsafeMutablePointer<Float>.allocate(capacity: frames * Int(channels))
@@ -42,6 +64,7 @@ enum MixerRenderContinuityTests {
             defer {
                 storage.forEach { $0.deallocate() }
                 samples.deallocate()
+                microphoneSamples?.deallocate()
                 free(input.unsafeMutablePointer)
                 free(output.unsafeMutablePointer)
             }
@@ -61,6 +84,72 @@ enum MixerRenderContinuityTests {
     }
 
     static func run(_ suite: TestSuite) {
+        for channels in [2, 8, 16, 32] {
+            let frames = 768
+            var source: [Float] = []
+            source.reserveCapacity(frames * channels)
+            for frame in 0..<frames {
+                for channel in 0..<channels {
+                    let amplitude: Float = 0.3 * Float(channel + 1) / Float(channels)
+                    let frequency = Double(220 + channel * 11)
+                    let angularFrequency = 2.0 * Double.pi * frequency
+                    let phase = angularFrequency * Double(frame) / 48_000.0
+                    source.append(amplitude * Float(sin(phase)))
+                }
+            }
+            // The physical device records before the tap in the aggregate.
+            // Give it the same shape so only its position distinguishes it.
+            let microphone = Array(repeating: Float(0.75), count: frames * channels)
+            for layout in [[UInt32(channels)], Array(repeating: UInt32(1), count: channels)] {
+                for gain: Float in [0.9801, 1.5] {
+                    let renderer = Renderer(tapChannels: channels)
+                    renderer.box.value = gain
+                    let rendered = renderer.render(source, frames: frames, layout: layout,
+                                                   microphone: microphone)
+                    let expected = Array(repeating: Float.zero, count: 256 * channels)
+                        + source.prefix((frames - 256) * channels).map { $0 * gain }
+                    let error = zip(rendered, expected).map { abs($0 - $1) }.max() ?? .infinity
+                    suite.expect(rendered.count == expected.count && error < 0.00001,
+                                 "a \(channels)-channel tap preserves every channel at gain \(gain), excluding the microphone (layout \(layout), maximum error \(error))")
+                    suite.expect(renderer.cycles.value == 1,
+                                 "a valid multichannel tap advances render progress")
+
+                    // A changed format invalidates the engine while delayed
+                    // samples still exist. None may escape under the new format.
+                    renderer.configuration.canRender = false
+                    let invalid = renderer.render(source, frames: frames, layout: layout,
+                                                  microphone: microphone)
+                    suite.expect(invalid == Array(repeating: Float.zero, count: frames * channels)
+                                    && renderer.cycles.value == 1,
+                                 "an invalidated \(channels)-channel format silences the output without draining the old lookahead or advancing progress")
+                    renderer.configuration.canRender = true
+                    let resumed = renderer.render(Array(repeating: 0.1, count: source.count),
+                                                   frames: frames, layout: layout)
+                    let resumedExpected = Array(repeating: Float.zero, count: 256 * channels)
+                        + Array(repeating: Float(0.1) * gain, count: (frames - 256) * channels)
+                    suite.expect(zip(resumed, resumedExpected).allSatisfy { abs($0 - $1) < 0.00001 },
+                                 "resuming an unchanged format discards all samples queued before suspension")
+                }
+            }
+        }
+
+        let emptyTap = Renderer(tapChannels: 32)
+        let missing = emptyTap.render(nil, frames: 512, layout: [32],
+                                      microphone: Array(repeating: 0.75, count: 512 * 32))
+        suite.expect(missing.allSatisfy { $0 == 0 } && emptyTap.cycles.value == 0,
+                     "a wide tap with no data never selects the microphone before it")
+
+        let unformatted = AudioBufferList.allocate(maximumBuffers: 1)
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: 7, alignment: 1)
+        raw.initializeMemory(as: UInt8.self, repeating: 0x7f, count: 7)
+        unformatted[0] = AudioBuffer(mNumberChannels: 2, mDataByteSize: 5, mData: raw)
+        MixerRender.silence(unformatted)
+        let bytes = Array(UnsafeBufferPointer(start: raw.assumingMemoryBound(to: UInt8.self), count: 7))
+        suite.expect(bytes == [0, 0, 0, 0, 0, 0x7f, 0x7f],
+                     "suspension zeros every output byte without assuming Float32 or overrunning the buffer")
+        raw.deallocate()
+        free(unformatted.unsafeMutablePointer)
+
         // Each gap follows live audio, so the lookahead still owns samples
         // that must be emitted before the silence reaches the output.
         let blocks: [(input: Int?, output: Int)] = [

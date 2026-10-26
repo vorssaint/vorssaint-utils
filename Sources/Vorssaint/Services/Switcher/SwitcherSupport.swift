@@ -328,6 +328,19 @@ enum SwitcherGridCard {
     static var fallbackIconSize: CGFloat { 80 * PreviewSizing.switcherScale }
 }
 
+/// The search chip sits above the first card, including in the transparent
+/// icon-row panel. Reserve only the space not already provided by its padding.
+enum SwitcherSearchLayout {
+    static let chipHeight: CGFloat = 28
+    static let edgeInset: CGFloat = 12
+    static let contentGap: CGFloat = 8
+
+    static func topInset(query: String, isPinned: Bool, contentPadding: CGFloat) -> CGFloat {
+        guard !query.isEmpty || isPinned else { return 0 }
+        return max(0, edgeInset + chipHeight + contentGap - contentPadding)
+    }
+}
+
 struct SwitcherIconRowLayout: Equatable {
     let visibleIconCount: Int
     let appRowContentWidth: CGFloat
@@ -455,7 +468,8 @@ struct SwitcherIconRowLayout: Equatable {
                         screenVisibleFrame: CGRect,
                         showsShortcutHints: Bool = true,
                         tileWidth: CGFloat = appTileWidth,
-                        maxColumns userMax: Int? = nil) -> SwitcherIconRowLayout {
+                        maxColumns userMax: Int? = nil,
+                        searchTopInset: CGFloat = 0) -> SwitcherIconRowLayout {
         let appCount = max(1, rawAppCount)
         let windowCount = max(1, rawWindowCount)
         let usableWidth = max(320, screenVisibleFrame.width * 0.96)
@@ -503,6 +517,7 @@ struct SwitcherIconRowLayout: Equatable {
         // the two things above the icons, so either mode fits.
         let aboveIcons = max(previewHeight + previewGap, simpleTitleHeight + simpleTitleGap)
         let rowBudget = screenVisibleFrame.height * 0.85 - aboveIcons - shortcutHintHeight - padding * 2
+            - searchTopInset
         let visibleRows = max(1, min(rows, Int(rowBudget / rowHeight)))
         let height = previewHeight + previewGap + Self.iconAreaHeight(visibleRows: visibleRows)
             + shortcutHintHeight + padding * 2
@@ -1090,6 +1105,18 @@ enum SwitcherSupport {
                                            windowSpaces: [UInt64],
                                            isHiddenWithApp: Bool?) -> Bool {
         appIsHidden && !windowSpaces.isEmpty && isHiddenWithApp != false
+    }
+
+    /// Whether a window's title has to be looked up through its remote
+    /// Accessibility element. Only a window parked on a hidden Space needs
+    /// it: the window server titles windows only with Screen Recording, and
+    /// the app's Accessibility list leaves out windows on hidden Spaces, so
+    /// such a window otherwise shows just its app's name.
+    static func looksUpHiddenSpaceTitle(windowServerTitle: String,
+                                        isDescribedByAccessibility: Bool,
+                                        accessibilityGranted: Bool,
+                                        isOnHiddenSpace: Bool) -> Bool {
+        windowServerTitle.isEmpty && !isDescribedByAccessibility && accessibilityGranted && isOnHiddenSpace
     }
 
     /// A partial Accessibility list cannot veto windows on another desktop.

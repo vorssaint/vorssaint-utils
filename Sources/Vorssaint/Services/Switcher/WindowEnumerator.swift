@@ -409,6 +409,38 @@ enum WindowEnumerator {
             }
             return hiddenWithAppWindowIDs.map { $0.contains(windowID) }
         }
+        // Accessibility leaves windows on a hidden Space out of the app's list,
+        // so without Screen Recording they have no title and show only the
+        // app's name. Their elements are still reachable by remote token,
+        // looked up once per app on first need. Token lookups and title reads
+        // share one deadline across all apps.
+        var hiddenSpaceTitles: [pid_t: [CGWindowID: String]] = [:]
+        let hiddenSpaceTitleDeadline = ProcessInfo.processInfo.systemUptime + AXWindowResolver.remoteLookupBudget
+        func hiddenSpaceTitle(of windowID: CGWindowID, ownerPID: pid_t) -> String {
+            if hiddenSpaceTitles[ownerPID] == nil {
+                hiddenSpaceTitles[ownerPID] = [:]
+                guard !isCancelled(), ProcessInfo.processInfo.systemUptime < hiddenSpaceTitleDeadline else { return "" }
+                let parked = Set(raw.compactMap { info -> CGWindowID? in
+                    guard (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownerPID,
+                          (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                          let id = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                          isOnHiddenSpace(CGWindowID(id)) else { return nil }
+                    return CGWindowID(id)
+                })
+                let elements = AXWindowResolver
+                    .elementsOnHiddenSpace(windowIDs: parked, pid: ownerPID,
+                                           budget: hiddenSpaceTitleDeadline - ProcessInfo.processInfo.systemUptime,
+                                           isCancelled: isCancelled)
+                var titles: [CGWindowID: String] = [:]
+                for (id, element) in elements {
+                    guard !isCancelled(), ProcessInfo.processInfo.systemUptime < hiddenSpaceTitleDeadline else { break }
+                    guard AXWindowResolver.prepareForRequest(element, deadline: hiddenSpaceTitleDeadline) else { continue }
+                    titles[id] = accessibilityTitle(for: element)
+                }
+                hiddenSpaceTitles[ownerPID] = titles
+            }
+            return hiddenSpaceTitles[ownerPID]?[windowID] ?? ""
+        }
         func excludeForSpaceScope(_ windowID: CGWindowID, appPID: pid_t,
                                   isNativeFullscreen: Bool) -> Bool {
             guard currentSpaceOnly, isOnHiddenSpace(windowID) else { return false }
@@ -517,7 +549,14 @@ enum WindowEnumerator {
             } else {
                 guard let name = regularApps[appPID] else { continue }
                 appName = name
-                displayTitle = title.isEmpty ? (axWindow?.title ?? "") : title
+                if SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: title,
+                                                           isDescribedByAccessibility: axWindow != nil,
+                                                           accessibilityGranted: snapshot.accessibilityGranted,
+                                                           isOnHiddenSpace: hiddenSpaceSurfaceIsWitnessed) {
+                    displayTitle = hiddenSpaceTitle(of: CGWindowID(windowID), ownerPID: windowOwnerPID)
+                } else {
+                    displayTitle = title.isEmpty ? (axWindow?.title ?? "") : title
+                }
             }
 
             // Off-screen *and* untitled windows are usually invisible helpers
@@ -682,6 +721,85 @@ enum WindowEnumerator {
         var everyWindowUnanswered = false
     }
 
+    /// One remote read supplies both the visibility decision and the snapshot.
+    /// Reading these separately cost ten attribute round trips per ordinary
+    /// window, and repeated timeouts kept the panel behind busy apps (#2348).
+    private struct AccessibilityWindowAttributes {
+        enum Attribute: Int, CaseIterable {
+            case role, subrole, fullscreen, minimized, position, size, title
+
+            var name: String {
+                switch self {
+                case .role: return kAXRoleAttribute as String
+                case .subrole: return kAXSubroleAttribute as String
+                case .fullscreen: return "AXFullScreen"
+                case .minimized: return kAXMinimizedAttribute as String
+                case .position: return kAXPositionAttribute as String
+                case .size: return kAXSizeAttribute as String
+                case .title: return kAXTitleAttribute as String
+                }
+            }
+        }
+
+        let values: [Any]
+        let result: AXError
+
+        init(_ window: AXUIElement) {
+            var values: CFArray?
+            // Keep supported values even when an optional attribute (commonly
+            // AXFullScreen) is absent. StopOnError would discard those values.
+            result = AXUIElementCopyMultipleAttributeValues(
+                window, Attribute.allCases.map(\.name) as CFArray, [], &values)
+            self.values = values as? [Any] ?? []
+        }
+
+        func error(for attribute: Attribute) -> AXError {
+            guard result == .success else { return result }
+            guard values.indices.contains(attribute.rawValue) else { return .noValue }
+            let value = values[attribute.rawValue] as CFTypeRef
+            if CFGetTypeID(value) == CFNullGetTypeID() { return .noValue }
+            if CFGetTypeID(value) == AXValueGetTypeID() {
+                let axValue = value as! AXValue
+                if AXValueGetType(axValue) == .axError {
+                    var error = AXError.failure
+                    AXValueGetValue(axValue, .axError, &error)
+                    return error
+                }
+            }
+            return .success
+        }
+
+        func value(_ attribute: Attribute) -> Any? {
+            guard error(for: attribute) == .success else { return nil }
+            return values[attribute.rawValue]
+        }
+
+        func string(_ attribute: Attribute) -> String? {
+            value(attribute) as? String
+        }
+
+        func bool(_ attribute: Attribute) -> Bool {
+            value(attribute) as? Bool ?? false
+        }
+
+        var frame: CGRect? {
+            guard let positionValue = value(.position), let sizeValue = value(.size),
+                  CFGetTypeID(positionValue as CFTypeRef) == AXValueGetTypeID(),
+                  CFGetTypeID(sizeValue as CFTypeRef) == AXValueGetTypeID()
+            else { return nil }
+            var position = CGPoint.zero
+            var size = CGSize.zero
+            guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
+                  AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+            else { return nil }
+            return CGRect(origin: position, size: size)
+        }
+
+        var isNativeFullscreen: Bool {
+            bool(.fullscreen) || string(.subrole) == "AXFullScreenWindow"
+        }
+    }
+
     /// How Accessibility judged one window of an app.
     private enum WindowReading {
         case userFacing
@@ -775,15 +893,34 @@ enum WindowEnumerator {
         // Not responding: skip the remaining calls, each would block again.
         guard windowsResult != .cannotComplete else { return nil }
         var unansweredWindows: [AXUIElement] = []
+        var readWindows: [AXUIElement] = []
+        var byID: [CGWindowID: AccessibilityWindowSnapshot] = [:]
+        var ordered: [(id: CGWindowID, snapshot: AccessibilityWindowSnapshot)] = []
         func read(_ window: AXUIElement) -> WindowReading {
+            guard !contains(window, in: readWindows) else { return .notUserFacing }
+            readWindows.append(window)
             AXUIElementSetMessagingTimeout(window, 0.35)
+            let attributes = AccessibilityWindowAttributes(window)
             let reading = userFacingReading(of: window,
+                                            attributes: attributes,
                                             bundleIdentifier: bundleIdentifier,
                                             acceptsUndescribedSubroles: acceptsUndescribedSubroles,
                                             normalLevelWindowIDs: normalLevelWindowIDs,
                                             screenFrames: screenFrames,
                                             isCancelled: isCancelled)
             if reading == .unanswered { appendUnique(window, to: &unansweredWindows) }
+            if reading == .userFacing, !isCancelled(), let id = AXWindowResolver.windowID(for: window) {
+                let frame = attributes.frame
+                let isNativeFullscreen = attributes.isNativeFullscreen
+                let snapshot = AccessibilityWindowSnapshot(
+                    title: attributes.string(.title) ?? "",
+                    frame: frame,
+                    isMinimized: attributes.bool(.minimized),
+                    isFullscreen: isNativeFullscreen || frameLooksFullscreen(frame, screenFrames: screenFrames),
+                    isNativeFullscreen: isNativeFullscreen)
+                byID[id] = snapshot
+                ordered.append((id, snapshot))
+            }
             return reading
         }
         if windowsResult == .success, let windows = value as? [AXUIElement] {
@@ -801,41 +938,17 @@ enum WindowEnumerator {
                 // The main and focused window are almost always ones the
                 // window list already described, and usually the same window
                 // as each other. CFEqual answers that locally, while
-                // userFacingReading spends several Accessibility round trips
-                // in the other process to reach a window we would then drop.
-                // A window that already timed out would only time out again.
-                guard !contains(window, in: axWindows),
-                      !contains(window, in: unansweredWindows) else { continue }
+                // the attribute read contacts the other process to reach a
+                // window we would then drop. Rejected and timed-out windows
+                // must not be read again either.
+                guard !contains(window, in: readWindows) else { continue }
                 if read(window) == .userFacing {
                     axWindows.append(window)
                 }
             }
         }
 
-        var byID: [CGWindowID: AccessibilityWindowSnapshot] = [:]
-        var ordered: [(id: CGWindowID, snapshot: AccessibilityWindowSnapshot)] = []
-        for window in axWindows {
-            guard !isCancelled() else { return nil }
-            if let id = AXWindowResolver.windowID(for: window) {
-                guard !isCancelled() else { return nil }
-                let frame = accessibilityFrame(for: window, isCancelled: isCancelled)
-                guard !isCancelled() else { return nil }
-                let title = accessibilityTitle(for: window)
-                guard !isCancelled() else { return nil }
-                let isMinimized = boolAttribute(window, kAXMinimizedAttribute as String)
-                guard !isCancelled() else { return nil }
-                let isNativeFullscreen = isFullscreenWindow(window, isCancelled: isCancelled)
-                let isFullscreen = isNativeFullscreen || frameLooksFullscreen(frame, screenFrames: screenFrames)
-                let snapshot = AccessibilityWindowSnapshot(title: title,
-                                                           frame: frame,
-                                                           isMinimized: isMinimized,
-                                                           isFullscreen: isFullscreen,
-                                                           isNativeFullscreen: isNativeFullscreen)
-                byID[id] = snapshot
-                ordered.append((id, snapshot))
-            }
-        }
-
+        guard !isCancelled() else { return nil }
         let unansweredIDs = Set(unansweredWindows.compactMap(AXWindowResolver.windowID(for:)))
         // An app that answers with zero user-facing windows normally vetoes
         // its CG surfaces as stale ghosts. Windows that timed out escape that
@@ -915,33 +1028,14 @@ enum WindowEnumerator {
         }
     }
 
+    /// Hidden-Space title recovery needs only this attribute. The regular
+    /// enumeration keeps its batched AccessibilityWindowAttributes snapshot.
     private static func accessibilityTitle(for window: AXUIElement) -> String {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &value) == .success else {
             return ""
         }
         return value as? String ?? ""
-    }
-
-    private static func accessibilityFrame(for window: AXUIElement,
-                                           isCancelled: () -> Bool) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
-              !isCancelled(),
-              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let positionValue,
-              let sizeValue,
-              CFGetTypeID(positionValue) == AXValueGetTypeID(),
-              CFGetTypeID(sizeValue) == AXValueGetTypeID()
-        else { return nil }
-
-        var position = CGPoint.zero
-        var size = CGSize.zero
-        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
-              AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
-        else { return nil }
-        return CGRect(origin: position, size: size)
     }
 
     private static func frameIsSwitchable(_ frame: CGRect) -> Bool {
@@ -967,36 +1061,31 @@ enum WindowEnumerator {
     }
 
     private static func userFacingReading(of window: AXUIElement,
+                                          attributes: AccessibilityWindowAttributes,
                                           bundleIdentifier: String? = nil,
                                           acceptsUndescribedSubroles: Bool = false,
                                           normalLevelWindowIDs: Set<CGWindowID>,
                                           screenFrames: [CGRect],
                                           isCancelled: () -> Bool) -> WindowReading {
         guard !isCancelled() else { return .notUserFacing }
-        if isFullscreenWindow(window, isCancelled: isCancelled) { return .userFacing }
-        guard !isCancelled() else { return .notUserFacing }
-        let isMinimized = boolAttribute(window, kAXMinimizedAttribute as String)
-        guard !isCancelled() else { return .notUserFacing }
-        if isMinimized,
-           stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String) {
+        if attributes.isNativeFullscreen { return .userFacing }
+        if attributes.bool(.minimized), attributes.string(.role) == (kAXWindowRole as String) {
             return .userFacing
         }
-        guard !isCancelled() else { return .notUserFacing }
-        let subroleRead = readStringAttribute(window, kAXSubroleAttribute as String)
-        guard subroleRead.answered else { return .unanswered }
-        if let subrole = subroleRead.value {
-            guard !isCancelled() else { return .notUserFacing }
+        guard !SwitcherSupport.isUnansweredAccessibilityRead(attributes.error(for: .subrole)) else {
+            return .unanswered
+        }
+        if let subrole = attributes.string(.subrole) {
             if subrole == "AXStandardWindow" || subrole == "AXFullScreenWindow" { return .userFacing }
             if SwitcherSupport.isSupportedMediaFloatingWindow(bundleIdentifier: bundleIdentifier,
                                                               subrole: subrole) { return .userFacing }
-            let roleRead = readStringAttribute(window, kAXRoleAttribute as String)
-            guard roleRead.answered else { return .unanswered }
-            let role = roleRead.value
-            guard !isCancelled() else { return .notUserFacing }
+            guard !SwitcherSupport.isUnansweredAccessibilityRead(attributes.error(for: .role)) else {
+                return .unanswered
+            }
+            let role = attributes.string(.role)
             let canBePlaybackSurface = subrole == "AXUnknown" || subrole == "AXFloatingWindow"
             let fillsScreen = canBePlaybackSurface
-                && frameLooksFullscreen(accessibilityFrame(for: window, isCancelled: isCancelled),
-                                        screenFrames: screenFrames)
+                && frameLooksFullscreen(attributes.frame, screenFrames: screenFrames)
             // Apps that draw their own window chrome — game clients, DAWs,
             // compatibility layers — ship borderless windows, which
             // Accessibility reports as an undescribed AXWindow. Only the
@@ -1025,10 +1114,10 @@ enum WindowEnumerator {
                     .map(SpaceWindowBridge.isExcludedFromWindowCycle) ?? false)
                 ? .userFacing : .notUserFacing
         }
-        guard !isCancelled() else { return .notUserFacing }
-        let roleRead = readStringAttribute(window, kAXRoleAttribute as String)
-        guard roleRead.answered else { return .unanswered }
-        return roleRead.value == "AXWindow" ? .userFacing : .notUserFacing
+        guard !SwitcherSupport.isUnansweredAccessibilityRead(attributes.error(for: .role)) else {
+            return .unanswered
+        }
+        return attributes.string(.role) == "AXWindow" ? .userFacing : .notUserFacing
     }
 
     private static func hasWorkingMinimizeButton(_ window: AXUIElement) -> Bool {
@@ -1037,13 +1126,6 @@ enum WindowEnumerator {
         }
         AXUIElementSetMessagingTimeout(button, 0.35)
         return boolAttribute(button, kAXEnabledAttribute as String)
-    }
-
-    private static func isFullscreenWindow(_ window: AXUIElement,
-                                           isCancelled: () -> Bool) -> Bool {
-        if boolAttribute(window, "AXFullScreen") { return true }
-        guard !isCancelled() else { return false }
-        return stringAttribute(window, kAXSubroleAttribute as String) == "AXFullScreenWindow"
     }
 
     private static func appendUnique(_ window: AXUIElement, to windows: inout [AXUIElement]) {
@@ -1062,25 +1144,6 @@ enum WindowEnumerator {
               CFGetTypeID(value) == AXUIElementGetTypeID()
         else { return nil }
         return (value as! AXUIElement)
-    }
-
-    private static func stringAttribute(_ element: AXUIElement, _ attribute: String) -> String? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
-              let value else { return nil }
-        return value as? String
-    }
-
-    /// Reads a string attribute and reports whether the app answered at all,
-    /// so a timed-out read is not mistaken for a missing value.
-    private static func readStringAttribute(_ element: AXUIElement,
-                                            _ attribute: String) -> (value: String?, answered: Bool) {
-        var value: CFTypeRef?
-        let error = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
-        guard error == .success, let value else {
-            return (nil, !SwitcherSupport.isUnansweredAccessibilityRead(error))
-        }
-        return (value as? String, true)
     }
 
     private static func boolAttribute(_ element: AXUIElement, _ attribute: String) -> Bool {

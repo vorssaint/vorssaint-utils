@@ -7,17 +7,37 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable screenshots, audio and Dynamic Island, plus Stage Manager spacing, middle-button desktop gestures and improvements to clipboard history, Command Bar and monitoring.
+More reliable window switching, screenshots, audio and Settings, with safer fan recovery, better monitoring and optional volume controls in the music player.
 
 ### Added
+- Dynamic Island can show a volume row below the music player. Settings → Dynamic Island → Content → Music → Show volume in the player.
+- Screenshots can copy only image data, without a file URL, for apps that otherwise paste the file instead of its image. Settings → Screenshot → Copy as image only.
+- Quit on close can handle selected menu bar apps that keep a Dock icon after their last window closes. The list starts empty, and existing exceptions still apply. Settings → Quit on close → Menu bar apps to quit.
 - Window layout can reserve space for Stage Manager when maximizing or arranging windows, including the green-button override. Settings → Window layout → Reserve space for Stage Manager.
 - Switch Spaces by dragging a button now accepts the middle mouse button, including upward drags for Mission Control and downward drags for App Exposé. A short click keeps its normal behavior. Settings → Mouse → Mouse button shortcuts.
 
 ### Changed
+- Clipboard history uses a smaller decoded-thumbnail cache while keeping the window preview cache unchanged.
 - Command Bar accepts British unit spellings and spaced fluid-ounce names.
 - The window switcher's icon row, previews and hints use Liquid Glass when available and enabled.
 
 ### Fixed
+- Features keeps its rows and scroll position stable when restart and unused-feature notices change.
+- The window switcher can travel directly to fullscreen and hidden-Space windows, recover their titles and observe closing without repeating a delivered close request.
+- Opening the window switcher uses fewer Accessibility requests when many windows are open.
+- The window switcher's search field stays within its panel and remains readable on light backgrounds and Liquid Glass.
+- Focus follows mouse preserves window order when Bring the window to the front is off.
+- Quit on close ignores confirmed stale surfaces left by closed windows while preserving minimized windows and windows on other Spaces.
+- The menu bar panel recovers from interrupted closes so later clicks can open it again.
+- Recent captures keeps its Clear history confirmation open and removes a pending confirmation when the palette closes.
+- The screenshot editor copies the latest edits when an earlier automatic copy is still pending.
+- Dynamic Island moves between displays without stretching, losing mouse input or restarting the music bars.
+- Volume keys advance supported USB outputs that round volume changes into fixed steps, and feedback follows the device's confirmed level.
+- Volume mixer preserves gain on supported multichannel outputs and rebuilds its audio capture when device formats or sample rates change.
+- Disk-space alerts refresh capacity readings and avoid treating a smaller capacity estimate as the only available free space.
+- System monitor recognizes the alternate M1 CPU sensor layout and the measured 14-core M4 Max configuration while preserving readings on other Max models.
+- Power can use desktop DC input when the adapter reading is unavailable, without presenting it as system-only consumption.
+- Fan Control attempts to restore System control after partial hardware failures, keeps failed restoration available for retry and hides stale temperatures when the helper has failed.
 - The menu bar panel no longer draws a second background with mismatched corners on macOS Sonoma and Sequoia.
 - Scrolling screenshots preserve the selected width, keep sparse Terminal output aligned and continue through smaller overlaps on long pages, including blank spacing and low-contrast content.
 - The cleaner leaves system log files out of app leftovers.
@@ -34,7 +54,7 @@ More reliable screenshots, audio and Dynamic Island, plus Stage Manager spacing,
 - Screenshot area selection keeps its crosshair over other apps, and card shadows follow the captured window's own rounded corners.
 
 ### Contributors
-Thanks to @0miicr0n, @AB-boi, @derpyjoystick, @DigitalWestern, @dimitarmanov, @globeatin, @Goonwb, @hash00, @ilvesBogdan, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @Likheet, @LJXXXD, @muratozturk5, @oc7opu5, @raymondchins, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz and @ygh1254.
+Thanks to @0miicr0n, @AB-boi, @ALaunert, @BerkUyku, @Blasted246, @buhbyehotmail, @derpyjoystick, @DigitalWestern, @dimashpt, @dimitarmanov, @dongzoor, @eliamarinen, @EugeneCarldotme, @fablau, @Forenzo, @globeatin, @Goonwb, @hash00, @i0208, @ilvesBogdan, @iva-zhu, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @kidtaroi, @Likheet, @LJXXXD, @MartinSchlender, @Mikkeep, @mthsmb, @muratozturk5, @oc7opu5, @pedro-fontinele, @pedrozimmermannsoares, @raymondchins, @RKeyProg, @rochapaesc, @saarmiara, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz, @ve3dy and @ygh1254.
 
 ## [3.4.2] - 2026-10-21
 

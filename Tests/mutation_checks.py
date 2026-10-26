@@ -1521,7 +1521,7 @@ MUTATIONS = [
      "a traffic light click Accessibility cannot confirm counts as a close only on the close button's place"),
     ("Quit on close reads a minimized window as closed", "app-management",
      "Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift",
-     "            if windowIsMinimized(CGWindowID(windowID)) { return true }\n", "",
+     "            if windowIsMinimized(CGWindowID(windowID)) != false { return true }\n", "",
      "a window minimized into the Dock keeps its app running when Accessibility cannot see it (#3249)"),
     ("Extra Brightness covers the screen with one full screen window", "app-management",
      "Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift",
