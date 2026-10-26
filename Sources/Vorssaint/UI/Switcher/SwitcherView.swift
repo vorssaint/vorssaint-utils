@@ -23,6 +23,7 @@ private struct SwitcherIconRowSurface: View {
     let cornerRadius: CGFloat
     let fill: Color
     var stroke: Color = SwitcherIconStyle.stroke
+    var contrast: HUDBackdrop.Contrast = .standard
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
@@ -30,7 +31,7 @@ private struct SwitcherIconRowSurface: View {
     var body: some View {
         if HUDBackdrop.drawsLiquidGlass(enabled: liquidGlassEnabled, reduceTransparency: reduceTransparency) {
             // The backdrop draws its own edge.
-            HUDBackdrop(cornerRadius: cornerRadius)
+            HUDBackdrop(cornerRadius: cornerRadius, contrast: contrast)
         } else {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(fill)
@@ -101,6 +102,7 @@ struct SwitcherView: View {
             }
         }
         .padding(SwitcherGrid.padding)
+        .padding(.top, switcher.searchTopInset)
         .background(HUDBackdrop(cornerRadius: 24))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(alignment: .topTrailing) {
@@ -140,8 +142,9 @@ struct SwitcherView: View {
 
     private var iconRowPanel: some View {
         iconRowSwitcher
+            .padding(.top, switcher.searchTopInset)
             .frame(width: iconRowPanelSize.width,
-                   height: iconRowPanelSize.height,
+                   height: iconRowPanelSize.height + switcher.searchTopInset,
                    alignment: .center)
             .overlay(alignment: .topTrailing) {
                 searchChip
@@ -154,26 +157,25 @@ struct SwitcherView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 10, weight: .bold))
+                    .fixedSize()
                 Text(switcher.searchQuery.isEmpty ? l10n.s.switcherSearchPin : switcher.searchQuery)
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(maxWidth: 180)
+                    .frame(minWidth: 0, maxWidth: 180)
                 Text("\(switcher.windows.count)/\(switcher.totalWindowCount)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .fixedSize()
             }
             .foregroundStyle(.primary)
             .padding(.horizontal, 9)
-            .padding(.vertical, 6)
+            .frame(height: SwitcherSearchLayout.chipHeight)
             .background(
-                Capsule(style: .continuous)
-                    // The label is `.primary`, so the chip under it has to turn
-                    // over with the theme too: a fixed dark capsule left black
-                    // text on a dark fill in the light appearance.
-                    .fill(Color.primary.opacity(0.12))
+                SwitcherIconRowSurface(cornerRadius: SwitcherSearchLayout.chipHeight / 2,
+                                       fill: SwitcherIconStyle.surfaceRaised,
+                                       contrast: .high)
             )
-            .padding(12)
+            .padding(SwitcherSearchLayout.edgeInset)
         }
     }
 

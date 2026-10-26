@@ -15,6 +15,7 @@ enum WindowActivator {
     private static let fullscreenFocusRetryDelays: [TimeInterval] = [0.18, 0.38, 0.68]
     private static var pendingMinimizeRestore: SwitcherWindowMinimizeRestore?
     private static var pendingWindowClose: SwitcherPendingWindowClose?
+    private static var windowCloseGeneration: UInt64 = 0
     private static let activationLock = NSLock()
     private static var activationGeneration: UInt64 = 0
     private static var activationGenerationsByPID: [pid_t: UInt64] = [:]
@@ -218,7 +219,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility, let windowID = item.windowID else { return }
         let app = AXUIElementCreateApplication(item.windowOwnerPID)
         AXUIElementSetMessagingTimeout(app, 0.35)
-        guard let window = axElement(windowID: windowID, in: app),
+        guard let window = axElement(windowID: windowID, in: app, pid: item.windowOwnerPID),
               !boolAttribute(window, "AXFullScreen", default: true),
               minimizedState(of: window) == false else { return }
         var positionValue: CFTypeRef?
@@ -251,6 +252,8 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return nil }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
+        // Observation runs before a hop and on every focus retry. Leave the
+        // remote scan to an explicit window action instead of repeating it here.
         guard let axWindow = axElement(windowID: windowID, in: axApp) else { return nil }
         return minimizedState(of: axWindow)
     }
@@ -267,7 +270,7 @@ enum WindowActivator {
               pid != ProcessInfo.processInfo.processIdentifier else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return false }
         var origin = origin
         guard let value = AXValueCreate(.cgPoint, &origin) else { return false }
         return AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute as CFString, value) == .success
@@ -324,7 +327,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return false }
         if minimizedState(of: axWindow) == minimized { return true }
 
         let setResult = AXUIElementSetAttributeValue(axWindow,
@@ -346,6 +349,8 @@ enum WindowActivator {
             || setResult == .success
     }
 
+    /// True means the close request was delivered or its response timed out;
+    /// the window may remain open for a save dialog. Callers verify removal.
     static func closeWindow(windowID: CGWindowID,
                             appPID: pid_t,
                             windowOwnerPID: pid_t) -> Bool {
@@ -358,34 +363,98 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(windowOwnerPID)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp),
-              let closeButton = elementAttribute(axWindow, kAXCloseButtonAttribute as String),
-              boolAttribute(closeButton, kAXEnabledAttribute as String, default: true)
+        guard let axWindow = closableElement(windowID: windowID, in: axApp, pid: windowOwnerPID),
+              let closeButton = elementAttribute(axWindow, kAXCloseButtonAttribute as String)
         else { return false }
+        // AX timeouts belong to each object, not its children.
+        AXUIElementSetMessagingTimeout(closeButton, 0.35)
+        guard boolAttribute(closeButton, kAXEnabledAttribute as String, default: true) else { return false }
 
         AutoQuitService.shared.recordProgrammaticCloseRequest(pid: appPID)
-        return AXUIElementPerformAction(closeButton, kAXPressAction as CFString) == .success
+        let result = AXUIElementPerformAction(closeButton, kAXPressAction as CFString)
+        // A save dialog may keep an action callback inside a modal loop until
+        // it times out. The request can already have arrived; never press again
+        // or leave fullscreen merely because its answer was cannotComplete.
+        return result == .success || result == .cannotComplete
     }
 
-    /// Keeps the regular close path immediate. A hidden app is temporarily
-    /// revealed, and a hidden-Space target reuses the verified Space hop; both
-    /// paths poll until Accessibility can resolve that exact window.
+    /// Reuse the shared resolver for published and hidden-Space windows,
+    /// including fullscreen ones, without travelling first (issue #2708).
+    private static func closableElement(windowID: CGWindowID, in axApp: AXUIElement, pid: pid_t) -> AXUIElement? {
+        guard let window = axElement(windowID: windowID, in: axApp, pid: pid)
+        else { return nil }
+        AXUIElementSetMessagingTimeout(window, 0.35)
+        return window
+    }
+
+    /// A fullscreen window keeps its close button disabled (measured on macOS
+    /// 26.6). True when it was asked to leave fullscreen, so a close can follow.
+    private static func leaveFullscreenToClose(windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard Permissions.shared.accessibility else { return false }
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        guard let axWindow = closableElement(windowID: windowID, in: axApp, pid: pid),
+              boolAttribute(axWindow, "AXFullScreen", default: false)
+        else { return false }
+        return AXUIElementSetAttributeValue(axWindow, "AXFullScreen" as CFString, kCFBooleanFalse) == .success
+    }
+
+    /// Keeps the regular close path immediate. A fullscreen window first leaves
+    /// fullscreen, a hidden app is temporarily revealed, and a hidden-Space
+    /// target the lookup missed reuses the verified Space hop; each path polls
+    /// until Accessibility can close that exact window.
     static func closeWindowIncludingHiddenState(_ item: SwitcherItem,
                                                 completion: @escaping (Bool) -> Void) {
+        windowCloseGeneration &+= 1
+        let requestGeneration = windowCloseGeneration
         pendingWindowClose?.cancel()
-        guard let windowID = item.windowID else {
+        // Cancellation calls completion, which can start a newer request.
+        guard windowCloseGeneration == requestGeneration,
+              pendingWindowClose == nil, let windowID = item.windowID else {
             completion(false)
-            return
-        }
-        if closeWindow(windowID: windowID,
-                       appPID: item.pid,
-                       windowOwnerPID: item.windowOwnerPID) {
-            completion(true)
             return
         }
         let app = NSRunningApplication(processIdentifier: item.pid)
         let appNeedsReveal = item.isAppHidden || app?.isHidden == true
         let windowNeedsSpaceHop = SpaceWindowBridge.isParkedOnHiddenSpace(windowID)
+        let observesCloseResult = appNeedsReveal || windowNeedsSpaceHop
+        let generation = currentActivationGeneration()
+        let foregroundPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let foregroundWindowID = observesCloseResult ? foregroundPID.flatMap { focusedWindowID(for: $0) } : nil
+        if closeWindow(windowID: windowID,
+                       appPID: item.pid,
+                       windowOwnerPID: item.windowOwnerPID) {
+            if observesCloseResult {
+                let pending = SwitcherPendingWindowClose(item: item,
+                                                         restoresHiddenApp: false,
+                                                         usesSpaceHop: false,
+                                                         observesCloseResult: true,
+                                                         closeWasRequested: true,
+                                                         generation: generation,
+                                                         foregroundPID: foregroundPID,
+                                                         foregroundWindowID: foregroundWindowID,
+                                                         completion: completion)
+                pendingWindowClose = pending
+                pending.start()
+            } else {
+                completion(true)
+            }
+            return
+        }
+        if leaveFullscreenToClose(windowID: windowID, pid: item.windowOwnerPID) {
+            let pending = SwitcherPendingWindowClose(item: item,
+                                                     restoresHiddenApp: false,
+                                                     usesSpaceHop: false,
+                                                     leavesFullscreen: true,
+                                                     observesCloseResult: observesCloseResult,
+                                                     generation: generation,
+                                                     foregroundPID: foregroundPID,
+                                                     foregroundWindowID: foregroundWindowID,
+                                                     completion: completion)
+            pendingWindowClose = pending
+            pending.start()
+            return
+        }
         guard appNeedsReveal || windowNeedsSpaceHop else {
             completion(false)
             return
@@ -393,19 +462,36 @@ enum WindowActivator {
         let pending = SwitcherPendingWindowClose(item: item,
                                                  restoresHiddenApp: appNeedsReveal,
                                                  usesSpaceHop: windowNeedsSpaceHop,
+                                                 observesCloseResult: observesCloseResult,
+                                                 generation: generation,
+                                                 foregroundPID: foregroundPID,
+                                                 foregroundWindowID: foregroundWindowID,
                                                  completion: completion)
         pendingWindowClose = pending
         pending.start()
     }
 
+    @discardableResult
     fileprivate static func finishPendingWindowClose(_ pending: SwitcherPendingWindowClose,
-                                                     success: Bool) {
-        guard pendingWindowClose === pending else { return }
+                                                     success: Bool) -> Bool {
+        guard pendingWindowClose === pending else { return false }
+        let requestGeneration = windowCloseGeneration
         pendingWindowClose = nil
         if pending.usesSpaceHop {
             SpaceHop.cancelPending()
         }
         pending.finish(success: success)
+        // Completion can start another close synchronously.
+        return pendingWindowClose == nil && windowCloseGeneration == requestGeneration
+    }
+
+    fileprivate static func windowExistsForClose(windowID: CGWindowID, ownerPID: pid_t) -> Bool? {
+        guard let raw = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]]
+        else { return nil }
+        return raw.contains {
+            ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID
+                && ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownerPID
+        }
     }
 
     private static func activateOwnWindow(_ item: SwitcherItem) {
@@ -469,6 +555,10 @@ enum WindowActivator {
 
     fileprivate static func activationGeneration(for pid: pid_t) -> UInt64 {
         activationLock.withLock { activationGenerationsByPID[pid] ?? 0 }
+    }
+
+    fileprivate static func currentActivationGeneration() -> UInt64 {
+        activationLock.withLock { activationGeneration }
     }
 
     static func isCurrentActivation(_ generation: UInt64) -> Bool {
@@ -690,7 +780,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return false }
 
         var minimized: CFTypeRef?
         if AXUIElementCopyAttributeValue(axWindow, kAXMinimizedAttribute as CFString, &minimized) == .success,
@@ -720,6 +810,8 @@ enum WindowActivator {
                                                             sourceWindowID: sourceWindowID),
               let sourcePID,
               let sourceWindowID,
+              !SpaceWindowBridge.isParkedOnHiddenSpace(sourceWindowID),
+              !SpaceWindowBridge.isParkedOnHiddenSpace(targetWindowID),
               Permissions.shared.accessibility else { return false }
 
         let sourceApp = AXUIElementCreateApplication(sourceWindowOwnerPID ?? sourcePID)
@@ -749,7 +841,7 @@ enum WindowActivator {
         guard Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return false }
 
         var minimized: CFTypeRef?
         if AXUIElementCopyAttributeValue(axWindow, kAXMinimizedAttribute as CFString, &minimized) == .success,
@@ -766,6 +858,23 @@ enum WindowActivator {
         AXUIElementSetAttributeValue(axWindow, kAXMainAttribute as CFString, kCFBooleanTrue)
         AXUIElementSetAttributeValue(axWindow, kAXFocusedAttribute as CFString, kCFBooleanTrue)
         return raised == .success
+    }
+
+    /// Ask the exact hidden-Space window to travel before application activation
+    /// or synthetic input can select a sibling. Success acknowledges the raise;
+    /// SpaceHop still verifies arrival and falls back if no travel takes place.
+    static func raiseWindowOnHiddenSpace(windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard Permissions.shared.accessibility,
+              pid > 0, pid != ProcessInfo.processInfo.processIdentifier else { return false }
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return false }
+        AXUIElementSetMessagingTimeout(axWindow, 0.35)
+        AXUIElementSetAttributeValue(axApp, kAXMainWindowAttribute as CFString, axWindow)
+        AXUIElementSetAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, axWindow)
+        AXUIElementSetAttributeValue(axWindow, kAXMainAttribute as CFString, kCFBooleanTrue)
+        AXUIElementSetAttributeValue(axWindow, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        return AXUIElementPerformAction(axWindow, kAXRaiseAction as CFString) == .success
     }
 
     /// Every window the owner has right now, in the scope the retry guard
@@ -803,18 +912,8 @@ enum WindowActivator {
                     windowOwnerPID: windowOwnerPID)
     }
 
-    private static func axElement(windowID: CGWindowID, in axApp: AXUIElement) -> AXUIElement? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value) == .success,
-              let axWindows = value as? [AXUIElement]
-        else { return nil }
-
-        for axWindow in axWindows {
-            if AXWindowResolver.windowID(for: axWindow) == windowID {
-                return axWindow
-            }
-        }
-        return nil
+    private static func axElement(windowID: CGWindowID, in axApp: AXUIElement, pid: pid_t? = nil) -> AXUIElement? {
+        AXWindowResolver.element(for: windowID, in: axApp, pid: pid)
     }
 
     fileprivate static func axElementForMinimizeRestore(windowID: CGWindowID, in axApp: AXUIElement) -> AXUIElement? {
@@ -850,18 +949,28 @@ enum WindowActivator {
     }
 }
 
-/// Lives only while one explicit close request is travelling to another Space.
-/// The existing Space hop owns the transition; this object merely waits for
-/// the exact window to become reachable and then uses the normal close path.
+/// Waits for an explicit close to become possible, then observes its result.
+/// A delivered request is never repeated. A remaining off-Space or hidden
+/// window is revealed so the user can answer its save dialog.
 fileprivate final class SwitcherPendingWindowClose {
     private static let pollInterval: TimeInterval = 0.1
     private static let timeout: TimeInterval = 4.0
+    private static let closeResultGrace: TimeInterval = 0.7
 
     private let item: SwitcherItem
     private let restoresHiddenApp: Bool
     fileprivate let usesSpaceHop: Bool
+    private let leavesFullscreen: Bool
+    private let observesCloseResult: Bool
     private let completion: (Bool) -> Void
     private let deadline: DispatchTime
+    private var closeWasRequested: Bool
+    private var closeResultDeadline: DispatchTime?
+    private var windowWasClosed = false
+    private var generation: UInt64
+    private let foregroundPID: pid_t?
+    private let foregroundWindowID: CGWindowID?
+    private var focusWasSuperseded = false
     private var completed = false
     private var revealGeneration: UInt64?
     private var activationObserver: NSObjectProtocol?
@@ -871,10 +980,23 @@ fileprivate final class SwitcherPendingWindowClose {
     init(item: SwitcherItem,
          restoresHiddenApp: Bool,
          usesSpaceHop: Bool,
+         leavesFullscreen: Bool = false,
+         observesCloseResult: Bool,
+         closeWasRequested: Bool = false,
+         generation: UInt64,
+         foregroundPID: pid_t?,
+         foregroundWindowID: CGWindowID?,
          completion: @escaping (Bool) -> Void) {
         self.item = item
         self.restoresHiddenApp = restoresHiddenApp
         self.usesSpaceHop = usesSpaceHop
+        self.leavesFullscreen = leavesFullscreen
+        self.observesCloseResult = observesCloseResult
+        self.closeWasRequested = closeWasRequested
+        self.closeResultDeadline = closeWasRequested ? .now() + Self.closeResultGrace : nil
+        self.generation = generation
+        self.foregroundPID = foregroundPID
+        self.foregroundWindowID = foregroundWindowID
         self.completion = completion
         self.deadline = .now() + Self.timeout
         self.observedExpectedActivation = !usesSpaceHop
@@ -888,8 +1010,13 @@ fileprivate final class SwitcherPendingWindowClose {
         ) { [weak self] notification in
             guard let self,
                   let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
-                    as? NSRunningApplication,
-                  app.processIdentifier == self.item.pid else { return }
+                    as? NSRunningApplication else { return }
+            let pid = app.processIdentifier
+            if pid != self.foregroundPID, pid != self.item.pid,
+               pid != ProcessInfo.processInfo.processIdentifier {
+                self.focusWasSuperseded = true
+            }
+            guard pid == self.item.pid else { return }
             if self.observedExpectedActivation {
                 self.appWasReactivated = true
             } else {
@@ -898,7 +1025,8 @@ fileprivate final class SwitcherPendingWindowClose {
         }
         if usesSpaceHop {
             WindowActivator.activate(item, retry: false)
-        } else {
+            generation = WindowActivator.currentActivationGeneration()
+        } else if restoresHiddenApp {
             NSRunningApplication(processIdentifier: item.pid)?.unhide()
         }
         revealGeneration = WindowActivator.activationGeneration(for: item.pid)
@@ -916,7 +1044,7 @@ fileprivate final class SwitcherPendingWindowClose {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
             self.activationObserver = nil
         }
-        if restoresHiddenApp,
+        if restoresHiddenApp, !closeWasRequested || windowWasClosed,
            let revealGeneration,
            SwitcherSupport.shouldRestoreHiddenApp(
                revealGeneration: revealGeneration,
@@ -934,17 +1062,53 @@ fileprivate final class SwitcherPendingWindowClose {
     private func poll() {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.pollInterval) { [weak self] in
             guard let self, !self.completed, let windowID = self.item.windowID else { return }
-            if !SpaceWindowBridge.isParkedOnHiddenSpace(windowID),
+            if self.closeWasRequested {
+                if WindowActivator.windowExistsForClose(windowID: windowID, ownerPID: self.item.windowOwnerPID) == false {
+                    self.windowWasClosed = true
+                    WindowActivator.finishPendingWindowClose(self, success: true)
+                } else if let deadline = self.closeResultDeadline, DispatchTime.now() < deadline {
+                    self.poll()
+                } else {
+                    let canReveal = self.canRevealRemainingWindow()
+                    let finished = WindowActivator.finishPendingWindowClose(self, success: true)
+                    // Finish first: cancelling the old hop must not cancel the
+                    // new hop, and completion may supersede this request.
+                    if canReveal, finished, self.canRevealRemainingWindow() {
+                        WindowActivator.activate(self.item, retry: false)
+                    }
+                }
+                return
+            }
+            guard DispatchTime.now() < self.deadline else {
+                WindowActivator.finishPendingWindowClose(self, success: false)
+                return
+            }
+            // A window leaving fullscreen closes wherever it lands, once its
+            // close button is enabled again.
+            if self.leavesFullscreen || !SpaceWindowBridge.isParkedOnHiddenSpace(windowID),
                WindowActivator.closeWindow(windowID: windowID,
                                            appPID: self.item.pid,
                                            windowOwnerPID: self.item.windowOwnerPID) {
-                WindowActivator.finishPendingWindowClose(self, success: true)
-            } else if DispatchTime.now() < self.deadline {
-                self.poll()
+                self.closeWasRequested = true
+                if self.observesCloseResult {
+                    self.closeResultDeadline = .now() + Self.closeResultGrace
+                    self.poll()
+                } else {
+                    WindowActivator.finishPendingWindowClose(self, success: true)
+                }
             } else {
-                WindowActivator.finishPendingWindowClose(self, success: false)
+                self.poll()
             }
         }
+    }
+
+    private func canRevealRemainingWindow() -> Bool {
+        guard !focusWasSuperseded, !appWasReactivated, WindowActivator.isCurrentActivation(generation),
+              let foregroundPID, let foregroundWindowID,
+              NSWorkspace.shared.frontmostApplication?.processIdentifier == foregroundPID else { return false }
+        // Native selection of another window in the same app does not change
+        // our activation generation or send an app activation notification.
+        return WindowActivator.focusedWindowID(for: foregroundPID) == foregroundWindowID
     }
 }
 

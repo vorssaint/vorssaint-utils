@@ -3,6 +3,7 @@
 
 import AVFoundation
 import CoreMedia
+import os.log
 import VideoToolbox
 
 /// Writes the master file a recording produces: the pixels exactly as they
@@ -18,6 +19,8 @@ final class RecorderWriter {
 
     private static let preparationQueue = DispatchQueue(label: "com.vorssaint.recorder.prepare",
                                                          qos: .userInitiated)
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                    category: "recorder")
 
     /// Encoder discovery can wait for VideoToolbox. Keep it off the UI thread
     /// and return a fully prepared writer before any capture starts.
@@ -54,6 +57,7 @@ final class RecorderWriter {
     private var lastVideoTime: CMTime = .zero
     private var started = false
     private var failed = false
+    private var loggedInvalidAudio = false
 
     /// Frames actually written, so a recording that produced nothing can be
     /// reported as a failure instead of leaving an unplayable file behind.
@@ -249,7 +253,10 @@ final class RecorderWriter {
             guard
                   let interleaved = Self.interleavedAudioSample(sampleBuffer, converter: &systemAudioConverter),
                   let retimed = RecorderSampleTiming.retimed(interleaved, to: shifted)
-            else { return .dropped }
+            else {
+                reportInvalidAudio(kind)
+                return .dropped
+            }
             guard systemAudioInput.append(retimed) else {
                 failed = true
                 return .dropped
@@ -261,7 +268,10 @@ final class RecorderWriter {
             guard
                   let interleaved = Self.interleavedAudioSample(sampleBuffer, converter: &microphoneConverter),
                   let retimed = RecorderSampleTiming.retimed(interleaved, to: shifted)
-            else { return .dropped }
+            else {
+                reportInvalidAudio(kind)
+                return .dropped
+            }
             guard microphoneInput.append(retimed) else {
                 failed = true
                 return .dropped
@@ -270,40 +280,56 @@ final class RecorderWriter {
         }
     }
 
-    /// The encoder cannot switch between one PCM buffer and a buffer per
-    /// channel mid-recording. Interleave captured audio without resampling
-    /// or remixing it, keeping the device's timing and channel layout intact.
-    private static func interleavedAudioSample(_ sample: CMSampleBuffer,
-                                               converter: inout AVAudioConverter?) -> CMSampleBuffer? {
-        guard let description = CMSampleBufferGetFormatDescription(sample),
+    private func reportInvalidAudio(_ kind: RecorderCaptureEngine.Kind) {
+        guard !loggedInvalidAudio else { return }
+        loggedInvalidAudio = true
+        Self.log.error("Dropping invalid or unsupported recorder audio from \(String(describing: kind), privacy: .public)")
+    }
+
+    /// Give the encoder consistent Float32 PCM, including integer and mono
+    /// inputs. Preserve the device's timing, sample rate and channel layout.
+    static func interleavedAudioSample(_ sample: CMSampleBuffer,
+                                       converter: inout AVAudioConverter?) -> CMSampleBuffer? {
+        let sampleCount = CMSampleBufferGetNumSamples(sample)
+        guard CMSampleBufferDataIsReady(sample),
+              let description = CMSampleBufferGetFormatDescription(sample),
               var asbd = CMAudioFormatDescriptionGetStreamBasicDescription(description)?.pointee,
               asbd.mFormatID == kAudioFormatLinearPCM,
-              asbd.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0,
-              asbd.mChannelsPerFrame > 1 else { return sample }
+              asbd.mSampleRate.isFinite, asbd.mSampleRate > 0,
+              asbd.mChannelsPerFrame > 0, asbd.mBytesPerFrame > 0,
+              let count = AVAudioFrameCount(exactly: sampleCount), count > 0,
+              let frameCount = Int32(exactly: sampleCount) else { return nil }
+        let (byteCount, overflow) = count.multipliedReportingOverflow(by: asbd.mBytesPerFrame)
+        guard !overflow else { return nil }
+        let planar = asbd.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0
+        // A CMBlockBuffer may include alignment padding between channels.
+        // Check the actual audio buffers, not the allocation's total length.
+        let valid = try? sample.withAudioBufferList(blockBufferMemoryAllocator: nil, flags: []) { list, _ in
+            list.count == (planar ? Int(asbd.mChannelsPerFrame) : 1)
+                && list.allSatisfy {
+                    $0.mNumberChannels == (planar ? 1 : asbd.mChannelsPerFrame)
+                        && $0.mData != nil && $0.mDataByteSize == byteCount
+                }
+        }
+        guard valid == true else { return nil }
         // Some devices omit speaker labels for their discrete input channels.
         // AVAudioFormat requires a layout above stereo; preserve their order.
         let sourceLayout = CMAudioFormatDescriptionGetChannelLayout(description, sizeOut: nil)
             .map { AVAudioChannelLayout(layout: $0) }
-            ?? AVAudioChannelLayout(layoutTag: asbd.mChannelsPerFrame == 2
-                ? kAudioChannelLayoutTag_Stereo
-                : kAudioChannelLayoutTag_DiscreteInOrder | asbd.mChannelsPerFrame)
-        guard let sourceFormat = AVAudioFormat(streamDescription: &asbd, channelLayout: sourceLayout)
+            ?? AVAudioChannelLayout(layoutTag: asbd.mChannelsPerFrame == 1
+                ? kAudioChannelLayoutTag_Mono
+                : asbd.mChannelsPerFrame == 2 ? kAudioChannelLayoutTag_Stereo
+                    : kAudioChannelLayoutTag_DiscreteInOrder | asbd.mChannelsPerFrame)
+        guard let sourceLayout,
+              let sourceFormat = AVAudioFormat(streamDescription: &asbd, channelLayout: sourceLayout)
         else { return nil }
+        if sourceFormat.commonFormat == .pcmFormatFloat32, !planar { return sample }
         if converter?.inputFormat != sourceFormat {
-            let (bytesPerFrame, frameOverflow) = asbd.mBytesPerFrame.multipliedReportingOverflow(by: asbd.mChannelsPerFrame)
-            let (bytesPerPacket, packetOverflow) = asbd.mBytesPerPacket.multipliedReportingOverflow(by: asbd.mChannelsPerFrame)
-            guard !frameOverflow, !packetOverflow else { return nil }
-            asbd.mFormatFlags &= ~kAudioFormatFlagIsNonInterleaved
-            asbd.mBytesPerFrame = bytesPerFrame
-            asbd.mBytesPerPacket = bytesPerPacket
-            guard let outputFormat = AVAudioFormat(streamDescription: &asbd, channelLayout: sourceFormat.channelLayout)
-            else { return nil }
+            let outputFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+                sampleRate: asbd.mSampleRate, interleaved: true, channelLayout: sourceLayout)
             converter = AVAudioConverter(from: sourceFormat, to: outputFormat)
         }
-        let sampleCount = CMSampleBufferGetNumSamples(sample)
         guard let converter,
-              let count = AVAudioFrameCount(exactly: sampleCount), count > 0,
-              let frameCount = Int32(exactly: sampleCount),
               let input = AVAudioPCMBuffer(pcmFormat: sourceFormat, frameCapacity: count),
               let output = AVAudioPCMBuffer(pcmFormat: converter.outputFormat, frameCapacity: count)
         else { return nil }
