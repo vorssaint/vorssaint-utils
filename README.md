@@ -166,6 +166,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Keep awake.** Keep your Mac working on a timer, with the lid closed, or while selected apps, power or external displays are present.
 - **Displays.** Control individual displays and brightness, with hardware control where supported, half or quarter steps for the brightness keys, optional extra dimming below a monitor's minimum, and software dimming as a fallback.
 - **Extra brightness.** Use a MacBook Pro XDR display's HDR headroom to go beyond its normal maximum brightness.
+- **Ambient light mode.** Install it from Features → Energy and display. Its Energy settings card shows the current ambient light and chosen trigger level together, with a 10-step slider and a live input meter beside the current lux reading. Presets are 10, 25, 50, 100, 200, 400, 700, 1,000, 3,000, and 10,000 lux, giving most of the slider to indoor lighting and its upper end to daylight (10,000 by default). Existing custom thresholds are preserved until the slider is adjusted. Choose Dark or Light as the default below the trigger; at or above it the opposite appearance applies. Four seconds of steady readings are required for each transition. While enabled, the feature controls system appearance. Requires a readable built-in ambient light sensor; monitoring pauses during sleep and stops when disabled.
 - **Bluetooth on sleep.** Disconnect Bluetooth during sleep and restore it on wake only if Vorssaint turned it off.
 
 ## Install
