@@ -536,6 +536,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Switcher/WindowServerCaptureQueue.swift
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift
+        Sources/Vorssaint/Services/Switcher/AppWindowTravelSupport.swift
         Sources/Vorssaint/Services/Switcher/WindowUseOrder.swift
         Sources/Vorssaint/Services/Metrics/MetricFormat.swift
         Sources/Vorssaint/Services/Metrics/VMStatisticsDecoder.swift

@@ -160,6 +160,7 @@ enum CommandBarFeatureTests {
         CommandBarAppSortContract.run(suite)
         CommandBarKillProcessOrderContract.run(suite)
         CommandBarDropletContract.run(suite)
+        CommandBarReturnKeysContract.run(suite)
         let isCodeLine: (String) -> Bool = {
             !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
         }
@@ -3286,5 +3287,84 @@ enum CommandBarDropletContract {
         let fade = reveal.range(of: "self.fadeOut(current)")
         suite.expect(shown != nil && fade != nil && shown!.lowerBound < fade!.lowerBound,
                      "a landed drop hands over to the bar as is, then fades off it")
+    }
+}
+
+enum CommandBarReturnKeysContract {
+    static func run(_ suite: TestSuite) {
+        let defaults = CommandBarReturnKeys(bringsHere: true, newInstance: .shift)
+        suite.expect(defaults.action(for: nil) == .bringHere
+                        && defaults.action(for: .shift) == .newInstance
+                        && defaults.action(for: .option) == nil
+                        && defaults.action(for: .control) == nil,
+                     "Return brings here and Shift opens a new instance")
+
+        let off = CommandBarReturnKeys(bringsHere: false, newInstance: nil)
+        suite.expect(CommandBarReturnModifier.allCases.allSatisfy { off.action(for: $0) == nil }
+                        && off.action(for: nil) == nil,
+                     "switched-off actions leave every Return to the row itself")
+        suite.expect(off.hints(windowIsElsewhere: true, canMoveHere: true, appIsRunning: true).isEmpty,
+                     "switched-off actions show no hints")
+
+        let remapped = CommandBarReturnKeys(bringsHere: true, newInstance: .option)
+        suite.expect(remapped.action(for: .option) == .newInstance && remapped.action(for: .shift) == nil,
+                     "a remapped modifier follows the settings")
+
+        suite.expect(defaults.hints(windowIsElsewhere: true, canMoveHere: true, appIsRunning: true)
+                        == [CommandBarReturnHint(action: .bringHere, modifier: nil),
+                            CommandBarReturnHint(action: .newInstance, modifier: .shift)],
+                     "a running app away on another desktop shows both hints in order")
+        suite.expect(defaults.hints(windowIsElsewhere: false, canMoveHere: false, appIsRunning: true)
+                        == [CommandBarReturnHint(action: .newInstance, modifier: .shift)],
+                     "an app already in view offers only a new instance")
+        suite.expect(defaults.hints(windowIsElsewhere: true, canMoveHere: false, appIsRunning: false).isEmpty,
+                     "a window that cannot be moved offers no hint")
+        suite.expect(defaults.hints(windowIsElsewhere: false, canMoveHere: false, appIsRunning: false).isEmpty,
+                     "an app that is not running shows no hints")
+
+        let registered = Defaults.registeredDefaults
+        suite.expect(registered[DefaultsKey.commandBarBringWindowHere] as? Bool == false
+                        && registered[DefaultsKey.commandBarNewInstanceEnabled] as? Bool == false
+                        && registered[DefaultsKey.commandBarNewInstanceModifier] as? String == "shift",
+                     "the Return actions start off, ready on Shift")
+        suite.expect(!off.travelsWindows && defaults.travelsWindows
+                        && !CommandBarReturnKeys(bringsHere: false, newInstance: .shift).travelsWindows,
+                     "only bringing a window here needs window travel")
+        suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [
+                        DefaultsKey.commandBarBringWindowHere, DefaultsKey.commandBarNewInstanceEnabled,
+                        DefaultsKey.commandBarNewInstanceModifier]),
+                     "the Return actions travel with a settings backup")
+
+        let youTube: [String: Any] = ["CrAppModeShortcutID": "agimnkijcaahngcdmfeangaknmldooml",
+                                      "CrBundleIdentifier": "com.brave.Browser"]
+        suite.expect(CommandBarNewInstance.plan(info: youTube)
+                        == .webApp(browserBundleID: "com.brave.Browser",
+                                   arguments: ["--app-id=agimnkijcaahngcdmfeangaknmldooml", "--new-window"]),
+                     "a browser's web app opens a new window through the browser that installed it")
+        suite.expect(CommandBarNewInstance.plan(info: ["CrAppModeShortcutID": "abc",
+                                                       "CrBundleIdentifier": "com.google.Chrome"])
+                        == .webApp(browserBundleID: "com.google.Chrome", arguments: ["--app-id=abc", "--new-window"]),
+                     "any Chromium browser named by the web app is used")
+        suite.expect(CommandBarNewInstance.plan(info: ["CFBundleIdentifier": "com.mitchellh.ghostty"]) == .secondCopy,
+                     "an ordinary app gets a second copy")
+        suite.expect(CommandBarNewInstance.plan(info: ["CrAppModeShortcutID": "abc"]) == .secondCopy
+                        && CommandBarNewInstance.plan(info: ["CrBundleIdentifier": "com.brave.Browser"]) == .secondCopy,
+                     "a web app missing its id or its browser gets a second copy")
+        suite.expect(CommandBarNewInstance.plan(info: ["CrAppModeShortcutID": "abc --incognito",
+                                                       "CrBundleIdentifier": "com.brave.Browser"]) == .secondCopy
+                        && CommandBarNewInstance.plan(info: ["CrAppModeShortcutID": "ABC",
+                                                             "CrBundleIdentifier": "com.brave.Browser"]) == .secondCopy,
+                     "an id that is not a Chromium app id never reaches the browser's arguments")
+
+        suite.expect(CommandBarNewInstance.secondCopyAppeared(before: [10], after: [10, 11]),
+                     "a new process is the second copy")
+        suite.expect(!CommandBarNewInstance.secondCopyAppeared(before: [10], after: [10])
+                        && !CommandBarNewInstance.secondCopyAppeared(before: [10], after: []),
+                     "a second copy that handed off and quit counts as refused")
+
+        suite.expect(CommandBarNewInstance.newWindowItem(shortcuts: [nil, "⌘T", "⇧⌘N", "⌘N", "⌘N"]) == 3,
+                     "the first plain Command-N item is the new window")
+        suite.expect(CommandBarNewInstance.newWindowItem(shortcuts: ["⌘O", nil, "⌥⌘N"]) == nil,
+                     "an app without Command-N has no new window to press")
     }
 }

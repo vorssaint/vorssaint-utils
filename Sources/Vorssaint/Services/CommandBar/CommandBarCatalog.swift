@@ -1049,6 +1049,22 @@ enum CommandBarCatalog {
                 isActive: isRunning,
                 revealPath: app.url.path,
                 run: { _ in
+                    let service = CommandBarService.shared
+                    let generation = WindowActivator.supersedePendingActivations()
+                    if CommandBarReturnKeys().bringsHere,
+                       let running = service.runningApplication(for: app),
+                       let windowID = AppWindowTravel.travelTarget(for: running) {
+                        let screen = service.runScreen
+                        let handoffSourcePID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                        afterBeat(0.1) {
+                            guard WindowActivator.isCurrentActivation(generation) else { return }
+                            AppWindowTravel.bringHere(pid: running.processIdentifier, windowID: windowID,
+                                                      appName: running.localizedName ?? app.name,
+                                                      screen: screen, handoffSourcePID: handoffSourcePID,
+                                                      activationGeneration: generation, requiresAllWindowsHidden: true)
+                        }
+                        return
+                    }
                     NSWorkspace.shared.openApplication(at: app.url,
                                                        configuration: NSWorkspace.OpenConfiguration()) { _, error in
                         if error != nil { DispatchQueue.main.async { NSSound.beep() } }
@@ -1229,11 +1245,17 @@ enum CommandBarCatalog {
                     // is still the app in front, and a switch during the delay
                     // must not become the handoff source for a later reclaim.
                     let handoffSourcePID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                    let generation = WindowActivator.supersedePendingActivations()
+                    let screen = CommandBarService.shared.runScreen
                     afterBeat(0.1) {
-                        WindowActivator.activate(pid: pid,
-                                                 windowID: windowID,
-                                                 appName: appName,
-                                                 handoffSourcePID: handoffSourcePID)
+                        guard WindowActivator.isCurrentActivation(generation) else { return }
+                        guard let windowID, CommandBarReturnKeys().bringsHere else {
+                            return WindowActivator.activate(pid: pid, windowID: windowID, appName: appName,
+                                                            handoffSourcePID: handoffSourcePID)
+                        }
+                        AppWindowTravel.bringHere(pid: pid, windowID: windowID, appName: appName,
+                                                  screen: screen, handoffSourcePID: handoffSourcePID,
+                                                  activationGeneration: generation)
                     }
                 })
         }

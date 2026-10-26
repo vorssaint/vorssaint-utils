@@ -133,7 +133,10 @@ final class WindowUseTracker {
     /// The history feeds the switcher and Window Layout's "every app" actions;
     /// with both features off in the hub, nothing observes anything.
     func syncWithFeatures() {
-        if AppFeature.switcher.isAvailable || AppFeature.windowLayout.isAvailable {
+        let keys = CommandBarReturnKeys(defaults: UserDefaults.standard)
+        let commandBarNeedsHistory = AppFeature.commandBar.isAvailable
+            && Permissions.shared.accessibility && keys.travelsWindows
+        if AppFeature.switcher.isAvailable || AppFeature.windowLayout.isAvailable || commandBarNeedsHistory {
             start()
         } else {
             stop()

@@ -1199,15 +1199,51 @@ struct CommandBarView: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
             }
-            Image(systemName: "return")
-                .font(.system(size: 8))
-                .foregroundStyle(.tertiary)
+            let returnHints = service.returnHints
+            if !returnHints.contains(where: { $0.modifier == nil }) {
+                Image(systemName: "return")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+            }
+            if !returnHints.isEmpty {
+                // Named while they fit; a narrow bar keeps only the keys.
+                ViewThatFits(in: .horizontal) {
+                    returnHintRow(returnHints, titled: true)
+                    returnHintRow(returnHints, titled: false)
+                }
+            }
             Text("Esc")
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+    }
+
+    private func returnHintRow(_ hints: [CommandBarReturnHint], titled: Bool) -> some View {
+        HStack(spacing: 5) {
+            ForEach(hints, id: \.action) { hint in
+                Text((hint.modifier?.glyph ?? "") + "↩")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.tertiary)
+                    .help(returnHintTitle(hint.action))
+                if titled {
+                    Text(returnHintTitle(hint.action))
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .padding(.trailing, 4)
+                }
+            }
+        }
+        .fixedSize()
+    }
+
+    private func returnHintTitle(_ action: CommandBarReturnAction) -> String {
+        switch action {
+        case .bringHere: return text.returnHintBringHere
+        case .newInstance: return text.returnHintNewInstance
+        }
     }
 }
 

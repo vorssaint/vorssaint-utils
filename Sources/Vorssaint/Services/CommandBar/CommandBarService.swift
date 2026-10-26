@@ -9,7 +9,7 @@ import SwiftUI
 /// finds and runs everything the app can do. The panel never activates, so
 /// the app the person was using keeps focus the whole time; actions that type
 /// or paste land exactly where the caret already is. Closed, it keeps one
-/// prepared panel, with no polling or observers.
+/// prepared panel, with no polling or observers unless window travel is on.
 final class CommandBarService: ObservableObject {
     static let shared = CommandBarService()
 
@@ -42,6 +42,12 @@ final class CommandBarService: ObservableObject {
             }
         }
 
+    }
+
+    struct WindowRowTarget {
+        let pid: pid_t
+        let windowID: CGWindowID
+        let appName: String
     }
 
     /// One line in the actions list.
@@ -234,6 +240,10 @@ final class CommandBarService: ObservableObject {
     /// has not moved must not steal the selection from the keyboard.
     private var lastPointerLocation = NSPoint.zero
     private var panelScreen: NSRect?
+    private(set) var runScreen: NSScreen?
+    private var windowRowTargets: [String: WindowRowTarget] = [:]
+    private var windowTravelEntryID: String?
+    private var returnHintsCache: (entryID: String, hints: [CommandBarReturnHint])?
     /// The island's panel while the bar is open inside it.
     private weak var islandHost: NSPanel?
     /// Where the drop leaves the island, read as the bar takes the keyboard.
@@ -268,6 +278,8 @@ final class CommandBarService: ObservableObject {
     // MARK: - Lifecycle
 
     func syncWithPreferences() {
+        WindowUseTracker.shared.syncWithFeatures()
+        returnHintsCache = nil
         let available = AppFeature.commandBar.isAvailable
         let enabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarShortcutEnabled)
@@ -567,6 +579,7 @@ final class CommandBarService: ObservableObject {
         let presented = presentation
         presentation = .window
         let dropped = presented == .droplet ? panel?.frame : nil
+        returnHintsCache = nil
         if AppFeature.textSnippets.isAvailable {
             TextSnippetService.shared.setCommandBarVisible(false)
         }
@@ -920,6 +933,7 @@ final class CommandBarService: ObservableObject {
                isHidden: running.isHidden,
                ownsFrontWindow: WindowServerSupport.frontWindowOwner(
                    in: WindowServerSupport.onScreenWindowInfo()) == running.processIdentifier) {
+            _ = WindowActivator.supersedePendingActivations()
             running.hide()
             return
         }
@@ -2101,6 +2115,16 @@ final class CommandBarService: ObservableObject {
     private func actions(for entry: CommandBarEntry) -> [RowAction] {
         let bar = FeatureStrings.commandBar(L10n.shared.language)
         var actions: [RowAction] = []
+        if case .actions = mode, windowTravelEntryID == entry.id {
+            if CommandBarReturnKeys().bringsHere, let target = hiddenWindowTarget(for: entry),
+               AppWindowTravel.canBringHere(target.windowID, to: barScreen) {
+                actions.append(RowAction(id: "bringWindowHere",
+                                         title: bar.actionBringWindowHere,
+                                         symbolName: "macwindow.and.cursorarrow") { [weak self] in
+                    self?.bringWindowHere(of: entry)
+                })
+            }
+        }
         if let app = installedApp(for: entry) {
             if let running = runningApplication(for: app) {
                 actions.append(RowAction(id: "quitApp",
@@ -2261,7 +2285,7 @@ final class CommandBarService: ObservableObject {
         return KillProcessService.shared.entries.first { $0.pid == pid }
     }
 
-    private func runningApplication(for app: InstalledApps.InstalledApp) -> NSRunningApplication? {
+    func runningApplication(for app: InstalledApps.InstalledApp) -> NSRunningApplication? {
         let running = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isTerminated
         }
@@ -2276,6 +2300,115 @@ final class CommandBarService: ObservableObject {
             return nil
         }
         return running.first { $0.bundleIdentifier == bundleID }
+    }
+
+    private var barScreen: NSScreen? {
+        guard isVisible, let panelScreen else { return NSScreen.withMouse }
+        return NSScreen.screens.first { $0.visibleFrame == panelScreen } ?? NSScreen.withMouse
+    }
+
+    private func hiddenWindowTarget(for entry: CommandBarEntry) -> WindowRowTarget? {
+        if let app = installedApp(for: entry) {
+            guard let running = runningApplication(for: app),
+                  let windowID = AppWindowTravel.travelTarget(for: running) else { return nil }
+            return WindowRowTarget(pid: running.processIdentifier, windowID: windowID,
+                                   appName: running.localizedName ?? app.name)
+        }
+        guard let target = windowRowTargets[entry.id],
+              SpaceWindowBridge.isParkedOnHiddenSpace(target.windowID) else { return nil }
+        return target
+    }
+
+    var returnHints: [CommandBarReturnHint] {
+        guard case .search = mode, let entry = selectedEntry else { return [] }
+        if let cache = returnHintsCache, cache.entryID == entry.id { return cache.hints }
+        let keys = CommandBarReturnKeys()
+        let target = keys.travelsWindows ? hiddenWindowTarget(for: entry) : nil
+        let hints = keys.hints(
+            windowIsElsewhere: target != nil,
+            canMoveHere: target.map { AppWindowTravel.canBringHere($0.windowID, to: barScreen) } ?? false,
+            appIsRunning: keys.newInstance != nil
+                && installedApp(for: entry).flatMap(runningApplication(for:)) != nil)
+        returnHintsCache = (entry.id, hints)
+        return hints
+    }
+
+    private func openNewInstance(of entry: CommandBarEntry) -> Bool {
+        guard let app = installedApp(for: entry), let running = runningApplication(for: app) else { return false }
+        let generation = WindowActivator.supersedePendingActivations()
+        recordUsage(of: entry)
+        hide()
+        if case .webApp(let browserBundleID, let arguments) =
+            CommandBarNewInstance.plan(info: Bundle(url: app.url)?.infoDictionary ?? [:]),
+           let browserURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browserBundleID) {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.createsNewApplicationInstance = true
+            configuration.arguments = arguments
+            NSWorkspace.shared.openApplication(at: browserURL, configuration: configuration) { _, error in
+                guard error != nil else { return }
+                DispatchQueue.main.async {
+                    Self.launchSecondCopy(of: app.url, running: running, activationGeneration: generation)
+                }
+            }
+        } else {
+            Self.launchSecondCopy(of: app.url, running: running, activationGeneration: generation)
+        }
+        return true
+    }
+
+    private static func launchSecondCopy(of url: URL, running: NSRunningApplication,
+                                         activationGeneration: UInt64) {
+        guard WindowActivator.isCurrentActivation(activationGeneration) else { return }
+        let before = copies(of: running)
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + CommandBarNewInstance.secondCopyGrace) {
+                guard WindowActivator.isCurrentActivation(activationGeneration) else { return }
+                guard !CommandBarNewInstance.secondCopyAppeared(before: before, after: copies(of: running))
+                else { return }
+                openNewWindow(in: running, activationGeneration: activationGeneration)
+            }
+        }
+    }
+
+    private static func copies(of running: NSRunningApplication) -> Set<pid_t> {
+        Set(NSWorkspace.shared.runningApplications
+            .filter { !$0.isTerminated && $0.bundleURL == running.bundleURL }
+            .map(\.processIdentifier))
+    }
+
+    private static func openNewWindow(in app: NSRunningApplication, activationGeneration: UInt64) {
+        guard WindowActivator.isCurrentActivation(activationGeneration) else { return }
+        guard !app.isTerminated else { return NSSound.beep() }
+        ActivationHandoff.yield(to: app)
+        if !app.activate(from: NSRunningApplication.current, options: []) {
+            app.activate()
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let items = CommandBarMenus.items(for: app.processIdentifier)
+            guard WindowActivator.isCurrentActivation(activationGeneration) else { return }
+            let pressed = CommandBarNewInstance.newWindowItem(shortcuts: items.map(\.shortcut))
+                .map { CommandBarMenus.press(items[$0]) } ?? false
+            if !pressed { DispatchQueue.main.async { NSSound.beep() } }
+        }
+    }
+
+    private func bringWindowHere(of entry: CommandBarEntry) {
+        guard let target = hiddenWindowTarget(for: entry) else { return finish(entry, value: nil) }
+        let generation = WindowActivator.supersedePendingActivations()
+        let requiresAllWindowsHidden = installedApp(for: entry) != nil
+        recordUsage(of: entry)
+        let screen = barScreen
+        let handoffSourcePID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        hide()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            guard WindowActivator.isCurrentActivation(generation) else { return }
+            AppWindowTravel.bringHere(pid: target.pid, windowID: target.windowID, appName: target.appName,
+                                      screen: screen, handoffSourcePID: handoffSourcePID,
+                                      activationGeneration: generation,
+                                      requiresAllWindowsHidden: requiresAllWindowsHidden)
+        }
     }
 
     private func quit(_ app: NSRunningApplication) {
@@ -2538,6 +2671,8 @@ final class CommandBarService: ObservableObject {
     func openActions() {
         guard canOpenActions, let entry = selectedEntry else { return }
         savedQuery = query
+        windowTravelEntryID = CommandBarReturnKeys().travelsWindows && hiddenWindowTarget(for: entry) != nil
+            ? entry.id : nil
         mode = .actions(entryID: entry.id)
         actionIndex = 0
         refreshPanelLayout()
@@ -2856,6 +2991,7 @@ final class CommandBarService: ObservableObject {
         // Handed over before hiding, which wipes the field and the selection.
         queryWhenRun = query
         selectionWhenRun = selectedText
+        runScreen = barScreen
         guard !entry.keepsBarOpen else {
             entry.run(value)
             return
@@ -3265,6 +3401,12 @@ final class CommandBarService: ObservableObject {
                 self.windowsLoadedAt = Date()
                 let bar = FeatureStrings.commandBar(L10n.shared.language)
                 self.windowEntries = CommandBarCatalog.windowEntries(windows, bar: bar)
+                self.returnHintsCache = nil
+                self.windowRowTargets = Dictionary(windows.compactMap { window in
+                    window.windowID.map {
+                        ("window.\(window.id)", WindowRowTarget(pid: window.pid, windowID: $0, appName: window.appName))
+                    }
+                }, uniquingKeysWith: { first, _ in first })
                 self.indexEntries()
                 self.refreshResults()
             }
@@ -3547,6 +3689,13 @@ final class CommandBarService: ObservableObject {
                     return nil
                 }
             }
+            if Int(event.keyCode) == kVK_Return || Int(event.keyCode) == kVK_ANSI_KeypadEnter,
+               case .search = self.mode, let entry = self.selectedEntry,
+               let modifier = CommandBarReturnModifier.allCases.first(where: { navigationModifiers == $0.flags }) {
+                if CommandBarReturnKeys().action(for: modifier) == .newInstance, self.openNewInstance(of: entry) {
+                    return nil
+                }
+            }
             // In a checklist, native controls own Tab, Space and arrows.
             // Only Return in the search field means the flow's primary action,
             // and only a fresh press: a Return still held from the app list
@@ -3712,6 +3861,16 @@ final class CommandBarService: ObservableObject {
         case kVK_ANSI_8, kVK_ANSI_Keypad8: return 7
         case kVK_ANSI_9, kVK_ANSI_Keypad9: return 8
         default: return nil
+        }
+    }
+}
+
+private extension CommandBarReturnModifier {
+    var flags: NSEvent.ModifierFlags {
+        switch self {
+        case .option: return .option
+        case .shift: return .shift
+        case .control: return .control
         }
     }
 }
