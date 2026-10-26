@@ -31,6 +31,8 @@ More reliable window switching, screenshots, audio and Settings, with safer fan 
 - The menu bar panel recovers from interrupted closes so later clicks can open it again.
 - Recent captures keeps its Clear history confirmation open and removes a pending confirmation when the palette closes.
 - The screenshot editor copies the latest edits when an earlier automatic copy is still pending.
+- Dynamic Island moves between displays without stretching, losing mouse input or restarting the music bars.
+- Volume keys advance supported USB outputs that round volume changes into fixed steps, and feedback follows the device's confirmed level.
 - Volume mixer preserves gain on supported multichannel outputs and rebuilds its audio capture when device formats or sample rates change.
 - Disk-space alerts refresh capacity readings and avoid treating a smaller capacity estimate as the only available free space.
 - System monitor recognizes the alternate M1 CPU sensor layout and the measured 14-core M4 Max configuration while preserving readings on other Max models.
@@ -52,7 +54,7 @@ More reliable window switching, screenshots, audio and Settings, with safer fan 
 - Screenshot area selection keeps its crosshair over other apps, and card shadows follow the captured window's own rounded corners.
 
 ### Contributors
-Thanks to @0miicr0n, @AB-boi, @ALaunert, @BerkUyku, @Blasted246, @buhbyehotmail, @derpyjoystick, @DigitalWestern, @dimashpt, @dimitarmanov, @dongzoor, @eliamarinen, @fablau, @Forenzo, @globeatin, @Goonwb, @hash00, @i0208, @ilvesBogdan, @iva-zhu, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @kidtaroi, @Likheet, @LJXXXD, @MartinSchlender, @Mikkeep, @mthsmb, @muratozturk5, @oc7opu5, @pedro-fontinele, @pedrozimmermannsoares, @raymondchins, @rochapaesc, @saarmiara, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz, @ve3dy and @ygh1254.
+Thanks to @0miicr0n, @AB-boi, @ALaunert, @BerkUyku, @Blasted246, @buhbyehotmail, @derpyjoystick, @DigitalWestern, @dimashpt, @dimitarmanov, @dongzoor, @eliamarinen, @EugeneCarldotme, @fablau, @Forenzo, @globeatin, @Goonwb, @hash00, @i0208, @ilvesBogdan, @iva-zhu, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @kidtaroi, @Likheet, @LJXXXD, @MartinSchlender, @Mikkeep, @mthsmb, @muratozturk5, @oc7opu5, @pedro-fontinele, @pedrozimmermannsoares, @raymondchins, @RKeyProg, @rochapaesc, @saarmiara, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz, @ve3dy and @ygh1254.
 
 ## [3.4.2] - 2026-10-21
 
