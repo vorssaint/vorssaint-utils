@@ -70,6 +70,12 @@ final class FanControlService: ObservableObject {
         }
     }
 
+    /// For surfaces other than Fan Control that use this daemon: an updated
+    /// helper is swapped in here, since only the fan panel would do it.
+    func refreshIfHelperOutdated() {
+        if Self.helperAwaitsRegistration { refresh() }
+    }
+
     func panelDidAppear() {
         panelIsVisible = true
         startObservingSystemState()

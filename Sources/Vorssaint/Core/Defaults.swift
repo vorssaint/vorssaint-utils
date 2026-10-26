@@ -423,7 +423,6 @@ enum DefaultsKey {
     static let monitorShowPower = "monitorShowPower"
     static let monitorShowMixer = "monitorShowMixer"
     static let panelShowFanControl = "panelShowFanControl"
-    static let panelShowBatteryChargeLimit = "panelShowBatteryChargeLimit"
     static let fanControlMode = "fanControlMode"
     static let fanControlCoolingLevel = "fanControlCoolingLevel"
     static let fanControlCurves = "fanControlCurves"
@@ -1674,7 +1673,6 @@ enum Defaults {
         DefaultsKey.monitorShowPower: true,
         DefaultsKey.monitorShowMixer: true,
         DefaultsKey.panelShowFanControl: true,
-        DefaultsKey.panelShowBatteryChargeLimit: true,
         DefaultsKey.fanControlMode: FanControlMode.system.rawValue,
         DefaultsKey.fanControlCoolingLevel: FanControlPolicy.defaultCoolingLevel,
         DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,

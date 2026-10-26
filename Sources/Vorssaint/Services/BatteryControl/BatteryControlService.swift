@@ -152,8 +152,10 @@ final class BatteryControlService: ObservableObject {
         guard accessState == .enabled else { return }
         // An app update can replace the helper binary while launchd still
         // pins the one from the last approval; the fan service owns that
-        // repair, and a daemon that stays unreachable is its cue.
+        // repair. Its cue is an update, or a daemon that stays unreachable:
+        // without Fan Control open, nothing else would swap the old helper.
         if error == .helperUnavailable { FanControlService.shared.refresh() }
+        FanControlService.shared.refreshIfHelperOutdated()
         // Just reached `enabled`: whatever the user configured before the
         // approval lands in the daemon now.
         if lastAccessState != .enabled { applyStoredConfiguration() }

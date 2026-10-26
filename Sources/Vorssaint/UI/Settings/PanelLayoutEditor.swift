@@ -128,9 +128,6 @@ private extension PanelSectionID {
         case .disk: return text.sectionDisks
         case .power: return text.sectionPower
         case .fanControl: return text.sectionFanControl
-        case .chargeLimit:
-            return BatteryControlFeatureStrings.batteryControl(L10n.shared.language)
-                .hubDescription
         case .utilities: return text.sectionUtilities
         case .controls: return text.sectionControls
         case .toggles: return text.sectionToggles

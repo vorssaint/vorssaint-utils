@@ -183,22 +183,12 @@ struct BatteryChargeLimitContent: View {
 
     // MARK: Panel layout
 
+    /// Sits inside the battery's own card (Power section and battery detail
+    /// page): limit slider on top, the switch and the live state under it.
+    /// Resume level and cycle mode only appear once the limit is on.
     private var panelLayout: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: statusIcon)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(enabled ? Color.green : Color.secondary)
-                    .frame(width: 24)
-                Text(statusText)
-                    .font(.system(size: 11.5, weight: .medium))
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                Toggle(strings.engage, isOn: enabledBinding)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
             if battery.accessState == .unavailable {
                 Text(strings.helperUnavailable)
                     .font(.system(size: 10.5))
@@ -213,56 +203,66 @@ struct BatteryChargeLimitContent: View {
                     .controlSize(.small)
                     .disabled(battery.isWorking)
             } else {
-                panelSlider(strings.limitLabel, symbol: "target", binding: upperBinding,
+                panelSlider(strings.limitLabel, binding: upperBinding,
                             in: Double(BatteryControlCore.minimumUpper)
                                 ... Double(BatteryControlCore.maximumUpper),
                             value: "\(upper)%")
-                panelSlider(strings.hysteresisLabel, symbol: "arrow.counterclockwise",
-                            binding: resumeBinding, in: resumeRange, value: "\(resume)%",
-                            disabled: !resumeAdjustable)
-                Divider()
+                if enabled {
+                    panelSlider(strings.hysteresisLabel, binding: resumeBinding,
+                                in: resumeRange, value: "\(resume)%",
+                                disabled: !resumeAdjustable)
+                }
+            }
+            HStack(spacing: 8) {
+                Toggle(strings.engage, isOn: enabledBinding)
+                    .font(.system(size: 12, weight: .medium))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                Spacer(minLength: 4)
+                Text(statusText)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            if enabled, battery.accessState == .enabled {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle(strings.dischargeLabel, isOn: dischargeBinding)
                         .font(.system(size: 10.5, weight: .medium))
                         .toggleStyle(.switch)
                         .controlSize(.mini)
-                        .disabled(!enabled || !dischargeAvailable)
+                        .disabled(!dischargeAvailable)
                     Text(dischargeAvailable ? strings.dischargeNote : strings.dischargeUnavailable)
                         .font(.system(size: 9.5))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if let statusNote {
-                    Text(statusNote)
-                        .font(.system(size: 9.5))
-                        .foregroundStyle(.secondary)
-                }
+            }
+            if let statusNote {
+                Text(statusNote)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    /// Same row the brightness section draws: icon, label and value above a
-    /// small slider.
-    private func panelSlider(_ title: String, symbol: String, binding: Binding<Double>,
+    /// Label and value above a slider, tinted green while the limit is on.
+    private func panelSlider(_ title: String, binding: Binding<Double>,
                              in range: ClosedRange<Double>, value: String,
                              disabled: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: symbol)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
                 Text(title)
-                    .font(.system(size: 11.5, weight: .medium))
-                    .lineLimit(1)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
                 Spacer(minLength: 4)
                 Text(value)
-                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(enabled ? Color.green : Color.secondary)
             }
-            Slider(value: binding, in: range, step: 1)
-                .controlSize(.small)
-                .disabled(!enabled || disabled)
+            ThickSlider(value: binding, range: range, tint: enabled ? .green : .secondary)
+                .disabled(disabled)
                 .accessibilityLabel(title)
                 .accessibilityValue(value)
         }
@@ -295,5 +295,47 @@ struct BatteryChargeLimitContent: View {
             return battery.snapshot.backend == .unsupported ? strings.unsupported : nil
         }
         return battery.error == .helperUnavailable ? strings.helperUnavailable : nil
+    }
+}
+
+/// A fat track with a round thumb, the way a charge dial reads at a glance;
+/// the stock small slider is too thin to grab in the menu panel.
+private struct ThickSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let tint: Color
+    @Environment(\.isEnabled) private var isEnabled
+
+    private let thumb: CGFloat = 18
+    private let track: CGFloat = 9
+
+    var body: some View {
+        GeometryReader { proxy in
+            let span = max(1, proxy.size.width - thumb)
+            let x = span * (value - range.lowerBound) / (range.upperBound - range.lowerBound)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.1)).frame(height: track)
+                Capsule().fill(tint).frame(width: x + thumb / 2, height: track)
+                Circle()
+                    .fill(Color.white)
+                    .overlay(Circle().stroke(tint, lineWidth: 2.5))
+                    .shadow(color: .black.opacity(0.2), radius: 1.5, y: 0.5)
+                    .frame(width: thumb, height: thumb)
+                    .offset(x: x)
+            }
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                let fraction = min(1, max(0, (drag.location.x - thumb / 2) / span))
+                value = (range.lowerBound + fraction * (range.upperBound - range.lowerBound)).rounded()
+            })
+        }
+        .frame(height: thumb + 2)
+        .opacity(isEnabled ? 1 : 0.45)
+        .accessibilityElement()
+        .accessibilityAdjustableAction { direction in
+            let next = value + (direction == .increment ? 1 : -1)
+            value = min(range.upperBound, max(range.lowerBound, next))
+        }
     }
 }
