@@ -248,6 +248,9 @@ enum DefaultsKey {
     // healthily for a while, or when it is quit properly. Found still set at
     // the next start, it means the previous one died on the way up.
     static let startupDidNotFinish = "startupDidNotFinish"
+    static let powerTimerMinutes = "powerTimerMinutes"
+    static let powerTimerAction = "powerTimerAction"
+    static let panelShowPowerTimer = "panelShowPowerTimer"
     static let bluetoothSleepEnabled = "bluetoothSleepEnabled"
     static let bluetoothSleepRestoreOnWake = "bluetoothSleepRestoreOnWake"
     // Set only while Vorssaint owes a Bluetooth restore, so a Mac shut down
@@ -1366,6 +1369,9 @@ enum Defaults {
         DefaultsKey.keyboardBrightnessShortcutsEnabled: false,
         DefaultsKey.keyboardBrightnessDecreaseShortcut: "option+command:27",
         DefaultsKey.keyboardBrightnessIncreaseShortcut: "option+command:24",
+        DefaultsKey.powerTimerMinutes: 30,
+        DefaultsKey.powerTimerAction: "sleep",
+        DefaultsKey.panelShowPowerTimer: true,
         DefaultsKey.bluetoothSleepEnabled: false,
         DefaultsKey.bluetoothSleepRestoreOnWake: true,
         DefaultsKey.bluetoothSleepRestorePending: false,

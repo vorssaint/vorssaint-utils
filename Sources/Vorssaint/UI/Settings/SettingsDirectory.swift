@@ -203,6 +203,10 @@ enum SettingsDirectory {
                                                         .pauseWhenLockedToggle,
                                                       FeatureStrings.keepAwakeDisplaySleep(language)
                                                         .allowDisplaySleep]),
+                                        (.powerTimer, [FeatureStrings.powerTimer(language).title,
+                                                       FeatureStrings.powerTimer(language).description,
+                                                       FeatureStrings.commandBar(language).powerSleep,
+                                                       FeatureStrings.commandBar(language).powerShutDown]),
                                         (.brightness, [FeatureStrings.brightness(language).pageTitle,
                                                        FeatureStrings.brightness(language).osdToggle,
                                                        FeatureStrings.brightness(language).keyStep,

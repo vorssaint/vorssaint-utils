@@ -163,6 +163,8 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 
 ### Energy and display
 
+- **Sleep and shutdown timer.** Schedule sleep or normal shutdown after 1–1440 minutes or at a date and time within 24 hours. The timer keeps the Mac awake until it ends, shows a countdown and can be cancelled. Sleep, quitting the app or removing the feature cancels it; it never returns after relaunch. Shutdown asks for System Events Automation access before arming, and apps with unsaved work can stop it. Install it from Features, then use its menu-panel section or Energy settings.
+
 - **Keep awake.** Keep your Mac working on a timer, with the lid closed, or while selected apps, power or external displays are present.
 - **Displays.** Control individual displays and brightness, with hardware control where supported, half or quarter steps for the brightness keys, optional extra dimming below a monitor's minimum, and software dimming as a fallback.
 - **Extra brightness.** Use a MacBook Pro XDR display's HDR headroom to go beyond its normal maximum brightness.

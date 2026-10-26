@@ -313,6 +313,7 @@ final class FeatureRuntime: ObservableObject {
             KeepAwakeManager.shared.syncWithFeatures()
             HotkeyManager.shared.syncWithPreferences()
         },
+        .powerTimer: { PowerTimerService.shared.syncWithFeatures() },
         .brightness: { BrightnessService.shared.syncWithPreferences() },
         .extraBrightness: { ExtraBrightnessService.shared.syncWithPreferences() },
         .bluetoothSleep: { BluetoothSleepService.shared.syncWithPreferences() },
