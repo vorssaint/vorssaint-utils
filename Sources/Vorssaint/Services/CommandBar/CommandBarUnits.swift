@@ -32,7 +32,7 @@ enum CommandBarUnits {
 
     /// Everything the bar can convert, grouped so two units only meet when
     /// they measure the same thing.
-    private enum Family {
+    enum Family: Equatable {
         case temperature, length, mass, data, duration, volume
     }
 
@@ -128,6 +128,20 @@ enum CommandBarUnits {
             return Result(formatted: formatted, value: converted.value)
         }
         return nil
+    }
+
+    static func family(of symbol: String) -> Family? {
+        lexicon[symbol.lowercased()]?.family
+    }
+
+    /// Typed Scratchpad values use the same unit table and formatter as launcher queries.
+    static func convert(value: Double, from source: String, to target: String, locale: Locale) -> Result? {
+        guard value.isFinite, let source = lexicon[source.lowercased()], let target = lexicon[target.lowercased()],
+              source.family == target.family else { return nil }
+        let measurement = Measurement(value: value, unit: source.unit).converted(to: target.unit)
+        guard measurement.value.isFinite else { return nil }
+        return Result(formatted: feetAndInches(measurement, locale: locale) ?? format(measurement, locale: locale),
+                      value: measurement.value)
     }
 
     /// Splits the input into folded tokens, pulling "100km" apart into a

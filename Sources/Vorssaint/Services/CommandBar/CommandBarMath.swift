@@ -19,6 +19,25 @@ enum CommandBarMath {
         let closingBrackets: String
     }
 
+    /// A complete numeric atom, without relaxing the launcher's expression guards.
+    static func literalValue(_ input: String, decimalSeparator: String = Locale.current.decimalSeparator ?? ".",
+                             groupingSeparator: String = Locale.current.groupingSeparator ?? ",") -> Double? {
+        guard input.count <= 120,
+              let tokens = tokenize(input, separators: Separators(decimalSeparator: decimalSeparator,
+                                                                  groupingSeparator: groupingSeparator)) else { return nil }
+        let sign: Double
+        let atom: Token
+        if tokens.count == 1 { sign = 1; atom = tokens[0] }
+        else if tokens.count == 2, tokens[0] == .minus || tokens[0] == .plus {
+            sign = tokens[0] == .minus ? -1 : 1
+            atom = tokens[1]
+        } else { return nil }
+        switch atom {
+        case .number(let value), .constant(let value): return value.isFinite ? sign * value : nil
+        default: return nil
+        }
+    }
+
     /// Evaluates a complete mathematical expression, supplying only missing
     /// closing brackets. Trigonometric functions use radians.
     static func evaluate(_ input: String,

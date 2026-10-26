@@ -12,6 +12,7 @@ struct QuickToolsSettings: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var cameraPreview = CameraPreviewService.shared
     @ObservedObject private var scratchpad = ScratchpadService.shared
+    @ObservedObject private var exchangeRates = ScratchpadExchangeRateService.shared
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
@@ -21,6 +22,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadCloseOnClickOutside) private var scratchpadCloseOnClickOutside = true
     @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var scratchpadBackgroundOpacity = 0.0
     @AppStorage(DefaultsKey.scratchpadTextSize) private var scratchpadTextSize = ScratchpadSupport.defaultTextSize
+    @AppStorage(DefaultsKey.scratchpadExchangeRatesEnabled) private var scratchpadExchangeRatesEnabled = false
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
 
@@ -246,6 +248,31 @@ struct QuickToolsSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle(scratchpadLabels[.exchangeRatesToggle],
+                               isOn: $scratchpadExchangeRatesEnabled)
+                            .onChange(of: scratchpadExchangeRatesEnabled) { _, enabled in
+                                if enabled { exchangeRates.refreshIfNeeded() }
+                            }
+                        Text(scratchpadLabels[.exchangeRatesCaption])
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            Text(exchangeRates.isRefreshing
+                                 ? scratchpadLabels[.updatingExchangeRates]
+                                 : exchangeRates.failed
+                                    ? scratchpadLabels[.exchangeRatesFailed]
+                                    : exchangeRateSummary)
+                                .font(.caption)
+                                .foregroundStyle(exchangeRates.failed ? .orange : .secondary)
+                                .lineLimit(2)
+                            Spacer()
+                            Button(scratchpadLabels[.updateExchangeRates]) {
+                                exchangeRates.refreshIfNeeded(force: true)
+                            }
+                            .disabled(exchangeRates.isRefreshing)
+                        }
+                    }
                     Toggle(l10n.s.quickToolShortcutToggle, isOn: $scratchpadShortcutEnabled)
                         .onChange(of: scratchpadShortcutEnabled) { _, _ in
                             ScratchpadService.shared.syncWithPreferences()
@@ -293,6 +320,17 @@ struct QuickToolsSettings: View {
             get: { ScratchpadSupport.sanitizedBackgroundOpacity(scratchpadBackgroundOpacity) },
             set: { scratchpadBackgroundOpacity = ScratchpadSupport.sanitizedBackgroundOpacity($0) }
         )
+    }
+
+    private var scratchpadLabels: ScratchpadLibraryStrings {
+        .init(language: l10n.language)
+    }
+
+    private var exchangeRateSummary: String {
+        guard let date = exchangeRates.rates.localizedDate(locale: l10n.language.formattingLocale()) else {
+            return scratchpadLabels[.builtInRates]
+        }
+        return String(format: scratchpadLabels[.ratesUpdated], date)
     }
 
     private var scratchpadTextSizeBinding: Binding<Double> {
