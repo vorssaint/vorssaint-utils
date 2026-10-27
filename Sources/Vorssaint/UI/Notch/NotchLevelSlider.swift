@@ -24,6 +24,9 @@ struct NotchLevelSlider: NSViewRepresentable {
     /// A level moved from outside, by a key, eases to its new place; the
     /// playback position and a drag follow at once.
     var easesChanges = false
+    /// A scroll over the bar moves the level; the playback position is not
+    /// scrolled, since each step would seek.
+    var scrollable = true
     var onEditingChanged: ((Bool) -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -34,7 +37,7 @@ struct NotchLevelSlider: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSSlider {
-        let slider = NSSlider()
+        let slider = NotchLevelControl()
         let cell = NotchLevelCell()
         cell.trackingChanged = { [weak coordinator = context.coordinator] editing in
             coordinator?.trackingChanged(editing)
@@ -63,6 +66,7 @@ struct NotchLevelSlider: NSViewRepresentable {
         if slider.minValue != lower { slider.minValue = lower }
         if slider.maxValue != upper { slider.maxValue = upper }
         if slider.isVertical != vertical { slider.isVertical = vertical }
+        (slider as? NotchLevelControl)?.scrollable = scrollable
         (slider.cell as? NotchLevelCell)?.fill = NSColor(tint)
         (slider.cell as? NotchLevelCell)?.marker = marker
         (slider.cell as? NotchLevelCell)?.trackThickness = trackThickness
@@ -127,7 +131,25 @@ struct NotchLevelSlider: NSViewRepresentable {
             slider.needsDisplay = true
         }
         @objc func changed(_ sender: NSSlider) {
+            stopEasing()
             editing.valueChanged({ parent.value = sender.doubleValue }, onEditingChanged: parent.onEditingChanged)
+        }
+    }
+}
+
+private final class NotchLevelControl: NSSlider {
+    var scrollable = true
+    private var scroll = SliderScroll()
+
+    override func scrollWheel(with event: NSEvent) {
+        guard scrollable, isEnabled, maxValue >= minValue else { return super.scrollWheel(with: event) }
+        switch scroll.handle(event, current: doubleValue, range: minValue...maxValue) {
+        case .pass: SliderScroll.pass(event, from: self)
+        case .hold: break
+        case .move(let value):
+            guard value != doubleValue else { return }
+            doubleValue = value
+            sendAction(action, to: target)
         }
     }
 }
