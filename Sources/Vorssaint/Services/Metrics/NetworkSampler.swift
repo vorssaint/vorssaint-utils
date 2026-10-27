@@ -3,6 +3,7 @@
 
 import Darwin
 import Foundation
+import SystemConfiguration
 
 /// One network reading: instantaneous speed plus session totals.
 struct NetworkReading {
@@ -43,7 +44,8 @@ final class NetworkSampler {
         }
         defer { previous = (counters, now) }
 
-        guard let prev = previous, now > prev.time, now - prev.time <= Self.maxGap else {
+        guard let prev = previous, now > prev.time, now - prev.time <= Self.maxGap,
+              counters.interfaces == prev.counters.interfaces else {
             counterFallback.reset()
             processDeltaTracker.reset()
             return NetworkReading(downBytesPerSec: nil, upBytesPerSec: nil,
@@ -92,7 +94,7 @@ final class NetworkSampler {
         total = addition.overflow ? UInt64.max : addition.partialValue
     }
 
-    /// Sums received/sent bytes across the physical interfaces via the routing
+    /// Sums received/sent bytes across the selected interfaces via the routing
     /// socket (`NET_RT_IFLIST2`), which reports 64-bit counters in `if_data64` —
     /// unlike `getifaddrs`, whose 32-bit counters wrap and corrupt totals.
     static func readCounters() -> NetworkCounters? {
@@ -107,7 +109,7 @@ final class NetworkSampler {
             return nil
         }
 
-        var result = NetworkCounters()
+        var byInterface: [String: NetworkCounters] = [:]
         buffer.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
             var offset = 0
@@ -125,15 +127,33 @@ final class NetworkSampler {
                     var nameBuffer = [CChar](repeating: 0, count: Int(IFNAMSIZ))
                     if if_indextoname(UInt32(info.ifm_index), &nameBuffer) != nil {
                         let name = String(cString: nameBuffer)
-                        if MetricFormat.includeNetworkInterface(name) {
-                            result.received += info.ifm_data.ifi_ibytes
-                            result.sent += info.ifm_data.ifi_obytes
-                        }
+                        byInterface[name] = NetworkCounters(received: info.ifm_data.ifi_ibytes,
+                                                            sent: info.ifm_data.ifi_obytes)
                     }
                 }
                 offset += messageLength
             }
         }
+        let selected = MetricFormat.networkInterfacesToCount(available: Set(byInterface.keys),
+                                                             primary: primaryInterfaceNames())
+        var result = NetworkCounters(interfaces: selected.sorted())
+        for name in selected {
+            guard let counters = byInterface[name] else { continue }
+            result.received += counters.received
+            result.sent += counters.sent
+        }
         return result
+    }
+
+    static func primaryInterfaceNames() -> Set<String> {
+        var names = Set<String>()
+        for family in ["IPv4", "IPv6"] {
+            let key = "State:/Network/Global/\(family)" as CFString
+            if let state = SCDynamicStoreCopyValue(nil, key) as? [String: Any],
+               let name = state[kSCDynamicStorePropNetPrimaryInterface as String] as? String {
+                names.insert(name)
+            }
+        }
+        return names
     }
 }

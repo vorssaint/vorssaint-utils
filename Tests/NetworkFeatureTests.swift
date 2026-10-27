@@ -13,6 +13,7 @@ import VMStatisticsCompat
 
 enum NetworkFeatureTests {
     static func run(_ suite: TestSuite) {
+        NetworkInterfaceSelectionTests.run { suite.expect($0, $1) }
         // MARK: Network speed math
 
         let slow = NetworkCounters(received: 1000, sent: 500)

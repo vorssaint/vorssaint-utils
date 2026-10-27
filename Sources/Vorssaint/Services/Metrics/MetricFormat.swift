@@ -8,6 +8,9 @@ import Foundation
 struct NetworkCounters: Equatable {
     var received: UInt64 = 0
     var sent: UInt64 = 0
+    // A change of interfaces starts a new baseline, rather than comparing
+    // unrelated since-boot counters and displaying a large speed spike.
+    var interfaces: [String] = []
 }
 
 /// Detects the macOS failure mode where outbound interface counters keep moving
@@ -503,8 +506,21 @@ enum MetricFormat {
     static func includeNetworkInterface(_ name: String) -> Bool {
         guard !name.isEmpty else { return false }
         let excluded = ["lo", "gif", "stf", "awdl", "llw", "nan", "utun", "bridge",
-                        "ap", "anpi", "p2p", "XHC", "vmenet", "tap", "tun"]
+                        "ap", "anpi", "p2p", "XHC", "vmenet", "tap", "tun", "feth"]
         return !excluded.contains { name.hasPrefix($0) }
+    }
+
+    /// A bridge can be the Mac's actual internet connection. In that case,
+    /// count the primary interfaces, not the bridge's mirrored member/peer
+    /// interfaces. On ordinary Ethernet/Wi-Fi, preserve physical aggregation.
+    static func networkInterfacesToCount(available: Set<String>, primary: Set<String>) -> Set<String> {
+        let bridges = available.intersection(primary.filter { $0.hasPrefix("bridge") })
+        if !bridges.isEmpty {
+            return available.intersection(primary.filter {
+                $0.hasPrefix("bridge") || includeNetworkInterface($0)
+            })
+        }
+        return Set(available.filter { includeNetworkInterface($0) })
     }
 }
 
