@@ -6871,6 +6871,50 @@ enum SwitcherModelFeatureTests {
                                          targetMinimizedState: false, targetAppWindowIDs: [101],
                                          targetAppFocusedWindowID: 101, ownPID: 99),
                "later restoration cannot restart a cancelled focus chain")
+        let restoredAndFocused = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                               targetStartedMinimized: true,
+                                                               targetWasObservedRestored: false,
+                                                               knownWindowIDs: [101, 102])
+        suite.expect(!restoredAndFocused.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                                        targetMinimizedState: false,
+                                                        targetAppWindowIDs: [101],
+                                                        targetAppFocusedWindowID: 101,
+                                                        targetWindowIsFocused: true,
+                                                        stopsWhenTargetFocused: true, ownPID: 99),
+               "a restored minimized target that is already focused does not receive a redundant retry")
+        let restoredButUnfocused = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                                 targetStartedMinimized: true,
+                                                                 targetWasObservedRestored: false,
+                                                                 knownWindowIDs: [101, 102])
+        suite.expect(restoredButUnfocused.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                                         targetMinimizedState: false,
+                                                         targetAppWindowIDs: [102],
+                                                         targetAppFocusedWindowID: 102,
+                                                         targetWindowIsFocused: false,
+                                                         stopsWhenTargetFocused: true, ownPID: 99),
+               "a restored minimized target still gets the settling retry while unfocused")
+        let stillMinimized = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                           targetStartedMinimized: true,
+                                                           targetWasObservedRestored: false,
+                                                           knownWindowIDs: [101, 102])
+        suite.expect(stillMinimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                                   targetMinimizedState: true,
+                                                   targetAppWindowIDs: [101],
+                                                   targetAppFocusedWindowID: 101,
+                                                   targetWindowIsFocused: true,
+                                                   stopsWhenTargetFocused: true, ownPID: 99),
+               "a still-minimized target keeps its restoration retry")
+        let unreadableMinimized = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                                targetStartedMinimized: true,
+                                                                targetWasObservedRestored: false,
+                                                                knownWindowIDs: [101, 102])
+        suite.expect(unreadableMinimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                                        targetMinimizedState: nil,
+                                                        targetAppWindowIDs: [101],
+                                                        targetAppFocusedWindowID: 101,
+                                                        targetWindowIsFocused: true,
+                                                        stopsWhenTargetFocused: true, ownPID: 99),
+               "an unreadable minimized state keeps the restoration retry")
     }
 }
 

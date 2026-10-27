@@ -312,9 +312,14 @@ final class SwitcherWindowFocusRetryState {
             }
             return callerFrontmostPID()
         }
+        // A minimized target keeps its retry until this pass reads it as
+        // restored. After that it is held to the same stand-down as any other
+        // target, so a restored and focused window is not raised again.
+        let minimizedStillRestoring = targetStartedMinimized
+            && targetMinimizedState != false
         if stopsWhenTargetFocused,
            !ignoresForeground,
-           !targetStartedMinimized {
+           !minimizedStillRestoring {
             let observedFrontmostPID = callerFrontmostPID()
             sampledFrontmostPID = observedFrontmostPID
             hasSampledFrontmostPID = true

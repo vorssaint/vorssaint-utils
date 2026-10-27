@@ -170,8 +170,16 @@ enum WindowActivator {
                                     activationPlan: activationPlan,
                                     generation: generation,
                                     targetWindow: targetWindow)
-        prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID,
-                                   target: targetWindow)
+        // Preparing a minimized window here would deminiaturize it while its
+        // app is still in the background. The window server shows the
+        // restoring window above the old app, then drops it beneath that app
+        // again until activation, which reads as a flash. Leave the window
+        // alone: the exact-window front below activates its app, and the
+        // focus pass restores and focuses the window once the app is front.
+        if !targetStartedMinimized {
+            prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID,
+                                       target: targetWindow)
+        }
         if sourceWasFullscreen || item.isFullscreen {
             let retryState = SwitcherWindowFocusRetryState(
                 targetWindowID: windowID,
@@ -795,9 +803,16 @@ enum WindowActivator {
         let effectiveFrontmostPID = frontmostPID == targetWindowOwnerPID
             ? targetPID
             : frontmostPID
+        // A minimized target only skips the focused-window read while its
+        // restoration is still unconfirmed. Once this pass reads the window as
+        // restored, it is treated like any other target: read the focused
+        // window so the delayed pass can stand down instead of raising an
+        // already focused window a second time.
+        let minimizedStillRestoring = state.targetStartedMinimized
+            && readings.minimizedState != false
         if stopsWhenTargetFocused,
            !ignoresForeground,
-           !state.targetStartedMinimized,
+           !minimizedStillRestoring,
            effectiveFrontmostPID == targetPID {
             return true
         }
@@ -1353,7 +1368,19 @@ enum WindowActivator {
             return .sourceMinimized
         }
 
-        let sourceRaiseResult = AXUIElementPerformAction(sourceWindow, kAXRaiseAction as CFString)
+        // Do not pull the source back over an already-active target. Keep the
+        // target raise below: foreground/focus alone does not prove it is onscreen.
+        let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let targetIsFrontmost = frontmostPID == targetPID || frontmostPID == targetWindowOwnerPID
+        if targetIsFrontmost,
+           windowIsVisiblyFocused(windowID: targetWindowID,
+                                  pid: targetWindowOwnerPID,
+                                  window: targetWindow),
+           isCurrentActivation(generation) {
+            return minimizedResult == .success ? .staged : .unresolved
+        }
+        let sourceReady = targetIsFrontmost
+            || AXUIElementPerformAction(sourceWindow, kAXRaiseAction as CFString) == .success
         guard isCurrentActivation(generation) else {
             return .unresolved
         }
@@ -1385,17 +1412,75 @@ enum WindowActivator {
         guard isCurrentActivation(generation) else {
             return .unresolved
         }
-        // Only a staging whose every operation was confirmed leaves the source
-        // window behind the target. Anything else keeps the source unstaged,
-        // and the next retry pass stages it again.
+        // Only confirmed source placement and target operations finish staging.
+        // Otherwise the next retry pass stages it again.
         let staged = minimizedResult == .success
-            && sourceRaiseResult == .success
+            && sourceReady
             && targetRaiseResult == .success
             && mainWindowResult == .success
             && focusedWindowResult == .success
             && windowMainResult == .success
             && windowFocusedResult == .success
         return staged ? .staged : .unresolved
+    }
+
+    private static func windowIsVisiblyFocused(windowID: CGWindowID,
+                                               pid: pid_t,
+                                               window: AXUIElement) -> Bool {
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+              minimizedState(of: window) == false,
+              focusedWindowID(for: pid) == windowID,
+              let onscreen = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                        kCGNullWindowID) as? [[String: Any]],
+              let frontWindow = onscreen.first(where: {
+                  ($0[kCGWindowLayer as String] as? Int) == 0
+              }) else { return false }
+        return (frontWindow[kCGWindowNumber as String] as? CGWindowID) == windowID
+    }
+
+    // AXMinimized changes at the start of the Dock animation. Its completion
+    // notification is the boundary for focus writes, not that early state read.
+    // Generated switcher passes wait on the AX lane, never the keyboard callback.
+    // Unsupported/missing notifications retain the normal focus fallback.
+    private static func restoreWindowBeforeFocus(_ window: AXUIElement,
+                                                 pid: pid_t,
+                                                 generation: UInt64?) -> Bool {
+        guard let generation else {
+            AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            return false
+        }
+        var observer: AXObserver?
+        let created = AXObserverCreate(pid, { _, _, _, context in
+            context?.assumingMemoryBound(to: Bool.self).pointee = true
+        }, &observer)
+        guard created == .success, let observer else {
+            AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            return false
+        }
+        var completed = false
+        return withUnsafeMutablePointer(to: &completed) { completion in
+            let notification = kAXWindowDeminiaturizedNotification as CFString
+            guard AXObserverAddNotification(observer, window, notification, completion) == .success else {
+                AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+                return false
+            }
+            let runLoop = CFRunLoopGetCurrent()
+            let source = AXObserverGetRunLoopSource(observer)
+            CFRunLoopAddSource(runLoop, source, .defaultMode)
+            defer {
+                CFRunLoopRemoveSource(runLoop, source, .defaultMode)
+                AXObserverRemoveNotification(observer, window, notification)
+            }
+            guard AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString,
+                                               kCFBooleanFalse) == .success else { return false }
+            let deadline = DispatchTime.now() + 0.5
+            while !completion.pointee,
+                  isCurrentActivation(generation),
+                  DispatchTime.now().uptimeNanoseconds < deadline.uptimeNanoseconds {
+                CFRunLoopRunInMode(.defaultMode, 0.01, true)
+            }
+            return completion.pointee
+        }
     }
 
     @discardableResult
@@ -1421,10 +1506,13 @@ enum WindowActivator {
             axWindow, kAXMinimizedAttribute as CFString, &minimized)
         guard isCurrent() else { return false }
         if minimizedResult == .success, (minimized as? Bool) == true {
-            AXUIElementSetAttributeValue(axWindow,
-                                         kAXMinimizedAttribute as CFString,
-                                         kCFBooleanFalse)
+            let completed = restoreWindowBeforeFocus(axWindow, pid: pid, generation: generation)
             guard isCurrent() else { return false }
+            if completed,
+               windowIsVisiblyFocused(windowID: windowID, pid: pid, window: axWindow),
+               isCurrent() {
+                return true
+            }
         }
 
         if makeAppFrontmost {
