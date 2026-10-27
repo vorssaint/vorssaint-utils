@@ -1014,6 +1014,43 @@ enum MixerFeatureTests {
                "Studio Pro is kept out of process-tap audio routing")
         suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.spotify.client", name: "Spotify"),
                "music players remain eligible for process-tap audio routing")
+        for id in ["com.hnc.Discord", "com.hnc.Discord.helper.Renderer", "com.hnc.DiscordPTB",
+                   "com.hnc.DiscordCanary", "com.hnc.DiscordDevelopment", "COM.HNC.DISCORD",
+                   "com.microsoft.teams", "com.microsoft.teams2", "com.microsoft.teams2.helper"] {
+            suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call"),
+                         "\(id) bypasses processing before any user override, preventing screen-share echo")
+            suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call",
+                                                                allowCallAppVolume: true),
+                         "\(id) volume control is available after explicit opt-in")
+        }
+        for id in ["com.hnc.discordian", "com.microsoft.teams2000", "com.microsoft.teamspeak",
+                   "com.spotify.client", "com.apple.Safari"] {
+            suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Discord"),
+                         "\(id) is not blocked by a similar bundle prefix or app name")
+        }
+        suite.expect(!MixerRoutingSupport.needsScreenSharingProtection(bundleIdentifier: nil),
+                     "an unknown process is not assumed to be a call app")
+        suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.xos", name: "Zoom",
+                                                            allowCallAppVolume: true)
+                     && MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.apple.logic10", name: "Logic Pro",
+                                                               allowCallAppVolume: true),
+                     "the optional call app override cannot remove permanent Zoom or DAW bypasses")
+        suite.expect(MixerRoutingSupport.sanitizedCallAppVolumeIDs([
+            "com.hnc.Discord", "COM.HNC.DISCORD", "com.microsoft.teams2", "com.microsoft.teams2000", "", "us.zoom.xos"
+        ]) == ["com.hnc.discord", "com.microsoft.teams2"],
+                     "saved opt-ins normalize bundle case, deduplicate and reject unrelated apps")
+        let callSettings: [String: Any] = [DefaultsKey.mixerCallAppVolumeEnabled: ["com.hnc.discord"]]
+        let callBackup = SettingsBackupSupport.payload(appVersion: "test") { callSettings[$0] }
+        let restoredCalls = SettingsBackupSupport.sanitizedSettings(from: callBackup)
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerCallAppVolumeEnabled)
+                     && restoredCalls?[DefaultsKey.mixerCallAppVolumeEnabled] as? [String] == ["com.hnc.discord"],
+                     "explicit call app volume choices round-trip through settings backup")
+        for language in AppLanguage.allCases {
+            let strings = MixerScreenSharingStrings.localized(language)
+            suite.expect(!strings.allowVolumeControl.isEmpty && !strings.protectedCaption.isEmpty
+                         && !strings.sharingWarning.isEmpty,
+                         "\(language) explains call audio protection and the override")
+        }
         suite.expect(MixerRoutingSupport.effectiveDeviceUID(selectedUID: "ExternalDisplay",
                                                       availableUIDs: ["BuiltInSpeakerDevice"],
                                                       defaultUID: "BuiltInSpeakerDevice") == "BuiltInSpeakerDevice",

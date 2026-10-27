@@ -11,11 +11,6 @@ final class DiskSampler {
         var wholeDisk: String?
         var fileSystem: String?
         var ioCounterIDs: [String] = []
-        var totalBytes: UInt64?
-        var freeBytes: UInt64?
-        var rawFreeBytes: UInt64?
-        var purgeableBytes: UInt64?
-        var usedBytes: UInt64?
         var isInternal: Bool?
         var isRemovable: Bool?
         var isEjectable: Bool?
@@ -49,7 +44,6 @@ final class DiskSampler {
             let isInternal = metadata.isInternal ?? volume.isInternal
             let isRemovable = metadata.isRemovable ?? volume.isRemovable
             let isEjectable = (metadata.isEjectable ?? volume.isEjectable) || (!isInternal && isRemovable)
-            let capacity = Self.bestCapacity(volume: volume, metadata: metadata)
             return DiskDeviceReading(id: volume.mountPath,
                                      name: volume.name,
                                      mountPath: volume.mountPath,
@@ -59,10 +53,10 @@ final class DiskSampler {
                                      ioCounterID: counter?.id,
                                      fileSystem: metadata.fileSystem
                                          ?? DiskSupport.fileSystemLabel(type: volume.fileSystemType),
-                                     totalBytes: capacity.total,
-                                     freeBytes: capacity.free,
-                                     purgeableBytes: capacity.purgeable,
-                                     usedBytes: capacity.used,
+                                     totalBytes: volume.totalBytes,
+                                     freeBytes: volume.freeBytes,
+                                     purgeableBytes: volume.purgeableBytes,
+                                     usedBytes: volume.usedBytes,
                                      isInternal: isInternal,
                                      isRemovable: isRemovable,
                                      isEjectable: isEjectable,
@@ -83,32 +77,6 @@ final class DiskSampler {
             }
         }
         return nil
-    }
-
-    private static func bestCapacity(volume: MountedVolume, metadata: DiskMetadata)
-        -> (total: UInt64, free: UInt64, used: UInt64, purgeable: UInt64?) {
-        let total = volume.totalBytes > 0 ? volume.totalBytes : (metadata.totalBytes ?? 0)
-        let free: UInt64
-        if volume.freeBytes > 0 {
-            free = volume.freeBytes
-        } else if let metadataFree = metadata.freeBytes {
-            free = metadataFree
-        } else {
-            free = 0
-        }
-        let purgeable = volume.purgeableBytes ?? metadata.purgeableBytes
-        let used: UInt64
-        if volume.usedBytes > 0 {
-            used = volume.usedBytes
-        } else if let metadataUsed = metadata.usedBytes {
-            used = metadataUsed
-        } else {
-            let rawFree = volume.rawFreeBytes ?? metadata.rawFreeBytes ?? free
-            used = total >= rawFree ? total - rawFree : 0
-        }
-        let clampedFree = min(free, total)
-        let clampedUsed = min(used, total)
-        return (total, clampedFree, clampedUsed, purgeable)
     }
 
     private func ratesAndTotals(for diskID: String, counters: DiskIOCounters, now: TimeInterval)
@@ -141,9 +109,10 @@ final class DiskSampler {
         // lightweight identity. Synthesized APFS BSD names carry no
         // IOBlockStorageDriver statistics (they live on the physical store, e.g.
         // disk0), so a lightweight identity would zero the IO metric and fork
-        // session totals under a new disk ID. Capacity stays fresh either way —
-        // bestCapacity prefers the statfs volume values. A background cold start
-        // pays a single diskutil run per volume.
+        // session totals under a new disk ID. Capacity is read separately on
+        // every sample and never falls back to this identity cache, even when
+        // the current free or used count is zero. A background cold start pays
+        // a single diskutil run per volume.
         if !refresh,
            let cached = metadataCache[volume.mountPath],
            cached.isFull,
@@ -168,7 +137,6 @@ final class DiskSampler {
         var volumeUUID: String?
         var totalBytes: UInt64
         var freeBytes: UInt64
-        var rawFreeBytes: UInt64?
         var purgeableBytes: UInt64?
         var usedBytes: UInt64
         var isInternal: Bool
@@ -201,27 +169,22 @@ final class DiskSampler {
                   values.volumeIsLocal != false,
                   let total = positiveUInt(values.volumeTotalCapacity),
                   total > 0 else { return nil }
-            let rawFree = positiveUInt(values.volumeAvailableCapacity, requiringPositive: true)
-                ?? positiveUInt(values.volumeAvailableCapacity)
-            let free = importantFree(for: url, isReadOnly: values.volumeIsReadOnly == true)
-                ?? rawFree
-                ?? 0
-            let purgeable: UInt64? = {
-                guard let rawFree, free > rawFree else { return nil }
-                return free - rawFree
-            }()
-            let physicalUsed = rawFree.map { total >= $0 ? total - $0 : 0 }
-                ?? (total >= free ? total - free : 0)
+            // Missing capacity is not evidence that a volume is full. As with
+            // a missing total, leave it out until a current reading is available.
+            guard let capacity = DiskSupport.capacity(
+                total: total,
+                rawFree: positiveUInt(values.volumeAvailableCapacity),
+                importantFree: importantFree(for: url, isReadOnly: values.volumeIsReadOnly == true)
+            ) else { return nil }
             let name = values.volumeLocalizedName ?? values.volumeName ?? url.lastPathComponent
             let identity = statfsIdentity(for: url.path)
             return MountedVolume(name: name.isEmpty ? url.path : name,
                                  mountPath: url.path,
                                  volumeUUID: values.volumeUUIDString,
                                  totalBytes: total,
-                                 freeBytes: min(free, total),
-                                 rawFreeBytes: rawFree,
-                                 purgeableBytes: purgeable,
-                                 usedBytes: min(physicalUsed, total),
+                                 freeBytes: capacity.free,
+                                 purgeableBytes: capacity.purgeable,
+                                 usedBytes: capacity.used,
                                  isInternal: values.volumeIsInternal ?? false,
                                  isRemovable: values.volumeIsRemovable ?? false,
                                  isEjectable: values.volumeIsEjectable ?? false,
@@ -259,23 +222,12 @@ final class DiskSampler {
         guard !isReadOnly,
               let values = try? url.resourceValues(
                 forKeys: [.volumeAvailableCapacityForImportantUsageKey]) else { return nil }
-        return positiveUInt(values.volumeAvailableCapacityForImportantUsage, requiringPositive: true)
-            ?? positiveUInt(values.volumeAvailableCapacityForImportantUsage)
+        return positiveUInt(values.volumeAvailableCapacityForImportantUsage)
     }
 
     private static func positiveUInt(_ value: Int?) -> UInt64? {
         guard let value, value >= 0 else { return nil }
         return UInt64(value)
-    }
-
-    private static func positiveUInt(_ value: Int?, requiringPositive: Bool) -> UInt64? {
-        guard let result = positiveUInt(value), !requiringPositive || result > 0 else { return nil }
-        return result
-    }
-
-    private static func positiveUInt(_ value: Int64?, requiringPositive: Bool) -> UInt64? {
-        guard let result = positiveUInt(value), !requiringPositive || result > 0 else { return nil }
-        return result
     }
 
     private static func positiveUInt(_ value: Int64?) -> UInt64? {
@@ -291,10 +243,6 @@ final class DiskSampler {
         let wholeDisk = physicalWholeDisk(from: physicalStore)
             ?? physicalWholeDisk(from: parentWholeDisk)
             ?? physicalWholeDisk(from: bsdName)
-        let total = DiskSupport.uint(info["APFSContainerSize"]) ?? DiskSupport.uint(info["TotalSize"])
-        let free = DiskSupport.uint(info["APFSContainerFree"]) ?? DiskSupport.uint(info["FreeSpace"])
-        let used = DiskSupport.uint(info["CapacityInUse"])
-            ?? total.flatMap { total in free.map { total >= $0 ? total - $0 : 0 } }
         let status = info["SMARTStatus"] as? String
         let vendorKeys = info["SMARTDeviceSpecificKeysMayVaryNotGuaranteed"] as? [String: Any]
         let ioIDs = ioCounterIDs(bsdName: bsdName,
@@ -306,11 +254,6 @@ final class DiskSampler {
                             fileSystem: DiskSupport.fileSystemLabel(type: info["FilesystemType"] as? String,
                                                                     name: info["FilesystemName"] as? String),
                             ioCounterIDs: ioIDs,
-                            totalBytes: total,
-                            freeBytes: free,
-                            rawFreeBytes: free,
-                            purgeableBytes: nil,
-                            usedBytes: used,
                             isInternal: info["Internal"] as? Bool,
                             isRemovable: (info["RemovableMediaOrExternalDevice"] as? Bool)
                                 ?? (info["Removable"] as? Bool)

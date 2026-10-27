@@ -773,15 +773,13 @@ enum FeatureCatalogTests {
                 .joined()
                 .filter { !$0.isWhitespace }
         }
-        // Issue #2270: nested in the page's plain stack, the lazy stack resized
-        // it as group cards came into view and could keep redoing its layout
-        // until Settings froze. A source check on the page's `content` with
-        // comment lines dropped: it keeps that structure from coming back, not
-        // the scrolling itself, which only a scroll run shows.
+        // The lazy stack remained after #2270 and still appears in the hang
+        // reports for #2311/#2642. Guard the eager layout here; the layout
+        // suite checks scroll geometry and the offscreen notice changes.
         let compactHubContent = compactMember("private var content: some View {", in: featureHubSource)
-        suite.expect(compactHubContent.components(separatedBy: "LazyVStack(").count == 2
-                && compactHubContent.contains("ScrollView{LazyVStack("),
-               "the hub's one lazy stack is its scroll view's own content, never nested in another stack")
+        suite.expect(compactHubContent.contains("ScrollView{VStack(")
+                && !compactHubContent.contains("LazyVStack("),
+               "the Features page measures its cards eagerly instead of estimating their height during scrolling")
         // A lazy stack on the Monitor page re-measures and re-anchors its rows
         // without settling once the Bars options make the menu bar card taller,
         // which hangs Settings on the first scroll. The same kind of source
@@ -1077,6 +1075,8 @@ enum FeatureCatalogTests {
                 && FanControlConfiguration.decodeResume("not json") == nil,
                "only a valid manual speed or curve is ever kept or brought back after a restart")
         FanControlResumeContract.run(suite)
+        FanControlRecoveryContract.run(suite)
+        FanControlHardwareContract.run(suite)
         let addedPoints = FanControlPolicy.addingCurvePoint(to: defaultCurve.points)
         suite.expect(FanControlPolicy.nextCurvePoint(for: defaultCurve.points) == FanControlCurvePoint(temperature: 60, coolingLevel: 50)
                 && addedPoints == [
@@ -1120,6 +1120,93 @@ enum FeatureCatalogTests {
         suite.expectClose(m3FanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
                     48.5,
                     "M3 fan curves exclude auxiliary Tf readings from the CPU average")
+        let m4MaxPlatform = TemperatureSensorSelector.platform(
+            brandString: "Apple M4 Max", modelIdentifier: "Mac16,5",
+            performanceCoreCount: 10, efficiencyCoreCount: 4
+        )
+        let otherM4MaxConfigurations: [(String?, Int?, Int?)] = [
+            ("Mac16,5", 12, 4), ("Mac16,6", 10, 4), ("Mac16,5", 10, 3),
+            (nil, 10, 4), ("Mac16,5", nil, 4), ("Mac16,5", 10, nil),
+            (nil, nil, nil),
+        ]
+        for (model, performance, efficiency) in otherM4MaxConfigurations {
+            let platform = TemperatureSensorSelector.platform(
+                brandString: "Apple M4 Max", modelIdentifier: model,
+                performanceCoreCount: performance, efficiencyCoreCount: efficiency
+            )
+            let temperatures = FanControlPolicy.aggregatedTemperatures(
+                cpuReadings: [("Tp01", 80), ("Te05", 60), ("Tpx5", 100), ("Tp3X", 110)],
+                gpuReadings: [40], platform: platform
+            )
+            let expectedReadings: [(FanControlTemperatureSource, Double, Int)] = [
+                (.hottestCPU, 80, 80), (.averageCPU, 70, 60),
+                (.hottestSoC, 80, 80), (.averageSoC, 60, 40),
+            ]
+            for (source, expected, expectedLevel) in expectedReadings {
+                suite.expectClose(temperatures.first { $0.source == source }?.celsius ?? -1,
+                                  expected, "other M4 Max configurations preserve existing CPU and SoC fan inputs")
+                let curve = FanControlCurve(sensor: source, points: [
+                    .init(temperature: 40, coolingLevel: 0), .init(temperature: 90, coolingLevel: 100),
+                ])
+                suite.expect(FanControlPolicy.curveCoolingLevel(curves: [curve],
+                                                               temperatures: temperatures) == expectedLevel,
+                             "other M4 Max configurations keep CPU and SoC curves evaluable at their existing levels")
+            }
+            let auxiliaryOnly = FanControlPolicy.aggregatedTemperatures(
+                cpuReadings: [("Tp0M", 88)], gpuReadings: [40], platform: platform
+            )
+            suite.expect(!auxiliaryOnly.contains { $0.source == .hottestCPU || $0.source == .averageCPU },
+                         "other M4 Max configurations still require mapped readings for CPU fan inputs")
+            suite.expectClose(auxiliaryOnly.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                              40, "missing mapped CPU readings retain the existing GPU-only SoC fallback")
+        }
+        for (name, sample) in [("loaded", M4MaxTemperatureFixtures.loaded),
+                               ("parked", M4MaxTemperatureFixtures.parked),
+                               ("idle", M4MaxTemperatureFixtures.idle)] {
+            let temperatures = FanControlPolicy.aggregatedTemperatures(
+                cpuReadings: sample.cpu + [("Tp3X", 110)],
+                gpuReadings: sample.gpu, platform: m4MaxPlatform
+            )
+            suite.expectClose(temperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                              sample.hottest, "M4 Max hottest CPU uses measured \(name) regions")
+            suite.expectClose(temperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                              sample.average, "M4 Max CPU mean excludes auxiliary and invalid \(name) readings")
+            suite.expectClose(temperatures.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                              sample.hottest, "M4 Max hottest SoC excludes auxiliary CPU hotspots when \(name)")
+            let hottestCurve = FanControlCurve(sensor: .hottestCPU,
+                                              points: FanControlConfiguration.defaultCurve.points)
+            suite.expect(FanControlPolicy.curveCoolingLevel(curves: [hottestCurve],
+                                                           temperatures: temperatures) == sample.defaultLevel,
+                         "M4 Max \(name) temperatures reach CPU curve evaluation")
+            let balancedCurve = FanControlCurve(sensor: .hottestSoC, points: [
+                .init(temperature: 60, coolingLevel: 0), .init(temperature: 95, coolingLevel: 100),
+            ])
+            suite.expect(FanControlPolicy.curveCoolingLevel(curves: [balancedCurve],
+                                                           temperatures: temperatures) == sample.balancedLevel,
+                         "M4 Max \(name) hottest SoC reaches shadow curve evaluation")
+        }
+        let m4MaxUnavailable = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tex0", .nan), ("Tex1", .infinity), ("Tex2", 9), ("Tex3", 125),
+                          ("Tpx0", 0), ("Tpx1", -4), ("Tp0M", 88)],
+            gpuReadings: [51], platform: m4MaxPlatform
+        )
+        suite.expect(!m4MaxUnavailable.contains { $0.source == .hottestCPU || $0.source == .averageCPU },
+                     "M4 Max fan CPU sources stay unavailable when no mapped region answers")
+        suite.expectClose(m4MaxUnavailable.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                          51, "M4 Max SoC fallback preserves GPU-only readings")
+        let missingCPUCurve = FanControlCurve(sensor: .hottestCPU,
+                                             points: FanControlConfiguration.defaultCurve.points)
+        suite.expect(FanControlPolicy.curveCoolingLevel(curves: [missingCPUCurve],
+                                                       temperatures: m4MaxUnavailable) == nil,
+                     "M4 Max CPU curves reject missing mapped readings instead of using auxiliaries")
+        let m4MaxPartial = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tex1", 53.234375), ("Tpx5", .nan), ("Tp0M", 88)],
+            gpuReadings: [59], platform: m4MaxPlatform
+        )
+        suite.expectClose(m4MaxPartial.first { $0.source == .averageCPU }?.celsius ?? -1,
+                          53.234375, "one valid M4 Max region remains a valid CPU curve input")
+        suite.expectClose(m4MaxPartial.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                          59, "M4 Max hottest SoC still includes a genuinely hotter GPU")
         let unmappedFanTemperatures = FanControlPolicy.aggregatedTemperatures(
             cpuReadings: [("Tp00", 48), ("Tp0W", 113)],
             gpuReadings: [],
@@ -1127,6 +1214,71 @@ enum FeatureCatalogTests {
         )
         suite.expect(unmappedFanTemperatures.isEmpty,
                "fan curves reject unknown Apple Silicon sensors instead of treating them as CPU")
+        // Apple M1 MacBook Pro 13-inch (MacBookPro17,1) under load. It carries
+        // none of the first M1 layout's keys; its Tg keys read zero.
+        let m1AlternateCPUReadings: [(key: String, value: Double)] = [
+            ("Te0a", 62.95), ("Te0z", 65.42), ("Te3a", 59.55), ("Te3z", 80.88),
+            ("Tp2a", 71.69), ("Tp2z", 90.19), ("Tp3a", 75.11), ("Tp3b", 82.51),
+            ("Tp4a", 71.72), ("Tp5a", 67.30), ("Tp7a", 71.16), ("Tp8a", 74.52),
+            ("Tp9a", 72.42), ("Tp9z", 93.88),
+        ]
+        let m1AlternateFanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: m1AlternateCPUReadings,
+            gpuReadings: [0, 0],
+            platform: TemperatureSensorSelector.platform(brandString: "Apple M1")
+        )
+        suite.expectClose(m1AlternateFanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    75.11,
+                    "M1 fan curves follow the hottest core of the second M1 layout")
+        suite.expectClose(m1AlternateFanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                    69.60,
+                    "M1 fan curves average only the a variants of the second layout", tol: 0.01)
+        suite.expectClose(m1AlternateFanTemperatures.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                    75.11,
+                    "the default SoC curve has a reading on the second M1 layout")
+        suite.expect(m1AlternateFanTemperatures.first { $0.source == .hottestGPU } == nil,
+               "zero GPU keys do not become a fan curve reading")
+        let invalidM1Temperatures: [Double?] = [nil, 0, 9.99, 125, .nan, .infinity]
+        for invalidTemperature in invalidM1Temperatures {
+            let unavailableCores = m1AlternateCPUReadings.compactMap { reading -> (key: String, value: Double)? in
+                guard reading.key.hasSuffix("a") else { return reading }
+                return invalidTemperature.map { (reading.key, $0) }
+            }
+            let unavailableTemperatures = FanControlPolicy.aggregatedTemperatures(
+                cpuReadings: unavailableCores, gpuReadings: [0, 0], platform: .appleM1Family
+            )
+            suite.expect(unavailableTemperatures.isEmpty
+                    && FanControlPolicy.curveCoolingLevel(curves: [defaultCurve],
+                                                          temperatures: unavailableTemperatures,
+                                                          previousLevel: 70) == nil
+                    && FanControlPolicy.curveCoolingLevel(curves: [cpuCurve],
+                                                          temperatures: unavailableTemperatures,
+                                                          previousLevel: 70) == nil,
+                   "missing or invalid M1 cores cannot drive CPU or SoC curves through auxiliary variants")
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: unavailableCores, platform: .appleM1Family
+            ) ?? -1, 93.88, "the monitor keeps its compatibility reading when M1 cores are unavailable")
+        }
+        let m1PartialReadings: [(key: String, value: Double)] = [
+            ("Te0a", 42), ("Te3a", .nan), ("Tp2a", 0), ("Tp3a", 125), ("Tp9z", 93.88),
+        ]
+        let m1PartialTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: m1PartialReadings, gpuReadings: [0, 0], platform: .appleM1Family
+        )
+        suite.expect(m1PartialTemperatures.count == 4
+                && m1PartialTemperatures.allSatisfy { $0.celsius == 42 },
+               "one valid alternate M1 core keeps CPU and SoC curves available without auxiliary readings")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m1PartialReadings, platform: .appleM1Family
+        ) ?? -1, 42, "the monitor follows a valid alternate M1 core while other cores are invalid")
+        let m1OriginalFanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tp09", 43), ("Tp01", 49), ("Tp2z", 70)],
+            gpuReadings: [], platform: .appleM1Family
+        )
+        suite.expectClose(m1OriginalFanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    49, "the original M1 fan curve keeps its hottest mapped core")
+        suite.expectClose(m1OriginalFanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                    46, "the original M1 fan curve keeps auxiliary variants out of its average")
         // Apple M4 Pro (Mac16,8) under load: the base M4 set tops out at Tp0Y,
         // 10 °C below the core that Tpx5 repeats.
         let m4ProPlatform = TemperatureSensorSelector.platform(brandString: "Apple M4 Pro")

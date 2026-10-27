@@ -306,7 +306,7 @@ extension Strings {
         autoQuitHowTitle: "Cómo funciona",
         autoQuitStep1: "Cierra la última ventana de una app (⌘W o el botón rojo).",
         autoQuitStep2: "La app se cierra sola. Los diálogos “¿Guardar cambios?” siguen apareciendo.",
-        autoQuitPredictableNote: "Las apps que normalmente funcionan sin ventana nunca se cierran.",
+        autoQuitPredictableNote: "Las apps que aún no han abierto una ventana permanecen abiertas. Las apps de la barra de menús permanecen abiertas a menos que permitas explícitamente que se cierren.",
         autoQuitOngoingWorkNote: "Algunas apps cierran su última ventana y siguen trabajando, como un grabador de pantalla cuando empieza la captura. Esas también se cierran, salvo que estén en la lista de excepciones.",
         autoQuitExceptionsTitle: "Excepciones",
         autoQuitExceptionsCaption: "Las apps de esta lista permanecen abiertas aunque no tengan ventanas.",

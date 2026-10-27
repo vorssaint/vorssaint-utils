@@ -23,8 +23,9 @@ final class WindowPreviewProvider {
     private var cache: [CGWindowID: CGImage] = [:]
     private var lastTouched: [CGWindowID: TimeInterval] = [:]
     private static let cacheLimit = 48
-    /// Upper bound on the bytes the thumbnail cache may hold; the count limit
-    /// alone would allow ~160 MB of big-window thumbnails.
+    /// Eviction target; entries being refreshed may exceed it. Keep the existing
+    /// budget: a smaller cache would discard more last-good previews of windows
+    /// parked by Stage Manager, which cannot be recaptured until reactivated.
     private static let cacheByteBudget = 64 * 1024 * 1024
     private var captureTask: Task<Void, Never>?
     private var warmTask: Task<Void, Never>?
