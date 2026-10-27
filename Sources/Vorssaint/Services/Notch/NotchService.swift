@@ -40,11 +40,13 @@ struct NotchNotice: Equatable {
                                     trailing: max(minimumWings.trailing, fitted.trailing))
         }
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        let leading = ((level == nil ? title : detail) as NSString).size(withAttributes: [.font: font]).width
-        // A level's wings are as wide as its mark and its reading; the meter
-        // takes the same width on the other side.
+        func measured(_ text: String) -> CGFloat { (text as NSString).size(withAttributes: [.font: font]).width }
+        let leading = measured(level == nil ? title : detail)
+        // A level's wings are as wide as its mark and its widest reading, so
+        // the island holds still as the value gains or loses a digit; the
+        // meter takes the same width on the other side.
         if level != nil, event != .accessory {
-            let wing = ceil(Self.levelInset + 18 + 8 + leading)
+            let wing = ceil(Self.levelInset + 18 + 8 + max(leading, measured("100%")))
             return NotchNoticeWings(leading: wing, trailing: wing)
         }
         // Long accessory names still use bounded truncation.
