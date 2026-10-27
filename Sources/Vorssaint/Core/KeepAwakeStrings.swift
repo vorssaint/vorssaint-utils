@@ -23,6 +23,11 @@ struct KeepAwakeAutomationStrings {
     let matchAny: String
     let matchAll: String
     let automationCaptionAll: String
+    let agentsToggle: String
+    let agentsActive: String
+    let agentsIdleEndsIn: String // + remaining
+    let agentsGraceTitle: String
+    let agentsUnavailable: String
 
     /// The caption under the condition tiles. The Any wording predates the
     /// match mode and would lie about an All setup, so it is chosen here
@@ -35,6 +40,7 @@ struct KeepAwakeAutomationStrings {
         if conditions == [.externalDisplay] { return externalDisplayActive }
         if conditions == [.power] { return powerActive }
         if conditions == [.runningApps] { return runningAppsActive }
+        if conditions == [.agentsWorking] { return agentsActive }
         return automationActive
     }
 }
@@ -182,7 +188,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "Follows normal sleep rules while locked and resumes the remaining session after you unlock.",
         matchAny: "Any",
         matchAll: "All",
-        automationCaptionAll: "Starts only when every selected condition is active."
+        automationCaptionAll: "Starts only when every selected condition is active.",
+        agentsToggle: "AI Agents",
+        agentsActive: "Active while an AI agent is working",
+        agentsIdleEndsIn: "Agents idle - ends in",
+        agentsGraceTitle: "Stay awake after agents stop",
+        agentsUnavailable: "Turn on AI Agents in the Dynamic Island settings so Keep Awake can see when an agent works."
     )
 
     static let ptBR = KeepAwakeAutomationStrings(
@@ -204,7 +215,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "Segue as regras normais de repouso enquanto estiver bloqueado e retoma o tempo restante após o desbloqueio.",
         matchAny: "Qualquer",
         matchAll: "Todas",
-        automationCaptionAll: "Inicia somente quando todas as condições selecionadas estiverem ativas."
+        automationCaptionAll: "Inicia somente quando todas as condições selecionadas estiverem ativas.",
+        agentsToggle: "AI Agents",
+        agentsActive: "Ativo enquanto um agente de IA estiver trabalhando",
+        agentsIdleEndsIn: "Agentes ociosos - termina em",
+        agentsGraceTitle: "Manter ativo depois que os agentes pararem",
+        agentsUnavailable: "Ative AI Agents nos ajustes da Dynamic Island para o Keep Awake ver quando um agente trabalha."
     )
 
     static let tr = KeepAwakeAutomationStrings(
@@ -226,7 +242,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "Kilitliyken normal uyku kurallarını izler ve kilidi açtığınızda kalan oturumu sürdürür.",
         matchAny: "Herhangi",
         matchAll: "Tümü",
-        automationCaptionAll: "Yalnızca seçili tüm koşullar etkinken başlar."
+        automationCaptionAll: "Yalnızca seçili tüm koşullar etkinken başlar.",
+        agentsToggle: "AI Agents",
+        agentsActive: "Bir yapay zekâ ajanı çalışırken etkin",
+        agentsIdleEndsIn: "Ajanlar boşta - kalan",
+        agentsGraceTitle: "Ajanlar durduktan sonra uyanık kal",
+        agentsUnavailable: "Keep Awake’in bir ajanın çalıştığını görebilmesi için Dynamic Island ayarlarında AI Agents’ı açın."
     )
 
     static let ru = KeepAwakeAutomationStrings(
@@ -248,7 +269,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "Пока Mac заблокирован, действуют обычные правила сна, а после разблокировки продолжается оставшееся время сеанса.",
         matchAny: "Любое",
         matchAll: "Все",
-        automationCaptionAll: "Запускается только когда активны все выбранные условия."
+        automationCaptionAll: "Запускается только когда активны все выбранные условия.",
+        agentsToggle: "AI Agents",
+        agentsActive: "Активно, пока работает ИИ-агент",
+        agentsIdleEndsIn: "Агенты простаивают - осталось",
+        agentsGraceTitle: "Не засыпать после остановки агентов",
+        agentsUnavailable: "Включите AI Agents в настройках Dynamic Island, чтобы Keep Awake видел работу агента."
     )
 
     static let es = KeepAwakeAutomationStrings(
@@ -270,7 +296,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "Sigue las reglas de reposo habituales mientras está bloqueado y reanuda el tiempo restante al desbloquearlo.",
         matchAny: "Cualquiera",
         matchAll: "Todas",
-        automationCaptionAll: "Se activa solo cuando todas las condiciones seleccionadas están activas."
+        automationCaptionAll: "Se activa solo cuando todas las condiciones seleccionadas están activas.",
+        agentsToggle: "AI Agents",
+        agentsActive: "Activo mientras un agente de IA trabaja",
+        agentsIdleEndsIn: "Agentes inactivos - termina en",
+        agentsGraceTitle: "Mantener activo tras detenerse los agentes",
+        agentsUnavailable: "Activa AI Agents en los ajustes de la Dynamic Island para que Keep Awake vea cuándo trabaja un agente."
     )
 
     static let sk = KeepAwakeAutomationStrings(
@@ -292,7 +323,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "Počas uzamknutia sa riadi bežnými pravidlami uspávania a po odomknutí pokračuje zvyšná časť relácie.",
         matchAny: "Ktorákoľvek",
         matchAll: "Všetky",
-        automationCaptionAll: "Spustí sa iba vtedy, keď sú aktívne všetky vybrané podmienky."
+        automationCaptionAll: "Spustí sa iba vtedy, keď sú aktívne všetky vybrané podmienky.",
+        agentsToggle: "AI Agents",
+        agentsActive: "Aktívne, kým pracuje agent AI",
+        agentsIdleEndsIn: "Agenti nečinní - skončí o",
+        agentsGraceTitle: "Zostať hore po zastavení agentov",
+        agentsUnavailable: "Zapnite AI Agents v nastaveniach Dynamic Island, aby Keep Awake videl, kedy agent pracuje."
     )
 
     static let de = KeepAwakeAutomationStrings(
@@ -314,7 +350,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "Im Sperrzustand gelten die normalen Ruhezustandsregeln. Nach dem Entsperren läuft die verbleibende Sitzung weiter.",
         matchAny: "Eine",
         matchAll: "Alle",
-        automationCaptionAll: "Startet nur, wenn alle ausgewählten Bedingungen erfüllt sind."
+        automationCaptionAll: "Startet nur, wenn alle ausgewählten Bedingungen erfüllt sind.",
+        agentsToggle: "AI Agents",
+        agentsActive: "Aktiv, solange ein KI-Agent arbeitet",
+        agentsIdleEndsIn: "Agenten im Leerlauf - endet in",
+        agentsGraceTitle: "Nach dem Ende der Agenten wach bleiben",
+        agentsUnavailable: "Aktiviere AI Agents in den Einstellungen der Dynamic Island, damit Keep Awake sieht, wann ein Agent arbeitet."
     )
 
     static let fr = KeepAwakeAutomationStrings(
@@ -336,7 +377,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "Suit les règles de veille habituelles pendant le verrouillage et reprend le temps restant après le déverrouillage.",
         matchAny: "L’une",
         matchAll: "Toutes",
-        automationCaptionAll: "Démarre uniquement lorsque toutes les conditions sélectionnées sont actives."
+        automationCaptionAll: "Démarre uniquement lorsque toutes les conditions sélectionnées sont actives.",
+        agentsToggle: "AI Agents",
+        agentsActive: "Actif pendant qu’un agent IA travaille",
+        agentsIdleEndsIn: "Agents inactifs - se termine dans",
+        agentsGraceTitle: "Rester éveillé après l’arrêt des agents",
+        agentsUnavailable: "Activez AI Agents dans les réglages de la Dynamic Island pour que Keep Awake voie quand un agent travaille."
     )
 
     static let it = KeepAwakeAutomationStrings(
@@ -358,7 +404,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "Segue le normali regole di stop quando è bloccato e riprende il tempo rimanente dopo lo sblocco.",
         matchAny: "Qualsiasi",
         matchAll: "Tutte",
-        automationCaptionAll: "Si avvia solo quando tutte le condizioni selezionate sono attive."
+        automationCaptionAll: "Si avvia solo quando tutte le condizioni selezionate sono attive.",
+        agentsToggle: "AI Agents",
+        agentsActive: "Attivo mentre un agente IA lavora",
+        agentsIdleEndsIn: "Agenti inattivi - termina tra",
+        agentsGraceTitle: "Resta attivo dopo l’arresto degli agenti",
+        agentsUnavailable: "Attiva AI Agents nelle impostazioni della Dynamic Island così Keep Awake vede quando un agente lavora."
     )
 
     static let ja = KeepAwakeAutomationStrings(
@@ -380,7 +431,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "ロック中は通常のスリープ設定に従い、ロック解除後に残りのセッションを再開します。",
         matchAny: "いずれか",
         matchAll: "すべて",
-        automationCaptionAll: "選択したすべての条件が満たされているときだけ開始します。"
+        automationCaptionAll: "選択したすべての条件が満たされているときだけ開始します。",
+        agentsToggle: "AI Agents",
+        agentsActive: "AIエージェントの作業中に有効",
+        agentsIdleEndsIn: "エージェント待機中 - 残り",
+        agentsGraceTitle: "エージェント停止後もスリープさせない時間",
+        agentsUnavailable: "Keep Awakeがエージェントの作業を検知できるよう、Dynamic IslandのAI Agentsをオンにしてください。"
     )
 
     static let ko = KeepAwakeAutomationStrings(
@@ -402,7 +458,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "잠겨 있는 동안 일반 잠자기 설정을 따르고 잠금 해제 후 남은 세션을 다시 시작합니다.",
         matchAny: "하나",
         matchAll: "모두",
-        automationCaptionAll: "선택한 모든 조건이 충족될 때만 시작합니다."
+        automationCaptionAll: "선택한 모든 조건이 충족될 때만 시작합니다.",
+        agentsToggle: "AI Agents",
+        agentsActive: "AI 에이전트 작업 중에 활성",
+        agentsIdleEndsIn: "에이전트 대기 중 - 남은 시간",
+        agentsGraceTitle: "에이전트 중지 후에도 깨어 있는 시간",
+        agentsUnavailable: "Keep Awake가 에이전트 작업을 감지하도록 Dynamic Island 설정에서 AI Agents를 켜세요."
     )
 
     static let zhHans = KeepAwakeAutomationStrings(
@@ -424,7 +485,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "锁定期间遵循正常的睡眠设置，解锁后继续剩余时段。",
         matchAny: "任一",
         matchAll: "所有",
-        automationCaptionAll: "仅当所有选定条件都满足时才启动。"
+        automationCaptionAll: "仅当所有选定条件都满足时才启动。",
+        agentsToggle: "AI Agents",
+        agentsActive: "AI 智能体工作时启用",
+        agentsIdleEndsIn: "智能体空闲 - 剩余",
+        agentsGraceTitle: "智能体停止后继续保持唤醒",
+        agentsUnavailable: "请在灵动岛设置中开启 AI Agents,Keep Awake 才能看到智能体何时工作。"
     )
 
     static let zhTW = KeepAwakeAutomationStrings(
@@ -446,7 +512,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "鎖定期間會依照正常的睡眠設定，解鎖後繼續剩餘時段。",
         matchAny: "任一",
         matchAll: "所有",
-        automationCaptionAll: "僅當所有選定條件都符合時才啟動。"
+        automationCaptionAll: "僅當所有選定條件都符合時才啟動。",
+        agentsToggle: "AI Agents",
+        agentsActive: "AI 代理工作時啟用",
+        agentsIdleEndsIn: "代理閒置 - 剩餘",
+        agentsGraceTitle: "代理停止後繼續保持喚醒",
+        agentsUnavailable: "請在動態島設定中開啟 AI Agents,Keep Awake 才能看到代理何時工作。"
     )
 
     static let zhHK = KeepAwakeAutomationStrings(
@@ -468,7 +539,12 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "鎖定期間會按正常睡眠設定運作，解鎖後繼續餘下時段。",
         matchAny: "任一",
         matchAll: "所有",
-        automationCaptionAll: "只有當所有已選條件都符合時才啟動。"
+        automationCaptionAll: "只有當所有已選條件都符合時才啟動。",
+        agentsToggle: "AI Agents",
+        agentsActive: "AI 代理工作時啟用",
+        agentsIdleEndsIn: "代理閒置 - 剩餘",
+        agentsGraceTitle: "代理停止後繼續保持喚醒",
+        agentsUnavailable: "請在動態島設定中開啟 AI Agents,Keep Awake 才能看到代理何時工作。"
     )
     static let uk = KeepAwakeAutomationStrings(
         automationSection: "Автоматизація",
@@ -489,6 +565,11 @@ extension KeepAwakeAutomationStrings {
         pauseWhenLockedCaption: "Під час блокування діють звичайні правила сну; після розблокування сеанс продовжується.",
         matchAny: "Будь-яка",
         matchAll: "Усі",
-        automationCaptionAll: "Запускається лише коли всі обрані умови активні."
+        automationCaptionAll: "Запускається лише коли всі обрані умови активні.",
+        agentsToggle: "AI Agents",
+        agentsActive: "Активно, поки працює ШІ-агент",
+        agentsIdleEndsIn: "Агенти простоюють - залишилось",
+        agentsGraceTitle: "Не засинати після зупинки агентів",
+        agentsUnavailable: "Увімкніть AI Agents у налаштуваннях Dynamic Island, щоб Keep Awake бачив роботу агента."
     )
 }

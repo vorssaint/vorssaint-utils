@@ -191,6 +191,7 @@ A cleaner Dynamic Island, a What's New window that shows what changed in the fea
 - With Snap windows at screen edges on, a window moved with the modifier drag also snaps.
 - The scratchpad shows Markdown task lists as checkboxes, and Shift-Return continues a list.
 - App Updates can leave out any app, including one with no update showing. Settings → App updates → Update exceptions.
+- Keep Awake can stay on while an AI agent works (Claude, Codex, OpenCode or Copilot), also through a long Claude shell command, and for a grace period afterwards, which counts down like a timed session. It needs AI Agents. Settings → Keep Awake → Automation → AI Agents.
 
 ### Changed
 - The open Dynamic Island drops page titles, the ⋯ menu and the companion, keeps each page's controls beside the camera and has a compact Now Playing player. Pin, Settings and Close are a secondary click away.

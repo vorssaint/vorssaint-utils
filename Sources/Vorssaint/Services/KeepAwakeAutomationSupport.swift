@@ -7,6 +7,7 @@ enum KeepAwakeAutomationCondition: String, CaseIterable, Hashable {
     case externalDisplay
     case power
     case runningApps
+    case agentsWorking
 }
 
 enum KeepAwakeAutomationAction: Equatable {
@@ -58,7 +59,9 @@ enum KeepAwakeAutomationSupport {
                                    powerEnabled: Bool,
                                    connectedToPower: Bool,
                                    runningAppsEnabled: Bool,
-                                   selectedAppsRunning: Bool) -> Set<KeepAwakeAutomationCondition> {
+                                   selectedAppsRunning: Bool,
+                                   agentWorkEnabled: Bool = false,
+                                   agentsWorking: Bool = false) -> Set<KeepAwakeAutomationCondition> {
         var matches = Set<KeepAwakeAutomationCondition>()
         if externalDisplayEnabled, externalDisplayConnected {
             matches.insert(.externalDisplay)
@@ -68,6 +71,9 @@ enum KeepAwakeAutomationSupport {
         }
         if runningAppsEnabled, selectedAppsRunning {
             matches.insert(.runningApps)
+        }
+        if agentWorkEnabled, agentsWorking {
+            matches.insert(.agentsWorking)
         }
         return matches
     }
@@ -80,16 +86,28 @@ enum KeepAwakeAutomationSupport {
     /// app list is the only one of the three that can be switched on and left
     /// unconfigured, and `matchingConditions` never reports it while the list
     /// is empty, so counting it here would leave All permanently unsatisfiable
-    /// with no sign of why.
+    /// with no sign of why. AI agents are the same while AI Agents is off:
+    /// nothing reads their logs then.
     static func enabledConditions(externalDisplayEnabled: Bool,
                                   powerEnabled: Bool,
                                   runningAppsEnabled: Bool,
-                                  hasSelectedApps: Bool = true) -> Set<KeepAwakeAutomationCondition> {
+                                  hasSelectedApps: Bool = true,
+                                  agentWorkEnabled: Bool = false,
+                                  agentWorkAvailable: Bool = true) -> Set<KeepAwakeAutomationCondition> {
         var enabled = Set<KeepAwakeAutomationCondition>()
         if externalDisplayEnabled { enabled.insert(.externalDisplay) }
         if powerEnabled { enabled.insert(.power) }
         if runningAppsEnabled, hasSelectedApps { enabled.insert(.runningApps) }
+        if agentWorkEnabled, agentWorkAvailable { enabled.insert(.agentsWorking) }
         return enabled
+    }
+
+    /// The agents count as working while one is, and for `grace` after one
+    /// last was, so a follow-up prompt a moment later finds the Mac awake.
+    static func agentWorkHolds(working: Bool, lastWorking: Date?, now: Date, grace: TimeInterval) -> Bool {
+        if working { return true }
+        guard let lastWorking else { return false }
+        return now.timeIntervalSince(lastWorking) < grace
     }
 
     /// Whether the automation should hold a session open. Any (the default,

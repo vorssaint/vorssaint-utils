@@ -9,13 +9,18 @@ struct KeepAwakeAutomationEditor: View {
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var externalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var connectedToPower = false
     @AppStorage(DefaultsKey.keepAwakeRunningApps) private var runningApps = false
+    @AppStorage(DefaultsKey.keepAwakeAgentsWorking) private var agentsWorking = false
+    @AppStorage(DefaultsKey.keepAwakeAgentsGrace) private var agentsGrace = 5
+    @AppStorage(DefaultsKey.notchAgentsEnabled) private var agentsEnabled = false
     @AppStorage(DefaultsKey.keepAwakeAutomationRequireAll) private var requireAll = false
 
     var compact = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 8 : 10) {
-            HStack(alignment: .top, spacing: compact ? 6 : 8) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: compact ? 6 : 8),
+                                GridItem(.flexible(), spacing: compact ? 6 : 8)],
+                      alignment: .leading, spacing: compact ? 6 : 8) {
                 conditionTile(
                     title: strings.externalDisplayToggle,
                     icon: "display",
@@ -40,6 +45,14 @@ struct KeepAwakeAutomationEditor: View {
                     runningApps.toggle()
                     awake.automationPreferencesDidChange()
                 }
+                conditionTile(
+                    title: strings.agentsToggle,
+                    icon: "sparkle",
+                    selected: agentsWorking
+                ) {
+                    agentsWorking.toggle()
+                    awake.automationPreferencesDidChange()
+                }
             }
             // One condition cannot be combined with anything, so the mode
             // would be a control with no effect (issue #1587).
@@ -56,6 +69,9 @@ struct KeepAwakeAutomationEditor: View {
                     awake.automationPreferencesDidChange()
                 }
             }
+            if agentsWorking {
+                agentOptions
+            }
             if runningApps {
                 AppBundleList(title: strings.runningAppsListTitle,
                               caption: strings.runningAppsListCaption,
@@ -70,7 +86,37 @@ struct KeepAwakeAutomationEditor: View {
     }
 
     private var selectedConditionCount: Int {
-        [externalDisplay, connectedToPower, runningApps].filter { $0 }.count
+        [externalDisplay, connectedToPower, runningApps, agentsWorking].filter { $0 }.count
+    }
+
+    /// Nothing reads the agents' logs unless AI Agents is on.
+    private var agentsAvailable: Bool {
+        agentsEnabled && KeepAwakeAgentWork.isAvailable()
+    }
+
+    private var agentOptions: some View {
+        VStack(alignment: .leading, spacing: compact ? 5 : 6) {
+            HStack {
+                Text(strings.agentsGraceTitle)
+                    .font(.system(size: compact ? 10 : 12, weight: .medium))
+                Spacer(minLength: 8)
+                Picker("", selection: $agentsGrace) {
+                    ForEach(Defaults.allowedKeepAwakeAgentsGraceMinutes, id: \.self) { minutes in
+                        Text(KeepAwakeMouseJiggleIntervalPicker.label(for: minutes)).tag(minutes)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .fixedSize()
+            }
+            if !agentsAvailable {
+                Text(strings.agentsUnavailable)
+                    .font(.system(size: compact ? 9.5 : 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     private var strings: KeepAwakeAutomationStrings {

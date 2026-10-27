@@ -94,6 +94,9 @@ struct AgentUsageSnapshot: Equatable {
     var limits: [AgentProvider: AgentLimits] = [:]
     var plans: [AgentProvider: AgentPlan] = [:]
     var live: [AgentLiveSession] = []
+    /// A Claude turn has gone quiet but still waits on a shell command, as
+    /// with a long build. It is not in `live`, since it writes nothing.
+    var claudeCommandWaiting = false
     var claudeBlock: AgentBlock?
     /// The last half hour, scaled to an hour.
     var burnRate: [AgentProvider: AgentTotals] = [:]

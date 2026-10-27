@@ -564,7 +564,7 @@ final class StatusItemController {
 
         let toolTip: String
         if manager.isActive {
-            if manager.sessionTrigger == .automation {
+            if manager.sessionTrigger == .automation, !manager.agentsIdle {
                 toolTip = FeatureStrings.keepAwakeAutomation(L10n.shared.language)
                     .activeStatus(for: manager.activeAutomationConditions)
             } else if let end = manager.endDate {
