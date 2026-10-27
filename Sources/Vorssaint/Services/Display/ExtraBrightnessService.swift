@@ -43,6 +43,15 @@ final class ExtraBrightnessService: ObservableObject {
     /// dropped out on XDR hardware when only the first frame was shown).
     private var triggerWindow: NSWindow?
     private var triggerLayer: CAMetalLayer?
+    /// A Space of the overlay's own (the island's helper), holding every
+    /// window above. On macOS 27 Mission Control drops each window of the
+    /// current desktop that a larger window above covers, see-through or
+    /// not, so any screen-sized overlay on the desktop emptied that desktop's
+    /// thumbnail down to the wallpaper (#3292). Here the overlay belongs to
+    /// no desktop and is never counted. Rebuilt with the windows, which must
+    /// join before they first show. Nil when the symbols are missing: the
+    /// windows then stay on every desktop as before.
+    private var overlaySpace: NotchOverlaySpace?
     private var metalDevice: MTLDevice?
     private var commandQueue: MTLCommandQueue?
     private var pollTimer: Timer?
@@ -173,6 +182,8 @@ final class ExtraBrightnessService: ObservableObject {
         triggerWindow?.orderOut(nil)
         triggerWindow = nil
         triggerLayer = nil
+        overlaySpace?.close()
+        overlaySpace = nil
         commandQueue = nil
         metalDevice = nil
         renderedFactor = 1.0
@@ -214,10 +225,13 @@ final class ExtraBrightnessService: ObservableObject {
         screensAsleep = false
     }
 
-    /// The windows are resident on every Space, so a desktop or fullscreen change
-    /// normally needs nothing beyond a fresh present. Rebuilding stays as the
-    /// fallback for what can still move the ground under it: a different
-    /// built-in display, or AppKit reporting that a window is not there.
+    /// The windows sit in their own Space (or, without it, on every Space), so
+    /// a desktop or fullscreen change normally needs nothing beyond a fresh
+    /// present. Rebuilding stays as the fallback for what can still move the
+    /// ground under it: a different built-in display, or AppKit reporting
+    /// that a desktop-resident window is not there. AppKit never reports
+    /// windows of the own Space as on the active Space, so that check would
+    /// rebuild, and blink the boost, on every switch.
     private func handleActiveSpaceChange() {
         guard pollTimer != nil else { return }
         guard let screen = Self.builtInXDRScreen() else {
@@ -227,6 +241,7 @@ final class ExtraBrightnessService: ObservableObject {
         if !overlayWindows.isEmpty, let triggerWindow,
            ExtraBrightnessSupport.canReuseSpaceWindows(
                sameDisplay: overlayDisplayID == Self.displayID(of: screen),
+               inOwnSpace: overlaySpace != nil,
                overlayOnActiveSpace: overlayWindows.allSatisfy(\.isOnActiveSpace),
                triggerOnActiveSpace: triggerWindow.isOnActiveSpace) {
             renderIfNeeded()
@@ -328,6 +343,9 @@ final class ExtraBrightnessService: ObservableObject {
         overlayWindows.forEach { $0.orderOut(nil) }
         overlayWindows = []
         overlayLayers = []
+        triggerWindow?.orderOut(nil)
+        overlaySpace?.close()
+        overlaySpace = NotchOverlaySpace()
 
         guard let device = MTLCreateSystemDefaultDevice(),
               let queue = device.makeCommandQueue() else { return }
@@ -374,6 +392,7 @@ final class ExtraBrightnessService: ObservableObject {
         // First frame before the windows show: a rebuild mid-boost must come
         // up already multiplying, never with an empty (neutral) layer.
         render(factor: renderedFactor, waitUntilScheduled: true)
+        overlayWindows.forEach { overlaySpace?.add($0) }
         overlayWindows.forEach { $0.orderFrontRegardless() }
         showTrigger(on: screen, device: device, queue: queue)
     }
@@ -414,6 +433,7 @@ final class ExtraBrightnessService: ObservableObject {
         triggerWindow = window
         triggerLayer = layer
         presentTrigger(waitUntilScheduled: true)
+        overlaySpace?.add(window)
         window.orderFrontRegardless()
     }
 
