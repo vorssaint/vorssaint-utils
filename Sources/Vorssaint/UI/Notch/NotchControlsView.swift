@@ -110,6 +110,8 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.perform { CommandBarService.shared.show() } }
         case .scratchpad:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), action: service.openScratchpad)
+        case .launchpad:
+            NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.perform { LaunchpadService.shared.show() } }
         case .timer: NotchTimerTile(service: service)
         case .calendar: NotchCalendarTile(service: service)
         case .volume, .brightness, .keyboardLight, .music: EmptyView()
@@ -132,6 +134,7 @@ extension NotchControlItem {
         case .mixer: return l10n.s.mixerSection
         case .commandBar: return FeatureStrings.commandBar(l10n.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
+        case .launchpad: return FeatureStrings.launchpad(l10n.language).pageTitle
         case .music: return NotchModule.music.title(l10n.language)
         case .timer: return NotchModule.timer.title(l10n.language)
         case .calendar: return NotchModule.calendar.title(l10n.language)

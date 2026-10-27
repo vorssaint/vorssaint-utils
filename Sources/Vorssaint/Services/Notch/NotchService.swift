@@ -1887,6 +1887,7 @@ final class NotchService: ObservableObject {
             case .calendar: select(.calendar)
             case .commandBar: perform { CommandBarService.shared.show() }
             case .scratchpad: openScratchpad()
+            case .launchpad: perform { LaunchpadService.shared.show() }
             case .volume, .brightness, .keyboardLight: select(.controls)
             }
         }

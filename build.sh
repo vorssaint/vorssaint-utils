@@ -349,6 +349,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/WallpaperStrings.swift
         Sources/Vorssaint/Services/Wallpaper/WallpaperSupport.swift
         Sources/Vorssaint/Core/ScratchpadStrings.swift
+        Sources/Vorssaint/Core/LaunchpadStrings.swift
         Sources/Vorssaint/Core/FinderRenameStrings.swift
         Sources/Vorssaint/Core/CommandBarStrings.swift
         Sources/Vorssaint/Core/FeedbackStrings.swift
@@ -371,6 +372,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift
         Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScratchpadSupport.swift
+        Sources/Vorssaint/Services/Launchpad/LaunchpadSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScratchpadStore.swift
         Sources/Vorssaint/Services/KillProcess/KillProcessSupport.swift
         Sources/Vorssaint/Services/Recorder/RecorderSupport.swift
@@ -667,6 +669,26 @@ else
         ADAPTIVE_SKIP="actool could not compile the catalog"
     fi
 fi
+# The Launchpad Dock icon, copied into the helper app it writes.
+rm -f build/LaunchpadIcon.car build/LaunchpadIcon.icns
+if [[ -z "$ADAPTIVE_SKIP" ]]; then
+    mkdir -p "$ICON_TMP/Launchpad/catalog"
+    ditto "Resources/Brand/LaunchpadIcon.icon" "$ICON_TMP/Launchpad/AppIcon.icon"
+    if "$ACTOOL_BIN" "$ICON_TMP/Launchpad/AppIcon.icon" \
+            --compile "$ICON_TMP/Launchpad/catalog" \
+            --app-icon AppIcon \
+            --platform macosx \
+            --target-device mac \
+            --minimum-deployment-target 14.0 \
+            --enable-on-demand-resources NO \
+            --output-partial-info-plist "$ICON_TMP/Launchpad/partial-info.plist" \
+            >"$ICON_TMP/Launchpad/actool.log" 2>&1 && [[ -s "$ICON_TMP/Launchpad/catalog/Assets.car" ]]; then
+        mv "$ICON_TMP/Launchpad/catalog/Assets.car" build/LaunchpadIcon.car
+        mv "$ICON_TMP/Launchpad/catalog/AppIcon.icns" build/LaunchpadIcon.icns
+    else
+        echo "  Launchpad icon skipped (the Dock icon falls back to a drawn one)"
+    fi
+fi
 if [[ -n "$ADAPTIVE_SKIP" ]]; then
     cp "$ICON_TMP/actool.log" build/actool-failure.log 2>/dev/null || true
     echo "  adaptive icon skipped: $ADAPTIVE_SKIP (Dock falls back to AppIcon.icns)"
@@ -696,6 +718,9 @@ if (( DEV )); then
     /usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $EXECUTABLE" "$STAGE/Contents/Info.plist"
+    # Its own link scheme, so the Launchpad Dock icon a build writes opens that build.
+    /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLName $APP_BUNDLE_ID" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 vorssaint-dev" "$STAGE/Contents/Info.plist"
     FAN_PLIST="$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
     /usr/libexec/PlistBuddy -c "Set :Label $FAN_HELPER_ID" "$FAN_PLIST"
     /usr/libexec/PlistBuddy -c "Set :BundleProgram Contents/Library/LaunchServices/$FAN_HELPER_ID" "$FAN_PLIST"
@@ -725,6 +750,9 @@ cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Co
 if [[ -f build/Assets.car ]]; then
     cp build/Assets.car "$STAGE/Contents/Resources/Assets.car"
 fi
+for LAUNCHPAD_ICON in build/LaunchpadIcon.car build/LaunchpadIcon.icns; do
+    if [[ -f "$LAUNCHPAD_ICON" ]]; then cp "$LAUNCHPAD_ICON" "$STAGE/Contents/Resources/"; fi
+done
 if [[ -d Resources/Gifs ]]; then
     mkdir -p "$STAGE/Contents/Resources/Gifs"
     cp Resources/Gifs/*.gif "$STAGE/Contents/Resources/Gifs/"

@@ -357,6 +357,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         KeepAwakeManager.shared.deactivate(reason: .quit)
     }
 
+    /// The app's own links. Only the Launchpad Dock icon sends one, and a
+    /// link a web page could also open, so it does nothing but show the grid.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard urls.contains(where: { $0.host?.lowercased() == "launchpad" }) else { return }
+        LaunchpadService.shared.toggle()
+    }
+
     /// The lifeline when the menu bar icon goes missing. Opening the app again
     /// from Finder, Spotlight or Launchpad while it's already running lands here:
     /// force the icon back and pop the panel so there's immediate proof the app is
