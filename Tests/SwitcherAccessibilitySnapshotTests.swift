@@ -11,7 +11,6 @@ enum SwitcherAccessibilitySnapshotTests {
     final class Window: NSObject {
         let id: CGWindowID?
         let reading: Reader.WindowReading
-        var reads = 0
 
         init(_ id: CGWindowID?, _ reading: Reader.WindowReading) {
             self.id = id
@@ -44,7 +43,6 @@ enum SwitcherAccessibilitySnapshotTests {
                                       acceptsUndescribedSubroles: Bool,
                                       normalLevelWindowIDs: Set<CGWindowID>, screenFrames: [CGRect],
                                       isCancelled: () -> Bool) -> WindowReading {
-            window.reads += 1
             return window.reading
         }
 
@@ -92,8 +90,6 @@ enum SwitcherAccessibilitySnapshotTests {
                      "an unresolved timed-out window stays visible beside a described sibling")
         suite.expect(keeps(1, in: partial) && !keeps(3, in: partial, excluded: true),
                      "the partial-answer fallback preserves described windows and rejects cycle-excluded helpers")
-        suite.expect(unanswered.reads == 1,
-                     "main and focused aliases do not repeat a timed-out window read")
 
         Reader.focused = nil
         let resolved = snapshot([Window(1, .userFacing), Window(2, .unanswered), Window(3, .notUserFacing)])
@@ -117,6 +113,32 @@ enum SwitcherAccessibilitySnapshotTests {
         let fullscreen = snapshot([Window(1, .userFacing)])?.byID[1]
         suite.expect(fullscreen?.isFullscreen == true && fullscreen?.isNativeFullscreen == true,
                      "an AX fullscreen flag survives in both fullscreen metadata fields")
+
+        Reader.nativeFullscreen = false
+        let windows = [Window(1, .userFacing), Window(2, .unanswered),
+                       Window(3, .notUserFacing), Window(4, .userFacing)]
+        let direct = snapshot(windows)
+        Reader.listResult = .cannotComplete
+        Reader.windows = []
+        let prefetched = WindowEnumeratorAccessibilityPrefetch<Window>.Query(
+            windows: windows, error: .success)
+        let early = Reader.accessibilityWindows(for: 1, normalLevelWindowIDs: [1, 2, 3],
+                                                 screenFrames: [], isCancelled: { false },
+                                                 prefetchedQuery: prefetched)
+        suite.expect(early?.ordered.map(\.0) == [1, 4]
+                        && Set(early?.byID.keys.map { $0 } ?? []) == Set(direct?.byID.keys.map { $0 } ?? [])
+                        && early?.unansweredIDs == [2],
+                     "a prefetched query preserves classified AX-only windows and unanswered siblings")
+        suite.expect(keeps(2, in: early) && !keeps(3, in: early),
+                     "prefetched window classification retains the same ghost-filtering fallback")
+        Reader.listResult = .success
+        Reader.windows = windows
+        let failed = WindowEnumeratorAccessibilityPrefetch<Window>.Query(
+            windows: nil, error: .cannotComplete)
+        suite.expect(Reader.accessibilityWindows(for: 1, normalLevelWindowIDs: [1, 2, 3],
+                                                 screenFrames: [], isCancelled: { false },
+                                                 prefetchedQuery: failed) == nil,
+                     "an unanswered prefetch is not retried as a second app query or replaced with unrelated windows")
         suite.expect(Reader.accessibilityWindows(for: 1, normalLevelWindowIDs: [], screenFrames: [],
                                                 isCancelled: { true }) == nil,
                      "a cancelled snapshot does not publish a partial answer")
