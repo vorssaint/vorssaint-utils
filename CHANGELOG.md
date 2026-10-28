@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable window switching, screenshots, keyboard shortcuts, audio and Settings, including radial menu file selection and percentage examples in AI Agents previews. New controls add configurable calendar countdowns, mouse-wheel zoom and app quitting, alongside clipboard source icons, more switcher columns, smoother sliders, English command search and command-line settings backups.
+Safer Shelf drags and more reliable window switching, quit protection, screenshots, image exports, audio, URL Cleaner rules and Settings, including radial menu file selection, clearer agent limit labels and percentage examples in AI Agents previews. New controls add configurable calendar countdowns, mouse-wheel zoom and app quitting, alongside clipboard source icons, more switcher columns, smoother sliders, English command search and command-line settings backups.
 
 ### Added
 - Dynamic Island level controls and the menu panel's mixer can be adjusted with a mouse wheel or trackpad. Thanks to @JB-OD.
@@ -32,12 +32,15 @@ More reliable window switching, screenshots, keyboard shortcuts, audio and Setti
 - The window switcher allows up to 10 columns while preserving Auto and screen-width limits. Settings → Window switcher → Options → Maximum columns. Thanks to @EugeneCarldotme.
 
 ### Fixed
-- Super key modifiers reach session-based hotkey tools regardless of startup order, including after login. Shortcut recording still owns the source key and its solo actions. Thanks to @complicat9d for the diagnosis.
+- Shelf copies files dragged from inside app packages or libraries, preserving the originals. Ordinary files and whole packages can still move. Thanks to @Dexist-hub.
+- Image exports and newly saved profiles preserve a zero watermark margin. Thanks to @JeanBaeez.
+- URL Cleaner rules added from links with login details or ports now match the intended site. Previously saved rules containing login details or ports need to be added again. Thanks to @g1obalworlds.
 - The radial menu's action editor keeps its file picker over the editor window, avoiding an invisible panel on multi-display setups. Thanks to @saiganeshreddy7.
 - Mic Mute describes its device-control limits and reports known failures even when no microphone could be changed. Siri and some apps may still hear audio. Thanks to @sarat03 for the diagnosis.
 - The onboarding feature picker stays responsive when scrolling. Thanks to @yousefhamza.
 - Ultra-wide wallpaper previews stay within their own grid cells. Thanks to @ozanuslan.
 - Dynamic Island keeps volume, brightness and keyboard-light notices at a stable width as the percentage gains a digit. Thanks to @nikigan.
+- AI Agents cards keep "left" or "used" beside limit percentages in narrow layouts, letting the reset countdown give way when needed. Thanks to @sakemyali.
 - AI Agents settings previews show example limit percentages when account limits are unavailable. Thanks to @hrithiksaini99.
 - Command Bar finds English built-in commands and system answers when the interface uses another language. Thanks to @ywu73.
 - Clicking outside Dynamic Island dismisses its screenshot preview while preserving active sharing, pinned surfaces and clicks in copies on other displays. Thanks to @samanyudas.
@@ -47,6 +50,7 @@ More reliable window switching, screenshots, keyboard shortcuts, audio and Setti
 - Opening the window switcher uses fewer Accessibility requests when many windows are open.
 - The window switcher's search field stays within its panel and remains readable on light backgrounds and Liquid Glass.
 - Focus follows mouse preserves window order when Bring the window to the front is off.
+- Quit Protection follows changes to macOS app-switcher shortcuts and respects required Fn, preventing unprotected quits after Vorssaint's switcher closes. Thanks to @ruvelro.
 - Quit on close ignores confirmed stale surfaces left by closed windows while preserving minimized windows and windows on other Spaces.
 - The menu bar panel recovers from interrupted closes so later clicks can open it again.
 - Recent captures keeps its Clear history confirmation open and removes a pending confirmation when the palette closes.
@@ -73,7 +77,7 @@ More reliable window switching, screenshots, keyboard shortcuts, audio and Setti
 - Screenshot area selection keeps its crosshair over other apps, and card shadows follow the captured window's own rounded corners.
 
 ### Contributors
-Thanks to @0miicr0n, @AB-boi, @ahmadhatahet, @ALaunert, @Aryan-Saini, @asim-sde, @BerkUyku, @Blasted246, @buhbyehotmail, @derpyjoystick, @DigitalWestern, @dimashpt, @dimitarmanov, @dongzoor, @DrakeEvans, @eliamarinen, @EugeneCarldotme, @fablau, @Forenzo, @globeatin, @Goonwb, @hash00, @hertza-haeon, @hrithiksaini99, @i0208, @ilvesBogdan, @iva-zhu, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @kidtaroi, @Likheet, @LJXXXD, @MartinSchlender, @Mikkeep, @mthsmb, @muratozturk5, @nikigan, @oc7opu5, @othmanehousni, @ozanuslan, @pedro-fontinele, @pedrozimmermannsoares, @raymondchins, @RKeyProg, @rochapaesc, @saarmiara, @saiganeshreddy7, @samanyudas, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz, @thedankest, @ve3dy, @ygh1254, @yousefhamza, @ywu73 and @Zekuath.
+Thanks to @0miicr0n, @AB-boi, @ahmadhatahet, @ALaunert, @Aryan-Saini, @asim-sde, @BerkUyku, @Blasted246, @buhbyehotmail, @derpyjoystick, @Dexist-hub, @DigitalWestern, @dimashpt, @dimitarmanov, @dongzoor, @DrakeEvans, @eliamarinen, @EugeneCarldotme, @fablau, @Forenzo, @g1obalworlds, @globeatin, @Goonwb, @hash00, @hertza-haeon, @hrithiksaini99, @i0208, @ilvesBogdan, @iva-zhu, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @kidtaroi, @Likheet, @LJXXXD, @MartinSchlender, @Mikkeep, @mthsmb, @muratozturk5, @nikigan, @oc7opu5, @othmanehousni, @ozanuslan, @pedro-fontinele, @pedrozimmermannsoares, @raymondchins, @RKeyProg, @rochapaesc, @ruvelro, @saarmiara, @saiganeshreddy7, @sakemyali, @samanyudas, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz, @thedankest, @ve3dy, @ygh1254, @yousefhamza, @ywu73 and @Zekuath.
 
 ## [3.4.2] - 2026-10-21
 
