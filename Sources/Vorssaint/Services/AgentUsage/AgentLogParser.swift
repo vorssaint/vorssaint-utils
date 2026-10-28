@@ -19,6 +19,8 @@ enum AgentLogEntry: Equatable {
     case turnBegan(Date)
     /// Model and folder context known before usage is reported.
     case turnContext(model: String, project: String)
+    /// Whether the turn runs in the agent's app or its command line.
+    case turnPlace(AgentSessionPlace)
     /// Work continues; nil when the line was not worth decoding for its time.
     case turnActive(Date?)
     /// A step ended expecting the agent to go on; unless work follows soon,
@@ -53,6 +55,8 @@ struct AgentLogState: Equatable {
     /// The thread whose running totals the lines read now report: history
     /// copied from another thread keeps that thread's, as in its own log.
     var codexTotalsSession = ""
+    /// The thread was started in the Codex app rather than its command line.
+    var codexApp = false
     /// Copilot shutdown counters are cumulative for the life of a session.
     var copilotTotals: [String: AgentTokens] = [:]
     /// Counted requests by model; the empty key holds unresolved attribution.

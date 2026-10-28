@@ -10,6 +10,9 @@ enum AgentClaudeServerTests {
         /// Whether anything but the page's Limits card uses the limits.
         static var used = true
         static func limitsInUse(pageShown: Bool) -> Bool { used || pageShown }
+        /// Whether a limit is on screen, which shortens the wait between checks.
+        static var onScreen = false
+        static func limitsOnScreen(pageShown: Bool) -> Bool { onScreen || pageShown }
     }
 
     class Fixture {
@@ -35,6 +38,8 @@ enum AgentClaudeServerTests {
         var clock = Date.distantPast
         var events: [String] = []
 
+        func schedulePublish() {}
+
         func report(_ event: AgentUsageEvent) {
             let time = ISO8601DateFormatter().string(from: clock)
             switch event {
@@ -49,6 +54,8 @@ enum AgentClaudeServerTests {
         alerts(suite)
         checks(suite)
         discovery(suite)
+        cache(suite)
+        rounding(suite)
         let now = AgentTimestamp.parse("2026-10-15T07:00:00Z")!
         func result(_ used: Any = 62, resets: Any = "2026-10-15T10:39:59.973389+00:00") -> [String: Any] {
             ["rate_limits_available": true, "rate_limits": [
@@ -326,6 +333,97 @@ enum AgentClaudeServerTests {
         host.pageVisible = true
         suite.expect(unused && shown && host.claudeLimitsDue(at: now + 86_400, pageShows: false),
                      "Claude Code is not asked while nothing shows or alerts on the limits, and the page's Limits card counts")
+    }
+
+    /// The usage every running Claude Code saves in its profile, as Claude
+    /// Code 2.x writes it, codenamed limits and all.
+    private static func cache(_ suite: TestSuite) {
+        let now = AgentTimestamp.parse("2026-10-21T14:40:00Z")!
+        let fetched = now.addingTimeInterval(-5)
+        func profile(account: Any = "person", fetchedAt: Any = fetched.timeIntervalSince1970 * 1_000,
+                     usage: Any? = nil) -> [String: Any] {
+            ["oauthAccount": ["accountUuid": "person", "organizationUuid": "team"],
+             "cachedUsageUtilization": ["fetchedAtMs": fetchedAt, "accountUuid": account, "utilization": usage ?? [
+                "five_hour": ["utilization": 37, "resets_at": "2026-10-21T16:30:00.691934+00:00", "limit_dollars": NSNull(),
+                              "used_dollars": NSNull(), "locked_reason": NSNull()],
+                "seven_day": NSNull(), "seven_day_oauth_apps": NSNull(), "seven_day_opus": NSNull(),
+                "seven_day_sonnet": ["utilization": 12, "resets_at": "2026-10-23T03:00:00+00:00"],
+                "tangelo": NSNull(), "iguana_necktie": ["utilization": 90, "resets_at": "2026-10-22T00:00:00Z"],
+                "extra_usage": ["is_enabled": false, "utilization": NSNull(), "currency": "USD"],
+                "limits": [["kind": "session", "percent": 37, "resets_at": "2026-10-21T16:30:00.691934+00:00"]]]]]
+        }
+        let cache = AgentClaudeServer.cache(profile(), now: now)
+        suite.expect(cache?.organization == "team" && cache?.limits.source == .account
+                        && cache?.limits.observedAt == fetched
+                        && cache?.limits.windows.map(\.id) == ["claude.fh", "claude.sn"]
+                        && cache?.limits.windows.map(\.usedPercent) == [37, 12]
+                        && cache?.limits.windows.last?.scope == "Sonnet"
+                        && cache?.limits.windows.first?.resetsAt == AgentTimestamp.parse("2026-10-21T16:30:00.691934Z"),
+                     "the profile's saved usage reads as the account's, at the time it was fetched, without null or codenamed limits")
+        suite.expect(AgentClaudeServer.cache(profile(account: "someone else"), now: now) == nil
+                        && AgentClaudeServer.cache(profile(account: NSNull()), now: now) == nil
+                        && AgentClaudeServer.cache(["oauthAccount": [String: Any](),
+                                                    "cachedUsageUtilization": profile()["cachedUsageUtilization"]!], now: now) == nil,
+                     "usage saved for another account, or for no known one, is never taken")
+        suite.expect(AgentClaudeServer.cache(profile(fetchedAt: now.addingTimeInterval(60).timeIntervalSince1970 * 1_000), now: now) == nil
+                        && AgentClaudeServer.cache(profile(fetchedAt: true), now: now) == nil
+                        && AgentClaudeServer.cache(profile(fetchedAt: "1792593765897"), now: now) == nil
+                        && AgentClaudeServer.cache(profile(usage: "37%"), now: now) == nil
+                        && AgentClaudeServer.cache(profile(usage: ["seven_day": NSNull(), "tangelo": NSNull()]), now: now) == nil
+                        && AgentClaudeServer.cache([:], now: now) == nil,
+                     "a copy from the future, one this check cannot read, or one without a plan limit, is ignored")
+
+        // A copy newer than what the service has replaces it; an older one,
+        // or the same one again, does not.
+        let host = Host()
+        host.claudeOrganization = "team"
+        host.claudeAccountLimits = cache?.limits
+        func take(_ saved: [String: Any]) { _ = host.takeClaudeCache(AgentClaudeServer.cache(saved, now: now), now: now) }
+        take(profile(fetchedAt: (fetched.timeIntervalSince1970 - 60) * 1_000))
+        let kept = host.claudeAccountLimits?.observedAt == fetched
+        take(profile(fetchedAt: (fetched.timeIntervalSince1970 + 3) * 1_000,
+                     usage: ["five_hour": ["utilization": 38, "resets_at": "2026-10-21T16:30:00Z"]]))
+        suite.expect(kept && host.claudeAccountLimits?.windows.map(\.usedPercent) == [38]
+                        && host.store.limits[.claude]?.windows.first?.usedPercent == 38,
+                     "a copy older than the reading in hand is ignored, and a newer one shows at once")
+        host.claudeOrganization = "another team"
+        take(profile(fetchedAt: (fetched.timeIntervalSince1970 + 4) * 1_000))
+        suite.expect(host.claudeAccountLimits?.windows.map(\.usedPercent) == [38],
+                     "a copy from another organization than the one in use is never taken")
+
+        // A fresh copy counts as a check that answered, so Claude Code waits;
+        // an old copy does not hold it back.
+        let probe = Host()
+        probe.noteClaudeCheck(.unreachable)
+        probe.noteClaudeCache(now.addingTimeInterval(-10))
+        let waits = !probe.claudeLimitsDue(at: now, pageShows: true)
+            && !probe.claudeLimitsDue(at: now.addingTimeInterval(49), pageShows: true)
+            && probe.claudeLimitsDue(at: now.addingTimeInterval(50), pageShows: true)
+            && probe.claudeAccountFailure == nil
+        probe.claudeAccountAttempted = now
+        probe.noteClaudeCache(now.addingTimeInterval(-600))
+        suite.expect(waits && probe.claudeAccountAttempted == now
+                        && probe.claudeLimitsDue(at: now.addingTimeInterval(60), pageShows: true),
+                     "Claude Code is not started while a session's saved copy is fresh, and a stale copy does not delay it")
+    }
+
+    /// Renewals arrive with fractions of a second and show to the nearest minute.
+    private static func rounding(_ suite: TestSuite) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let now = AgentTimestamp.parse("2026-10-21T14:00:00Z")!
+        func shown(_ resets: String) -> String? {
+            let window = AgentLimitWindow(id: "claude.fh", kind: .session, minutes: 300, scope: nil, usedPercent: 40,
+                                          resetsAt: AgentTimestamp.parse(resets))
+            return AgentLimitSupport.displayedReset(window, now: now).map {
+                AgentFormat.resetTime($0, now: now, locale: Locale(identifier: "en_US"), calendar: calendar)
+            }
+        }
+        suite.expect(shown("2026-10-21T21:59:59.973389+00:00") == "22:00"
+                        && shown("2026-10-21T16:30:00.84Z") == "16:30"
+                        && shown("2026-10-21T16:30:29Z") == "16:30" && shown("2026-10-21T16:30:31Z") == "16:31"
+                        && shown("2026-10-21T13:59:59.5Z") == nil,
+                     "reset times round to the nearest minute, and a passed one still shows nothing")
     }
 
     /// Where people install Claude Code, each in a home of its own, with
