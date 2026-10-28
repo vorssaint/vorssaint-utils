@@ -29,8 +29,8 @@ struct URLCleanerSettings: View {
     }
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPageContent(feature: .urlCleaner) {
+            SettingsCard {
                 Toggle(l10n.s.urlCleanerEnable, isOn: $enabled)
                     .onChange(of: enabled) { _, _ in
                         URLCleanerService.shared.syncWithPreferences()
@@ -56,7 +56,7 @@ struct URLCleanerSettings: View {
                 }
             }
 
-            Section(l10n.s.urlCleanerRulesTitle) {
+            SettingsCard(title: l10n.s.urlCleanerRulesTitle) {
                 ForEach(URLCleaning.ruleGroups(rules: rules)) { group in
                     DisclosureGroup {
                         parameterGrid(for: group)
@@ -90,7 +90,7 @@ struct URLCleanerSettings: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section(l10n.s.urlCleanerManualTitle) {
+            SettingsCard(title: l10n.s.urlCleanerManualTitle) {
                 HStack(spacing: 8) {
                     TextField("", text: $input, prompt: Text(l10n.s.urlCleanerInputPlaceholder))
                         .textFieldStyle(.roundedBorder)
@@ -130,7 +130,6 @@ struct URLCleanerSettings: View {
                 }
             }
         }
-        .formStyle(.grouped)
     }
 
     /// Two dozen names for one site is a lot of clicking to say "not this

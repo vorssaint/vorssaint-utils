@@ -27,6 +27,11 @@ final class TestSuite {
     }
 
     func run(_ name: String, _ body: () -> Void) {
+        // UserDefaults registration is shared by all suites in this process.
+        // A suite's registered defaults must not mask unset migration inputs
+        // in a later suite, even after its persistent domain is removed.
+        let registration = UserDefaults.standard.volatileDomain(forName: UserDefaults.registrationDomain)
+        defer { UserDefaults.standard.setVolatileDomain(registration, forName: UserDefaults.registrationDomain) }
         let before = checks
         let previousFailures = failures.count
         let started = ProcessInfo.processInfo.systemUptime
@@ -66,6 +71,20 @@ enum TestHarnessTests {
         accepted.expectClose(-1.25, -1, "negative values", tol: 0.25)
         suite.expect(accepted.failures.isEmpty && accepted.checks == 3,
                      "finite comparisons retain exact and tolerance-boundary behavior")
+
+        let registration = UserDefaults.standard.volatileDomain(forName: UserDefaults.registrationDomain)
+        let registrationProbe = "com.vorssaint.tests.registration.\(UUID().uuidString)"
+        let isolated = TestSuite()
+        isolated.run("registration-isolation") {
+            UserDefaults.standard.register(defaults: [registrationProbe: true])
+            isolated.expect(UserDefaults.standard.bool(forKey: registrationProbe),
+                            "a suite can use its own registered defaults")
+        }
+        suite.expect(isolated.failures.isEmpty
+                     && UserDefaults.standard.object(forKey: registrationProbe) == nil
+                     && NSDictionary(dictionary: UserDefaults.standard.volatileDomain(forName: UserDefaults.registrationDomain))
+                        .isEqual(to: registration),
+                     "suite completion removes its registrations and preserves earlier defaults")
 
         let reference = TestFormat.parse("%1$d items in %2$@")?.arguments
         suite.expect(reference == [1: "d", 2: "@"], "format arguments have explicit identities")

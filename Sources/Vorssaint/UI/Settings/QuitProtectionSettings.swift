@@ -31,8 +31,8 @@ struct QuitProtectionSettings: View {
     }
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPageContent(feature: .quitWindowProtection) {
+            SettingsCard {
                 Text(strings.intro)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -59,12 +59,11 @@ struct QuitProtectionSettings: View {
                             showFeedback: $closeShowFeedback)
 
             if (quitEnabled || closeEnabled) && !permissions.accessibility {
-                Section(strings.accessibilityCaption) {
+                SettingsCard(title: strings.accessibilityCaption) {
                     PermissionRow(kind: .accessibility)
                 }
             }
         }
-        .formStyle(.grouped)
         .sheet(item: $pickerShortcut) { shortcut in
             AppPickerView(onCancel: { pickerShortcut = nil }, onSelect: { url in
                 pickerShortcut = nil
@@ -91,7 +90,7 @@ struct QuitProtectionSettings: View {
         let currentScope = QuitProtectionSupport.scopeFor(scope.wrappedValue)
         let currentModifier = QuitProtectionSupport.extraModifierFor(extraModifier.wrappedValue)
 
-        Section(shortcut.symbol) {
+        SettingsCard(title: shortcut.symbol) {
             Toggle(strings.enabled, isOn: enabled)
                 .onChange(of: enabled.wrappedValue) { _, _ in service.syncWithPreferences() }
             Text(strings.enabledCaption)

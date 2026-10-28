@@ -58,7 +58,7 @@ Per app volume, a real system monitor, a better app switcher, window snapping, D
 
 ## Install only what you use
 
-Choose individual features or start with a preset. Uninstalled features stop loading and disappear from the interface; reinstalling restores their settings. Setup asks only for the permissions your choices need.
+Choose individual features or start with a preset. Settings offers Focused, Expanded and Everything views: changing view controls how much you see, while search still finds every feature. The Features tab shows the selected view, including when filtering its list. Feature changes share a 50-action Undo and Redo history, including individual switches and bulk actions. A prominent hidden-count banner offers Show everything. Uninstalled features stop loading and disappear from the interface; reinstalling restores their settings. Setup asks only for the permissions your choices need.
 
 <p align="center">
   <img src="docs/assets/readme/features-hub.png" width="720" alt="The Features hub in Settings, installing and uninstalling whole features">

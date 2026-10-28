@@ -32,10 +32,9 @@ enum FeatureHubLayoutTests {
         @ViewBuilder var neverUsedCard: some View {
             if features.offersNeverUsed { Text("Never used").frame(height: 120) }
         }
-        var dynamicIslandCard: some View {
-            Text("Dynamic Island").frame(height: 900).id(FeatureGroup.dynamicIsland)
-        }
-        var presetsCard: some View { Text("Presets").frame(height: 180) }
+        let catalogQuery = ""
+        var catalogControls: some View { Text("Catalog filters").frame(height: 180) }
+        func members(in group: FeatureGroup) -> [AppFeature] { AppFeature.features(in: group) }
         func groupCard(_ group: FeatureGroup) -> some View {
             SettingsCard {
                 Text(group.rawValue)
@@ -208,8 +207,8 @@ enum FeatureHubLayoutTests {
                     - scroll.contentView.constrainBoundsRect(scroll.contentView.bounds).minY) < 2,
                              "changing the restart notice keeps the viewport inside the document")
             }
-            // Uninstalling the last of three never-used features takes that
-            // offer away above the viewport too, with or without a notice.
+            // The never-used offer lives in the footer; toggling it must
+            // preserve the row, including when the header notice changes.
             for (offers, restart) in [(false, true), (true, false), (false, true), (true, true), (false, true)] {
                 withAnimation(.easeOut(duration: 0.22)) {
                     runtime.offersNeverUsed = offers
@@ -218,7 +217,7 @@ enum FeatureHubLayoutTests {
                 settle()
                 let current = rowFrame(feature)
                 suite.expect(current.map { host.bounds.contains($0) } == true,
-                             "\(feature.rawValue) stays visible when the offscreen never-used offer is \(offers ? "added" : "removed")")
+                             "\(feature.rawValue) stays visible when the footer never-used offer is \(offers ? "added" : "removed")")
                 suite.expect(current.map { abs($0.midY - initial.midY) < 2 } == true,
                              "changing the never-used offer preserves \(feature.rawValue)'s position: \(String(describing: current)) vs \(initial)")
                 suite.expect(abs(scroll.contentView.bounds.minY
