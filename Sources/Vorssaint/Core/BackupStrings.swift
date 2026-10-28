@@ -207,7 +207,7 @@ extension BackupFeatureStrings {
         importMissingIslandBody: "Questo backup non contiene le impostazioni di Dynamic Island. Quelle su questo Mac verranno mantenute. Per copiarle dall’altro Mac, esporta di nuovo con Vorssaint 3.4 o successivo. Le altre impostazioni verranno importate e l’app si riavvierà.",
         importAction: "Importa e riavvia",
         invalidFile: "Questo file non è un backup Vorssaint valido.",
-        saveOnQuitFormat: "Salva le impostazioni in %@ all'uscita"
+        saveOnQuitFormat: "Salva le impostazioni in %@ all’uscita"
     )
 
     static let ja = BackupFeatureStrings(
