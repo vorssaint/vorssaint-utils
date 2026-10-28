@@ -14,6 +14,7 @@ struct AppearanceStrings {
 extension FeatureStrings {
     static func appearance(_ language: AppLanguage) -> AppearanceStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -40,6 +41,14 @@ extension AppearanceStrings {
         light: "Light",
         dark: "Dark",
         liquidGlass: "Liquid Glass"
+    )
+
+    static let sv = AppearanceStrings(
+        label: "Utseende",
+        system: "System",
+        light: "Ljust",
+        dark: "Mörkt",
+        liquidGlass: "Flytande glas"
     )
 
     static let ptBR = AppearanceStrings(

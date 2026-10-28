@@ -14,6 +14,7 @@ struct AutoQuitDockAppsStrings {
 extension FeatureStrings {
     static func autoQuitDockApps(_ language: AppLanguage) -> AutoQuitDockAppsStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -34,6 +35,14 @@ extension FeatureStrings {
 }
 
 extension AutoQuitDockAppsStrings {
+    static let sv = AutoQuitDockAppsStrings(
+        listTitle: "Menyradsappar att avsluta",
+        caption: "Menyradsappar hålls normalt öppna. De appar du väljer här kan avslutas när deras sista fönster stängs medan de visas i Dock. Undantag hålls fortfarande öppna.",
+        addButton: "Lägg till app…",
+        removeButton: "Ta bort",
+        emptyNote: "Det finns inga menyradsappar att lägga till."
+    )
+
     static let enUS = AutoQuitDockAppsStrings(
         listTitle: "Menu bar apps to quit",
         caption: "Menu bar apps stay open by default. Apps you select here can quit after their last window closes while they are in the Dock. Exceptions still keep them open.",

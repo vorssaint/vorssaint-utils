@@ -25,6 +25,23 @@ struct NotchFilesStrings {
 extension FeatureStrings {
     static func notchFiles(_ language: AppLanguage) -> NotchFilesStrings {
         switch language {
+        case .sv: return NotchFilesStrings(
+            archive: "Skapa ZIP",
+            archiveHint: "Varje markerat objekt sparas som en separat ZIP-fil. Originalen ändras inte.",
+            saved: "Sparat",
+            downloadsTitle: "Hämtade filer",
+            downloadsDescription: "Se filer som kommer till en mapp du väljer, direkt i Dynamic Island.",
+            downloadsHint: "Välj mappen där webbläsaren sparar hämtade filer. Bara den mappen övervakas.",
+            chooseFolder: "Välj mapp…",
+            folderUnavailable: "Mappen är inte tillgänglig. Välj den igen för att återställa åtkomsten.",
+            waiting: "Inga filer i den här mappen",
+            inProgress: "Hämtar",
+            totalUnknown: "Total storlek är inte tillgänglig",
+            completed: "Hämtningen är klar",
+            clearFolder: "Glöm mappen",
+            optimizeMedia: "Optimera media",
+            optimizeDropHint: "Dra bilder eller en video till ön och släpp på Optimera media för att välja hur en kopia ska sparas.",
+            resumeMedia: "Återgå till media")
         case .enUS: return NotchFilesStrings(
             archive: "Create ZIP",
             archiveHint: "Each selected item is saved as a separate ZIP. Originals stay unchanged.",
