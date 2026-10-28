@@ -187,6 +187,7 @@ enum ClipboardFeatureTests {
                      && cleanerBoard.string(forType: .string) == "https://example.com/path?id=42"
                      && cleanerBoard.string(forType: .source) == nil,
                      "a rewritten copy that named no app gains no mark, so the app that copied it is still credited")
+        URLCleanerMetadataTests.run(suite)
         cleanerBoard.releaseGlobally()
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {

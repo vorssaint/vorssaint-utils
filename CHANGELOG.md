@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable window switching, screenshots, audio, URL Cleaner rules and Settings, including radial menu file selection and percentage examples in AI Agents previews. New controls add configurable calendar countdowns, mouse-wheel zoom and app quitting, alongside clipboard source icons, more switcher columns, smoother sliders, English command search and command-line settings backups.
+More reliable window switching, screenshots, audio, URL Cleaner rules and Settings, including radial menu file selection and percentage examples in AI Agents previews. New controls add configurable calendar countdowns, mouse-wheel zoom and app quitting, alongside clipboard source icons, more switcher columns, smoother sliders, English command search and command-line settings backups. Safari links with rich previews are cleaned while preserving supported previews.
 
 ### Added
 - Dynamic Island level controls and the menu panel's mixer can be adjusted with a mouse wheel or trackpad. Thanks to @JB-OD.
@@ -32,6 +32,7 @@ More reliable window switching, screenshots, audio, URL Cleaner rules and Settin
 - The window switcher allows up to 10 columns while preserving Auto and screen-width limits. Settings → Window switcher → Options → Maximum columns. Thanks to @EugeneCarldotme.
 
 ### Fixed
+- URL Cleaner cleans Safari links that carry rich previews, preserving supported previews and removing tracking from their navigation addresses. Thanks to @anschmieg for the diagnosis.
 - URL Cleaner rules added from links with login details or ports now match the intended site. Previously saved rules containing login details or ports need to be added again. Thanks to @g1obalworlds.
 - The radial menu's action editor keeps its file picker over the editor window, avoiding an invisible panel on multi-display setups. Thanks to @saiganeshreddy7.
 - Mic Mute describes its device-control limits and reports known failures even when no microphone could be changed. Siri and some apps may still hear audio. Thanks to @sarat03 for the diagnosis.

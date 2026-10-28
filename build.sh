@@ -417,6 +417,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/ReleaseChangeAliases.swift
         Sources/Vorssaint/Core/WhatsNewStrings.swift
         Sources/Vorssaint/Core/URLCleaning.swift
+        Sources/Vorssaint/Services/URLCleanerLinkMetadata.swift
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardHistoryWrite.swift
         Sources/Vorssaint/Services/Audio/AirPlayRouteManager.swift
