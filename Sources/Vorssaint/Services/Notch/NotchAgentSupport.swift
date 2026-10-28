@@ -121,6 +121,11 @@ enum NotchAgentSupport {
         providers(in: defaults).contains(.codex) && !hiddenCards(in: defaults).contains(.limits)
     }
 
+    /// Claude Code profiles beside `~/.claude` have cards in the same place.
+    static func showsClaudeAccounts(in defaults: UserDefaults = .standard) -> Bool {
+        providers(in: defaults).contains(.claude) && !hiddenCards(in: defaults).contains(.limits)
+    }
+
     static func period(in defaults: UserDefaults = .standard) -> AgentPeriod {
         AgentPeriod(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsPeriod) ?? "") ?? .today
     }
@@ -285,13 +290,20 @@ enum NotchAgentSupport {
 
     /// Codex homes the person added take the place of Codex's one limits
     /// card, the usual home among them when they add it.
+    /// Claude Code profiles take the place of Claude's limits card the same way.
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
-                      codexAccounts: [String] = []) -> [NotchAgentTile] {
+                      codexAccounts: [String] = [], claudeAccounts: [String] = []) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
             switch card {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
-                guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
-                return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
+                let accounts: [String]
+                switch provider {
+                case .codex: accounts = codexAccounts
+                case .claude: accounts = claudeAccounts
+                default: accounts = []
+                }
+                guard !accounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
+                return accounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
             }
             // Banked resets belong to a Codex account: the default one, which
             // the card names once others have cards.

@@ -325,7 +325,7 @@ enum CodexAccountLimitsTests {
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
 
-        let empty = CodexProfileLimitsService(defaults: defaults, reader: Probe().read, loginShellPath: { nil })
+        let empty = CodexProfileLimitsService(defaults: defaults, reader: Probe().read, claudeProfiles: { [] }, loginShellPath: { nil })
         empty.pageDidAppear()
         suite.expect(empty.isEnabled && empty.states.isEmpty && empty.timer == nil,
                      "the page runs no account timer when no account was added")
@@ -335,7 +335,7 @@ enum CodexAccountLimitsTests {
         let probe = Probe()
         let shellLookups = NSLock()
         var lookups = 0
-        let service = CodexProfileLimitsService(defaults: defaults, reader: probe.read, loginShellPath: {
+        let service = CodexProfileLimitsService(defaults: defaults, reader: probe.read, claudeProfiles: { [] }, loginShellPath: {
             shellLookups.withLock { lookups += 1 }
             return "/shell/bin"
         })

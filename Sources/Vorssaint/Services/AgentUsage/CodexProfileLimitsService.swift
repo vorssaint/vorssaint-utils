@@ -44,6 +44,9 @@ final class CodexProfileLimitsService: ObservableObject {
     static let shared = CodexProfileLimitsService()
 
     @Published private(set) var states: [CodexProfileLimitsState] = []
+    /// The shown Claude Code profiles' plans together, which spend is measured
+    /// against in place of the one plan in `~/.claude.json`; nil without profiles.
+    @Published private(set) var claudePlan: AgentPlan?
     /// Asks the due homes again while the page shows any; nil otherwise.
     private(set) var timer: Timer?
 
@@ -51,6 +54,9 @@ final class CodexProfileLimitsService: ObservableObject {
     private let defaults: UserDefaults
     private let reader: Reader?
     private let loginShellPath: () -> String?
+    /// Finds the Claude Code profiles on this Mac. Tests pass their own, so
+    /// they never depend on the home folder of the Mac running them.
+    private let claudeProfiles: () -> [CodexAccountProfile]
     private var running: (id: String, cancellation: BoundedProcessCancellation)?
     /// Checks waiting their turn. Those the person asked for still run after
     /// the page closes; the page's own wait for it to show again.
@@ -62,7 +68,11 @@ final class CodexProfileLimitsService: ObservableObject {
     private var shellPath: String?
 
     init(defaults: UserDefaults = .standard, reader: Reader? = nil,
+         claudeProfiles: @escaping () -> [CodexAccountProfile] = {
+            ClaudeAccountProfile.discover(defaultName: FeatureStrings.codexAccounts(L10n.shared.language).defaultName)
+         },
          loginShellPath: @escaping () -> String? = AgentCodexServer.loginShellPath) {
+        self.claudeProfiles = claudeProfiles
         self.defaults = defaults
         self.reader = reader
         self.loginShellPath = loginShellPath
@@ -70,14 +80,28 @@ final class CodexProfileLimitsService: ObservableObject {
 
     /// Only while an account card can show: a hidden Limits card asks nothing.
     var isEnabled: Bool {
-        NotchAgentSupport.isEnabled(in: defaults) && NotchAgentSupport.showsCodexAccounts(in: defaults)
+        NotchAgentSupport.isEnabled(in: defaults)
+            && (NotchAgentSupport.showsCodexAccounts(in: defaults) || NotchAgentSupport.showsClaudeAccounts(in: defaults))
     }
 
-    /// Follows the saved homes and whether Codex is on. Asks only what is
-    /// due, and only while the page shows.
+    /// Whether `profile`'s agent has account cards now.
+    private func shows(_ profile: CodexAccountProfile) -> Bool {
+        if profile.isClaude { return NotchAgentSupport.showsClaudeAccounts(in: defaults) }
+        return NotchAgentSupport.showsCodexAccounts(in: defaults)
+    }
+
+    /// Follows the saved homes, the Claude Code profiles on this Mac and
+    /// whether each agent is on. Asks only what is due, and only while the
+    /// page shows.
     func synchronize() {
         if !isEnabled { cancelChecks() }
-        let wanted = CodexAccountProfile.decode(defaults.string(forKey: DefaultsKey.notchAgentsCodexProfiles) ?? "")
+        let codex = CodexAccountProfile.decode(defaults.string(forKey: DefaultsKey.notchAgentsCodexProfiles) ?? "")
+        let hidden = ClaudeAccountProfile.hiddenIDs(in: defaults)
+        let claude = NotchAgentSupport.showsClaudeAccounts(in: defaults)
+            ? claudeProfiles().filter { !hidden.contains($0.id) } : []
+        let wanted = codex + claude
+        let plan = ClaudeAccountProfile.combined(claude.compactMap { ClaudeAccountProfile.plan($0) })
+        if claudePlan != plan { claudePlan = plan }
         if states.map(\.profile) != wanted {
             let previous = states
             states = wanted.map { profile in
@@ -129,6 +153,7 @@ final class CodexProfileLimitsService: ObservableObject {
         guard isEnabled, visible || force else { return }
         for index in states.indices where id == nil || states[index].id == id {
             let state = states[index]
+            guard shows(state.profile) else { continue }
             if state.checking {
                 if force, let place = waiting.firstIndex(where: { $0.id == state.id }) { waiting[place].asked = true }
                 continue
@@ -201,7 +226,7 @@ final class CodexProfileLimitsService: ObservableObject {
     }
 
     private func syncTimer() {
-        guard visible, isEnabled, !states.isEmpty else {
+        guard visible, isEnabled, states.contains(where: { shows($0.profile) }) else {
             timer?.invalidate()
             timer = nil
             return
@@ -215,6 +240,7 @@ final class CodexProfileLimitsService: ObservableObject {
 
     private static func reader(apps: [URL]) -> Reader {
         { profile, searchPath, cancellation in
+            if profile.isClaude { return ClaudeAccountProfile.read(profile, searchPath: searchPath) }
             guard let executable = AgentCodexServer.executable(apps: apps, home: FileManager.default.homeDirectoryForCurrentUser,
                                                                searchPath: searchPath) else { return .failure(.missingCLI) }
             return CodexAccountUsageReader.read(profile, executable: executable, searchPath: searchPath,

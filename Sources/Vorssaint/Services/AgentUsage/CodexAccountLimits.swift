@@ -5,19 +5,28 @@ import Darwin
 import Foundation
 
 /// A Codex home of its own, a `CODEX_HOME`, whose account gets a limits card.
+/// A Claude Code profile uses the same type and card, marked by `provider`;
+/// see `ClaudeAccountProfile`.
 struct CodexAccountProfile: Codable, Equatable, Identifiable {
     static let maximum = 8
 
     let id: String
     var name: String
     let directory: String
+    /// nil for a Codex home the person added; `.claude` for a Claude Code
+    /// profile, which is found on disk and never saved.
+    var provider: AgentProvider? = nil
+
+    var isClaude: Bool { provider == .claude }
 
     static func decode(_ value: String) -> [Self] {
         guard value.utf8.count <= 64 * 1024,
               let decoded = try? JSONDecoder().decode([Self].self, from: Data(value.utf8)) else { return [] }
         var ids = Set<String>(), paths = Set<String>()
+        // Only Codex homes are saved, so a Claude profile in the saved list is dropped.
         return decoded.prefix(maximum).filter {
-            UUID(uuidString: $0.id) != nil && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            $0.provider == nil
+                && UUID(uuidString: $0.id) != nil && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && $0.name.count <= 40 && $0.directory.hasPrefix("/")
                 && ids.insert($0.id).inserted
                 && paths.insert(URL(fileURLWithPath: $0.directory).resolvingSymlinksInPath().path).inserted
@@ -33,6 +42,9 @@ struct CodexAccountProfile: Codable, Equatable, Identifiable {
     /// sign-in in the Keychain.
     var canonicalDirectory: URL? {
         guard directory.hasPrefix("/") else { return nil }
+        // The checks below are for Codex's files. A Claude profile is found
+        // by its own `.claude.json` instead; see `ClaudeAccountProfile.folders`.
+        if isClaude { return URL(fileURLWithPath: directory, isDirectory: true).resolvingSymlinksInPath() }
         let manager = FileManager.default
         let url = URL(fileURLWithPath: directory, isDirectory: true).resolvingSymlinksInPath()
         guard url.path != "/", url != manager.homeDirectoryForCurrentUser.resolvingSymlinksInPath(),
