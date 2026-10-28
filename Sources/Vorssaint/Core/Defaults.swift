@@ -300,6 +300,8 @@ enum DefaultsKey {
     static let whatsAppOrganizerLastFailed = "whatsAppOrganizerLastFailed"
     static let settingsWindowWidth = "settingsWindowWidth"     // last user-chosen content size (0 = unset)
     static let settingsWindowHeight = "settingsWindowHeight"
+    static let settingsSidebarWidth = "settingsSidebarWidth"
+    static let settingsSearchRecentDestinations = "settingsSearchRecentDestinations"
     static let shelfItems = "shelfItems"                  // Data: [ShelfPersistedItem] JSON
     static let urlCleanerEnabled = "urlCleanerEnabled"
     static let urlCleanerCustomParameters = "urlCleanerCustomParameters"

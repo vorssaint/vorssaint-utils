@@ -148,12 +148,13 @@ struct NotchSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(text.title).font(.title2.bold())
-                    Text(text.description).font(.callout).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 12)
+            SettingsCard {
+                SettingsFeatureIntroduction(title: text.title, symbol: AppFeature.notch.symbolName,
+                                            description: text.description)
+            }
+            HStack {
+                Text(text.enable)
+                Spacer()
                 Toggle(text.enable, isOn: $enabled).labelsHidden().toggleStyle(.switch)
                     .disabled(!AppFeature.notch.isAvailable).accessibilityLabel(text.enable)
             }
@@ -175,7 +176,7 @@ struct NotchSettings: View {
                 pageScroll
             }
         }
-        .padding(.horizontal, 22).padding(.top, 22)
+        .padding(.horizontal, SettingsPageLayout.margin).padding(.top, SettingsPageLayout.margin)
         .onChange(of: configuration) { _, _ in sync() }
         .onChange(of: accessData) { _, _ in NotchService.shared.syncWithPreferences() }
         .onChange(of: browserCovers) { _, _ in NotchMusicService.shared.syncBrowserCovers() }

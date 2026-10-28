@@ -52,12 +52,10 @@ struct SwitcherSettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(l10n.s.tabSwitcher).font(.title2.bold())
-                    Text(pages.switcherDescription)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                SettingsCard {
+                    SettingsFeatureIntroduction(title: l10n.s.switcherSection,
+                                                symbol: AppFeature.switcher.symbolName,
+                                                description: pages.switcherDescription)
                 }
                 if AppFeature.switcher.isAvailable {
                     switcherCard
@@ -83,9 +81,7 @@ struct SwitcherSettings: View {
                     }
                 }
             }
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
-            .padding(22)
+            .settingsPageFrame()
         }
         .toggleStyle(.switch)
         .observesSecureInput(isActive: switcherReplacesSystemShortcuts)

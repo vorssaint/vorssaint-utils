@@ -42,10 +42,12 @@ struct WindowLayoutSettings: View {
         Form {
             if AppFeature.windowLayout.isAvailable {
                 Section {
+                    SettingsFeatureIntroduction(title: text.title,
+                                                symbol: AppFeature.windowLayout.symbolName,
+                                                description: text.caption)
+                }
+                Section {
                     Toggle(text.showInPanel, isOn: $showInPanel)
-                    Text(text.caption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Label(text.permissionCaption, systemImage: "hand.raised")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -242,6 +244,7 @@ struct WindowLayoutSettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
         .onAppear { refreshSystemTilingState() }
         .onReceive(NotificationCenter.default.publisher(
             for: NSApplication.didBecomeActiveNotification)) { _ in

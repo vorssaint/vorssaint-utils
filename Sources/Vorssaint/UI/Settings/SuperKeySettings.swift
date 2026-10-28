@@ -31,7 +31,7 @@ struct SuperKeySettings: View {
 
     var body: some View {
         Form {
-            Section(text.pageTitle) {
+            Section {
                 Toggle(text.enableToggle, isOn: $enabled)
                     .onChange(of: enabled) { _, value in
                         SuperKeyService.shared.syncWithPreferences()
@@ -94,6 +94,7 @@ struct SuperKeySettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
     }
 
     /// The whole feature in one line: the key you hold, and the keys it stands

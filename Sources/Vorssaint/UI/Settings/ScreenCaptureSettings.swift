@@ -29,6 +29,12 @@ struct ScreenCaptureSettings: View {
         Form {
             if !availableTools.isEmpty {
                 Section {
+                    SettingsFeatureIntroduction(
+                        title: currentTool.feature.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)),
+                        symbol: currentTool.feature.symbolName,
+                        description: currentTool.feature.hubDescription(FeatureStrings.hub(l10n.language)))
+                }
+                Section {
                     if availableTools.count > 1 {
                         ScreenCaptureToolPicker(tools: availableTools,
                                                 strings: l10n.s,
@@ -40,14 +46,13 @@ struct ScreenCaptureSettings: View {
                     if AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable {
                         RecentCapturesShortcutRows()
                     }
-                } header: {
-                    Text(strings.screenCaptureTitle)
                 }
             }
 
             selectedSettings
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
         .onAppear { reconcileSelection(withDestination: true) }
         .onChange(of: features.revision) { _, _ in
             reconcileSelection(withDestination: false)

@@ -24,7 +24,7 @@ struct CommandBarSettings: View {
     @State private var ignoreDraft = ""
     @State private var showsFileOptions = false
     @State private var showsLayoutOptions = false
-    @State private var showsAppShortcuts = false
+    @State private var windowReference = CommandBarSettingsWindowReference()
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
     /// The snippet library already says "save", "delete" and "name" in every
@@ -43,6 +43,10 @@ struct CommandBarSettings: View {
     var body: some View {
         Form {
             Section {
+                SettingsFeatureIntroduction(title: text.pageTitle, symbol: AppFeature.commandBar.symbolName,
+                                            description: text.settingsCaption)
+            }
+            Section {
                 // One choice, open it or recenter it, so one row. Neither
                 // carries an icon: a ⌘ glyph in front of "Open the bar now"
                 // reads as the shortcut that opens it, which it is not.
@@ -60,7 +64,6 @@ struct CommandBarSettings: View {
                 // about one feature into four cards that looked like settings.
                 VStack(alignment: .leading, spacing: 6) {
                     Text(text.positionCaption)
-                    Text(text.settingsCaption)
                     Label(text.privacyNote, systemImage: "lock.laptopcomputer")
                     HStack(spacing: 6) {
                         Text(text.tryTheseLabel)
@@ -126,13 +129,11 @@ struct CommandBarSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            } header: {
-                Text(text.pageTitle)
             }
 
             Section {
                 Button {
-                    showsAppShortcuts = true
+                    CommandBarAppShortcutsWindowController.shared.show(relativeTo: windowReference.window)
                 } label: {
                     Label(text.appCenterTitle, systemImage: "app.badge")
                 }
@@ -366,10 +367,9 @@ struct CommandBarSettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
+        .background(CommandBarSettingsWindowReader(reference: windowReference))
         .observesSecureInput()
-        .sheet(isPresented: $showsAppShortcuts) {
-            CommandBarAppShortcutsView()
-        }
         .sheet(item: $editing) { link in
             CommandBarLinkEditor(draft: link, text: text, common: common) { saved in
                 save(saved)

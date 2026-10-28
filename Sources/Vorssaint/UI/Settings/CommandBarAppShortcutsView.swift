@@ -4,7 +4,6 @@
 import SwiftUI
 
 struct CommandBarAppShortcutsView: View {
-    @Environment(\.dismiss) private var dismiss
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CommandBarService.shared
     @ObservedObject private var features = FeatureRuntime.shared
@@ -16,6 +15,11 @@ struct CommandBarAppShortcutsView: View {
     @State private var message: String?
     @State private var pendingTakeOver: (entry: CommandBarEntry, shortcut: GlobalShortcut)?
     @State private var sortOrder = [AppColumnOrder(column: .name)]
+    private let onClose: () -> Void
+
+    init(onClose: @escaping () -> Void) {
+        self.onClose = onClose
+    }
 
     private enum AppFilter { case all, pinned, shortcuts }
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
@@ -143,15 +147,15 @@ struct CommandBarAppShortcutsView: View {
                     .foregroundStyle(message == nil ? Color.secondary : Color.orange)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
-                Button(l10n.s.supportIntroDoneButton) { dismiss() }
+                Button(l10n.s.supportIntroDoneButton, action: onClose)
                     .keyboardShortcut(.cancelAction)
             }
         }
         .padding(24)
-        .frame(width: 780, height: 560)
+        .frame(minWidth: 780, maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
         .onAppear { service.refreshApplications() }
         .onChange(of: features.revision) { _, _ in
-            if !AppFeature.commandBar.isAvailable { dismiss() }
+            if !AppFeature.commandBar.isAvailable { onClose() }
         }
         .onChange(of: l10n.language) { _, _ in message = nil }
     }

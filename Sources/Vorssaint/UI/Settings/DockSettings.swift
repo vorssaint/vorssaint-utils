@@ -31,13 +31,7 @@ struct DockSettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(pages.dockTitle).font(.title2.bold())
-                    Text(pages.dockDescription)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                SettingsPageDescription(text: pages.dockDescription)
                 if AppFeature.dockPreview.isAvailable {
                     dockPreviewCard
                         .settingsSectionAnchor(.dock, cornerRadius: 16)
@@ -67,9 +61,7 @@ struct DockSettings: View {
                     }
                 }
             }
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
-            .padding(22)
+            .settingsPageFrame()
         }
         .toggleStyle(.switch)
     }

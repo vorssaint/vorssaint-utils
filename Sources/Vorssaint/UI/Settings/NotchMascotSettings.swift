@@ -61,16 +61,19 @@ struct NotchMascotSettings: View {
                 behavior
                 commandBarCard
             }
-            .padding(embedded ? [.bottom] : .all, 22)
+            .frame(maxWidth: embedded ? CGFloat.infinity : SettingsPageLayout.contentWidth)
+            .frame(maxWidth: .infinity)
+            .padding(embedded ? [.bottom] : .all, SettingsPageLayout.margin)
         }
     }
 
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 5) {
-                Text(text.title).font(.title2.bold())
-                Text(text.hint).font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if embedded {
+                    Text(text.title).font(.headline).accessibilityAddTraits(.isHeader)
+                }
+                SettingsPageDescription(text: text.hint)
             }
             Spacer(minLength: 12)
             Toggle(text.title, isOn: $enabled).labelsHidden().toggleStyle(.switch)

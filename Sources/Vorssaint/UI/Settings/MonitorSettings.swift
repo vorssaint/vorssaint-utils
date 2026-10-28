@@ -39,19 +39,16 @@ struct MonitorSettings: View {
                     .foregroundStyle(.secondary)
                 MenuBarMetricsPreview()
             }
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 22)
+            .settingsPageWidth()
+            .padding(.horizontal, SettingsPageLayout.margin)
             .padding(.vertical, 10)
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(l10n.s.tabMonitor).font(.title2.bold())
-                        Text(FeatureStrings.settingsPages(l10n.language).monitorDescription)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                    SettingsCard {
+                        SettingsFeatureIntroduction(title: l10n.s.tabMonitor,
+                                                    symbol: "chart.line.uptrend.xyaxis",
+                                                    description: FeatureStrings.settingsPages(l10n.language).monitorDescription)
                     }
                     groupHeading(l10n.s.monitorMenuBarSection, symbol: "menubar.rectangle")
                     menuBarCard
@@ -66,9 +63,7 @@ struct MonitorSettings: View {
                     readingsCard
                     alertsCard
                 }
-                .frame(maxWidth: 760)
-                .frame(maxWidth: .infinity)
-                .padding(22)
+                .settingsPageFrame()
             }
         }
         .toggleStyle(.switch)

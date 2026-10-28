@@ -126,6 +126,7 @@ struct AutoQuitSettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
         .sheet(isPresented: $showingAppPicker) {
             appPickerSheet
         }

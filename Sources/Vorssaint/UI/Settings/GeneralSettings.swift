@@ -25,7 +25,6 @@ struct GeneralSettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text(l10n.s.tabGeneral).font(.title2.bold())
                 basicsCard
                 appearanceCard
                 if AppFeature.keepAwake.isAvailable {
@@ -33,9 +32,7 @@ struct GeneralSettings: View {
                 }
                 feedbackCard
             }
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
-            .padding(22)
+            .settingsPageFrame()
         }
         .onAppear { refreshLaunchAtLogin() }
         .onReceive(NotificationCenter.default.publisher(

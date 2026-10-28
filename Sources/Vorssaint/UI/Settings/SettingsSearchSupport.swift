@@ -62,6 +62,16 @@ struct SettingsSearchGroup: Identifiable {
     }
 }
 
+/// A search result with its containing page or sidebar group as a subtitle.
+struct SettingsSearchHit: Identifiable {
+    let suggestion: SettingsSearchSuggestion
+    let subtitle: String?
+
+    var id: SettingsSearchSuggestion.ID { suggestion.id }
+    var title: String { suggestion.title }
+    var icon: String { suggestion.icon }
+}
+
 /// Pure filtering for the Settings sidebar search field, so the matching
 /// rules (case, accents, word prefixes) are covered by the unit harness.
 enum SettingsSearchSupport {
@@ -301,6 +311,27 @@ enum SettingsSearchSupport {
             return SettingsSearchGroup(pageItem: builder.pageItem,
                                        parentMatches: builder.parentMatches,
                                        suggestions: builder.suggestions)
+        }
+    }
+
+    /// Keeps match order, using the sidebar group for page subtitles and the
+    /// containing page for setting subtitles.
+    static func flatHits(query: String,
+                         groups: [SettingsSearchGroup],
+                         categoryTitle: (SettingsPage) -> String? = { _ in nil })
+        -> [SettingsSearchHit] {
+        guard !fold(query).isEmpty else { return [] }
+        return groups.flatMap { group -> [SettingsSearchHit] in
+            var hits: [SettingsSearchHit] = []
+            if group.parentMatches {
+                let page = group.pageItem.destination.page
+                hits.append(SettingsSearchHit(suggestion: group.parentSuggestion,
+                                              subtitle: categoryTitle(page)))
+            }
+            for suggestion in group.suggestions {
+                hits.append(SettingsSearchHit(suggestion: suggestion, subtitle: group.pageItem.title))
+            }
+            return hits
         }
     }
 

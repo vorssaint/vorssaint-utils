@@ -726,6 +726,20 @@ enum MenuPanelRecoveryTests {
                    "a click right after the panel closed opens it again")
         }
         do {
+            let (host, source) = trackingSetup()
+            notifyCloses(host)
+            let window = host.popover.contentViewController!.view.window!
+            host.closePopoverNow(animated: true, reason: .outsideClick, completion: nil)
+            host.closePopoverNow(animated: false, reason: .action, completion: nil)
+            expect(!host.popover.isShown && !host.popoverIsClosing && !host.popoverIsFadingOut,
+                   "opening another window finishes an in-flight panel fade immediately")
+            NSAnimationContext.finish()
+            DispatchQueue.main.drain()
+            expect(source.activations == 0 && ProcessUsageService.shared.releases == 1
+                       && window.alphaValue == 1 && !window.ignoresMouseEvents,
+                   "the interrupted fade releases once without taking activation from the destination")
+        }
+        do {
             let host = setup()
             notifyCloses(host)
             let window = host.popover.contentViewController!.view.window!

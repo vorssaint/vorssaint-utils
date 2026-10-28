@@ -106,6 +106,9 @@ enum SettingsFeatureTests {
             }, "backup dispatch precedes every startup handler with side effects")
 
         let backupKeys = SettingsBackupSupport.exportKeys()
+        suite.expect(!backupKeys.contains(DefaultsKey.settingsSidebarWidth)
+                && !backupKeys.contains(DefaultsKey.settingsSearchRecentDestinations),
+               "Settings window geometry and search history stay local to this Mac")
         for reserved in [false, true] {
             let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
                 key == DefaultsKey.windowReserveStageManagerSpace ? reserved : nil
@@ -799,5 +802,35 @@ enum SettingsFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.preciseVolumeRollerEnabled] as? Bool == false,
                "precise volume roller is opt-in")
 
+        // MARK: Flat Settings search results
+
+        let generalItem = SettingsSearchItem(
+            id: .page(.general), destination: FeatureSettingsDestination(.general),
+            title: "General", icon: "gearshape", keywords: ["Appearance"])
+        let group = SettingsSearchGroup(
+            pageItem: generalItem, parentMatches: true,
+            suggestions: [
+                SettingsSearchSuggestion(
+                    id: .keyword(.general, 0), title: "Appearance",
+                    icon: "gearshape", item: generalItem),
+                SettingsSearchSuggestion(
+                    id: .keyword(.general, 1), title: "Language",
+                    icon: "globe", item: generalItem),
+            ])
+        let hits = SettingsSearchSupport.flatHits(
+            query: "gen", groups: [group],
+            categoryTitle: { $0 == .general ? "Essentials" : nil })
+        suite.expect(hits.count == 3 && hits[0].title == "General"
+                && hits[0].subtitle == "Essentials",
+               "a matching Settings page starts the flat result list with its group as subtitle")
+        suite.expect(hits[1].title == "Appearance" && hits[1].subtitle == "General"
+                && hits[2].title == "Language" && hits[2].subtitle == "General",
+               "Settings inside a page follow it flat, naming their page as subtitle")
+        suite.expect(SettingsSearchSupport.flatHits(query: "   ", groups: [group]).isEmpty,
+               "a blank Settings search has no flat rows")
+        let pageOnly = SettingsSearchGroup(pageItem: generalItem, parentMatches: false,
+                                           suggestions: group.suggestions)
+        suite.expect(SettingsSearchSupport.flatHits(query: "gen", groups: [pageOnly]).count == 2,
+               "a page whose name does not match contributes only its matching settings")
     }
 }

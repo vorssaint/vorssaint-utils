@@ -335,6 +335,7 @@ struct QuickToolsSettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
     }
 
     private var scratchpadBackgroundOpacityBinding: Binding<Double> {

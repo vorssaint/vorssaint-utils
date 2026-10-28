@@ -54,9 +54,7 @@ struct GeneralToolSettings: View {
                     EmptyView()
                 }
             }
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
-            .padding(22)
+            .settingsPageFrame()
         }
     }
 }

@@ -42,13 +42,15 @@ struct ClipboardSettings: View {
         Form {
             if AppFeature.clipboardHistory.isAvailable {
                 Section {
+                    SettingsFeatureIntroduction(title: text.title,
+                                                symbol: AppFeature.clipboardHistory.symbolName,
+                                                description: text.caption)
+                }
+                Section {
                     Toggle(text.enable, isOn: $enabled)
                         .onChange(of: enabled) { _, _ in
                             ClipboardHistoryService.shared.syncWithPreferences()
                         }
-                    Text(text.caption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Text(text.localNote)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
@@ -151,6 +153,7 @@ struct ClipboardSettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
         .onAppear {
             limit = Defaults.sanitizedClipboardHistoryLimit(limit)
             retentionDays = Defaults.sanitizedClipboardHistoryRetentionDays(retentionDays)

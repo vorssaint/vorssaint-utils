@@ -41,13 +41,7 @@ struct EnergySettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(pageTitle).font(.title2.bold())
-                    Text(pageDescription)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                SettingsPageDescription(text: pageDescription)
                 if (focus == nil || focus == .keepAwake), AppFeature.keepAwake.isAvailable {
                     keepAwakeCard
                         .settingsSectionAnchor(.keepAwake, cornerRadius: 16)
@@ -66,9 +60,7 @@ struct EnergySettings: View {
                         .settingsSectionAnchor(.bluetoothSleep, cornerRadius: 16)
                 }
             }
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
-            .padding(22)
+            .settingsPageFrame()
         }
         // Shared subviews draw plain toggles; outside a Form those would be
         // checkboxes, so the whole page asks for switches.

@@ -19,7 +19,7 @@ struct AppUpdatesSettings: View {
 
     var body: some View {
         Form {
-            Section(text.pageTitle) {
+            Section {
                 Text(text.caption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -77,6 +77,7 @@ struct AppUpdatesSettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
         .onAppear { updates.checkIfNeeded() }
     }
 

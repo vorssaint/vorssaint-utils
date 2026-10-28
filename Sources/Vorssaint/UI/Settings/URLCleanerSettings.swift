@@ -131,6 +131,7 @@ struct URLCleanerSettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
     }
 
     /// Two dozen names for one site is a lot of clicking to say "not this

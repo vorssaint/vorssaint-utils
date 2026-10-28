@@ -105,6 +105,7 @@ struct AdvancedSettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
         .alert(l10n.s.advancedClearConfirmTitle, isPresented: $showClearConfirm) {
             Button(l10n.s.uninstallerCancel, role: .cancel) {}
             Button(l10n.s.advancedClearButton, role: .destructive) {

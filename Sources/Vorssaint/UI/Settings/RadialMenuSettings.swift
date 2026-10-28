@@ -64,10 +64,12 @@ struct RadialMenuSettings: View {
     var body: some View {
         Form {
             Section {
+                SettingsFeatureIntroduction(title: text.pageTitle,
+                                            symbol: AppFeature.radialMenu.symbolName,
+                                            description: text.hubDescription)
+            }
+            Section {
                 Toggle(text.enableLabel, isOn: $enabled)
-                Text(text.hubDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 if service.registrationFailed {
                     Text(l10n.s.shortcutInvalid)
                         .font(.caption)
@@ -93,8 +95,6 @@ struct RadialMenuSettings: View {
                 Button(text.tryButton) {
                     RadialMenuService.shared.presentPreview(for: selectedProfile)
                 }
-            } header: {
-                Text(text.pageTitle)
             }
 
             if RadialMenuSupport.needsAccessibility(profiles), !permissions.accessibility {
@@ -186,6 +186,7 @@ struct RadialMenuSettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
         .onAppear {
             if selectedProfileID == nil || !profiles.contains(where: { $0.id == selectedProfileID }) {
                 selectedProfileID = profiles.first?.id

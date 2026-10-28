@@ -21,7 +21,7 @@ struct KeyboardDebounceSettings: View {
 
     var body: some View {
         Form {
-            Section(l10n.s.keyDebounceName) {
+            Section {
                 Toggle(l10n.s.keyDebounceEnable, isOn: $enabled)
                     .onChange(of: enabled) { _, value in
                         KeyboardDebounceService.shared.syncWithPreferences()
@@ -114,6 +114,7 @@ struct KeyboardDebounceSettings: View {
             }
         }
         .formStyle(.grouped)
+        .settingsFormFrame()
         .onAppear {
             globalWindow = Defaults.sanitizedKeyboardDebounceWindow(globalWindow)
             selectedWindow = Defaults.sanitizedKeyboardDebounceWindow(selectedWindow)

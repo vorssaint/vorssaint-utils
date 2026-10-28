@@ -61,13 +61,7 @@ struct FeatureHubSettings: View {
             VStack(alignment: .leading, spacing: 20) {
                 // Keep the header's identity stable when the notice changes.
                 VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(hub.pageTitle).font(.title2.bold())
-                        Text(tab == .features ? hub.intro : hub.permissionsIntro)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    SettingsPageDescription(text: tab == .features ? hub.intro : hub.permissionsIntro)
                     Picker(hub.pageTitle, selection: $tab) {
                         Text(hub.tabFeatures).tag(Tab.features)
                         Text(hub.tabPermissions).tag(Tab.permissions)
@@ -106,9 +100,7 @@ struct FeatureHubSettings: View {
                     }
                 }
             }
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
-            .padding(22)
+            .settingsPageFrame()
         }
         // Include the scroll view's document height in this transaction;
         // animating that height would constrain an immediate notice adjustment
