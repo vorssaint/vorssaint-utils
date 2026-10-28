@@ -31,7 +31,7 @@ enum SliderScrollRoutingTests {
         }
     }
 
-    private static func event(_ phase: NSEvent.Phase, delta: Int32 = 0) -> NSEvent {
+    private static func event(_ phase: CGScrollPhase, delta: Int32 = 0) -> NSEvent {
         let cg = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1,
                          wheel1: delta, wheel2: 0, wheel3: 0)!
         cg.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
