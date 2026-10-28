@@ -92,12 +92,12 @@ enum RecorderExportSpeedTests {
 
         let fasterGIF = RecorderEditDocument(exportSpeed: 2)
         let slowerGIF = RecorderEditDocument(exportSpeed: 0.5)
-        suite.expect(RecorderSupport.gifFitsBudget(
-            duration: fasterGIF.exportDuration(duration: 30), fps: 12),
-                     "GIF budget uses the accelerated output duration")
-        suite.expect(!RecorderSupport.gifFitsBudget(
-            duration: slowerGIF.exportDuration(duration: 20), fps: 12),
-                     "slow GIFs must still respect the decoded frame budget")
+        suite.expect(RecorderSupport.gifFrameCount(
+            duration: fasterGIF.exportDuration(duration: 30), fps: 12) == 180,
+                     "GIF sampling uses the accelerated output duration")
+        suite.expect(RecorderSupport.gifFrameCount(
+            duration: slowerGIF.exportDuration(duration: 20), fps: 12) == 480,
+                     "slow GIFs retain every frame beyond the former frame budget")
         suite.expect(RecorderSupport.gifFrameCount(
             duration: fasterGIF.exportDuration(duration: 10), fps: 12) == 60,
                      "GIF sampling retains the chosen frame rate on the scaled timeline")

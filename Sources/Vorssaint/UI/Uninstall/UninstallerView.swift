@@ -20,6 +20,8 @@ struct UninstallerView: View {
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear { uninstaller.clearRefusal() }
+            .onDisappear { uninstaller.clearRefusal() }
             .alert(l10n.s.homebrewConfirmUninstallTitle,
                    isPresented: Binding(get: { pendingHomebrewRemoval != nil },
                                         set: { if !$0 { pendingHomebrewRemoval = nil } }),
@@ -86,6 +88,10 @@ struct UninstallerView: View {
                 )
                 .animation(.easeOut(duration: 0.15), value: dropTargeted)
 
+            if let refusal = uninstaller.refusal {
+                UninstallRefusalNote(refusal: refusal).frame(width: 360)
+            }
+
             Button(l10n.s.uninstallerChoose) { choose() }
                 .controlSize(.large)
 
@@ -102,7 +108,7 @@ struct UninstallerView: View {
         }
         .padding(28)
         .sheet(isPresented: $showingAppPicker) {
-            AppPickerView {
+            AppPickerView(emptyNote: l10n.s.uninstallerPickerHiddenNote) {
                 showingAppPicker = false
             } onSelect: { url in
                 showingAppPicker = false

@@ -517,7 +517,7 @@ struct RadialMenuSettings: View {
               let row = CommandBarRowShortcuts.key(for: shortcut, in: CommandBarService.shared.rowShortcuts)
         else { return nil }
         return CommandBarService.shared.entryTitle(forStableKey: row)
-            ?? FeatureStrings.commandBar(l10n.language).rowShortcutsTitle
+            ?? FeatureStrings.commandBar(l10n.language).namedTitle
     }
 
     private func requestAccessibilityIfNeeded(_ on: Bool) {

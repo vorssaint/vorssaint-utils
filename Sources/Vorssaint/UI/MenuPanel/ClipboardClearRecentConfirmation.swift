@@ -4,9 +4,9 @@
 import SwiftUI
 
 /// Asks before "Clear unpinned" deletes anything. The button stores the
-/// unpinned IDs it saw, and only those are deleted.
+/// unpinned entries it saw, and only those are deleted.
 struct ClipboardClearRecentConfirmation: ViewModifier {
-    @Binding var entryIDs: Set<UUID>?
+    @Binding var entryIDs: [UUID: Date]?
     @ObservedObject private var l10n = L10n.shared
 
     func body(content: Content) -> some View {

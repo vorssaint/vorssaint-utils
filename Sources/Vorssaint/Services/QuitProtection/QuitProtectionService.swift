@@ -29,6 +29,7 @@ final class QuitProtectionService: ObservableObject {
     private var pendingExpiry: DispatchWorkItem?
     private var pending: Pending?
     private var swallowShortcut: QuitProtectionShortcut?
+    private var nativeSwitcherSessionActive = false
     private var frontmostBundleIdentifier: String?
     private var frontmostProcessIdentifier: pid_t?
     private let hud = QuitProtectionHUD()
@@ -93,20 +94,27 @@ final class QuitProtectionService: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] note in
-            guard let self,
-                  let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             else { return }
-            if let pending = self.pending, pending.targetProcessIdentifier != app.processIdentifier {
-                self.cancelPending()
-            }
-            self.frontmostBundleIdentifier = app.bundleIdentifier
-            self.frontmostProcessIdentifier = app.processIdentifier
+            self?.applicationDidActivate(app)
         }
+    }
+
+    private func applicationDidActivate(_ app: NSRunningApplication) {
+        if let pending, pending.targetProcessIdentifier != app.processIdentifier {
+            cancelPending()
+        }
+        // The native switcher activates an app only as its session ends, and
+        // a click on one of its icons ends it with Command still held.
+        nativeSwitcherSessionActive = false
+        frontmostBundleIdentifier = app.bundleIdentifier
+        frontmostProcessIdentifier = app.processIdentifier
     }
 
     private func stop() {
         cancelPending()
         swallowShortcut = nil
+        nativeSwitcherSessionActive = false
 
         if let activationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
@@ -163,6 +171,7 @@ final class QuitProtectionService: ObservableObject {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             // The key up that ends the swallow may be among the events missed.
             swallowShortcut = nil
+            nativeSwitcherSessionActive = false
             cancelPending()
             let enabled = AppFeature.quitWindowProtection.isAvailable
                 && isEnabledForAnyShortcut
@@ -183,6 +192,23 @@ final class QuitProtectionService: ObservableObject {
         }
         guard isRunning, !isSynthetic(event) else {
             return Unmanaged.passUnretained(event)
+        }
+
+        // The native switcher keeps the original app frontmost while another
+        // app is selected. Its Q must reach the Dock, never a confirmation
+        // targeting that original app. Track the Command chord without an AX
+        // query on the tap, including reverse navigation and dismissal.
+        if !event.flags.contains(.maskCommand) {
+            nativeSwitcherSessionActive = false
+        } else if type == .keyDown {
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+            if keyCode == 48, !event.flags.contains(.maskControl),
+               !event.flags.contains(.maskAlternate) {
+                nativeSwitcherSessionActive = true
+            } else if keyCode == 53 || (nativeSwitcherSessionActive
+                && GlobalShortcut.layoutKeyLabel(for: keyCode, usesCommand: true) == ".") {
+                nativeSwitcherSessionActive = false
+            }
         }
 
         // Ordinary typing still avoids consulting another service. A
@@ -400,16 +426,18 @@ final class QuitProtectionService: ObservableObject {
     /// existing session generation, not by panel visibility or notifications.
     private func deferToSwitcherIfNeeded() -> Bool {
         let ownership = AppSwitcher.shared.keyboardInputOwnership
+        if ownership.isOwned { nativeSwitcherSessionActive = false }
+        let switcherOwnsInput = ownership.isOwned || nativeSwitcherSessionActive
         let stalePending = pending.map {
             $0.switcherSessionGeneration != ownership.generation
         } ?? false
-        if ownership.isOwned || stalePending {
+        if switcherOwnsInput || stalePending {
             if hasPressInFlight {
                 cancelPending()
                 swallowShortcut = nil
             }
         }
-        return ownership.isOwned
+        return switcherOwnsInput
     }
 
     private func beginPending(shortcut: QuitProtectionShortcut,
@@ -601,7 +629,7 @@ final class QuitProtectionService: ObservableObject {
                          removing modifier: QuitProtectionExtraModifier? = nil,
                          switcherSessionGeneration: UInt64? = nil) {
         let ownership = AppSwitcher.shared.keyboardInputOwnership
-        guard !ownership.isOwned,
+        guard !ownership.isOwned, !nativeSwitcherSessionActive,
               switcherSessionGeneration.map({ $0 == ownership.generation }) ?? true else {
             cancelPending()
             swallowShortcut = nil
@@ -610,7 +638,8 @@ final class QuitProtectionService: ObservableObject {
         let targetApp = targetProcessIdentifier.flatMap(NSRunningApplication.init(processIdentifier:))
         let targetBundleIdentifier = targetApp?.bundleIdentifier ?? frontmostBundleIdentifier
         if QuitProtectionSupport.usesNativeQuitRequest(for: shortcut,
-                                                      bundleIdentifier: targetBundleIdentifier),
+                                                      bundleIdentifier: targetBundleIdentifier,
+                                                      confirmedWithExtraModifier: modifier != nil),
            requestQuit(targetProcessIdentifier: targetProcessIdentifier) {
             return
         }

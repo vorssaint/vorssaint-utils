@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 2
+    private static let format = 4
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -294,6 +294,7 @@ enum AgentUsageArchive {
                 optional(window.scope) { $0.string($1) }
                 double(window.usedPercent)
                 optional(window.resetsAt) { $0.date($1) }
+                optional(window.estimatedResetsAt) { $0.date($1) }
             }
             date(value.observedAt)
             switch value.source {
@@ -322,6 +323,10 @@ enum AgentUsageArchive {
             bool(value.sawUsageRecords)
             optional(value.lastTotal) { $0.tokens($1) }
             bool(value.fast)
+            bool(value.codexSubagent)
+            bool(value.codexHeaderRead)
+            string(value.codexRoot)
+            string(value.codexTotalsSession)
             dictionary(value.copilotTotals) { $0.tokens($1) }
             dictionary(value.copilotRequests) { $0.int($1) }
             dictionary(value.copilotRequestModels) { $0.string($1) }
@@ -452,7 +457,8 @@ enum AgentUsageArchive {
                 guard let kind = AgentLimitWindow.Kind(rawValue: try string()) else { throw Malformed() }
                 windows.append(AgentLimitWindow(id: id, kind: kind, minutes: try optional { try $0.int() },
                                                 scope: try optional { try $0.string() }, usedPercent: try double(),
-                                                resetsAt: try optional { try $0.date() }))
+                                                resetsAt: try optional { try $0.date() },
+                                                estimatedResetsAt: try optional { try $0.date() }))
             }
             let observed = try date()
             let source: AgentLimits.Source
@@ -474,6 +480,10 @@ enum AgentUsageArchive {
         mutating func state() throws -> AgentLogState {
             var value = AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
                                       sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool())
+            value.codexSubagent = try bool()
+            value.codexHeaderRead = try bool()
+            value.codexRoot = try string()
+            value.codexTotalsSession = try string()
             value.copilotTotals = try dictionary { try $0.tokens() }
             value.copilotRequests = try dictionary { try $0.amount() }
             value.copilotRequestModels = try dictionary { try $0.string() }

@@ -13,7 +13,7 @@ struct PanelClipboardView: View {
     /// Counts copies, so the list also follows an entry copied again while
     /// it still carries the tick.
     @State private var copyCount = 0
-    @State private var clearingIDs: Set<UUID>?
+    @State private var clearingIDs: [UUID: Date]?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.notchPresentation) private var inNotch
 
@@ -24,7 +24,7 @@ struct PanelClipboardView: View {
     }
 
     /// The alert would hang from the island as a sheet; there it asks on its own.
-    private func confirmClearAboveIsland(_ ids: Set<UUID>) {
+    private func confirmClearAboveIsland(_ ids: [UUID: Date]) {
         let text = text
         DispatchQueue.main.async {
             guard NSAlert.confirmAboveIsland(String(format: text.clearRecentConfirmFormat, ids.count),
@@ -97,7 +97,7 @@ struct PanelClipboardView: View {
                     .font(.system(size: 11))
                     .disabled(history.entries.isEmpty)
                 Button {
-                    let ids = Set(history.recentEntries.map(\.id))
+                    let ids = history.recentEntriesSnapshot
                     if inNotch { confirmClearAboveIsland(ids) } else { clearingIDs = ids }
                 } label: {
                     Image(systemName: "trash")

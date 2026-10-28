@@ -210,7 +210,32 @@ enum AppUpdatesSupport {
         // result antisymmetric and left isNewer true against itself.
         let left = lhs.lowercased(), right = rhs.lowercased()
         if left == right { return .orderedSame }
-        return left < right ? .orderedAscending : .orderedDescending
+        // A number after the letters is still a number: as text, "beta10"
+        // sorts before "beta9" and the tenth beta is never offered.
+        let leftRuns = runs(of: left), rightRuns = runs(of: right)
+        for (a, b) in zip(leftRuns, rightRuns) where a != b {
+            if a.allSatisfy(\.isNumber) && b.allSatisfy(\.isNumber) {
+                let numbers = compareDigits(a, b)
+                if numbers != .orderedSame { return numbers }
+            } else {
+                return a < b ? .orderedAscending : .orderedDescending
+            }
+        }
+        if leftRuns.count == rightRuns.count { return .orderedSame }
+        return leftRuns.count < rightRuns.count ? .orderedAscending : .orderedDescending
+    }
+
+    /// "beta10" as ["beta", "10"]: stretches of digits and of everything else.
+    private static func runs(of part: String) -> [String] {
+        var runs: [String] = []
+        for character in part {
+            if let last = runs.last?.last, last.isNumber == character.isNumber {
+                runs[runs.count - 1].append(character)
+            } else {
+                runs.append(String(character))
+            }
+        }
+        return runs
     }
 
     /// Compared as text after dropping leading zeros, so versions with more
@@ -226,6 +251,17 @@ enum AppUpdatesSupport {
     private static func stripLeadingZeros(_ value: String) -> String {
         let trimmed = value.drop(while: { $0 == "0" })
         return String(trimmed)
+    }
+
+    /// Positron's bundle shows the version of the editor it is built on
+    /// (Code - OSS "1.134.0"). Its own release and build are in the product
+    /// file beside its code, the numbers the catalog lists as "2026.10.0-297".
+    static func productRelease(_ product: Data?) -> (version: String, build: String)? {
+        guard let product,
+              let fields = try? JSONSerialization.jsonObject(with: product) as? [String: Any],
+              let version = fields["positronVersion"] as? String,
+              version.contains(where: \.isNumber) else { return nil }
+        return (version, fields["positronBuildNumber"].map { "\($0)" } ?? "")
     }
 
     // MARK: - Package manager source
@@ -497,12 +533,182 @@ enum AppUpdatesSupport {
         }
     }
 
+    /// Some catalog versions end in a build after a dash ("3.8-08539"), the
+    /// way others carry one after a comma. A bundle that reports only its
+    /// release ("3.8.0") lines up with the part in front of the dash, unless
+    /// its own build is numbered like the catalog's and is older: that is a
+    /// newer build of the same release ("4.0.4" build 4900 before "4.0.4-4926").
+    ///
+    /// Everything else is compared whole: a bundle with a dash of its own or
+    /// a further number of its own may be reporting that part, a short number
+    /// can be a fix release ("4.10-8" after "4.10-7"), and a dated version
+    /// ("2024-01-15") has no dotted release in front of its last dash.
+    static func catalogRelease(_ catalogVersion: String, installedVersion: String,
+                               installedBuild: String = "") -> String {
+        let catalogVersion = withoutBuildLabel(catalogVersion)
+        let installed = versionCore(installedVersion)
+        guard !installed.contains("-"),
+              let dash = catalogVersion.lastIndex(of: "-") else { return catalogVersion }
+        let release = catalogVersion[..<dash]
+        let build = catalogVersion[catalogVersion.index(after: dash)...]
+        let releaseParts = release.split(separator: ".", omittingEmptySubsequences: false)
+        func isNumber(_ part: Substring) -> Bool {
+            !part.isEmpty && part.allSatisfy { $0.isASCII && $0.isNumber }
+        }
+        guard build.count >= 3, isNumber(build),
+              releaseParts.count > 1, releaseParts.allSatisfy(isNumber),
+              parts(of: installed).dropFirst(releaseParts.count).allSatisfy({
+                  $0.allSatisfy(\.isNumber) && stripLeadingZeros($0).isEmpty
+              }) else { return catalogVersion }
+        // Only a build with as many digits as the catalog's counts the same
+        // way; a shorter or longer one ("21", a 13-digit timestamp) is some
+        // other number. A build written out in full ("4.0.4.4900") is this
+        // release followed by its build.
+        var ownBuild = installedBuild.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ownParts = ownBuild.split(separator: ".", omittingEmptySubsequences: false)
+        if ownParts.count == releaseParts.count + 1, ownParts.allSatisfy(isNumber),
+           zip(releaseParts, ownParts).allSatisfy({ compareDigits(String($0), String($1)) == .orderedSame }) {
+            ownBuild = String(ownParts[releaseParts.count])
+        }
+        if isNumber(Substring(ownBuild)),
+           stripLeadingZeros(ownBuild).count == stripLeadingZeros(String(build)).count,
+           compareDigits(String(build), ownBuild) == .orderedDescending {
+            return catalogVersion
+        }
+        return String(release)
+    }
+
+    /// A commit hash after the last dash ("3.6.7-dbc92f97") or build metadata
+    /// after a plus ("3.11.1108+next.727501f") names a build without placing
+    /// it, the way the part after a comma does, so only the version in front
+    /// of it counts. A plain number after a plus ("3.22.3+105") is a build and
+    /// is compared like one after a dash.
+    private static func withoutBuildLabel(_ version: String) -> String {
+        var version = version
+        if let plus = version.firstIndex(of: "+"), version[..<plus].contains(where: \.isNumber) {
+            let metadata = version[version.index(after: plus)...]
+            version = !metadata.isEmpty && metadata.allSatisfy({ $0.isASCII && $0.isNumber })
+                ? String(version[..<plus]) + "-" + metadata : String(version[..<plus])
+        }
+        guard let dash = version.lastIndex(of: "-") else { return version }
+        let label = version[version.index(after: dash)...]
+        let isHash = label.count >= 7 && label.allSatisfy { "0123456789abcdef".contains($0) }
+            && label.contains(where: \.isLetter) && label.contains(where: \.isNumber)
+        return isHash ? String(version[..<dash]) : version
+    }
+
+    /// The version and build a new project starts with, or a version of only
+    /// zeros ("0.0.0") that was never set. A bundle that still carries them
+    /// says nothing about which release it holds, so only a catalog at that
+    /// same version can vouch for it. The build must be exactly 1: one that
+    /// repeats the version ("1.0.0" twice, as Electron apps are built) belongs
+    /// to a real first release.
+    static func reportsPlaceholderVersion(_ app: InstalledApp) -> Bool {
+        compare(versionCore(app.version), "0") == .orderedSame
+            || (compare(versionCore(app.version), "1") == .orderedSame
+            && app.buildVersion.trimmingCharacters(in: .whitespacesAndNewlines) == "1")
+    }
+
+    /// A bundle whose build is the catalog's own number holds that release,
+    /// whatever version it shows: Sonos shows 17.2.5 and builds 90.0.82050 for
+    /// "90.0-82050", 4K Video Downloader+ shows 26.3 and builds 26.3.5. Only an
+    /// exact match counts, of three or more parts or of one number with five or
+    /// more digits (a date or a build count), or with three or more that the
+    /// bundle also shows ("Build 4215"). A build counter ("2", "183") or a short
+    /// pair ("1.5") never stands in for a release by chance, and a newer catalog
+    /// number is still compared with the version the bundle shows.
+    static func buildMatchesCatalog(_ app: InstalledApp, catalogVersion: String) -> Bool {
+        let shown = parts(of: versionCore(app.version))
+        func isSpecific(_ version: String) -> Bool {
+            let numbers = parts(of: version)
+            guard numbers.count == 1 else { return numbers.count >= 3 }
+            let digits = stripLeadingZeros(numbers[0]).count
+            return numbers[0].allSatisfy(\.isNumber)
+                && (digits >= 5 || (digits >= 3 && shown.contains(numbers[0])))
+        }
+        let build = versionCore(app.buildVersion)
+        return isSpecific(build) && isSpecific(catalogVersion)
+            && compare(build, catalogVersion) == .orderedSame
+    }
+
+    /// The bundle's number in the catalog's form. Some catalog versions write
+    /// the build as one more dotted number ("2.19.0.2258" for a bundle that
+    /// shows 2.19.0 and builds 2258). A build with as many digits as that
+    /// number completes the bundle's version, so the same build is current and
+    /// an older one is a newer build of the same release. A build already
+    /// written in that form ("2.19.0.2201") is that number. Otherwise this is
+    /// the version the bundle shows.
+    static func installedNumber(_ app: InstalledApp, against release: String) -> String {
+        let shown = versionCore(app.version)
+        let build = app.buildVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let shownParts = numericParts(shown), let releaseParts = numericParts(release),
+              releaseParts.count == shownParts.count + 1,
+              zip(shownParts, releaseParts).allSatisfy({ compareDigits($0, $1) == .orderedSame }),
+              let catalogBuild = releaseParts.last, stripLeadingZeros(catalogBuild).count >= 3,
+              let buildParts = numericParts(build) else { return app.version }
+        if buildParts.count == releaseParts.count,
+           zip(shownParts, buildParts).allSatisfy({ compareDigits($0, $1) == .orderedSame }),
+           let ownBuild = buildParts.last,
+           stripLeadingZeros(ownBuild).count == stripLeadingZeros(catalogBuild).count {
+            return build
+        }
+        guard buildParts.count == 1,
+              stripLeadingZeros(build).count == stripLeadingZeros(catalogBuild).count else { return app.version }
+        return "\(shown).\(build)"
+    }
+
+    /// Whether a catalog number goes past the bundle's only in parts the
+    /// bundle never reports, so the bundle cannot say which of those releases
+    /// it holds: "2026.1" stands for every "2026.1.x.y" an app numbered that
+    /// way ships, "2026.5.1" for every build "2026.5.1.N" whose N has three or
+    /// more digits, and "5.17" for every "5.17-N". One more short dotted part
+    /// ("1.2" before "1.2.1") is the usual next release and still counts, and
+    /// so does a bundle that reports a dash of its own.
+    static func catalogOnlyAddsUnreportedParts(_ catalogVersion: String, installedVersion: String) -> Bool {
+        let installed = versionCore(installedVersion)
+        guard !installed.contains("-"), let installedParts = numericParts(installed) else { return false }
+        guard let dash = catalogVersion.lastIndex(of: "-") else {
+            guard let catalogParts = numericParts(catalogVersion) else { return false }
+            let addsBuild = catalogParts.count == installedParts.count + 1
+                && stripLeadingZeros(catalogParts[installedParts.count]).count >= 3
+            return (catalogParts.count >= installedParts.count + 2 || addsBuild)
+                && zip(installedParts, catalogParts).allSatisfy { compareDigits($0, $1) == .orderedSame }
+        }
+        let release = String(catalogVersion[..<dash])
+        let suffix = catalogVersion[catalogVersion.index(after: dash)...]
+        return (1...2).contains(suffix.count) && suffix.allSatisfy { $0.isASCII && $0.isNumber }
+            && (numericParts(release)?.count ?? 0) > 1
+            && compare(release, installed) == .orderedSame
+    }
+
+    /// A catalog number the bundle cannot be placed against: a version with
+    /// no number in it ("??.??", "lazer"), a template bundle that does not
+    /// match it, or a newer number that only adds parts the bundle never reports.
+    static func cannotCompare(_ app: InstalledApp, with release: String) -> Bool {
+        guard versionCore(app.version).contains(where: \.isNumber) else { return true }
+        if reportsPlaceholderVersion(app) {
+            return compare(release, versionCore(app.version)) != .orderedSame
+        }
+        let installed = installedNumber(app, against: release)
+        return isNewer(release, than: installed)
+            && catalogOnlyAddsUnreportedParts(release, installedVersion: installed)
+    }
+
+    /// "2026.1.4" as its numbers, or nil when any part is not a plain number.
+    private static func numericParts(_ version: String) -> [String]? {
+        let parts = version.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        return parts.allSatisfy { !$0.isEmpty && $0.allSatisfy { $0.isASCII && $0.isNumber } } ? parts : nil
+    }
+
     /// Exact names take priority; a single identity also finds renamed apps
     /// and installer packages without confusing companion apps with the owner.
+    /// Apps whose version cannot be compared come back on their own, so they
+    /// are named instead of reported as updates or as current.
     static func onlineCatalogFindings(apps: [InstalledApp],
                                       catalog: [CatalogEntry],
                                       operatingSystemVersion: String,
-                                      ignoredTokens: Set<String> = []) -> (items: [Item], checkedPaths: Set<String>) {
+                                      ignoredTokens: Set<String> = [])
+        -> (items: [Item], checkedPaths: Set<String>, uncomparableApps: [InstalledApp]) {
         var entriesByName: [String: [CatalogEntry]] = [:]
         var entriesByID: [String: [CatalogEntry]] = [:]
         for entry in catalog where !ignoredTokens.contains(entry.token) {
@@ -517,6 +723,7 @@ enum AppUpdatesSupport {
         }
 
         var checkedPaths = Set<String>()
+        var uncomparableApps: [InstalledApp] = []
         let items = apps.compactMap { app -> Item? in
             let installedName = URL(fileURLWithPath: app.path).lastPathComponent
             let named = entriesByName[installedName] ?? []
@@ -527,10 +734,19 @@ enum AppUpdatesSupport {
             guard !isUncomparable(entry.version),
                   isCompatible(entry,
                                operatingSystemVersion: operatingSystemVersion) else { return nil }
+            let latest = versionCore(entry.version)
+            if buildMatchesCatalog(app, catalogVersion: latest) {
+                checkedPaths.insert(app.path)
+                return nil
+            }
+            let release = catalogRelease(latest, installedVersion: app.version, installedBuild: app.buildVersion)
+            if cannotCompare(app, with: release) {
+                uncomparableApps.append(app)
+                return nil
+            }
             // Current versions are covered too; absence of a row alone proves nothing.
             if !isUncomparable(app.version) { checkedPaths.insert(app.path) }
-            let latest = versionCore(entry.version)
-            guard isNewer(latest, than: app.version) else { return nil }
+            guard isNewer(release, than: installedNumber(app, against: release)) else { return nil }
             return Item(id: "\(Source.onlineCatalog.rawValue):\(app.path)",
                         source: .onlineCatalog,
                         name: app.name,
@@ -541,7 +757,7 @@ enum AppUpdatesSupport {
                         storePage: nil,
                         bundleID: app.bundleID)
         }
-        return (items, checkedPaths)
+        return (items, checkedPaths, uncomparableApps)
     }
 
     private static func isCompatible(_ entry: CatalogEntry,

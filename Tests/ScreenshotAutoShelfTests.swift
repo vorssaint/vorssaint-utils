@@ -119,6 +119,9 @@ enum ScreenshotAutoShelfTests {
         var latestCaptureToken = UUID()
         var autoShelfTasks: [UUID: Task<Void, Never>] = [:]
         var autoShelvedItem: (capture: UUID, item: UUID)?
+        var editorCaptures: [Int] = []
+
+        func openEditor(with capture: Int) { editorCaptures.append(capture) }
 
         nonisolated static func flatten(_ capture: Int, downscaleTo1x: Bool) -> Export? {
             Export(image: capture, scale: 2)
@@ -173,11 +176,28 @@ enum ScreenshotAutoShelfTests {
                      "discarding that capture takes it off the shelf")
 
         service.latestCaptureToken = UUID()
+        service.autoShelve(20, saved: nil)
+        await service.settle()
+        let edited = service.autoShelvedItem?.item
+        service.editFromPreview(20, latestCapture: service.latestCaptureToken)
+        suite.expect(edited != nil && shelf.removed.last == edited && service.autoShelvedItem == nil
+                && service.editorCaptures == [20],
+                     "editing a capture from its preview takes the raw capture off the shelf before the editor opens")
+        service.latestCaptureToken = UUID()
+        service.autoShelve(21, saved: nil)
+        let editedWhileWriting = service.autoShelfTasks[service.latestCaptureToken]
+        service.editFromPreview(21, latestCapture: service.latestCaptureToken)
+        await editedWhileWriting?.value
+        suite.expect(!shelf.generated.contains(Data([21])) && service.autoShelvedItem == nil
+                && service.editorCaptures == [20, 21],
+                     "a capture edited while its copy is still being written never reaches the shelf")
+
+        service.latestCaptureToken = UUID()
         service.autoShelve(6, saved: nil)
         let pending = service.autoShelfTasks[service.latestCaptureToken]
         service.unshelve(service.latestCaptureToken)
         await pending?.value
-        suite.expect(shelf.generated == [Data([5])] && service.autoShelvedItem == nil,
+        suite.expect(shelf.generated == [Data([5]), Data([20])] && service.autoShelvedItem == nil,
                      "a capture discarded while its copy is still being written never reaches the shelf")
 
         let control = ScreenshotRenderer.control

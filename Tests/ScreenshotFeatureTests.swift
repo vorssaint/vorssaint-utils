@@ -204,6 +204,7 @@ enum ScreenshotFeatureTests {
             hideVorssaintWindows: false,
             protectedWindowIDs: protectedScreenshotWindows
         ), "screenshot cannot pick its own protected capture UI")
+        islandCaptureChecks(suite)
 
         // Another process can draw a border around a window as a window of its
         // own; clicking there has to capture the window it surrounds.
@@ -465,6 +466,30 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotSupport.scrollingSamplesAreStable(nextScrollSample,
                                                            nextScrollSample),
                "settling recognizes two unchanged scrolling frames")
+        func lowContrastSample(offset: Int, noisy: Bool = false) -> ScreenshotSupport.ScrollingSample {
+            let sample = scrollingSample(offset: offset)
+            var pixels = sample.pixels.map { $0 / 16 }
+            if noisy {
+                for index in stride(from: 0, to: pixels.count, by: 17) { pixels[index] += 1 }
+            }
+            return .init(width: sample.width, height: sample.height, pixels: pixels)
+        }
+        suite.expect(ScreenshotSupport.scrollingTransition(previous: lowContrastSample(offset: 0),
+                                                           current: lowContrastSample(offset: 42))
+                == .advanced(overlap: 78, direction: .forward, contentColumns: 0..<16),
+               "a precise low-contrast overlap beats longer but only similar rows")
+        for offset in [2, 42] {
+            for noisy in [false, true] {
+                let start = lowContrastSample(offset: 0)
+                let next = lowContrastSample(offset: offset, noisy: noisy)
+                suite.expect(ScreenshotSupport.scrollingTransition(previous: start, current: next)
+                        == .advanced(overlap: 120 - offset, direction: .forward, contentColumns: 0..<16),
+                             "a precise low-contrast overlap survives similar rows, offset: \(offset), noisy: \(noisy)")
+                suite.expect(ScreenshotSupport.scrollingTransition(previous: next, current: start)
+                        == .advanced(overlap: 120 - offset, direction: .backward, contentColumns: 0..<16),
+                             "low-contrast backtracking keeps the correct overlap, offset: \(offset), noisy: \(noisy)")
+            }
+        }
         let shortFinalScrollSample = scrollingSample(offset: 8)
         suite.expect(ScreenshotSupport.scrollingTransition(previous: firstScrollSample,
                                                      current: shortFinalScrollSample)
@@ -539,7 +564,7 @@ enum ScreenshotFeatureTests {
             fixedBottomRows: 0) == 78..<120,
                "captures without a fixed footer keep the original crop geometry")
         // Each input is independent: repeating the same pure call adds no case.
-        for offset in [8, 76] {
+        for offset in [8, 76, 96, 104] {
             let transition = ScreenshotSupport.scrollingTransition(
                 previous: firstScrollSample,
                 current: scrollingSample(offset: offset))
@@ -547,6 +572,12 @@ enum ScreenshotFeatureTests {
                                             direction: .forward,
                                             contentColumns: 0..<16),
                    "scroll matching handles an advance of \(offset) rows: \(transition)")
+            suite.expect(ScreenshotSupport.scrollingTransition(
+                previous: scrollingSample(offset: offset),
+                current: firstScrollSample) == .advanced(overlap: 120 - offset,
+                                                       direction: .backward,
+                                                       contentColumns: 0..<16),
+                "small overlaps also identify backward scrolling by \(offset) rows")
         }
         let retinaScrollStart = scrollingSample(width: 32, height: 900, offset: 0)
         let retinaScrollNext = scrollingSample(width: 32, height: 900, offset: 558)
@@ -613,6 +644,21 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotSupport.scrollingTransition(previous: firstScrollSample,
                                                      current: unmatchedScrollSample) == .unmatched,
                "ambiguous content fails instead of inventing a seam")
+        func repeatedScrollSample(offset: Int, noisy: Bool = false) -> ScreenshotSupport.ScrollingSample {
+            var pixels = [UInt8](repeating: 0, count: 16 * 120)
+            for index in pixels.indices {
+                let row = (index / 16 + offset) % 24
+                let noise = noisy && index % 17 == 0 ? 1 : 0
+                pixels[index] = UInt8(row * 9 + noise)
+            }
+            return .init(width: 16, height: 120, pixels: pixels)
+        }
+        for noisy in [false, true] {
+            suite.expect(ScreenshotSupport.scrollingTransition(
+                previous: repeatedScrollSample(offset: 0),
+                current: repeatedScrollSample(offset: 8, noisy: noisy)) == .unmatched,
+                "equally precise repeated rows cannot select an arbitrary scroll offset, noisy: \(noisy)")
+        }
         suite.expectClose(Double(ScreenshotSupport.captureScale(fromDPI: 144) ?? 0), 2,
                     "the cached screenshot restores its Retina scale from PNG metadata")
         suite.expect(ScreenshotSupport.captureScale(fromDPI: nil) == nil
@@ -1261,6 +1307,18 @@ enum ScreenshotFeatureTests {
         suite.expect(!fullScreenClickHost.passesThrough
                 && fullScreenClickHost.acceptsFirstMouse(for: nil),
                "the interactive full-screen host receives its first click while Dynamic Island owns key focus")
+        let buttonSize = fullScreenClickHost.fittingSize
+        suite.expect(buttonSize.width > 1 && buttonSize.height > 0,
+               "the full-screen button retains a measurable size instead of collapsing to one point")
+        let fixedGuideHost = PassThroughHostingView(fixedFrameRootView: Text("Screenshot"))
+        let guideFrame = CGRect(x: 100, y: 100, width: 620, height: 146)
+        fixedGuideHost.frame = guideFrame
+        for title in ["Record screen", "Pick color", "Screenshot"] {
+            fixedGuideHost.rootView = Text(title)
+            fixedGuideHost.layoutSubtreeIfNeeded()
+            suite.expect(fixedGuideHost.frame == guideFrame && fixedGuideHost.sizingOptions.isEmpty,
+                   "changing the capture guide leaves its assigned frame intact")
+        }
         suite.expect(ScreenshotSupport.offersRepeatLastRegion(isPickingColor: false,
                                                         storedRegionDisplayIsAvailable: true),
                "the repeat hint is offered once a region is stored on a display still in the session")
@@ -1273,6 +1331,11 @@ enum ScreenshotFeatureTests {
         let captureSelectionSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
             encoding: .utf8)) ?? ""
+        suite.expect(captureSelectionSource.contains(
+            "PassThroughHostingView(fixedFrameRootView: CaptureGuideView(")
+                && captureSelectionSource.contains(
+                    "PassThroughHostingView(interactiveRootView: FullScreenCaptureButton("),
+               "only the manually sized capture guide opts out of intrinsic hosting size")
         suite.expect(captureSelectionSource.contains(
             "override func mouseExited(with event: NSEvent) {\n        refreshPointerState()\n        refreshGuideVisibility()"),
                "system chrome cannot hide the capture chooser while the pointer remains on its display")
@@ -1403,6 +1466,42 @@ enum ScreenshotFeatureTests {
             .components(separatedBy: "\n}").first ?? ""
         suite.expect(overlayViewBody.contains("acceptsFirstMouse") && overlayViewBody.contains("acceptsFirstMouse(for event: NSEvent?) -> Bool { true }"),
                "the capture surface claims the first click so a drag works while Dynamic Island holds key focus")
+        // The other half of that drag: live, the panel is clear and draws no
+        // dim over the desktop until the drag starts, and a window left at the
+        // default passes a press on a transparent pixel through to the desktop.
+        // A session can start live, so the assignment must be a statement of
+        // the initializer itself, not a branch or a later update, and nothing
+        // in the class may set the property to true.
+        let overlayPanelBody = selectionSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+            .components(separatedBy: "class ScreenshotOverlayPanel").dropFirst().first?
+            .components(separatedBy: "\n}").first ?? ""
+        let overlayPanelInit = overlayPanelBody.components(separatedBy: "super.init(contentRect:").dropFirst().first?
+            .components(separatedBy: "\n    }").first ?? ""
+        suite.expect(overlayPanelInit.components(separatedBy: "\n").contains("        ignoresMouseEvents = false")
+                && !overlayPanelBody.contains("ignoresMouseEvents = true"),
+               "the clear capture surface takes a press over the bare desktop instead of passing it through")
+        // Taking every press lasts until the window is really gone, and AppKit
+        // fades the panel out after `orderOut`, so a quick click or the first
+        // scroll after a capture landed on the leaving panel. Every path that
+        // orders the panels out goes through the retire step, which lets go of
+        // the mouse and flushes that to the window server before they leave.
+        let selectionCode = selectionSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        func selectionMethod(_ signature: String) -> String {
+            selectionCode.components(separatedBy: signature).dropFirst().first?
+                .components(separatedBy: "\n    }").first ?? ""
+        }
+        let retireBody = selectionMethod("private func retirePanels()")
+        let retireSteps = ["$0.ignoresMouseEvents = true", "CATransaction.flush()", "$0.orderOut(nil)"]
+            .compactMap { retireBody.range(of: $0)?.lowerBound }
+        suite.expect(retireSteps.count == 3 && retireSteps == retireSteps.sorted()
+                && selectionCode.components(separatedBy: "orderOut(").count == 2
+                && selectionMethod("private func captureLive(").contains("retirePanels()")
+                && selectionMethod("private func finish(").contains("retirePanels()"),
+               "a capture surface leaving the screen stops taking the mouse before its fade")
         // Both editors state a size the same way. The recorder wrote
         // "1960x1274" beside a screenshot editor that already read
         // "2940 \u{00D7} 1912 px", and the letter x is the tell.
@@ -1527,6 +1626,37 @@ enum ScreenshotFeatureTests {
         suite.expect(largeCaptureWindow.width <= 1470 * 0.90
                 && largeCaptureWindow.height <= 956 * 0.88,
                "a large screenshot editor stays inside the visible display")
+        typealias RailLayout = ScreenshotSupport.ToolRailLayout
+        let railTools = ScreenshotSupport.Tool.editorTools.count
+        func railFits(_ layout: RailLayout, toolCount: Int, height: CGFloat) -> Bool {
+            let rows = layout.visibleTools + (layout.visibleTools < toolCount ? 2 : 1)
+            return RailLayout.chromeHeight + CGFloat(rows) * (layout.rowHeight + layout.spacing) <= height
+        }
+        // The rail's column is the editor's height less 70 pt of chrome and
+        // the footer: 40 pt in one row, 76 when a tool's controls wrap it.
+        let smallestEditor = ScreenshotSupport.editorMinimumContentSize(
+            visibleSize: CGSize(width: 1280, height: 775)).height
+        let smallestRails = [40, ScreenshotSupport.editorWrappedFooterHeight].map {
+            ScreenshotSupport.toolRailHeight(column: smallestEditor - 70 - $0, footer: $0)
+        }
+        suite.expect(smallestRails[0] == smallestRails[1],
+               "a tool that wraps the footer never reflows the tool rail")
+        let smallestRail = RailLayout(toolCount: railTools, height: smallestRails[0])
+        suite.expect(smallestRail.visibleTools == railTools && smallestRail.rowHeight < 29
+                && railFits(smallestRail, toolCount: railTools, height: smallestRails[0]),
+               "the smallest editor shows every tool and the gear in compact rows")
+        let defaultRail = RailLayout(toolCount: railTools, height: ScreenshotSupport.toolRailHeight(
+            column: editorMinimum.height - 70 - 40, footer: 40))
+        suite.expect(defaultRail.visibleTools == railTools && defaultRail.rowHeight == 29,
+               "a comfortable editor keeps regular tool rows")
+        let crampedRail = RailLayout(toolCount: railTools, height: 300)
+        suite.expect(crampedRail.visibleTools < railTools && crampedRail.visibleTools > 0,
+               "a shorter rail moves its last tools behind the overflow button")
+        suite.expect((63...800).allSatisfy {
+                railFits(RailLayout(toolCount: railTools, height: CGFloat($0)), toolCount: railTools,
+                         height: CGFloat($0))
+            },
+               "the tool rail, its overflow button and the gear fit every height")
         suite.expect(ScreenshotSupport.editorOwnsKeyEvent(eventWindowNumber: 42,
                                                     editorWindowNumber: 42,
                                                     editorIsKey: true),
@@ -1543,6 +1673,34 @@ enum ScreenshotFeatureTests {
                                                      editorWindowNumber: 42,
                                                      editorIsKey: true),
                "screenshot editor ignores events explicitly owned by another window")
+        suite.expect(ScreenshotSupport.editorIgnoresPostedCopy(sourceProcessID: 4242, ownProcessID: 77,
+                                                         now: 100.3, lastPointerActivity: 100),
+               "a Command-C another app posts as a canvas drag ends does not copy and close the editor")
+        suite.expect(!ScreenshotSupport.editorIgnoresPostedCopy(sourceProcessID: 0, ownProcessID: 77,
+                                                          now: 100.1, lastPointerActivity: 100),
+               "a pressed Command-C right after drawing still copies the capture")
+        suite.expect(!ScreenshotSupport.editorIgnoresPostedCopy(sourceProcessID: 4242, ownProcessID: 77,
+                                                          now: 101, lastPointerActivity: 100),
+               "a posted Command-C well after the last stroke still copies, as automation sends it")
+        suite.expect(!ScreenshotSupport.editorIgnoresPostedCopy(sourceProcessID: 4242, ownProcessID: 77,
+                                                          now: 100, lastPointerActivity: -.infinity),
+               "a posted Command-C before any canvas gesture still copies")
+        let editorControllerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(editorControllerSource.contains("ScreenshotSupport.editorIgnoresPostedCopy(")
+                && editorControllerSource.contains("self.model.notePointerActivity()")
+                && editorControllerSource.contains("NSEvent.removeMonitor(pointerMonitor)"),
+               "the editor's Command-C checks for a posted copy, fed by every press and drag in its window")
+        suite.expect(ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_Return, command: false, isRepeat: true)
+                && ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_ANSI_C, command: true, isRepeat: true),
+               "a held Return or Command-C does not copy and close the editor it repeats into")
+        suite.expect(!ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_Return, command: false, isRepeat: false)
+                && !ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_ANSI_Z, command: true, isRepeat: true),
+               "a single Return copies, and held undo keeps repeating")
+        suite.expect(ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_ANSI_V, command: true, isRepeat: true)
+                && !ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_ANSI_V, command: true, isRepeat: false),
+               "a held Command-V pastes the image once instead of stacking copies under it")
         let previewFrame = ScreenshotSupport.quickPreviewFrame(
             size: CGSize(width: 286, height: 210),
             anchor: CGRect(x: 1100, y: 100, width: 300, height: 300),
@@ -1709,7 +1867,7 @@ enum ScreenshotFeatureTests {
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        suite.expect(screenshotEditorSource.contains("if tool != .select, tool != .crop {\n            selectedID = nil\n        }"),
+        suite.expect(screenshotEditorSource.contains("if tool != .select, tool != .crop, tool != .expandCanvas {\n            selectedID = nil\n        }"),
                "the editor clears stale selection before creating a new annotation")
         suite.expect(!screenshotEditorSource.contains("annotations.append(annotation)\n            selectedID = annotation.id\n            draftID = annotation.id")
                 && screenshotEditorSource.contains("} else if let draftID {\n                selectedID = draftID"),
@@ -1903,6 +2061,150 @@ enum ScreenshotFeatureTests {
             context?.setFillColor(CGColor(srgbRed: red, green: green, blue: blue, alpha: 1))
             context?.fill(CGRect(x: 0, y: 0, width: 20, height: 10))
             return context?.makeImage()
+        }
+        if let spotlightBase = filled(0.8, 0.8, 0.8) {
+            func spot(_ rect: CGRect) -> ScreenshotSupport.Annotation {
+                ScreenshotSupport.Annotation(tool: .spotlight, rect: rect)
+            }
+            func renderedSpotlightPixels(_ annotations: [ScreenshotSupport.Annotation],
+                                         strength: CGFloat,
+                                         base: CGImage? = nil,
+                                         watermark: ScreenshotSupport.WatermarkStyle = .init(),
+                                         watermarkImage: CGImage? = nil) -> [UInt8]? {
+                let base = base ?? spotlightBase
+                guard let export = ScreenshotRenderer.renderExport(
+                    baseImage: base,
+                    annotations: annotations,
+                    blurSources: .none,
+                    scale: 1,
+                    annotationShadowsEnabled: false,
+                    watermark: watermark,
+                    watermarkImage: watermarkImage,
+                    style: ScreenshotSupport.BackdropStyle(kind: .none, cornerRadius: 0),
+                    fill: .none,
+                    downscaleTo1x: false,
+                    spotlightDimStrength: strength)
+                else { return nil }
+                let width = base.width
+                let height = base.height
+                var pixels = [UInt8](repeating: 0, count: width * height * 4)
+                let read = pixels.withUnsafeMutableBytes { buffer -> Bool in
+                    guard let context = CGContext(data: buffer.baseAddress, width: width, height: height,
+                                                  bitsPerComponent: 8, bytesPerRow: width * 4,
+                                                  space: CGColorSpaceCreateDeviceRGB(),
+                                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+                    else { return false }
+                    context.draw(export.image, in: CGRect(x: 0, y: 0, width: width, height: height))
+                    return true
+                }
+                return read ? pixels : nil
+            }
+            func red(_ pixels: [UInt8]?, x: Int, y: Int) -> UInt8? {
+                guard let pixels else { return nil }
+                return pixels[(y * 20 + x) * 4]
+            }
+            func alpha(_ pixels: [UInt8]?, x: Int, y: Int) -> UInt8? {
+                guard let pixels else { return nil }
+                return pixels[(y * 20 + x) * 4 + 3]
+            }
+            let region = CGRect(x: 2, y: 2, width: 8, height: 6)
+            let whiteMark = ScreenshotSupport.Annotation(
+                tool: .redact,
+                rect: CGRect(x: 16, y: 2, width: 3, height: 4),
+                color: .white)
+            let unchanged = renderedSpotlightPixels([], strength: 0.5)
+            let halfDim = renderedSpotlightPixels(
+                [spot(region), spot(CGRect(x: 8, y: 2, width: 8, height: 6))],
+                strength: 0.5)
+            let noDim = renderedSpotlightPixels([spot(region)], strength: 0)
+            let fullDim = renderedSpotlightPixels([spot(region)], strength: 1)
+            let annotationDim = renderedSpotlightPixels([whiteMark, spot(region)], strength: 0.5)
+            suite.expect(red(unchanged, x: 1, y: 1) == 204
+                    && red(halfDim, x: 4, y: 4) == 204
+                    && red(halfDim, x: 9, y: 4) == 204
+                    && red(halfDim, x: 18, y: 4).map { (95...110).contains($0) } == true
+                    && red(noDim, x: 18, y: 4) == 204
+                    && red(fullDim, x: 18, y: 4) == 0
+                    && red(fullDim, x: 4, y: 4) == 204
+                    && red(annotationDim, x: 17, y: 3).map { (120...135).contains($0) } == true,
+                   "spotlight exports preserve every region, union overlaps, and dim only the outside")
+            let unreadableDim = renderedSpotlightPixels([spot(region)], strength: .nan)
+            suite.expect(red(unreadableDim, x: 18, y: 4).map { (95...110).contains($0) } == true
+                    && red(unreadableDim, x: 4, y: 4) == 204,
+                   "an unreadable spotlight strength dims at the default instead of skipping the dim")
+            let clearEdgeBase: CGImage? = {
+                let context = CGContext(data: nil, width: 20, height: 10, bitsPerComponent: 8,
+                                        bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+                context?.setFillColor(CGColor(srgbRed: 0.8, green: 0.8, blue: 0.8, alpha: 1))
+                context?.fill(CGRect(x: 0, y: 0, width: 20, height: 10))
+                context?.clear(CGRect(x: 0, y: 0, width: 1, height: 10))
+                return context?.makeImage()
+            }()
+            let clearEdge = clearEdgeBase.flatMap {
+                renderedSpotlightPixels([spot(region)], strength: 0.5, base: $0)
+            }
+            suite.expect(alpha(clearEdge, x: 0, y: 4) == 0
+                    && alpha(clearEdge, x: 18, y: 4) == 255
+                    && red(clearEdge, x: 18, y: 4).map { (95...110).contains($0) } == true,
+                   "a spotlight keeps transparent capture pixels transparent")
+            let offImage = renderedSpotlightPixels(
+                [spot(CGRect(x: 40, y: 0, width: 8, height: 8))], strength: 0.5)
+            let barePress = renderedSpotlightPixels(
+                [spot(CGRect(x: 5, y: 5, width: 0, height: 0))], strength: 0.5)
+            suite.expect(unchanged != nil && offImage == unchanged && barePress == unchanged,
+                   "a spotlight region off the image or still a bare press leaves every pixel unchanged")
+            let markAbove = renderedSpotlightPixels([spot(region), whiteMark], strength: 0.5)
+            let markBetween = renderedSpotlightPixels(
+                [spot(CGRect(x: 2, y: 2, width: 4, height: 6)), whiteMark,
+                 spot(CGRect(x: 6, y: 2, width: 4, height: 6))],
+                strength: 0.5)
+            suite.expect(red(markAbove, x: 17, y: 3) == 255
+                    && red(markAbove, x: 13, y: 4).map { (95...110).contains($0) } == true
+                    && red(markBetween, x: 17, y: 3).map { (120...135).contains($0) } == true
+                    && red(markBetween, x: 4, y: 4) == 204
+                    && red(markBetween, x: 8, y: 4) == 204,
+                   "marks above the topmost spotlight region stay bright and marks below it dim")
+            let pressAbove = renderedSpotlightPixels(
+                [spot(region), whiteMark, spot(CGRect(x: 5, y: 5, width: 0, height: 0))],
+                strength: 0.5)
+            let offImageAbove = renderedSpotlightPixels(
+                [spot(region), whiteMark, spot(CGRect(x: 40, y: 0, width: 8, height: 8))],
+                strength: 0.5)
+            suite.expect(red(pressAbove, x: 17, y: 3) == 255
+                    && red(offImageAbove, x: 17, y: 3) == 255
+                    && red(pressAbove, x: 13, y: 4).map { (95...110).contains($0) } == true,
+                   "a bare press or a region off the image never moves the dim above a mark")
+            let side = 200
+            let stampContext = CGContext(data: nil, width: 20, height: 20, bitsPerComponent: 8,
+                                         bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            stampContext?.setFillColor(CGColor(gray: 1, alpha: 1))
+            stampContext?.fill(CGRect(x: 0, y: 0, width: 20, height: 20))
+            let largeContext = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8,
+                                         bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            largeContext?.setFillColor(CGColor(srgbRed: 0.8, green: 0.8, blue: 0.8, alpha: 1))
+            largeContext?.fill(CGRect(x: 0, y: 0, width: side, height: side))
+            if let stamp = stampContext?.makeImage(), let largeBase = largeContext?.makeImage() {
+                let mark = ScreenshotSupport.WatermarkStyle(kind: .image, imagePath: "/logo.png",
+                                                            anchor: .bottomTrailing, size: 0.2,
+                                                            opacity: 1, rotation: 0)
+                let plain = renderedSpotlightPixels([], strength: 0.5, base: largeBase,
+                                                    watermark: mark, watermarkImage: stamp)
+                let lit = renderedSpotlightPixels([spot(CGRect(x: 10, y: 10, width: 40, height: 40))],
+                                                  strength: 0.5, base: largeBase,
+                                                  watermark: mark, watermarkImage: stamp)
+                let stamped: [Int] = plain.map { pixels in
+                    stride(from: 0, to: pixels.count, by: 4).filter { pixels[$0] == 255 }
+                } ?? []
+                let dimmedOutside = lit.map { (95...110).contains($0[(5 * side + 100) * 4]) } == true
+                suite.expect(stamped.count > 200 && dimmedOutside
+                        && lit.map { pixels in
+                            stamped.allSatisfy { pixels[$0] >= 253 && pixels[$0 + 3] == 255 }
+                        } == true,
+                       "an opaque watermark outside the spotlight regions keeps its pixels")
+            }
         }
         if let base = filled(0.5, 0.5, 0.5), let light = filled(1, 0, 0), let heavy = filled(0, 0, 1) {
             let marks = [
@@ -2506,6 +2808,8 @@ enum ScreenshotFeatureTests {
             encoding: .utf8)) ?? ""
         suite.expect(screenshotEditorViewSource.contains("isHovered || isActive ? 0.9 : 0.55"),
                "tool shortcut labels stay visible on idle rail buttons")
+        suite.expect(screenshotEditorViewSource.contains("Slider(value: spotlightDimValue, in: 0...1)\n"),
+               "the spotlight dim slider stays continuous, so it draws no tick marks")
         suite.expect(screenshotEditorSource.contains("syncControls(to: hit)"),
                "the editor synchronizes controls from the selected annotation")
         let existingSelectionSource: String
@@ -2659,6 +2963,52 @@ enum ScreenshotFeatureTests {
                                                colors: [[0, 2, -1], [0.5, 0.5, 0.5]])
                 .sanitized().colors?.first == [0, 1, 0],
                "gradient colors clamp component by component")
+        // A window capture keeps its rounded corners in its alpha. The card's
+        // shadow has to follow them, or a square of shadow shows past them.
+        func card(cornerRadius: CGFloat) -> CGImage? {
+            guard let context = CGContext(data: nil, width: 400, height: 300, bitsPerComponent: 8,
+                                          bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return nil }
+            context.setFillColor(CGColor(gray: 0.5, alpha: 1))
+            context.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: 400, height: 300),
+                                   cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil))
+            context.fillPath()
+            return context.makeImage()
+        }
+        if let square = card(cornerRadius: 0), let window = card(cornerRadius: 40) {
+            suite.expect(ScreenshotSupport.transparentCornerRadius(of: square) == 0,
+                   "an opaque capture has no rounding of its own")
+            suite.expect(abs(ScreenshotSupport.transparentCornerRadius(of: window) - 40) <= 3,
+                   "a window's own corner radius is read from its alpha")
+            func shadowBrightness(_ image: CGImage) -> UInt8? {
+                let margin = Int(ScreenshotSupport.backdropPadding(for: CGSize(width: 400, height: 300),
+                                                                   factor: 1))
+                guard let export = ScreenshotRenderer.renderExport(
+                        baseImage: image, annotations: [], blurSources: .none, scale: 1,
+                        annotationShadowsEnabled: false, watermark: ScreenshotSupport.WatermarkStyle(),
+                        watermarkImage: nil,
+                        style: ScreenshotSupport.BackdropStyle(kind: .solid, colors: [[1, 1, 1]],
+                                                               padding: 1, cornerRadius: 0),
+                        fill: .colors([(red: 1, green: 1, blue: 1)]), downscaleTo1x: false)?.image,
+                      let context = CGContext(data: nil, width: export.width, height: export.height,
+                                              bitsPerComponent: 8, bytesPerRow: export.width * 4,
+                                              space: CGColorSpaceCreateDeviceRGB(),
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+                      let pixels = context.data
+                else { return nil }
+                context.draw(export, in: CGRect(x: 0, y: 0, width: export.width, height: export.height))
+                // Just outside the card's lower left corner, where the shadow falls.
+                let x = margin - 2, y = export.height - margin + 1
+                return pixels.load(fromByteOffset: (y * export.width + x) * 4, as: UInt8.self)
+            }
+            if let squareCorner = shadowBrightness(square), let windowCorner = shadowBrightness(window) {
+                suite.expect(Int(windowCorner) - Int(squareCorner) >= 20,
+                       "the shadow follows a window's own rounded corner instead of a square card")
+            } else {
+                suite.expect(false, "the corner shadow test exports render")
+            }
+        }
 
         let presetList = [solidStyle,
                           ScreenshotSupport.BackdropStyle(kind: .gradient,
@@ -2884,17 +3234,23 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotSupport.joinedWords(recognizedWords, selected: [9]).isEmpty
                 && ScreenshotSupport.joinedWords(recognizedWords, selected: []).isEmpty,
                "out of range or empty selections copy nothing")
-        let defaultScreenshotTools = ScreenshotSupport.Tool.allCases
-        suite.expect(defaultScreenshotTools.count == 13
+        let defaultScreenshotTools = ScreenshotSupport.Tool.editorTools
+        suite.expect(defaultScreenshotTools.count == 15
                 && Array(defaultScreenshotTools.prefix(9))
                     == [.select, .arrow, .pixelate, .crop, .text, .sticker,
                         .rect, .highlight, .freehand],
                "the screenshot rail leads with the nine most useful numbered tools")
+        suite.expect(ScreenshotSupport.Tool.spotlight.dragsRect
+                && ScreenshotSupport.Tool.spotlight.resizesWithHandles
+                && ScreenshotSupport.selectionStyle(
+                    for: ScreenshotSupport.Annotation(tool: .spotlight))
+                    == ScreenshotSupport.SelectionStyle(color: nil, stroke: nil, arrowStyle: nil),
+               "spotlight regions use rectangle handles and have no annotation style controls")
         let customScreenshotTools = ScreenshotSupport.Tool.ordered(
             from: "crop,arrow,arrow,invalid")
         suite.expect(Array(customScreenshotTools.prefix(2)) == [.crop, .arrow]
-                && customScreenshotTools.count == 13
-                && Set(customScreenshotTools).count == 13,
+                && customScreenshotTools.count == 15
+                && Set(customScreenshotTools).count == 15,
                "a saved screenshot tool order drops invalid duplicates and appends missing tools")
         suite.expect(ScreenshotSupport.Tool.shortcutTool(number: 1,
                                                    orderRaw: nil,
@@ -3007,7 +3363,7 @@ enum ScreenshotFeatureTests {
                 && rejection(pen, excluding: .freehand, role: .keepAwake, layout: "Left") == .role(.keepAwake)
                 && rejection(pen, excluding: .freehand, layout: "Left", system: true) == .windowLayout("Left"),
                    "editor keys and tools answer first and the system table is read last")
-            for (index, tool) in Tool.allCases.enumerated() {
+            for (index, tool) in Tool.editorTools.enumerated() {
                 suite.expect(Tool.shortcutTool(keyCode: -1, modifiers: [], number: index + 1,
                         orderRaw: nil, bindingsRaw: "", enabled: true)
                     == Tool.shortcutTool(number: index + 1, orderRaw: nil, enabled: true),
@@ -3324,6 +3680,8 @@ enum ScreenshotFeatureTests {
                "screenshot annotation shadows ship off")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotShowLastRegion] as? Bool == true,
                "the previous capture outline stays visible by default, as it always was")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,
+               "window highlights preserve the existing selection appearance by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,
                "the always-on loupe is an opt-in and ships off")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeRememberZoom] as? Bool == false
@@ -3369,6 +3727,12 @@ enum ScreenshotFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastBlurLevel] as? Int
                 == ScreenshotSupport.BlurStrength.defaultLevel,
                "the pixelate tool starts at the strength it always had")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotSpotlightDim] as? Double == 0.5
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotSpotlightDim)
+                && ScreenshotSupport.sanitizedSpotlightDim(1.4) == 1
+                && ScreenshotSupport.sanitizedSpotlightDim(-0.2) == 0
+                && ScreenshotSupport.sanitizedSpotlightDim(.infinity) == 0.5,
+               "the spotlight dim starts at half, stays within range and travels in backups")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastBlurStyle] as? String
                 == ScreenshotSupport.BlurStyleID.pixelate.rawValue
                 && Defaults.registeredDefaults[DefaultsKey.screenshotLastBlurTextOnly] as? Bool == false
@@ -3536,6 +3900,11 @@ enum ScreenshotFeatureTests {
         ]
         suite.expect(scratchpadHitTargetContracts.allSatisfy { scratchpadViewSource.contains($0) },
                "the scratchpad tab bar and header controls keep their full padded hit targets")
+        // The island's toggle runs in NotchCompactTests; the floating pad hands
+        // its checkboxes to the same service method, which edits through the
+        // registered text view.
+        suite.expect(scratchpadViewSource.contains("onToggleTask: { service.toggleTask(box: $0) }"),
+               "the floating pad's checkboxes edit through the service, so a click is one undoable edit")
         suite.expect(ScratchpadRetention.sanitized("day") == .day
                 && ScratchpadRetention.sanitized("week") == .week
                 && ScratchpadRetention.sanitized("month") == .month
@@ -3864,6 +4233,48 @@ enum ScreenshotFeatureTests {
                 == [.screenshot, .colorPicker],
                "capture roles are reordered for display and other roles fall away")
         GlobalShortcut.refreshLayoutLabels()
+    }
+
+    /// The island follows "Show in screenshots and videos" in Vorssaint's own
+    /// captures too, area selections included, except while it is the tool
+    /// taking the picture.
+    private static func islandCaptureChecks(_ suite: TestSuite) {
+        let island: CGWindowID = 20, copy: CGWindowID = 21, editor: CGWindowID = 11, overlay: CGWindowID = 12
+        let islandWindows: Set<CGWindowID> = [island, copy]
+        let ownWindows: Set<CGWindowID> = [editor, overlay, island, copy]
+        func shown(preference: Bool, tool: Bool) -> Set<CGWindowID> {
+            ScreenshotCapturePolicy.islandCaptureWindowIDs(
+                islandWindowIDs: islandWindows, mainWindowID: island,
+                showsInCaptures: preference, showsCaptureTool: tool)
+        }
+        suite.expect(shown(preference: true, tool: false) == islandWindows,
+                     "the island at rest, or open on a page, is in the picture when it shows in captures")
+        suite.expect(shown(preference: true, tool: true) == [copy],
+                     "the capture controls or a capture just taken stay out; copies on other displays stay in")
+        suite.expect(shown(preference: false, tool: false).isEmpty && shown(preference: false, tool: true).isEmpty,
+                     "the island stays out of every capture when it does not show in captures")
+
+        for tool in [false, true] {
+            let visible = shown(preference: true, tool: tool)
+            // What NotchService protects: the island windows not shown.
+            let protected = islandWindows.subtracting(visible).union([overlay])
+            let hidden = ScreenshotCapturePolicy.excludedWindowIDs(
+                hideVorssaintWindows: true, ownWindowIDs: ownWindows,
+                protectedWindowIDs: protected, islandWindowIDs: visible)
+            suite.expect(hidden == ownWindows.subtracting(visible),
+                         "hiding Vorssaint windows leaves the shown island in (capture tool: \(tool))")
+            let kept = ScreenshotCapturePolicy.excludedWindowIDs(
+                hideVorssaintWindows: false, ownWindowIDs: ownWindows,
+                protectedWindowIDs: protected, islandWindowIDs: visible)
+            suite.expect(kept == protected,
+                         "showing Vorssaint windows still keeps the capture interface out (capture tool: \(tool))")
+        }
+        // Watch reads an area and must never see the island, whatever the preference says.
+        suite.expect(ScreenshotCapturePolicy.excludedWindowIDs(
+            hideVorssaintWindows: true, ownWindowIDs: ownWindows,
+            protectedWindowIDs: islandWindows.union([overlay]),
+            islandWindowIDs: shown(preference: true, tool: false)) == ownWindows,
+                     "a caller that protects the island keeps it out even when it shows in captures")
     }
 }
 

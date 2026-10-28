@@ -12,19 +12,32 @@ struct SwitcherScrollNavigation {
     private var lastGesturePhaseTimestamp: CGEventTimestamp?
     private var wasMouseWheel: Bool?
 
-    mutating func selectionDelta(for event: CGEvent) -> Int {
-        guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
+    /// `direction` is Scroll Direction where it applies under the pointer.
+    /// Its tap turns the wheel around only after this one has consumed it,
+    /// so a mouse wheel is turned here to follow the way everything else
+    /// scrolls, as it did when that tap ran first.
+    mutating func selectionDelta(for input: CGEvent, direction: ScrollDirectionPreferences? = nil) -> Int {
+        guard input.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
             return 0
         }
         let traits = ScrollWheelEventTraits(
-            isContinuous: event.getIntegerValueField(.scrollWheelEventIsContinuous) != 0,
-            momentumPhase: event.getIntegerValueField(.scrollWheelEventMomentumPhase),
-            scrollPhase: event.getIntegerValueField(.scrollWheelEventScrollPhase),
-            scrollCount: event.getIntegerValueField(.scrollWheelEventScrollCount)
+            isContinuous: input.getIntegerValueField(.scrollWheelEventIsContinuous) != 0,
+            momentumPhase: input.getIntegerValueField(.scrollWheelEventMomentumPhase),
+            scrollPhase: input.getIntegerValueField(.scrollWheelEventScrollPhase),
+            scrollCount: input.getIntegerValueField(.scrollWheelEventScrollCount)
         )
         let phase = CGScrollPhase(rawValue: UInt32(truncatingIfNeeded: traits.scrollPhase))
         let isMouseWheel = ScrollWheelSupport.isMouseWheel(traits, secondsSinceLastGesturePhase:
-            lastGesturePhaseTimestamp.map { Double(event.timestamp &- $0) / 1_000_000_000 })
+            lastGesturePhaseTimestamp.map { Double(input.timestamp &- $0) / 1_000_000_000 })
+        var event = input
+        if isMouseWheel, let direction, direction.invertVertical || direction.invertHorizontal,
+           let turned = input.copy() {
+            ScrollWheelSupport.applyDirection(to: turned, isContinuous: traits.isContinuous,
+                                              invertVertical: direction.invertVertical,
+                                              invertHorizontal: direction.invertHorizontal,
+                                              horizontalModifier: nil)
+            event = turned
+        }
         if traits.scrollPhase != 0 || traits.momentumPhase != 0 {
             lastGesturePhaseTimestamp = event.timestamp
         }
@@ -315,6 +328,19 @@ enum SwitcherGridCard {
     static var fallbackIconSize: CGFloat { 80 * PreviewSizing.switcherScale }
 }
 
+/// The search chip sits above the first card, including in the transparent
+/// icon-row panel. Reserve only the space not already provided by its padding.
+enum SwitcherSearchLayout {
+    static let chipHeight: CGFloat = 28
+    static let edgeInset: CGFloat = 12
+    static let contentGap: CGFloat = 8
+
+    static func topInset(query: String, isPinned: Bool, contentPadding: CGFloat) -> CGFloat {
+        guard !query.isEmpty || isPinned else { return 0 }
+        return max(0, edgeInset + chipHeight + contentGap - contentPadding)
+    }
+}
+
 struct SwitcherIconRowLayout: Equatable {
     let visibleIconCount: Int
     let appRowContentWidth: CGFloat
@@ -324,6 +350,20 @@ struct SwitcherIconRowLayout: Equatable {
     let simpleTitleSurfaceWidth: CGFloat
     let panelSize: CGSize
     let showsShortcutHints: Bool
+    /// Icons per row and how many rows there are. One row unless the user
+    /// capped the columns and there are more icons than the cap; a wrapped
+    /// row never pages sideways, it scrolls down past `visibleRows`.
+    let columns: Int
+    let rows: Int
+    let visibleRows: Int
+
+    var isWrapped: Bool { rows > 1 }
+
+    /// The rows the icon surface shows at once, stacked without gaps: each
+    /// row already carries its own vertical margins.
+    var iconAreaHeight: CGFloat { Self.iconAreaHeight(visibleRows: visibleRows) }
+
+    static func iconAreaHeight(visibleRows: Int) -> CGFloat { CGFloat(max(1, visibleRows)) * rowHeight }
 
     static var scale: CGFloat { min(PreviewSizing.switcherScale, 1.15) }
     static var iconSize: CGFloat { 68 * scale }
@@ -394,7 +434,7 @@ struct SwitcherIconRowLayout: Equatable {
     var simplePanelSize: CGSize {
         CGSize(width: contentWidth(simpleMode: true, windowRow: false) + Self.padding * 2,
                height: Self.simpleTitleHeight + Self.simpleTitleGap
-                        + Self.rowHeight + shortcutHintHeight
+                        + iconAreaHeight + shortcutHintHeight
                         + Self.padding * 2)
     }
 
@@ -402,7 +442,7 @@ struct SwitcherIconRowLayout: Equatable {
     /// separate title strip above the row.
     var simpleWindowPanelSize: CGSize {
         CGSize(width: contentWidth(simpleMode: true, windowRow: true) + Self.padding * 2,
-               height: Self.rowHeight + shortcutHintHeight + Self.padding * 2)
+               height: iconAreaHeight + shortcutHintHeight + Self.padding * 2)
     }
 
     private var shortcutHintHeight: CGFloat {
@@ -416,7 +456,10 @@ struct SwitcherIconRowLayout: Equatable {
                                              previewSurfaceWidth: 0,
                                              simpleTitleSurfaceWidth: 0,
                                              panelSize: .zero,
-                                             showsShortcutHints: true)
+                                             showsShortcutHints: true,
+                                             columns: 1,
+                                             rows: 1,
+                                             visibleRows: 1)
 
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
@@ -424,14 +467,23 @@ struct SwitcherIconRowLayout: Equatable {
                         sessionScope: SwitcherSessionScope = .allApps,
                         screenVisibleFrame: CGRect,
                         showsShortcutHints: Bool = true,
-                        tileWidth: CGFloat = appTileWidth) -> SwitcherIconRowLayout {
+                        tileWidth: CGFloat = appTileWidth,
+                        maxColumns userMax: Int? = nil,
+                        searchTopInset: CGFloat = 0) -> SwitcherIconRowLayout {
         let appCount = max(1, rawAppCount)
         let windowCount = max(1, rawWindowCount)
         let usableWidth = max(320, screenVisibleFrame.width * 0.96)
         let maxContentWidth = max(tileWidth, usableWidth - padding * 2)
-        let naturalAppRowWidth = CGFloat(appCount) * tileWidth + CGFloat(max(0, appCount - 1)) * spacing
-        let naturalPreviewWidth = Self.naturalPreviewWidth(cardCount: windowCount)
         let maxAppContentWidth = max(tileWidth, maxContentWidth - rowHorizontalPadding * 2)
+        let fitByWidth = max(1, Int((maxAppContentWidth + spacing) / (tileWidth + spacing)))
+        let cap = SwitcherSupport.cappedColumnCount(fitByWidth: fitByWidth, userMax: userMax)
+        // Only a user cap wraps: Auto keeps the single row that pages sideways.
+        let wraps = userMax != nil && appCount > cap
+        let columns = wraps ? cap : appCount
+        let rows = wraps ? (appCount + columns - 1) / columns : 1
+        let rowIcons = wraps ? columns : appCount
+        let naturalAppRowWidth = CGFloat(rowIcons) * tileWidth + CGFloat(max(0, rowIcons - 1)) * spacing
+        let naturalPreviewWidth = Self.naturalPreviewWidth(cardCount: windowCount)
         let maxPreviewContentWidth = max(previewCardWidth, maxContentWidth - previewPanelPadding * 2)
         let appRowWidth = min(naturalAppRowWidth, maxAppContentWidth)
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
@@ -456,10 +508,19 @@ struct SwitcherIconRowLayout: Equatable {
         let contentWidth = min(max(appRowSurfaceWidth,
                                    previewCeiling + previewPanelPadding * 2,
                                    hintWidth), maxContentWidth)
-        let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (tileWidth + spacing))))
+        // Wrapped rows scroll down instead of paging sideways, so every icon
+        // counts as visible: that keeps the edge-hover paging switched off.
+        let visibleIconCount = wraps ? appCount : min(appCount, fitByWidth)
         let width = contentWidth + padding * 2
         let shortcutHintHeight = showsShortcutHints ? hintGap + hintHeight : 0
-        let height = previewHeight + previewGap + rowHeight + shortcutHintHeight + padding * 2
+        // Rows beyond what the screen holds scroll. Budget for the taller of
+        // the two things above the icons, so either mode fits.
+        let aboveIcons = max(previewHeight + previewGap, simpleTitleHeight + simpleTitleGap)
+        let rowBudget = screenVisibleFrame.height * 0.85 - aboveIcons - shortcutHintHeight - padding * 2
+            - searchTopInset
+        let visibleRows = max(1, min(rows, Int(rowBudget / rowHeight)))
+        let height = previewHeight + previewGap + Self.iconAreaHeight(visibleRows: visibleRows)
+            + shortcutHintHeight + padding * 2
         return SwitcherIconRowLayout(visibleIconCount: visibleIconCount,
                                      appRowContentWidth: appRowWidth,
                                      appRowSurfaceWidth: appRowSurfaceWidth,
@@ -467,7 +528,10 @@ struct SwitcherIconRowLayout: Equatable {
                                      previewSurfaceWidth: previewSurfaceWidth,
                                      simpleTitleSurfaceWidth: simpleTitleSurfaceWidth,
                                      panelSize: CGSize(width: width, height: height),
-                                     showsShortcutHints: showsShortcutHints)
+                                     showsShortcutHints: showsShortcutHints,
+                                     columns: wraps ? columns : visibleIconCount,
+                                     rows: rows,
+                                     visibleRows: visibleRows)
     }
 
     static func compute(count rawCount: Int, screenVisibleFrame: CGRect) -> SwitcherIconRowLayout {
@@ -486,6 +550,15 @@ struct SwitcherShortcutHints: Equatable {
 }
 
 enum SwitcherSupport {
+    /// Nobody sees a thumbnail while the displays sleep, the screen is locked
+    /// or another account is on screen, and capturing then only risks the
+    /// stall described on the capture queue (issue #1863).
+    static func screenIsInView(session: [String: Any]?, displaysAsleep: Bool) -> Bool {
+        SessionActivitySupport.isOnConsole(session)
+            && !KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: session)
+            && !displaysAsleep
+    }
+
     /// How long the shortcut must be held before the panel appears. A quick
     /// press can still switch directly without flashing the panel, while zero
     /// gives users who prefer immediate visual feedback an instant surface.
@@ -499,6 +572,36 @@ enum SwitcherSupport {
 
     static func appearanceDelay(milliseconds: Int) -> TimeInterval {
         TimeInterval(sanitizedAppearanceDelay(milliseconds: milliseconds)) / 1000
+    }
+
+    /// The most items a switcher row may hold before wrapping. Ultrawide
+    /// displays fit so many per row that the panel spans the whole screen;
+    /// a cap keeps it compact and wraps the rest onto more rows.
+    static let maxColumnsRange: ClosedRange<Int> = 2 ... 8
+
+    /// Nil means Auto: as many as the screen fits, the behavior before the cap.
+    static func sanitizedMaxColumns(_ value: Int) -> Int? {
+        guard value > 0 else { return nil }
+        return min(max(value, maxColumnsRange.lowerBound), maxColumnsRange.upperBound)
+    }
+
+    static var userMaxColumns: Int? {
+        sanitizedMaxColumns(UserDefaults.standard.integer(forKey: DefaultsKey.switcherMaxColumns))
+    }
+
+    /// The screen still wins: a cap wider than what fits never overflows it.
+    static func cappedColumnCount(fitByWidth: Int, userMax: Int?) -> Int {
+        max(1, min(fitByWidth, userMax ?? fitByWidth))
+    }
+
+    /// Columns for a card grid. Auto balances the rows the screen width
+    /// requires; a cap only ever narrows that, so 3 still gives 3 + 1 for four
+    /// windows but a cap of 8 never spreads six windows wider than Auto's
+    /// 3 + 3. The panel is never wider with a cap than without one.
+    static func wrappingColumnCount(itemCount: Int, fitByWidth: Int, userMax: Int?) -> Int {
+        let auto = gridColumnCount(itemCount: itemCount, maxColumns: fitByWidth)
+        guard let userMax else { return auto }
+        return max(1, min(auto, userMax))
     }
 
     /// How wide a window's name is in the font a card draws it in. Measured
@@ -543,6 +646,29 @@ enum SwitcherSupport {
         Dictionary(pairs, uniquingKeysWith: { first, _ in first })
     }
 
+    /// The running apps the window walk can map windows to. Entries with a
+    /// non-positive pid are dropped: the workspace list reports some apps
+    /// (Xcode's Device Hub) as -1 while the process owning their windows is
+    /// absent from it, so such an entry has no windows, no icon and nothing to
+    /// activate (issue #2960). A window owner missing from the list is looked up
+    /// by pid instead, and only a regular app is admitted so helper processes
+    /// stay out.
+    static func usableApps<App>(_ apps: [App],
+                                windowOwnerPIDs: [pid_t],
+                                pid: (App) -> pid_t,
+                                isRegular: (App) -> Bool,
+                                resolve: (pid_t) -> App?) -> [App] {
+        var usable = apps.filter { pid($0) > 0 }
+        var known = Set(usable.map(pid))
+        for owner in windowOwnerPIDs where owner > 0 && !known.contains(owner) {
+            known.insert(owner)
+            if let app = resolve(owner), pid(app) == owner, isRegular(app) {
+                usable.append(app)
+            }
+        }
+        return usable
+    }
+
     static func usesIconRowLayout(iconRowMode: Bool, simpleMode: Bool) -> Bool {
         iconRowMode || simpleMode
     }
@@ -585,10 +711,21 @@ enum SwitcherSupport {
         }
     }
 
+    /// A program that is not an app, such as the Java a game runs on, is
+    /// listed by its path (issue #3033) and matched the way the mouse
+    /// exceptions and Window Layout match it, by that path as well as by its
+    /// bundle identifier. A JVM that AWT registers reports the identifier of
+    /// Java's launcher, the same for every program that runtime runs, so only
+    /// the path tells the runtime that was picked apart. The path is read only
+    /// while the list names one.
     static func shouldPausePreviewCapture(frontmostBundleIdentifier: String?,
+                                          frontmostExecutablePath: @autoclosure () -> String? = nil,
                                           excludedBundleIdentifiers: [String]) -> Bool {
-        guard let frontmostBundleIdentifier else { return false }
-        return excludedBundleIdentifiers.contains(frontmostBundleIdentifier)
+        MouseAppExceptionSupport.identities(
+            bundleID: frontmostBundleIdentifier,
+            executablePath: frontmostExecutablePath(),
+            readsPath: excludedBundleIdentifiers.contains(where: MouseAppExceptionSupport.isExecutablePathIdentity))
+            .contains(where: excludedBundleIdentifiers.contains)
     }
 
     static func needsScreenRecording(switcherEnabled: Bool,
@@ -689,6 +826,16 @@ enum SwitcherSupport {
         }
         guard let localizedName else { return false }
         return localizedName.hasPrefix("wine")
+    }
+
+    /// Wine forwards a press to a game that captures the mouse even when the
+    /// point is outside the window. A lone activation press can therefore
+    /// become a held game button. Match the loader even when its launcher
+    /// supplies a bundle identity; that identity only matters to enumeration.
+    static func usesActivationClick(executablePath: String?, localizedName: String?) -> Bool {
+        !isCompatibilityLayerApp(bundleIdentifier: nil,
+                                 executablePath: executablePath,
+                                 localizedName: localizedName)
     }
 
     /// Some professional media apps expose their main surface as a floating
@@ -901,11 +1048,19 @@ enum SwitcherSupport {
     /// in the switcher instead of once per window (or tab). Keeps one
     /// representative per app, preferring the on-screen, front window so its title
     /// and thumbnail are the one you would expect when switching to that app.
-    static func groupWindowsByApp(_ windows: [SwitcherItem]) -> [SwitcherItem] {
+    /// `isOnHiddenSpace` answers only in current-desktop mode: a window from
+    /// another desktop then represents its app only when no window is here.
+    static func groupWindowsByApp(_ windows: [SwitcherItem],
+                                  isOnHiddenSpace: (SwitcherItem) -> Bool = { _ in false }) -> [SwitcherItem] {
         var indexByPid: [pid_t: Int] = [:]
         var grouped: [SwitcherItem] = []
         for window in windows {
             if let index = indexByPid[window.pid] {
+                let keptIsElsewhere = isOnHiddenSpace(grouped[index])
+                if isOnHiddenSpace(window) != keptIsElsewhere {
+                    if keptIsElsewhere { grouped[index] = window }
+                    continue
+                }
                 // Another window of the same app: prefer an on-screen window as
                 // the representative when the one we kept is off-screen.
                 if (window.isOnScreen && !grouped[index].isOnScreen)
@@ -941,10 +1096,27 @@ enum SwitcherSupport {
     }
 
     /// When Accessibility does not match a hidden app's WindowServer surface,
-    /// its Space assignment distinguishes a real window from a leftover.
+    /// its Space assignment distinguishes a real window from a leftover. A
+    /// window the app had already closed keeps its Space too, and used to
+    /// come back with the app's hidden badge (issues #512 and #2628), so a
+    /// surface the window server did not hide along with the app is not
+    /// confirmed. `isHiddenWithApp` is nil when the window server cannot say.
     static func isConfirmedHiddenAppWindow(appIsHidden: Bool,
-                                           windowSpaces: [UInt64]) -> Bool {
-        appIsHidden && !windowSpaces.isEmpty
+                                           windowSpaces: [UInt64],
+                                           isHiddenWithApp: Bool?) -> Bool {
+        appIsHidden && !windowSpaces.isEmpty && isHiddenWithApp != false
+    }
+
+    /// Whether a window's title has to be looked up through its remote
+    /// Accessibility element. Only a window parked on a hidden Space needs
+    /// it: the window server titles windows only with Screen Recording, and
+    /// the app's Accessibility list leaves out windows on hidden Spaces, so
+    /// such a window otherwise shows just its app's name.
+    static func looksUpHiddenSpaceTitle(windowServerTitle: String,
+                                        isDescribedByAccessibility: Bool,
+                                        accessibilityGranted: Bool,
+                                        isOnHiddenSpace: Bool) -> Bool {
+        windowServerTitle.isEmpty && !isDescribedByAccessibility && accessibilityGranted && isOnHiddenSpace
     }
 
     /// A partial Accessibility list cannot veto windows on another desktop.
@@ -1295,7 +1467,8 @@ enum SwitcherSupport {
                                          appRowContentWidth: CGFloat,
                                          appRowSurfaceWidth: CGFloat,
                                          previewContentWidth _: CGFloat,
-                                         previewSurfaceWidth: CGFloat) -> SwitcherIconRowPreviewPlacement {
+                                         previewSurfaceWidth: CGFloat,
+                                         columns rawColumns: Int? = nil) -> SwitcherIconRowPreviewPlacement {
         let appCount = max(1, rawAppCount)
         let visibleIconCount = max(1, rawVisibleIconCount)
         let selectedAppIndex = min(max(0, rawSelectedAppIndex), appCount - 1)
@@ -1309,8 +1482,10 @@ enum SwitcherSupport {
         if appCount > visibleIconCount {
             selectedCenterInRow = rowLeading + appRowContentWidth / 2
         } else {
+            // A wrapped row puts the selection under its column, not its index.
+            let column = rawColumns.map { selectedAppIndex % max(1, $0) } ?? selectedAppIndex
             selectedCenterInRow = rowLeading + SwitcherIconRowLayout.appTileWidth / 2
-                + CGFloat(selectedAppIndex) * (SwitcherIconRowLayout.appTileWidth + SwitcherIconRowLayout.spacing)
+                + CGFloat(column) * (SwitcherIconRowLayout.appTileWidth + SwitcherIconRowLayout.spacing)
         }
 
         let rawLeading = selectedCenterInRow - previewSurfaceWidth / 2
@@ -1324,14 +1499,22 @@ enum SwitcherSupport {
                                      windows: windowShortcut.displayString)
     }
 
-    static func appGroups(items: [SwitcherItem]) -> [SwitcherAppGroup] {
+    /// Current-desktop mode still lists fullscreen windows from other desktops.
+    /// One of them represents its app only when the app has no window here,
+    /// so picking the app never moves the user to another desktop.
+    static func appGroups(items: [SwitcherItem], currentSpaceOnly: Bool = false) -> [SwitcherAppGroup] {
         var seen: Set<pid_t> = []
         var groups: [SwitcherAppGroup] = []
         for (index, item) in items.enumerated() where !seen.contains(item.pid) {
             seen.insert(item.pid)
+            var representativeIndex = index
+            if currentSpaceOnly, item.isOnHiddenSpace,
+               let here = items[index...].firstIndex(where: { $0.pid == item.pid && !$0.isOnHiddenSpace }) {
+                representativeIndex = here
+            }
             groups.append(SwitcherAppGroup(pid: item.pid,
                                            appName: item.appName,
-                                           representativeIndex: index,
+                                           representativeIndex: representativeIndex,
                                            itemIDs: items.filter { $0.pid == item.pid }.map(\.id)))
         }
         return groups
@@ -1401,13 +1584,47 @@ enum SwitcherSupport {
         return min(current + safeColumns, itemCount - 1)
     }
 
+    /// ↑/↓ on a wrapped icon row steps a row of icons, not of windows: an app
+    /// row lands on the target app's entry, its window here in current-desktop
+    /// mode. Nil keeps the selection.
+    static func iconRowSelectionIndex(after selectedIndex: Int,
+                                      items: [SwitcherItem],
+                                      windowRow: Bool,
+                                      columns: Int,
+                                      movingDown: Bool,
+                                      currentSpaceOnly: Bool = false) -> Int? {
+        guard items.indices.contains(selectedIndex) else { return nil }
+        let groups = windowRow ? [] : appGroups(items: items, currentSpaceOnly: currentSpaceOnly)
+        let selectedPID = items[selectedIndex].pid
+        guard let iconIndex = windowRow ? selectedIndex : groups.firstIndex(where: { $0.pid == selectedPID })
+        else { return nil }
+        let target = gridSelectionIndex(after: iconIndex,
+                                        itemCount: windowRow ? items.count : groups.count,
+                                        columns: columns,
+                                        movingDown: movingDown)
+        guard target != iconIndex else { return nil }
+        return windowRow ? target : groups[target].representativeIndex
+    }
+
+    /// The tile a wrapped icon row scrolls to: the selected window in a window
+    /// row, the selected window's app in an app row. The tiles carry the same
+    /// identities, so this is what reveals the selection.
+    static func iconRowScrollID(items: [SwitcherItem],
+                                selectedIndex: Int,
+                                windowRow: Bool) -> AnyHashable? {
+        guard items.indices.contains(selectedIndex) else { return nil }
+        let selected = items[selectedIndex]
+        return windowRow ? AnyHashable(selected.id) : AnyHashable(selected.pid)
+    }
+
     /// With wrapping off (key held on autorepeat, like the system switcher)
     /// the selection stops at either end instead of cycling around.
     static func nextAppSelectionIndex(items: [SwitcherItem],
                                       selectedIndex: Int,
                                       delta: Int,
-                                      wrapping: Bool = true) -> Int {
-        let groups = appGroups(items: items)
+                                      wrapping: Bool = true,
+                                      currentSpaceOnly: Bool = false) -> Int {
+        let groups = appGroups(items: items, currentSpaceOnly: currentSpaceOnly)
         guard !groups.isEmpty else { return 0 }
         guard items.indices.contains(selectedIndex) else {
             return groups[0].representativeIndex
@@ -1623,10 +1840,18 @@ enum SwitcherSupport {
     /// table: the shared take-over speaks WindowServer ids, and reading the
     /// shortcut of each id from the table is what keeps a remapped key — or a
     /// neighbour such as the screenshot key — from being taken over by guess.
+    ///
+    /// Secure Event Input hides every key from event taps, the switcher's
+    /// included, while macOS still answers its own switcher keys (measured on
+    /// 27.2: a session tap saw no key while another process held it). Asking
+    /// for nothing then keeps ⌘Tab working instead of leaving it dead until
+    /// the app holding it lets go.
     static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
+                                secureInputEnabled: Bool,
                                 appsShortcut: GlobalShortcut,
                                 windowShortcut: GlobalShortcut,
                                 liveEntries: [LiveSystemShortcut]) -> Set<Int32> {
+        guard !secureInputEnabled else { return [] }
         let nativeShortcuts = Dictionary(
             liveEntries.compactMap { entry -> (SwitcherNativeSymbolicHotKey, GlobalShortcut)? in
                 SwitcherNativeSymbolicHotKey(rawValue: entry.id).map { ($0, entry.shortcut) }

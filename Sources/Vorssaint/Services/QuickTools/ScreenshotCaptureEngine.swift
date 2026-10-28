@@ -134,17 +134,17 @@ enum ScreenshotCaptureEngine {
         let ownWindowIDs = Set(content.windows.compactMap { window in
             window.owningApplication?.processID == getpid() ? window.windowID : nil
         })
-        var excludedIDs = ScreenshotCapturePolicy.excludedWindowIDs(
+        // The island has its own preference for captures, independent of
+        // hiding the app's ordinary windows. It leaves itself out while it is
+        // the capture interface, so a selection's photograph, taken before
+        // the island turns into the controls, shows it as people saw it.
+        let islandIDs = !keepsIslandOut && NotchSupport.isEnabled()
+            ? NotchService.shared.captureVisibleWindowIDs : []
+        let excludedIDs = ScreenshotCapturePolicy.excludedWindowIDs(
             hideVorssaintWindows: hideVorssaintWindows,
             ownWindowIDs: ownWindowIDs,
-            protectedWindowIDs: protectedWindowIDs)
-        // The notch has its own explicit recording preference, independent
-        // of hiding the app's ordinary windows and capture tools. During an
-        // active on-screen selection it stays excluded regardless, since it is
-        // then part of the capture interface and what sits behind it is wanted.
-        if !keepsIslandOut, NotchSupport.isEnabled(), !ScreenshotSelectionController.isSessionOnScreen {
-            excludedIDs.subtract(NotchService.shared.captureVisibleWindowIDs)
-        }
+            protectedWindowIDs: protectedWindowIDs,
+            islandWindowIDs: islandIDs)
         return content.windows.filter { excludedIDs.contains($0.windowID) }
     }
 
@@ -213,24 +213,29 @@ enum ScreenshotCaptureEngine {
             }
             clippedFallback = image
         }
+        let capture = await captureIndependentWindow(windowID, scale: scale)
+        return (capture ?? clippedFallback).map { ($0, scale) }
+    }
+
+    /// The window drawn on its own by ScreenCaptureKit, whole wherever it
+    /// sits. Watch reads a window through this as well, in its capture turn.
+    static func captureIndependentWindow(_ windowID: CGWindowID, scale: CGFloat) async -> CGImage? {
         guard let content = try? await SCShareableContent.excludingDesktopWindows(
             false, onScreenWindowsOnly: true),
             let window = content.windows.first(where: { $0.windowID == windowID })
-        else { return clippedFallback.map { ($0, scale) } }
+        else { return nil }
         let configuration = SCStreamConfiguration()
         configuration.width = max(1, Int((window.frame.width * scale).rounded()))
         configuration.height = max(1, Int((window.frame.height * scale).rounded()))
         // The resolution choice only exists for an independent window, and
         // its automatic setting may render below the window's own scale and
         // stretch the result to the size asked for. The recorder already asks
-        // for the best one; this is the screenshot tool's only window stream.
+        // for the best one; this is the only window stream here.
         configuration.captureResolution = .best
         configuration.showsCursor = false
         configuration.colorSpaceName = CGColorSpace.sRGB
         let filter = SCContentFilter(desktopIndependentWindow: window)
-        let capture = try? await SCScreenshotManager.captureImage(contentFilter: filter,
-                                                                  configuration: configuration)
-        return (capture ?? clippedFallback).map { ($0, scale) }
+        return try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
     }
 
     /// On-screen windows front to back, as the attached-window decision needs

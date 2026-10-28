@@ -15,6 +15,34 @@ private enum SwitcherIconStyle {
     static let thumbnailBackground = Color.primary.opacity(0.055)
 }
 
+/// A panel of the icon row. Those panels float on the desktop on their own
+/// instead of sitting inside one backdrop like the window grid, so each one
+/// draws its own: Liquid Glass when the app's setting asks for it, the solid
+/// surface otherwise.
+private struct SwitcherIconRowSurface: View {
+    let cornerRadius: CGFloat
+    let fill: Color
+    var stroke: Color = SwitcherIconStyle.stroke
+    var contrast: HUDBackdrop.Contrast = .standard
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
+
+    var body: some View {
+        if HUDBackdrop.drawsLiquidGlass(enabled: liquidGlassEnabled, reduceTransparency: reduceTransparency) {
+            // The backdrop draws its own edge.
+            HUDBackdrop(cornerRadius: cornerRadius, contrast: contrast)
+        } else {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(fill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(stroke, lineWidth: 1)
+                )
+        }
+    }
+}
+
 private struct SwitcherHiddenAppBadge: ViewModifier {
     let isHidden: Bool
     let size: CGFloat
@@ -50,6 +78,7 @@ struct SwitcherView: View {
     @AppStorage(DefaultsKey.switcherSimpleMode) private var simpleMode = false
     @AppStorage(DefaultsKey.switcherInstantSelection) private var instantSelection = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var mergeWindowsByApp = false
+    @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var currentSpaceOnly = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var showsShortcutHints = true
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherWindowShortcut) private var switcherWindowShortcutStorage = GlobalShortcut.switcherWindowDefault.storageValue
@@ -73,6 +102,7 @@ struct SwitcherView: View {
             }
         }
         .padding(SwitcherGrid.padding)
+        .padding(.top, switcher.searchTopInset)
         .background(HUDBackdrop(cornerRadius: 24))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(alignment: .topTrailing) {
@@ -112,8 +142,9 @@ struct SwitcherView: View {
 
     private var iconRowPanel: some View {
         iconRowSwitcher
+            .padding(.top, switcher.searchTopInset)
             .frame(width: iconRowPanelSize.width,
-                   height: iconRowPanelSize.height,
+                   height: iconRowPanelSize.height + switcher.searchTopInset,
                    alignment: .center)
             .overlay(alignment: .topTrailing) {
                 searchChip
@@ -126,26 +157,25 @@ struct SwitcherView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 10, weight: .bold))
+                    .fixedSize()
                 Text(switcher.searchQuery.isEmpty ? l10n.s.switcherSearchPin : switcher.searchQuery)
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(maxWidth: 180)
+                    .frame(minWidth: 0, maxWidth: 180)
                 Text("\(switcher.windows.count)/\(switcher.totalWindowCount)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .fixedSize()
             }
             .foregroundStyle(.primary)
             .padding(.horizontal, 9)
-            .padding(.vertical, 6)
+            .frame(height: SwitcherSearchLayout.chipHeight)
             .background(
-                Capsule(style: .continuous)
-                    // The label is `.primary`, so the chip under it has to turn
-                    // over with the theme too: a fixed dark capsule left black
-                    // text on a dark fill in the light appearance.
-                    .fill(Color.primary.opacity(0.12))
+                SwitcherIconRowSurface(cornerRadius: SwitcherSearchLayout.chipHeight / 2,
+                                       fill: SwitcherIconStyle.surfaceRaised,
+                                       contrast: .high)
             )
-            .padding(12)
+            .padding(SwitcherSearchLayout.edgeInset)
         }
     }
 
@@ -182,6 +212,12 @@ struct SwitcherView: View {
                 }
             }
             .scrollDisabled(switcher.grid.rows <= switcher.grid.visibleRows)
+            // Like the wrapped icon rows: a reverse start selects the last card
+            // before the grid exists, so reveal it on appear too.
+            .onAppear {
+                guard switcher.windows.indices.contains(switcher.selectedIndex) else { return }
+                proxy.scrollTo(switcher.windows[switcher.selectedIndex].id, anchor: nil)
+            }
             .onChange(of: switcher.selectedIndex) { _, newIndex in
                 guard switcher.windows.indices.contains(newIndex) else { return }
                 withAnimation(instantSelection ? nil : .easeOut(duration: 0.15)) {
@@ -244,12 +280,8 @@ struct SwitcherView: View {
         .frame(width: min(SwitcherIconRowLayout.hintBarWidth, iconRowContentWidth),
                height: SwitcherIconRowLayout.hintHeight)
         .background(
-            Capsule(style: .continuous)
-                .fill(SwitcherIconStyle.surfaceRaised)
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
+            SwitcherIconRowSurface(cornerRadius: SwitcherIconRowLayout.hintHeight / 2,
+                                   fill: SwitcherIconStyle.surfaceRaised)
         )
     }
 
@@ -352,12 +384,9 @@ struct SwitcherView: View {
                 .frame(width: switcher.iconRowLayout.previewSurfaceWidth,
                        height: SwitcherIconRowLayout.previewHeight)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(SwitcherIconStyle.surfaceRaised)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(minimalPreviews ? Color.clear : SwitcherIconStyle.stroke, lineWidth: 1)
+                    SwitcherIconRowSurface(cornerRadius: 18,
+                                           fill: SwitcherIconStyle.surfaceRaised,
+                                           stroke: minimalPreviews ? Color.clear : SwitcherIconStyle.stroke)
                 )
                 .shadow(color: Color.black.opacity(0.24), radius: 10, x: 0, y: 5)
                 .offset(x: placement.leading)
@@ -445,12 +474,7 @@ struct SwitcherView: View {
                    height: SwitcherIconRowLayout.simpleTitleHeight,
                    alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .fill(SwitcherIconStyle.surfaceRaised)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
+                SwitcherIconRowSurface(cornerRadius: 15, fill: SwitcherIconStyle.surfaceRaised)
             )
             .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 4)
         }
@@ -460,16 +484,11 @@ struct SwitcherView: View {
         iconRow
             .padding(.horizontal, SwitcherIconRowLayout.rowHorizontalPadding)
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(SwitcherIconStyle.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
+                SwitcherIconRowSurface(cornerRadius: 22, fill: SwitcherIconStyle.surface)
             )
             .shadow(color: Color.black.opacity(0.22), radius: 10, x: 0, y: 5)
             .frame(width: switcher.iconRowLayout.appRowSurfaceWidth,
-                   height: SwitcherIconRowLayout.rowHeight)
+                   height: switcher.iconRowLayout.iconAreaHeight)
     }
 
     @ViewBuilder
@@ -488,7 +507,7 @@ struct SwitcherView: View {
             itemCount: groups.count,
             tileWidth: SwitcherIconRowLayout.appTileWidth
         ) {
-            ForEach(groups) { group in
+            ForEach(Array(groups.enumerated()), id: \.element.id) { position, group in
                 let index = group.representativeIndex
                 let window = switcher.windows[index]
                 SwitcherIconTile(window: window,
@@ -501,7 +520,10 @@ struct SwitcherView: View {
                                      switcher.commitSession()
                                  })
                     .overlay(alignment: .leading) {
-                        if dividerPIDs.contains(group.pid) {
+                        // A wrapped row's first icon has no gap to its left
+                        // to draw in; the divider would land outside the grid.
+                        if dividerPIDs.contains(group.pid),
+                           position % switcher.iconRowLayout.columns != 0 || !switcher.iconRowLayout.isWrapped {
                             Rectangle()
                                 .fill(Color(nsColor: .separatorColor))
                                 .frame(width: 1, height: SwitcherIconRowLayout.iconSize)
@@ -511,6 +533,7 @@ struct SwitcherView: View {
                                 .accessibilityHidden(true)
                         }
                     }
+                    .id(group.pid)
                     .onHover { hovering in
                         if hovering {
                             switcher.hoverSelectIconRow(index: index)
@@ -539,6 +562,7 @@ struct SwitcherView: View {
                         switcher.commitSession()
                     }
                 )
+                .id(window.id)
                 .onHover { hovering in
                     if hovering {
                         switcher.hoverSelectIconRow(index: index)
@@ -550,9 +574,74 @@ struct SwitcherView: View {
         }
     }
 
+    @ViewBuilder
     private func overflowingIconRow<Content: View>(itemCount: Int,
                                                    tileWidth: CGFloat,
                                                    @ViewBuilder content: () -> Content) -> some View {
+        if switcher.iconRowLayout.isWrapped {
+            wrappedIconRows(tileWidth: tileWidth, content: content)
+        } else {
+            singleIconRow(itemCount: itemCount, tileWidth: tileWidth, content: content)
+        }
+    }
+
+    /// The icons wrapped at the user's column cap. Rows past what the screen
+    /// holds scroll, following the selection like the card grid does.
+    private func wrappedIconRows<Content: View>(tileWidth: CGFloat,
+                                                @ViewBuilder content: () -> Content) -> some View {
+        let layout = switcher.iconRowLayout
+        let tiles = content()
+        return ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.fixed(tileWidth),
+                                                       spacing: SwitcherIconRowLayout.spacing),
+                                   count: layout.columns),
+                    spacing: 0
+                ) {
+                    tiles
+                        .frame(height: SwitcherIconRowLayout.rowHeight)
+                }
+            }
+            .scrollDisabled(layout.rows <= layout.visibleRows)
+            // The reverse shortcut opens on the last item, which is selected
+            // before this view exists, so no change fires to reveal it.
+            .onAppear { revealSelectedIcon(in: proxy, animated: false) }
+            // Follow the selected icon rather than the index: a search can keep
+            // the index while the item under it, and so its row, changes.
+            .onChange(of: selectedIconScrollID) { _, _ in
+                revealSelectedIcon(in: proxy, animated: true)
+            }
+            .onChange(of: layout.rows) { _, _ in
+                revealSelectedIcon(in: proxy, animated: false)
+            }
+        }
+        .frame(width: layout.appRowContentWidth, height: layout.iconAreaHeight)
+        .contentShape(Rectangle())
+    }
+
+    private var selectedIconScrollID: AnyHashable? {
+        SwitcherSupport.iconRowScrollID(items: switcher.windows,
+                                        selectedIndex: switcher.selectedIndex,
+                                        windowRow: usesWindowRow)
+    }
+
+    /// Same guard as `revealSelection`: before macOS 26 an animated scroll can
+    /// be dropped during fast navigation, so those versions scroll at once.
+    private func revealSelectedIcon(in proxy: ScrollViewProxy, animated: Bool) {
+        guard let id = selectedIconScrollID else { return }
+        guard animated, !instantSelection, #available(macOS 26, *) else {
+            proxy.scrollTo(id, anchor: nil)
+            return
+        }
+        withAnimation(.easeOut(duration: 0.15)) {
+            proxy.scrollTo(id, anchor: nil)
+        }
+    }
+
+    private func singleIconRow<Content: View>(itemCount: Int,
+                                              tileWidth: CGFloat,
+                                              @ViewBuilder content: () -> Content) -> some View {
         let overflow = itemCount > switcher.iconRowLayout.visibleIconCount
         return HStack(alignment: .center, spacing: SwitcherIconRowLayout.spacing) {
             content()
@@ -603,7 +692,7 @@ struct SwitcherView: View {
     }
 
     private var appGroups: [SwitcherAppGroup] {
-        SwitcherSupport.appGroups(items: switcher.windows)
+        SwitcherSupport.appGroups(items: switcher.windows, currentSpaceOnly: currentSpaceOnly)
     }
 
     private var iconRowContentWidth: CGFloat {
@@ -624,7 +713,8 @@ struct SwitcherView: View {
             appRowContentWidth: switcher.iconRowLayout.appRowContentWidth,
             appRowSurfaceWidth: switcher.iconRowLayout.appRowSurfaceWidth,
             previewContentWidth: switcher.iconRowLayout.previewContentWidth,
-            previewSurfaceWidth: switcher.iconRowLayout.previewSurfaceWidth
+            previewSurfaceWidth: switcher.iconRowLayout.previewSurfaceWidth,
+            columns: switcher.iconRowLayout.isWrapped ? switcher.iconRowLayout.columns : nil
         )
     }
 }

@@ -2,7 +2,66 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
+
+/// How the history window shows its entries: a list in a window that keeps
+/// the size the user gives it, or a shelf of cards along the bottom of the
+/// screen.
+enum ClipboardHistoryLayout: String, CaseIterable {
+    case cards
+    case list
+
+    /// A value this version does not know, such as one from a newer
+    /// version, reads as the default.
+    static func current(in defaults: UserDefaults = .standard) -> ClipboardHistoryLayout {
+        defaults.string(forKey: DefaultsKey.clipboardHistoryLayout).flatMap(Self.init(rawValue:)) ?? .list
+    }
+
+    /// Cards run left to right, so a plain side arrow walks them. A list
+    /// leaves the side arrows to the search field's caret.
+    var sideArrowsMoveSelection: Bool { self == .cards }
+}
+
+enum ClipboardHistoryWindowSizing {
+    static let compactDefault = NSSize(width: 560, height: 420)
+    static let compactMinimum = NSSize(width: 560, height: 300)
+    static let previewExtra = NSSize(width: 280, height: 80)
+
+    static func minimumSize(preview: Bool) -> NSSize {
+        NSSize(width: compactMinimum.width + (preview ? previewExtra.width : 0),
+               height: compactMinimum.height + (preview ? previewExtra.height : 0))
+    }
+
+    static func contentSize(preview: Bool, savedWidth: Double, savedHeight: Double,
+                            visibleFrame: NSRect) -> NSSize {
+        let minimum = minimumSize(preview: preview)
+        let width = savedWidth.isFinite && savedWidth >= compactMinimum.width
+            ? CGFloat(savedWidth) : compactDefault.width
+        let height = savedHeight.isFinite && savedHeight >= compactMinimum.height
+            ? CGFloat(savedHeight) : compactDefault.height
+        let requested = NSSize(width: width + (preview ? previewExtra.width : 0),
+                               height: height + (preview ? previewExtra.height : 0))
+        return constrainedSize(NSSize(width: max(minimum.width, requested.width),
+                                      height: max(minimum.height, requested.height)),
+                               visibleFrame: visibleFrame)
+    }
+
+    /// A small display takes precedence over the preferred minimum, both
+    /// when opening the window and when dragging its resize handle.
+    static func constrainedSize(_ size: NSSize, visibleFrame: NSRect) -> NSSize {
+        NSSize(width: min(size.width, max(1, visibleFrame.width - 32)),
+               height: min(size.height, max(1, visibleFrame.height - 32)))
+    }
+
+    static func savedCompactSize(from contentSize: NSSize, preview: Bool) -> NSSize? {
+        let width = contentSize.width - (preview ? previewExtra.width : 0)
+        let height = contentSize.height - (preview ? previewExtra.height : 0)
+        guard width.isFinite, height.isFinite,
+              width >= compactMinimum.width, height >= compactMinimum.height else { return nil }
+        return NSSize(width: width, height: height)
+    }
+}
 
 /// Main-thread capture admission. Expiring a result does not release the
 /// actual queued read; stop/start must not release it either.
@@ -41,6 +100,20 @@ struct ClipboardHistoryCaptureState {
 
     mutating func didBaseline() {
         needsBaseline = false
+    }
+}
+
+/// Dictation apps such as Superwhisper type by putting their text on the
+/// clipboard, pasting it, and putting back whatever was there a moment later.
+/// An explicit temporary-content mark lets history recognize that return
+/// without treating ordinary repeated copies as a paste-and-restore.
+enum ClipboardHistoryPasteRestore {
+    /// How long after an explicitly temporary write the previous clipboard
+    /// can come back without a second copy notice.
+    static let window: TimeInterval = 3
+
+    static func isWithinWindow(capturedAt: Date, now: Date) -> Bool {
+        now >= capturedAt && now.timeIntervalSince(capturedAt) <= window
     }
 }
 
@@ -260,8 +333,24 @@ enum ClipboardHistoryEditing {
         return text != original
     }
 
+    /// `retentionDays` drops recent entries copied longer ago than that, even
+    /// under `recentLimit`; 0 keeps them. Pinned entries never expire, and
+    /// `ageExemptIDs` (an entry open in the editor) wait until they are let go.
+    /// An unpinned entry lands at the top of the recent list, so it counts as
+    /// just used: keeping its original copy date would let the retention
+    /// window drop it on the spot and silently undo the unpin.
+    static func unpinned(_ entry: ClipboardHistoryEntry, now: Date = Date()) -> ClipboardHistoryEntry {
+        var entry = entry
+        entry.pinnedAt = nil
+        entry.copiedAt = now
+        return entry
+    }
+
     static func retainedEntries(_ entries: [ClipboardHistoryEntry],
                                 recentLimit: Int,
+                                retentionDays: Int = 0,
+                                ageExemptIDs: Set<UUID> = [],
+                                now: Date = Date(),
                                 textByteLimit: Int = maxStoredTextUTF8Bytes) -> [ClipboardHistoryEntry] {
         var remainingBytes = max(0, textByteLimit)
         func retained(_ candidates: [ClipboardHistoryEntry], limit: Int?) -> [ClipboardHistoryEntry] {
@@ -277,7 +366,14 @@ enum ClipboardHistoryEditing {
         }
         let pinned = retained(entries.filter(\.isPinned), limit: nil)
         let recentLimitOrNil = recentLimit <= 0 ? nil : recentLimit
-        let recent = retained(entries.filter { !$0.isPinned }, limit: recentLimitOrNil)
+        let cutoff = retentionDays > 0
+            ? now.addingTimeInterval(-Double(retentionDays) * 86_400)
+            : nil
+        let recent = retained(entries.filter { entry in
+            guard !entry.isPinned else { return false }
+            guard let cutoff, !ageExemptIDs.contains(entry.id) else { return true }
+            return entry.copiedAt >= cutoff
+        }, limit: recentLimitOrNil)
         return pinned + recent
     }
 
@@ -430,10 +526,11 @@ enum ClipboardJSONFormat {
     }
 }
 
-/// How large a picture from the history is decoded for text recognition.
-/// Screen OCR hands Vision its whole capture, so a 5K or 6K screenshot keeps
-/// every pixel and its small text; only a larger picture, like a long
-/// scrolling capture, is scaled down to this area to bound its bitmap.
+/// How large a picture from the history or a screen capture is read for
+/// text recognition. Screen OCR hands Vision its whole capture, so a 5K or
+/// 6K screenshot keeps every pixel and its small text; only a larger
+/// picture, like a long scrolling capture, is scaled down to this area to
+/// bound its bitmap.
 enum ClipboardImageRecognition {
     static let maxPixels = 24_000_000
 
@@ -443,6 +540,16 @@ enum ClipboardImageRecognition {
         let pixels = Double(max(width, 1)) * Double(max(height, 1))
         guard pixels > Double(maxPixels) else { return longest }
         return max(1, Int(Double(longest) * (Double(maxPixels) / pixels).squareRoot()))
+    }
+
+    /// The same bound for a picture already in memory, like a capture in a
+    /// screenshot preview: the size to scale it to, or nil to read it whole.
+    static func scaledSize(width: Int, height: Int) -> (width: Int, height: Int)? {
+        let longest = max(width, height, 1)
+        let side = decodeMaxPixelSize(width: width, height: height)
+        guard side < longest else { return nil }
+        let shorter = max(1, Int(Double(min(width, height)) * Double(side) / Double(longest)))
+        return width >= height ? (width: side, height: shorter) : (width: shorter, height: side)
     }
 }
 
@@ -740,6 +847,27 @@ enum ClipboardHistoryPreview {
     }
 }
 
+enum ClipboardHistoryNavigation {
+    /// How far a key moves the highlight, or nil when it is not a move.
+    /// Down and Control-N go forward and up and Control-P back in both
+    /// layouts. The cards run left to right, so a plain side arrow walks
+    /// them too; with a modifier, or in the list, it stays with the search
+    /// field's caret.
+    static func step(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, key: String?,
+                     layout: ClipboardHistoryLayout) -> Int? {
+        let sideArrowsMove = modifiers.isEmpty && layout.sideArrowsMoveSelection
+        if keyCode == UInt16(kVK_DownArrow) || (modifiers == [.control] && key == "n")
+            || (sideArrowsMove && keyCode == UInt16(kVK_RightArrow)) {
+            return 1
+        }
+        if keyCode == UInt16(kVK_UpArrow) || (modifiers == [.control] && key == "p")
+            || (sideArrowsMove && keyCode == UInt16(kVK_LeftArrow)) {
+            return -1
+        }
+        return nil
+    }
+}
+
 enum ClipboardHistoryEscape {
     enum Action: Equatable {
         case clearBatchSelection
@@ -956,10 +1084,38 @@ enum ClipboardHistorySensitiveText {
         types.contains(concealedPasteboardType)
     }
 
+    /// The marks an app puts on content it is about to take back, or that it
+    /// made up rather than the person copying it: a dictation app pasting
+    /// what it heard, for one. Neither is a copy worth keeping.
+    static let transientPasteboardTypes: Set<String> = [
+        "org.nspasteboard.TransientType", "org.nspasteboard.AutoGeneratedType",
+    ]
+
+    static func isTransient(_ types: [String]) -> Bool {
+        types.contains(where: transientPasteboardTypes.contains)
+    }
+
+    // A mention of "token" in a command, error or source code is not a
+    // credential. Require a named field with a nonempty value, including
+    // environment variables, quoted JSON keys, Authorization headers and
+    // explicit command-line options such as --password VALUE.
+    // Horizontal whitespace keeps an empty assignment from consuming the
+    // next line of terminal output. Compile once for repeated clipboard reads.
+    private static let credentialName = #"(?:password|passwd|secret|token|api[_-]?key|private[_-]?key|authorization)"#
+    // Key names often go on past the credential word, as in SECRET_KEY,
+    // aws_secret_access_key, secretKey, SECRET_KEY_BASE, password_confirmation
+    // or PASSWORD_2. Only these endings count, so max_tokens or token_count
+    // stay ordinary text.
+    private static let credentialEnding = #"(?:[_-]?(?:access[_-]?)?key(?:[_-]?base)?|[_-]?confirmation|[_-]?\d{1,3})?"#
+    private static let credentialAssignment = try? NSRegularExpression(
+        pattern: #"(?<![\w-])(?:[\w-]*\#(credentialName)\#(credentialEnding)["']?[ \t]*[:=][ \t]*|--[\w-]*\#(credentialName)\#(credentialEnding)[ \t]+)["']?[^\s"'`,;{}\[\]]"#,
+        options: [.caseInsensitive]
+    )
+
     static func looksSensitive(_ text: String) -> Bool {
-        let lowered = text.lowercased()
-        let obviousWords = ["password", "passwd", "secret", "token", "apikey", "api_key", "authorization"]
-        if obviousWords.contains(where: lowered.contains) { return true }
+        if credentialAssignment?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil {
+            return true
+        }
         if isWebURL(text) { return false }
         // An identifier code is nobody's secret, and it fits the shape below
         // exactly: long, unbroken, letters and digits with dashes between

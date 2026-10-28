@@ -30,6 +30,9 @@ enum NotchWatchTests {
     private static func readingContracts(_ suite: TestSuite) {
         suite.expect(NotchWatchSupport.headline(from: "Exporting video\n73 % complete") == "73%",
                      "a percentage anywhere in the area is its reading")
+        suite.expect(NotchWatchSupport.headline(from: "All cores\n1250% CPU") == "1250%"
+                        && NotchWatchSupport.headline(from: "Change today\n\u{2212}5 %") == "\u{2212}5%",
+                     "a percentage keeps all its digits and a typeset minus sign")
         suite.expect(NotchWatchSupport.headline(from: "  Build Succeeded \n") == "Build Succeeded",
                      "a short first line is shown as it is")
         suite.expect(NotchWatchSupport.headline(from: "Your order will arrive at the door at 14:30 today") == "14:30",
@@ -56,11 +59,35 @@ enum NotchWatchTests {
             ("45%", 45), ("Progress 12,5 %", 12.5), ("1,234 of 5,000 files", 1234),
             ("1.234,5 MB", 1234.5), ("1,234.5 MB", 1234.5), ("Score -3", -3),
             ("3 of 10, then 80% done", 80), ("No numbers here", nil), ("1.234.567", 1234567),
+            ("1250%", 1250), ("Zoom 1,250%", 1250), ("CPU 1250.5 %", 1250.5),
+            ("\u{2212}5%", -5), ("Change \u{2212}12,5 %", -12.5), ("-5%", -5),
         ]
         for (text, expected) in cases {
             suite.expect(NotchWatchSupport.number(in: text) == expected,
                          "\(text) reads as \(String(describing: expected))")
         }
+        for space in [" ", "\u{00A0}", "\u{202F}"] {
+            for (sign, multiplier) in [("", 1.0), ("+", 1.0), ("-", -1.0), ("−", -1.0)] {
+                let reading = "Change \(sign)1\(space)250,5\(space)%"
+                suite.expect(NotchWatchSupport.number(in: reading, decimalSeparator: ",", groupsWithSpace: true)
+                                == multiplier * 1250.5
+                                && NotchWatchSupport.headline(from: reading, groupsWithSpace: true) == "\(sign)1250,5%",
+                             "spaced percentages retain every digit and their sign: \(reading)")
+            }
+        }
+        for (reading, percent) in [("Step 2 100%", 100.0), ("1 of 3 100%", 100), ("Elapsed 02:13 100%", 100),
+                                   ("CPU 2 150%", 150)] {
+            suite.expect(NotchWatchSupport.number(in: reading) == percent
+                            && NotchWatchSupport.headline(from: reading, groupsWithSpace: false) == "\(Int(percent))%",
+                         "a number before a percentage is not joined to it where thousands are not spaced: \(reading)")
+        }
+        suite.expect(NotchWatchSupport.number(in: "Progress 45\n% done") == 45
+                        && NotchWatchSupport.headline(from: "Progress 45\n% done", groupsWithSpace: true) == "Progress 45",
+                     "a percent sign on the next line is not read into the number")
+        suite.expect(NotchWatchSupport.number(in: "Step 2 50%") == 50
+                        && NotchWatchSupport.number(in: "Step 2\n250%", groupsWithSpace: true) == 250
+                        && NotchWatchSupport.headline(from: "Step 2\n250%") == "250%",
+                     "percentage grouping does not join separate numbers or lines")
         suite.expect(NotchWatchSupport.number(in: "1.000", decimalSeparator: ",") == 1000
                         && NotchWatchSupport.number(in: "12.500", decimalSeparator: ",") == 12500
                         && NotchWatchSupport.number(in: "12,500", decimalSeparator: ",") == 12.5
@@ -89,6 +116,11 @@ enum NotchWatchTests {
                         && climbing.observe(signature: "b", reading: "1.000 de 1.200", at: Date()) == .reached("1.000 de 1.200"),
                      "a window's numbers are read as the Mac's region writes them")
         let france = Locale(identifier: "fr_FR")
+        var percentage = NotchWatchTracker(condition: .reaches, text: "", target: 1000, locale: france)
+        suite.expect(percentage.observe(signature: "a", reading: "900%", at: Date()) == nil
+                        && percentage.observe(signature: "b", reading: "1\u{202F}250%", at: Date())
+                            == .reached("1250%"),
+                     "a percentage crossing one thousand triggers the watch in a space-grouping region")
         var falling = NotchWatchTracker(condition: .reaches, text: "", target: 10, locale: france)
         suite.expect(falling.observe(signature: "a", reading: "Reste 10\u{202F}000 fichiers", at: Date()) == nil
                         && falling.observe(signature: "b", reading: "Reste 999 fichiers", at: Date()) == nil
@@ -281,10 +313,10 @@ enum NotchWatchTests {
     private static func readingLoopContracts(_ suite: TestSuite) {
         let source = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchWatchService.swift",
                                   encoding: .utf8)) ?? ""
-        func line(_ fragment: String) -> Int? {
-            source.components(separatedBy: "\n").enumerated().first { _, line in
+        func line(_ fragment: String, after start: Int = 0) -> Int? {
+            source.components(separatedBy: "\n").enumerated().first { offset, line in
                 let code = line.trimmingCharacters(in: .whitespaces)
-                return !code.hasPrefix("//") && code.contains(fragment)
+                return offset >= start && !code.hasPrefix("//") && code.contains(fragment)
             }.map { $0.offset + 1 }
         }
         suite.expect(line("tracker.observe(signature: signature, reading: text, at: Date())") != nil
@@ -295,13 +327,32 @@ enum NotchWatchTests {
         } else {
             suite.expect(false, "the reading loop still reads text and keeps the area's picture")
         }
-        if let permission = line("guard CGPreflightScreenCaptureAccess() else"),
+        // Choosing an area checks the permission too; this is the reading's own check.
+        if let reading = line("private func read() async"),
+           let permission = line("guard CGPreflightScreenCaptureAccess() else", after: reading),
            let capture = line("await WindowPreviewProvider.captureViaWindowServer(windowID)"),
-           let region = line("await regionCapture?.image()") {
+           let region = line("await region?.image()") {
             suite.expect(permission < capture && permission < region,
                          "without Screen Recording nothing is captured, so the system is not asked again")
         } else {
             suite.expect(false, "the reading loop still checks Screen Recording before capturing")
         }
+        // Issue #1863: a paused capture keeps the last reading, and readings
+        // take the shared capture turns.
+        if let paused = line("guard !WindowPreviewProvider.capturesArePaused else { return }"),
+           let info = line("guard let info = Self.windowInfo(windowID) else { finish(.closed); return }"),
+           let capture = line("await WindowPreviewProvider.captureViaWindowServer(windowID)") {
+            suite.expect(info < paused && paused < capture,
+                         "while captures are paused Watch still notices a closed window but keeps its last reading")
+        } else {
+            suite.expect(false, "Watch still waits out paused captures before reading")
+        }
+        suite.expect(line("if !WindowPreviewProvider.capturesArePaused, state != .hidden { state = .hidden }") != nil,
+                     "a capture refused because captures just paused does not call the window hidden")
+        suite.expect(source.components(separatedBy: "WindowPreviewProvider.captureViaScreenCaptureKit {").count == 3
+                     && !source.contains("ScreenshotCaptureEngine.captureWindow(")
+                     && source.contains("if captured == nil, info.onScreen, !displaysAsleep {")
+                     && source.contains("guard !displaysAsleep else { return }\n            let region = regionCapture"),
+                     "Watch's ScreenCaptureKit readings take a capture turn and wait for the displays to wake")
     }
 }

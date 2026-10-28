@@ -284,15 +284,54 @@ enum CommandBarSearch {
     static func score(normalizedTitle: String,
                       normalizedKeywords: String,
                       normalizedQuery: String) -> Int? {
+        score(normalizedTitle: normalizedTitle,
+              normalizedKeywords: normalizedKeywords,
+              normalizedQuery: normalizedQuery,
+              tokens: QueryToken.tokens(of: normalizedQuery))
+    }
+
+    /// A query token, measured once per keystroke rather than once per row:
+    /// the ranking asks every row about the same few letters.
+    private struct QueryToken {
+        let text: String
+        let count: Int
+        let utf8: [UInt8]
+        let isASCII: Bool
+        /// Digit tokens are values, never typos.
+        let isFuzzy: Bool
+
+        init(_ text: Substring) {
+            self.text = String(text)
+            count = text.count
+            utf8 = Array(text.utf8)
+            isASCII = utf8.allSatisfy { $0 < 0x80 }
+            isFuzzy = !text.allSatisfy(\.isNumber)
+        }
+
+        static func tokens(of normalizedQuery: String) -> [QueryToken] {
+            normalizedQuery.split(separator: " ").map(QueryToken.init)
+        }
+    }
+
+    private static func score(normalizedTitle: String,
+                              normalizedKeywords: String,
+                              normalizedQuery: String,
+                              tokens: [QueryToken]) -> Int? {
         guard !normalizedQuery.isEmpty else { return nil }
         let haystack = normalizedKeywords.isEmpty
             ? normalizedTitle
             : normalizedTitle + " " + normalizedKeywords
-        let words = haystack.split(separator: " ").map(String.init)
+        let words = haystack.split(separator: " ")
+        // In ASCII one byte is one character, so the token passes below can
+        // compare bytes and skip grapheme breaking. Most rows are ASCII and
+        // most of them match nothing, which is exactly the row that runs
+        // every pass.
+        let haystackIsASCII = haystack.utf8.allSatisfy { $0 < 0x80 }
 
         var score = 0
-        for token in normalizedQuery.split(separator: " ").map(String.init) {
-            guard let tokenScore = bestTokenScore(token, in: words, haystack: haystack) else {
+        for token in tokens {
+            guard let tokenScore = bestTokenScore(token, in: words, haystack: haystack,
+                                                  ascii: haystackIsASCII && token.isASCII) else {
                 return nil
             }
             score += tokenScore
@@ -315,11 +354,13 @@ enum CommandBarSearch {
     /// stay where the catalog put them.
     static func rankedIndexes(candidates: [CommandBarCandidate], matching query: String) -> [Int] {
         let normalizedQuery = normalized(query)
+        let tokens = QueryToken.tokens(of: normalizedQuery)
         let scored: [(index: Int, priority: Int, tier: Int, score: Int, position: Int)] = candidates.enumerated()
             .compactMap { position, candidate in
                 guard let base = score(normalizedTitle: candidate.normalizedTitle,
                                        normalizedKeywords: candidate.normalizedKeywords,
-                                       normalizedQuery: normalizedQuery) else { return nil }
+                                       normalizedQuery: normalizedQuery,
+                                       tokens: tokens) else { return nil }
                 let tier = matchTier(title: candidate.normalizedTitle,
                                      keywords: candidate.normalizedKeywords,
                                      query: normalizedQuery)
@@ -392,35 +433,70 @@ enum CommandBarSearch {
         return 1
     }
 
-    private static func bestTokenScore(_ token: String, in words: [String], haystack: String) -> Int? {
+    private static func bestTokenScore(_ token: QueryToken, in words: [Substring],
+                                       haystack: String, ascii: Bool) -> Int? {
         var best: Int?
         for word in words {
-            if word == token { return 140 }
-            if word.hasPrefix(token) { best = max(best ?? 0, 80) }
+            if ascii {
+                if word.utf8.elementsEqual(token.utf8) { return 140 }
+                if word.utf8.starts(with: token.utf8) { best = max(best ?? 0, 80) }
+            } else {
+                if word == token.text { return 140 }
+                if word.hasPrefix(token.text) { best = max(best ?? 0, 80) }
+            }
         }
-        if best == nil, haystack.contains(token) { best = 44 }
+        if best == nil, ascii ? asciiContains(haystack, token.utf8) : haystack.contains(token.text) {
+            best = 44
+        }
         // Fuzzy passes only rescue typing mistakes, so they need some length
         // to bite on; two letters matching half the catalog helps no one.
-        // Digit tokens are values, never typos.
-        if best == nil, token.count >= 3, !token.allSatisfy(\.isNumber) {
-            for word in words where isSubsequence(token, of: word) {
-                best = 24
-                break
-            }
+        guard best == nil, token.isFuzzy, token.count >= 3 else { return best }
+        // Each pass rules a word out by its length before reading it: in
+        // ASCII the byte count is the character count, and it costs nothing.
+        for word in words {
+            let matched = ascii
+                ? word.utf8.count >= token.count && asciiIsSubsequence(token.utf8, of: word.utf8)
+                : isSubsequence(token.text, of: String(word))
+            if matched { return 24 }
         }
-        if best == nil, token.count >= 3, !token.allSatisfy(\.isNumber) {
-            for word in words where isAdjacentTransposition(token, word) {
-                best = 16
-                break
-            }
+        for word in words {
+            let matched = ascii
+                ? word.utf8.count == token.count && adjacentTransposition(token.utf8, Array(word.utf8))
+                : isAdjacentTransposition(token.text, String(word))
+            if matched { return 16 }
         }
-        if best == nil, token.count >= 4, !token.allSatisfy(\.isNumber) {
-            for word in words where withinOneEdit(token, word) {
-                best = 16
-                break
-            }
+        guard token.count >= 4 else { return nil }
+        for word in words {
+            let matched = ascii
+                ? abs(word.utf8.count - token.count) <= 1 && oneEditApart(token.utf8, Array(word.utf8))
+                : withinOneEdit(token.text, String(word))
+            if matched { return 16 }
         }
-        return best
+        return nil
+    }
+
+    private static func asciiContains(_ haystack: String, _ needle: [UInt8]) -> Bool {
+        haystack.utf8.withContiguousStorageIfAvailable { bytesContain($0, needle) }
+            ?? bytesContain(Array(haystack.utf8), needle)
+    }
+
+    private static func bytesContain<Bytes: RandomAccessCollection>(_ bytes: Bytes, _ needle: [UInt8]) -> Bool
+    where Bytes.Element == UInt8, Bytes.Index == Int {
+        guard !needle.isEmpty else { return true }
+        guard needle.count <= bytes.count else { return false }
+        let first = needle[0]
+        for start in 0...(bytes.count - needle.count) where bytes[start] == first {
+            var offset = 1
+            while offset < needle.count, bytes[start + offset] == needle[offset] { offset += 1 }
+            if offset == needle.count { return true }
+        }
+        return false
+    }
+
+    private static func asciiIsSubsequence(_ needle: [UInt8], of word: Substring.UTF8View) -> Bool {
+        var next = 0
+        for byte in word where next < needle.count && byte == needle[next] { next += 1 }
+        return next == needle.count
     }
 
     /// The positions to keep when ids repeat: the first of each, in order.
@@ -486,7 +562,10 @@ enum CommandBarSearch {
 
     /// True only when one neighboring pair was typed in reverse order.
     static func isAdjacentTransposition(_ first: String, _ second: String) -> Bool {
-        let a = Array(first), b = Array(second)
+        adjacentTransposition(Array(first), Array(second))
+    }
+
+    private static func adjacentTransposition<T: Equatable>(_ a: [T], _ b: [T]) -> Bool {
         guard a.count == b.count else { return false }
         var firstMismatch: Int?
         var swapped = false
@@ -506,7 +585,10 @@ enum CommandBarSearch {
     /// True when the strings are at most one substitution, insertion,
     /// deletion or adjacent swap apart.
     static func withinOneEdit(_ first: String, _ second: String) -> Bool {
-        let a = Array(first), b = Array(second)
+        oneEditApart(Array(first), Array(second))
+    }
+
+    private static func oneEditApart<T: Equatable>(_ a: [T], _ b: [T]) -> Bool {
         if abs(a.count - b.count) > 1 { return false }
         if a == b { return true }
         var i = 0, j = 0
@@ -603,7 +685,7 @@ extension CommandBarSearch {
 }
 
 /// How often and how recently one command ran. Query habits reuse it behind
-/// keyed digests; what the person typed is never written anywhere.
+/// keyed digests; the typed query itself is never written anywhere.
 struct CommandBarUse: Codable, Equatable {
     var count: Int
     var lastUsed: Double
@@ -707,9 +789,8 @@ enum CommandBarUsage {
     }
 }
 
-/// Which result won after a typed query during this process. Both the keyed
-/// query digests and their random key stay in memory; no Keychain access or
-/// persistent query history is needed.
+/// Which result won after a typed query. Only bounded, keyed query digests and
+/// row identities are saved locally; the typed query is never stored verbatim.
 enum CommandBarQueryHabits {
     typealias Store = [String: [String: CommandBarUse]]
 
@@ -795,18 +876,8 @@ enum CommandBarQueryHabits {
         }
     }
 
-    static func prepare(_ query: String) -> PreparedQuery {
-        var cache = PreparationCache()
-        return prepare(query, cache: &cache)
-    }
-
-    static func prepare(_ query: String,
-                        cache: inout PreparationCache) -> PreparedQuery {
-        prepare(query, key: sessionKey, cache: &cache)
-    }
-
-    /// Injectable so the storage and ranking rules stay deterministic in
-    /// tests without reading or writing the person's Keychain.
+    /// Injectable so storage and ranking stay deterministic in tests without
+    /// touching the person's preferences.
     static func prepare(_ query: String, key: Data) -> PreparedQuery {
         var cache = PreparationCache()
         return prepare(query, key: key, cache: &cache)
@@ -876,12 +947,9 @@ enum CommandBarQueryHabits {
         choices.values.map(\.lastUsed).max() ?? 0
     }
 
-    private static let sessionKey = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
-
 }
 
-/// Query choices for this process only. Opening the panel keeps this memory;
-/// quitting the app discards it.
+/// Decoded query choices, kept in memory while ranking and saved on changes.
 struct CommandBarQueryHabitStoreCache {
     private(set) var store: CommandBarQueryHabits.Store = [:]
 
@@ -908,10 +976,17 @@ struct CommandBarQueryHabitStoreCache {
 }
 
 enum CommandBarLearning {
-    /// Old digests cannot be reused with a process-local key. Do not touch the
-    /// abandoned Keychain item: even migration must never request access.
-    static func discardLegacyQueryHabits(in defaults: UserDefaults = .standard) {
+    /// Keep one random key on this Mac so saved query digests mean the same
+    /// thing after a relaunch. A missing or damaged key invalidates old digests.
+    static func installationKey(in defaults: UserDefaults = .standard) -> Data {
+        if let raw = defaults.string(forKey: DefaultsKey.commandBarQueryHabitKey),
+           let key = Data(base64Encoded: raw), key.count == 32 {
+            return key
+        }
+        let key = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
         defaults.removeObject(forKey: DefaultsKey.commandBarQueryHabits)
+        defaults.set(key.base64EncodedString(), forKey: DefaultsKey.commandBarQueryHabitKey)
+        return key
     }
 
     static func forgetAll(in defaults: UserDefaults = .standard) {

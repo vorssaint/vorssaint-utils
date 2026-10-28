@@ -256,10 +256,13 @@ final class FinderCutPaste: ObservableObject {
     /// the main thread where the service's UI and pasteboard state live.
     private func route(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            // removeTap() switches the tap off itself, and that is reported
+            // here like a disable by the system. A stop under way has nothing
+            // to recover: syncing would start the tap again under a suspend().
             let currentTap = tapLifecycleLock.withLock { shouldStopTapThread ? nil : tap }
             if SessionActivity.shared.isActive, AXIsProcessTrusted(), let currentTap {
                 CGEvent.tapEnable(tap: currentTap, enable: true)
-            } else {
+            } else if currentTap != nil {
                 DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
             }
             return Unmanaged.passUnretained(event)

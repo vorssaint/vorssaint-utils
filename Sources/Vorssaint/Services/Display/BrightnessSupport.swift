@@ -8,9 +8,29 @@ import Foundation
 /// reply parsing, value scaling and the display-to-service match score. No
 /// IOKit here so the unit tests cover every byte.
 enum BrightnessSupport {
+    /// Whether the island's brightness slider is on and shows the focused
+    /// display (with none focused, the first it can show).
+    static func sliderShowsFocusedDisplay(controlEnabled: Bool, shown: [UInt32], focused: UInt32?) -> Bool {
+        guard controlEnabled else { return false }
+        guard let focused else { return !shown.isEmpty }
+        return shown.contains(focused)
+    }
+
+    /// A key moves the island's level to its display only while the island
+    /// is open, where the slider shows the move; a display picked there
+    /// outlasts keys pressed while it is closed.
+    static func keyMovesFocus(islandOpen: Bool, focused: UInt32?, key: UInt32) -> Bool {
+        islandOpen && focused != key
+    }
+
     struct DisplayTopology: Equatable {
         let online: Set<UInt32>
         let active: Set<UInt32>
+        /// Each mirroring display and the display it mirrors. Entering or
+        /// leaving a mirror set keeps `active` the same (see
+        /// `participatingDisplayIDs`), yet it reconfigures the displays and
+        /// resets their gamma, so it still needs a rebuild.
+        var mirrorSources: [UInt32: UInt32] = [:]
     }
 
     /// Opening the panel while a display scan is already running should use
@@ -124,11 +144,13 @@ enum BrightnessSupport {
 
     /// Parses a Get VCP Feature reply: checksum first (seeded with the host
     /// address the display answers to), then the big-endian maximum and
-    /// current values. Anything malformed reads as no reply.
-    static func parseReply(_ reply: [UInt8]) -> (current: UInt16, maximum: UInt16)? {
+    /// current values. Anything malformed reads as no reply, and so does a
+    /// reply for another control: a monitor read too early hands back the
+    /// answer to the previous request.
+    static func parseReply(_ reply: [UInt8], code: UInt8) -> (current: UInt16, maximum: UInt16)? {
         guard reply.count >= replyLength else { return nil }
         let checksum = reply[0..<(reply.count - 1)].reduce(UInt8(0x50)) { $0 ^ $1 }
-        guard checksum == reply[reply.count - 1] else { return nil }
+        guard checksum == reply[reply.count - 1], reply[2] == 0x02, reply[4] == code else { return nil }
         let maximum = UInt16(reply[6]) << 8 | UInt16(reply[7])
         let current = UInt16(reply[8]) << 8 | UInt16(reply[9])
         return (current, maximum)
@@ -252,6 +274,17 @@ enum BrightnessSupport {
     /// remain after the transaction.
     static func canDisableDisplay(drawableDisplayIDs: Set<UInt32>, target: UInt32) -> Bool {
         drawableDisplayIDs.contains(target) && drawableDisplayIDs.count > 1
+    }
+
+    /// The active list names only the source of a hardware mirror set, yet the
+    /// display mirroring it is lit and has a backlight of its own: a MacBook
+    /// panel mirroring a monitor is still a panel someone looks at. A display
+    /// counts once the source it mirrors is active.
+    static func participatingDisplayIDs(activeDisplayIDs: Set<UInt32>,
+                                        mirrorSources: [UInt32: UInt32]) -> Set<UInt32> {
+        activeDisplayIDs.union(mirrorSources.compactMap { mirror, source in
+            activeDisplayIDs.contains(source) ? mirror : nil
+        })
     }
 
     /// Active display lists can include virtual devices with no picture a

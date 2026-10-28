@@ -74,12 +74,19 @@ enum SpaceWindowBridge {
     /// Every Space (user desktops and fullscreen Spaces alike) containing the
     /// window. Empty for leftover surfaces, and when the query is unavailable.
     static func spaces(of windowID: CGWindowID) -> [UInt64] {
-        guard connection != 0, let copySpacesForWindows else { return [] }
+        resolvedSpaces(of: windowID) ?? []
+    }
+
+    /// An empty answer confirms a surface belongs to no Space. Nil means the
+    /// query is unavailable or failed for this window; callers deciding whether
+    /// to quit an app must not mistake that uncertainty for a closed window.
+    static func resolvedSpaces(of windowID: CGWindowID) -> [UInt64]? {
+        guard connection != 0, let copySpacesForWindows else { return nil }
         let mask: Int32 = 0x7
         guard let array = copySpacesForWindows(connection, mask,
                                                [NSNumber(value: windowID)] as CFArray)?
             .takeRetainedValue() as? [NSNumber]
-        else { return [] }
+        else { return nil }
         return array.map(\.uint64Value)
     }
 
@@ -215,9 +222,68 @@ enum SpaceWindowBridge {
                                                      visibleSpaces: visible)
     }
 
-    /// False when the private query is unavailable, preserving the existing
+    // MARK: - Window tags
+
+    // The last argument is a set of options, not a window count. Bit 0 asks
+    // for titles, which nothing here reads.
+    private typealias WindowQueryFunction =
+        @convention(c) (ConnectionID, CFArray, UInt64) -> Unmanaged<CFTypeRef>?
+    private typealias WindowQueryResultFunction = @convention(c) (CFTypeRef) -> Unmanaged<CFTypeRef>?
+    private typealias IteratorAdvanceFunction = @convention(c) (CFTypeRef) -> Bool
+    private typealias IteratorWindowIDFunction = @convention(c) (CFTypeRef) -> UInt32
+    private typealias IteratorTagsFunction = @convention(c) (CFTypeRef) -> UInt64
+
+    private struct WindowQuery {
+        let query: WindowQueryFunction
+        let windows: WindowQueryResultFunction
+        let advance: IteratorAdvanceFunction
+        let windowID: IteratorWindowIDFunction
+        let tags: IteratorTagsFunction
+    }
+
+    private static let windowQuery: WindowQuery? = {
+        guard let query = symbol("SLSWindowQueryWindows"),
+              let windows = symbol("SLSWindowQueryResultCopyWindows"),
+              let advance = symbol("SLSWindowIteratorAdvance"),
+              let windowID = symbol("SLSWindowIteratorGetWindowID"),
+              let tags = symbol("SLSWindowIteratorGetTags")
+        else { return nil }
+        return WindowQuery(query: unsafeBitCast(query, to: WindowQueryFunction.self),
+                           windows: unsafeBitCast(windows, to: WindowQueryResultFunction.self),
+                           advance: unsafeBitCast(advance, to: IteratorAdvanceFunction.self),
+                           windowID: unsafeBitCast(windowID, to: IteratorWindowIDFunction.self),
+                           tags: unsafeBitCast(tags, to: IteratorTagsFunction.self))
+    }()
+
+    /// The window server's tags for each window among `windowIDs` that still
+    /// exists. On macOS 27 `CGSGetWindowTags` reads zeros for any window of
+    /// another app, so the tags come from one batched window query, which
+    /// still answers for every app. Nil when that query is missing.
+    private static func windowTags(of windowIDs: [CGWindowID]) -> [CGWindowID: UInt64]? {
+        guard connection != 0, let windowQuery else { return nil }
+        // An empty list would answer with unrelated windows.
+        guard !windowIDs.isEmpty else { return [:] }
+        guard let query = windowQuery.query(connection, windowIDs.map { NSNumber(value: $0) } as CFArray,
+                                            0)?.takeRetainedValue(),
+              let iterator = windowQuery.windows(query)?.takeRetainedValue()
+        else { return nil }
+        var tags: [CGWindowID: UInt64] = [:]
+        while windowQuery.advance(iterator) {
+            tags[windowQuery.windowID(iterator)] = windowQuery.tags(iterator)
+        }
+        return tags
+    }
+
+    /// False when the window server cannot answer, preserving the existing
     /// cross-Space behavior instead of hiding a legitimate window on a guess.
     static func isExcludedFromWindowCycle(_ windowID: CGWindowID) -> Bool {
+        if let tags = windowTags(of: [windowID])?[windowID], tags != 0 {
+            return SpaceHopSupport.isExcludedFromWindowCycle(windowTags: tags)
+        }
+        // The batched query was measured on macOS 27 only. Without its
+        // answer, or with one of zeros, the per-window read keeps the flag
+        // where it answered before; on macOS 27 it reads zeros for other
+        // apps, so nothing hides.
         guard connection != 0, let getWindowTags else { return false }
         var tags = [UInt32](repeating: 0, count: 2)
         return tags.withUnsafeMutableBufferPointer { buffer in
@@ -225,8 +291,56 @@ enum SpaceWindowBridge {
                   getWindowTags(connection, windowID, base,
                                 MemoryLayout<UnsafeRawPointer>.size * 8) == .success
             else { return false }
-            return SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: buffer[0])
+            return SpaceHopSupport.isExcludedFromWindowCycle(
+                windowTags: UInt64(buffer[0]) | UInt64(buffer[1]) << 32)
         }
+    }
+
+    /// The windows among `windowIDs` that the window server hid along with
+    /// their app. Nil when the window query is missing or answers without any
+    /// tag, and before macOS 26, where the tag has not been observed, so
+    /// callers keep their earlier behavior.
+    static func windowsHiddenWithApp(among windowIDs: [CGWindowID]) -> Set<CGWindowID>? {
+        guard #available(macOS 26.0, *), let tags = windowTags(of: windowIDs) else { return nil }
+        return SpaceHopSupport.windowsHiddenWithApp(windowTags: tags)
+    }
+
+    /// Whether the window server holds the window minimized in the Dock, even
+    /// for an app Accessibility cannot read. Nil when the query is unavailable
+    /// or withholds tags, and before macOS 26, where the tag has not been
+    /// observed. A window absent from a successful query no longer exists.
+    static func isMinimized(_ windowID: CGWindowID) -> Bool? {
+        guard #available(macOS 26.0, *), let windows = windowTags(of: [windowID]) else { return nil }
+        guard let tags = windows[windowID] else { return false }
+        guard tags != 0 else { return nil }
+        return SpaceHopSupport.isMinimized(windowTags: tags)
+    }
+
+    // MARK: - Child windows
+
+    private typealias IteratorParentIDFunction = @convention(c) (CFTypeRef) -> UInt32
+    private static let iteratorParentID: IteratorParentIDFunction? = {
+        guard let symbol = symbol("SLSWindowIteratorGetParentID") else { return nil }
+        return unsafeBitCast(symbol, to: IteratorParentIDFunction.self)
+    }()
+
+    /// The window `windowID` is attached to as a child window, such as the
+    /// browser window under its address bar suggestions or the window a
+    /// popover hangs from. Accessibility lists a child window as one more
+    /// window of the app and cannot tell the two apart. Nil for a window
+    /// attached to nothing, and when the window server cannot answer.
+    static func parentWindowID(of windowID: CGWindowID) -> CGWindowID? {
+        guard connection != 0, let windowQuery, let iteratorParentID,
+              let query = windowQuery.query(connection, [NSNumber(value: windowID)] as CFArray,
+                                            0)?.takeRetainedValue(),
+              let iterator = windowQuery.windows(query)?.takeRetainedValue()
+        else { return nil }
+        while windowQuery.advance(iterator) {
+            guard windowQuery.windowID(iterator) == windowID else { continue }
+            let parentID = iteratorParentID(iterator)
+            return parentID == kCGNullWindowID ? nil : parentID
+        }
+        return nil
     }
 
     // MARK: - Fronting a specific window
@@ -256,9 +370,9 @@ enum SpaceWindowBridge {
     /// window as the one that comes up front, marked as user-initiated. Older
     /// macOS also travels to the window's Space; current macOS ignores the
     /// Space part, which is why SpaceHop verifies the outcome and escalates.
-    /// The follow-up record is a lone press that makes the window key without
-    /// clicking any of its content. It has no release, so no control can ever
-    /// be activated, and it aims far past the bottom-right of any window. A
+    /// Native apps also receive a lone press to make the window key, aimed
+    /// far past the bottom-right of any window. Wine must never receive this
+    /// press: a game capturing the mouse treats it as a button held down. A
     /// point just outside the frame lands on the invisible resize border, and
     /// the repeated focus pass then finished a resize that dragged the
     /// window's top-left corner to the screen's own. An all-ones (NaN) point
@@ -269,11 +383,17 @@ enum SpaceWindowBridge {
     /// caller can fall back to app-level activation.
     @discardableResult
     static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) -> Bool {
-        guard let setFrontProcess, let processForPID, let postEventRecord else { return false }
+        guard let setFrontProcess, let processForPID else { return false }
+        let app = NSRunningApplication(processIdentifier: ownerPID)
+        let usesClick = SwitcherSupport.usesActivationClick(executablePath: app?.executableURL?.path,
+                                                          localizedName: app?.localizedName)
+        guard !usesClick || postEventRecord != nil else { return false }
         var psn = ProcessSerialNumber()
         guard processForPID(ownerPID, &psn) == noErr else { return false }
         let userGenerated: UInt32 = 0x200
         guard setFrontProcess(&psn, windowID, userGenerated) == .success else { return false }
+        guard usesClick else { return true }
+        guard let postEventRecord else { return false }
         var targetID = windowID
         var record = [UInt8](repeating: 0, count: 0x100)
         record[0x04] = 0xf8 // declared record length
@@ -298,42 +418,63 @@ enum SpaceWindowBridge {
                                   replacing focusedWindowID: CGWindowID?,
                                   while isCurrent: @escaping () -> Bool,
                                   completion: @escaping (Bool) -> Void) {
-        guard isCurrent() else {
+        guard isCurrent(), setFrontProcess != nil, processForPID != nil, postEventRecord != nil else {
             completion(false)
             return
         }
         guard let focusedWindowID else {
-            completion(frontWindow(windowID, ownerPID: ownerPID))
+            completion(makeKeyWithoutRaise(windowID, ownerPID: ownerPID))
             return
         }
-        postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: false)
+        guard postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: false) else {
+            completion(false)
+            return
+        }
+        let restoreFocus = {
+            if FocusFollowsMouseSupport.shouldRestoreFocus(
+                to: focusedWindowID,
+                reportedFocusedWindowID: WindowActivator.focusedWindowID(for: ownerPID),
+                appIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier == ownerPID) {
+                postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: true)
+            }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
             guard isCurrent() else {
-                if FocusFollowsMouseSupport.shouldRestoreFocus(
-                    to: focusedWindowID,
-                    reportedFocusedWindowID: WindowActivator.focusedWindowID(for: ownerPID),
-                    appIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier == ownerPID) {
-                    postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: true)
-                }
+                restoreFocus()
                 completion(false)
                 return
             }
-            postFocusRecord(windowID, ownerPID: ownerPID, gained: true)
-            completion(frontWindow(windowID, ownerPID: ownerPID))
+            let succeeded = makeKeyWithoutRaise(windowID, ownerPID: ownerPID)
+            if !succeeded { restoreFocus() }
+            completion(succeeded)
         }
     }
 
-    private static func postFocusRecord(_ windowID: CGWindowID, ownerPID: pid_t, gained: Bool) {
-        guard let processForPID, let postEventRecord else { return }
+    /// Activate the process without ordering any of its windows, then give
+    /// this window keyboard focus. frontWindow's user-generated activation
+    /// and mouse press can raise the window even without an AXRaise action.
+    /// Failure must not fall back to that path when the user disabled raising.
+    private static func makeKeyWithoutRaise(_ windowID: CGWindowID, ownerPID: pid_t) -> Bool {
+        guard let setFrontProcess, let processForPID, postEventRecord != nil else { return false }
         var psn = ProcessSerialNumber()
-        guard processForPID(ownerPID, &psn) == noErr else { return }
+        guard processForPID(ownerPID, &psn) == noErr else { return false }
+        let noWindows: UInt32 = 0x400 // kCPSNoWindows
+        guard setFrontProcess(&psn, windowID, noWindows) == .success else { return false }
+        return postFocusRecord(windowID, ownerPID: ownerPID, gained: true)
+    }
+
+    @discardableResult
+    private static func postFocusRecord(_ windowID: CGWindowID, ownerPID: pid_t, gained: Bool) -> Bool {
+        guard let processForPID, let postEventRecord else { return false }
+        var psn = ProcessSerialNumber()
+        guard processForPID(ownerPID, &psn) == noErr else { return false }
         var targetID = windowID
         var record = [UInt8](repeating: 0, count: 0x100)
         record[0x04] = 0xf8 // declared record length
         record[0x08] = 0x0d
         record[0x8a] = gained ? 0x01 : 0x02
         withUnsafeBytes(of: &targetID) { record.replaceSubrange(0x3c..<0x3c + $0.count, with: $0) }
-        _ = postEventRecord(&psn, &record)
+        return postEventRecord(&psn, &record) == .success
     }
 
     // MARK: - The user's "move a space" shortcut

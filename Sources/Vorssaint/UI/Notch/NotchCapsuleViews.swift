@@ -163,7 +163,8 @@ private struct NotchCapsuleTrackArtwork: View {
     @ObservedObject private var music = NotchMusicService.shared
     let side: CGFloat
 
-    var body: some View { NotchMusicCover(artwork: music.artwork, side: side, radius: side * 0.24) }
+    var body: some View { NotchMusicCover(artwork: music.artwork, side: side, radius: side * 0.24,
+                                          source: music.playback?.track) }
 }
 
 /// The closed capsule at rest: bare, or with the charge or the AI allowance
@@ -172,6 +173,10 @@ private struct NotchCapsuleTrackArtwork: View {
 struct NotchCapsuleRestingView: View {
     @ObservedObject var service: NotchService
     @ObservedObject private var music = NotchMusicService.shared
+    @AppStorage(DefaultsKey.notchLowBatteryTint) private var lowBatteryTint = false
+    @AppStorage(DefaultsKey.notchLowBatteryThreshold) private var lowBatteryThreshold = NotchSupport.defaultLowBatteryThreshold
+    @AppStorage(DefaultsKey.notchLowBatteryEarly) private var earlyBatteryWarning = false
+    @AppStorage(DefaultsKey.notchLowBatteryEarlyThreshold) private var earlyBatteryThreshold = NotchSupport.defaultEarlyBatteryThreshold
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let size: CGSize
     /// Another display's capsule, when the island shows on every display.
@@ -208,10 +213,16 @@ struct NotchCapsuleRestingView: View {
             HStack(spacing: 5) {
                 switch service.idleContent {
                 case .battery:
-                    Image(systemName: "battery.100percent").font(.system(size: CapsuleLayout.symbolSize))
-                        .capsuleCentred("battery.100percent", weight: .regular)
+                    let symbol = NotchRestingBattery.symbol(for: service.power)
+                    let tint = NotchRestingBattery.tint(for: service.power, tint: lowBatteryTint,
+                                                        threshold: lowBatteryThreshold, early: earlyBatteryWarning,
+                                                        earlyThreshold: earlyBatteryThreshold)
+                    Image(systemName: symbol).font(.system(size: CapsuleLayout.symbolSize))
+                        .capsuleCentred(symbol, weight: .regular)
+                        .foregroundStyle(tint)
                     if let percent = service.power.chargePercent {
                         Text("\(percent)%").font(Font(CapsuleLayout.smallFont as CTFont)).lineLimit(1)
+                            .foregroundStyle(tint)
                     }
                 case .agents:
                     NotchAgentRestingWing(leading: true)
@@ -273,7 +284,7 @@ struct NotchCapsuleMusicStrip: View {
         NotchCapsuleRow(size: size ?? CapsuleLayout.musicSurface(title: named ? title : nil, geometry: geometry),
                         geometry: geometry, leading: 0, trailing: 0) {
             HStack(spacing: 0) {
-                NotchMusicCover(artwork: artwork, side: side, radius: side / 2)
+                NotchMusicCover(artwork: artwork, side: side, radius: side / 2, source: playback?.track)
                     .padding(.leading, CapsuleLayout.artworkInset(geometry))
                     .frame(maxHeight: .infinity)
                     .contentShape(Rectangle())
@@ -411,7 +422,7 @@ private struct NotchCapsuleCompanionMark: View {
             })
         case .music:
             let side = CapsuleLayout.artworkSide(geometry)
-            NotchMusicCover(artwork: music.artwork, side: side, radius: side / 2)
+            NotchMusicCover(artwork: music.artwork, side: side, radius: side / 2, source: music.playback?.track)
         case .calendar:
             if let countdown = calendar.countdown {
                 TimelineView(.periodic(from: .now, by: 1)) { context in

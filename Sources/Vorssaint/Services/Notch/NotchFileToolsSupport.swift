@@ -11,7 +11,7 @@ enum NotchFileToolsSupport {
     static func mediaDropArea(in geometry: NotchGeometry, size: CGSize) -> CGRect {
         let content = geometry.contentSize(for: size)
         return CGRect(x: size.width / 2 + dropSpacing / 2,
-                      y: geometry.headerTopInset + geometry.headerRowHeight + NotchLayout.spacing,
+                      y: geometry.pageTopInset,
                       width: max(0, (content.width - dropSpacing) / 2), height: content.height)
     }
 

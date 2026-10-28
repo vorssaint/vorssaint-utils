@@ -90,15 +90,29 @@ enum SwitcherModelFeatureTests {
                     navigation = SwitcherScrollNavigation()
                     let fractions = [-0.25, -0.5, -0.5, -0.75]
                     let expected = [0, 0, inverted ? -1 : 1, inverted ? -1 : 1]
+                    // Scroll Direction's tap runs after the switcher's, so the
+                    // switcher turns the wheel itself.
+                    let direction = ScrollDirectionPreferences(
+                        isAvailable: { _ in true },
+                        boolFor: { [DefaultsKey.scrollInverterEnabled,
+                                    DefaultsKey.scrollInverterHorizontalEnabled].contains($0) && inverted },
+                        stringFor: { _ in nil })
                     for index in fractions.indices {
                         let sample = wheel(fixed: fractions[index], continuous: continuous, horizontal: horizontal,
                                            timestamp: 1_000_000_000 + UInt64(index) * 500_000_000)
-                        ScrollWheelSupport.applyDirection(to: sample, isContinuous: continuous,
-                            invertVertical: inverted, invertHorizontal: inverted, horizontalModifier: nil)
-                        suite.expect(navigation.selectionDelta(for: sample) == expected[index],
+                        suite.expect(navigation.selectionDelta(for: sample, direction: direction) == expected[index],
                             "fractional wheel movement retains its remainder across pauses and inversion: continuous=\(continuous), horizontal=\(horizontal), inverted=\(inverted), sample=\(index)")
+                        suite.expect(sample.getDoubleValueField(horizontal ? .scrollWheelEventFixedPtDeltaAxis2
+                                                                           : .scrollWheelEventFixedPtDeltaAxis1) == fractions[index],
+                            "turning the wheel for the switcher leaves the event other taps see untouched")
                     }
                 }
+                navigation = SwitcherScrollNavigation()
+                let reversed = ScrollDirectionPreferences(isAvailable: { _ in true },
+                    boolFor: { $0 == DefaultsKey.scrollInverterEnabled }, stringFor: { _ in nil })
+                let pad = event(-step, continuous: true, phase: .began)
+                suite.expect(navigation.selectionDelta(for: pad, direction: reversed) == 1,
+                             "Scroll Direction leaves a trackpad gesture alone in the switcher, as it does everywhere")
                 navigation = SwitcherScrollNavigation()
                 suite.expect(navigation.selectionDelta(for: wheel(line: -1, fixed: 0, continuous: continuous,
                                                                   horizontal: horizontal)) == 1,
@@ -141,11 +155,21 @@ enum SwitcherModelFeatureTests {
                          "\(path) yields scrolling to the open switcher")
         }
         suite.expect(!code("Sources/Vorssaint/Services/ScrollInverter.swift").contains("AppSwitcher.shared.scrollNavigationActive"),
-                     "scroll direction still transforms wheel events before they reach the open switcher")
+                     "scroll direction never stands aside for the open switcher")
+        // Both wheel taps run after the switcher's session tap, so it applies
+        // Scroll Direction itself, minus the apps excepted from it.
+        suite.expect(switcher.contains("scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil)")
+                && switcher.contains(".scrollDirection, at: event.location"),
+                     "the open switcher scrolls the way Scroll Direction turns the wheel, except where it is excepted")
+        // A remote screen posts its scroll below the HID stage, already
+        // turned the controlling computer's way.
+        suite.expect(switcher.contains("let directionApplies = direction.isEnabled\n                && ScrollWheelHIDStage.shared.passed(event)\n"),
+                     "the open switcher leaves a remote screen's scroll as it came")
     }
 
     static func run(_ suite: TestSuite) {
         SwitcherAccessibilitySnapshotTests.run(suite)
+        SwitcherFullscreenScopeTests.run(suite)
         ScrollingTitleMotionTests.run(suite)
         scrollNavigationChecks(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
@@ -424,6 +448,9 @@ enum SwitcherModelFeatureTests {
                == SwitcherSupport.defaultAppearanceDelayMilliseconds
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherAppearanceDelay),
                "App Switcher keeps the current appearance delay by default and carries the choice in backups")
+        suite.expect(registeredDefaults[DefaultsKey.switcherMaxColumns] as? Int == 0
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherMaxColumns),
+               "App Switcher columns start on Auto and carry the choice in backups")
         suite.expect(registeredDefaults[DefaultsKey.switcherInstantSelection] as? Bool == false
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherInstantSelection),
                "App Switcher keeps smooth selection by default and carries instant selection in backups")
@@ -547,6 +574,41 @@ enum SwitcherModelFeatureTests {
                    frontmostBundleIdentifier: nil,
                    excludedBundleIdentifiers: ["com.example.focused"]),
                "window preview capture continues away from chosen apps or without a foreground app")
+        let programPath = "/Users/tester/Games/emulator/bin/emulator"
+        suite.expect(SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: nil,
+            frontmostExecutablePath: programPath,
+            excludedBundleIdentifiers: ["com.example.focused", programPath]),
+               "window preview capture pauses while a listed program that is not an app is in front")
+        suite.expect(!SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: nil,
+            frontmostExecutablePath: "/Users/tester/bin/other",
+            excludedBundleIdentifiers: [programPath]),
+               "a listed path pauses only that program")
+        // A JVM that AWT registers reports the bundle identifier of Java's
+        // launcher, the same for every program that runtime runs, so the
+        // runtime picked is told apart by its path.
+        let javaPath = "/Users/tester/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java"
+        suite.expect(SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: "net.java.openjdk.java",
+            frontmostExecutablePath: javaPath,
+            excludedBundleIdentifiers: [javaPath])
+               && !SwitcherSupport.shouldPausePreviewCapture(
+                   frontmostBundleIdentifier: "net.java.openjdk.java",
+                   frontmostExecutablePath: "/Users/tester/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home/bin/java",
+                   excludedBundleIdentifiers: [javaPath]),
+               "a Java runtime listed by its path pauses although it reports Java's bundle identifier, and no other runtime does")
+        suite.expect(SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: "com.example.focused",
+            frontmostExecutablePath: "/Applications/Focused.app/Contents/MacOS/Focused",
+            excludedBundleIdentifiers: ["com.example.focused", javaPath]),
+               "an app on the list still pauses by its bundle identifier while the list also names a program by its path")
+        var appPathWasRead = false
+        _ = SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: "com.example.other",
+            frontmostExecutablePath: { appPathWasRead = true; return "/Applications/Other.app/Contents/MacOS/Other" }(),
+            excludedBundleIdentifiers: ["com.example.focused"])
+        suite.expect(!appPathWasRead, "an app's path is not read while no program is listed by its path")
         suite.expect(SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [4], visibleSpaces: [3]),
                "a window whose only Space is not visible is parked on a hidden Space")
         suite.expect(!SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [3], visibleSpaces: [3]),
@@ -561,10 +623,50 @@ enum SwitcherModelFeatureTests {
                && !SpaceHopSupport.isOnFullscreenSpace(windowSpaces: [4], fullscreenSpaces: [8])
                && !SpaceHopSupport.isOnFullscreenSpace(windowSpaces: [], fullscreenSpaces: [8]),
                "App Switcher identifies fullscreen from Space type instead of window size")
-        suite.expect(SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: 1 << 18),
+        suite.expect(SpaceHopSupport.isExcludedFromWindowCycle(windowTags: 1 << 18),
                "a window-server surface marked to ignore cycling is excluded from the switcher")
-        suite.expect(!SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: (1 << 19) | (1 << 22)),
+        suite.expect(!SpaceHopSupport.isExcludedFromWindowCycle(windowTags: (1 << 19) | (1 << 22)),
                "other window-server tags do not hide a legitimate cross-Space window")
+        // One probe window's tags on macOS 27.2: hidden along with its app,
+        // closed by the app, and open.
+        func windowTags(_ bits: [UInt64]) -> UInt64 { bits.reduce(0) { $0 | 1 << $1 } }
+        suite.expect(SpaceHopSupport.isHiddenWithApp(windowTags: windowTags([0, 9, 19, 22, 32, 39, 45])),
+               "a window hidden along with its app carries the window server's hidden tag")
+        suite.expect(!SpaceHopSupport.isHiddenWithApp(windowTags: windowTags([0, 9, 19, 22, 32, 45]))
+               && !SpaceHopSupport.isHiddenWithApp(windowTags: windowTags([0, 9, 13, 19, 22, 32, 45])),
+               "a window its app closed, or one still open, does not count as hidden along with the app")
+        // Tags read on macOS 27.2: a window hidden with its app (1), the same
+        // window once the app was shown again (2), a window the app closed
+        // before the hide (3), and Safari's surface kept out of cycling (4).
+        let hiddenAppAnswer: [CGWindowID: UInt64] = [1: 0x208100480201, 2: 0x200100482201,
+                                                     3: 0x200100480201, 4: 0x1400C0001]
+        suite.expect(SpaceHopSupport.windowsHiddenWithApp(windowTags: hiddenAppAnswer) == [1],
+               "of a window query's answer only the window hidden with its app counts, not a closed, shown or helper one")
+        // Every window read on macOS 27.2 carried some tag, so rows of zeros,
+        // or no rows, mean the server withheld the answer.
+        suite.expect(SpaceHopSupport.windowsHiddenWithApp(windowTags: [1: 0, 2: 0]) == nil
+               && SpaceHopSupport.windowsHiddenWithApp(windowTags: [:]) == nil,
+               "an answer without any tag keeps the earlier rule instead of dropping every window of a hidden app")
+        // The bridge's window query cannot run here, so its answer must go
+        // through that filter, and only on macOS 26 and later.
+        let hiddenWithAppBody = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "static func windowsHiddenWithApp(among windowIDs: [CGWindowID]) -> Set<CGWindowID>? {\n")
+            .dropFirst().first?
+            .components(separatedBy: "\n    }\n").first?
+            .components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        suite.expect(hiddenWithAppBody == [
+            "guard #available(macOS 26.0, *), let tags = windowTags(of: windowIDs) else { return nil }",
+            "return SpaceHopSupport.windowsHiddenWithApp(windowTags: tags)"],
+               "the bridge reads windows hidden with their app through the tested filter, only from macOS 26")
+        // Tags of another app's windows on macOS 27.2: one that opts out of
+        // cycling, Safari's 517×132 auxiliary surface, and an ordinary window.
+        suite.expect(SpaceHopSupport.isExcludedFromWindowCycle(windowTags: windowTags([0, 9, 13, 18, 19, 22, 32, 45]))
+               && SpaceHopSupport.isExcludedFromWindowCycle(windowTags: windowTags([0, 18, 19, 30, 32])),
+               "the cycle flag reads from the full 64-bit tags of another app's surface")
+        suite.expect(!SpaceHopSupport.isExcludedFromWindowCycle(windowTags: windowTags([0, 9, 13, 19, 22, 32, 45])),
+               "an ordinary window's upper tag bits do not hide it")
         suite.expect(SpaceHopSupport.arrowSteps(orderedSpacesPerDisplay: [[3, 4, 5]],
                                           visibleSpaces: [3],
                                           target: 5) == 2,
@@ -593,6 +695,10 @@ enum SwitcherModelFeatureTests {
                "an app with a window on the visible Space cannot travel by being activated, so the move is asked for right away")
         suite.expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: false) == .waitForActivationTravel,
                "an app with no window on the visible Space travels on activation, so that travel is waited on")
+        suite.expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: true, directRaiseSucceeded: true) == .waitForActivationTravel,
+               "an accepted direct window raise gets time to travel before trying shortcuts (issue #2210)")
+        suite.expect(SpaceHopSupport.firstStage(appHasWindowOnVisibleSpace: false, directRaiseSucceeded: true) == .waitForActivationTravel,
+               "direct window raise always waits for activation travel")
         // Issue #1733: every arrival pulse raised the target again, so a window
         // that the first pulse already left focused and in front flickered.
         suite.expect(SpaceHopSupport.arrivalPulseShouldFocus(isFirstPulse: true,
@@ -780,12 +886,18 @@ enum SwitcherModelFeatureTests {
                                        isAppHidden: true).isAppHidden,
                "App Switcher carries a hidden app's state through every entry shape")
         suite.expect(SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
-                                                          windowSpaces: [3])
+                                                          windowSpaces: [3], isHiddenWithApp: true)
                && !SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: false,
-                                                              windowSpaces: [3])
+                                                              windowSpaces: [3], isHiddenWithApp: true)
                && !SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
-                                                              windowSpaces: []),
+                                                              windowSpaces: [], isHiddenWithApp: true),
                "App Switcher keeps only hidden-app surfaces assigned to a real desktop")
+        suite.expect(!SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
+                                                               windowSpaces: [3], isHiddenWithApp: false),
+               "a window its app closed before hiding stays out, though it keeps its desktop (issues #512, #2628)")
+        suite.expect(SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
+                                                              windowSpaces: [3], isHiddenWithApp: nil),
+               "without the window server's answer a hidden app keeps the desktop rule it had")
 
         // MARK: Hidden apps only follow minimized-window placement by choice
         let hiddenAppEntry = SwitcherItem.appOnly(appName: "Primary", pid: 101,
@@ -803,6 +915,24 @@ enum SwitcherModelFeatureTests {
         suite.expect(placementCode.contains("forKey: DefaultsKey.switcherTreatHiddenAppsLikeMinimized")
                && placementCode.contains("item.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized)"),
                "window enumeration applies the saved hidden-app choice through the placement predicate")
+
+        // A window on another desktop showed only its app's name without
+        // Screen Recording: Accessibility leaves it out of the app's list.
+        suite.expect(SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: "", isDescribedByAccessibility: false,
+                                                             accessibilityGranted: true, isOnHiddenSpace: true),
+               "an untitled window on another desktop has its title looked up")
+        suite.expect(!SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: "Inbox", isDescribedByAccessibility: false,
+                                                              accessibilityGranted: true, isOnHiddenSpace: true),
+               "a window the window server already titles is not looked up again")
+        suite.expect(!SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: "", isDescribedByAccessibility: true,
+                                                              accessibilityGranted: true, isOnHiddenSpace: true),
+               "a window Accessibility describes keeps that title")
+        suite.expect(!SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: "", isDescribedByAccessibility: false,
+                                                              accessibilityGranted: true, isOnHiddenSpace: false),
+               "an untitled window on the visible desktop is not looked up")
+        suite.expect(!SwitcherSupport.looksUpHiddenSpaceTitle(windowServerTitle: "", isDescribedByAccessibility: false,
+                                                              accessibilityGranted: false, isOnHiddenSpace: true),
+               "no lookup runs without Accessibility")
 
         // Real parked windows remain ordered in; a dismissed surface can
         // retain the same desktop assignment but is explicitly ordered out.
@@ -1107,14 +1237,14 @@ enum SwitcherModelFeatureTests {
             bundleIdentifier: "com.example.editor",
             subrole: "AXUnknown"),
                "App Switcher keeps undescribed windows from unrelated apps filtered")
-        for tags: UInt32 in [786946, 795138] {
+        for tags: UInt64 in [786946, 795138] {
             suite.expect(!SwitcherSupport.isSwitchableNonstandardWindow(
                 role: "AXWindow",
                 subrole: "AXUnknown",
                 fillsScreen: false,
                 hasNormalWindowLevel: true,
                 acceptsUndescribedSubroles: false,
-                isExcludedFromWindowCycle: SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: tags)),
+                isExcludedFromWindowCycle: SpaceHopSupport.isExcludedFromWindowCycle(windowTags: tags)),
                    "App Switcher excludes helper windows that opt out of window cycling")
         }
         suite.expect(SwitcherSupport.isSwitchableNonstandardWindow(
@@ -1362,7 +1492,7 @@ enum SwitcherModelFeatureTests {
             contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift",
             encoding: .utf8)) ?? ""
         let displayFilter = enumeratorCode.range(of: "SwitcherSupport.itemsOnDisplay(filtered,")
-        let grouping = enumeratorCode.range(of: "SwitcherSupport.groupWindowsByApp(orderedPrimary)")
+        let grouping = enumeratorCode.range(of: "groupedByApp(orderedPrimary)")
         let entryCap = enumeratorCode.range(of: "limit: maximumCount")
         suite.expect(displayFilter != nil && grouping != nil && entryCap != nil
                && displayFilter!.lowerBound < grouping!.lowerBound
@@ -1954,19 +2084,24 @@ enum SwitcherModelFeatureTests {
                "update showcase intro starts unseen")
         suite.expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.0",
-               "support prompt is deliberately pinned to the 3.4 stable series")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.3.2")
-               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil),
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.2",
+               "support prompt is deliberately pinned to the 3.4.2 stable release")
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: "3.3.2")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: nil),
                "support prompt shows once after updating to its pinned release")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
-               "support prompt stays hidden after it is seen")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: "3.4.0"),
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: "3.4.0-support")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: "3.4.1-support"),
+               "people who saw an earlier support prompt receive the revised message in 3.4.2")
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: SupportUpdateIntroInfo.seenVersion)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
+               "support prompt stays hidden after it is seen, through later patches")
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: "3.4.2"),
                "premature support markers from beta onboarding do not suppress the stable invitation")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0-beta.7", lastSeenVersion: nil)
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.1", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2-beta.2", lastSeenVersion: nil)
                && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.5.0", lastSeenVersion: nil),
-               "support prompt never leaks into another release series")
+               "support prompt never leaks into another release or a beta")
         suite.expect(AppInfo.discordURL.absoluteString == "https://discord.gg/M6BwWH4BJp",
                "the community action uses the permanent Discord invitation")
         suite.expect(AppInfo.coffeeURL.absoluteString == "https://buymeacoffee.com/vorssaint",
@@ -1979,13 +2114,13 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.4.1-beta.3",
+        suite.expect(plistVersion == "3.4.2",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "98",
+        suite.expect(plistBuild == "104",
                "every app version needs its own incremented bundle build")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.0",
-               "the support prompt is prepared for the 3.4 final release")
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.2",
+               "the support prompt is prepared for the 3.4.2 stable release")
         suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0",
                "the stable release has its own tour marker without changing the installed version")
         for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.3", "3.4.0-beta.4", "3.4.0-beta.5", "3.4.0-beta.6", "3.4.0-beta.7", "3.4.0-beta.10"] {
@@ -2013,8 +2148,8 @@ enum SwitcherModelFeatureTests {
         for version in ["3.4.0", "3.4.1", "3.4.2", "3.4.10", "3.4.99"] {
             suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
                    && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion)
-                   && SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: "3.4.0"),
-                   "direct hotfix upgraders still receive the stable tour and support invitation")
+                   && (["3.4.0", "3.4.1"].contains(version) || SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: "3.4.0")),
+                   "direct hotfix upgraders still receive the stable tour and, from 3.4.2, the support invitation")
             suite.expect(UpdateHighlightsInfo.seenVersion(for: version) == UpdateHighlightsInfo.releaseVersion
                    && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.releaseVersion)
                    && !SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
@@ -2028,9 +2163,10 @@ enum SwitcherModelFeatureTests {
                "headphone disconnect volume lowering is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int
                == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
-               "headphone disconnect protection starts at an audible volume, never at silence")
+               "headphone disconnect protection starts at an audible volume until silence is chosen")
+        // Zero is now a choice, so the default is held to the old audible floor.
         suite.expect(Defaults.defaultMixerHeadphonesDisconnectVolumePercent
-               >= Defaults.minimumMixerHeadphonesDisconnectVolumePercent
+               >= Defaults.legacyMixerHeadphonesDisconnectVolumeFloor
                && Defaults.defaultMixerHeadphonesDisconnectVolumePercent < 100,
                "the headphone disconnect default is a real reduction that can still be heard")
         suite.expect(registeredDefaults[DefaultsKey.mixerShowFinder] as? Bool == true,
@@ -2433,22 +2569,16 @@ enum SwitcherModelFeatureTests {
         let panelGlassCode = stripCommentLines((panelThemeSource
             .components(separatedBy: "private struct PanelGlassSurface: View {").last ?? "")
             .components(separatedBy: "\n}").first ?? "")
-        suite.expect(panelGlassCode.contains("} else if PanelSurface.popoverHostsFullSizeContent {\n            surface.ignoresSafeArea()\n        } else {\n            insetSurface"),
-               "the panel surface paints past the safe area, up into the arrow, only in a full-size popover")
-        let fullSizeSurfaceCode = panelGlassCode
-            .components(separatedBy: "private var insetSurface: some View {").first ?? ""
-        let insetSurfaceCode = panelGlassCode
-            .components(separatedBy: "private var insetSurface: some View {").dropFirst().first ?? ""
-        suite.expect(!fullSizeSurfaceCode.isEmpty
-                   && !fullSizeSurfaceCode.contains("RoundedRectangle")
-                   && !fullSizeSurfaceCode.contains("cornerRadius"),
-               "the full-size surface leaves the rounding to the popover balloon that clips it")
-        suite.expect(fullSizeSurfaceCode.contains(".glassEffect(.regular, in: Rectangle())")
-                   && fullSizeSurfaceCode.contains("Rectangle()\n            .fill(.regularMaterial)"),
+        suite.expect(panelGlassCode.contains("} else if PanelSurface.popoverHostsFullSizeContent {\n            surface.ignoresSafeArea()\n        } else {\n            Color.clear"),
+               "a full-size panel fills the arrow; an inset panel leaves the native popover material visible")
+        suite.expect(!panelGlassCode.isEmpty
+                   && !panelGlassCode.contains("RoundedRectangle")
+                   && !panelGlassCode.contains("cornerRadius")
+                   && !panelGlassCode.contains("strokeBorder"),
+               "the panel leaves the corners and rim to the popover, without a second rounded outline (#2225)")
+        suite.expect(panelGlassCode.contains(".glassEffect(.regular, in: Rectangle())")
+                   && panelGlassCode.contains("Rectangle()\n            .fill(.regularMaterial)"),
                "both the standard and the Liquid Glass surface fill the whole balloon, no shape of their own")
-        suite.expect(insetSurfaceCode.contains("RoundedRectangle(cornerRadius: 18, style: .continuous)")
-                   && insetSurfaceCode.contains(".strokeBorder(PanelSurface.border(for: colorScheme)"),
-               "an inset panel is a rounded, rimmed card inside the balloon")
         let panelViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",
             encoding: .utf8)) ?? ""
@@ -3087,6 +3217,36 @@ enum SwitcherModelFeatureTests {
                "memory menu bar style defaults to percent")
         suite.expect(registeredDefaults[DefaultsKey.monitorPwrTimeRemaining] as? Bool == true,
                "battery time is shown in the Power panel by default")
+        suite.expect(registeredDefaults[DefaultsKey.monitorPwrPeripherals] as? Bool == false,
+               "peripheral batteries stay out of the Power card until turned on")
+        let peripheralsSuite = "com.vorssaint.tests.powerPeripherals.\(UUID().uuidString)"
+        if let peripheralsDefaults = UserDefaults(suiteName: peripheralsSuite) {
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+            peripheralsDefaults.set(false, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.object(forKey: DefaultsKey.monitorPwrPeripherals) as? Bool == false,
+                   "an update with the menu bar item off starts no peripheral reads in Power")
+            peripheralsDefaults.set(true, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(!peripheralsDefaults.bool(forKey: DefaultsKey.monitorPwrPeripherals),
+                   "turning on the menu bar item later leaves the Power choice alone")
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+            peripheralsDefaults.set(true, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.bool(forKey: DefaultsKey.monitorPwrPeripherals),
+                   "an update keeps peripheral batteries in Power for menu bar users")
+            peripheralsDefaults.set(false, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.bool(forKey: DefaultsKey.monitorPwrPeripherals),
+                   "hiding the menu bar item later leaves the Power choice alone")
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.object(forKey: DefaultsKey.monitorPwrPeripherals) as? Bool == false,
+                   "a fresh install keeps peripheral batteries out of Power")
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+        } else {
+            suite.expect(false, "peripheral visibility migration has isolated preferences")
+        }
         suite.expect(registeredDefaults[DefaultsKey.windowLayoutShortcutsEnabled] as? Bool == false,
                "window layout shortcuts stay off until enabled")
         suite.expect(registeredDefaults[DefaultsKey.windowEdgeSnapEnabled] as? Bool == false,
@@ -3107,14 +3267,37 @@ enum SwitcherModelFeatureTests {
                "window gestures do not change app focus unless requested")
         suite.expect(registeredDefaults[DefaultsKey.windowLayoutIgnoredApps] as? [String] == [],
                "window layout ignores no apps by default")
-        suite.expect(WindowLayoutIgnoredApps.contains("com.example.game", in: ["com.example.game"])
-                && !WindowLayoutIgnoredApps.contains("com.example.editor", in: ["com.example.game"])
-                && !WindowLayoutIgnoredApps.contains(nil, in: ["com.example.game"]),
+        suite.expect(WindowLayoutIgnoredApps.matches(bundleID: "com.example.game", executablePath: nil,
+                                               apps: ["com.example.game"])
+                && !WindowLayoutIgnoredApps.matches(bundleID: "com.example.editor", executablePath: nil,
+                                                    apps: ["com.example.game"])
+                && !WindowLayoutIgnoredApps.matches(bundleID: nil, executablePath: nil,
+                                                    apps: ["com.example.game"]),
                "window layout only pauses for the focused app on its list")
         suite.expect(WindowLayoutIgnoredApps.matches(bundleID: nil,
                                                executablePath: "/Applications/Game",
                                                apps: ["/Applications/Game"]),
                "window layout pauses for a focused executable without a bundle identifier")
+        // Java's launcher carries an Info.plist of its own, and a JVM that AWT
+        // registers reports a bundle identifier that every Java program on
+        // that runtime shares (issue #1009). The runtime that was picked is
+        // told apart by its path.
+        let ignoredRuntime = "/Users/tester/Library/Application Support/PrismLauncher/java/java-runtime-gamma/bin/java"
+        suite.expect(WindowLayoutIgnoredApps.matches(bundleID: "net.java.openjdk.java",
+                                               executablePath: ignoredRuntime,
+                                               apps: [ignoredRuntime])
+                && !WindowLayoutIgnoredApps.matches(
+                    bundleID: "net.java.openjdk.java",
+                    executablePath: "/Users/tester/Library/Application Support/PrismLauncher/java/jre-legacy/bin/java",
+                    apps: [ignoredRuntime]),
+               "window layout pauses for a Java runtime listed by its path although it reports Java's bundle "
+                   + "identifier, and for no other runtime")
+        var ignoredPathWasRead = false
+        _ = WindowLayoutIgnoredApps.matches(bundleID: "com.example.editor",
+                                            executablePath: { ignoredPathWasRead = true; return ignoredRuntime }(),
+                                            apps: ["com.example.game"])
+        suite.expect(!ignoredPathWasRead,
+               "window layout reads the focused program's path only while a program is listed by its path")
         let assignedLayoutShortcutKeys = [
             DefaultsKey.windowLayoutShortcutLeft,
             DefaultsKey.windowLayoutShortcutRight,
@@ -3451,6 +3634,166 @@ enum SwitcherModelFeatureTests {
                "App Switcher width still follows the window count on one row")
         suite.expect(SwitcherSupport.gridColumnCount(itemCount: 16, maxColumns: 8) == 8,
                "App Switcher keeps the packed width when two rows are already even")
+        // Ultrawide displays: a column cap wraps every layout onto more rows,
+        // while Auto keeps exactly the layout from before the cap existed.
+        suite.expect(SwitcherSupport.sanitizedMaxColumns(0) == nil
+               && SwitcherSupport.sanitizedMaxColumns(-3) == nil
+               && SwitcherSupport.sanitizedMaxColumns(1) == SwitcherSupport.maxColumnsRange.lowerBound
+               && SwitcherSupport.sanitizedMaxColumns(6) == 6
+               && SwitcherSupport.sanitizedMaxColumns(99) == SwitcherSupport.maxColumnsRange.upperBound,
+               "App Switcher column cap treats zero as Auto and clamps the rest")
+        suite.expect(SwitcherSupport.cappedColumnCount(fitByWidth: 15, userMax: 6) == 6
+               && SwitcherSupport.cappedColumnCount(fitByWidth: 4, userMax: 6) == 4
+               && SwitcherSupport.cappedColumnCount(fitByWidth: 15, userMax: nil) == 15,
+               "App Switcher column cap never exceeds what the screen fits")
+        suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 4, fitByWidth: 15, userMax: 3) == 3
+               && SwitcherSupport.wrappingColumnCount(itemCount: 7, fitByWidth: 15, userMax: 3) == 3
+               && SwitcherSupport.wrappingColumnCount(itemCount: 20, fitByWidth: 15, userMax: 6) == 6,
+               "App Switcher fills a user column cap exactly instead of evening the rows out")
+        suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 2, fitByWidth: 15, userMax: 3) == 2
+               && SwitcherSupport.wrappingColumnCount(itemCount: 4, fitByWidth: 2, userMax: 3) == 2,
+               "App Switcher column cap still shrinks for few items or a narrow screen")
+        suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 10, fitByWidth: 8, userMax: nil)
+               == SwitcherSupport.gridColumnCount(itemCount: 10, maxColumns: 8),
+               "App Switcher keeps balanced rows on Auto")
+        // A cap above Auto's balanced count must not widen the grid: six
+        // windows on a laptop that fits five stay 3 + 3, not 5 + 1.
+        suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 6, fitByWidth: 5, userMax: 8) == 3
+               && SwitcherSupport.wrappingColumnCount(itemCount: 5, fitByWidth: 4, userMax: 8) == 3
+               && SwitcherSupport.wrappingColumnCount(itemCount: 12, fitByWidth: 10, userMax: 8) == 6,
+               "App Switcher column cap never makes the grid wider than Auto")
+        let ultrawide = CGRect(x: 0, y: 0, width: 5120, height: 1415)
+        let strictIcons = SwitcherIconRowLayout.compute(appCount: 4, selectedWindowCount: 1,
+                                                        screenVisibleFrame: ultrawide, maxColumns: 3)
+        suite.expect(strictIcons.columns == 3 && strictIcons.rows == 2,
+               "App Switcher icon row fills a cap of three as three plus one")
+        let autoUltrawide = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
+                                                          screenVisibleFrame: ultrawide)
+        let cappedUltrawide = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
+                                                            screenVisibleFrame: ultrawide,
+                                                            maxColumns: 8)
+        suite.expect(!autoUltrawide.isWrapped
+               && autoUltrawide.rows == 1
+               && autoUltrawide.iconAreaHeight == SwitcherIconRowLayout.rowHeight,
+               "App Switcher icon row stays a single row on Auto")
+        suite.expect(cappedUltrawide.isWrapped
+               && cappedUltrawide.columns == 8
+               && cappedUltrawide.rows == 4
+               && cappedUltrawide.visibleIconCount == 30
+               && cappedUltrawide.appRowContentWidth < autoUltrawide.appRowContentWidth
+               && cappedUltrawide.panelSize.height > autoUltrawide.panelSize.height
+               && cappedUltrawide.simplePanelSize.height > autoUltrawide.simplePanelSize.height,
+               "App Switcher icon row wraps thirty apps into four rows of eight under a cap of eight")
+        let fewApps = SwitcherIconRowLayout.compute(appCount: 5, selectedWindowCount: 1,
+                                                    screenVisibleFrame: ultrawide, maxColumns: 8)
+        suite.expect(fewApps == SwitcherIconRowLayout.compute(appCount: 5, selectedWindowCount: 1,
+                                                              screenVisibleFrame: ultrawide),
+               "App Switcher icon row under the cap is identical to Auto")
+        let shortScreen = CGRect(x: 0, y: 0, width: 5120, height: 700)
+        let scrollingRows = SwitcherIconRowLayout.compute(appCount: 60, selectedWindowCount: 1,
+                                                          screenVisibleFrame: shortScreen, maxColumns: 4)
+        suite.expect(scrollingRows.rows == 15
+               && scrollingRows.visibleRows >= 1
+               && scrollingRows.visibleRows < scrollingRows.rows
+               && scrollingRows.panelSize.height <= shortScreen.height,
+               "App Switcher wrapped icon rows scroll instead of outgrowing a short screen")
+        let wrappedPlacement = SwitcherSupport.selectedPreviewPlacement(
+            appCount: 30, selectedAppIndex: 9, selectedWindowIndex: 0, selectedWindowCount: 1,
+            visibleIconCount: 30, appRowContentWidth: 1000, appRowSurfaceWidth: 1016,
+            previewContentWidth: 200, previewSurfaceWidth: 224, columns: 8)
+        let secondColumnPlacement = SwitcherSupport.selectedPreviewPlacement(
+            appCount: 30, selectedAppIndex: 1, selectedWindowIndex: 0, selectedWindowCount: 1,
+            visibleIconCount: 30, appRowContentWidth: 1000, appRowSurfaceWidth: 1016,
+            previewContentWidth: 200, previewSurfaceWidth: 224, columns: 8)
+        suite.expect(wrappedPlacement == secondColumnPlacement,
+               "App Switcher preview sits over the selected icon's column on a wrapped row")
+        // Five apps capped at two columns: Alpha Beta / Gamma Delta / Epsilon.
+        let wrappedApps = [
+            SwitcherItem.window(id: 1, title: "A1", appName: "Alpha", pid: 101, isOnScreen: true, frame: .zero),
+            SwitcherItem.window(id: 2, title: "A2", appName: "Alpha", pid: 101, isOnScreen: true, frame: .zero),
+            SwitcherItem.window(id: 3, title: "B1", appName: "Beta", pid: 202, isOnScreen: true, frame: .zero),
+            SwitcherItem.window(id: 4, title: "G1", appName: "Gamma", pid: 303, isOnScreen: true, frame: .zero),
+            SwitcherItem.window(id: 5, title: "G2", appName: "Gamma", pid: 303, isOnScreen: true, frame: .zero),
+            SwitcherItem.window(id: 6, title: "D1", appName: "Delta", pid: 404, isOnScreen: true, frame: .zero),
+            SwitcherItem.window(id: 7, title: "E1", appName: "Epsilon", pid: 505, isOnScreen: true, frame: .zero),
+        ]
+        func appRowMove(from index: Int, down: Bool) -> Int? {
+            SwitcherSupport.iconRowSelectionIndex(after: index, items: wrappedApps, windowRow: false,
+                                                  columns: 2, movingDown: down)
+        }
+        suite.expect(appRowMove(from: 1, down: true) == 3
+               && appRowMove(from: 2, down: true) == 5
+               && appRowMove(from: 4, down: false) == 0,
+               "App Switcher ↑/↓ on wrapped app rows moves a row of apps from any of the app's windows")
+        suite.expect(appRowMove(from: 5, down: true) == 6,
+               "App Switcher ↓ onto a shorter last app row lands on its last app")
+        suite.expect(appRowMove(from: 0, down: false) == nil
+               && appRowMove(from: 1, down: false) == nil
+               && appRowMove(from: 6, down: true) == nil
+               && appRowMove(from: 9, down: true) == nil,
+               "App Switcher ↑/↓ keeps the selection at the top and bottom of wrapped app rows")
+        // Seven windows capped at three columns: 0 1 2 / 3 4 5 / 6.
+        func windowRowMove(from index: Int, down: Bool) -> Int? {
+            SwitcherSupport.iconRowSelectionIndex(after: index, items: wrappedApps, windowRow: true,
+                                                  columns: 3, movingDown: down)
+        }
+        suite.expect(windowRowMove(from: 1, down: true) == 4
+               && windowRowMove(from: 4, down: false) == 1
+               && windowRowMove(from: 5, down: true) == 6,
+               "App Switcher ↑/↓ on a wrapped window row steps whole rows, onto a shorter last row too")
+        suite.expect(windowRowMove(from: 2, down: false) == nil
+               && windowRowMove(from: 6, down: true) == nil,
+               "App Switcher ↑/↓ keeps the selection at the edges of a wrapped window row")
+        // The reverse shortcut opens on the last item, below the rows a short
+        // screen shows. The panel reveals it when it appears, so the tile it
+        // scrolls to must be that last item, not the top of the list.
+        let reverseStart = SwitcherSupport.initialSelectionPosition(pids: wrappedApps.map(\.pid),
+                                                                    hasForegroundEntry: true,
+                                                                    frontmostPID: 101,
+                                                                    reversed: true)
+        let shortScreenRows = SwitcherIconRowLayout.compute(appCount: wrappedApps.count, selectedWindowCount: 1,
+                                                            screenVisibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 520),
+                                                            tileWidth: SwitcherIconRowLayout.windowTileWidth,
+                                                            maxColumns: 2)
+        suite.expect(reverseStart == wrappedApps.count - 1
+               && shortScreenRows.visibleRows < shortScreenRows.rows
+               && reverseStart / shortScreenRows.columns >= shortScreenRows.visibleRows,
+               "App Switcher reverse start lands on a wrapped row below the visible ones")
+        suite.expect(SwitcherSupport.iconRowScrollID(items: wrappedApps, selectedIndex: reverseStart,
+                                                     windowRow: true) == AnyHashable(wrappedApps[6].id)
+               && SwitcherSupport.iconRowScrollID(items: wrappedApps, selectedIndex: reverseStart,
+                                                  windowRow: false) == AnyHashable(pid_t(505))
+               && SwitcherSupport.iconRowScrollID(items: wrappedApps, selectedIndex: 99,
+                                                  windowRow: true) == nil,
+               "App Switcher reveals the reverse-start tile on open, in window and app rows")
+        // A search can keep the selected index while the item under it moves
+        // to another row; the rows follow the tile's identity, which changes.
+        let searched = Array(wrappedApps.dropFirst(3))
+        suite.expect(SwitcherSupport.iconRowScrollID(items: wrappedApps, selectedIndex: 3, windowRow: false)
+               != SwitcherSupport.iconRowScrollID(items: searched, selectedIndex: 3, windowRow: false),
+               "App Switcher reveals the new tile when a search keeps the selected index")
+        // Displays of different widths: the cap holds where it fits and yields
+        // where it does not, so the panel never outgrows the narrower screen.
+        let laptop = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let wideDisplay = CGRect(x: 0, y: 0, width: 3440, height: 1440)
+        let laptopIcons = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
+                                                        screenVisibleFrame: laptop, maxColumns: 8)
+        let wideIcons = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
+                                                      screenVisibleFrame: wideDisplay, maxColumns: 8)
+        suite.expect(laptopIcons.columns == 8 && wideIcons.columns == 8
+               && laptopIcons.panelSize.width <= laptop.width
+               && laptopIcons.panelSize.height <= laptop.height,
+               "App Switcher icon rows keep a cap of eight on a 1440 point display and stay inside it")
+        let windowIcons = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
+                                                        screenVisibleFrame: CGRect(x: 0, y: 0, width: 600, height: 900),
+                                                        tileWidth: SwitcherIconRowLayout.windowTileWidth,
+                                                        maxColumns: 8)
+        suite.expect(windowIcons.isWrapped && windowIcons.columns < 8
+               && windowIcons.panelSize.width <= 600,
+               "App Switcher icon rows drop below the cap when the display cannot fit it")
+        suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 20, fitByWidth: 4, userMax: 8) == 4
+               && SwitcherSupport.wrappingColumnCount(itemCount: 20, fitByWidth: 11, userMax: 8) == 8,
+               "App Switcher grid cap yields to the four cards a 1440 point display fits and holds on a wider one")
         suite.expect(SwitcherSupport.gridSelectionIndex(after: 1,
                                                    itemCount: 8,
                                                    columns: 5,
@@ -3602,6 +3945,23 @@ enum SwitcherModelFeatureTests {
         suite.expect(!PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.windowPreviewExcludedApps)
                 && PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps),
                "an app on the switcher's list pauses only switcher captures")
+        let javaRuntime = "/Users/tester/Library/Application Support/minecraft/runtime/java-runtime-delta/bin/java"
+        previewDefaults.lists[DefaultsKey.switcherPreviewExcludedApps] = ["com.example.game", javaRuntime]
+        PreviewProvider.NSWorkspace.shared.frontmostApplication = .init(
+            bundleIdentifier: nil, executableURL: URL(fileURLWithPath: javaRuntime))
+        suite.expect(PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps)
+                && !PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.windowPreviewExcludedApps),
+               "a game's Java runtime on the switcher's list pauses switcher captures while it is in front")
+        // A game on LWJGL 2 (Minecraft 1.12.2 and older) starts AWT, which
+        // registers the JVM under the bundle identifier of Java's launcher.
+        let legacyRuntime = "/Users/tester/Library/Application Support/minecraft/runtime/jre-legacy/bin/java"
+        previewDefaults.lists[DefaultsKey.switcherPreviewExcludedApps] = ["com.example.game", legacyRuntime]
+        PreviewProvider.NSWorkspace.shared.frontmostApplication = .init(
+            bundleIdentifier: "net.java.openjdk.cmd", executableURL: URL(fileURLWithPath: legacyRuntime))
+        suite.expect(PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps)
+                && !PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.windowPreviewExcludedApps),
+               "a legacy game's Java runtime on the switcher's list pauses switcher captures while it is in front, "
+                   + "though AWT registered it under Java's bundle identifier")
         let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault,
                                                                  windowShortcut: .switcherWindowDefault)
         // Grave and J print the cap the active keyboard layout carries, not the
@@ -4225,6 +4585,9 @@ enum SwitcherModelFeatureTests {
         suite.expect(WindowServerSupport.frame(ofWindowID: 99, in: scannedNeighbours) == nil
                 && WindowServerSupport.frame(ofWindowID: 11, in: []) == nil,
                "a window the window server no longer lists reports no rectangle")
+        suite.expect(WindowServerSupport.ownerProcessID(ofWindowID: 12, in: scannedNeighbours) == 1002
+                && WindowServerSupport.ownerProcessID(ofWindowID: 99, in: scannedNeighbours) == nil,
+               "a window's owner is found by its own identifier, and a window no longer listed has none")
         suite.expect(WindowServerSupport.windowCandidate(in: scannedNeighbours, at: scannedEdgePoint,
                                                    ownProcessID: 501,
                                                    pidIsEligible: { _ in true })?.pid == 1001,
@@ -4534,6 +4897,16 @@ enum SwitcherModelFeatureTests {
         suite.expect(QuickToolsSupport.openableURL(from: "example.com") == nil,
                "a bare host with no scheme is not opened")
 
+        for fallback in ["", " \n", "https://example.com/a.png", "data:image/png;base64,AAAA",
+                         "blob:https://example.com/1", "IMG_1234.HEIC", "photo.jpeg", "clip.mp4", "scan.pdf"] {
+            suite.expect(QuickToolsSupport.isMediaTextFallback(fallback),
+                         "'\(fallback)' is the text a lone picture or clip carries")
+        }
+        for text in ["Total", "Total:", "1.2.3", "3.14", "e.g.", "Item\tQty\nA\t1", "see https://example.com",
+                     "two words", "U.S.", "example.com", "2.4GHz", "12.5kg", "config.yaml", "john@example.com"] {
+            suite.expect(!QuickToolsSupport.isMediaTextFallback(text),
+                         "'\(text)' is copied text that still pastes plain")
+        }
         // Paste plain delegates only to the universal ⌥⇧⌘V equivalent
         // (shift = 1, option = 2 in the AX modifier mask); anything else in
         // an app's menus is some other edit command and must not be pressed.
@@ -4610,6 +4983,31 @@ enum SwitcherModelFeatureTests {
                                                                       (pid_t(2048), "other")])
         suite.expect(repeatedProcessValues == [1678: "first", 2048: "other"],
                "window enumeration keeps the first value when the system repeats a process")
+        struct UsableApp: Equatable { let pid: pid_t; let isRegular: Bool }
+        func usable(_ apps: [UsableApp], owners: [pid_t],
+                    known: [pid_t: UsableApp] = [:]) -> [UsableApp] {
+            SwitcherSupport.usableApps(apps, windowOwnerPIDs: owners,
+                                       pid: \.pid, isRegular: \.isRegular,
+                                       resolve: { known[$0] })
+        }
+        let deviceHub = UsableApp(pid: 2836, isRegular: true)
+        suite.expect(usable([UsableApp(pid: -1, isRegular: true), UsableApp(pid: 0, isRegular: true)],
+                            owners: []).isEmpty,
+               "switcher apps drop workspace entries with a non-positive process id")
+        suite.expect(usable([UsableApp(pid: -1, isRegular: true)], owners: [2836, 2836],
+                            known: [2836: deviceHub]) == [deviceHub],
+               "switcher apps resolve a window owner missing from the workspace list once")
+        suite.expect(usable([], owners: [4000]).isEmpty,
+               "switcher apps ignore a window owner that cannot be resolved")
+        suite.expect(usable([], owners: [4001], known: [4001: UsableApp(pid: 4001, isRegular: false)]).isEmpty,
+               "switcher apps keep non-regular helper owners excluded")
+        suite.expect(usable([], owners: [-1, 0, 2836], known: [-1: UsableApp(pid: -1, isRegular: true),
+                                                                0: UsableApp(pid: 0, isRegular: true),
+                                                                2836: UsableApp(pid: 5000, isRegular: true)]).isEmpty,
+               "switcher apps never resolve a non-positive owner or an app answering for another pid")
+        suite.expect(usable([deviceHub], owners: [2836], known: [2836: UsableApp(pid: 2836, isRegular: false)])
+                       == [deviceHub],
+               "switcher apps do not resolve an owner the workspace list already holds")
         let groupedSwitcherItems = [
             SwitcherItem.window(id: 1, title: "One", appName: "Alpha", pid: 101,
                                 isOnScreen: true, frame: .zero),
@@ -4624,6 +5022,56 @@ enum SwitcherModelFeatureTests {
                && appGroups[0].windowCount == 2
                && appGroups[1].representativeIndex == 2,
                "App Switcher icon-row mode keeps one row entry per app")
+        // Current-desktop mode still lists fullscreen windows from other
+        // desktops. The icon row must keep picking an app's window here.
+        let fullscreenElsewhere = SwitcherItem.window(id: 5, title: "Video", appName: "Alpha", pid: 101,
+                                                      isOnScreen: false, isFullscreen: true, frame: .zero)
+            .withHiddenSpaceState(true)
+        let currentDesktopItems = [groupedSwitcherItems[2], fullscreenElsewhere, groupedSwitcherItems[0]]
+        let currentDesktopGroups = SwitcherSupport.appGroups(items: currentDesktopItems, currentSpaceOnly: true)
+        suite.expect(currentDesktopGroups.map(\.pid) == [202, 101]
+               && currentDesktopGroups.map(\.representativeIndex) == [0, 2]
+               && currentDesktopGroups[1].windowCount == 2,
+               "current-desktop icon row picks the app's window here over its fullscreen window on another desktop")
+        suite.expect(SwitcherSupport.nextAppSelectionIndex(items: currentDesktopItems, selectedIndex: 0, delta: 1,
+                                                           currentSpaceOnly: true) == 2,
+               "current-desktop app stepping lands on the app's window here")
+        suite.expect(SwitcherSupport.appGroups(items: currentDesktopItems).map(\.representativeIndex) == [0, 1],
+               "all-desktop icon row keeps the app's most recent window as its entry")
+        suite.expect(SwitcherSupport.appGroups(items: [groupedSwitcherItems[2], fullscreenElsewhere],
+                                               currentSpaceOnly: true).map(\.representativeIndex) == [0, 1],
+               "a fullscreen window on another desktop still stands in for an app with no window here")
+        // Beta used its fullscreen window on another desktop last, so it
+        // comes first among Beta's items; a row below Alpha reaches Beta.
+        let wrappedCurrentDesktop = [
+            groupedSwitcherItems[0],
+            SwitcherItem.window(id: 6, title: "Notes", appName: "Gamma", pid: 303,
+                                isOnScreen: true, frame: .zero),
+            SwitcherItem.window(id: 7, title: "Movie", appName: "Beta", pid: 202,
+                                isOnScreen: false, isFullscreen: true, frame: .zero)
+                .withHiddenSpaceState(true),
+            groupedSwitcherItems[2],
+        ]
+        suite.expect(SwitcherSupport.iconRowSelectionIndex(after: 0, items: wrappedCurrentDesktop, windowRow: false,
+                                                           columns: 2, movingDown: true,
+                                                           currentSpaceOnly: true) == 3
+               && SwitcherSupport.iconRowSelectionIndex(after: 0, items: wrappedCurrentDesktop, windowRow: false,
+                                                        columns: 2, movingDown: true) == 2,
+               "a row step in current-desktop mode lands on the app's window here, not its fullscreen window elsewhere")
+        let iconRepresentativeReaders = [
+            sourceBody(of: switcherSource, from: "private func initialSelectionIndex(",
+                       to: "private func focusedWindowID("),
+            sourceBody(of: switcherSource, from: "private func advanceAppSelection(",
+                       to: "private func advanceWindowInSelectedApp("),
+            sourceBody(of: switcherSource, from: "private func selectionIndex(forIconRowIndex",
+                       to: "private func revealSelectedIconInVisibleRow("),
+            sourceBody(of: switcherSource, from: "private func moveIconRowSelection(",
+                       to: "func commitSession("),
+            sourceBody(of: switcherCardSource, from: "private var appGroups: [SwitcherAppGroup] {",
+                       to: "private var iconRowContentWidth"),
+        ]
+        suite.expect(iconRepresentativeReaders.allSatisfy { $0.contains("currentSpaceOnly: currentSpaceOnly") },
+               "the icon row's first selection, app steps, icon clicks and edge hover share the current-desktop entry")
         let windowlessApps = [SwitcherItem.appOnly(appName: "Gamma", pid: 303),
                               SwitcherItem.appOnly(appName: "Delta", pid: 404)]
         let dividerViewSource = switcherCardSource
@@ -5477,6 +5925,11 @@ enum SwitcherModelFeatureTests {
         suite.expect(activateBody.contains("sourcePID: sourcePID, retrySourcePID: retrySourcePID,")
                && activateBody.contains("sourcePID: retrySourcePID, state: retryState,"),
                "focus retry guards use the handoff source while staging keeps the session source")
+        // Issue #1503: unhiding an app that is not hidden raises every one of
+        // its windows, so the only unhide on the way to a window is guarded.
+        suite.expect(activateBody.components(separatedBy: ".unhide()").count == 2
+               && activateBody.contains("if app.isHidden { app.unhide() }"),
+               "activating a selection unhides its app only when the app is hidden")
         suite.expect(activatorCode.contains("activate(item, retry: retry, handoffSourcePID: handoffSourcePID)"),
                "activation by pid forwards its source only as a handoff")
         let dockPreviewActivationCode = ((try? String(
@@ -5795,21 +6248,52 @@ enum SwitcherModelFeatureTests {
             LiveSystemShortcut(id: 220, shortcut: GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave), modifiers: [.command, .shift]), enabled: true),
         ]
         suite.expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: true,
+                                               secureInputEnabled: false,
                                                appsShortcut: .switcherDefault,
                                                windowShortcut: .switcherWindowDefault,
                                                liveEntries: liveSwitcherEntries) == [1, 2, 27, 220],
                "the switcher asks the shared take-over for exactly its four ids, never the screenshot key")
         suite.expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: false,
+                                               secureInputEnabled: false,
                                                appsShortcut: .switcherDefault,
                                                windowShortcut: .switcherWindowDefault,
                                                liveEntries: liveSwitcherEntries).isEmpty,
                "without opt-in the switcher asks for nothing")
         suite.expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: true,
+                                               secureInputEnabled: false,
                                                appsShortcut: .switcherDefault,
                                                windowShortcut: .switcherWindowDefault,
                                                liveEntries: liveSwitcherEntries.filter { $0.id != 220 })
                == [1, 2, 27],
                "an id missing from the live table is never asked for")
+        suite.expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: true,
+                                               secureInputEnabled: true,
+                                               appsShortcut: .switcherDefault,
+                                               windowShortcut: .switcherWindowDefault,
+                                               liveEntries: liveSwitcherEntries).isEmpty,
+               "while Secure Event Input hides every key from the tap, ⌘Tab and ⌘` stay with macOS")
+        // That rule reaches macOS only through the switcher's two callers of
+        // the shared take-over, and stays right only while a watch tells the
+        // switcher about each change for exactly as long as it takes keys over.
+        let secureInputSwitcher = switcherSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        suite.expect(secureInputSwitcher.components(
+                         separatedBy: "secureInputEnabled: IsSecureEventInputEnabled()").count == 3,
+               "the live take-over and launch recovery both pass the secure input flag")
+        let secureInputChange = sourceBody(of: secureInputSwitcher,
+                                           from: "private func secureInputChanged(_ enabled: Bool) {",
+                                           to: "\n    private func ")
+        suite.expect(secureInputChange.contains("applyNativeHotkeySuppressionIfTapLive()")
+               && secureInputChange.contains("cancelSession()")
+               && secureInputChange.contains("restoreNativeHotkeys()"),
+               "secure input turning on gives the keys back and drops an open session, and turning off takes them again")
+        let secureInputSuspend = sourceBody(of: secureInputSwitcher, from: "func suspend() {",
+                                            to: "\n    }")
+        suite.expect(secureInputSuspend.contains("secureInputWatch.stop()")
+               && secureInputSwitcher.components(separatedBy: "secureInputWatch.stop()").count == 4
+               && secureInputSwitcher.components(separatedBy: "secureInputWatch.start()").count == 2,
+               "the secure input watch runs only while the switcher takes macOS's keys over")
 
         // The shared take-over works on raw WindowServer ids. Same transition
         // rule as the switcher had: suppress only what is enabled now, restore
@@ -6358,7 +6842,7 @@ extension SwitcherModelFeatureTests {
             func stringArray(forKey key: String) -> [String]? { lists[key] }
         }
         final class NSWorkspace {
-            struct App { let bundleIdentifier: String? }
+            struct App { let bundleIdentifier: String?; var executableURL: URL? = nil }
             static let shared = NSWorkspace()
             var frontmostApplication: App?
         }

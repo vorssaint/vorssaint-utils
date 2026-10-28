@@ -20,6 +20,7 @@ enum NotchAgentTests {
         codexParsing(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
+        HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
@@ -28,12 +29,17 @@ enum NotchAgentTests {
         liveTurns(suite)
         reading(suite)
         AgentUsageReadTests.run(suite)
+        AgentUsagePollingTests.run(suite)
         AgentUsageArchiveTests.run(suite)
         AgentUsageArchiveSettleTests.run(suite)
         AgentUsageArchiveSaveTests.run(suite)
         claudeApp(suite)
         AgentCodexResetTests.run(suite)
+        AgentClaudeServerTests.run(suite)
+        CodexAccountLimitsTests.run(suite)
         preferences(suite)
+        limitUse(suite)
+        agentDefaults(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
         NotchAgentAnimationTests.run { suite.expect($0, $1) }
@@ -71,6 +77,22 @@ enum NotchAgentTests {
         suite.expectClose(opus.cost ?? -1, 0.132, "Opus 5.5 bills input, both cache writes, cache reads and output",
                           tol: 0.000001)
         suite.expectClose(opus.savings, 100_000 * (4 - 0.2) / 1_000_000, "cache reads save the input price they avoid")
+        // Sonnet 5.5 cache reads cost $0.10/MTok: https://platform.claude.com/docs/en/models/sonnet-5-5/overview
+        let sonnet = AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 1000, cacheRead: 100_000, output: 2000)),
+                                      model: "claude-sonnet-5-5")
+        suite.expectClose(sonnet.cost ?? -1, 0.032, "Sonnet 5.5 bills cache reads at five percent of input")
+        suite.expectClose(sonnet.savings, 0.19, "Sonnet 5.5 cache savings use its reduced read rate")
+        // Haiku 5.5 counts every prompt token and charges 5x past 100K: https://platform.claude.com/docs/en/about-claude/pricing
+        var haiku = AgentBillable(tokens: AgentTokens(input: 1000, cacheWrite: 4000, cacheRead: 95_000, output: 2000))
+        haiku.longCacheWrite = 3000
+        suite.expectClose(AgentPricing.cost(haiku, model: "anthropic.claude-haiku-5-5").cost ?? -1,
+                          0.002775, "Haiku 5.5 keeps base rates at exactly 100K prompt tokens", tol: 0.00000001)
+        haiku.tokens.input += 1
+        suite.expectClose(AgentPricing.cost(haiku, model: "claude-haiku-5-5").cost ?? -1,
+                          0.0138755, "Haiku 5.5 charges five times every token rate above 100K", tol: 0.00000001)
+        haiku.isAggregate = true
+        suite.expectClose(AgentPricing.cost(haiku, model: "claude-haiku-5-5").cost ?? -1,
+                          0.0027751, "Haiku 5.5 session totals do not imply a long individual prompt", tol: 0.00000001)
         suite.expect(AgentPricing.price(for: "claude-opus-5-5")?.input == 4
                         && AgentPricing.price(for: "claude-opus-5.5")?.input == 4
                         && AgentPricing.price(for: "claude-opus-5")?.input == 5,
@@ -156,6 +178,9 @@ enum NotchAgentTests {
                         // Pro has multiple monthly prices: https://learn.chatgpt.com/docs/pricing
                         && AgentPlans.codex(planType: "pro") == AgentPlan(name: "Pro", monthlyPrice: nil)
                         && AgentPlans.codex(planType: "business") == AgentPlan(name: "Business", monthlyPrice: nil)
+                        // Free and Go monthly prices: https://learn.chatgpt.com/docs/pricing
+                        && AgentPlans.codex(planType: "free") == AgentPlan(name: "Free", monthlyPrice: 0)
+                        && AgentPlans.codex(planType: "go") == AgentPlan(name: "Go", monthlyPrice: 8)
                         && AgentPlans.claude(organizationType: "claude_ultra", rateLimitTier: "default_claude_ultra")
                         == AgentPlan(name: "Ultra", monthlyPrice: nil),
                      "plans are recognized, and an unknown one keeps its name without a price")
@@ -762,6 +787,32 @@ enum NotchAgentTests {
         }
         suite.expect(linesRead.isEmpty, "incremental read ignores subsequent updates to user message metadata")
 
+        // OpenCode 2 stores sessions and messages in versioned tables and
+        // keeps the message type outside its JSON data.
+        let v2Path = tmpDir.appending(path: "opencode-v2.db").path
+        var v2: OpaquePointer?
+        guard sqlite3_open(v2Path, &v2) == SQLITE_OK, let v2 else {
+            suite.expect(false, "temporary OpenCode 2 database opens")
+            return
+        }
+        sqlite3_exec(v2, """
+        CREATE TABLE session_v2 (id TEXT PRIMARY KEY, directory TEXT, parent_id TEXT, time_created INTEGER, time_updated INTEGER);
+        CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT, type TEXT, time_created INTEGER, time_updated INTEGER, data TEXT);
+        INSERT INTO session_v2 VALUES ('s_v2', '/Users/me/code/v2', NULL, 1790088000000, 1790088020000);
+        INSERT INTO session_message VALUES ('m_v2', 's_v2', 'assistant', 1790088005000, 1790088005000,
+          '{"model":{"id":"provider/model","providerID":"provider"},"cost":0.01,"tokens":{"input":8,"output":3,"reasoning":2,"cache":{"read":4,"write":1}},"time":{"created":1790088005000,"completed":1790088006000}}');
+        """, nil, nil, nil)
+        sqlite3_close(v2)
+        let v2Cursor = AgentLogCursor(path: v2Path, provider: .opencode)
+        var v2Lines: [String] = []
+        AgentOpenCodeReader.readAppended(v2Cursor) { v2Lines.append(String(decoding: $0, as: UTF8.self)) }
+        let v2Payload = v2Lines.first.flatMap { $0.data(using: .utf8) } ?? Data()
+        var v2State = AgentLogState()
+        let v2Entries = AgentLogParser.parseOpenCode(v2Payload, state: &v2State, now: now)
+        suite.expect(v2Lines.count == 1 && v2Payload.contains(Data(#""role":"assistant""#.utf8))
+                        && v2Entries.contains { if case .usage = $0 { return true }; return false },
+                     "OpenCode 2 tables provide assistant usage to the existing parser")
+
         // Cancellation check
         linesRead.removeAll()
         AgentOpenCodeReader.readAppended(cursor, shouldContinue: { false }) { data in
@@ -923,6 +974,11 @@ enum NotchAgentTests {
         openCodeOpenReplies(suite)
         openCodeStoppedLoops(suite, now: now)
         openCodeQuietSessions(suite, now: now)
+        openCodeTwo(suite, now: now)
+        openCodeTwoUpgrade(suite, now: now)
+        openCodeTwoHistory(suite)
+        openCodeTwoCutStep(suite, now: now)
+        openCodeTwoSlowStep(suite, now: now)
     }
 
     private static func openCodeReasoningTokens(_ suite: TestSuite, now: Date) {
@@ -1358,7 +1414,8 @@ enum NotchAgentTests {
 
     // MARK: OpenCode database helpers
 
-    /// A database laid out like OpenCode's, in a folder of its own.
+    /// A database laid out like OpenCode's, in a folder of its own. OpenCode
+    /// 1.15 and later also keep a session_message table of their own.
     static func openCodeDatabase(_ sql: String) -> (folder: URL, path: String)? {
         let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -1367,6 +1424,7 @@ enum NotchAgentTests {
         CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT, parent_id TEXT, time_created INTEGER, time_updated INTEGER);
         CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT);
         CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT);
+        CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT, type TEXT, time_created INTEGER, time_updated INTEGER, data TEXT, seq INTEGER);
         \(sql)
         """) else { return nil }
         return (folder, path)
@@ -1378,6 +1436,308 @@ enum NotchAgentTests {
         guard sqlite3_open(path, &db) == SQLITE_OK else { return false }
         defer { sqlite3_close(db) }
         return sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK
+    }
+
+    /// OpenCode 2's own tables, column for column as OpenCode 2.0.27 creates
+    /// them. A fresh install has only these.
+    static let openCodeTwoTables = """
+    CREATE TABLE session_v2 (id text PRIMARY KEY, project_id text NOT NULL, workspace_id text, parent_id text,
+      fork_session_id text, fork_boundary text, slug text NOT NULL, directory text NOT NULL, path text, title text,
+      version text NOT NULL, share_url text, summary_additions integer, summary_deletions integer,
+      summary_files integer, summary_diffs text, metadata text, cost real DEFAULT 0 NOT NULL,
+      tokens_input integer DEFAULT 0 NOT NULL, tokens_output integer DEFAULT 0 NOT NULL,
+      tokens_reasoning integer DEFAULT 0 NOT NULL, tokens_cache_read integer DEFAULT 0 NOT NULL,
+      tokens_cache_write integer DEFAULT 0 NOT NULL, revert text, permission text, agent text, model text,
+      time_created integer NOT NULL, time_updated integer NOT NULL, time_idle integer, time_viewed integer,
+      idle_outcome text, time_compacting integer, time_archived integer, time_suspended integer,
+      resume_attempts integer DEFAULT 0 NOT NULL);
+    CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL, type text NOT NULL,
+      seq integer NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL);
+    CREATE UNIQUE INDEX session_message_session_seq_idx ON session_message (session_id, seq);
+    CREATE INDEX session_message_session_type_seq_idx ON session_message (session_id, type, seq);
+    CREATE INDEX session_message_session_time_created_id_idx ON session_message (session_id, time_created, id);
+    CREATE INDEX session_message_time_created_idx ON session_message (time_created);
+
+    """
+
+    /// OpenCode 1's tables, which OpenCode 2 keeps beside its own when it
+    /// upgrades a database.
+    static let openCodeOneTables = """
+    CREATE TABLE session (id text PRIMARY KEY, project_id text NOT NULL, parent_id text, slug text NOT NULL,
+      directory text NOT NULL, title text NOT NULL, version text NOT NULL, share_url text, summary_additions integer,
+      summary_deletions integer, summary_files integer, summary_diffs text, revert text, permission text,
+      time_created integer NOT NULL, time_updated integer NOT NULL, time_compacting integer, time_archived integer);
+    CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL,
+      time_updated integer NOT NULL, data text NOT NULL);
+    CREATE TABLE part (id text PRIMARY KEY, message_id text NOT NULL, session_id text NOT NULL,
+      time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL);
+    CREATE INDEX message_session_idx ON message (session_id);
+    CREATE INDEX part_message_idx ON part (message_id);
+
+    """
+
+    /// An OpenCode 2 task read as it is written, on a fresh install and on a
+    /// database upgraded from OpenCode 1: a step cut off at its length in the
+    /// middle of a tool call, which OpenCode goes on from, an automatic
+    /// compaction that outlasts the settle wait, a last step that only used a
+    /// search the provider ran, and the row that marks the end of the turn.
+    private static func openCodeTwo(_ suite: TestSuite, now: Date) {
+        func at(_ seconds: TimeInterval) -> Date { Date(timeIntervalSince1970: seconds) }
+        let model = #""model":{"id":"ox-alpha","providerID":"stealth","variant":"default"}"#
+        for upgraded in [false, true] {
+            let layout = upgraded ? "an upgraded database" : "a fresh install"
+            let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode2-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let path = folder.appending(path: "opencode.db").path
+            guard openCodeExec(path, (upgraded ? openCodeOneTables : "") + openCodeTwoTables + """
+            INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated)
+              VALUES ('ses_two', 'global', 'two', '/Users/me/code/two', '2.0.27', 1790090000000, 1790090000000);
+            INSERT INTO session_message VALUES ('msg_u', 'ses_two', 'user', 0, 1790090000000, 1790090000000,
+              '{"text":"secret prompt","time":{"created":1790090000000}}');
+            INSERT INTO session_message VALUES ('msg_a1', 'ses_two', 'assistant', 1, 1790090001000, 1790090009000,
+              '{"agent":"build",\(model),"content":[{"type":"text","text":"secret reply"},{"type":"tool","id":"c1","name":"write","executed":false,"state":{"status":"error","input":{},"error":{"type":"tool.input-incomplete","message":"secret"}},"time":{"created":1790090002000}}],"finish":"length","cost":0.25,"tokens":{"input":100,"output":20,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790090001000,"completed":1790090009000}}');
+            INSERT INTO session_message VALUES ('msg_c', 'ses_two', 'compaction', 2, 1790090010000, 1790090010000,
+              '{"reason":"auto","status":"running","summary":"","recent":"secret recent","time":{"created":1790090010000}}');
+            """) else {
+                suite.expect(false, "an OpenCode 2 database opens as \(layout)")
+                return
+            }
+            let cursor = AgentLogCursor(path: path, provider: .opencode)
+            let store = AgentUsageStore()
+            store.reportsTransitions = true
+            var events: [AgentUsageEvent] = []
+            var payloads: [String] = []
+            func read(at seconds: TimeInterval) {
+                AgentOpenCodeReader.readAppended(cursor) { data in
+                    payloads.append(String(decoding: data, as: UTF8.self))
+                    let entries = AgentLogParser.parseOpenCode(data, state: &cursor.state, now: at(seconds))
+                    events += store.apply(entries, file: "\(path)#\(cursor.state.session)", provider: .opencode,
+                                          tracksTurns: true, modified: now, now: at(seconds))
+                }
+            }
+            read(at: 1_790_090_011)
+            suite.expect(store.live.count == 1 && events.isEmpty,
+                         "on \(layout), a step cut off in the middle of a tool call keeps its turn going")
+            suite.expect(!store.closeSettledTurns(now: at(1_790_090_050)) && store.live.count == 1,
+                         "on \(layout), a compaction still running keeps its turn")
+            guard openCodeExec(path, """
+            UPDATE session_message SET time_updated = 1790090050000,
+              data = '{"reason":"auto","status":"completed","summary":"secret summary","recent":"secret recent",\(model),"cost":0.5,"tokens":{"input":1000,"output":100,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790090010000}}'
+              WHERE id = 'msg_c';
+            INSERT INTO session_message VALUES ('msg_a2', 'ses_two', 'assistant', 3, 1790090051000, 1790090060000,
+              '{"agent":"build",\(model),"content":[{"type":"tool","id":"ws","name":"websearch","executed":true,"state":{"status":"completed","input":{},"content":[{"type":"text","text":"secret result"}]},"time":{"created":1790090052000}},{"type":"text","text":"secret answer"}],"finish":"stop","cost":0.125,"tokens":{"input":200,"output":40,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790090051000,"completed":1790090060000}}');
+            INSERT INTO session_message VALUES ('msg_i', 'ses_two', 'idle', 4, 1790090060001, 1790090060001,
+              '{"outcome":"succeeded","time":{"created":1790090060001}}');
+            """) else {
+                suite.expect(false, "an OpenCode 2 database takes new rows as \(layout)")
+                return
+            }
+            read(at: 1_790_090_061)
+            suite.expect(store.records.filter { $0.provider == .opencode }.count == 3
+                            && events == [.finished(provider: .opencode, duration: 60, cost: 0.875, tokens: 1460,
+                                                    project: "two")],
+                         "on \(layout), the compaction's cost counts and the task finishes once, after its last step")
+            suite.expect(!payloads.contains { $0.contains("secret") },
+                         "on \(layout), no prompt, reply, tool output or summary leaves the database")
+        }
+
+        // A turn its last step leaves waiting ends where OpenCode 2 says it did.
+        var waiting = AgentLogState()
+        _ = AgentLogParser.parseOpenCode(line(#"{"id":"u1","session_id":"s_w","time_created":1790091000000,"role":"user","time":{"created":1790091000000}}"#), state: &waiting, now: now)
+        _ = AgentLogParser.parseOpenCode(line(#"{"id":"a1","session_id":"s_w","time_created":1790091001000,"role":"assistant","tokens":{"input":5},"finish":"tool-calls","time":{"created":1790091001000,"completed":1790091005000}}"#), state: &waiting, now: now)
+        let interrupted = AgentLogParser.parseOpenCode(line(#"{"id":"i1","session_id":"s_w","time_created":1790091006000,"role":"idle","outcome":"interrupted","time":{"created":1790091006000}}"#), state: &waiting, now: now)
+        suite.expect(interrupted == [.turnEnded(at(1_790_091_006), completed: false, duration: 6)],
+                     "an idle row ends the turn, finished only when it succeeded")
+    }
+
+    /// OpenCode 1 rows read before the upgrade, then OpenCode 2's copies of
+    /// them under new rowids after a session it imported first.
+    private static func openCodeTwoUpgrade(_ suite: TestSuite, now: Date) {
+        guard let (folder, path) = openCodeDatabase("""
+        INSERT INTO session VALUES ('ses_old', '/Users/me/code/one', NULL, 1790090000000, 1790090000000);
+        INSERT INTO message VALUES ('msg_1', 'ses_old', 1790090000000, 1790090000000, '{"role":"user","time":{"created":1790090000000}}');
+        INSERT INTO message VALUES ('msg_2', 'ses_old', 1790090001000, 1790090009000, '{"role":"assistant","parentID":"msg_1","modelID":"ox-alpha","cost":0.25,"tokens":{"input":100,"output":20,"reasoning":0,"cache":{"read":0,"write":0}},"finish":"stop","time":{"created":1790090001000,"completed":1790090009000}}');
+        """) else {
+            suite.expect(false, "an OpenCode 1 database opens before its upgrade")
+            return
+        }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let cursor = AgentLogCursor(path: path, provider: .opencode)
+        let store = AgentUsageStore()
+        var payloads: [String] = []
+        func read() {
+            AgentOpenCodeReader.readAppended(cursor) { data in
+                payloads.append(String(decoding: data, as: UTF8.self))
+                let entries = AgentLogParser.parseOpenCode(data, state: &cursor.state, now: now)
+                _ = store.apply(entries, file: "\(path)#\(cursor.state.session)", provider: .opencode,
+                                tracksTurns: true, modified: now, now: now)
+            }
+        }
+        read()
+        suite.expect(store.records.filter { $0.provider == .opencode }.count == 1,
+                     "OpenCode 1 is read beside the session_message table it keeps since 1.15")
+        let model = #""model":{"id":"ox-alpha","providerID":"stealth","variant":"default"}"#
+        // OpenCode 2 replaces OpenCode 1's session_message with its own.
+        guard openCodeExec(path, "DROP TABLE session_message;\n" + openCodeTwoTables + """
+        INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated) VALUES
+          ('ses_next', 'global', 'next', '/Users/me/code/two', '2.0.27', 1790089000000, 1790089000000),
+          ('ses_old', 'global', 'old', '/Users/me/code/one', '1.18.35', 1790090000000, 1790090000000);
+        INSERT INTO session_message VALUES ('msg_0', 'ses_next', 'user', 0, 1790089000000, 1790089000000,
+          '{"text":"","time":{"created":1790089000000}}');
+        INSERT INTO session_message VALUES ('msg_1', 'ses_old', 'user', 0, 1790090000000, 1790090000000,
+          '{"text":"","time":{"created":1790090000000}}');
+        INSERT INTO session_message VALUES ('msg_2', 'ses_old', 'assistant', 1, 1790090001000, 1790090009000,
+          '{"agent":"build",\(model),"content":[],"finish":"stop","cost":0.25,"tokens":{"input":100,"output":20,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790090001000,"completed":1790090009000}}');
+        INSERT INTO session_message VALUES ('msg_3', 'ses_old', 'assistant', 2, 1790090100000, 1790090110000,
+          '{"agent":"build",\(model),"content":[],"finish":"stop","cost":0.5,"tokens":{"input":10,"output":2,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790090100000,"completed":1790090110000}}');
+        """) else {
+            suite.expect(false, "OpenCode 2 upgrades the database")
+            return
+        }
+        payloads.removeAll()
+        read()
+        let replies = store.records.filter { $0.provider == .opencode }
+        suite.expect(payloads.first == #"{"type":"reset"}"# && replies.count == 2
+                        && replies.compactMap(\.cost).reduce(0, +) == 0.75,
+                     "after the upgrade the copied history is read again without counting a reply twice")
+    }
+
+    /// OpenCode 2 copies an upgraded database's history session by session,
+    /// so an old session picked up again sits before sessions long ended.
+    private static func openCodeTwoHistory(_ suite: TestSuite) {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode2-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let path = folder.appending(path: "opencode.db").path
+        var sql = openCodeTwoTables + """
+        INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated)
+          VALUES ('ses_a', 'global', 'a', '/code/a', '1.18.35', 1780000000000, 1790000000000);
+        INSERT INTO session_message VALUES ('msg_a1', 'ses_a', 'user', 0, 1780000000000, 1780000000000, '{}');
+        INSERT INTO session_message VALUES ('msg_a2', 'ses_a', 'user', 1, 1790000000000, 1790000000000, '{}');
+
+        """
+        for index in 0..<8 {
+            let time = 1_781_000_000_000 + index * 60_000
+            sql += "INSERT INTO session_message VALUES ('msg_b\(index)', 'ses_a', 'user', \(index + 2), \(time), \(time), '{}');\n"
+        }
+        sql += "INSERT INTO session_message VALUES ('msg_c', 'ses_a', 'user', 10, 1790000500000, 1790000500000, '{}');"
+        guard openCodeExec(path, sql) else {
+            suite.expect(false, "a copied OpenCode 2 history opens")
+            return
+        }
+        var payloads: [String] = []
+        AgentOpenCodeReader.readAppended(AgentLogCursor(path: path, provider: .opencode),
+                                         since: Date(timeIntervalSince1970: 1_789_000_000)) {
+            payloads.append(String(decoding: $0, as: UTF8.self))
+        }
+        suite.expect(payloads.contains { $0.contains(#""id":"msg_a2""#) }
+                        && payloads.contains { $0.contains(#""id":"msg_c""#) },
+                     "a first read finds every recent row, whatever the rowid order the upgrade left")
+        suite.expect(!payloads.contains { $0.contains(#""id":"msg_b"#) },
+                     "older sessions the upgrade copied after a recent row are passed without reading their data")
+    }
+
+    /// OpenCode 2 saves a step only once the model starts to answer, so a
+    /// long prompt leaves no row for a while after the step before it.
+    private static func openCodeTwoSlowStep(_ suite: TestSuite, now: Date) {
+        func at(_ seconds: TimeInterval) -> Date { Date(timeIntervalSince1970: seconds) }
+        let model = #""model":{"id":"ox-alpha","providerID":"stealth","variant":"default"}"#
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode2-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let path = folder.appending(path: "opencode.db").path
+        guard openCodeExec(path, openCodeTwoTables + """
+        INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated)
+          VALUES ('ses_slow', 'global', 'slow', '/Users/me/code/slow', '2.0.27', 1790093000000, 1790093000000);
+        INSERT INTO session_message VALUES ('msg_u', 'ses_slow', 'user', 0, 1790093000000, 1790093000000,
+          '{"text":"","time":{"created":1790093000000}}');
+        INSERT INTO session_message VALUES ('msg_a1', 'ses_slow', 'assistant', 1, 1790093001000, 1790093005000,
+          '{"agent":"build",\(model),"content":[{"type":"tool","id":"c1","name":"read","executed":false,"state":{"status":"completed","input":{},"content":[{"type":"text","text":"x"}]},"time":{"created":1790093002000}}],"finish":"tool-calls","cost":0.25,"tokens":{"input":100,"output":20,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790093001000,"completed":1790093005000}}');
+        """) else {
+            suite.expect(false, "an OpenCode 2 database opens with a step that called a tool")
+            return
+        }
+        let cursor = AgentLogCursor(path: path, provider: .opencode)
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        var events: [AgentUsageEvent] = []
+        func read(at seconds: TimeInterval) {
+            AgentOpenCodeReader.readAppended(cursor) { data in
+                let entries = AgentLogParser.parseOpenCode(data, state: &cursor.state, now: at(seconds))
+                events += store.apply(entries, file: "\(path)#\(cursor.state.session)", provider: .opencode,
+                                      tracksTurns: true, modified: now, now: at(seconds))
+            }
+        }
+        read(at: 1_790_093_006)
+        suite.expect(!store.closeSettledTurns(now: at(1_790_093_065)) && store.live.count == 1,
+                     "a turn waiting a minute for OpenCode 2's next step keeps going")
+        guard openCodeExec(path, """
+        INSERT INTO session_message VALUES ('msg_a2', 'ses_slow', 'assistant', 2, 1790093006000, 1790093066000,
+          '{"agent":"build",\(model),"content":[],"time":{"created":1790093006000}}');
+        """) else {
+            suite.expect(false, "OpenCode 2 saves the next step once the model answers")
+            return
+        }
+        read(at: 1_790_093_066)
+        guard openCodeExec(path, """
+        UPDATE session_message SET time_updated = 1790093070000,
+          data = '{"agent":"build",\(model),"content":[],"finish":"stop","cost":0.5,"tokens":{"input":200,"output":40,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790093006000,"completed":1790093070000}}'
+          WHERE id = 'msg_a2';
+        """) else {
+            suite.expect(false, "OpenCode 2 completes the late step")
+            return
+        }
+        read(at: 1_790_093_071)
+        suite.expect(events == [.finished(provider: .opencode, duration: 70, cost: 0.75, tokens: 360, project: "slow")],
+                     "a step OpenCode 2 saves late keeps the whole task's cost and tokens")
+    }
+
+    /// OpenCode 2 completes a step it cut short only as the next one starts,
+    /// as when it resumes a task after it was killed.
+    private static func openCodeTwoCutStep(_ suite: TestSuite, now: Date) {
+        func at(_ seconds: TimeInterval) -> Date { Date(timeIntervalSince1970: seconds) }
+        let model = #""model":{"id":"ox-alpha","providerID":"stealth","variant":"default"}"#
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode2-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let path = folder.appending(path: "opencode.db").path
+        guard openCodeExec(path, openCodeTwoTables + """
+        INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated)
+          VALUES ('ses_cut', 'global', 'cut', '/Users/me/code/cut', '2.0.27', 1790092000000, 1790092000000);
+        INSERT INTO session_message VALUES ('msg_u', 'ses_cut', 'user', 0, 1790092000000, 1790092000000,
+          '{"text":"","time":{"created":1790092000000}}');
+        INSERT INTO session_message VALUES ('msg_a1', 'ses_cut', 'assistant', 1, 1790092001000, 1790092001000,
+          '{"agent":"build",\(model),"content":[],"time":{"created":1790092001000}}');
+        """) else {
+            suite.expect(false, "an OpenCode 2 database opens with a step being written")
+            return
+        }
+        let cursor = AgentLogCursor(path: path, provider: .opencode)
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        var events: [AgentUsageEvent] = []
+        func read(at seconds: TimeInterval) {
+            AgentOpenCodeReader.readAppended(cursor) { data in
+                let entries = AgentLogParser.parseOpenCode(data, state: &cursor.state, now: at(seconds))
+                events += store.apply(entries, file: "\(path)#\(cursor.state.session)", provider: .opencode,
+                                      tracksTurns: true, modified: now, now: at(seconds))
+            }
+        }
+        read(at: 1_790_092_002)
+        guard openCodeExec(path, """
+        UPDATE session_message SET time_updated = 1790092300000,
+          data = '{"agent":"build",\(model),"content":[],"time":{"created":1790092001000,"completed":1790092300000}}'
+          WHERE id = 'msg_a1';
+        INSERT INTO session_message VALUES ('msg_a2', 'ses_cut', 'assistant', 2, 1790092300000, 1790092300000,
+          '{"agent":"build",\(model),"content":[],"time":{"created":1790092300000}}');
+        """) else {
+            suite.expect(false, "OpenCode 2 starts the next step")
+            return
+        }
+        read(at: 1_790_092_301)
+        suite.expect(events.isEmpty && store.live.count == 1,
+                     "a step OpenCode 2 cut short and closed as the next one started does not finish the task")
     }
 
     private static func openCodeRead(_ cursor: AgentLogCursor, since horizon: Date = .distantPast) -> [[String: Any]] {
@@ -1993,14 +2353,21 @@ enum NotchAgentTests {
         let reading = AgentLimits(provider: .codex, windows: [window(40, resetsIn: 100, id: "a"), window(60, resetsIn: 50, id: "b")],
                                   observedAt: now, source: .sessionLog)
         suite.expect(AgentLimitSupport.binding(reading, now: now)?.id == "b", "the most spent window binds")
-        func limits(_ used: Double, resets: TimeInterval) -> AgentLimits {
-            AgentLimits(provider: .codex, windows: [window(used, resetsIn: resets)], observedAt: now, source: .sessionLog)
+        func limits(_ used: Double, resets: TimeInterval, observed: TimeInterval = 0) -> AgentLimits {
+            AgentLimits(provider: .codex, windows: [window(used, resetsIn: resets)], observedAt: now.addingTimeInterval(observed),
+                        source: .sessionLog)
         }
         suite.expect(AgentLimitSupport.crossings(previous: limits(70, resets: 100), current: limits(85, resets: 100), threshold: 80).count == 1
                         && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(90, resets: 100), threshold: 80).isEmpty
-                        && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(85, resets: 9000), threshold: 80).count == 1
+                        && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(85, resets: 9000, observed: 200),
+                                                       threshold: 80).count == 1
                         && AgentLimitSupport.crossings(previous: nil, current: limits(99, resets: 100), threshold: 80).isEmpty,
                      "a warning comes once per crossing, again after a renewal, never for the first reading")
+        suite.expect(AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(90, resets: 520, observed: 50),
+                                                 threshold: 80).isEmpty
+                        && AgentLimitSupport.crossings(previous: limits(95, resets: 100), current: limits(85, resets: 100, observed: 50),
+                                                       threshold: 80).count == 1,
+                     "a later renewal read before the old one goes by is the same window, and usage that fell is a new one")
     }
 
     // MARK: Reading files
@@ -2272,9 +2639,9 @@ enum NotchAgentTests {
         suite.expect(lines == ["{\"c\":3}"], "a rewritten file is read from its start")
         suite.expect(!AgentLogCursor(path: "/x/s1/subagents/agent-1.jsonl", provider: .claude).tracksTurns
                         && AgentLogCursor(path: "/x/s1.jsonl", provider: .claude).tracksTurns
-                        && !AgentLogCursor(path: "/x/rollout-2026-09-21T08-17-14-a_b.jsonl", provider: .codex).tracksTurns
+                        && AgentLogCursor(path: "/x/rollout-2026-09-21T08-17-14-a_b.jsonl", provider: .codex).tracksTurns
                         && AgentLogCursor(path: "/x/session-state/id/events.jsonl", provider: .copilot).tracksTurns,
-                     "subagents and side threads never own a turn")
+                     "Claude subagents are excluded while Codex filename suffixes do not determine thread identity")
         suite.expect(AgentLogRoot.all(home: folder).contains {
             $0.provider == .copilot && $0.url.path == folder.appending(path: ".copilot/session-state").path
         }, "GitHub Copilot session event logs are a discovered local root")
@@ -2450,6 +2817,60 @@ enum NotchAgentTests {
                         && AgentClaudeAppUsage.limits(from: samples, now: now, sessionStart: at("2026-09-23T13:40:00Z"))?
                         .windows.first?.resetsAt == at("2026-09-23T19:05:00Z"),
                      "Claude Code's first request places the session only inside the gap the readings leave")
+        // Readings hours apart leave the start anywhere between them, and the
+        // first one above zero is only the latest it can have been.
+        let slept = AgentClaudeAppUsage.samples(from: history([
+            ("2026-10-12T12:26:00Z", "o", ["fh": 2, "sd": 9]), ("2026-10-12T19:03:00Z", "o", ["fh": 4, "sd": 11])])) ?? []
+        let sleptReset = AgentClaudeAppUsage.limits(from: slept, now: at("2026-10-12T19:04:00Z"))?.windows.first?.estimatedResetsAt
+        suite.expect(sleptReset == at("2026-10-12T21:33:00Z"),
+                     "a session first read after sleep estimates the midpoint instead of the latest possible renewal")
+        let overnight = AgentClaudeAppUsage.samples(from: history([
+            ("2026-10-11T23:00:00Z", "o", ["fh": 0, "sd": 40]), ("2026-10-12T11:59:00Z", "o", ["fh": 29, "sd": 41])])) ?? []
+        let overnightReset = AgentClaudeAppUsage.limits(from: overnight, now: at("2026-10-12T12:32:00Z"))?.windows.first?.estimatedResetsAt
+        suite.expect(overnightReset == at("2026-10-12T14:29:00Z"),
+                     "an overnight gap keeps the renewal between the reading and five hours after it")
+        let lone = AgentClaudeAppUsage.samples(from: history([("2026-10-12T19:03:00Z", "o", ["fh": 4, "sd": 11])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: lone, now: at("2026-10-12T19:04:00Z"))?.windows.first?.resetsAt
+                        == at("2026-10-13T00:03:00Z"),
+                     "a file that starts with the session has nothing before it to bracket the start")
+        let gap = AgentClaudeAppUsage.samples(from: history([
+            ("2026-10-12T00:00:00Z", "o", ["fh": 0]), ("2026-10-12T08:00:00Z", "o", ["fh": 90]),
+            ("2026-10-12T08:10:00Z", "o", ["fh": 95]), ("2026-10-12T10:40:00Z", "o", ["fh": 100])])) ?? []
+        let beforeEstimate = AgentClaudeAppUsage.limits(from: Array(gap.prefix(3)), now: at("2026-10-12T08:10:00Z"))
+        let afterEstimate = AgentClaudeAppUsage.limits(from: gap, now: at("2026-10-12T10:40:00Z"))
+        if let window = afterEstimate?.windows.first, let warned = beforeEstimate?.windows.first {
+            let now = at("2026-10-12T10:40:00Z")
+            suite.expect(window.usedPercent == 100 && AgentLimitSupport.current(window, at: now).usedPercent == 100,
+                         "fresh increasing usage survives the estimated renewal in the reader and the display")
+            suite.expect(window.estimatedResetsAt == at("2026-10-12T10:30:00Z")
+                            && AgentLimitSupport.displayedReset(window, now: now) == nil
+                            && AgentLimitSupport.pace(for: window, now: now) == nil,
+                         "an elapsed estimate hides the countdown and pace without clearing usage")
+            suite.expect(warned.resetsAt == at("2026-10-12T13:00:00Z") && window.resetsAt == warned.resetsAt,
+                         "a warning keeps the latest possible renewal, so the midpoint cannot send a reset alert")
+            suite.expect(AgentLimitSupport.crossings(previous: beforeEstimate, current: afterEstimate!, threshold: 90).isEmpty,
+                         "continuing usage after the midpoint does not become another threshold crossing")
+            suite.expect(AgentLimitSupport.displayedReset(warned, now: at("2026-10-12T09:00:00Z"))
+                            == at("2026-10-12T10:30:00Z"),
+                         "the card still shows the useful midpoint while it is in the future")
+        } else {
+            suite.expect(false, "fresh observed session usage must remain present after its estimated renewal")
+        }
+        suite.expect(AgentClaudeAppUsage.limits(from: Array(gap.prefix(3)), now: at("2026-10-12T10:40:00Z"))?
+                        .windows.first?.usedPercent == 95,
+                     "the midpoint alone cannot discard a reading between Claude app checks")
+        let placedGap = AgentClaudeAppUsage.limits(from: gap, now: at("2026-10-12T10:40:00Z"),
+                                                   sessionStart: at("2026-10-12T07:55:00Z"))?.windows.first
+        suite.expect(placedGap?.resetsAt == at("2026-10-12T12:55:00Z") && placedGap?.estimatedResetsAt == nil,
+                     "a first request within the gap replaces the presentation estimate with its known start")
+        suite.expect(AgentClaudeAppUsage.limits(from: gap, now: at("2026-10-12T13:00:00Z")) == nil,
+                     "an estimated window still expires at its latest possible renewal")
+        let dropped = gap + [AgentClaudeAppUsage.Sample(date: at("2026-10-12T10:50:00Z"), organization: "o", used: ["fh": 0]),
+                             AgentClaudeAppUsage.Sample(date: at("2026-10-12T11:00:00Z"), organization: "o", used: ["fh": 2])]
+        let newSession = AgentClaudeAppUsage.limits(from: dropped, now: at("2026-10-12T11:00:00Z"))?.windows.first
+        suite.expect(newSession?.usedPercent == 2 && newSession?.estimatedResetsAt == nil
+                        && newSession?.resetsAt == at("2026-10-12T16:00:00Z"),
+                     "an observed renewal starts a new window without retaining the old estimate")
         let requests = [record(.claude, at("2026-09-23T13:55:00Z"), cost: 1), record(.claude, at("2026-09-23T18:58:00Z"), cost: 1)]
         let placed = AgentClaudeAppUsage.sessionStart(requests, samples: samples)
         let ended = at("2026-09-23T19:00:00Z")
@@ -2464,6 +2885,95 @@ enum NotchAgentTests {
             ("2026-09-23T14:20:00Z", "o", ["fh": 6, "sd": 42])])) ?? []
         suite.expect(AgentClaudeAppUsage.limits(from: renewed, now: now)?.windows.last?.resetsAt == at("2026-09-23T20:00:00Z"),
                      "a week renews seven days after the last drop, on the hour, counting only the same account")
+        let weeks: [(String, String?, [String: Any])] = [
+            ("2026-09-19T11:56:00Z", "o", ["sd": 100]), ("2026-09-19T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-26T11:56:00Z", "o", ["sd": 100]), ("2026-09-26T12:01:00Z", "o", ["sd": 0]),
+            ("2026-10-01T08:48:00Z", "o", ["sd": 100]), ("2026-10-01T08:53:00Z", "o", ["sd": 0]),
+            ("2026-10-01T10:00:00Z", "o", ["fh": 5, "sd": 4])]
+        let banked = AgentClaudeAppUsage.samples(from: history(weeks)) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: banked, now: at("2026-10-01T10:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-03T12:00:00Z"),
+                     "a reset used mid-week empties the week without moving its renewal")
+        // Drops whose spans only touch at a reading do not share a moment.
+        let touching = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T11:55:00Z", "o", ["sd": 100]), ("2026-09-19T12:00:00Z", "o", ["sd": 0]),
+            ("2026-09-26T12:00:00Z", "o", ["sd": 100]), ("2026-09-26T12:05:00Z", "o", ["sd": 0]),
+            ("2026-10-01T08:48:00Z", "o", ["sd": 100]), ("2026-10-01T08:53:00Z", "o", ["sd": 0]),
+            ("2026-10-01T10:00:00Z", "o", ["fh": 5, "sd": 4])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: touching, now: at("2026-10-01T10:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-08T08:53:00Z"),
+                     "drops whose spans only touch at a reading confirm no schedule, so the last drop stands")
+        let wideConfirmed = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T11:56:00Z", "o", ["sd": 100]), ("2026-09-19T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-26T01:00:00Z", "o", ["sd": 100]), ("2026-09-26T13:00:00Z", "o", ["sd": 0]),
+            ("2026-10-01T08:48:00Z", "o", ["sd": 100]), ("2026-10-01T08:53:00Z", "o", ["sd": 0]),
+            ("2026-10-01T10:00:00Z", "o", ["fh": 5, "sd": 4])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: wideConfirmed, now: at("2026-10-01T10:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-03T12:00:00Z"),
+                     "a confirmed drop renews inside what its confirming drops allow, not at the start of its own span")
+        let afterDays = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T11:56:00Z", "o", ["sd": 100]), ("2026-09-19T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-26T11:56:00Z", "o", ["sd": 100]), ("2026-09-26T12:01:00Z", "o", ["sd": 0]),
+            ("2026-10-03T12:00:00Z", "o", ["sd": 100]), ("2026-10-04T13:00:00Z", "o", ["sd": 0]),
+            ("2026-10-04T14:00:00Z", "o", ["fh": 5, "sd": 4])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: afterDays, now: at("2026-10-04T14:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "a drop read only after days without readings does not move a schedule two drops already confirm")
+        let movedWeeks: [(String, String?, [String: Any])] = [
+            ("2026-09-19T11:56:00Z", "o", ["sd": 100]), ("2026-09-19T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-26T11:56:00Z", "o", ["sd": 100]), ("2026-09-26T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-30T10:35:00Z", "o", ["sd": 60]), ("2026-09-30T10:40:00Z", "o", ["sd": 5]),
+            ("2026-10-03T11:55:00Z", "o", ["sd": 40]), ("2026-10-03T12:05:00Z", "o", ["fh": 5, "sd": 41])]
+        let moved = AgentClaudeAppUsage.samples(from: history(movedWeeks)) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: moved, now: at("2026-10-03T12:10:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-07T10:40:00Z"),
+                     "a schedule whose renewal went by in plain sight without a drop has moved, so the last drop stands")
+        // The Mac was off for the first renewal the old schedule places; the next one shows the move.
+        let away = AgentClaudeAppUsage.samples(from: history(Array(movedWeeks.prefix(6)) + [
+            ("2026-10-02T20:00:00Z", "o", ["sd": 30]),
+            ("2026-10-10T11:55:00Z", "o", ["sd": 50]), ("2026-10-10T12:05:00Z", "o", ["fh": 5, "sd": 51])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: away, now: at("2026-10-10T12:10:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-14T10:40:00Z"),
+                     "a renewal seen going by without a drop moves the schedule even after an earlier one went unseen")
+        // A reading without the week between the two hides the drop from the history, not the renewal.
+        let gapped = AgentClaudeAppUsage.samples(from: history(Array(movedWeeks.dropLast()) + [
+            ("2026-10-03T12:05:00Z", "o", ["fh": 5]), ("2026-10-03T12:10:00Z", "o", ["fh": 5, "sd": 0])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: gapped, now: at("2026-10-03T12:15:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "a renewal read across a reading without the week still counts as seen")
+        let late = AgentClaudeAppUsage.samples(from: history(movedWeeks + [
+            ("2026-10-03T12:25:00Z", "o", ["fh": 5, "sd": 0])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: late, now: at("2026-10-03T12:30:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "a renewal first read within the hour after its time keeps the schedule")
+        // Emptying a week that was barely used reads as no drop at all.
+        let light = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T11:56:00Z", "o", ["sd": 100]), ("2026-09-19T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-26T11:56:00Z", "o", ["sd": 100]), ("2026-09-26T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-30T10:35:00Z", "o", ["sd": 60]), ("2026-09-30T10:40:00Z", "o", ["sd": 0]),
+            ("2026-10-03T11:55:00Z", "o", ["sd": 1]), ("2026-10-03T12:05:00Z", "o", ["fh": 5, "sd": 0])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: light, now: at("2026-10-03T12:10:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "a renewal a barely used week could not show does not move a confirmed schedule")
+        // The newer partner alone would allow 11:00; the older one narrows the renewal to 12:00.
+        let partners = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T11:57:00Z", "o", ["sd": 100]), ("2026-09-19T12:02:00Z", "o", ["sd": 0]),
+            ("2026-09-26T10:40:00Z", "o", ["sd": 100]), ("2026-09-26T12:10:00Z", "o", ["sd": 0]),
+            ("2026-10-03T10:30:00Z", "o", ["sd": 100]), ("2026-10-03T12:05:00Z", "o", ["sd": 0]),
+            ("2026-10-07T08:48:00Z", "o", ["sd": 100]), ("2026-10-07T08:53:00Z", "o", ["sd": 0]),
+            ("2026-10-07T10:00:00Z", "o", ["fh": 5, "sd": 4])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: partners, now: at("2026-10-07T10:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "a drop several partners confirm renews where all of them agree")
+        let disagreeing = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T08:30:00Z", "o", ["sd": 70]), ("2026-09-19T08:40:00Z", "o", ["sd": 0]),
+            ("2026-09-26T11:57:00Z", "o", ["sd": 100]), ("2026-09-26T12:02:00Z", "o", ["sd": 0]),
+            ("2026-10-03T08:00:00Z", "o", ["sd": 100]), ("2026-10-03T12:05:00Z", "o", ["sd": 0]),
+            ("2026-10-07T08:48:00Z", "o", ["sd": 100]), ("2026-10-07T08:53:00Z", "o", ["sd": 0]),
+            ("2026-10-07T10:00:00Z", "o", ["fh": 5, "sd": 4])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: disagreeing, now: at("2026-10-07T10:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "partners that disagree leave the newest of them to place the renewal")
         let later = AgentClaudeAppUsage.limits(from: samples, now: at("2026-09-23T20:30:00Z"))
         suite.expect(later?.windows.map(\.kind) == [.weekly] && AgentClaudeAppUsage.limits(from: samples, now: at("2026-10-01T15:00:00Z")) == nil,
                      "an old reading drops the session it can no longer speak for, and a week-old file is ignored")
@@ -2505,6 +3015,79 @@ enum NotchAgentTests {
 
     // MARK: Preferences and layout
 
+    private static func agentDefaults(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.agent-defaults.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+
+        Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+        Defaults.migrateExistingNotchDefaults(in: defaults, domainName: domain)
+        Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+        let fresh = defaults.persistentDomain(forName: domain) ?? [:]
+        suite.expect(fresh[DefaultsKey.notchAgentsEnabled] == nil
+                     && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
+                     && fresh[DefaultsKey.notchInitialExtensionsInstalled] == nil,
+                     "fresh profiles keep Agents off on later launches and still install the other island extensions")
+        AppFeature.notchAgents.enableOnFirstInstall(in: defaults, savedValues: fresh)
+        suite.expect(defaults.bool(forKey: DefaultsKey.notchAgentsEnabled),
+                     "explicitly installing Agents enables it on a fresh profile")
+
+        defaults.removePersistentDomain(forName: domain)
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+        Defaults.migrateExistingNotchDefaults(in: defaults, domainName: domain)
+        suite.expect(defaults.persistentDomain(forName: domain)?[DefaultsKey.notchAgentsEnabled] as? Bool == false,
+                     "an older island profile keeps the off default supplied by its original migration")
+
+        defaults.removePersistentDomain(forName: domain)
+        defaults.set(true, forKey: DefaultsKey.notchDefaultProfileInitialized)
+        Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+        suite.expect(defaults.persistentDomain(forName: domain)?[DefaultsKey.notchAgentsEnabled] as? Bool == true,
+                     "an existing profile keeps its formerly implicit on choice")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
+        Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+        suite.expect(!defaults.bool(forKey: DefaultsKey.notchAgentsEnabled),
+                     "migration never turns Agents back on after a later opt-out")
+
+        for choice in [false, true] {
+            defaults.removePersistentDomain(forName: domain)
+            defaults.set(true, forKey: DefaultsKey.notchDefaultProfileInitialized)
+            defaults.set(choice, forKey: DefaultsKey.notchAgentsEnabled)
+            Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+            suite.expect(defaults.bool(forKey: DefaultsKey.notchAgentsEnabled) == choice,
+                         "migration preserves the explicit Agents choice \(choice)")
+        }
+        suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchAgentsOptInMigrated),
+                     "the local migration marker never travels in settings backups")
+    }
+
+    /// Only what the person shows or is alerted about asks for the limits.
+    private static func limitUse(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-agent-limits"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        func used(page: Bool) -> Bool { NotchAgentSupport.limitsInUse(pageShown: page, in: defaults) }
+        let alerts = used(page: false)
+        defaults.set(false, forKey: DefaultsKey.notchAgentsLimitAlert)
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        let unused = !used(page: false) && !used(page: true)
+        defaults.set("", forKey: DefaultsKey.notchAgentsHiddenCards)
+        let card = !used(page: false) && used(page: true)
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        defaults.set(NotchAgentReadout.limit.rawValue, forKey: DefaultsKey.notchAgentsReadout)
+        let readout = used(page: false)
+        defaults.set(false, forKey: DefaultsKey.notchAgentsLiveActivity)
+        let liveOff = !used(page: false)
+        defaults.set(NotchIdleContent.agents.rawValue, forKey: DefaultsKey.notchIdleContent)
+        suite.expect(alerts && unused && card && readout && liveOff && used(page: false),
+                     "limits are in use for their alerts, a live limit reading, the resting island or the page's Limits card, and only then")
+    }
+
     private static func preferences(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.notch-agents"
         let defaults = UserDefaults(suiteName: domain)!
@@ -2513,7 +3096,7 @@ enum NotchAgentTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
-        suite.expect(NotchAgentSupport.isEnabled(in: defaults), "installed AI agents start enabled in the island")
+        suite.expect(!NotchAgentSupport.isEnabled(in: defaults), "installing the island alone leaves AI agents off")
         defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(!NotchSupport.modules(in: defaults).contains(.agents) && !NotchAgentSupport.isEnabled(in: defaults)
                         && !NotchSupport.routes(.agents, in: defaults),
@@ -2563,9 +3146,9 @@ enum NotchAgentTests {
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
-                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == true
+                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,
-                     "every AI preference is registered and travels in backups, with the page on and prices kept current")
+                     "AI preferences travel in backups, with Agents opt-in and prices kept current when enabled")
         suite.expect(NotchAgentSupport.updatesPrices(in: defaults), "prices stay current unless turned off")
         defaults.set(false, forKey: DefaultsKey.notchAgentsPriceUpdates)
         suite.expect(!NotchAgentSupport.updatesPrices(in: defaults), "turning price updates off stops the download")
@@ -2593,6 +3176,8 @@ enum NotchAgentTests {
                      "cards pair in reading order, and charts and lone cards take the row")
         suite.expect(NotchAgentSupport.rows([limits, codex], width: 330) == [[limits], [codex]],
                      "a narrow island stacks every card")
+        suite.expect(NotchAgentCard.allCases.filter(\.followsPeriod) == [.spend, .trend, .models, .projects],
+                     "the period in the island's top row covers spending, the trend, models and projects")
         suite.expect(NotchAgentSupport.contentHeight([[limits, codex], [trend]])
                         == NotchAgentSupport.cardHeight + NotchAgentSupport.spacing + NotchAgentSupport.chartHeight
                         && NotchAgentSupport.contentHeight([]) == 0,

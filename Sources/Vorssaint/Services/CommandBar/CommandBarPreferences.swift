@@ -236,6 +236,11 @@ enum CommandBarPreferences {
         return next
     }
 
+    static func removingAliases(for keys: Set<String>, in aliases: [String: String]) -> [String: String] {
+        guard !keys.isEmpty else { return aliases }
+        return aliases.filter { !keys.contains($0.key) }
+    }
+
     /// How well what was typed names this alias. A name the person gave has
     /// to outrank the app's own titles, or "codex" keeps opening the editor
     /// whose name merely looks similar; a name being typed ranks just under a
@@ -321,6 +326,11 @@ enum CommandBarPreferences {
         return next
     }
 
+    static func removingPins(for keys: Set<String>, in pins: [String]) -> [String] {
+        guard !keys.isEmpty else { return pins }
+        return pins.filter { !keys.contains($0) }
+    }
+
     /// What a pin is worth on a typed query: enough to win a tie between two
     /// equally good matches, never enough to jump over a better one. A pin
     /// that overrode the ranking would make the list feel stale, which is the
@@ -365,6 +375,11 @@ enum CommandBarPreferences {
         var next = hidden
         if next.contains(key) { next.remove(key) } else { next.insert(key) }
         return next
+    }
+
+    static func removingHidden(for keys: Set<String>, in hidden: Set<String>) -> Set<String> {
+        guard !keys.isEmpty else { return hidden }
+        return hidden.subtracting(keys)
     }
 
     // MARK: - Position

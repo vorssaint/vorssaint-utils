@@ -275,6 +275,10 @@ final class NotchWatchService: ObservableObject {
             guard let info = Self.windowInfo(windowID) else { finish(.closed); return }
             window = info
         }
+        // Captures paused while the permission check is slow cannot read the
+        // window, which says nothing about how it looks: the last reading
+        // stays until they resume (issue #1863).
+        guard !WindowPreviewProvider.capturesArePaused else { return }
         // Turned off in System Settings: nothing can be read, and asking the
         // capture again would only raise the system's prompt.
         guard CGPreflightScreenCaptureAccess() else {
@@ -283,6 +287,9 @@ final class NotchWatchService: ObservableObject {
             return
         }
         if permissionMissing { permissionMissing = false }
+        // ScreenCaptureKit draws nothing from sleeping displays, and a call
+        // left waiting there would hold every other capture's turn.
+        let displaysAsleep = CGDisplayIsAsleep(CGMainDisplayID()) != 0
         let image: CGImage?
         if let windowID = target.windowID, let info = window {
             // The window server returns only the part of a window inside a
@@ -290,9 +297,13 @@ final class NotchWatchService: ObservableObject {
             // the window's proportions would read other pixels.
             var captured = await WindowPreviewProvider.captureViaWindowServer(windowID)
                 .flatMap { Self.wholeWindow($0, size: info.bounds.size) }
-            if captured == nil, info.onScreen {
-                captured = await ScreenshotCaptureEngine.captureWindow(windowID, scale: 2)
-                    .flatMap { Self.wholeWindow($0.image, size: info.bounds.size) }
+            if captured == nil, info.onScreen, !displaysAsleep {
+                // ScreenCaptureKit alone, in a turn of its own: the window
+                // server already answered above, and asking it again would
+                // only add another permission check (issue #1863).
+                captured = await WindowPreviewProvider.captureViaScreenCaptureKit {
+                    await ScreenshotCaptureEngine.captureIndependentWindow(windowID, scale: 2)
+                }.flatMap { Self.wholeWindow($0, size: info.bounds.size) }
             }
             image = captured.flatMap { full in
                 NotchWatchSupport.pixelCrop(target.crop, windowSize: info.bounds.size,
@@ -300,11 +311,15 @@ final class NotchWatchService: ObservableObject {
                     .flatMap { full.cropping(to: $0) }
             }
         } else {
-            image = await regionCapture?.image()
+            guard !displaysAsleep else { return }
+            let region = regionCapture
+            image = await WindowPreviewProvider.captureViaScreenCaptureKit { await region?.image() }
         }
         guard self.generation == generation, isActive else { return }
         guard let image else {
-            if state != .hidden { state = .hidden }
+            // A capture refused because this very turn paused captures is no
+            // sign of a hidden window either.
+            if !WindowPreviewProvider.capturesArePaused, state != .hidden { state = .hidden }
             return
         }
         if state != .watching { state = .watching }

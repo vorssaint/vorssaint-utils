@@ -78,7 +78,9 @@ enum CommandBarMath {
             let parts = input.split(separator: separator, omittingEmptySubsequences: false)
             guard parts.count >= 2, parts.count <= 3 else { continue }
             guard parts.allSatisfy({ part in
-                let digits = part.trimmingCharacters(in: .whitespaces)
+                // A date is written closed up. Numbers spaced around a minus
+                // or a slash are a sum: "100 - 20 - 30" is not a day.
+                let digits = separator == ":" ? part.trimmingCharacters(in: .whitespaces) : String(part)
                 return !digits.isEmpty && digits.count <= 4 && digits.allSatisfy(\.isNumber)
             }) else { continue }
             // Two plain numbers around a minus really can be a subtraction, so
@@ -89,12 +91,26 @@ enum CommandBarMath {
         return false
     }
 
-    /// Keeps ten significant digits so ordinary decimal arithmetic loses binary noise.
+    /// Keeps ten significant digits so ordinary decimal arithmetic loses binary
+    /// noise, but never fewer than a large number's whole digits plus two
+    /// decimals: 12345678901 + 1 must not read as 12,345,678,900. Fifteen is
+    /// the most, since that many significant digits always survive a round
+    /// trip through a Double.
     private static func significantRounded(_ value: Double) -> Double {
         guard value != 0, value.isFinite else { return value }
-        let digits = 10.0
         let magnitude = floor(log10(abs(value)))
-        let factor = pow(10.0, digits - magnitude - 1)
+        let digits = min(15, max(10, magnitude + 3))
+        let exponent = digits - magnitude - 1
+        if exponent < 0 {
+            // A power of ten below one is never exact in binary, so scaling by
+            // it puts noise back: 2^56 would reuse as 7.2057594037927896e+16.
+            // Powers above one are exact up to 10^22, which keeps the digits
+            // clean for answers below 10^37.
+            let divisor = pow(10.0, -exponent)
+            let rounded = (value / divisor).rounded() * divisor
+            return rounded.isFinite ? rounded : value
+        }
+        let factor = pow(10.0, exponent)
         guard factor.isFinite, factor != 0 else { return value }
         let scaled = (value * factor).rounded()
         guard scaled.isFinite else { return value }

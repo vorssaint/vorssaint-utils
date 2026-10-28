@@ -5,9 +5,10 @@ import Foundation
 
 /// The Claude app checks the plan's limits itself and keeps a month of them on
 /// this Mac, a percentage for each window every few minutes, while its menu
-/// bar icon is on. That file is all Vorssaint reads for them: no sign-in is
-/// used and nothing is sent. The format is the app's own, so a version or an
-/// entry this reader does not know is left out rather than guessed.
+/// bar icon is on. Vorssaint reads that file, without a sign-in and sending
+/// nothing, when Claude Code cannot check the account itself. The format is
+/// the app's own, so a version or an entry this reader does not know is left
+/// out rather than guessed.
 enum AgentClaudeAppUsage {
     static let bundleIdentifier = "com.anthropic.claudefordesktop"
     static let downloadURL = URL(string: "https://claude.ai/download")!
@@ -63,8 +64,8 @@ enum AgentClaudeAppUsage {
     /// The latest reading as limit windows. The file keeps percentages, not
     /// renewal times: a session renews five hours after its first request,
     /// which the history brackets and Claude Code's own first request can
-    /// narrow, and a week renews every seven days at the moment of the
-    /// last drop the history saw.
+    /// narrow, and a week renews every seven days on the schedule its drops
+    /// keep.
     static func limits(from samples: [Sample], now: Date, sessionStart: Date? = nil,
                        organization: String? = nil) -> AgentLimits? {
         let samples = readings(samples, organization: organization)
@@ -77,15 +78,18 @@ enum AgentClaudeAppUsage {
             let length = TimeInterval(window.minutes) * 60
             // An old reading says nothing about a session that renewed since.
             if window.kind == .session, now.timeIntervalSince(latest.date) >= length { continue }
+            let session = window.kind == .session
+                ? sessionEnd(history, used: used, start: sessionStart, length: length) : nil
             let resets = window.kind == .session
-                ? sessionEnd(history, used: used, start: sessionStart, length: length)
+                ? session?.latest
                 : renewal(history, key: window.key, length: length, after: latest.date)
             // A window that renewed after the reading has spent an unknown
             // amount since, and without a date a day-old week may have too.
             if let resets, resets <= now { continue }
             if resets == nil, now.timeIntervalSince(latest.date) >= 86_400 { continue }
             result.append(AgentLimitWindow(id: "claude.\(window.key)", kind: window.kind, minutes: window.minutes,
-                                           scope: window.scope, usedPercent: used, resetsAt: resets))
+                                           scope: window.scope, usedPercent: used, resetsAt: resets,
+                                           estimatedResetsAt: session?.estimate))
         }
         guard !result.isEmpty else { return nil }
         return AgentLimits(provider: .claude, windows: result, observedAt: latest.date, source: .claudeApp)
@@ -109,7 +113,8 @@ enum AgentClaudeAppUsage {
         organization.map { account in samples.filter { $0.organization == nil || $0.organization == account } } ?? samples
     }
 
-    private static func sessionEnd(_ history: [Sample], used: Double, start: Date?, length: TimeInterval) -> Date? {
+    private static func sessionEnd(_ history: [Sample], used: Double, start: Date?, length: TimeInterval)
+        -> (latest: Date, estimate: Date?)? {
         guard used > 0, var first = history.indices.last else { return nil }
         // The run of readings above zero that ends with the latest one. A drop
         // is a renewal too: work that goes on across one never reads zero.
@@ -120,22 +125,109 @@ enum AgentClaudeAppUsage {
         }
         let latest = history[first].date
         let earliest = first > 0 ? history[first - 1].date : latest.addingTimeInterval(-length)
-        let began = start.flatMap { $0 > earliest && $0 <= latest ? $0 : nil } ?? latest
-        return began.addingTimeInterval(length)
+        if let start, start > earliest, start <= latest {
+            return (start.addingTimeInterval(length), nil)
+        }
+        let estimate = unseenStart(earliest: earliest, latest: latest, bracketed: first > 0, length: length)
+        // The midpoint can precede the real renewal. Keep the latest possible
+        // end for expiring usage and alerts; only the card uses the estimate.
+        return (latest.addingTimeInterval(length), estimate < latest ? estimate.addingTimeInterval(length) : nil)
     }
 
-    /// The first renewal after `reading`, from the last drop the history saw.
-    private static func renewal(_ history: [Sample], key: String, length: TimeInterval, after reading: Date) -> Date? {
-        for index in history.indices.dropFirst().reversed() {
-            guard let before = history[index - 1].used[key], let after = history[index].used[key],
-                  after + 1 < before else { continue }
-            // Allowances renew on the hour, when the gap between readings holds one.
-            let next = hour(of: history[index - 1].date).addingTimeInterval(3_600)
-            var moment = next <= history[index].date ? next : history[index].date
-            while moment <= reading { moment.addTimeInterval(length) }
-            return moment
+    /// Where a session began when only the readings place it. Readings a few
+    /// minutes apart bracket it closely, so the first one above zero stands.
+    /// A longer gap means the app missed checks, with the Mac asleep or the
+    /// app closed, and the session began somewhere in it, though no more than
+    /// a session's length before the reading that still sees it. That first
+    /// reading is the latest the start can be, so it puts the renewal as late
+    /// as it can be, by hours after a long gap. The middle of the range is
+    /// still an estimate, off by up to half of it and able to fall before the
+    /// real renewal, but it halves the worst error.
+    private static func unseenStart(earliest: Date, latest: Date, bracketed: Bool, length: TimeInterval) -> Date {
+        guard bracketed, latest.timeIntervalSince(earliest) > freshness else { return latest }
+        let lower = max(earliest, latest.addingTimeInterval(-length))
+        return lower.addingTimeInterval(latest.timeIntervalSince(lower) / 2)
+    }
+
+    /// The span a renewal lies in: after the earlier reading, which still
+    /// shows the old usage, and no later than the later one.
+    private struct Drop {
+        let earliest: Date, latest: Date
+
+        /// Allowances renew on the hour, when the span holds one.
+        var moment: Date {
+            let next = hour(of: earliest).addingTimeInterval(3_600)
+            return next <= latest ? next : latest
         }
-        return nil
+
+        /// What both spans allow. Spans that only touch at an endpoint share
+        /// no moment, so they do not confirm each other.
+        func overlap(_ other: Drop, shiftedBy shift: TimeInterval = 0) -> Drop? {
+            let start = max(earliest, other.earliest.addingTimeInterval(shift))
+            let end = min(latest, other.latest.addingTimeInterval(shift))
+            return start < end ? Drop(earliest: start, latest: end) : nil
+        }
+    }
+
+    /// The first renewal after `reading`. A week renews on a fixed schedule,
+    /// and a reset the plan grants mid-week empties it without moving that
+    /// schedule, so a drop only sets it when another drop whole weeks away
+    /// confirms it, and then only within what both allow. With no confirmed
+    /// drop the last one stands, and so it does once the readings see one of
+    /// the schedule's renewals go by without a drop, as when a plan change
+    /// moves it.
+    private static func renewal(_ history: [Sample], key: String, length: TimeInterval, after reading: Date) -> Date? {
+        let drops = history.indices.dropFirst().compactMap { index -> Drop? in
+            guard let before = history[index - 1].used[key], let after = history[index].used[key],
+                  after + 1 < before else { return nil }
+            return Drop(earliest: history[index - 1].date, latest: history[index].date)
+        }
+        guard let last = drops.last else { return nil }
+        var moment = last.moment
+        for index in drops.indices.reversed() {
+            let spans = drops.indices.filter { $0 != index }.compactMap {
+                confirmation(of: drops[index], by: drops[$0], length: length)
+            }
+            guard let newest = spans.last else { continue }
+            // Partners that disagree on where the renewal lies leave the newest to speak.
+            let agreed = spans.reduce(Optional(drops[index])) { $0?.overlap($1) }
+            let confirmed = (agreed ?? newest).moment
+            if !missed(confirmed, history: history, drops: drops, key: key, length: length, until: reading) {
+                moment = confirmed
+            }
+            break
+        }
+        while moment <= reading { moment.addTimeInterval(length) }
+        return moment
+    }
+
+    /// Whether a renewal the schedule from `moment` places went by in plain
+    /// sight: the week was spent enough for a renewal to show, readings within
+    /// the hour on both sides of it show no drop, and no drop lies within that
+    /// hour either way. A drop read up to an hour late or off keeps the
+    /// schedule once it shows; until then the last drop stands.
+    private static func missed(_ moment: Date, history: [Sample], drops: [Drop], key: String,
+                               length: TimeInterval, until reading: Date) -> Bool {
+        var next = moment.addingTimeInterval(length)
+        while next <= reading {
+            let start = next.addingTimeInterval(-3_600), end = next.addingTimeInterval(3_600)
+            if let before = history.last(where: { $0.date >= start && $0.date < next && $0.used[key] != nil })?.used[key],
+               let after = history.first(where: { $0.date > next && $0.date <= end && $0.used[key] != nil })?.used[key],
+               before >= 10, after + 1 >= before,
+               !drops.contains(where: { $0.latest >= start && $0.earliest <= end }) { return true }
+            next.addTimeInterval(length)
+        }
+        return false
+    }
+
+    /// Where `drop` lies if `other`, whole weeks away, confirms it: the span
+    /// both allow. A drop first read after a day without readings could match
+    /// almost any schedule, so it confirms nothing.
+    private static func confirmation(of drop: Drop, by other: Drop, length: TimeInterval) -> Drop? {
+        guard drop.latest.timeIntervalSince(drop.earliest) < 86_400,
+              other.latest.timeIntervalSince(other.earliest) < 86_400 else { return nil }
+        let weeks = (drop.moment.timeIntervalSince(other.moment) / length).rounded()
+        return weeks == 0 ? nil : drop.overlap(other, shiftedBy: weeks * length)
     }
 
     /// Allowances renew on the hour in UTC, which a half-hour time zone

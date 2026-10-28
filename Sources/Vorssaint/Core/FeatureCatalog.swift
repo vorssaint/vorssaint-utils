@@ -415,11 +415,10 @@ extension AppFeature {
         features(in: .dynamicIsland).filter { $0 != .notch }
     }
 
-    /// The extensions a first install of the island brings along. The
-    /// companion changes how the closed island looks at rest, so it only
-    /// comes when someone picks it.
+    /// Agents reads local session histories, and the companion changes the
+    /// resting island. Both are separate choices when installing the island.
     static var dynamicIslandInitialExtensions: [AppFeature] {
-        dynamicIslandExtensions.filter { $0 != .notchMascot }
+        dynamicIslandExtensions.filter { $0 != .notchMascot && $0 != .notchAgents }
     }
 
     var initialInstallGroup: [AppFeature] {

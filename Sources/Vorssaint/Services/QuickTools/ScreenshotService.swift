@@ -494,6 +494,14 @@ final class ScreenshotService: ObservableObject {
         }
     }
 
+    /// The editor decides what is kept, and its Add to Shelf puts the
+    /// finished picture there, so the raw capture leaves the Shelf as it
+    /// does when captures open straight in the editor.
+    private func editFromPreview(_ capture: ScreenshotSelectionController.Capture, latestCapture: UUID?) {
+        unshelve(latestCapture)
+        openEditor(with: capture)
+    }
+
     private func cancelAutoShelf() {
         for task in autoShelfTasks.values { task.cancel() }
         autoShelfTasks.removeAll()
@@ -549,7 +557,7 @@ final class ScreenshotService: ObservableObject {
                 guard let self else { return [] }
                 switch action {
                 case .edit:
-                    self.openEditor(with: capture)
+                    self.editFromPreview(capture, latestCapture: latestCapture)
                     return [.edit]
                 case .pin:
                     ScreenshotPinController.shared.pin(image: capture.image, scale: capture.scale)
@@ -705,6 +713,9 @@ final class ScreenshotService: ObservableObject {
         }
         preview?.close()
         preview = nil
+        // Editing the latest capture takes its raw copy off the Shelf, as
+        // Edit in its preview does.
+        unshelve(latestCaptureToken)
         openEditor(with: capture)
     }
 
@@ -770,7 +781,7 @@ final class ScreenshotService: ObservableObject {
 
     /// Copying a file in Finder leaves both its URL and a small icon preview on
     /// the pasteboard, so the file on disk wins whenever it is a readable image.
-    private static func clipboardImage(from pasteboard: NSPasteboard) -> NSImage? {
+    static func clipboardImage(from pasteboard: NSPasteboard) -> NSImage? {
         let options: [NSPasteboard.ReadingOptionKey: Any] = [
             .urlReadingFileURLsOnly: true,
             .urlReadingContentsConformToTypes: [UTType.image.identifier]
@@ -796,7 +807,9 @@ final class ScreenshotService: ObservableObject {
     /// would reveal an empty clipboard before the paste.
     private func autoCopy(_ capture: ScreenshotSelectionController.Capture) {
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
-        guard let folder = ScreenshotSupport.copiedFilesDirectory() else {
+        let imageOnly = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyImageOnly)
+        let folder = imageOnly ? nil : ScreenshotSupport.copiedFilesDirectory()
+        guard imageOnly || folder != nil else {
             NSSound.beep()
             return
         }
@@ -808,11 +821,12 @@ final class ScreenshotService: ObservableObject {
         autoCopyTask = Task { @MainActor [weak self] in
             let output = await Task.detached(priority: .userInitiated) {
                 guard let export = Self.flatten(capture, downscaleTo1x: downscale) else {
-                    return nil as (URL, ScreenshotEditorController.ClipboardPayload)?
+                    return nil as (URL?, ScreenshotEditorController.ClipboardPayload)?
                 }
                 let payload = ScreenshotEditorController.clipboardPayload(from: export)
-                guard let png = payload.png,
-                      let url = try? ScreenshotSupport.copiedFile(
+                guard let png = payload.png else { return nil }
+                if imageOnly { return (nil, payload) }
+                guard let folder, let url = try? ScreenshotSupport.copiedFile(
                         data: png, name: name, directory: folder) else { return nil }
                 return (url, payload)
             }.value
@@ -825,17 +839,35 @@ final class ScreenshotService: ObservableObject {
                   pasteboardChangeCount == NSPasteboard.general.changeCount,
                   AppFeature.screenshot.isAvailable
             else {
-                try? FileManager.default.removeItem(at: output.0)
+                if let url = output.0 { try? FileManager.default.removeItem(at: url) }
                 return
             }
-            guard ScreenshotEditorController.copyFile(output.0, payload: output.1)
+            guard ScreenshotEditorController.copyFile(output.0, payload: output.1,
+                                                       imageOnly: imageOnly)
             else {
-                try? FileManager.default.removeItem(at: output.0)
+                if let url = output.0 { try? FileManager.default.removeItem(at: url) }
                 NSSound.beep()
                 return
             }
-            ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: output.0)
+            if let folder, let url = output.0 {
+                ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: url)
+            }
             self.autoCopyTask = nil
+        }
+    }
+
+    /// Runs `body` once an automatic copy still being prepared has reached
+    /// the clipboard, or at once when none is. A preview's Copy text waits
+    /// for it: the capture lands first, as the after-capture setting asks,
+    /// and the text then replaces it, while a capture with no text stays.
+    func afterAutoCopy(_ body: @escaping () -> Void) {
+        guard let pending = autoCopyTask else {
+            body()
+            return
+        }
+        Task { @MainActor in
+            await pending.value
+            body()
         }
     }
 
