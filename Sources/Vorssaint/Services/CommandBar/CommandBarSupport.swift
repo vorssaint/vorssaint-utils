@@ -239,6 +239,10 @@ enum CommandBarSearch {
     /// keep a heavy, rare command out of the list until it is asked for, in
     /// every language: the verb is whatever the format says around the name,
     /// and languages written without spaces match by containment.
+    static func matchesVerb(_ query: String, in formats: [String]) -> Bool {
+        formats.contains { matchesVerb(query, in: $0) }
+    }
+
     static func matchesVerb(_ query: String, in format: String) -> Bool {
         let verb = normalized(format.replacingOccurrences(of: "%@", with: " "))
             .trimmingCharacters(in: .whitespaces)

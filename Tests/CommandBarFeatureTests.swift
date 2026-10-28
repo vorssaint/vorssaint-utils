@@ -257,6 +257,40 @@ enum CommandBarFeatureTests {
             merged[0].run(nil)
             suite.expect(ranLocalized == before + 1, "English metadata retains the localized action closure")
         }
+        for language in [AppLanguage.zhHans, .ja] {
+            let bar = FeatureStrings.commandBar(language)
+            let quitFormats = [bar.quitFormat, englishBar.quitFormat]
+            for query in ["quit safari", String(format: bar.quitFormat, "Safari")] {
+                suite.expect(CommandBarSearch.matchesVerb(query, in: quitFormats),
+                             "localized and English quit queries pass the pool gate in \(language)")
+            }
+            suite.expect(!CommandBarSearch.matchesVerb("Safari", in: quitFormats),
+                         "an ordinary app search never gains quit commands")
+            let pairs = [
+                ("answer.battery", bar.answerBatteryLabel, englishBar.answerBatteryLabel, "battery"),
+                ("answer.storage", bar.answerStorageLabel, englishBar.answerStorageLabel, "storage"),
+                ("answer.date", bar.answerDateLabel, englishBar.answerDateLabel, "today"),
+                ("answer.time", bar.answerTimeLabel, englishBar.answerTimeLabel, "time now"),
+            ]
+            let rows = CommandBarCatalogSearch.includingEnglishNames(
+                pairs.map { searchRow($0.0, $0.1, keywords: "free") },
+                english: pairs.map { searchRow($0.0, $0.2) })
+            let candidates = rows.enumerated().map {
+                CommandBarCandidate(index: $0.offset, title: $0.element.title, keywords: $0.element.keywords)
+            }
+            for (id, _, _, query) in pairs {
+                let token = String(CommandBarSearch.normalized(query).split(separator: " ").first ?? "")
+                let result = CommandBarSearch.rankedIndexes(candidates: candidates, matching: query)
+                    .map { rows[$0] }.filter { $0.matchesAnswerName(token) }
+                suite.expect(result.map(\.id).contains(id),
+                             "English \(query) survives ranking and the answer-name gate in \(language)")
+            }
+            suite.expect(rows.allSatisfy { !$0.matchesAnswerName("st") && !$0.matchesAnswerName("free") },
+                         "English answer names preserve rejection of short prefixes and unrelated keywords")
+            suite.expect(rows[0].withSubtitle("new caption").englishTitle == rows[0].englishTitle,
+                         "changing a row caption preserves its English name")
+        }
+
         let unmatched = searchRow("new.action", "Local command", keywords: "local")
         suite.expect(CommandBarCatalogSearch.includingEnglishNames([unmatched], english: []).first?.keywords == "local",
                      "a missing English counterpart cannot remove a localized row")

@@ -31,8 +31,11 @@ enum MixerUniversalRoutingContract {
     final class Preferences {
         static let standard = Preferences()
         var values: [String: String] = [:]
+        var arrays: [String: [String]] = [:]
         func string(forKey key: String) -> String? { values[key] }
         func set(_ value: String?, forKey key: String) { values[key] = value }
+        func stringArray(forKey key: String) -> [String]? { arrays[key] }
+        func set(_ value: [String], forKey key: String) { arrays[key] = value }
     }
 
     final class Mixer {
@@ -78,6 +81,7 @@ enum MixerUniversalRoutingContract {
         }
         func applyRouting(for app: MixerApp) { applied.append(app) }
         func chooseAirPlaySpeaker(for app: MixerApp) {}
+        func clearPermissionIfNoActiveAdjustments() {}
     }
 
     static func row(_ id: String = "process:77", objects: [AudioObjectID] = [100],
@@ -89,8 +93,92 @@ enum MixerUniversalRoutingContract {
                  outputDeviceUnavailable: false, volume: 1)
     }
 
+    private static func callAudioCompatibility(_ suite: TestSuite) {
+        for id in ["com.hnc.Discord", "com.microsoft.teams2"] {
+            let mixer = Mixer()
+            var app = row(id, persistenceID: id, selectedUID: "airpods")
+            app.supportsVolumeOverride = MixerRoutingSupport.needsScreenSharingProtection(bundleIdentifier: id)
+            app.isBypassed = MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call")
+            // Old installations may already have a boost and a route saved.
+            app.volume = 1.2
+            mixer.apps = [app]
+            mixer.volumes[id] = 1.2
+            mixer.savedRoutes[id] = "airpods"
+            suite.expect(!mixer.appNeedsEngine(app) && !mixer.rowMayBeTapped(app),
+                         "\(id) cannot be tapped by saved gain or routing while protected")
+            suite.expect(mixer.applyingCurrentVolumes(to: [app])[0].volume == 1,
+                         "\(id) publishes unity while preserving the saved boost")
+
+            mixer.setCallAppVolumeControl(true, for: app)
+            suite.expect(!mixer.apps[0].isBypassed && mixer.apps[0].volume == 1.2
+                         && mixer.apps[0].selectedOutputDeviceUID == "airpods"
+                         && mixer.appNeedsEngine(mixer.apps[0]) && mixer.rowMayBeTapped(mixer.apps[0]),
+                         "\(id) opt-in restores the saved level and output")
+            let allowed = mixer.savedCallAppVolumeEnabled()
+            suite.expect(allowed.contains(id.lowercased())
+                         && !MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call",
+                                                                   allowCallAppVolume: allowed.contains(id.lowercased())),
+                         "\(id) explicit opt-in survives a new discovery pass")
+
+            let staleRead = mixer.refresh.begin()!
+            let staleBuild = mixer.builds.begin(id)!
+            let unrelatedBuild = mixer.builds.begin("com.spotify.client")!
+            mixer.setCallAppVolumeControl(false, for: mixer.apps[0])
+            let protected = mixer.apps[0]
+            suite.expect(protected.isBypassed && protected.volume == 1
+                         && protected.selectedOutputDeviceUID == nil && protected.effectiveOutputDeviceUID == nil
+                         && protected.universalOutputRouteUID == nil && !protected.outputDeviceUnavailable,
+                         "\(id) protection clears all live gain and route requests")
+            suite.expect(mixer.applied.last == protected && !mixer.appNeedsEngine(protected)
+                         && !mixer.rowMayBeTapped(protected),
+                         "\(id) protection immediately asks routing to release the tap")
+            suite.expect(!mixer.refresh.finish(staleRead) && !mixer.builds.isCurrent(id, token: staleBuild)
+                         && mixer.builds.isCurrent("com.spotify.client", token: unrelatedBuild),
+                         "\(id) rejects late reads and builds without cancelling another app's build")
+            suite.expect(mixer.volumes[id] == 1.2 && mixer.savedRoutes[id] == "airpods"
+                         && !mixer.savedCallAppVolumeEnabled().contains(id.lowercased()),
+                         "\(id) protection preserves settings and removes the opt-in")
+
+            mixer.setCallAppVolumeControl(true, for: protected)
+            let replacement = mixer.builds.begin(id)
+            mixer.builds.finish(id, token: staleBuild)
+            suite.expect(mixer.apps[0].volume == 1.2 && mixer.apps[0].selectedOutputDeviceUID == "airpods"
+                         && replacement.map { mixer.builds.isCurrent(id, token: $0) } == true,
+                         "\(id) can resume after protection without an old build cancelling its replacement")
+        }
+
+        for id in ["com.hnc.Discord", "com.microsoft.teams2"] {
+            for bypassed in [false, true] {
+                for (firstSupports, secondSupports) in [(true, true), (true, false), (false, true)] {
+                    let mixer = Mixer()
+                    var first = row(id, persistenceID: id, bypassed: bypassed)
+                    var second = row(id, objects: [101], persistenceID: id, bypassed: bypassed)
+                    first.supportsVolumeOverride = firstSupports
+                    second.supportsVolumeOverride = secondSupports
+                    mixer.apps = Mixer.coalescingAppsWithDuplicateIDs([first, second])
+                    suite.expect(mixer.apps.count == 1 && mixer.apps[0].supportsVolumeOverride,
+                                 "\(id) keeps its volume control option after combining owner processes")
+                    mixer.setCallAppVolumeControl(bypassed, for: mixer.apps[0])
+                    suite.expect(mixer.apps[0].isBypassed != bypassed
+                                 && mixer.applied.last == mixer.apps[0],
+                                 "\(id) can change call protection after combining rows, bypassed: \(bypassed)")
+                }
+            }
+        }
+
+        let mixer = Mixer()
+        let zoom = row("us.zoom.xos", persistenceID: "us.zoom.xos", bypassed: true)
+        mixer.apps = [zoom]
+        mixer.setCallAppVolumeControl(true, for: zoom)
+        suite.expect(mixer.apps == [zoom] && mixer.applied.isEmpty,
+                     "the override cannot enable taps for apps with a permanent bypass")
+        Preferences.standard.arrays = [:]
+    }
+
     static func run(_ suite: TestSuite) {
         Preferences.standard.values = [:]
+        Preferences.standard.arrays = [:]
+        callAudioCompatibility(suite)
         Mixer.deviceLists = [100: [10], 200: [20]]
         Mixer.reads = []; Mixer.writes = []; Mixer.writeStatus = noErr
         let wine = row()

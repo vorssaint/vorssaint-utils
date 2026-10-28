@@ -6,6 +6,38 @@ import Foundation
 import ImageIO
 
 enum NotchMusicExtrasTests {
+    private static func musicVolumePreference(_ suite: TestSuite) {
+        let key = DefaultsKey.notchMusicShowVolume
+        let domain = "com.vorssaint.tests.notch-music-volume"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        defaults.set(true, forKey: AppFeature.mixer.availabilityKey)
+        suite.expect(Defaults.registeredDefaults[key] as? Bool == false
+                     && !NotchSupport.showsMusicVolume(in: defaults),
+                     "new and upgraded profiles keep the compact player without a volume row")
+        defaults.set(true, forKey: key)
+        suite.expect(NotchSupport.showsMusicVolume(in: defaults),
+                     "the player offers volume when its option and the mixer are enabled")
+        defaults.set(false, forKey: AppFeature.mixer.availabilityKey)
+        suite.expect(!NotchSupport.showsMusicVolume(in: defaults) && defaults.bool(forKey: key),
+                     "removing the mixer hides its controls without erasing the player's volume choice")
+        defaults.set(true, forKey: AppFeature.mixer.availabilityKey)
+        suite.expect(NotchSupport.showsMusicVolume(in: defaults),
+                     "restoring the mixer restores the chosen volume row")
+        defaults.set(false, forKey: key)
+        suite.expect(!NotchSupport.showsMusicVolume(in: defaults), "the volume row can be turned off again")
+
+        for enabled in [false, true] {
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { $0 == key ? enabled : nil }
+            suite.expect(SettingsBackupSupport.sanitizedSettings(from: backup)?[key] as? Bool == enabled,
+                         "both player volume choices survive settings export and import")
+        }
+        suite.expect(!SettingsBackupSupport.keysToClear(whenImporting: [:]).contains(key)
+                     && SettingsBackupSupport.keysToClear(whenImporting: [DefaultsKey.notchEnabled: true]).contains(key),
+                     "pre-island backups preserve the choice and older island backups restore the compact default")
+    }
+
     private static func preferredPlayer(_ suite: TestSuite) {
         typealias Player = NotchPreferredPlayer
         let spotify = "com.spotify.client", music = "com.apple.Music", other = "org.example.Player"
@@ -561,6 +593,7 @@ enum NotchMusicExtrasTests {
     }
 
     static func run(_ suite: TestSuite) {
+        musicVolumePreference(suite)
         NotchBrowserArtworkLifecycleTests.run(suite)
         NotchMusicArtworkReplyTests.run(suite)
         artistIdentity(suite)
@@ -865,7 +898,7 @@ enum NotchMusicExtrasTests {
                "music feature choices and online consent are accounted for by settings backup")
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchMusicExtras(language)).children.compactMap { $0.value as? String }
-            suite.expect(strings.count == 44 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            suite.expect(strings.count == 45 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "music extras have complete user-facing strings in \(language.rawValue)")
         }
     }

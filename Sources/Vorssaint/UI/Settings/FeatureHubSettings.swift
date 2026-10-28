@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// The Features hub. Install or uninstall each feature, grouped in plain
@@ -53,16 +54,12 @@ struct FeatureHubSettings: View {
     }
 
     private var content: some View {
-        // The lazy stack has to be the scroll view's own content (issue
-        // #2270). Nested in a plain stack, it resized that stack each time a
-        // card came into view: scrolling stalled for up to a second, and the
-        // layout could keep redoing itself until Settings froze.
+        // These few cards contain many variable-height rows. Measure them
+        // eagerly so scrolling cannot re-estimate distant cards and re-anchor
+        // the viewport in the lazy layout loop reported in #2311 and #2642.
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
-                // Keep one header child in the lazy stack. Inserting or
-                // removing the restart notice as an offscreen lazy child
-                // invalidates its visible range: the page jumps or goes
-                // blank until the next scroll event.
+            VStack(alignment: .leading, spacing: 20) {
+                // Keep the header's identity stable when the notice changes.
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(hub.pageTitle).font(.title2.bold())
@@ -81,14 +78,16 @@ struct FeatureHubSettings: View {
                     if features.needsRestartToUnload {
                         restartCard
                     }
-                }
-                if tab == .features {
-                    // The never-used offer comes and goes with installs too,
-                    // so it shares one stable child with the summary.
-                    VStack(alignment: .leading, spacing: 20) {
-                        summaryCard
-                        neverUsedCard
+                    if tab == .features {
+                        VStack(alignment: .leading, spacing: 20) {
+                            summaryCard
+                            neverUsedCard
+                        }
                     }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background { FeatureHubScrollAnchor() }
+                if tab == .features {
                     dynamicIslandCard
                     presetsCard
                     ForEach(FeatureGroup.allCases.filter { $0 != .dynamicIsland }, id: \.self) { group in
@@ -111,6 +110,12 @@ struct FeatureHubSettings: View {
             .frame(maxWidth: .infinity)
             .padding(22)
         }
+        // Include the scroll view's document height in this transaction;
+        // animating that height would constrain an immediate notice adjustment
+        // against the old bottom limit for the duration of the animation.
+        .animation(nil, value: features.needsRestartToUnload)
+        .animation(nil, value: neverUsed)
+        .animation(nil, value: recentlyUninstalled)
         .alert(confirmingPreset.map { presetName($0) } ?? "",
                isPresented: Binding(get: { confirmingPreset != nil },
                                     set: { if !$0 { confirmingPreset = nil } }),
@@ -368,7 +373,7 @@ struct FeatureHubSettings: View {
         .id(FeatureGroup.dynamicIsland)
     }
 
-    /// Groups start open; LazyVStack builds distant groups as they enter view.
+    /// Groups start open and are measured before scrolling begins.
     /// Closing a group removes its feature rows until the user reopens it.
     private func groupCard(_ group: FeatureGroup) -> some View {
         let members = AppFeature.features(in: group)
@@ -439,6 +444,138 @@ struct FeatureHubSettings: View {
         case .tools: return hub.groupTools
         case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
+        }
+    }
+}
+
+/// A notice above the viewport can change height without moving the row the
+/// user is working on. SwiftUI's ID-based position only keeps an entire card
+/// visible; cards taller than the viewport need the exact pixel offset.
+private struct FeatureHubScrollAnchor: NSViewRepresentable {
+    func makeNSView(context: Context) -> AnchorView { AnchorView() }
+    func updateNSView(_ view: AnchorView, context: Context) { view.schedule() }
+    static func dismantleNSView(_ view: AnchorView, coordinator: ()) { view.stop() }
+
+    final class AnchorView: NSView {
+        private struct Geometry {
+            let prefixBottom: CGFloat
+            let documentSize: NSSize
+            let viewport: NSRect
+        }
+        private weak var scroll: NSScrollView?
+        private var observer: NSObjectProtocol?
+        private var documentObserver: NSObjectProtocol?
+        private var geometry: Geometry?
+        private var adjustment: DispatchWorkItem?
+        private var restoring = false
+
+        deinit {
+            adjustment?.cancel()
+            if let observer { NotificationCenter.default.removeObserver(observer) }
+            if let documentObserver { NotificationCenter.default.removeObserver(documentObserver) }
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            schedule()
+        }
+        override func setFrameSize(_ newSize: NSSize) {
+            super.setFrameSize(newSize)
+            schedule()
+        }
+
+        func schedule() {
+            guard adjustment == nil else { return }
+            let work = DispatchWorkItem { [weak self] in self?.restore() }
+            adjustment = work
+            DispatchQueue.main.async(execute: work)
+        }
+
+        private func readGeometry() -> Geometry? {
+            guard let scroll, let document = scroll.documentView else { return nil }
+            return Geometry(prefixBottom: convert(bounds, to: document).maxY,
+                            documentSize: document.frame.size,
+                            viewport: scroll.contentView.bounds)
+        }
+
+        private func scrolled() {
+            guard !restoring, let current = readGeometry() else { return }
+            if let previous = geometry,
+               previous.documentSize != current.documentSize
+                || previous.prefixBottom != current.prefixBottom {
+                // A shrinking document can clamp the clip before the notice
+                // view is resized. Keep the earlier snapshot until layout ends.
+                schedule()
+                return
+            }
+            geometry = current
+        }
+
+        private func restore() {
+            guard let enclosing = enclosingScrollView,
+                  let document = enclosing.documentView else { stop(); return }
+            if scroll !== enclosing {
+                if let observer { NotificationCenter.default.removeObserver(observer) }
+                if let documentObserver { NotificationCenter.default.removeObserver(documentObserver) }
+                scroll = enclosing
+                geometry = nil
+                enclosing.contentView.postsBoundsChangedNotifications = true
+                observer = NotificationCenter.default.addObserver(
+                    forName: NSView.boundsDidChangeNotification,
+                    object: enclosing.contentView, queue: .main
+                ) { [weak self] _ in self?.scrolled() }
+                document.postsFrameChangedNotifications = true
+                documentObserver = NotificationCenter.default.addObserver(
+                    forName: NSView.frameDidChangeNotification,
+                    object: document, queue: .main
+                ) { [weak self] _ in self?.schedule() }
+            }
+            var waitingForDocument = false
+            defer {
+                if !waitingForDocument { geometry = readGeometry() }
+                adjustment = nil
+            }
+            enclosing.layoutSubtreeIfNeeded()
+            guard let previous = geometry, let current = readGeometry(),
+                  previous.viewport.minY >= previous.prefixBottom,
+                  previous.viewport.size == current.viewport.size,
+                  previous.documentSize.width == current.documentSize.width else { return }
+            let clip = enclosing.contentView
+            let expected = clip.constrainBoundsRect(previous.viewport)
+            // Keep an intentional scroll or navigation performed after the
+            // snapshot, while accepting the document's automatic bottom clamp.
+            guard abs(current.viewport.minY - expected.minY) < 0.5,
+                  abs(current.viewport.minX - expected.minX) < 0.5 else { return }
+            let delta = current.prefixBottom - previous.prefixBottom
+            guard abs(delta) > 0.01 else { return }
+            var target = previous.viewport
+            target.origin.y += delta
+            let constrained = clip.constrainBoundsRect(target)
+            if delta > 0,
+               current.documentSize.height == previous.documentSize.height,
+               target.minY > constrained.minY + 0.5 {
+                // The prefix can resize before SwiftUI grows its document.
+                // Keep the snapshot until that frame change permits the new
+                // offset, instead of losing it against the old bottom limit.
+                waitingForDocument = true
+                return
+            }
+            restoring = true
+            clip.scroll(to: constrained.origin)
+            enclosing.reflectScrolledClipView(clip)
+            restoring = false
+        }
+
+        func stop() {
+            adjustment?.cancel()
+            adjustment = nil
+            if let observer { NotificationCenter.default.removeObserver(observer) }
+            observer = nil
+            if let documentObserver { NotificationCenter.default.removeObserver(documentObserver) }
+            documentObserver = nil
+            geometry = nil
+            scroll = nil
         }
     }
 }

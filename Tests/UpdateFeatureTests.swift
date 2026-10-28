@@ -635,13 +635,19 @@ enum UpdateFeatureTests {
         let windowLayoutPage = SettingsSearchItem(
             id: .page(.windowLayout), destination: FeatureSettingsDestination(.windowLayout),
             title: "Window Layout", icon: "rectangle.3.group",
-            keywords: ["Snap to edges", "Keep full screen in these apps"],
-            keywordFeatures: [.windowLayout, .windowMaximizer])
+            keywords: ["Snap to edges", "Keep full screen in these apps",
+                       WindowStageManagerStrings.localized(.enUS).title],
+            keywordFeatures: [.windowLayout, .windowMaximizer, nil])
         let windowLayoutItems = SettingsSearchSupport.combinedItems(
             pageItems: [windowLayoutPage],
             featureItems: SettingsSearchSupport.featureItems(language: .enUS) { $0.rawValue })
         let mergedWindowLayout = windowLayoutItems.first { $0.id == .page(.windowLayout) }!
         let maximizerOnly: (AppFeature) -> Bool = { $0 == .windowMaximizer }
+        let stageManagerMatches = SettingsSearchSupport.groupedMatchingItems(
+            query: "Stage Manager", items: windowLayoutItems,
+            isAvailable: maximizerOnly)
+        suite.expect(stageManagerMatches.map(\.id) == [.windowLayout],
+                     "Stage Manager reservation is searchable with only the green-button feature installed")
         let maximizerOnlyRoute = SettingsSearchSupport.route(for: mergedWindowLayout, isAvailable: maximizerOnly)
         let noneRoute = SettingsSearchSupport.route(for: mergedWindowLayout) { _ in false }
         suite.expect(mergedWindowLayout.feature == .windowLayout

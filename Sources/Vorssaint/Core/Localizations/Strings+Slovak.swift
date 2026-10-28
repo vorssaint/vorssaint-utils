@@ -306,7 +306,7 @@ extension Strings {
         autoQuitHowTitle: "Ako to funguje",
         autoQuitStep1: "Zatvorte posledné okno aplikácie (⌘W alebo červené tlačidlo).",
         autoQuitStep2: "Aplikácia sa sama ukončí. Dialógy „Uložiť zmeny?“ sa stále zobrazujú.",
-        autoQuitPredictableNote: "Aplikácie, ktoré bežne bežia bez okna, sa nikdy neukončia.",
+        autoQuitPredictableNote: "Aplikácie, ktoré ešte neotvorili žiadne okno, zostávajú otvorené. Aplikácie v lište s ponukami zostávajú otvorené, pokiaľ výslovne nepovolíte ich ukončenie.",
         autoQuitOngoingWorkNote: "Niektoré aplikácie zatvoria posledné okno, ale pracujú ďalej, napríklad nahrávanie obrazovky po spustení záznamu. Ak nie sú v zozname výnimiek, ukončia sa tiež.",
         autoQuitExceptionsTitle: "Výnimky",
         autoQuitExceptionsCaption: "Aplikácie v tomto zozname ostanú otvorené aj bez okien.",

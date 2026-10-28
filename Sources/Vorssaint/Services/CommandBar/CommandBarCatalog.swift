@@ -31,6 +31,7 @@ struct CommandBarEntry: Identifiable {
     /// throw the person's name for it away.
     let stableKey: String
     let title: String
+    var englishTitle: String?
     let subtitle: String
     var keywords: String
     let icon: Icon
@@ -95,7 +96,7 @@ struct CommandBarEntry: Identifiable {
     /// The same row with a different caption, for the browse list: under a
     /// heading that already says "Tools", every row repeating "Tools" is noise.
     func withSubtitle(_ subtitle: String) -> CommandBarEntry {
-        CommandBarEntry(id: id, stableKey: stableKey, title: title, subtitle: subtitle,
+        CommandBarEntry(id: id, stableKey: stableKey, title: title, englishTitle: englishTitle, subtitle: subtitle,
                         keywords: keywords, icon: icon, shortcut: shortcut,
                         menuShortcut: menuShortcut, isActive: isActive, trouble: trouble,
                         numericRange: numericRange, numericIsOptional: numericIsOptional,
@@ -104,6 +105,14 @@ struct CommandBarEntry: Identifiable {
                         matchTitle: matchTitle, keepsBarOpen: keepsBarOpen,
                         takesArgument: takesArgument, revealPath: revealPath,
                         uninstallAppURL: uninstallAppURL, run: run)
+    }
+
+    /// System answers require a name, not a short prefix or a broad keyword.
+    /// The English name follows the same gate as the displayed local name.
+    func matchesAnswerName(_ firstToken: String) -> Bool {
+        guard firstToken.count >= 3 else { return false }
+        return CommandBarSearch.normalized(title).hasPrefix(firstToken)
+            || (englishTitle.map { CommandBarSearch.normalized($0).hasPrefix(firstToken) } ?? false)
     }
 
     var isColor: Bool {
@@ -122,6 +131,7 @@ struct CommandBarEntry: Identifiable {
     init(id: String,
          stableKey: String? = nil,
          title: String,
+         englishTitle: String? = nil,
          subtitle: String,
          keywords: String = "",
          icon: Icon,
@@ -144,6 +154,7 @@ struct CommandBarEntry: Identifiable {
         self.id = id
         self.stableKey = stableKey ?? id
         self.title = title
+        self.englishTitle = englishTitle
         self.subtitle = subtitle
         self.keywords = keywords
         self.icon = icon
@@ -215,6 +226,7 @@ enum CommandBarCatalog {
         return entries.map { entry in
             guard let name = englishByID[entry.id] else { return entry }
             var entry = entry
+            entry.englishTitle = name.title
             entry.keywords = [entry.keywords, name.title, name.keywords].joined(separator: " ")
             return entry
         }
