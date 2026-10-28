@@ -251,6 +251,7 @@ final class FeatureRuntime: ObservableObject {
         },
         .autoQuit: { AutoQuitService.shared.syncWithPreferences() },
         .spacesOrder: { SpacesOrderHold.shared.syncWithPreferences() },
+        .dockDisplayLock: { DockDisplayLockService.shared.syncWithPreferences() },
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
         .scrollHorizontal: { ScrollInverter.shared.syncWithPreferences() },
         .focusFollowsMouse: { FocusFollowsMouseService.shared.syncWithPreferences() },

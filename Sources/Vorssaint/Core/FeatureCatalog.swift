@@ -14,7 +14,7 @@ import Foundation
 /// primary control when no enable choice was saved before.
 enum AppFeature: String, CaseIterable {
     // Windows and Dock
-    case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit, spacesOrder
+    case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit, spacesOrder, dockDisplayLock
     // Mouse and keyboard
     case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
@@ -101,7 +101,8 @@ extension AppFeature {
 
     var group: FeatureGroup {
         switch self {
-        case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder:
+        case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder,
+             .dockDisplayLock:
             return .windowsDock
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
@@ -136,6 +137,7 @@ extension AppFeature {
         case .windowLayout: return "rectangle.3.group"
         case .autoQuit: return "xmark.rectangle"
         case .spacesOrder: return "rectangle.split.3x1"
+        case .dockDisplayLock: return "lock.display"
         case .scrollInverter: return "arrow.up.arrow.down"
         case .scrollHorizontal: return "arrow.triangle.swap"
         case .focusFollowsMouse: return "cursorarrow.and.square.on.square.dashed"
@@ -240,6 +242,7 @@ extension AppFeature {
         case .windowMaximizer: return [DefaultsKey.windowMaximizeEnabled]
         case .autoQuit: return [DefaultsKey.autoQuitEnabled]
         case .spacesOrder: return [DefaultsKey.spacesOrderEnabled]
+        case .dockDisplayLock: return [DefaultsKey.dockDisplayLockEnabled]
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled,
                                       DefaultsKey.scrollInverterHorizontalEnabled]
         case .scrollHorizontal: return [DefaultsKey.scrollHorizontalEnabled]
@@ -351,7 +354,7 @@ extension AppFeature {
             return []
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
-             .dockClick, .windowMaximizer, .windowLayout,
+             .dockClick, .windowMaximizer, .windowLayout, .dockDisplayLock,
              .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
              // The bar reads other apps' menus and windows and types at the
              // caret, all of it through Accessibility.
@@ -432,7 +435,7 @@ extension AppFeature {
     /// the shelf behind the island's file tray, the radial menu, and the
     /// switcher and text snippets that feed the Command Bar.
     static let offeredWhenNeverSwitchedOn: [AppFeature] = [
-        .dockPreview, .dockClick, .windowMaximizer, .autoQuit,
+        .dockPreview, .dockClick, .windowMaximizer, .autoQuit, .dockDisplayLock,
         .scrollInverter, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation,
         .mouseButtonShortcuts, .middleClick, .keyboardDebounce, .mouseClickDebounce, .superKey,
         .finderCutPaste,
@@ -484,7 +487,8 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder,
+             .dockDisplayLock:
             return false
         }
     }

@@ -431,6 +431,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift
         Sources/Vorssaint/Services/DockPreview/DockAutohideHold.swift
         Sources/Vorssaint/Services/SpacesOrder/SpacesOrderHold.swift
+        Sources/Vorssaint/Services/DockDisplayLock/DockDisplayLockSupport.swift
+        Sources/Vorssaint/Core/DockDisplayLockStrings.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewEnvironment.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift

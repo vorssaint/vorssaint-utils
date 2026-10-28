@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
-/// The Dock page: Dock Preview, Dock clicks and the window previews Dock
-/// Preview shares with the switcher.
+/// The Dock page: Dock Preview, Dock clicks, keeping the Dock on one display
+/// and the window previews Dock Preview shares with the switcher.
 struct DockSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var dockPreview = DockPreviewService.shared
+    @ObservedObject private var dockLock = DockDisplayLockService.shared
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewCurrentSpaceOnly) private var dockPreviewCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
@@ -24,6 +26,9 @@ struct DockSettings: View {
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.spacesOrderEnabled) private var spacesOrderEnabled = false
+    @AppStorage(DefaultsKey.dockDisplayLockEnabled) private var dockDisplayLockEnabled = false
+    @AppStorage(DefaultsKey.dockDisplayLockTarget) private var dockDisplayLockTarget = DockDisplayLockTarget.mainStorage
+    @AppStorage(DefaultsKey.dockDisplayLockReturns) private var dockDisplayLockReturns = false
 
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
     private var dockPreviewEngaged: Bool { dockPreviewEnabled && AppFeature.dockPreview.isAvailable }
@@ -51,6 +56,10 @@ struct DockSettings: View {
                 if AppFeature.spacesOrder.isAvailable {
                     spacesOrderCard
                         .settingsSectionAnchor(.spacesOrder, cornerRadius: 16)
+                }
+                if AppFeature.dockDisplayLock.isAvailable {
+                    dockDisplayLockCard
+                        .settingsSectionAnchor(.dockDisplayLock, cornerRadius: 16)
                 }
                 if AppFeature.dockPreview.isAvailable {
                     WindowPreviewsCard(sizeKey: DefaultsKey.previewSize,
@@ -189,6 +198,99 @@ struct DockSettings: View {
                     .onChange(of: spacesOrderEnabled) { _, _ in
                         SpacesOrderHold.shared.syncWithPreferences()
                     }
+            }
+        }
+    }
+
+    private var dockDisplayLockCard: some View {
+        let text = FeatureStrings.dockDisplayLock(l10n.language)
+        return SettingsCard(title: text.title) {
+            SettingsRow(symbol: AppFeature.dockDisplayLock.symbolName, title: text.title,
+                        caption: text.enableCaption) {
+                Toggle(text.title, isOn: $dockDisplayLockEnabled)
+                    .labelsHidden()
+                    .onChange(of: dockDisplayLockEnabled) { _, enabled in
+                        DockDisplayLockService.shared.syncWithPreferences()
+                        if enabled { DockDisplayLockService.shared.moveDockToAnchor() }
+                    }
+            }
+            if dockDisplayLockEnabled {
+                SettingsRow(symbol: "display", title: text.displayPicker,
+                            caption: dockDisplayLockChoiceIsAway ? text.fallbackNote : nil) {
+                    Picker(text.displayPicker, selection: dockDisplayLockTargetBinding) {
+                        Text(text.mainDisplay).tag(DockDisplayLockTarget.main)
+                        if dockLock.displays.contains(where: \.isBuiltIn) {
+                            Text(text.builtInDisplay).tag(DockDisplayLockTarget.builtIn)
+                        }
+                        ForEach(dockLock.displays) { display in
+                            Text(display.name).tag(DockDisplayLockTarget.display(uuid: display.uuid))
+                        }
+                        if dockDisplayLockChoiceIsAway {
+                            Text(text.disconnectedDisplay).tag(dockDisplayLockChoice)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 240)
+                }
+                dockDisplayLockStatus(text)
+                SettingsRow(symbol: "arrow.uturn.backward", title: text.returnsToggle,
+                            caption: text.returnsCaption) {
+                    Toggle(text.returnsToggle, isOn: $dockDisplayLockReturns)
+                        .labelsHidden()
+                }
+            }
+        }
+        .onAppear { if dockDisplayLockEnabled { dockLock.refresh() } }
+    }
+
+    /// Where the Dock is now, and a way to send it where it belongs when it
+    /// is somewhere else.
+    @ViewBuilder
+    private func dockDisplayLockStatus(_ text: DockDisplayLockStrings) -> some View {
+        if dockLock.displays.count < 2 {
+            Label(text.singleDisplay, systemImage: "info.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if !NSScreen.screensHaveSeparateSpaces {
+            Label(text.spacesOff, systemImage: "info.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if let dock = dockLock.displays.first(where: { $0.id == dockLock.dockDisplayID }) {
+            HStack(spacing: 10) {
+                Label(String(format: text.dockLocationFormat, dock.name),
+                      systemImage: dock.id == dockLock.anchorID ? "checkmark.circle.fill" : "exclamationmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if dock.id != dockLock.anchorID, permissions.accessibility {
+                    Button(text.moveButton) { DockDisplayLockService.shared.moveDockToAnchor() }
+                        .disabled(dockLock.isMovingDock)
+                }
+            }
+        }
+    }
+
+    private var dockDisplayLockChoice: DockDisplayLockTarget {
+        DockDisplayLockTarget(storage: dockDisplayLockTarget)
+    }
+
+    /// A display picked by name that is not connected right now: the choice
+    /// stays, and the picker says so instead of showing the fallback.
+    private var dockDisplayLockChoiceIsAway: Bool {
+        guard case let .display(uuid) = dockDisplayLockChoice else { return false }
+        return !dockLock.displays.contains { $0.uuid == uuid }
+    }
+
+    private var dockDisplayLockTargetBinding: Binding<DockDisplayLockTarget> {
+        Binding {
+            dockDisplayLockChoice
+        } set: { target in
+            dockDisplayLockTarget = target.storageValue
+            DockDisplayLockService.shared.syncWithPreferences()
+            // Once the picker's menu has closed: called while it was still
+            // closing, the press on the edge left the Dock where it was.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                DockDisplayLockService.shared.moveDockToAnchor()
             }
         }
     }

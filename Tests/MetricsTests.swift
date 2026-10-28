@@ -206,6 +206,7 @@ struct MetricsTests {
                 DockPreviewFrameRestorationTests.run(suite)
             }),
             ("spaces-order", { SpacesOrderTests.run(suite) }),
+            ("dock-display-lock", { DockDisplayLockTests.run(suite) }),
             ("switcher", {
                 AXWindowResolverTests.run(suite)
                 SwitcherSearchLayoutTests.run(suite)

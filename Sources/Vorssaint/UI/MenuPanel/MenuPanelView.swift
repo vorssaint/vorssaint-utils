@@ -1114,7 +1114,7 @@ struct UtilitiesSection: View {
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, linearScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
          dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
-         mouseClickDebounce, notch, spacesOrder
+         mouseClickDebounce, notch, spacesOrder, dockDisplayLock
 
     var id: String { rawValue }
 
@@ -1139,6 +1139,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .textSnippets: return .textSnippets
         case .notch: return .notch
         case .spacesOrder: return .spacesOrder
+        case .dockDisplayLock: return .dockDisplayLock
         case .radialMenu: return .radialMenu
         case .mouseButtonShortcuts: return .mouseButtonShortcuts
         case .superKey: return .superKey
@@ -1157,7 +1158,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
     static func category(for item: ControlPanelItem) -> ControlCategory {
         switch item {
         case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit, .notch,
-             .spacesOrder:
+             .spacesOrder, .dockDisplayLock:
             return .windows
         case .mouseScroll, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
              .textSnippets, .radialMenu, .superKey, .mouseClickDebounce:
@@ -1200,6 +1201,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHideEnabled = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleEnabled = false
     @AppStorage(DefaultsKey.spacesOrderEnabled) private var spacesOrderEnabled = false
+    @AppStorage(DefaultsKey.dockDisplayLockEnabled) private var dockDisplayLockEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
     @AppStorage(DefaultsKey.notchEnabled) private var notchEnabled = false
@@ -1230,6 +1232,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlDockClickHide) private var showDockClickHide = true
     @AppStorage(DefaultsKey.panelControlDockClickCycle) private var showDockClickCycle = true
     @AppStorage(DefaultsKey.panelControlSpacesOrder) private var showSpacesOrder = true
+    @AppStorage(DefaultsKey.panelControlDockDisplayLock) private var showDockDisplayLock = true
     @AppStorage(DefaultsKey.panelControlMiddleClick) private var showMiddleClick = true
     @AppStorage(DefaultsKey.panelControlTextSnippets) private var showTextSnippets = true
     @AppStorage(DefaultsKey.panelControlRadialMenu) private var showRadialMenu = true
@@ -1353,6 +1356,7 @@ struct QuickControlsSection: View {
         case .dockClickHide: return dockClickHideEnabled
         case .dockClickCycle: return dockClickCycleEnabled
         case .spacesOrder: return spacesOrderEnabled
+        case .dockDisplayLock: return dockDisplayLockEnabled
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
         case .notch: return notchEnabled
@@ -1433,6 +1437,7 @@ struct QuickControlsSection: View {
         case .dockClickHide: return showDockClickHide
         case .dockClickCycle: return showDockClickCycle
         case .spacesOrder: return showSpacesOrder
+        case .dockDisplayLock: return showDockDisplayLock
         case .middleClick: return showMiddleClick
         case .textSnippets: return showTextSnippets
         case .notch: return showNotch
@@ -1858,6 +1863,24 @@ struct QuickControlsSection: View {
                            visibility: $showSpacesOrder)
                 .onChange(of: spacesOrderEnabled) { _, _ in
                     SpacesOrderHold.shared.syncWithPreferences()
+                }
+        case .dockDisplayLock:
+            let lockStrings = FeatureStrings.dockDisplayLock(l10n.language)
+            PanelToggleRow(title: lockStrings.title,
+                           caption: caption(lockStrings.hubDescription,
+                                            needsAccessibility: dockDisplayLockEnabled),
+                           systemImage: AppFeature.dockDisplayLock.symbolName,
+                           isOn: $dockDisplayLockEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showDockDisplayLock,
+                           needsAttention: dockDisplayLockEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(dockDisplayLockEnabled))
+                .onChange(of: dockDisplayLockEnabled) { _, enabled in
+                    DockDisplayLockService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                    if enabled { DockDisplayLockService.shared.moveDockToAnchor() }
                 }
         case .mouseClickDebounce:
             let debounceStrings = FeatureStrings.mouseClickDebounce(l10n.language)
