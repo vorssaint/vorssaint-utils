@@ -1081,6 +1081,7 @@ extension Strings {
         switcherShowShortcutHints: "Afficher les raccourcis",
         switcherShowShortcutHintsCaption: "Affiche les raccourcis des apps et des fenêtres sous les icônes.",
         uninstallerHomebrewPackageFormat: "%@ sera aussi retiré de Homebrew.",
+        uninstallerHomebrewCheckFailed: "Impossible de vérifier si Homebrew gère cette app. Actualisez pour réessayer ou désinstallez-la depuis Homebrew.",
         shelfEdgeToggle: "Ouvrir près d’un bord de l’écran",
         shelfEdgeCaption: "Faites glisser un fichier vers le bord de l’écran pour entrevoir l’étagère. Déposez-le là, ou reculez et elle se retire.",
         focusFollowsMouseName: "Le focus suit la souris",

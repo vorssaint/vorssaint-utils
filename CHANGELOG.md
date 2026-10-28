@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable window switching, screenshots, audio and Settings, including radial menu file selection and percentage examples in AI Agents previews. New controls add configurable calendar countdowns, mouse-wheel zoom and app quitting, alongside clipboard source icons, more switcher columns, smoother sliders, English command search and command-line settings backups.
+More reliable window switching, screenshots, audio, app removal and Settings, including radial menu file selection and percentage examples in AI Agents previews. New controls add configurable calendar countdowns, mouse-wheel zoom and app quitting, alongside clipboard source icons, more switcher columns, smoother sliders, English command search and command-line settings backups.
 
 ### Added
 - Dynamic Island level controls and the menu panel's mixer can be adjusted with a mouse wheel or trackpad. Thanks to @JB-OD.
@@ -32,6 +32,7 @@ More reliable window switching, screenshots, audio and Settings, including radia
 - The window switcher allows up to 10 columns while preserving Auto and screen-width limits. Settings → Window switcher → Options → Maximum columns. Thanks to @EugeneCarldotme.
 
 ### Fixed
+- The uninstaller checks Homebrew again for each app and pauses removal when its package status cannot be verified, with a refresh action to retry. Thanks to @tzimpel.
 - The radial menu's action editor keeps its file picker over the editor window, avoiding an invisible panel on multi-display setups. Thanks to @saiganeshreddy7.
 - Mic Mute describes its device-control limits and reports known failures even when no microphone could be changed. Siri and some apps may still hear audio. Thanks to @sarat03 for the diagnosis.
 - The onboarding feature picker stays responsive when scrolling. Thanks to @yousefhamza.

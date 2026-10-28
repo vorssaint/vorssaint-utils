@@ -1081,6 +1081,7 @@ extension Strings {
         switcherShowShortcutHints: "Kısayol ipuçlarını göster",
         switcherShowShortcutHintsCaption: "Simge sırasının altında uygulama ve pencere kısayollarını gösterir.",
         uninstallerHomebrewPackageFormat: "%@, Homebrew’den de kaldırılacak.",
+        uninstallerHomebrewCheckFailed: "Bu uygulamanın Homebrew tarafından yönetilip yönetilmediği doğrulanamadı. Yenile düğmesiyle tekrar deneyin veya Homebrew üzerinden kaldırın.",
         shelfEdgeToggle: "Ekran kenarına yaklaşınca aç",
         shelfEdgeCaption: "Bir dosyayı ekran kenarına doğru sürüklediğinde raf belirmeye başlar. Bıraktığın yerde kalır, ya da geri çekersen raf da geri çekilir.",
         focusFollowsMouseName: "Odak fareyi takip etsin",

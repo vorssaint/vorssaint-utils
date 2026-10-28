@@ -1081,6 +1081,7 @@ extension Strings {
         switcherShowShortcutHints: "Mostrar indicaciones de atajos",
         switcherShowShortcutHintsCaption: "Muestra los atajos de apps y ventanas debajo de los iconos.",
         uninstallerHomebrewPackageFormat: "%@ también se eliminará de Homebrew.",
+        uninstallerHomebrewCheckFailed: "No se pudo comprobar si Homebrew gestiona esta app. Actualiza para volver a intentarlo o desinstálala desde Homebrew.",
         shelfEdgeToggle: "Abrir cerca de un borde de la pantalla",
         shelfEdgeCaption: "Arrastra un archivo hacia el borde de la pantalla para que el estante asome. Suéltalo ahí, o retíralo y el estante se repliega.",
         focusFollowsMouseName: "El foco sigue al ratón",

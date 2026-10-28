@@ -1082,6 +1082,7 @@ extension Strings {
         switcherShowShortcutHints: "단축키 힌트 보기",
         switcherShowShortcutHintsCaption: "아이콘 아래에 앱 및 윈도우 단축키를 표시합니다.",
         uninstallerHomebrewPackageFormat: "%@도 Homebrew에서 제거됩니다.",
+        uninstallerHomebrewCheckFailed: "Homebrew가 이 앱을 관리하는지 확인할 수 없습니다. 새로 고침하여 다시 시도하거나 Homebrew에서 제거하세요.",
         shelfEdgeToggle: "화면 가장자리 근처에서 열기",
         shelfEdgeCaption: "파일을 화면 가장자리 쪽으로 드래그하면 선반이 살짝 나타납니다. 그 자리에 놓거나, 다시 뒤로 당기면 선반이 들어갑니다.",
         focusFollowsMouseName: "마우스를 따라 포커스",

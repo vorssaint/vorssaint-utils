@@ -1081,6 +1081,7 @@ extension Strings {
         switcherShowShortcutHints: "Kurzbefehlhinweise anzeigen",
         switcherShowShortcutHintsCaption: "Zeigt die Kurzbefehle für Apps und Fenster unter den Symbolen.",
         uninstallerHomebrewPackageFormat: "%@ wird auch aus Homebrew entfernt.",
+        uninstallerHomebrewCheckFailed: "Es konnte nicht geprüft werden, ob Homebrew diese App verwaltet. Aktualisiere die Liste, um es erneut zu versuchen, oder deinstalliere sie über Homebrew.",
         shelfEdgeToggle: "In der Nähe eines Bildschirmrands öffnen",
         shelfEdgeCaption: "Ziehe eine Datei in Richtung Bildschirmrand, damit die Ablage kurz hervorschaut. Lass sie dort los, oder zieh zurück, und die Ablage verschwindet wieder.",
         focusFollowsMouseName: "Fokus folgt Maus",

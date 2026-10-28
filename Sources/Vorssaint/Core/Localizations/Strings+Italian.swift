@@ -1081,6 +1081,7 @@ extension Strings {
         switcherShowShortcutHints: "Mostra suggerimenti scorciatoie",
         switcherShowShortcutHintsCaption: "Mostra le scorciatoie per app e finestre sotto le icone.",
         uninstallerHomebrewPackageFormat: "%@ verrà rimosso anche da Homebrew.",
+        uninstallerHomebrewCheckFailed: "Impossibile verificare se Homebrew gestisce questa app. Aggiorna per riprovare oppure disinstallala da Homebrew.",
         shelfEdgeToggle: "Apri vicino a un bordo dello schermo",
         shelfEdgeCaption: "Trascina un file verso il bordo dello schermo per far intravedere il ripiano. Rilascialo lì, oppure torna indietro e si ritira.",
         focusFollowsMouseName: "Il focus segue il mouse",

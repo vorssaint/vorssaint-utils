@@ -1051,6 +1051,7 @@ extension Strings {
         switcherShowShortcutHints: "Показувати підказки поєднань клавіш",
         switcherShowShortcutHintsCaption: "Показує клавіатурні скорочення для програм та вікон під значками.",
         uninstallerHomebrewPackageFormat: "%@ також буде видалено з Homebrew.",
+        uninstallerHomebrewCheckFailed: "Не вдалося перевірити, чи керує Homebrew цією програмою. Оновіть список і спробуйте ще раз або видаліть програму через Homebrew.",
         shelfEdgeToggle: "Відкривати біля краю екрана",
         shelfEdgeCaption: "Перетягніть файл до краю екрана, щоб полиця виглянула. Відпустіть його там, або потягніть назад, і полиця прибереться.",
         focusFollowsMouseName: "Фокус за вказівником",

@@ -2162,7 +2162,7 @@ enum UpdateFeatureTests {
                 == ["outdated", "--cask", "--greedy", "--json=v2"],
                "the update check asks for the apps that carry their own updater too")
         let caskJSON = #"{"formulae":[],"casks":[{"token":"editor","name":["Editor"],"installed":"1.129.0","artifacts":[{"app":["Source.app",{"target":"Editor.app"}],"target":"/Applications/Editor.app"},{"zap":[]}]},{"token":"tapped-tool","full_token":"example/tap/tapped-tool","name":["Tapped Tool"],"installed":"1.0.0","artifacts":[{"app":["Tapped Tool.app"]}]}]}"#
-        let parsedRecords = HomebrewParser.parseInstalledCaskRecords(caskJSON)
+        let parsedRecords = (try? HomebrewParser.parseInstalledCaskRecords(caskJSON)) ?? []
         suite.expect(parsedRecords.count == 2 && parsedRecords[0].appFileNames == ["Editor.app"]
                 && parsedRecords[0].appPaths == ["/Applications/Editor.app"]
                 && parsedRecords[0].displayName == "Editor"
@@ -2170,32 +2170,32 @@ enum UpdateFeatureTests {
                "an installed package is traced to the final app name after a rename")
         suite.expect(parsedRecords.first { $0.token == "tapped-tool" }?.displayName == "Tapped Tool",
                "parseInstalledCaskRecords keeps the short token brew outdated reports for a cask from a tap")
-        suite.expect(HomebrewParser.parseInstalledCaskRecords("garbage").isEmpty,
-               "unreadable package output yields no records")
-        let managedPackage = HomebrewOwnershipSupport.packageManagingApplication(
+        suite.expect((try? HomebrewParser.parseInstalledCaskRecords("garbage")) == nil,
+               "unreadable package output is distinct from an empty inventory")
+        let managedPackage = try? HomebrewOwnershipSupport.packageManagingApplication(
             atPath: "/Applications/Editor.app",
             installed: parsedRecords
-        )
+        ).get()
         suite.expect(managedPackage?.name == "editor" && managedPackage?.kind == .cask,
                "the exact installed app path resolves to its package")
-        suite.expect(HomebrewOwnershipSupport.packageManagingApplication(
+        suite.expect((try? HomebrewOwnershipSupport.packageManagingApplication(
             atPath: "/Users/test/Desktop/Editor.app",
             installed: parsedRecords
-        ) == nil,
+        ).get()) == nil,
         "a same-named app outside the managed path never resolves to a package")
         let legacyRecord = HomebrewCaskRecord(token: "legacy-tool",
                                               displayName: "Legacy Tool",
                                               installedVersion: "2.0",
                                               appFileNames: ["Legacy Tool.app"])
-        suite.expect(HomebrewOwnershipSupport.packageManagingApplication(
+        suite.expect((try? HomebrewOwnershipSupport.packageManagingApplication(
             atPath: "/Users/test/Applications/Legacy Tool.app",
             installed: [legacyRecord]
-        ) == nil,
+        ).get()) == nil,
         "package uninstall requires exact path ownership even when the catalog omits its target")
-        suite.expect(HomebrewOwnershipSupport.packageManagingApplication(
+        suite.expect((try? HomebrewOwnershipSupport.packageManagingApplication(
             atPath: "/Applications/Legacy Tool.app",
             installed: [legacyRecord, legacyRecord]
-        ) == nil,
+        ).get()) == nil,
         "ambiguous package ownership is never used for uninstall")
 
         suite.expect(Defaults.utilityOrderWithAppUpdates("screenshot,quickLauncher,cleaner,homebrew")

@@ -736,16 +736,24 @@ def main():
           + declaration(bar, "    enum Mode:")
           + "final class Uninstaller: UninstallerState {\nstatic let shared = Uninstaller()\n"
           + "".join(declaration(uninstall, prefix) for prefix in [
-              "    var isRemoving: Bool", "    func select(appURL:",
+              "    var isRemoving: Bool", "    var canRemoveSelected: Bool", "    func select(appURL:",
+              "    func retryHomebrewCheck()",
               "    func reset()", "    func setInclude(", "    struct HomebrewRemovalConfirmation",
               "    var homebrewRemovalConfirmation:", "    func removeSelectedWithHomebrew("])
           + "}\nfinal class Service: ServiceState {\n"
           + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
               "    @Published var query", "    private func beginUninstallReview(",
               "    private func handleUninstallKey(", "    func stepBack()",
+              "    private func confirmUninstallReview(",
               "    private func finishUninstallReview()"])
           + "}\n}\nextension UninstallerFlowTests.Finder {\n"
           + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
+          + "}\n")
+    homebrew = "Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift"
+    write("HomebrewOwnership.swift", "import Foundation\n"
+          + "extension HomebrewOwnershipTests.Manager {\n"
+          + declaration(homebrew, "    func packageManagingApplication(")
+          + declaration(homebrew, "    private func finishOwnershipLoad(")
           + "}\n")
     write("UninstallerCommandBarCleanup.swift", "import Foundation\n"
           + "extension UninstallerCommandBarCleanupTests {\n"

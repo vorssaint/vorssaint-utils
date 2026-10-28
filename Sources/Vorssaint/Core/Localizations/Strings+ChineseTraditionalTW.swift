@@ -1082,6 +1082,7 @@ extension Strings {
         switcherShowShortcutHints: "顯示快速鍵提示",
         switcherShowShortcutHintsCaption: "在圖示下方顯示 App 和視窗快速鍵。",
         uninstallerHomebrewPackageFormat: "%@ 也會從 Homebrew 移除。",
+        uninstallerHomebrewCheckFailed: "無法確認此 App 是否由 Homebrew 管理。請重新整理後再試一次，或透過 Homebrew 解除安裝。",
         shelfEdgeToggle: "靠近螢幕邊緣時開啟",
         shelfEdgeCaption: "將檔案拖曳到螢幕邊緣，暫存架就會探出一角。放在那裡即可放下，往回拖曳就會收回去。",
         focusFollowsMouseName: "游標停留時聚焦",

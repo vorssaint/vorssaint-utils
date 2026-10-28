@@ -1081,6 +1081,7 @@ extension Strings {
         switcherShowShortcutHints: "Zobraziť nápovedu ku skratkám",
         switcherShowShortcutHintsCaption: "Zobrazí skratky pre aplikácie a okná pod ikonami.",
         uninstallerHomebrewPackageFormat: "%@ sa odstráni aj z Homebrew.",
+        uninstallerHomebrewCheckFailed: "Nepodarilo sa overiť, či túto aplikáciu spravuje Homebrew. Obnovte zoznam a skúste to znova alebo ju odinštalujte cez Homebrew.",
         shelfEdgeToggle: "Otvoriť pri okraji obrazovky",
         shelfEdgeCaption: "Potiahnite súbor k okraju obrazovky a polica sa vysunie. Buď na ňu súbor pustíte, alebo sa potiahnutím späť zasunie.",
         focusFollowsMouseName: "Zameranie sleduje myš",

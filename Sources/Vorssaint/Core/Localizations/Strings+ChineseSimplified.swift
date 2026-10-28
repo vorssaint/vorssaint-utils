@@ -1081,6 +1081,7 @@ extension Strings {
         switcherShowShortcutHints: "显示快捷键提示",
         switcherShowShortcutHintsCaption: "在图标下方显示 App 和窗口快捷键。",
         uninstallerHomebrewPackageFormat: "%@ 也会从 Homebrew 中移除。",
+        uninstallerHomebrewCheckFailed: "无法确认此 App 是否由 Homebrew 管理。请刷新后重试，或通过 Homebrew 卸载。",
         shelfEdgeToggle: "靠近屏幕边缘时打开",
         shelfEdgeCaption: "将文件拖向屏幕边缘，暂存架就会探出一角。放在那里即可放下，往回拖则会收回去。",
         focusFollowsMouseName: "悬停聚焦",
