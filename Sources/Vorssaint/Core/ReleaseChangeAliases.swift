@@ -151,6 +151,7 @@ enum ReleaseChangeAliases {
         case .notchAccessories: return ["accessory alerts", "accessory notices", .island("accessory")]
         case .notchLyrics: return ["lyrics", "lyric"]
         case .notchQueue: return ["up next", .island("queue")]
+        case .notchSpotify: return ["spotify likes", "liked songs", .island("spotify")]
         case .notchLiveEqualizer: return ["bars follow the music", "live music bars",
             "music bars that follow playback"]
         case .notchDownloads: return [.island("downloads"), .island("download"), "safari downloads",

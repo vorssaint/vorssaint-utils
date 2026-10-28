@@ -11,6 +11,7 @@ struct NotchMusicView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var shuffle = NotchShuffleService.shared
+    @ObservedObject private var spotify = NotchSpotifyService.shared
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
     @AppStorage(DefaultsKey.notchMusicShowVolume) private var showVolume = false
@@ -26,6 +27,12 @@ struct NotchMusicView: View {
     private var showsLyrics: Bool { lyricsEnabled && AppFeature.notchLyrics.isAvailable }
     private var showsQueue: Bool { queueEnabled && AppFeature.notchQueue.isAvailable }
     private var showsVolume: Bool { showVolume && AppFeature.mixer.isAvailable }
+    /// A positively matched browser keeps its retry/reconnect action when
+    /// Spotify rejects a request; a new recording must establish its own match.
+    private var showsHeart: Bool {
+        spotify.offersHeart(for: service.playback)
+    }
+    private var heartAnswered: Bool { spotify.hasSavedAnswer(for: service.playback) }
     private var openExtra: MusicExtra? {
         guard service.playback != nil else { return nil }
         switch extra {
@@ -92,6 +99,7 @@ struct NotchMusicView: View {
             syncExtras()
             service.refreshAutomation()
             shuffle.refresh(for: service.playback)
+            spotify.reload()
         }
         .onChange(of: extra) { syncExtras() }
         .onChange(of: service.playback.map(NotchMusicIdentity.init)) {
@@ -244,8 +252,33 @@ struct NotchMusicView: View {
             .disabled(shuffle.requestingAccess || !shuffle.allowed)
     }
 
+    private var heartButton: some View {
+        let strings = FeatureStrings.notchSpotify(l10n.language)
+        let connected = spotify.connection == .connected
+        let liked = connected && heartAnswered && spotify.saved == true
+        let title = spotify.needsReconnect ? strings.accessLost
+            : !connected ? strings.connect
+            : spotify.busy ? strings.updating
+            : spotify.actionFailed ? strings.likeFailed
+            : liked ? strings.unlike : strings.like
+        // Until Spotify answers, a tap has nothing to change; the heart stays
+        // in the row rather than arriving after everything else.
+        return NotchMusicSideButton(symbol: spotify.busy ? "arrow.triangle.2.circlepath"
+                                    : spotify.actionFailed ? "exclamationmark.triangle" : liked ? "heart.fill" : "heart",
+                                    title: title, active: liked, tint: accent) {
+            if !connected {
+                NotchService.shared.openSettings(showing: .music)
+            } else if heartAnswered {
+                spotify.toggleSaved()
+            } else if spotify.actionFailed {
+                spotify.reload()
+            }
+        }
+        .disabled(spotify.busy || (connected && !heartAnswered && !spotify.actionFailed))
+    }
+
     /// One row of five equal places across the island, the transport in the
-    /// middle three: shuffle before it and the output after it, each place
+    /// middle three: shuffle before it and the heart or output after it, each place
     /// kept when its button is not offered so play stays in the middle.
     private func transportRow<Leading: View, Middle: View>(
         @ViewBuilder leading: () -> Leading, @ViewBuilder middle: (CGFloat) -> Middle) -> some View {
@@ -256,7 +289,11 @@ struct NotchMusicView: View {
             Color.clear.frame(width: slot).overlay { leading() }
             middle(slot).frame(width: slot * 3)
             Color.clear.frame(width: slot).overlay {
-                if AppFeature.mixer.isAvailable { NotchMusicOutputButton() }
+                if showsHeart {
+                    heartButton
+                } else if AppFeature.mixer.isAvailable {
+                    NotchMusicOutputButton()
+                }
             }
         }
         .frame(height: NotchLayout.musicTransportHeight)
