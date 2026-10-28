@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable window switching, screenshots, audio and Settings, including radial menu file selection and percentage examples in AI Agents previews. New controls add configurable calendar countdowns, mouse-wheel zoom and app quitting, alongside clipboard source icons, more switcher columns, smoother sliders, English command search and command-line settings backups.
+More reliable window switching, screenshots, audio, clipboard navigation and Settings, including radial menu file selection and percentage examples in AI Agents previews. New controls add configurable calendar countdowns, mouse-wheel zoom and app quitting, alongside clipboard source icons, more switcher columns, smoother sliders, English command search and command-line settings backups.
 
 ### Added
 - Dynamic Island level controls and the menu panel's mixer can be adjusted with a mouse wheel or trackpad. Thanks to @JB-OD.
@@ -32,6 +32,7 @@ More reliable window switching, screenshots, audio and Settings, including radia
 - The window switcher allows up to 10 columns while preserving Auto and screen-width limits. Settings → Window switcher → Options → Maximum columns. Thanks to @EugeneCarldotme.
 
 ### Fixed
+- Dynamic Island's clipboard supports Control-N and Control-P to move through history, matching the separate clipboard panel. Thanks to @avgrpg for the report.
 - The radial menu's action editor keeps its file picker over the editor window, avoiding an invisible panel on multi-display setups. Thanks to @saiganeshreddy7.
 - Mic Mute describes its device-control limits and reports known failures even when no microphone could be changed. Siri and some apps may still hear audio. Thanks to @sarat03 for the diagnosis.
 - The onboarding feature picker stays responsive when scrolling. Thanks to @yousefhamza.
@@ -72,7 +73,7 @@ More reliable window switching, screenshots, audio and Settings, including radia
 - Screenshot area selection keeps its crosshair over other apps, and card shadows follow the captured window's own rounded corners.
 
 ### Contributors
-Thanks to @0miicr0n, @AB-boi, @ahmadhatahet, @ALaunert, @Aryan-Saini, @asim-sde, @BerkUyku, @Blasted246, @buhbyehotmail, @derpyjoystick, @DigitalWestern, @dimashpt, @dimitarmanov, @dongzoor, @DrakeEvans, @eliamarinen, @EugeneCarldotme, @fablau, @Forenzo, @globeatin, @Goonwb, @hash00, @hertza-haeon, @hrithiksaini99, @i0208, @ilvesBogdan, @iva-zhu, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @kidtaroi, @Likheet, @LJXXXD, @MartinSchlender, @Mikkeep, @mthsmb, @muratozturk5, @nikigan, @oc7opu5, @othmanehousni, @ozanuslan, @pedro-fontinele, @pedrozimmermannsoares, @raymondchins, @RKeyProg, @rochapaesc, @saarmiara, @saiganeshreddy7, @samanyudas, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz, @thedankest, @ve3dy, @ygh1254, @yousefhamza, @ywu73 and @Zekuath.
+Thanks to @0miicr0n, @AB-boi, @ahmadhatahet, @ALaunert, @Aryan-Saini, @asim-sde, @avgrpg, @BerkUyku, @Blasted246, @buhbyehotmail, @derpyjoystick, @DigitalWestern, @dimashpt, @dimitarmanov, @dongzoor, @DrakeEvans, @eliamarinen, @EugeneCarldotme, @fablau, @Forenzo, @globeatin, @Goonwb, @hash00, @hertza-haeon, @hrithiksaini99, @i0208, @ilvesBogdan, @iva-zhu, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @kidtaroi, @Likheet, @LJXXXD, @MartinSchlender, @Mikkeep, @mthsmb, @muratozturk5, @nikigan, @oc7opu5, @othmanehousni, @ozanuslan, @pedro-fontinele, @pedrozimmermannsoares, @raymondchins, @RKeyProg, @rochapaesc, @saarmiara, @saiganeshreddy7, @samanyudas, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz, @thedankest, @ve3dy, @ygh1254, @yousefhamza, @ywu73 and @Zekuath.
 
 ## [3.4.2] - 2026-10-21
 
