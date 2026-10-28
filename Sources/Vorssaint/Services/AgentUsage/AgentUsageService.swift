@@ -6,7 +6,7 @@ import Foundation
 import Network
 
 /// Reads Claude Code, Codex and GitHub Copilot usage from local session logs, and
-/// OpenCode usage from its database, while the AI section is on, along with
+/// OpenCode and Hermes usage from their databases, while the AI section is on, along with
 /// the plan limits the Claude app saves. The files are read where they are,
 /// incrementally, and nothing is copied or sent: only counters are kept, in
 /// memory and in the app's private folder so the next launch reads only what
@@ -336,7 +336,7 @@ final class AgentUsageService: ObservableObject {
         // contents gave. Left out, the next launch reads it as rewritten.
         // Nothing from OpenCode's database is saved. Its open replies and
         // sessions live only in memory, so each launch reads it again.
-        let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode }
+        let kept = cursors.values.filter { !$0.restarted && !$0.provider.readsDatabase }
         let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: kept.map(\.saved))
         if AgentUsageArchive.save(contents) { savedMark = mark }
     }
@@ -344,9 +344,9 @@ final class AgentUsageService: ObservableObject {
     /// Changes whenever a log is read further, replaced or let go. OpenCode,
     /// which is never saved, leaves it alone.
     private var progressMark: Int {
-        let records = store.records.reduce(0) { $1.provider == .opencode ? $0 : $0 + 1 }
+        let records = store.records.reduce(0) { $1.provider.readsDatabase ? $0 : $0 + 1 }
         return cursors.values.reduce(records) { mark, cursor in
-            guard cursor.provider != .opencode else { return mark }
+            guard !cursor.provider.readsDatabase else { return mark }
             var hasher = Hasher()
             hasher.combine(cursor.path)
             hasher.combine(cursor.offset)
@@ -416,7 +416,7 @@ final class AgentUsageService: ObservableObject {
         var changed = false
         for (path, cursor) in cursors
         where working.contains(path) || now.timeIntervalSince(cursor.modified) < window {
-            if cursor.provider == .opencode {
+            if cursor.provider.readsDatabase {
                 // A database changes in place: its write-ahead log grows instead.
                 if let modified = AgentOpenCodeReader.modified(path), modified <= cursor.modified { continue }
                 if read(path, provider: cursor.provider) { changed = true }
@@ -492,8 +492,8 @@ final class AgentUsageService: ObservableObject {
             let entries = provider.reader.parse(line, state: &cursor.state, now: now)
             guard !entries.isEmpty else { return }
             changed = true
-            let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
-            let turnFile = provider == .opencode && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
+            let isSubagent = provider.readsDatabase && !cursor.state.parentSession.isEmpty
+            let turnFile = provider.readsDatabase && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
             let tracksTurns = isSubagent ? false : cursor.tracksTurns
             let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)"
                 : cursor.parent ?? cursor.codexParent(among: cursors)

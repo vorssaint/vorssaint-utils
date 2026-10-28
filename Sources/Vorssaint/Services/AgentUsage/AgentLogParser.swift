@@ -65,6 +65,8 @@ struct AgentLogState: Equatable {
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
     var openCodeSessions: [String: OpenCodeSessionState] = [:]
+    /// Hermes keeps one database per profile, tracking per-session turns.
+    var hermesSessions: [String: HermesSessionState] = [:]
     /// Claude's shell commands still waiting for their result, by tool call.
     /// They run on the Mac, so the turn goes on without the network.
     var runningCommands: Set<String> = []
@@ -88,6 +90,15 @@ struct OpenCodeSessionState: Equatable {
     var seenUserMessageIDs: Set<String> = []
     var completedAssistantMessageIDs: Set<String> = []
     var completedUserMessageIDs: Set<String> = []
+}
+
+/// Per-session turn tracking for the Hermes databases.
+struct HermesSessionState: Equatable {
+    var project = ""
+    var model = ""
+    var turnOpen = false
+    var turnStarted: Date?
+    var lastActivity: Date?
 }
 
 enum AgentLogParser {

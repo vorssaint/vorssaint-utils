@@ -85,7 +85,8 @@ final class FanControlService: ObservableObject {
     func refresh() {
         refreshAccessState()
         if accessState == .enabled {
-            guard !replaceRegistrationIfNeeded() else { return }
+            // A legacy daemon carries no SMAppService registration to renew.
+            if !Self.legacyDaemonInstalled, replaceRegistrationIfNeeded() { return }
             requestStatus()
         } else {
             refreshLocalProbe()
@@ -492,6 +493,16 @@ final class FanControlService: ObservableObject {
         case .notFound: accessState = .notRegistered
         @unknown default: accessState = .unavailable
         }
+        if accessState == .notRegistered, Self.legacyDaemonInstalled { accessState = .enabled }
+    }
+
+    /// A build that is not notarized cannot register a bundled daemon: macOS
+    /// refuses it, and the Allow button then asks again forever. A plist in
+    /// /Library/LaunchDaemons is bootstrapped without approval, and its file is
+    /// the proof that this Mac runs the helper that way.
+    // shortcut: the file, not a live connection, is the evidence, <when local builds are notarized>.
+    private static var legacyDaemonInstalled: Bool {
+        FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/\(FanControlIdentifiers.plistName)")
     }
 
     /// Apple requires a changed embedded daemon to be unregistered before it

@@ -12,6 +12,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsHermes) private var hermes = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -49,6 +50,7 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
+            providerRow(.hermes, isOn: $hermes)
             if codex { CodexAccountsSettings() }
 
             Divider()
@@ -245,7 +247,7 @@ struct NotchAgentsSettingsControls: View {
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, hermes].filter { $0 }.count <= 1)
         }
     }
 

@@ -171,6 +171,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         FanControlService.recoverIfNeeded()
         SpacesOrderHold.recoverIfNeeded()
+        // The OpenBot card's global toggle; the card itself stays closed until
+        // the shortcut or a later opening asks for it.
+        OpenBotMirrorService.shared.syncWithPreferences()
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
@@ -353,6 +356,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         AudioInputDeviceManager.shared.stop()
         // Flushes any scratchpad edit still inside the save debounce.
         ScratchpadService.shared.suspend()
+        // Puts the mirrored OpenBot window away and releases its hotkey.
+        OpenBotMirrorService.shared.suspend()
         // Every macOS shortcut a feature took over goes back now, whichever
         // feature held it; not all of them suspend here.
         SystemShortcutTakeover.restoreAll()

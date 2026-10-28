@@ -9,6 +9,11 @@ import CryptoKit
 
 enum FanControlIdentifiers {
     static let teamID = "3D485NHW29"
+    /// The stable identity Tools/setup-signing.sh issues for local builds of
+    /// this repository. A self-signed leaf cannot anchor to anything Apple
+    /// trusts, so its branch pins the identifier and the identity's own name
+    /// instead of the team.
+    static let localSigningIdentity = "Vorssaint Utils Signing"
 
     #if VORSSAINT_DEVELOPMENT
     static let appBundleID = "com.vorssaint.utils.dev"
@@ -26,7 +31,10 @@ enum FanControlIdentifiers {
         }
         return "identifier \"\(appBundleID)\" and certificate leaf = H\"\(hash)\""
         #else
+        // shortcut: an install signed with the stable local identity names that
+        // identity instead of the team, <when local builds are signed by Apple>.
         return "anchor apple generic and certificate leaf[subject.OU] = \"\(teamID)\" and identifier \"\(appBundleID)\""
+            + " or (identifier \"\(appBundleID)\" and certificate leaf[subject.CN] = \"\(localSigningIdentity)\")"
         #endif
     }
 
@@ -38,39 +46,9 @@ enum FanControlIdentifiers {
         return "identifier \"\(helperID)\" and certificate leaf = H\"\(hash)\""
         #else
         return "anchor apple generic and certificate leaf[subject.OU] = \"\(teamID)\" and identifier \"\(helperID)\""
+            + " or (identifier \"\(helperID)\" and certificate leaf[subject.CN] = \"\(localSigningIdentity)\")"
         #endif
     }
-
-    #if VORSSAINT_DEVELOPMENT
-    private static func currentLeafCertificateSHA1() -> String? {
-        var dynamicCode: SecCode?
-        guard SecCodeCopySelf([], &dynamicCode) == errSecSuccess,
-              let selfCode = dynamicCode else {
-            return nil
-        }
-
-        var staticCode: SecStaticCode?
-        guard SecCodeCopyStaticCode(selfCode, [], &staticCode) == errSecSuccess,
-              let staticSelfCode = staticCode else {
-            return nil
-        }
-
-        var signingInfo: CFDictionary?
-        guard SecCodeCopySigningInformation(staticSelfCode, SecCSFlags(rawValue: kSecCSSigningInformation), &signingInfo) == errSecSuccess,
-              let info = signingInfo as? [String: Any] else {
-            return nil
-        }
-
-        guard let certificates = info[kSecCodeInfoCertificates as String] as? [SecCertificate],
-              let leaf = certificates.first else {
-            return nil
-        }
-
-        let data = SecCertificateCopyData(leaf) as Data
-        let digest = Insecure.SHA1.hash(data: data)
-        return digest.map { String(format: "%02x", $0) }.joined()
-    }
-    #endif
 }
 
 @objc protocol FanControlXPCProtocol {
