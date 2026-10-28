@@ -1097,7 +1097,22 @@ private struct RadialItemEditor: View {
             panel.directoryURL = URL(fileURLWithPath: "/Applications")
         }
         NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        // Run from this sheet as an app-wide modal, the panel was placed
+        // where macOS last kept it, which can be off every screen: then each
+        // click beeps, Quit is refused and the editor seems frozen. Attached
+        // to the editor's own window it always opens over it.
+        guard let window = NSApp.keyWindow, window.isVisible else {
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            applyChosen(url)
+            return
+        }
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            applyChosen(url)
+        }
+    }
+
+    private func applyChosen(_ url: URL) {
         RadialMenuIconStore.invalidate(item.payload)
         item.payload = url.path
     }

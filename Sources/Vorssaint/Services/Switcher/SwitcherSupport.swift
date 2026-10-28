@@ -577,7 +577,7 @@ enum SwitcherSupport {
     /// The most items a switcher row may hold before wrapping. Ultrawide
     /// displays fit so many per row that the panel spans the whole screen;
     /// a cap keeps it compact and wraps the rest onto more rows.
-    static let maxColumnsRange: ClosedRange<Int> = 2 ... 8
+    static let maxColumnsRange: ClosedRange<Int> = 2 ... 10
 
     /// Nil means Auto: as many as the screen fits, the behavior before the cap.
     static func sanitizedMaxColumns(_ value: Int) -> Int? {

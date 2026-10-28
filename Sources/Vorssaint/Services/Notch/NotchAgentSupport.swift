@@ -242,6 +242,36 @@ enum NotchAgentSupport {
         }
     }
 
+    /// Settings must illustrate the selected reading even before any agent
+    /// has reported an allowance. Example data stays in this preview copy.
+    static func stripSampleSnapshot(_ snapshot: AgentUsageSnapshot, provider: AgentProvider,
+                                    focus: NotchAgentLimitFocus, now: Date) -> AgentUsageSnapshot {
+        var sample = snapshot
+        if sample.live.isEmpty {
+            sample.live = [AgentLiveSession(id: "example", provider: provider, started: now.addingTimeInterval(-754),
+                                            lastActivity: now, model: "", project: "",
+                                            tokens: AgentTokens(input: 1_180_000, output: 20_000), cost: 4.56)]
+        }
+        let working = AgentProvider.allCases.first { provider in sample.live.contains { $0.provider == provider } } ?? provider
+        if focusedLimit(sample.limits[working], focus: focus, now: now) == nil {
+            sample.limits[working] = AgentLimits(provider: working, windows: [
+                AgentLimitWindow(id: "example-session", kind: .session, minutes: 300, scope: nil,
+                                 usedPercent: 32, resetsAt: now.addingTimeInterval(3600)),
+                AgentLimitWindow(id: "example-week", kind: .weekly, minutes: 10_080, scope: nil,
+                                 usedPercent: 57, resetsAt: now.addingTimeInterval(86_400))
+            ], observedAt: now, source: .sessionLog)
+        }
+        return sample
+    }
+
+    /// A limit's share on the island's card. It names which share it is:
+    /// a bare 99% left reads as 99% spent.
+    static func limitShare(_ window: AgentLimitWindow, display: NotchAgentLimitDisplay,
+                           text: NotchAgentStrings) -> String {
+        display == .remaining ? text.left(AgentFormat.percent(window.remainingFraction))
+            : text.usedShare(AgentFormat.percent(window.usedFraction))
+    }
+
     /// Every digit takes the same width, so a reading's shape, not its value,
     /// sets the strip's width: "12:34" and "59:59" match, "1:00:00" is wider.
     static func readingShape(_ reading: String) -> String {

@@ -14,6 +14,18 @@ extension QuitProtectionRoutingContract.QuitProtectionService {
         defaults.set(true, forKey: DefaultsKey.quitProtectionQuitShowFeedback)
         defaults.set(true, forKey: DefaultsKey.quitProtectionCloseEnabled)
 
+        let factorySwitcher = [
+            LiveSystemShortcut(id: 1, keyCode: 48, flags: .maskCommand, enabled: true),
+            LiveSystemShortcut(id: 2, keyCode: 48, flags: [.maskCommand, .maskShift], enabled: true),
+        ]
+        Contract.SymbolicHotKeys.snapshot = factorySwitcher
+        defer {
+            Contract.SymbolicHotKeys.snapshot = nil
+            Contract.SymbolicHotKeys.readCount = 0
+            Contract.SymbolicHotKeys.requestedIDs = []
+            Contract.AppSwitcher.shared.keyboardInputOwnership = (false, 0)
+        }
+
         let service = Self()
         service.isRunning = true
         service.frontmostProcessIdentifier = 100
@@ -52,6 +64,84 @@ extension QuitProtectionRoutingContract.QuitProtectionService {
         suite.expect(send(13) && send(13, .keyUp) && service.pending == nil,
                      "native Command-Tab also receives W without starting foreground-window protection")
         send(55, .flagsChanged, flags: [])
+
+        // Change the real routing's table without restarting the service.
+        // Old combinations must protect Q/W; new ones must leave them to macOS.
+        let remappings: [(CGKeyCode, CGEventFlags)] = [
+            (38, .maskCommand),
+            (38, [.maskCommand, .maskControl]),
+            (38, [.maskCommand, .maskSecondaryFn]),
+        ]
+        for mode in QuitProtectionMode.allCases {
+            defaults.set(mode.rawValue, forKey: DefaultsKey.quitProtectionQuitMode)
+            defaults.set(mode.rawValue, forKey: DefaultsKey.quitProtectionCloseMode)
+            for (key, flags) in remappings {
+                Contract.SymbolicHotKeys.snapshot = factorySwitcher
+                send(48)
+                send(55, .flagsChanged, flags: [])
+                Contract.SymbolicHotKeys.snapshot = [
+                    LiveSystemShortcut(id: 1, keyCode: Int64(key), flags: flags, enabled: true),
+                ]
+                for protectedKey: CGKeyCode in [12, 13] {
+                    // Tab was the previous mapping; the bare new key must
+                    // also stay unclaimed when its row requires Control or Fn.
+                    for obsoleteKey in (flags == .maskCommand ? [48] : [48, key]) {
+                        send(obsoleteKey)
+                        suite.expect(!send(protectedKey) && service.pending != nil,
+                                     "an obsolete or incomplete native chord keeps \(mode.rawValue) protection for key \(protectedKey)")
+                        send(protectedKey, .keyUp)
+                        send(55, .flagsChanged, flags: [])
+                    }
+
+                    Contract.NSRunningApplication.terminated = []
+                    send(protectedKey)
+                    let oldTimer = service.holdTimer
+                    send(key, flags: flags)
+                    oldTimer?.fire()
+                    suite.expect(send(protectedKey) && send(protectedKey, .keyUp)
+                                 && service.pending == nil && !service.hud.visible
+                                 && Contract.NSRunningApplication.terminated.isEmpty,
+                                 "a live remapping cancels pending \(mode.rawValue) protection and passes key \(protectedKey) to macOS")
+                    send(55, .flagsChanged, flags: [])
+                }
+            }
+        }
+        defaults.set("hold", forKey: DefaultsKey.quitProtectionQuitMode)
+        defaults.set("hold", forKey: DefaultsKey.quitProtectionCloseMode)
+
+        // Take-over changes the enabled state while the service stays up.
+        // Return/click can end the custom session without releasing Command.
+        for dismissalKey: CGKeyCode? in [36, nil] {
+            Contract.SymbolicHotKeys.snapshot = factorySwitcher
+            send(48)
+            send(55, .flagsChanged, flags: [])
+            Contract.SymbolicHotKeys.snapshot = factorySwitcher.map {
+                LiveSystemShortcut(id: $0.id, shortcut: $0.shortcut, enabled: false)
+            }
+            send(48)
+            suite.expect(!service.nativeSwitcherSessionActive,
+                         "a disabled native row never opens a native session")
+            Contract.AppSwitcher.shared.keyboardInputOwnership = (true, 1)
+            if let dismissalKey { send(dismissalKey) }
+            Contract.AppSwitcher.shared.keyboardInputOwnership = (false, 1)
+            suite.expect(!send(12) && service.pending != nil,
+                         "ending a take-over session with Command held keeps quit protection")
+            send(12, .keyUp)
+            send(55, .flagsChanged, flags: [])
+        }
+        Contract.SymbolicHotKeys.snapshot = nil
+        send(48)
+        suite.expect(send(12) && service.pending == nil,
+                     "missing private readers retain native Command-Tab routing")
+        send(55, .flagsChanged, flags: [])
+        Contract.SymbolicHotKeys.snapshot = factorySwitcher
+        let readsBeforeTyping = Contract.SymbolicHotKeys.readCount
+        send(6, flags: [])
+        send(6, .keyUp, flags: .maskCommand)
+        send(55, .flagsChanged)
+        suite.expect(Contract.SymbolicHotKeys.readCount == readsBeforeTyping
+                     && Contract.SymbolicHotKeys.requestedIDs == [1, 2],
+                     "only Command key downs read the two native app-switcher rows")
 
         // Each mode still protects and confirms the intended foreground app
         // after Command is released.
