@@ -23,6 +23,9 @@ struct MetricsTests {
                 SystemMonitorPlanTests.run(suite)
                 SystemSectionBreakdownTests.run(suite)
             }),
+            ("battery", {
+                BatteryControlTests.run(suite)
+            }),
             ("clipboard", {
                 ClipboardFeatureTests.run(suite)
                 PastePlainTests.run(suite)

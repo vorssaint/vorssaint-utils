@@ -209,6 +209,7 @@ enum SettingsDirectory {
                                                        FeatureStrings.brightness(language).keyStepHalf,
                                                        FeatureStrings.brightness(language).keyStepQuarter]),
                                         (.extraBrightness, [s.extraBrightnessName]),
+                                        (.chargeLimit, [BatteryControlFeatureStrings.batteryControl(language).title]),
                                         (.bluetoothSleep, [FeatureStrings.bluetoothSleep(language).pageTitle,
                                                            FeatureStrings.bluetoothSleep(language).enable]),
                                        ]),

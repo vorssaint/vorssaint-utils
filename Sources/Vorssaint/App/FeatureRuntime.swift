@@ -405,6 +405,13 @@ final class FeatureRuntime: ObservableObject {
                 FanControlService.shared.syncWithPreferences()
             }
         },
+        .chargeLimit: {
+            // The daemon holds its own state; this re-asserts the stored
+            // choice after a reinstall or a wiped /var/run.
+            if AppFeature.chargeLimit.isAvailable || BatteryControlService.hasStoredConfiguration {
+                BatteryControlService.shared.syncWithPreferences()
+            }
+        },
     ]
 
     private static func syncMonitor() {
@@ -426,6 +433,9 @@ extension AppFeature {
         case .fanControl:
             return FanControlHardware.hasControllableFan
                 ? nil : FeatureStrings.fanControl(L10n.shared.language).noFans
+        case .chargeLimit:
+            return BatteryControlHardwareProbe.isSupported
+                ? nil : BatteryControlFeatureStrings.batteryControl(L10n.shared.language).unsupported
         default:
             return nil
         }

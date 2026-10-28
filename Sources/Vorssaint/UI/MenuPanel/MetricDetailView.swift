@@ -213,6 +213,9 @@ struct MetricDetailView: View {
                 Spacer(minLength: 0)
             }
             graph
+            if kind == .battery, AppFeature.chargeLimit.isAvailable, PowerSampler.hasInternalBattery {
+                BatteryChargeLimitContent(style: .panel)
+            }
         }
         .panelCard()
     }

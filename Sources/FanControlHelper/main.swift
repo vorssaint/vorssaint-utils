@@ -99,8 +99,10 @@ private final class FanControlController {
     private var connectionCount = 0
     private var idleGeneration = 0
     private var timer: DispatchSourceTimer?
+    private let chargeLimits: ChargeLimitController
 
-    init() {
+    init(chargeLimits: ChargeLimitController) {
+        self.chargeLimits = chargeLimits
         queue.async { [weak self] in self?.recoverAbandonedControlIfNeeded() }
     }
 
@@ -515,12 +517,14 @@ private final class FanControlController {
     }
 
     private func scheduleExitIfIdle() {
-        guard connectionCount == 0, !isCooling, !isRecovering else { return }
+        // A charge limit in force outlives the app, so it keeps the helper up.
+        guard connectionCount == 0, !isCooling, !isRecovering, !chargeLimits.isEnforcing else { return }
         idleGeneration += 1
         let generation = idleGeneration
         queue.asyncAfter(deadline: .now() + 1) {
             guard generation == self.idleGeneration,
-                  self.connectionCount == 0, !self.isCooling, !self.isRecovering else { return }
+                  self.connectionCount == 0, !self.isCooling, !self.isRecovering,
+                  !self.chargeLimits.isEnforcing else { return }
             exit(EXIT_SUCCESS)
         }
     }
@@ -529,9 +533,11 @@ private final class FanControlController {
 private final class FanControlSession: NSObject, FanControlXPCProtocol {
     let id = UUID()
     private let controller: FanControlController
+    private let chargeLimits: ChargeLimitController
 
-    init(controller: FanControlController) {
+    init(controller: FanControlController, chargeLimits: ChargeLimitController) {
         self.controller = controller
+        self.chargeLimits = chargeLimits
     }
 
     func status(withReply reply: @escaping (Data) -> Void) {
@@ -553,18 +559,32 @@ private final class FanControlSession: NSObject, FanControlXPCProtocol {
     func restoreAutomatic(withReply reply: @escaping (Data) -> Void) {
         controller.restore(reply: reply)
     }
+
+    func chargeStatus(withReply reply: @escaping (Data) -> Void) {
+        chargeLimits.status(reply: reply)
+    }
+
+    func applyChargeLimits(_ limits: Data, withReply reply: @escaping (Data) -> Void) {
+        chargeLimits.apply(encoded: limits, reply: reply)
+    }
+
+    func restoreCharging(withReply reply: @escaping (Data) -> Void) {
+        chargeLimits.restore(reply: reply)
+    }
 }
 
 private final class FanControlListenerDelegate: NSObject, NSXPCListenerDelegate {
     private let controller: FanControlController
+    private let chargeLimits: ChargeLimitController
 
-    init(controller: FanControlController) {
+    init(controller: FanControlController, chargeLimits: ChargeLimitController) {
         self.controller = controller
+        self.chargeLimits = chargeLimits
     }
 
     func listener(_ listener: NSXPCListener,
                   shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
-        let session = FanControlSession(controller: controller)
+        let session = FanControlSession(controller: controller, chargeLimits: chargeLimits)
         connection.exportedInterface = NSXPCInterface(with: FanControlXPCProtocol.self)
         connection.exportedObject = session
         connection.invalidationHandler = { [weak controller] in
@@ -582,7 +602,9 @@ private func runSelfTest() -> Bool {
           FanControlPolicy.validCoolingLevel(FanControlPolicy.defaultCoolingLevel),
           FanControlPolicy.validConfiguration(.curve([FanControlConfiguration.defaultCurve])),
           let encoded = SMCValueCodec.encode(4_800, type: "flt ", size: 4),
-          SMCValueCodec.decode(encoded, type: "flt ") == 4_800 else { return false }
+          SMCValueCodec.decode(encoded, type: "flt ") == 4_800,
+          BatteryLimitState.charging(enabled: BatteryLimitState(enabled: true, upper: 80, lowerDelta: 2),
+                                     percentage: 90) == .inhibit else { return false }
     print("fan-control-helper: ok")
     return true
 }
@@ -596,8 +618,9 @@ guard geteuid() == 0 else {
     exit(EXIT_FAILURE)
 }
 
-private let controller = FanControlController()
-private let delegate = FanControlListenerDelegate(controller: controller)
+private let chargeLimits = ChargeLimitController()
+private let controller = FanControlController(chargeLimits: chargeLimits)
+private let delegate = FanControlListenerDelegate(controller: controller, chargeLimits: chargeLimits)
 private let listener = NSXPCListener(machServiceName: FanControlIdentifiers.helperID)
 listener.setConnectionCodeSigningRequirement(FanControlIdentifiers.appCodeRequirement)
 listener.delegate = delegate
@@ -607,6 +630,7 @@ signal(SIGTERM, SIG_IGN)
 signal(SIGINT, SIG_IGN)
 let termination = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
 termination.setEventHandler {
+    chargeLimits.shutdown()
     controller.shutdown { restored in
         if restored { exit(EXIT_SUCCESS) }
     }
@@ -614,6 +638,7 @@ termination.setEventHandler {
 termination.resume()
 let interruption = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
 interruption.setEventHandler {
+    chargeLimits.shutdown()
     controller.shutdown { restored in
         if restored { exit(EXIT_SUCCESS) }
     }

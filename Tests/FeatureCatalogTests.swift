@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 77, "feature catalog has 77 features")
+        suite.expect(AppFeature.allCases.count == 78, "feature catalog has 78 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -396,7 +396,7 @@ enum FeatureCatalogTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
+            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep", "chargeLimit",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
@@ -2175,8 +2175,9 @@ enum FeatureCatalogTests {
                "the mouse page hides only with all eight mouse features off")
         suite.expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
                                                                          .extraBrightness,
-                                                                         .bluetoothSleep])),
-               "energy hides when all four of its features are off")
+                                                                         .bluetoothSleep,
+                                                                         .chargeLimit])),
+               "energy hides when all five of its features are off")
         suite.expect(pageVisible(.energy, available: [.extraBrightness]), "XDR alone keeps the energy page")
         suite.expect(pageVisible(.energy, available: [.brightness]),
                "brightness control alone keeps the energy page")

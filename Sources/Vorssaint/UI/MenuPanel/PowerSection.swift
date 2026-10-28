@@ -266,6 +266,9 @@ struct PowerSection: View {
                         .frame(height: 30)
                         .graphCeilingLabel(MetricFormat.percent(1))
                 }
+                if AppFeature.chargeLimit.isAvailable {
+                    BatteryChargeLimitContent(style: .panel)
+                }
                 EnergyAppsBreakdown()
             }
         }
