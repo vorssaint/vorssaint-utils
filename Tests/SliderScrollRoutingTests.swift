@@ -60,7 +60,7 @@ enum SliderScrollRoutingTests {
         begin()
         suite.expect(slider.doubleValue == 0 && target.light.keyboardLightLevel == 0
                      && target.callbacks == [true],
-                     "native phased scroll actions keep one edit open while the keyboard light reaches zero")
+                     "native phased scroll actions keep one edit open while the keyboard light reaches zero (value \(slider.doubleValue), light \(String(describing: target.light.keyboardLightLevel)), edits \(target.callbacks))")
         slider.scrollWheel(with: event(.ended))
         suite.expect(target.callbacks == [true, false] && target.light.lastKeyboardLightLevel == 0.8
                      && target.light.keyboardDragStart == nil,
@@ -73,7 +73,7 @@ enum SliderScrollRoutingTests {
         slider.isEnabled = false
         slider.scrollWheel(with: event(.changed, delta: 50))
         suite.expect(target.callbacks == [true, false] && slider.doubleValue == 0,
-                     "disabling a slider during a gesture finishes the edit without another value change")
+                     "disabling a slider during a gesture finishes the edit without another value change (value \(slider.doubleValue), edits \(target.callbacks))")
         slider.isEnabled = true
         begin()
         slider.cancelScroll()
