@@ -170,6 +170,55 @@ private struct NotchAgentChip: View {
 
 // MARK: Limits
 
+/// The share keeps its meaning at every width. A reset countdown uses spare
+/// room, otherwise its full date remains in the row's tooltip.
+private struct NotchAgentLimitReading: View {
+    let title: String
+    let share: String
+    let countdown: String?
+    let tint: Color
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 5) {
+                heading.fixedSize()
+                if let countdown {
+                    Label(countdown, systemImage: "arrow.clockwise")
+                        .labelStyle(NotchAgentInlineLabel())
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                        .accessibilityIdentifier("notch.agentLimitCountdown")
+                }
+                Spacer(minLength: 2)
+                reading
+            }
+            HStack(spacing: 5) {
+                heading.minimumScaleFactor(0.8)
+                Spacer(minLength: 2)
+                reading
+            }
+        }
+    }
+
+    private var heading: some View {
+        Text(title)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.white.opacity(0.85))
+            .lineLimit(1)
+    }
+
+    private var reading: some View {
+        Text(share)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(tint)
+            .fixedSize()
+            .contentTransition(.numericText())
+            .accessibilityIdentifier("notch.agentLimitShare")
+    }
+}
+
 /// An added Codex home's card: only its own checks, never the reading the
 /// logs give the provider's other account, even when its check failed.
 private struct NotchAgentAccount {
@@ -284,37 +333,19 @@ private struct NotchAgentLimitsCard: View {
     }
 
     /// A usage-based forecast would read as a promise, so a row says only
-    /// what is spent and when the window renews.
+    /// what is left or used, as chosen, and when the window renews.
     private func row(_ window: AgentLimitWindow) -> some View {
         let pace = AgentLimitSupport.pace(for: window, now: now)
         let tint = agentLimitTint(provider, usedFraction: window.usedFraction)
         let remaining = display == .remaining
         let fraction = remaining ? window.remainingFraction : window.usedFraction
+        let reset = AgentLimitSupport.displayedReset(window, now: now).map {
+            (window.estimatedResetsAt == nil ? "" : "≈ ") + countdown(to: $0)
+        }
         return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 5) {
-                Text(label(window))
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
-                    .layoutPriority(1)
-                Group {
-                    if let resets = AgentLimitSupport.displayedReset(window, now: now) {
-                        Label((window.estimatedResetsAt == nil ? "" : "≈ ") + countdown(to: resets),
-                              systemImage: "arrow.clockwise")
-                            .labelStyle(NotchAgentInlineLabel())
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .font(.system(size: 9.5))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                Spacer(minLength: 2)
-                Text(AgentFormat.percent(fraction))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(tint == provider.tint ? Color.white : tint)
-                    .contentTransition(.numericText())
-            }
+            NotchAgentLimitReading(title: label(window),
+                                  share: NotchAgentSupport.limitShare(window, display: display, text: text),
+                                  countdown: reset, tint: tint == provider.tint ? Color.white : tint)
             NotchAgentMeter(value: fraction, pace: pace.map { remaining ? 1 - $0.elapsed : $0.elapsed },
                             tint: tint, height: 4)
         }
