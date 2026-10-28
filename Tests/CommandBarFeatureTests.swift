@@ -1257,7 +1257,7 @@ enum CommandBarFeatureTests {
                                              locale: Locale(identifier: "pt_BR"))
                 .map { abs($0.value - 72) < 0.001 } == true,
                "Portuguese days become hours")
-        suite.expect(units("1d to hr") == "24 hr" && units("24 hr to d") == "1 d"
+        suite.expect(units("1d to hr") == units("24 hr to hr") && units("24 hr to d") == "1 d"
                 && units("14 d to wk") == "2 wk" && units("1 yr to d") == "365 d"
                 && units("365 d to yr") == "1 yr",
                "custom duration units format successfully")
