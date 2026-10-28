@@ -1053,14 +1053,18 @@ enum NotchTests {
             }
         }
         for event in [NotchEvent.volume, .brightness, .keyboardLight] {
+            let widest = NotchNotice(event: event, title: "Level", detail: "100%",
+                                     symbol: "speaker.wave.2", level: 1).preferredWingWidth
             for percent in 0...100 {
                 let notice = NotchNotice(event: event, title: "Level", detail: "\(percent)%",
                                          symbol: "speaker.wave.2", level: Double(percent) / 100)
                 let wing = notice.preferredWingWidth
-                let content = width(notice.detail) + 18 + 8
+                let content = width("100%") + 18 + 8
                 suite.expect(content + NotchNotice.levelInset <= wing && wing < content + NotchNotice.levelInset + 1
                              && notice.inset(wing: wing) == NotchNotice.levelInset,
-                             "a level's wings fit its mark and reading, with no empty black at the end")
+                             "a level's wings fit its mark and widest reading, with no empty black at the end")
+                suite.expect(wing == widest,
+                             "a level's wings hold still as its reading gains or loses a digit")
                 suite.expect(wing - NotchNotice.levelInset >= 40,
                              "the opposite meter remains readable beside the shortest reading")
             }

@@ -3,6 +3,7 @@
 
 enum NotchSliderEditingTests {
     static func run(_ suite: TestSuite) {
+        SliderScrollRoutingTests.run(suite)
         var editing = NotchSliderEditing()
         var position = 32.0
         var callbacks: [Bool] = []

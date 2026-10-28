@@ -4,6 +4,11 @@
 import AppKit
 import SwiftUI
 
+/// Enabled level controls receive the wheel before an enclosing horizontal strip.
+protocol SliderScrollTarget: AnyObject {
+    var acceptsSliderScroll: Bool { get }
+}
+
 extension SliderScroll {
     mutating func handle(_ event: NSEvent, current: Double, range: ClosedRange<Double>) -> Outcome {
         let phase: Phase
@@ -37,9 +42,10 @@ struct SliderScrollArea: NSViewRepresentable {
         view.isEnabled = context.environment.isEnabled
     }
 
-    final class AreaView: NSView {
+    final class AreaView: NSView, SliderScrollTarget {
         var area: SliderScrollArea?
         var isEnabled = true
+        var acceptsSliderScroll: Bool { isEnabled && area != nil }
         private var scroll = SliderScroll()
 
         override func hitTest(_ point: NSPoint) -> NSView? {

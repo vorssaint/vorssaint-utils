@@ -1136,16 +1136,17 @@ extension AppFeature {
 
     /// Titles reuse the strings users already see across the app; only names
     /// with no clean existing form live in the hub strings.
-    func hubTitle(_ s: Strings, hub: FeatureHubStrings) -> String {
+    func hubTitle(_ s: Strings, hub: FeatureHubStrings,
+                  language: AppLanguage = L10n.shared.language) -> String {
         switch self {
         case .switcher: return s.switcherSection
         case .dockPreview: return s.dockPreviewName
         case .dockClick: return hub.titleDockClick
         case .windowMaximizer: return s.windowMaximizeName
-        case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
+        case .windowLayout: return FeatureStrings.windowLayout(language).title
         case .autoQuit: return s.autoQuitName
         case .spacesOrder: return s.spacesOrderName
-        case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).name
+        case .quitWindowProtection: return FeatureStrings.quitProtection(language).name
         case .scrollInverter: return s.invertMouseScroll
         case .scrollHorizontal: return s.scrollHorizontalName
         case .focusFollowsMouse: return s.focusFollowsMouseName
@@ -1153,70 +1154,70 @@ extension AppFeature {
         case .linearScroll: return s.linearScrollName
         case .mouseAcceleration: return s.mouseAccelerationName
         case .mouseNavigation: return hub.titleMouseNavigation
-        case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).pageTitle
+        case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(language).pageTitle
         case .middleClick: return s.middleClickSection
         case .keyboardDebounce: return s.keyDebounceName
-        case .textSnippets: return FeatureStrings.snippets(L10n.shared.language).pageTitle
-        case .superKey: return FeatureStrings.superKey(L10n.shared.language).pageTitle
+        case .textSnippets: return FeatureStrings.snippets(language).pageTitle
+        case .superKey: return FeatureStrings.superKey(language).pageTitle
         case .mouseClickDebounce:
-            return FeatureStrings.mouseClickDebounce(L10n.shared.language).title
-        case .clipboardHistory: return FeatureStrings.clipboard(L10n.shared.language).title
+            return FeatureStrings.mouseClickDebounce(language).title
+        case .clipboardHistory: return FeatureStrings.clipboard(language).title
         case .pastePlain: return s.pastePlainName
         case .finderCutPaste: return s.cutPasteName
-        case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
+        case .finderRename: return FeatureStrings.finderRename(language).hubTitle
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName
         case .diskImageInstaller:
-            return FeatureStrings.diskImageInstaller(L10n.shared.language).title
+            return FeatureStrings.diskImageInstaller(language).title
         case .mixer: return s.mixerSection
         case .soundOutputSwitcher: return s.soundOutputSwitcherTitle
         case .audioPriority: return hub.titleAudioPriority
         case .micMute: return s.micMuteName
         case .musicBlock: return hub.titleMusicBlock
         case .keepAwake: return s.keepAwakeTitle
-        case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
+        case .brightness: return FeatureStrings.brightness(language).pageTitle
         case .extraBrightness: return s.extraBrightnessName
-        case .bluetoothSleep: return FeatureStrings.bluetoothSleep(L10n.shared.language).pageTitle
+        case .bluetoothSleep: return FeatureStrings.bluetoothSleep(language).pageTitle
         case .quickLauncher: return s.launcherName
-        case .quickToggles: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
+        case .quickToggles: return FeatureStrings.quickToggles(language).pageTitle
         case .colorPicker: return s.colorPickerName
         case .screenOCR: return s.ocrName
-        case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
-        case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
-        case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
-        case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).pageTitle
-        case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).title
-        case .notchTimer: return FeatureStrings.notchActivities(L10n.shared.language).timer
-        case .notchAccessories: return FeatureStrings.notchActivities(L10n.shared.language).accessories
-        case .notchNotifications: return FeatureStrings.notchNotifications(L10n.shared.language).title
-        case .notchLyrics: return FeatureStrings.notchMusicExtras(L10n.shared.language).lyrics
-        case .notchQueue: return FeatureStrings.notchMusicExtras(L10n.shared.language).queue
-        case .notchLiveEqualizer: return FeatureStrings.notchMusicExtras(L10n.shared.language).liveEqualizer
-        case .notchDownloads: return FeatureStrings.notchFiles(L10n.shared.language).downloadsTitle
-        case .notchCalendar: return FeatureStrings.notchCalendar(L10n.shared.language).title
-        case .notchAgents: return FeatureStrings.notchAgents(L10n.shared.language).title
-        case .notchWatch: return FeatureStrings.notchWatch(L10n.shared.language).title
-        case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).title
-        case .notch: return FeatureStrings.notch(L10n.shared.language).title
-        case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
-        case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
-        case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
+        case .screenshot: return FeatureStrings.screenshot(language).pageTitle
+        case .screenRecorder: return FeatureStrings.recorder(language).pageTitle
+        case .cameraPreview: return FeatureStrings.cameraPreview(language).pageTitle
+        case .wallpaper: return FeatureStrings.wallpaper(language).pageTitle
+        case .notchGestures: return FeatureStrings.notchGestures(language).title
+        case .notchTimer: return FeatureStrings.notchActivities(language).timer
+        case .notchAccessories: return FeatureStrings.notchActivities(language).accessories
+        case .notchNotifications: return FeatureStrings.notchNotifications(language).title
+        case .notchLyrics: return FeatureStrings.notchMusicExtras(language).lyrics
+        case .notchQueue: return FeatureStrings.notchMusicExtras(language).queue
+        case .notchLiveEqualizer: return FeatureStrings.notchMusicExtras(language).liveEqualizer
+        case .notchDownloads: return FeatureStrings.notchFiles(language).downloadsTitle
+        case .notchCalendar: return FeatureStrings.notchCalendar(language).title
+        case .notchAgents: return FeatureStrings.notchAgents(language).title
+        case .notchWatch: return FeatureStrings.notchWatch(language).title
+        case .notchMascot: return FeatureStrings.notchMascot(language).title
+        case .notch: return FeatureStrings.notch(language).title
+        case .radialMenu: return FeatureStrings.radialMenu(language).pageTitle
+        case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
+        case .commandBar: return FeatureStrings.commandBar(language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
         case .mediaTools: return s.mediaName
         case .cleaner: return s.cleanerName
         case .uninstaller: return s.uninstallerName
-        case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).pageTitle
-        case .portManager: return FeatureStrings.portManager(L10n.shared.language).title
+        case .killProcess: return FeatureStrings.killProcess(language).pageTitle
+        case .portManager: return FeatureStrings.portManager(language).title
         case .homebrew: return s.homebrewName
-        case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).pageTitle
+        case .appUpdates: return FeatureStrings.appUpdates(language).pageTitle
         case .monitorCPU: return s.monitorShowCPU
         case .monitorGPU: return s.monitorShowGPU
         case .monitorMemory: return s.monitorShowMemory
         case .monitorNetwork: return s.monitorShowNetwork
         case .monitorDisk: return s.diskSection
         case .monitorPower: return s.powerSection
-        case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).title
-        case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
+        case .connectedDevices: return FeatureStrings.connectedDevices(language).title
+        case .fanControl: return FeatureStrings.fanControl(language).title
         }
     }
 

@@ -39,6 +39,9 @@ struct NotchLevelSlider: NSViewRepresentable {
     func makeNSView(context: Context) -> NSSlider {
         let slider = NotchLevelControl()
         let cell = NotchLevelCell()
+        slider.trackingChanged = { [weak coordinator = context.coordinator] editing in
+            coordinator?.trackingChanged(editing)
+        }
         cell.trackingChanged = { [weak coordinator = context.coordinator] editing in
             coordinator?.trackingChanged(editing)
         }
@@ -56,6 +59,7 @@ struct NotchLevelSlider: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ slider: NSSlider, coordinator: Coordinator) {
+        (slider as? NotchLevelControl)?.cancelScroll()
         coordinator.stopEasing()
     }
 
@@ -87,6 +91,7 @@ struct NotchLevelSlider: NSViewRepresentable {
             }
         }
         slider.isEnabled = context.environment.isEnabled
+        if !scrollable || !slider.isEnabled { (slider as? NotchLevelControl)?.cancelScroll() }
         let span = upper - lower
         slider.setAccessibilityValueDescription(
             valueLabel ?? "\(Int((span > 0 ? (bounded - lower) / span * 100 : 0).rounded()))%")
@@ -137,12 +142,50 @@ struct NotchLevelSlider: NSViewRepresentable {
     }
 }
 
-private final class NotchLevelControl: NSSlider {
+private final class NotchLevelControl: NSSlider, SliderScrollTarget {
     var scrollable = true
+    var acceptsSliderScroll: Bool { scrollable && isEnabled }
+    var trackingChanged: ((Bool) -> Void)?
     private var scroll = SliderScroll()
+    private var scrolling = false
+
+    func cancelScroll() {
+        finishScrollEditing()
+        scroll = SliderScroll()
+    }
+
+    private func finishScrollEditing() {
+        guard scrolling else { return }
+        scrolling = false
+        trackingChanged?(false)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil { cancelScroll() }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        cancelScroll()
+        super.mouseDown(with: event)
+    }
 
     override func scrollWheel(with event: NSEvent) {
-        guard scrollable, isEnabled, maxValue >= minValue else { return super.scrollWheel(with: event) }
+        guard acceptsSliderScroll, maxValue >= minValue else {
+            cancelScroll()
+            return SliderScroll.pass(event, from: self)
+        }
+        if event.phase.contains(.began) {
+            finishScrollEditing()
+            scrolling = true
+            trackingChanged?(true)
+        }
+        defer {
+            if !event.phase.intersection([.ended, .cancelled]).isEmpty
+                || !event.momentumPhase.isEmpty || event.phase.isEmpty {
+                finishScrollEditing()
+            }
+        }
         switch scroll.handle(event, current: doubleValue, range: minValue...maxValue) {
         case .pass: SliderScroll.pass(event, from: self)
         case .hold: break

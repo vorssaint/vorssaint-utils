@@ -45,7 +45,9 @@ enum HorizontalWheelScrolling {
     /// The strip holding `view`, when it scrolls only sideways and nothing
     /// around it scrolls down.
     static func sidewaysStrip(at view: NSView) -> NSScrollView? {
-        guard let strip = (view as? NSScrollView) ?? view.enclosingScrollView else { return nil }
+        guard !sequence(first: view, next: { $0.superview }).contains(where: {
+            ($0 as? SliderScrollTarget)?.acceptsSliderScroll == true
+        }), let strip = (view as? NSScrollView) ?? view.enclosingScrollView else { return nil }
         var enclosing = strip.superview?.enclosingScrollView
         var enclosingScrollsVertically = false
         while let outer = enclosing, !enclosingScrollsVertically {
