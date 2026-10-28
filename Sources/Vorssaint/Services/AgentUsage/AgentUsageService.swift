@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Combine
 import Foundation
 import Network
@@ -8,12 +9,14 @@ import Network
 /// Reads Claude Code, Codex and GitHub Copilot usage from local session logs, and
 /// OpenCode usage from its database, while the AI section is on, along with
 /// the plan limits the Claude app saves. The files are read where they are,
-/// incrementally, and nothing is copied or sent: only counters are kept, in
+/// incrementally: only counters are kept, in
 /// memory and in the app's private folder so the next launch reads only what
 /// the agents wrote meanwhile. OpenCode's stay in memory only, and its
 /// database is read again at each launch. Claude Code checks account-wide
 /// limits through its own CLI, including use on other machines. The public
-/// price list is fetched only when the person keeps prices up to date.
+/// price list is fetched only when the person keeps prices up to date. Cursor
+/// usage is fetched with its desktop sign-in while Cursor is open and stays
+/// in memory, separate from the log archive.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
 /// work to each other asynchronously, except that a stop waits for progress
@@ -26,6 +29,8 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAppChecked: Date?
     @Published private(set) var claudeAccountChecking = false
     @Published private(set) var claudeAccountFailure: AgentClaudeServer.Failure?
+    @Published private(set) var cursorChecking = false
+    @Published private(set) var cursorFailure: AgentCursorAccount.Failure?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
     let events = PassthroughSubject<AgentUsageEvent, Never>()
@@ -79,7 +84,14 @@ final class AgentUsageService: ObservableObject {
     /// The AI page is on the island, which asks Claude Code more often.
     private var pageVisible = false
 
+    private var cursorRequest: Task<Void, Never>?
+    private var cursorGeneration = 0
+    private var cursorAttempted = Date.distantPast
+
     // Confined to `queue`.
+    private var cursorAccount: String?
+    private var cursorPlan: AgentPlan?
+
     private var readerSession = -1
     private var readerCancellation: Cancellation?
     private var enabled: Set<AgentProvider> = []
@@ -137,6 +149,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshCursorUsage()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -150,6 +163,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelCursorUsage()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -184,6 +198,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         running = false
         cancelClaudeLimits()
+        cancelCursorUsage()
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
@@ -197,6 +212,8 @@ final class AgentUsageService: ObservableObject {
         pricesSaved = nil
         snapshot = AgentUsageSnapshot()
         claudeAppChecked = nil
+        cursorFailure = nil
+        cursorAttempted = .distantPast
         queue.async { [self] in
             readerSession = -1
             readerCancellation = nil
@@ -215,6 +232,8 @@ final class AgentUsageService: ObservableObject {
             warned.removeAll()
             budgetDay = nil
             claudePlan = nil
+            cursorPlan = nil
+            cursorAccount = nil
             claudeOrganization = nil
             claudeProfileModified = nil
             claudeAppModified = nil
@@ -243,6 +262,7 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshCursorUsage()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -334,17 +354,17 @@ final class AgentUsageService: ObservableObject {
         guard mark != savedMark else { return }
         // A log that started over while running still counts what its old
         // contents gave. Left out, the next launch reads it as rewritten.
-        // Nothing from OpenCode's database is saved. Its open replies and
-        // sessions live only in memory, so each launch reads it again.
+        // OpenCode and Cursor usage stays in memory. A launch reads OpenCode
+        // again and checks Cursor only when its desktop app is open.
         let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode }
         let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: kept.map(\.saved))
         if AgentUsageArchive.save(contents) { savedMark = mark }
     }
 
-    /// Changes whenever a log is read further, replaced or let go. OpenCode,
-    /// which is never saved, leaves it alone.
+    /// Changes whenever a log is read further, replaced or let go. OpenCode
+    /// and Cursor, which are never saved, leave it alone.
     private var progressMark: Int {
-        let records = store.records.reduce(0) { $1.provider == .opencode ? $0 : $0 + 1 }
+        let records = store.records.reduce(0) { $1.provider == .opencode || $1.provider == .cursor ? $0 : $0 + 1 }
         return cursors.values.reduce(records) { mark, cursor in
             guard cursor.provider != .opencode else { return mark }
             var hasher = Hasher()
@@ -558,6 +578,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshCursorUsage()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -615,8 +636,13 @@ final class AgentUsageService: ObservableObject {
         guard session >= 0 else { return }
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
+        if let cursorPlan { plans[.cursor] = cursorPlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        // An installed Cursor gets a setup card before its first reading.
+        if enabled.contains(.cursor), FileManager.default.fileExists(atPath: AgentCursorAccount.databaseURL(home: home).path) {
+            next.seen.insert(.cursor)
+        }
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
@@ -630,6 +656,103 @@ final class AgentUsageService: ObservableObject {
             if self.pricesUpdated != prices { self.pricesUpdated = prices }
             if self.snapshot != next { self.snapshot = next }
         }
+    }
+
+    // Main thread. The existing slow timer checks whether Cursor is still open;
+    // only a due check reads its sign-in and starts a request.
+    private func refreshCursorUsage(now: Date = Date()) {
+        guard running, !paused, providers.contains(.cursor) else { return }
+        guard !NSRunningApplication.runningApplications(withBundleIdentifier: AgentCursorUsage.bundleIdentifier).isEmpty else {
+            cancelCursorUsage()
+            cursorFailure = .closed
+            cursorAttempted = .distantPast
+            return
+        }
+        guard cursorRequest == nil, now.timeIntervalSince(cursorAttempted) >= AgentCursorAccount.interval else { return }
+        cursorAttempted = now
+        cursorChecking = true
+        cursorFailure = nil
+        cursorGeneration += 1
+        let generation = cursorGeneration, epoch = session
+        let home = home
+        cursorRequest = Task { @MainActor [weak self] in
+            let network = AgentCursorAccount.session()
+            defer { network.invalidateAndCancel() }
+            let result: Result<AgentCursorAccount.Reading, AgentCursorAccount.Failure>
+            do {
+                let reading = try await AgentCursorAccount.read(home: home, since: now.addingTimeInterval(-Self.horizon), now: now,
+                    transport: { request in
+                        let (data, response) = try await network.data(for: request)
+                        guard let response = response as? HTTPURLResponse else { throw AgentCursorAccount.Failure.unavailable }
+                        return (data, response)
+                    }, onAccount: { account in
+                        DispatchQueue.main.async { [weak self] in
+                            guard let self, self.cursorGeneration == generation, self.session == epoch else { return }
+                            self.queue.async { [self] in
+                                guard self.readerSession == epoch else { return }
+                                if self.cursorAccount != account {
+                                    self.clearCursorUsage()
+                                    self.cursorAccount = account
+                                    self.publish()
+                                }
+                            }
+                        }
+                    })
+                try Task.checkCancellation()
+                result = .success(reading)
+            } catch is CancellationError { return }
+            catch { result = .failure(error as? AgentCursorAccount.Failure ?? .unavailable) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.cursorGeneration == generation, self.session == epoch, self.running, !self.paused else { return }
+                self.cursorRequest = nil
+                self.cursorChecking = false
+                guard !NSRunningApplication.runningApplications(withBundleIdentifier: AgentCursorUsage.bundleIdentifier).isEmpty else {
+                    self.cursorFailure = .closed
+                    return
+                }
+                switch result {
+                case .success(let reading):
+                    self.cursorFailure = reading.records == nil ? .incomplete : reading.summary == nil ? .unavailable : nil
+                    self.queue.async { [self] in
+                        guard self.readerSession == epoch, self.enabled.contains(.cursor) else { return }
+                        if self.cursorAccount != reading.account { self.clearCursorUsage() }
+                        self.cursorAccount = reading.account
+                        if let records = reading.records { self.store.replaceCursorUsage(records) }
+                        self.cursorPlan = reading.summary?.plan
+                        if let limits = reading.summary?.limits { self.store.setLimits(limits) } else { self.store.clearLimits(.cursor) }
+                        self.checkLimits()
+                        self.publish()
+                    }
+                case .failure(let failure):
+                    self.cursorFailure = failure
+                    if failure == .needsSignIn || failure == .accountChanged {
+                        if failure == .accountChanged { self.cursorAttempted = .distantPast }
+                        self.queue.async { [self] in
+                            guard self.readerSession == epoch else { return }
+                            self.clearCursorUsage()
+                            self.publish()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func cancelCursorUsage() {
+        cursorGeneration += 1
+        cursorRequest?.cancel()
+        cursorRequest = nil
+        cursorChecking = false
+    }
+
+    /// Runs on `queue`. Limits and their alerts belong to the signed-in account.
+    private func clearCursorUsage() {
+        store.replaceCursorUsage([])
+        store.clearLimits(.cursor)
+        cursorAccount = nil
+        cursorPlan = nil
+        previousLimits[.cursor] = nil
+        warned = warned.filter { $0.value.provider != .cursor }
     }
 
     // MARK: Alerts

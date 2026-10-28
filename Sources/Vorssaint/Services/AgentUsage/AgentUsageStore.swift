@@ -10,6 +10,16 @@ import Foundation
 final class AgentUsageStore {
     private(set) var records: [AgentUsageRecord] = []
     private var billables: [AgentBillable] = []
+    /// Cursor exports replace a complete account history, never append to it.
+    /// They carry no live-turn or local project attribution.
+    func replaceCursorUsage(_ usage: [AgentUsageRecord]) {
+        keepRecords { records[$0].provider != .cursor }
+        for (position, record) in usage.enumerated() where record.provider == .cursor {
+            add(record, billable: AgentBillable(tokens: record.tokens), key: "cursor.\(position)",
+                source: "cursor.account", turn: nil, subagent: false)
+        }
+    }
+
     /// The logs each response was read from: most in one, a resumed or
     /// archived session's again in another.
     private var sources: [[String]] = []
@@ -391,11 +401,11 @@ final class AgentUsageStore {
     var saved: Saved {
         var keys = [String](repeating: "", count: records.count)
         for (key, position) in index { keys[position] = key }
-        let kept = records.indices.filter { records[$0].provider != .opencode }.map {
+        let kept = records.indices.filter { records[$0].provider != .opencode && records[$0].provider != .cursor }.map {
             Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
         }
         return Saved(records: kept,
-                     limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
+                     limits: limits.values.filter { $0.provider != .cursor }.sorted { $0.provider.rawValue < $1.provider.rawValue },
                      codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
                      turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
                      waiting: waiting.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id })

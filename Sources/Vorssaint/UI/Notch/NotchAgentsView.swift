@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// The AI page: cards the person picked, paired across the strip.
@@ -18,6 +19,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -32,7 +34,7 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil, cursor ? .cursor : nil].compactMap { $0 }
             .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty) }
     }
 
@@ -184,6 +186,7 @@ private struct NotchAgentAccount {
 }
 
 private struct NotchAgentLimitsCard: View {
+    @ObservedObject private var usage = AgentUsageService.shared
     let provider: AgentProvider
     let snapshot: AgentUsageSnapshot
     let now: Date
@@ -258,7 +261,9 @@ private struct NotchAgentLimitsCard: View {
                     estimate
                 } else {
                     meters(windows)
-                    if windows.count == 1 { caption }
+                    if provider == .cursor, let failure = usage.cursorFailure {
+                        Text(text.cursorFailure(failure)).font(.system(size: 8.5)).foregroundStyle(.secondary).lineLimit(2)
+                    } else if windows.count == 1 { caption }
                 }
             }
         }
@@ -380,6 +385,10 @@ private struct NotchAgentLimitsCard: View {
         } else if provider == .claude {
             Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
             setUpLimits
+        } else if provider == .cursor {
+            Text(usage.cursorChecking ? text.loading : usage.cursorFailure.map(text.cursorFailure) ?? text.cursorSetup)
+                .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
+            setUpLimits
         } else if provider == .opencode {
             let todayUsage = snapshot.usage(.today).byProvider[.opencode]
             if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 || todayUsage.cost > 0 {
@@ -427,9 +436,17 @@ private struct NotchAgentLimitsCard: View {
     /// settings say how, and why Claude Code could not check.
     private var setUpLimits: some View {
         Button {
-            NotchService.shared.openSettings(showing: .agents)
+            if provider == .cursor {
+                if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: AgentCursorUsage.bundleIdentifier) {
+                    NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
+                } else {
+                    NSWorkspace.shared.open(AgentCursorUsage.downloadURL)
+                }
+            } else {
+                NotchService.shared.openSettings(showing: .agents)
+            }
         } label: {
-            Label(text.claudeLimitsHint, systemImage: "arrow.up.forward")
+            Label(provider == .cursor ? text.openCursor : text.claudeLimitsHint, systemImage: "arrow.up.forward")
                 .labelStyle(NotchAgentInlineLabel())
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(provider.tint)

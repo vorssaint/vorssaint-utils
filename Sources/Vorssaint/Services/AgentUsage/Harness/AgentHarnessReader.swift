@@ -27,6 +27,13 @@ extension AgentProvider {
         case .codex: CodexReader()
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
+        case .cursor: CursorReader()
         }
     }
+}
+
+/// Cursor has no session-log ledger. Its usage comes from its desktop account.
+private struct CursorReader: AgentHarnessReader {
+    var provider: AgentProvider { .cursor }
+    func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] { [] }
 }
