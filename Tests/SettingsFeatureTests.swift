@@ -41,6 +41,14 @@ enum SettingsFeatureTests {
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: marginBackup)?[
             DefaultsKey.windowLayoutMarginPercent] as? Double == 12,
             "custom maximize margin survives a settings backup round trip")
+        for restartAfterAdding in [false, true] {
+            let spacerBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.dockSpacerRestartAfterAdding ? restartAfterAdding : nil
+            }
+            suite.expect(SettingsBackupSupport.sanitizedSettings(from: spacerBackup)?[
+                DefaultsKey.dockSpacerRestartAfterAdding] as? Bool == restartAfterAdding,
+                "the Dock spacer automatic restart choice survives a settings backup round trip")
+        }
         suite.expect(backupKeys.contains(DefaultsKey.switcherEnabled)
                 && backupKeys.contains(DefaultsKey.menuBarCPU)
                 && backupKeys.contains(DefaultsKey.language)
