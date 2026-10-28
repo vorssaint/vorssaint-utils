@@ -32,7 +32,8 @@ enum SmoothScrollRoutingTests {
     }
     final class Target {
         static let shared = Target()
-        func contains(_ point: CGPoint) -> Bool { false }
+        var isOwn = false
+        func contains(_ point: CGPoint) -> Bool { isOwn }
     }
     final class Session {
         static let shared = Session()
@@ -258,6 +259,17 @@ enum SmoothScrollRoutingTests {
                      "a handled Zoom tick is consumed without starting a glide")
         defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
         Inverter.shared.consumesZoom = false
+        Target.shared.isOwn = true
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(ScrollZoomModifier.option.rawValue, forKey: DefaultsKey.verticalZoomModifier)
+        defaults.set(true, forKey: AppFeature.scrollInverter.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.scrollInverterEnabled)
+        let ownZoom = Service()
+        suite.expect(tick(ownZoom, wheel(flags: .maskAlternate)) == nil && ownZoom.engine.remainingVertical < 0,
+                     "a declined zoom on our panel still takes the normal inverted smooth-scroll path")
+        Target.shared.isOwn = false
+        defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.scrollInverterEnabled)
         _ = tick(ignored, wheel())
         let trackpad = wheel()
         trackpad.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)

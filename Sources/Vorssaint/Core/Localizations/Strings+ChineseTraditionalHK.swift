@@ -199,13 +199,13 @@ extension Strings {
         colorPickerPickNow: "擷取顏色",
         micMuteName: "靜音麥克風",
         micUnmuteName: "取消靜音麥克風",
-        micMuteCaption: "透過點按或快速鍵切斷 Mac 的麥克風，對所有 App 生效。",
-        micMutedHUD: "麥克風已靜音",
-        micUnmutedHUD: "靜音已關閉",
+        micMuteCaption: "使用各個麥克風的靜音或輸入音量控制。Siri 和部分 App 仍可能聽到你的聲音。此功能無法封鎖所有麥克風取用。",
+        micMutedHUD: "麥克風靜音功能已開啟",
+        micUnmutedHUD: "麥克風靜音功能已關閉",
         micMutePartialHUD: "部分麥克風未能靜音",
         micUnmutePartialHUD: "部分麥克風仍處於靜音",
-        micMuteMenuBarToggle: "靜音時在選單列顯示",
-        micMuteMenuBarCaption: "此功能將麥克風靜音時，選單列中的 App 圖示旁會出現一個紅色的劃線麥克風。",
+        micMuteMenuBarToggle: "功能開啟時在選單列顯示",
+        micMuteMenuBarCaption: "選單列中的紅色麥克風表示此功能已開啟，並不保證所有 App 都已停止擷取音訊。",
         pastePlainName: "貼上為純文字",
         pastePlainCaption: "貼上拷貝的內容時去除顏色、字體和格式。原始內容仍保留在剪貼簿中。",
         launcherName: "快速面板",
@@ -1114,6 +1114,8 @@ extension Strings {
         shelfShortcutFinderSelection: "使用快捷鍵加入 Finder 所選項目",
         shelfShortcutFinderSelectionCaption: "Finder 位於前景時，快捷鍵會打開暫存架並放入所選檔案。未選取任何項目時照常打開。",
         spacesOrderName: "固定桌面空間順序",
-        spacesOrderCaption: "避免 macOS 依最近使用情況重新排列桌面空間，讓它們維持你設定的順序。關閉此選項後會恢復先前的設定。為套用變更，Dock 可能會重新啟動一次。"
+        spacesOrderCaption: "避免 macOS 依最近使用情況重新排列桌面空間，讓它們維持你設定的順序。關閉此選項後會恢復先前的設定。為套用變更，Dock 可能會重新啟動一次。",
+        quitAppsName: "結束 App",
+        quitAppsCaption: "列出開啟中的 App，可逐一結束、全部結束，或結束最前方 App 以外的所有 App。結束任何 App 前一律會先顯示清單。"
     )
 }

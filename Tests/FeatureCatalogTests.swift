@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 78, "feature catalog has 78 features")
+        suite.expect(AppFeature.allCases.count == 79, "feature catalog has 79 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -397,7 +397,7 @@ enum FeatureCatalogTests {
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
-            "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
+            "quickLauncher", "quickToggles", "quitApps", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
@@ -591,7 +591,8 @@ enum FeatureCatalogTests {
         suite.expect((AppFeature.availabilityDefaults[AppFeature.linearScroll.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.notchMascot.availabilityKey] as? Bool) == false,
+                && (AppFeature.availabilityDefaults[AppFeature.notchMascot.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.quitApps.availabilityKey] as? Bool) == false,
                "features added after the list was frozen wait on the Features page instead of installing themselves")
         let linearScrollSuiteName = "com.vorssaint.tests.linear-scroll-availability.\(UUID().uuidString)"
         if let linearDefaults = UserDefaults(suiteName: linearScrollSuiteName) {
@@ -710,7 +711,7 @@ enum FeatureCatalogTests {
                      "the companion leaves with the island but only comes when picked, with a page of its own")
         suite.expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
-            "automationFinder", "automationTerminal", "automationPlayback", "audioCapture", "microphone", "camera",
+            "automationFinder", "automationPlayback", "audioCapture", "microphone", "camera",
             "appManagement", "calendar",
         ], "permission portal contains every supported permission")
         let onboardingViewSource = (try? String(
@@ -783,6 +784,15 @@ enum FeatureCatalogTests {
         suite.expect(compactHubContent.contains("ScrollView{VStack(")
                 && !compactHubContent.contains("LazyVStack("),
                "the Features page measures its cards eagerly instead of estimating their height during scrolling")
+        // The first-run feature picker had the same loop: its lazy stack sat in
+        // the step's plain stack under the onboarding scroll view and froze the
+        // app while scrolling the catalog. Same kind of source check.
+        let purposeStepSource = onboardingFeatureSource
+            .components(separatedBy: "private struct PurposeStep: View {").dropFirst().first ?? ""
+        let compactPurposeBody = compactMember("var body: some View {", in: purposeStepSource)
+        suite.expect(compactPurposeBody.contains("ForEach(FeatureGroup.allCases")
+                && !compactPurposeBody.contains("LazyVStack("),
+               "the onboarding feature picker measures its cards eagerly instead of estimating their height during scrolling")
         // A lazy stack on the Monitor page re-measures and re-anchors its rows
         // without settling once the Bars options make the menu bar card taller,
         // which hangs Settings on the first scroll. The same kind of source
@@ -1674,11 +1684,21 @@ enum FeatureCatalogTests {
                "pasting copied images as files engages the shared Finder feature")
         suite.expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")
-        suite.expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")
+        suite.expect(AppFeature.quitApps.permissions.isEmpty
+                && AppFeature.quitApps.onboardingPermissions.isEmpty
+                && AppFeature.quitApps.enabledKeys.isEmpty
+                && AppFeature.quitApps.energyProfile == .idle
+                && AppFeature.quitApps.group == .tools
+                && AppFeature.quitApps.symbolName == "xmark.app",
+               "Quit apps is an on-demand tool that needs no permission and keeps nothing running")
+        suite.expect(AppFeature.quitApps.settingsDestination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .quitApps)
+                && !FeaturePreset.allCases.contains { $0.features.contains(.quitApps) },
+               "Quit apps opens its own Quick tools section and joins no preset")
         suite.expect(activeSet(.appManagement) == [.homebrew, .appUpdates, .diskImageInstaller],
                "package, update and disk-image installs declare App Management access")
-        suite.expect(AppFeature.homebrew.permissions == [.automationTerminal, .appManagement],
-               "the package manager declares both permissions used by its operations")
+        suite.expect(AppFeature.homebrew.permissions == [.appManagement],
+               "the package manager needs no Automation: the person's own terminal runs its commands")
         suite.expect(activeSet(.audioCapture) == [.mixer], "the mixer is the only audio capture user")
         suite.expect(activeSet(.audioCapture, available: Set(AppFeature.allCases).subtracting([.mixer])) == [],
                "audio capture reads as unused once the mixer is off in the hub")
@@ -2195,6 +2215,8 @@ enum FeatureCatalogTests {
                "cleaner settings, including WhatsApp downloads, follow the cleaner module")
         suite.expect(pageVisible(.quickTools, available: [.quickToggles]),
                "the quick toggles alone keep the quick tools page")
+        suite.expect(pageVisible(.quickTools, available: [.quitApps]),
+               "Quit apps alone keeps the quick tools page")
         suite.expect(pageVisible(.clipboard, available: [.finderCutPaste]),
                "the image paste option keeps the Clipboard page available")
         suite.expect(AppFeature.allCases.allSatisfy { feature in

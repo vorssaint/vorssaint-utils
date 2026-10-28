@@ -2162,7 +2162,7 @@ enum PointerInputFeatureTests {
         } ?? ""
         let mouseButtonToggleID = "toggle.\(AppFeature.mouseButtonShortcuts.rawValue)"
         suite.expect(mouseButtonToggleCode.contains("DefaultsKey.mouseButtonShortcutsEnabled")
-                && mouseButtonToggleCode.contains("feature.hubTitle(s, hub: hub)")
+                && mouseButtonToggleCode.contains("feature.hubTitle(s, hub: hub, language: language)")
                 && mouseButtonToggleCode.contains("id: \"\(mouseButtonToggleID)\""),
                "the Command Bar keeps the mouse-button shortcut row's key, title and stable id")
         suite.expect(mouseButtonToggleCode.contains("FeatureStrings.mouseButtons(language)")

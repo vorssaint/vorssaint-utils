@@ -82,6 +82,7 @@ struct ScrollZoomPreferences: Equatable {
 struct ScrollZoomGestureState {
     private(set) var preferences: ScrollZoomPreferences?
     private(set) var pinchModifier: ScrollHorizontalModifier?
+    private(set) var pinchLocation: CGPoint?
     private var acceptsEvents = false
 
     mutating func update(_ preferences: ScrollZoomPreferences) -> Bool {
@@ -103,16 +104,20 @@ struct ScrollZoomGestureState {
         acceptsEvents && self.preferences == preferences
     }
 
-    mutating func beginPinch(_ modifier: ScrollHorizontalModifier) -> (endPrevious: Bool, begin: Bool) {
-        let changed = pinchModifier != modifier
+    mutating func beginPinch(_ modifier: ScrollHorizontalModifier, at point: CGPoint) -> (endPrevious: Bool, begin: Bool) {
+        // AppKit latches a gesture to its starting view. A moved pointer may
+        // be over another view even inside the same window.
+        let changed = pinchModifier != modifier || pinchLocation != point
         let endPrevious = changed && pinchModifier != nil
         pinchModifier = modifier
+        pinchLocation = point
         return (endPrevious, changed)
     }
 
     mutating func endPinch() -> Bool {
         guard pinchModifier != nil else { return false }
         pinchModifier = nil
+        pinchLocation = nil
         return true
     }
 }

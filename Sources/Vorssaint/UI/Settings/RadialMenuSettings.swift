@@ -835,7 +835,7 @@ private struct RadialItemEditor: View {
     }
 
     private var availableQuickToggles: [RadialMenuQuickToggle] {
-        AppFeature.quickToggles.isAvailable ? RadialMenuQuickToggle.allCases : []
+        RadialMenuQuickToggle.allCases.filter { $0.feature.isAvailable }
     }
 
     private var urlIsInvalid: Bool {

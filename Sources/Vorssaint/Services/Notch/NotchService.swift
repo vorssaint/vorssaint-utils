@@ -40,11 +40,13 @@ struct NotchNotice: Equatable {
                                     trailing: max(minimumWings.trailing, fitted.trailing))
         }
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        let leading = ((level == nil ? title : detail) as NSString).size(withAttributes: [.font: font]).width
-        // A level's wings are as wide as its mark and its reading; the meter
-        // takes the same width on the other side.
+        func measured(_ text: String) -> CGFloat { (text as NSString).size(withAttributes: [.font: font]).width }
+        let leading = measured(level == nil ? title : detail)
+        // A level's wings are as wide as its mark and its widest reading, so
+        // the island holds still as the value gains or loses a digit; the
+        // meter takes the same width on the other side.
         if level != nil, event != .accessory {
-            let wing = ceil(Self.levelInset + 18 + 8 + leading)
+            let wing = ceil(Self.levelInset + 18 + 8 + max(leading, measured("100%")))
             return NotchNoticeWings(leading: wing, trailing: wing)
         }
         // Long accessory names still use bounded truncation.
@@ -200,6 +202,7 @@ final class NotchService: ObservableObject {
     private var captureID: UUID?
     private var captureFallback: (() -> Void)?
     private var captureClose: (() -> Void)?
+    private var captureDismiss: (() -> Void)?
     private var captureHover: ((Bool) -> Void)?
     private var captureClosesOnCollapse = false
     private var inside = false
@@ -223,7 +226,10 @@ final class NotchService: ObservableObject {
     /// the preferences: the open page's geometry is read on every layout pass.
     private var homeControls: [NotchControlItem] = []
     private var fileInteractionActive = false
-    private var keepsWorkingSurface: Bool {
+    /// A screenshot preview stays when the pointer leaves or another app
+    /// activates. It leaves on its own timer or on a click elsewhere.
+    private var keepsWorkingSurface: Bool { keepsSurfaceOnClick || showsCapturePreview }
+    private var keepsSurfaceOnClick: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
             || NotchLyricsService.shared.isImporting
             // Like the lyrics chooser, these panels stand beside the island
@@ -235,8 +241,10 @@ final class NotchService: ObservableObject {
             || (expanded && !showingSections && selected == .calendar && Permissions.shared.keepsCalendarPrompt)
             || (expanded && !showingSections && selected == .files && fileInteractionActive)
             || CameraPreviewService.shared.keepsNotchPermissionPrompt
-            || (expanded && !showingSections && selected == .captures && captureContent != nil)
             || (expanded && !showingSections && selected == .tools && (QuickLauncherService.shared.activeUtility != nil || QuickLauncherService.shared.isEditing))
+    }
+    private var showsCapturePreview: Bool {
+        expanded && !showingSections && selected == .captures && captureContent != nil
     }
     /// Up and measuring its display. Settings previews read the island's
     /// size only then.
@@ -523,7 +531,7 @@ final class NotchService: ObservableObject {
               countdown.ongoing ? NotchCalendarSupport.showsTimeLeft()
                 : NotchCalendarSupport.showsCountdown(chosen: calendar.isChosen(countdown.event))
         else { return false }
-        return countdown.isShown(at: Date())
+        return countdown.isShown(at: Date(), leadTime: calendar.countdownLeadTime)
     }
 
     var hasKeepAwakeActivity: Bool {
@@ -712,9 +720,9 @@ final class NotchService: ObservableObject {
         let title = trimmed.isEmpty ? FeatureStrings.notchCalendar(language).untitled : trimmed
         let titleSide = NotchCalendarSupport.stripDotWidth + NotchCalendarSupport.stripTitleSpacing
             + width(title, .systemFont(ofSize: 11, weight: .semibold))
-        // The widest clock the hour can show, so the island keeps its size
+        // The widest clock the selected lead can show, so the island keeps its size
         // while the minutes count down.
-        let clockSide = width("00:00", .monospacedDigitSystemFont(ofSize: 13, weight: .medium))
+        let clockSide = width(calendarClockShape, .monospacedDigitSystemFont(ofSize: 13, weight: .medium))
             + NotchCalendarSupport.stripClockSpacing
             + width(NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
                     .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
@@ -760,11 +768,15 @@ final class NotchService: ObservableObject {
         }
     }
 
-    /// An event's dot and the widest clock its hour can show, so the island
+    private var calendarClockShape: String {
+        NotchCalendarSupport.countdownShape(leadTime: NotchCalendarService.shared.countdownLeadTime)
+    }
+
+    /// An event's dot and the widest clock its selected lead can show, so the island
     /// keeps its size while the minutes count down.
     private var calendarClockWidth: CGFloat {
         NotchCalendarSupport.stripDotWidth + NotchCalendarSupport.stripClockSpacing
-            + ("00:00" as NSString).size(withAttributes: [
+            + (calendarClockShape as NSString).size(withAttributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
             ]).width.rounded(.up)
     }
@@ -1048,7 +1060,8 @@ final class NotchService: ObservableObject {
             return layout.timerSurface(reading: NotchTimerSupport.compactText(for: timer.session, at: timer.now,
                                                                               locale: Locale(identifier: language.rawValue)),
                                        companion: companion, workingAgents: working,
-                                       downloadPercent: download?.fraction != nil, geometry: geometry, language: language)
+                                       downloadPercent: download?.fraction != nil, geometry: geometry, language: language,
+                                       calendarLeadTime: NotchCalendarService.shared.countdownLeadTime)
         case .downloads:
             return layout.downloadSurface(name: download?.name ?? FeatureStrings.notchFiles(language).downloadsTitle,
                                           hasProgress: download?.fraction != nil, geometry: geometry, language: language)
@@ -1062,11 +1075,11 @@ final class NotchService: ObservableObject {
             if let companion {
                 return layout.calendarPairSurface(companion: companion, workingAgents: working,
                                                   downloadPercent: download?.fraction != nil, geometry: geometry,
-                                                  language: language)
+                                                  language: language, calendarLeadTime: NotchCalendarService.shared.countdownLeadTime)
             }
             return layout.calendarSurface(title: layout.calendarTitle(countdown, language: language),
                                           time: NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
-                                          geometry: geometry)
+                                          geometry: geometry, calendarLeadTime: NotchCalendarService.shared.countdownLeadTime)
         case .watch:
             let watch = NotchWatchService.shared
             return layout.watchSurface(reading: watch.headline, thumbnail: watch.showsThumbnail, geometry: geometry)
@@ -2488,7 +2501,8 @@ final class NotchService: ObservableObject {
 
     func presentCapture(id: UUID, content: AnyView, actions: AnyView? = nil, height: CGFloat,
                         takeFocus: Bool, closeOnCollapse: Bool, fallback: @escaping () -> Void,
-                        close: @escaping () -> Void, hover: @escaping (Bool) -> Void) -> Bool {
+                        close: @escaping () -> Void, dismiss: @escaping () -> Void,
+                        hover: @escaping (Bool) -> Void) -> Bool {
         guard acceptsSystemFeedback, NotchSupport.routes(.capture) else { return false }
         let keepOpen = expanded && pinned
         captureID = id
@@ -2497,6 +2511,7 @@ final class NotchService: ObservableObject {
         captureActions = actions
         captureFallback = fallback
         captureClose = close
+        captureDismiss = dismiss
         captureHover = hover
         captureClosesOnCollapse = closeOnCollapse
         open(.captures, pinned: keepOpen,
@@ -2534,6 +2549,7 @@ final class NotchService: ObservableObject {
         captureContentHeight = nil
         captureFallback = nil
         captureClose = nil
+        captureDismiss = nil
         captureHover = nil
         captureClosesOnCollapse = false
     }
@@ -3831,11 +3847,7 @@ final class NotchService: ObservableObject {
         clickedSinceOpening = false
         let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         if let token = NSEvent.addGlobalMonitorForEvents(matching: clicks, handler: { [weak self] _ in
-            guard let self, !self.keepsWorkingSurface,
-                  self.windowHost?.contains(NSEvent.mouseLocation) != true,
-                  (NSApp.delegate as? AppDelegate)?.isOverStatusItem(NSEvent.mouseLocation) != true,
-                  !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) else { return }
-            self.collapse()
+            self?.clickedElsewhere()
         }) { eventMonitors.append(token) }
         if let token = NSEvent.addLocalMonitorForEvents(matching: clicks.union(.keyDown), handler: { [weak self] event in
             guard let self else { return event }
@@ -3904,12 +3916,20 @@ final class NotchService: ObservableObject {
             let click = clicks.contains(NSEvent.EventTypeMask(rawValue: 1 << event.type.rawValue))
             let islandWindow = self.ownsWindow(event.window)
             if click, islandWindow { self.clickedSinceOpening = true }
-            if click, !islandWindow, !self.keepsWorkingSurface,
-               self.windowHost?.contains(NSEvent.mouseLocation) != true,
-               (NSApp.delegate as? AppDelegate)?.isOverStatusItem(NSEvent.mouseLocation) != true,
-               !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) { self.collapse() }
+            if click, !islandWindow { self.clickedElsewhere() }
             return event
         }) { eventMonitors.append(token) }
+    }
+
+    /// A screenshot preview closes through its controller, which keeps it
+    /// while a share link is still being made.
+    private func clickedElsewhere() {
+        guard !keepsSurfaceOnClick,
+              windowHost?.contains(NSEvent.mouseLocation) != true,
+              !mirrors.values.contains(where: { $0.model.shown && $0.host.contains(NSEvent.mouseLocation) }),
+              (NSApp.delegate as? AppDelegate)?.isOverStatusItem(NSEvent.mouseLocation) != true,
+              !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) else { return }
+        if showsCapturePreview { captureDismiss?() } else { collapse() }
     }
 
     /// The panel and what hangs from it: a SwiftUI popover opened in the

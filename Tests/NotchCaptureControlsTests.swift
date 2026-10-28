@@ -51,7 +51,7 @@ extension NotchPresentationRefreshContract {
                 persistentClosedAfterTakeover = persistent.captureControls != nil
                     && persistent.captureID == nil && persistent.captureContent == nil
                     && persistent.captureClose == nil
-            }, hover: { _ in })
+            }, dismiss: {}, hover: { _ in })
         suite.expect(persistentShown && persistent.openedPages.map(\.module) == [.captures]
                      && persistent.openedPages.last?.takeFocus == false,
                      "a preview that stays until dismissed opens the captures page without the keyboard")
@@ -64,7 +64,7 @@ extension NotchPresentationRefreshContract {
         var timedCloseCount = 0
         _ = timed.presentCapture(
             id: UUID(), content: true, height: 120, takeFocus: true, closeOnCollapse: false,
-            fallback: {}, close: { timedCloseCount += 1 }, hover: { _ in })
+            fallback: {}, close: { timedCloseCount += 1 }, dismiss: {}, hover: { _ in })
         suite.expect(timed.openedPages.last?.takeFocus == true,
                      "a timed preview that prefers the keyboard asks the island for it")
         timed.presentCaptureControls(CaptureOptions(), cancel: {})

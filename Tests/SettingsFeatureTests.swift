@@ -12,6 +12,16 @@ import ImageIO
 import VMStatisticsCompat
 
 enum SettingsFeatureTests {
+    enum CommandDispatchHost {
+        enum CommandLine { static var arguments: [String] = [] }
+        enum SettingsBackup {
+            static var commands: [SettingsBackupSupport.Command] = []
+            static func runCommandAndExit(_ command: SettingsBackupSupport.Command) {
+                commands.append(command)
+            }
+        }
+    }
+
     static func run(_ suite: TestSuite) {
         for (language, strings) in LocalizationTests.languages {
             let mouse = SettingsDirectory.sections(strings, language: language)
@@ -43,6 +53,57 @@ enum SettingsFeatureTests {
             watermark: MediaImageWatermark(kind: .text, text: "Sample", opacity: 0.5),
             renamePattern: MediaImageRenamePattern("{name}-{index}"))
         // MARK: Settings backup
+
+        suite.expect(SettingsBackupSupport.command(in: ["Vorssaint", "--export-settings", "out.plist"])
+                == .export(path: "out.plist")
+                && SettingsBackupSupport.command(in: ["Vorssaint", "--import-settings", "./-in.plist"])
+                == .import(path: "./-in.plist"),
+               "the backup flags take the file that follows them")
+        suite.expect(SettingsBackupSupport.command(in: ["Vorssaint", "--import-settings"])
+                == .missingFile(flag: "--import-settings")
+                && SettingsBackupSupport.command(in: ["Vorssaint", "--export-settings", "--selftest"])
+                == .missingFile(flag: "--export-settings"),
+               "a backup flag without a file is reported rather than treated as one")
+        suite.expect(SettingsBackupSupport.command(in: ["Vorssaint"]) == nil
+                && SettingsBackupSupport.command(in: ["Vorssaint", "--selftest"]) == nil,
+               "a normal launch is not a backup command")
+
+        for flags in [
+            ["--import-settings", "--export-settings", "backup.plist"],
+            ["--export-settings", "--import-settings", "backup.plist"],
+            ["--export-settings", "one.plist", "--export-settings", "two.plist"],
+        ] {
+            suite.expect(SettingsBackupSupport.command(in: ["Vorssaint"] + flags) == .conflictingFlags,
+                         "conflicting or repeated backup flags cannot choose an operation")
+        }
+        for arguments in [
+            ["Vorssaint", "--export-settings", "--uninstall"],
+            ["Vorssaint", "--export-settings", "--mouse-acceleration-cleanup"],
+            ["Vorssaint", "--export-settings", "--super-key-mapping-cleanup", "capsLock"],
+            ["Vorssaint", "--selftest", "--import-settings"],
+            ["Vorssaint", "--import-settings", "--export-settings", "backup.plist"],
+            ["Vorssaint", "--export-settings", "backup.plist"],
+        ] {
+            CommandDispatchHost.CommandLine.arguments = arguments
+            CommandDispatchHost.SettingsBackup.commands = []
+            CommandDispatchHost.run()
+            suite.expect(CommandDispatchHost.SettingsBackup.commands
+                         == [SettingsBackupSupport.command(in: arguments)!],
+                         "the production entry point dispatches backup mode before other modes")
+        }
+        CommandDispatchHost.CommandLine.arguments = ["Vorssaint", "--super-key-mapping-cleanup", "capsLock"]
+        CommandDispatchHost.SettingsBackup.commands = []
+        CommandDispatchHost.run()
+        suite.expect(CommandDispatchHost.SettingsBackup.commands.isEmpty,
+                     "a real cleanup invocation remains on its normal startup path")
+        let startup = (try? String(contentsOfFile: "Sources/Vorssaint/main.swift", encoding: .utf8)) ?? ""
+        let backupDispatch = startup.range(of: "if let command = SettingsBackupSupport.command(")
+        suite.expect(backupDispatch != nil && ["SuperKeyMappingGuard.", "Defaults.register()",
+                     "MouseAccelerationGuard.", "MouseAccelerationService.", "SelfTest.", "Uninstaller."]
+            .allSatisfy { name in
+                guard let handler = startup.range(of: name), let backupDispatch else { return false }
+                return backupDispatch.lowerBound < handler.lowerBound
+            }, "backup dispatch precedes every startup handler with side effects")
 
         let backupKeys = SettingsBackupSupport.exportKeys()
         for reserved in [false, true] {

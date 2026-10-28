@@ -64,12 +64,12 @@ enum LinearScrollTapTests {
         var zoomFocusedTarget: WindowServerWindowCandidate?
         var zoomStepLimiter = ScrollZoomStepLimiter()
         var pinchPosts = 0
+        var pinchEvents: [(phase: Int64, point: CGPoint?)] = []
         var keyboardPosts: [pid_t] = []
         var zoomInKeyStroke: (keyCode: CGKeyCode, needsShift: Bool)? = (CGKeyCode(kVK_ANSI_Equal), true)
         var zoomOutKeyStroke: (keyCode: CGKeyCode, needsShift: Bool)? = (CGKeyCode(kVK_ANSI_Minus), false)
         var zoomEvents: [CGEvent] = []
         var activationRequests = 0
-        func endPinchZoomLocked() {}
         func prepareZoomTargetLocked(for event: CGEvent) {}
         func invalidateZoomTargetLocked() {
             zoomTarget = nil
@@ -82,7 +82,10 @@ enum LinearScrollTapTests {
             zoomEvents.append(event)
             if event.type == .keyDown { keyboardPosts.append(targetProcessID) }
         }
-        func postPinchZoomLocked(_ delta: Double, modifier: ScrollHorizontalModifier) { pinchPosts += 1 }
+        func postPinch(phase: Int64, magnification: Double, at point: CGPoint?) {
+            pinchEvents.append((phase, point))
+            if phase == 2 { pinchPosts += 1 }
+        }
     }
 
     final class TargetResolver {
@@ -356,10 +359,26 @@ enum LinearScrollTapTests {
         suite.expect(!ownInverter.consumeZoom(wheel(line: 1, fixed: 1, point: 10, flags: .maskCommand),
                                               direction: pinchDirection) && ownInverter.pinchPosts == 0,
                      "Pinch leaves an own panel's wheel unchanged")
+        configure(invert: true)
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+        defaults.set(ScrollZoomModifier.option.rawValue, forKey: DefaultsKey.pinchZoomModifier)
+        let ownWheel = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskAlternate))
+        suite.expect(ownWheel.map(verticalLine) == -3,
+                     "a panel that declines zoom still receives inversion and the linear cap")
         Target.shared.isOwn = false
         suite.expect(ownInverter.consumeZoom(wheel(line: 1, fixed: 1, point: 10, flags: .maskCommand),
                                              direction: pinchDirection) && ownInverter.pinchPosts == 1,
                      "Pinch still consumes a single tick over an external window")
+        let a = CGPoint(x: 10, y: 20), b = CGPoint(x: 30, y: 40)
+        let gestures = Inverter()
+        gestures.postPinchZoomLocked(1, modifier: .option, at: a)
+        gestures.postPinchZoomLocked(1, modifier: .option, at: a)
+        gestures.postPinchZoomLocked(-1, modifier: .option, at: b)
+        gestures.endPinchZoomLocked()
+        suite.expect(gestures.pinchEvents.map(\.phase) == [1, 2, 2, 4, 1, 2, 4]
+                     && gestures.pinchEvents.map(\.point) == [a, a, a, a, b, b, b],
+                     "moving between views ends the old gesture at its original point before beginning the next")
 
         defaults.set(false, forKey: DefaultsKey.pinchZoomEnabled)
         let keyboardDirection = ScrollDirectionPreferences(defaults: defaults)

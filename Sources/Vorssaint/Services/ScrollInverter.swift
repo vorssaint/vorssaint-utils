@@ -104,8 +104,9 @@ final class ScrollInverter: ObservableObject {
         let direction = ScrollDirectionPreferences()
         pinchZoomLock.withLock {
             stopZoomTargetTimerLocked()
+            let pinchLocation = zoomState.pinchLocation
             if zoomState.update(direction.zoom) {
-                postPinch(phase: 4, magnification: 0)
+                postPinch(phase: 4, magnification: 0, at: pinchLocation)
             }
             invalidateZoomTargetLocked()
         }
@@ -201,7 +202,8 @@ final class ScrollInverter: ObservableObject {
         syncZoomKeyboardLayout(zoom: nil)
         pinchZoomLock.withLock {
             stopZoomTargetTimerLocked()
-            if zoomState.stop() { postPinch(phase: 4, magnification: 0) }
+            let pinchLocation = zoomState.pinchLocation
+            if zoomState.stop() { postPinch(phase: 4, magnification: 0, at: pinchLocation) }
             invalidateZoomTargetLocked()
         }
         ScrollWheelTarget.shared.setEnabled(false)
@@ -272,8 +274,8 @@ final class ScrollInverter: ObservableObject {
 
     private func refreshZoomKeyboardLayout() {
         guard Thread.isMainThread else { return }
-        let zoomIn = MouseNavigationKeys.keyStroke(for: "+")
-        let zoomOut = MouseNavigationKeys.keyStroke(for: "-")
+        let zoomIn = MouseNavigationKeys.keyStroke(for: "+", command: true)
+        let zoomOut = MouseNavigationKeys.keyStroke(for: "-", command: true)
         pinchZoomLock.withLock {
             zoomInKeyStroke = zoomIn
             zoomOutKeyStroke = zoomOut
@@ -346,7 +348,9 @@ final class ScrollInverter: ObservableObject {
                 .scrollDirection, at: event.location, sourceProcessID: sourceProcessID)
         if directionApplies, !AppSwitcher.shared.scrollNavigationActive,
            direction.zoom.action(for: event) != nil {
-            return consumeZoom(event, direction: direction) ? nil : Unmanaged.passUnretained(event)
+            if consumeZoom(event, direction: direction) { return nil }
+            // Our panels decline zoom but still use their ordinary wheel path.
+            if !ScrollWheelTarget.shared.contains(event.location) { return Unmanaged.passUnretained(event) }
         }
         // Control-wheel is native zoom. Only the explicit Control-to-horizontal
         // shortcut turns it into scrolling; a direction exception or one of
@@ -438,7 +442,7 @@ final class ScrollInverter: ObservableObject {
         return pinchZoomLock.withLock {
             guard zoomState.accepts(direction.zoom) else { return false }
             if action.effect == .pinch {
-                postPinchZoomLocked(delta, modifier: action.modifier)
+                postPinchZoomLocked(delta, modifier: action.modifier, at: event.location)
                 return true
             }
             guard let target = zoomTarget?.target(at: event.location, modifier: action.modifier,
@@ -578,7 +582,9 @@ final class ScrollInverter: ObservableObject {
                     return
                 }
                 let focused = WindowActivator.focusWindow(windowID: window.windowID, pid: window.pid,
-                                                          makeAppFrontmost: false)
+                                                          makeAppFrontmost: false, isCurrent: {
+                    self.zoomActivationIsCurrent(window, snapshot: snapshot, generation: generation)
+                })
                     && WindowActivator.focusedWindowID(for: window.pid) == window.windowID
                 self.finishZoomActivation(window, generation: generation, focused: focused)
             }
@@ -639,19 +645,22 @@ final class ScrollInverter: ObservableObject {
         return true
     }
 
-    private func postPinchZoomLocked(_ delta: Double, modifier: ScrollHorizontalModifier) {
-        let transition = zoomState.beginPinch(modifier)
-        if transition.endPrevious { postPinch(phase: 4, magnification: 0) }
-        if transition.begin { postPinch(phase: 1, magnification: 0) }
-        postPinch(phase: 2, magnification: delta * 0.005)
+    private func postPinchZoomLocked(_ delta: Double, modifier: ScrollHorizontalModifier, at point: CGPoint) {
+        let previous = zoomState.pinchLocation
+        let transition = zoomState.beginPinch(modifier, at: point)
+        if transition.endPrevious { postPinch(phase: 4, magnification: 0, at: previous) }
+        if transition.begin { postPinch(phase: 1, magnification: 0, at: point) }
+        postPinch(phase: 2, magnification: delta * 0.005, at: point)
     }
 
     private func endPinchZoomLocked() {
-        if zoomState.endPinch() { postPinch(phase: 4, magnification: 0) }
+        let point = zoomState.pinchLocation
+        if zoomState.endPinch() { postPinch(phase: 4, magnification: 0, at: point) }
     }
 
-    private func postPinch(phase: Int64, magnification: Double) {
+    private func postPinch(phase: Int64, magnification: Double, at point: CGPoint?) {
         guard let gesture = CGEvent(source: nil) else { return }
+        if let point { gesture.location = point }
         gesture.type = CGEventType(rawValue: UInt32(NSEvent.EventType.gesture.rawValue))!
         gesture.setIntegerValueField(CGEventField(rawValue: 110)!, value: 8)
         gesture.setIntegerValueField(CGEventField(rawValue: 132)!, value: phase)

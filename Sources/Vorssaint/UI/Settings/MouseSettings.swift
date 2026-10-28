@@ -244,6 +244,10 @@ struct MouseSettings: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if !AppFeature.scrollInverter.isAvailable && !AppFeature.scrollHorizontal.isAvailable,
+               scrollDirectionEnabled {
+                MouseExceptionsList(scope: .scrollDirection)
+            }
         }
     }
 

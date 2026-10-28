@@ -6,6 +6,26 @@ import Carbon.HIToolbox
 import Foundation
 
 enum ScrollHorizontalModifierTests {
+    private static func commandKeyboardLayouts(_ suite: TestSuite) {
+        let sources = TISCreateInputSourceList(nil, true).takeRetainedValue() as! [TISInputSource]
+        for id in ["com.apple.keylayout.US", "com.apple.keylayout.DVORAK-QWERTYCMD"] {
+            let source = sources.first { source in
+                guard let pointer = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else { return false }
+                return Unmanaged<CFString>.fromOpaque(pointer).takeUnretainedValue() as String == id
+            }
+            guard let source, let pointer = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else {
+                suite.expect(false, "the native \(id) keyboard table is available")
+                continue
+            }
+            let layout = Unmanaged<CFData>.fromOpaque(pointer).takeUnretainedValue() as Data
+            let plus = MouseNavigationKeys.keyStroke(for: "+", layout: layout, command: true)
+            let minus = MouseNavigationKeys.keyStroke(for: "-", layout: layout, command: true)
+            suite.expect(plus?.keyCode == CGKeyCode(kVK_ANSI_Equal) && plus?.needsShift == true
+                         && minus?.keyCode == CGKeyCode(kVK_ANSI_Minus) && minus?.needsShift == false,
+                         "\(id) resolves the keys actually used by Command zoom, without changing the current layout")
+        }
+    }
+
     /// A plain wheel moves a strip that scrolls only sideways, but never one
     /// that also scrolls down or sits in a list that does.
     private static func sidewaysStrips(_ suite: TestSuite) {
@@ -49,6 +69,7 @@ enum ScrollHorizontalModifierTests {
     }
 
     static func run(_ suite: TestSuite) {
+        commandKeyboardLayouts(suite)
         suite.expect(MouseNavigationKeys.keyStroke(for: "+")?.keyCode != CGKeyCode(kVK_ANSI_KeypadPlus)
                         && MouseNavigationKeys.keyStroke(for: "-")?.keyCode != CGKeyCode(kVK_ANSI_KeypadMinus),
                      "keyboard Zoom uses main keyboard shortcuts rather than numeric keypad shortcuts")
@@ -288,7 +309,7 @@ enum ScrollHorizontalModifierTests {
         var switchingState = ScrollZoomGestureState()
         _ = switchingState.update(commandPinch)
         switchingState.start()
-        _ = switchingState.beginPinch(.command)
+        _ = switchingState.beginPinch(.command, at: .zero)
         suite.expect(switchingState.update(optionZoom),
                      "switching Command Pinch to Option Zoom ends the old gesture")
         switchingState.start()
@@ -597,7 +618,7 @@ enum ScrollHorizontalModifierTests {
         var state = ScrollZoomGestureState()
         suite.expect(!state.update(pinch), "enabling Pinch starts without an old gesture")
         state.start()
-        suite.expect(state.accepts(pinch) && state.beginPinch(.command).begin,
+        suite.expect(state.accepts(pinch) && state.beginPinch(.command, at: .zero).begin,
                      "an installed pinch modifier begins a gesture")
         suite.expect(state.update(disabled) && state.pinchModifier == nil,
                      "disabling Pinch ends its gesture while the shared tap remains installed")

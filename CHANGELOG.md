@@ -7,9 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable window switching, screenshots, audio and Settings, with safer fan recovery, better monitoring and optional volume controls in the music player.
+More reliable window switching, screenshots, audio and Settings, with smoother controls, English command search and command-line settings backups.
 
 ### Added
+- Dynamic Island level controls and the menu panel's mixer can be adjusted with a mouse wheel or trackpad. Thanks to @JB-OD.
+- Command Bar converts days, weeks and fixed 365-day years, with English and Portuguese unit names. Thanks to @asim-sde.
+- Settings backups can be exported or imported with `--export-settings FILE` and `--import-settings FILE`; importing requires the app to be closed. Thanks to @DrakeEvans.
 - Dynamic Island can show a volume row below the music player. Settings → Dynamic Island → Content → Music → Show volume in the player.
 - Screenshots can copy only image data, without a file URL, for apps that otherwise paste the file instead of its image. Settings → Screenshot → Copy as image only.
 - Quit on close can handle selected menu bar apps that keep a Dock icon after their last window closes. The list starts empty, and existing exceptions still apply. Settings → Quit on close → Menu bar apps to quit.
@@ -17,11 +20,20 @@ More reliable window switching, screenshots, audio and Settings, with safer fan 
 - Switch Spaces by dragging a button now accepts the middle mouse button, including upward drags for Mission Control and downward drags for App Exposé. A short click keeps its normal behavior. Settings → Mouse → Mouse button shortcuts.
 
 ### Changed
+- Homebrew opens installer, setup and password-required commands in the default app for Unix executables, without Terminal Automation consent. Thanks to @hertza-haeon.
+- Snippet lists in Settings and the library use alphabetical order. Thanks to @Zekuath.
 - Clipboard history uses a smaller decoded-thumbnail cache while keeping the window preview cache unchanged.
 - Command Bar accepts British unit spellings and spaced fluid-ounce names.
 - The window switcher's icon row, previews and hints use Liquid Glass when available and enabled.
 
 ### Fixed
+- Mic Mute describes its device-control limits and reports known failures even when no microphone could be changed. Siri and some apps may still hear audio. Thanks to @sarat03 for the diagnosis.
+- The onboarding feature picker stays responsive when scrolling. Thanks to @yousefhamza.
+- Ultra-wide wallpaper previews stay within their own grid cells. Thanks to @ozanuslan.
+- Dynamic Island keeps volume, brightness and keyboard-light notices at a stable width as the percentage gains a digit. Thanks to @nikigan.
+- Command Bar finds English built-in commands and system answers when the interface uses another language. Thanks to @ywu73.
+- Clicking outside Dynamic Island dismisses its screenshot preview while preserving active sharing, pinned surfaces and clicks in copies on other displays. Thanks to @samanyudas.
+- Extra Brightness keeps app windows visible in Mission Control's desktop thumbnails. Thanks to @othmanehousni.
 - Features keeps its rows and scroll position stable when restart and unused-feature notices change.
 - The window switcher can travel directly to fullscreen and hidden-Space windows, recover their titles and observe closing without repeating a delivered close request.
 - Opening the window switcher uses fewer Accessibility requests when many windows are open.
@@ -30,7 +42,6 @@ More reliable window switching, screenshots, audio and Settings, with safer fan 
 - Quit on close ignores confirmed stale surfaces left by closed windows while preserving minimized windows and windows on other Spaces.
 - The menu bar panel recovers from interrupted closes so later clicks can open it again.
 - Recent captures keeps its Clear history confirmation open and removes a pending confirmation when the palette closes.
-- The screenshot editor copies the latest edits when an earlier automatic copy is still pending.
 - Dynamic Island moves between displays without stretching, losing mouse input or restarting the music bars.
 - Volume keys advance supported USB outputs that round volume changes into fixed steps, and feedback follows the device's confirmed level.
 - Volume mixer preserves gain on supported multichannel outputs and rebuilds its audio capture when device formats or sample rates change.
@@ -54,7 +65,7 @@ More reliable window switching, screenshots, audio and Settings, with safer fan 
 - Screenshot area selection keeps its crosshair over other apps, and card shadows follow the captured window's own rounded corners.
 
 ### Contributors
-Thanks to @0miicr0n, @AB-boi, @ALaunert, @BerkUyku, @Blasted246, @buhbyehotmail, @derpyjoystick, @DigitalWestern, @dimashpt, @dimitarmanov, @dongzoor, @eliamarinen, @EugeneCarldotme, @fablau, @Forenzo, @globeatin, @Goonwb, @hash00, @i0208, @ilvesBogdan, @iva-zhu, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @kidtaroi, @Likheet, @LJXXXD, @MartinSchlender, @Mikkeep, @mthsmb, @muratozturk5, @oc7opu5, @pedro-fontinele, @pedrozimmermannsoares, @raymondchins, @RKeyProg, @rochapaesc, @saarmiara, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz, @ve3dy and @ygh1254.
+Thanks to @0miicr0n, @AB-boi, @ALaunert, @asim-sde, @BerkUyku, @Blasted246, @buhbyehotmail, @derpyjoystick, @DigitalWestern, @dimashpt, @dimitarmanov, @dongzoor, @DrakeEvans, @eliamarinen, @EugeneCarldotme, @fablau, @Forenzo, @globeatin, @Goonwb, @hash00, @hertza-haeon, @i0208, @ilvesBogdan, @iva-zhu, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @kidtaroi, @Likheet, @LJXXXD, @MartinSchlender, @Mikkeep, @mthsmb, @muratozturk5, @nikigan, @oc7opu5, @othmanehousni, @ozanuslan, @pedro-fontinele, @pedrozimmermannsoares, @raymondchins, @RKeyProg, @rochapaesc, @saarmiara, @samanyudas, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz, @ve3dy, @ygh1254, @yousefhamza, @ywu73 and @Zekuath.
 
 ## [3.4.2] - 2026-10-21
 
