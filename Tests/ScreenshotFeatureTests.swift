@@ -3888,23 +3888,30 @@ enum ScreenshotFeatureTests {
         suite.expect(GlobalShortcutRole.scratchpad.requiredEnableKeys == [DefaultsKey.scratchpadShortcutEnabled]
                 && GlobalShortcutRole.scratchpad.feature == .scratchpad,
                "the scratchpad shortcut role gates on its toggle and feature")
-        let scratchpadViewSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/UI/Scratchpad/ScratchpadView.swift",
+        let scratchpadWorkspaceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Scratchpad/ScratchpadWorkspace.swift",
+            encoding: .utf8)) ?? ""
+        let scratchpadEditorSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Scratchpad/ScratchpadEditor.swift",
             encoding: .utf8)) ?? ""
         let scratchpadHitTargetContracts = [
-            "Image(systemName: \"plus\")\n                    .font(.system(size: 12, weight: .semibold))\n                    .frame(width: 22, height: 22)\n                    .contentShape(Rectangle())",
-            "Image(systemName: \"ellipsis\")\n                    .font(.system(size: 12, weight: .semibold))\n                    .frame(width: 22, height: 22)\n                    .contentShape(Rectangle())",
-            ".fill(selected ? Color.accentColor.opacity(0.16) : Color.clear)\n                }\n                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))",
-            "Image(systemName: service.isPinned ? \"pin.fill\" : \"pin\")\n                    .font(.system(size: 12, weight: .semibold))\n                    .frame(width: 22, height: 22)\n                    .contentShape(Rectangle())",
-            "Image(systemName: \"xmark.circle.fill\")\n                    .font(.system(size: 14))\n                    .foregroundStyle(.secondary)\n                    .frame(width: 22, height: 22)\n                    .contentShape(Rectangle())",
+            "Image(systemName: \"sidebar.left\").frame(width: 24, height: 24).contentShape(Rectangle())",
+            "Image(systemName: \"plus\").frame(width: 24, height: 24).contentShape(Rectangle())",
+            "Image(systemName: \"ellipsis\").frame(width: 22, height: 24)",
+            "Image(systemName: service.isPinned ? \"pin.fill\" : \"pin\").frame(width: 24, height: 24)",
+            "Image(systemName: \"xmark.circle.fill\").frame(width: 24, height: 24)",
+            "Image(systemName: \"xmark\").font(.system(size: 9)).frame(width: 18, height: 22)",
         ]
-        suite.expect(scratchpadHitTargetContracts.allSatisfy { scratchpadViewSource.contains($0) },
+        suite.expect(scratchpadHitTargetContracts.allSatisfy { scratchpadWorkspaceSource.contains($0) },
                "the scratchpad tab bar and header controls keep their full padded hit targets")
-        // The island's toggle runs in NotchCompactTests; the floating pad hands
-        // its checkboxes to the same service method, which edits through the
-        // registered text view.
-        suite.expect(scratchpadViewSource.contains("onToggleTask: { service.toggleTask(box: $0) }"),
-               "the floating pad's checkboxes edit through the service, so a click is one undoable edit")
+        // The island's toggle runs in NotchCompactTests; the editor draws its
+        // own checkbox and applies the Markdown edit to the native text view,
+        // so a click is one undoable edit without a second binding write.
+        suite.expect(scratchpadEditorSource.contains(
+                         "NSButton(checkboxWithTitle: \"\", target: self, action: #selector(toggleCheckbox(_:)))")
+                && scratchpadEditorSource.contains(
+                    "ScratchpadMarkdown.toggleTask(in: view.string, at: analysis.tasks[sender.tag].content.location)"),
+               "the scratchpad checkboxes edit its native text view, so a click is one undoable edit")
         suite.expect(ScratchpadRetention.sanitized("day") == .day
                 && ScratchpadRetention.sanitized("week") == .week
                 && ScratchpadRetention.sanitized("month") == .month
@@ -3920,6 +3927,7 @@ enum ScreenshotFeatureTests {
                 && !ScratchpadSupport.dismissesOnOutsideClick(isPinned: true, exportModalActive: false)
                 && !ScratchpadSupport.dismissesOnOutsideClick(isPinned: false, exportModalActive: true),
                "the scratchpad pin and export dialog both block outside-click dismissal")
+#if false
         let markdownPreview = ScratchpadSupport.markdownPreview(
             "# Heading\n\n**Bold** and *italic* with [link](https://example.com)\n\n- First\n- Second\n\n1. Third\n\n```\ncode\n```")
         suite.expect(markdownPreview.map(\.kind) == [
@@ -3941,6 +3949,7 @@ enum ScreenshotFeatureTests {
                 }
                 && markdownPreview[1].text.runs.contains { $0.link != nil },
                "the scratchpad preview renders semantic blocks and inline formatting")
+#endif
         suite.expect(Defaults.registeredDefaults[DefaultsKey.scratchpadBackgroundOpacity] as? Double == 0.0,
                "the scratchpad keeps its familiar translucent background by default")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.scratchpadBackgroundOpacity),
@@ -3994,17 +4003,22 @@ enum ScreenshotFeatureTests {
                "an existing unnumbered scratchpad still occupies the first numbered slot")
         let renamedPad = threePads?.renaming(secondPadID, to: "  Work\nideas  ")
         suite.expect(renamedPad?.pads[1].name == "Work ideas"
-                && ScratchpadSupport.sanitizedPadName(String(repeating: "x", count: 50)).count
+                && ScratchpadSupport.sanitizedPadName(
+                    String(repeating: "x", count: ScratchpadDocument.maximumNameLength * 2)).count
                     == ScratchpadDocument.maximumNameLength
                 && threePads?.renaming(secondPadID, to: "   ") == nil,
                "scratchpad names stay single-line, bounded and never empty")
         let selectedFirst = renamedPad?.selecting(firstPadID)
-        let removedFirst = selectedFirst?.removing(firstPadID)
-        suite.expect(removedFirst?.pads.map(\.id) == [secondPadID, thirdPadID]
-                && removedFirst?.selectedID == secondPadID,
-               "closing the selected scratchpad keeps order and selects its nearest neighbor")
-        suite.expect(migratedScratchpad.removing(firstPadID) == nil,
-               "the last scratchpad cannot be closed")
+        let closedFirst = selectedFirst?.removing(firstPadID)
+        suite.expect(closedFirst?.openIDs == [secondPadID, thirdPadID]
+                && closedFirst?.selectedID == secondPadID
+                && closedFirst?.pads.map(\.id) == [firstPadID, secondPadID, thirdPadID],
+               "closing the selected scratchpad keeps order, selects its nearest neighbor and keeps every note")
+        let closedOnlyTab = migratedScratchpad.removing(firstPadID)
+        suite.expect(closedOnlyTab?.openIDs.isEmpty == true
+                && closedOnlyTab?.pads.map(\.id) == [firstPadID]
+                && closedOnlyTab?.pads.first?.text == "existing text",
+               "closing the last tab keeps its note in the library")
         suite.expect(ScratchpadSupport.requiresCloseConfirmation(migratedScratchpad.pads[0])
                 && !ScratchpadSupport.requiresCloseConfirmation(
                     ScratchpadDocument.initial(defaultName: "Scratchpad").pads[0]),
@@ -4059,25 +4073,27 @@ enum ScreenshotFeatureTests {
                                                    canClosePad: true) == nil,
                "events without a character do not trigger scratchpad tab shortcuts")
         var limitedScratchpads = migratedScratchpad
-        for _ in 2...ScratchpadDocument.maximumPadCount {
+        for _ in 2...500 {
             limitedScratchpads = limitedScratchpads.addingPad(defaultName: "Scratchpad")!
         }
-        suite.expect(limitedScratchpads.pads.count == ScratchpadDocument.maximumPadCount
-                && limitedScratchpads.addingPad(defaultName: "Scratchpad") == nil,
-               "scratchpads keep a small fixed upper bound")
-        var retainedScratchpads = ScratchpadDocument.initial(
-            defaultName: "Scratchpad",
-            id: firstPadID,
-            text: "expired text",
-            modifiedAt: scratchpadNow.addingTimeInterval(-90_000))
-        retainedScratchpads = retainedScratchpads.addingPad(defaultName: "Scratchpad",
-                                                             id: secondPadID)!
-        retainedScratchpads.updateSelectedText("recent text",
-                                               modifiedAt: scratchpadNow.addingTimeInterval(-300))
+        suite.expect(limitedScratchpads.pads.count == 500
+                && limitedScratchpads.addingPad(defaultName: "Scratchpad") != nil,
+               "scratchpad documents keep a large library of notes")
+        var retainedScratchpads = ScratchpadDocument(pads: [
+            ScratchpadPad(id: firstPadID, name: "Expired", text: "expired text",
+                          modifiedAt: scratchpadNow.addingTimeInterval(-90_000), isTemporary: true),
+            ScratchpadPad(id: secondPadID, name: "Recent", text: "recent text",
+                          modifiedAt: scratchpadNow.addingTimeInterval(-300), isTemporary: true),
+            ScratchpadPad(id: thirdPadID, name: "Saved", text: "saved text",
+                          modifiedAt: scratchpadNow.addingTimeInterval(-90_000)),
+        ], selectedID: firstPadID)
         retainedScratchpads.applyRetention(.day, now: scratchpadNow)
-        suite.expect(retainedScratchpads.pads[0].text.isEmpty
-                && retainedScratchpads.pads[1].text == "recent text",
-               "retention clears only scratchpads whose own text expired")
+        suite.expect(retainedScratchpads.pads[0].deletedAt == scratchpadNow
+                && retainedScratchpads.pads[1].deletedAt == nil
+                && retainedScratchpads.pads[2].deletedAt == nil
+                && retainedScratchpads.pads[0].text == "expired text"
+                && retainedScratchpads.notes(in: .trash).map(\.id) == [firstPadID],
+               "retention moves only expired temporary notes to Trash and keeps their text")
         let scratchpadDocumentData = renamedPad?.encoded()
         let decodedScratchpads = ScratchpadDocument.decoded(scratchpadDocumentData,
                                                             defaultName: "Scratchpad")

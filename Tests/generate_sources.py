@@ -379,7 +379,7 @@ def main():
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
                         "    private static func composeAttached(").replace("private static", "static", 1)
           + "}\n}\n")
-    write("ScratchpadExport.swift", "import AppKit\nimport Foundation\n"
+    write("ScratchpadExport.swift", "import AppKit\nimport Foundation\nimport UniformTypeIdentifiers\n"
           + "extension ScratchpadExportContract {\nfinal class Service: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",
                         "    func exportText(")
@@ -1131,7 +1131,7 @@ def main():
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
     scratchpad_reading = "Sources/Vorssaint/UI/Scratchpad/ScratchpadView.swift"
-    write("NotchCompact.swift", "import AppKit\nimport Carbon.HIToolbox\nimport SwiftUI\nextension NotchCompactTests {\n"
+    write("NotchCompact.swift", "import AppKit\nimport Carbon.HIToolbox\nimport SwiftUI\nimport UniformTypeIdentifiers\nextension NotchCompactTests {\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchCameraView.swift", "struct NotchCameraView:")
           + declaration("Sources/Vorssaint/UI/Notch/NotchCameraView.swift", "struct NotchCameraStopButton:")
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchCalendarEventRow:")
@@ -1141,19 +1141,10 @@ def main():
           + declaration("Sources/Vorssaint/UI/Notch/NotchComponents.swift", "struct NotchRail<")
           + declaration("Sources/Vorssaint/UI/PlainTextEditor.swift", "struct PlainTextEditor:")
               .replace("        private func moveLine(", "        func moveLine(", 1)
-          + declaration(scratchpad_view, "struct NotchScratchpadView:")
-          + "".join(declaration(scratchpad_reading, prefix) for prefix in [
-              "struct MarkdownPreview:", "final class TaskBoxAttachment:", "final class TaskPreviewTextView:"])
           + "}\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "extension NotchCalendarColor {")
           + declaration("Sources/Vorssaint/UI/PlainTextLineMover.swift", "enum PlainTextLineMover")
           + "extension NotchCompactTests.ScratchpadService {\n"
-          + declaration(scratchpad_service, "    func clear(")
-          + declaration(scratchpad_service, "    func toggleTask(")
-          + "}\nextension NotchCompactTests.Floating {\n"
-          + declaration(scratchpad_service, "    private func focusText(").replace("private func", "func", 1)
-          + "}\nextension NotchCompactTests.Embedded {\n"
-          + declaration(scratchpad_view, "    private func focusEditor(").replace("private func", "func", 1)
           + "}\nextension NotchCompactTests.Page {\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    private var pageSize:")
               .replace("private var", "var", 1).replace("NotchSupport.controls()", "controls")
