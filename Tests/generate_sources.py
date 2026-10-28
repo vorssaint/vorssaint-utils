@@ -82,6 +82,9 @@ def main():
                     .replace("private ", "", 1) for prefix in [
                         "    struct DisplayScope:", "    struct WindowList {", "    struct AppSnapshot:",
                         "    struct Snapshot:", "    static func enumerateSwitcherWindows(",
+                        "    static func beginSourcePrefetch(",
+                        "    private struct WalkApps {",
+                        "    private static func walkApps(",
                         "    static func listWindowsForCommandBar(",
                         "    private static func listWindows(appRules:",
                         "    private static func listWindows(filterPID:",
@@ -91,10 +94,23 @@ def main():
                         "    private static func appendWindowlessApps(",
                         "    private static func switchableFrame(", "    private static func frameIsSwitchable(",
                         "    private static func frameLooksFullscreen("])
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift",
+                        "final class WindowServerWindowList {")
+              .replace("SpaceWindowBridge.windowIDList()",
+                       "SwitcherFullscreenScopeTests.Bridge.windowIDList()")
+              .replace("CGWindowListCreateDescriptionFromArray(",
+                       "SwitcherFullscreenScopeTests.Enumerator.CGWindowListCreateDescriptionFromArray(")
+              .replace("CGWindowListCopyWindowInfo(",
+                       "SwitcherFullscreenScopeTests.Enumerator.CGWindowListCopyWindowInfo(")
           + "}\nextension SwitcherFullscreenScopeTests.Bridge {\n"
           + "".join(declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", prefix)
                     .replace("private ", "", 1) for prefix in [
                         "    private static func windowTags(of", "    static func isExcludedFromWindowCycle("])
+          + "}\n")
+    write("SwitcherHistoryReconcile.swift", "import Foundation\nimport CoreGraphics\n"
+          + "extension SwitcherQuickCommitTests.HistoryFixture {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift",
+                        "    func reconcile(")
           + "}\n")
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
@@ -334,7 +350,9 @@ def main():
           + "".join(declaration(activator, prefix).replace("private static", "static", 1)
                     for prefix in ["    private static func activateApp(",
                                    "    private static func activateAppCooperatively(",
-                                   "    private static func activateSource("])
+                                   "    private static func activateSource(",
+                                   "    static func activationMinimizedState(",
+                                   "    static func windowMinimizedState(target:"])
           + "}\nextension SwitcherActivationTests.HiddenSpaceActivator {\n"
           + "".join(declaration(activator, prefix).replace("private static", "static", 1)
                     for prefix in ["    static func raiseWindowOnHiddenSpace(",
