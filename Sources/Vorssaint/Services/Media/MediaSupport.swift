@@ -222,7 +222,7 @@ struct MediaImageWatermark: Codable, Equatable {
         self.logoPath = logoPath
         self.position = position
         self.opacity = MediaSupport.sanitizedOpacity(opacity)
-        self.margin = MediaSupport.sanitizedImageDimension(margin, fallback: 32, min: 0, max: 2000)
+        self.margin = min(2000, max(0, margin))
         self.scale = MediaSupport.sanitizedWatermarkScale(scale)
     }
 
