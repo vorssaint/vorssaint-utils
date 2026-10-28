@@ -10,6 +10,7 @@ if let command = SettingsBackupSupport.command(in: CommandLine.arguments) {
 }
 
 SuperKeyMappingGuard.runIfRequestedAndExit()
+SettingsBackup.applyConfigFileAtLaunch()
 Defaults.register()
 NotchControlItem.keyboardLightIsSupported = { BrightnessService.keyboardLightIsSupported }
 MouseAccelerationGuard.runIfRequestedAndExit()

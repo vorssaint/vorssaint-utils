@@ -285,6 +285,48 @@ enum SettingsBackupSupport {
         return result
     }
 
+    /// An optional settings file the app applies at launch and never writes
+    /// (issue #497): `$XDG_CONFIG_HOME/vorssaint/settings.plist`, or
+    /// `~/.config` in its place when the variable is unset, empty or relative,
+    /// as the XDG spec asks. The Developer build reads its own folder.
+    static func configFileURL(environment: [String: String],
+                              home: URL,
+                              isDeveloperBuild: Bool) -> URL {
+        var base = home.appendingPathComponent(".config", isDirectory: true)
+        if let xdg = environment["XDG_CONFIG_HOME"], xdg.hasPrefix("/") {
+            base = URL(fileURLWithPath: xdg, isDirectory: true)
+        }
+        var folder = "vorssaint"
+        if isDeveloperBuild {
+            folder += "-dev"
+        }
+        return base
+            .appendingPathComponent(folder, isDirectory: true)
+            .appendingPathComponent("settings.plist")
+    }
+
+    /// Every cleanup, diagnostic and backup mode is a `--` flag, and none of
+    /// them should take on the file's settings; only a plain launch does.
+    static func appliesConfigFile(arguments: [String]) -> Bool {
+        !arguments.dropFirst().contains { $0.hasPrefix("--") }
+    }
+
+    /// The portable form leaves out media logos, which name files on one Mac.
+    /// Where the file holds exactly that form of this Mac's value, this Mac's
+    /// value stays, so applying the file where it was exported keeps the logo.
+    static func keepingLocalMediaLogos(_ settings: [String: Any],
+                                       local: [String: Any]) -> [String: Any] {
+        let portableLocal = portableMediaSettings(local)
+        var result = settings
+        for key in [DefaultsKey.mediaImageWatermarkKind, DefaultsKey.mediaImageProfiles] {
+            // Both may be absent: profiles that are all logos have no portable form.
+            guard let localValue = local[key],
+                  settings[key] as? NSObject == portableLocal[key] as? NSObject else { continue }
+            result[key] = localValue
+        }
+        return result
+    }
+
     static func formatVersion(from payload: [String: Any]) -> Int? {
         if let intValue = payload[formatVersionKey] as? Int {
             return intValue

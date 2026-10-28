@@ -172,4 +172,32 @@ enum SettingsBackup {
         FileHandle.standardError.write(Data("SETTINGS: \(message)\n".utf8))
         exit(EXIT_FAILURE)
     }
+
+    /// Applies the optional settings file (issue #497) when it differs from the
+    /// preferences. The app only reads it: `--export-settings` writes one. Runs
+    /// before the defaults are registered and migrated, so the file's values go
+    /// through the same migrations as an imported backup after its relaunch.
+    static func applyConfigFileAtLaunch() {
+        // The bare binary (`--selftest` builds) has no preferences of the app's.
+        guard Bundle.main.bundleIdentifier != nil,
+              SettingsBackupSupport.appliesConfigFile(arguments: CommandLine.arguments) else { return }
+        let url = SettingsBackupSupport.configFileURL(
+            environment: ProcessInfo.processInfo.environment,
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            isDeveloperBuild: AppInfo.isDeveloperBuild)
+        guard FileManager.default.fileExists(atPath: url.path),
+              let settings = readSettings(at: url) else { return }
+        let defaults = UserDefaults.standard
+        let availability = AppFeature.availabilityDefaults
+        // Nothing is registered yet, so fall back to the registered values an
+        // export writes; otherwise every launch would look like a change.
+        let current = SettingsBackupSupport.payload(appVersion: AppInfo.version) {
+            defaults.object(forKey: $0) ?? Defaults.registeredDefaults[$0] ?? availability[$0]
+        }
+        guard NSDictionary(dictionary: settings)
+                != NSDictionary(dictionary: SettingsBackupSupport.sanitizedSettings(from: current) ?? [:])
+        else { return }
+        let local = defaults.dictionaryRepresentation()
+        apply(settings: SettingsBackupSupport.keepingLocalMediaLogos(settings, local: local))
+    }
 }
