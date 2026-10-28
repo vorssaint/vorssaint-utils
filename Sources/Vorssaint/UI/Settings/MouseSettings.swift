@@ -26,6 +26,7 @@ struct MouseSettings: View {
         FocusFollowsMouseSupport.defaultDelayMilliseconds
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
+    @AppStorage(DefaultsKey.trackpadGuardEnabled) private var trackpadGuardEnabled = false
     @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
     @AppStorage(DefaultsKey.linearScrollEnabled) private var linearScrollEnabled = false
     @AppStorage(DefaultsKey.linearScrollLines) private var linearScrollLines =
@@ -83,6 +84,10 @@ struct MouseSettings: View {
                     accelerationCard
                         .settingsSectionAnchor(.mouseAcceleration, cornerRadius: 16)
                 }
+                if AppFeature.trackpadGuard.isAvailable {
+                    TrackpadGuardSettings()
+                        .settingsSectionAnchor(.trackpadGuard, cornerRadius: 16)
+                }
                 if AppFeature.mouseNavigation.isAvailable {
                     navigationCard
                         .settingsSectionAnchor(.mouseNavigation, cornerRadius: 16)
@@ -118,7 +123,7 @@ struct MouseSettings: View {
 
     /// The mouse features on this page, in page order, for the legend.
     private var legendFeatures: [AppFeature] {
-        [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration,
+        [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .trackpadGuard,
          .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick]
             .filter(\.isAvailable)
     }
@@ -133,6 +138,7 @@ struct MouseSettings: View {
         case .smoothScroll: return smoothScrollEnabled
         case .linearScroll: return linearScrollEnabled
         case .mouseAcceleration: return mouseAccelerationDisabled
+        case .trackpadGuard: return trackpadGuardEnabled
         case .mouseNavigation: return mouseNavigationEnabled
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .mouseClickDebounce: return mouseClickDebounceEnabled

@@ -85,7 +85,7 @@ enum SettingsBackup {
         // a backup would delete those entries outright -- including on the Mac
         // the file was written on, where nothing about them was ever wrong.
         // The thumbnail pause lists take such paths too (issue #3033).
-        let carried = (MouseExceptionScope.allCases.map(\.defaultsKey)
+        let carried = (Array(SettingsBackupSupport.mouseAppListKeys)
                        + SettingsBackupSupport.thumbnailPauseListKeys)
             .reduce(into: [String: [String]]()) { out, key in
                 out[key] = SettingsBackupSupport.pathIdentities(in: defaults.stringArray(forKey: key) ?? [])

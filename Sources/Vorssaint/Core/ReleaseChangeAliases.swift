@@ -76,6 +76,7 @@ enum ReleaseChangeAliases {
         case .smoothScroll: return ["smooth scrolling", "smooth scroll"]
         case .linearScroll: return ["linear scrolling", "linear scroll"]
         case .mouseAcceleration: return ["mouse acceleration", "pointer acceleration"]
+        case .trackpadGuard: return ["trackpad guard", "ignore the built-in trackpad"]
         case .mouseNavigation: return ["mouse navigation", "side buttons", "side button", "side clicks",
             "back/forward mouse buttons"]
         case .mouseButtonShortcuts: return ["mouse button shortcuts", "button shortcuts"]

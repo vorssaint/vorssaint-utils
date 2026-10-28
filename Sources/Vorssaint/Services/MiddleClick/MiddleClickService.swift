@@ -358,6 +358,13 @@ final class MiddleClickService: ObservableObject {
 
     fileprivate func contactFrame(fingerCount count: Int,
                                   touches: UnsafeMutableRawPointer?) {
+        if TrackpadGuardInputGate.isActive {
+            stateLock.lock()
+            fingerCount = 0
+            resetTapCandidateLocked()
+            stateLock.unlock()
+            return
+        }
         let now = ProcessInfo.processInfo.systemUptime
         var firedFingers: Int?
         stateLock.lock()
@@ -458,7 +465,8 @@ final class MiddleClickService: ObservableObject {
     /// transformed into a second one.
     private func postMiddleTap() {
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.tapStateLock.withLock({ self.tap }) != nil else { return }
+            guard let self, !TrackpadGuardInputGate.isActive,
+                  self.tapStateLock.withLock({ self.tap }) != nil else { return }
             let position = CGEvent(source: nil)?.location ?? .zero
             // Nothing is synthesized over an app on the exception list.
             guard !MouseAppExceptions.shared.excludesPointerTarget(.middleClick, at: position) else { return }

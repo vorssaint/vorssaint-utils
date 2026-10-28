@@ -149,6 +149,7 @@ enum SelfUninstall {
         // Its machine-local recovery journal is deleted by a full uninstall,
         // so the uninstall cannot continue until every HID value is restored.
         let mouseAccelerationRestored = MouseAccelerationService.shared.stop()
+        let trackpadRestored = TrackpadGuardService.shared.stop()
         MouseNavigationService.shared.suspend()
         MouseButtonShortcutService.shared.suspend()
         WindowMaximizer.shared.stop()
@@ -184,7 +185,7 @@ enum SelfUninstall {
         // with a silent input and no indicator anywhere.
         MicMuteService.shared.unmuteForTeardown()
         MicMuteService.shared.suspend()
-        return mouseAccelerationRestored
+        return mouseAccelerationRestored && trackpadRestored
     }
 
     @discardableResult
