@@ -27,6 +27,20 @@ struct WhatsNewStrings {
 extension FeatureStrings {
     static func whatsNew(_ language: AppLanguage) -> WhatsNewStrings {
         switch language {
+        case .ar:
+            return WhatsNewStrings(
+                updatedFromFormat: "تم التحديث من %@",
+                newFeatures: "ميزات جديدة",
+                yourFeatures: "ميزاتك",
+                notInstalled: "غير مثبتة",
+                kindNew: "جديد",
+                kindChanged: "تغييرات",
+                kindFixed: "إصلاحات",
+                updated: "تم التحديث",
+                chooseFeatureHint: "اختر ميزة لمعرفة ما تغيّر فيها.",
+                skipPreviewCheckbox: "عدم إظهار الجديد قبل التحديث",
+                showPreviewToggle: "إظهار الجديد قبل التحديث",
+                showPreviewCaption: "تظل التغييرات في ميزاتك ظاهرة بعد كل تحديث.")
         case .enUS:
             return WhatsNewStrings(
                 updatedFromFormat: "Updated from %@",

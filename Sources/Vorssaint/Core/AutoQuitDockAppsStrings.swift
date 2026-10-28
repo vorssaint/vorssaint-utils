@@ -14,6 +14,7 @@ struct AutoQuitDockAppsStrings {
 extension FeatureStrings {
     static func autoQuitDockApps(_ language: AppLanguage) -> AutoQuitDockAppsStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -152,5 +153,15 @@ extension AutoQuitDockAppsStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         emptyNote: "沒有可加入的選單列 App。"
+    )
+}
+
+extension AutoQuitDockAppsStrings {
+    static let ar = AutoQuitDockAppsStrings(
+        listTitle: "تطبيقات شريط القوائم المطلوب إنهاؤها",
+        caption: "تبقى تطبيقات شريط القوائم مفتوحة افتراضيًا. يمكن إنهاء التطبيقات المختارة هنا بعد إغلاق آخر نافذة لها ما دامت ظاهرة في Dock. تبقى التطبيقات المستثناة مفتوحة.",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        emptyNote: "لا توجد تطبيقات لشريط القوائم متاحة للإضافة."
     )
 }

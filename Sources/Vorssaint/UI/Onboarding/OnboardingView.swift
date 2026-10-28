@@ -52,6 +52,11 @@ struct OnboardingView: View {
     private var current: OnboardingStep { steps[min(max(0, index), steps.count - 1)] }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(spacing: 0) {
             // Scrollable so a step taller than the window (the menu bar
             // metrics list outgrew it, issue #176) can never push the
@@ -75,6 +80,7 @@ struct OnboardingView: View {
         .onDisappear {
             PermissionGuideOverlay.suppressed = false
         }
+
     }
 
     @ViewBuilder

@@ -13,6 +13,11 @@ struct DockedShelfView: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         // No open/close animation on purpose: the panel resize and the SwiftUI
         // content swap cannot be kept in step, and half-synced frames lag.
         Group {
@@ -27,6 +32,7 @@ struct DockedShelfView: View {
                 ShelfPill()
             }
         }
+
     }
 }
 

@@ -12,6 +12,11 @@ struct NotchLowBatteryStrings {
 
     static func localized(_ language: AppLanguage) -> NotchLowBatteryStrings {
         switch language {
+        case .ar:
+            return .init(title: "الإظهار بالأحمر عند الانخفاض", caption: "يعرض الشحن بالأحمر عند هذا المستوى أو أقل أثناء العمل على البطارية.",
+                         threshold: "مستوى الأحمر", early: "الإظهار بالكهرماني أولًا",
+                         earlyCaption: "يعرض الشحن بالكهرماني عند مستوى أعلى أو أقل منه كتحذير مبكر.",
+                         earlyThreshold: "مستوى الكهرماني", menuBar: "في شريط القوائم أيضًا")
         case .enUS:
             return .init(title: "Turn red when low", caption: "Shows the charge in red at or below this level while on battery.",
                          threshold: "Red level", early: "Turn amber first",

@@ -77,6 +77,7 @@ struct SnippetFeatureStrings {
 extension FeatureStrings {
     static func snippets(_ language: AppLanguage) -> SnippetFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -1116,5 +1117,75 @@ extension SnippetFeatureStrings {
         soundCaption: "每次輸入嘅觸發詞展開時都會播放一個簡短嘅系統聲音。",
         soundPickerLabel: "聲音",
         soundUnavailable: "聲音無法使用"
+    )
+}
+
+extension SnippetFeatureStrings {
+    static let ar = SnippetFeatureStrings(
+        pageTitle: "المقتطفات النصية",
+        hubDescription: "محفزات قصيرة تتوسع إلى نص كامل",
+        enable: "توسيع المقتطفات أثناء الكتابة",
+        enableCaption: "اكتب محفزًا في أي مكان ليتحول إلى نصه. يبقى كل شيء على هذا الـMac.",
+        addButton: "إضافة مقتطف",
+        newTitle: "مقتطف جديد",
+        editTitle: "تحرير المقتطف",
+        nameLabel: "الاسم",
+        namePlaceholder: "البريد الشخصي",
+        triggerLabel: "المحفز",
+        triggerPlaceholder: ";email",
+        replacementLabel: "نص",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "التوسيع",
+        expansionImmediate: "فورًا",
+        expansionDelimiter: "بعد Space أو Tab أو Return",
+        variablesHint: "المتغيرات: {{date}}، {{time}}، {{datetime}}، {{clipboard}}",
+        variablesCaption: "تتحول إلى التاريخ والوقت والنص المنسوخ لحظة التوسيع.",
+        emptyList: "لا توجد مقتطفات بعد. أضف الأول.",
+        duplicateTrigger: "يستخدم مقتطف آخر هذا المحفز بالفعل.",
+        triggerTooShort: "يجب أن يتكون المحفز من حرفين على الأقل.",
+        deleteButton: "حذف",
+        saveButton: "حفظ",
+        manageButton: "إدارة المقتطفات",
+        ignoreCaseLabel: "تجاهل حالة الأحرف",
+        libraryTitle: "قائمة المقتطفات السريعة",
+        libraryToggle: "فتح المقتطفات من قائمة",
+        libraryCaption: "يفتح الاختصار قائمة قابلة للبحث. يكتب اختيار المقتطف نصه عند موضع المؤشر.",
+        librarySearchPlaceholder: "البحث في المقتطفات",
+        libraryNoResults: "لا يوجد مقتطف يطابق البحث.",
+        libraryEmpty: "لا شيء لعرضه بعد. أضف مقتطفات أو فعّل “إظهار في القائمة السريعة” لما تستخدمه أكثر.",
+        libraryFooterHint: "↩ للإدراج · esc للإغلاق",
+        folderLabel: "المجلد",
+        folderPlaceholder: "العمل",
+        showInLibraryLabel: "إظهار في القائمة السريعة",
+        variablesFormatCaption: "يحدد التنسيق بعد النقطتين مظهرها، مثل {{date:yyyy-MM-dd}}. يحدد الجزء -tz(...) المنطقة الزمنية، مثل {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "يحدد التنسيق بعد النقطتين مظهرها، مثل {{date:yyyy-MM-dd}}، أو استخدم زر التاريخ/الوقت أعلاه. يحدد الجزء -tz(...) المنطقة الزمنية، مثل {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "إدراج تاريخ/وقت",
+        dateTimeEditButton: "تحرير التاريخ/الوقت",
+        dateTimeTypeLabel: "النوع",
+        dateTimeKindDate: "التاريخ",
+        dateTimeKindTime: "الوقت",
+        dateTimeKindDateTime: "التاريخ والوقت",
+        dateTimeStyleLabel: "النمط",
+        dateTimeStyleShort: "قصير",
+        dateTimeStyleMedium: "متوسط",
+        dateTimeStyleLong: "طويل",
+        dateTimeStyleFull: "كامل",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "مخصص",
+        dateTimeStyleLocaleNote: "يحفظ النمط المسمى التنسيق الذي تستخدمه منطقة الـMac حاليًا.",
+        dateTimeTimezoneLabel: "المنطقة الزمنية",
+        dateTimeTimezoneDeviceDefault: "افتراضي الجهاز",
+        dateTimeTimezoneValid: "منطقة زمنية صالحة",
+        dateTimeTimezoneInvalid: "منطقة زمنية غير معروفة",
+        dateTimeTimezoneClear: "مسح المنطقة الزمنية",
+        dateTimeTimezoneSearchPlaceholder: "البحث في المناطق الزمنية",
+        dateTimePatternLabel: "النمط",
+        dateTimePreviewLabel: "معاينة",
+        dateTimeConfirmInsert: "إدراج",
+        dateTimeConfirmUpdate: "تحديث",
+        soundToggle: "تشغيل صوت عند توسيع محفز مكتوب",
+        soundCaption: "يُشغّل صوت نظام قصير عند كل توسيع لمحفز مكتوب.",
+        soundPickerLabel: "الصوت",
+        soundUnavailable: "الصوت غير متاح"
     )
 }

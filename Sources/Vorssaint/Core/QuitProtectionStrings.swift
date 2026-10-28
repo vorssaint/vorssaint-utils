@@ -57,6 +57,7 @@ struct QuitProtectionStrings {
 extension FeatureStrings {
     static func quitProtection(_ language: AppLanguage) -> QuitProtectionStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -597,6 +598,43 @@ extension QuitProtectionStrings {
         extraCloseHUDFormat: "Використайте %@, щоб закрити вікно",
         cancelHint: "Esc скасовує",
         releaseHint: "Відпустіть для підтвердження",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+}
+
+extension QuitProtectionStrings {
+    static let ar = QuitProtectionStrings(
+        name: "حماية الإنهاء والإغلاق",
+        description: "يحمي ⌘Q و⌘W من الضغط غير المقصود",
+        intro: "اضبط كل اختصار مستقلًا. يمر الإجراء الأصلي بعد التأكيد المختار فقط.",
+        enabled: "حماية هذا الاختصار",
+        enabledCaption: "تستمر اختصارات Command الأخرى بالعمل كالمعتاد.",
+        mode: "وضع التأكيد",
+        hold: "الضغط المطول للتأكيد",
+        doublePress: "ضغط مزدوج",
+        extraModifier: "اشتراط مفتاح تعديل إضافي",
+        holdDuration: "مدة الضغط المطول",
+        doublePressInterval: "الفاصل بين الضغطتين",
+        modifier: "مفتاح التعديل الإضافي",
+        appScope: "التطبيقات",
+        allApps: "كل التطبيقات",
+        selectedOnly: "التطبيقات المحددة فقط",
+        allExceptSelected: "الكل عدا التطبيقات المحددة",
+        exceptions: "التطبيقات المحددة",
+        noExceptions: "لم تُحدد تطبيقات",
+        addApp: "إضافة تطبيق…",
+        feedback: "إظهار استجابة مرئية",
+        accessibilityCaption: "تستخدم الحماية تسهيلات الاستخدام لمراقبة ⌘Q و⌘W فقط على مستوى النظام.",
+        holdQuitHUDFormat: "اضغط %@ مطولًا للإنهاء",
+        holdCloseHUDFormat: "اضغط %@ مطولًا للإغلاق",
+        doubleQuitHUDFormat: "اضغط %@ مجددًا للإنهاء",
+        doubleCloseHUDFormat: "اضغط %@ مجددًا للإغلاق",
+        extraQuitHUDFormat: "استخدم %@ للإنهاء",
+        extraCloseHUDFormat: "استخدم %@ للإغلاق",
+        cancelHint: "Esc للإلغاء",
+        releaseHint: "أفلت للتأكيد",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"

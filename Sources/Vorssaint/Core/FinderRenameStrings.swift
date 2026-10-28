@@ -15,6 +15,7 @@ struct FinderRenameFeatureStrings {
 extension FeatureStrings {
     static func finderRename(_ language: AppLanguage) -> FinderRenameFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -167,5 +168,16 @@ extension FinderRenameFeatureStrings {
         enableLabel: "Використовувати клавіатурне скорочення для перейменування",
         caption: "Клавіатурне скорочення діє лише у Finder та не чіпає текстові поля. F2 працює як звичайна клавіша; на клавіатурах, де вона керує яскравістю, використовуйте Fn-F2 або оберіть інше клавіатурне скорочення.",
         shortcutLabel: "Перейменувати"
+    )
+}
+
+extension FinderRenameFeatureStrings {
+    static let ar = FinderRenameFeatureStrings(
+        pageTitle: "اختصارات Finder",
+        hubTitle: "اختصار إعادة التسمية",
+        hubDescription: "إعادة تسمية الملف أو المجلد المحدد باختصار تختاره.",
+        enableLabel: "استخدام اختصار لإعادة التسمية",
+        caption: "يعمل الاختصار في Finder فقط ولا يؤثر على الحقول النصية. يعمل F2 كمفتاح عادي؛ في لوحات المفاتيح التي يستخدم فيها للسطوع، اضغط Fn-F2 أو اختر اختصارًا آخر.",
+        shortcutLabel: "إعادة التسمية"
     )
 }

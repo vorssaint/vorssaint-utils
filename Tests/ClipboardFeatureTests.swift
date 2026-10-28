@@ -819,6 +819,18 @@ enum ClipboardFeatureTests {
                "plain side arrows walk the cards")
         suite.expect(step(.list, kVK_RightArrow) == nil && step(.list, kVK_LeftArrow) == nil,
                "the list leaves plain side arrows to the search field's caret")
+        func rtlStep(_ layout: ClipboardHistoryLayout, _ keyCode: Int,
+                     _ modifiers: NSEvent.ModifierFlags = []) -> Int? {
+            ClipboardHistoryNavigation.step(keyCode: UInt16(keyCode), modifiers: modifiers,
+                                            key: nil, layout: layout, rightToLeft: true)
+        }
+        suite.expect(rtlStep(.cards, kVK_RightArrow) == -1 && rtlStep(.cards, kVK_LeftArrow) == 1,
+                     "Arabic card navigation follows the physical direction of mirrored cards")
+        suite.expect(rtlStep(.cards, kVK_DownArrow) == 1 && rtlStep(.cards, kVK_UpArrow) == -1,
+                     "Arabic keeps vertical navigation unchanged")
+        suite.expect(rtlStep(.list, kVK_RightArrow) == nil
+                     && rtlStep(.cards, kVK_LeftArrow, [.option]) == nil,
+                     "Arabic list and modified arrows remain available to the text caret")
 
         // MARK: Clipboard menu bar preview
 

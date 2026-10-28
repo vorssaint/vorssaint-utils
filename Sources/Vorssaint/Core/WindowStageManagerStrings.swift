@@ -7,6 +7,9 @@ struct WindowStageManagerStrings {
 
     static func localized(_ language: AppLanguage) -> WindowStageManagerStrings {
         switch language {
+        case .ar: return .init(
+            title: "حجز مساحة لمنظم الواجهة",
+            caption: "إبقاء التطبيقات الحديثة ظاهرة عند تكبير النوافذ أو ترتيبها، عندما يكون منظم الواجهة وإظهار التطبيقات الحديثة مفعّلين.")
         case .enUS: return .init(title: "Reserve space for Stage Manager", caption: "Keep recent apps visible when maximizing or arranging windows, while Stage Manager and Show recent apps are on.")
         case .ptBR: return .init(title: "Reservar espaço para o Organizador Visual", caption: "Mantenha os apps recentes visíveis ao maximizar ou organizar janelas, quando o Organizador Visual e Mostrar apps recentes estiverem ativados.")
         case .tr: return .init(title: "Sahne Yöneticisi için yer ayır", caption: "Sahne Yöneticisi ve Son uygulamaları göster açıkken pencereleri büyütürken veya düzenlerken son uygulamaları görünür tutar.")

@@ -13,6 +13,7 @@ struct WindowMaximizerExclusionStrings {
 extension FeatureStrings {
     static func windowMaximizerExclusions(_ language: AppLanguage) -> WindowMaximizerExclusionStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -134,5 +135,14 @@ extension WindowMaximizerExclusionStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         caption: "在這些 App 中，綠色按鈕會保留 macOS 原本的行為，遊戲、模擬器和影片播放器仍然可以進入全螢幕。"
+    )
+}
+
+extension WindowMaximizerExclusionStrings {
+    static let ar = WindowMaximizerExclusionStrings(
+        listTitle: "إبقاء ملء الشاشة في هذه التطبيقات",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        caption: "يحافظ الزر الأخضر على سلوك macOS في هذه التطبيقات ليظل بإمكان الألعاب والمحاكيات ومشغلات الفيديو الدخول في ملء الشاشة."
     )
 }

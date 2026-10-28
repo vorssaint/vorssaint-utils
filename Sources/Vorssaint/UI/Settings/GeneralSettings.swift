@@ -202,6 +202,8 @@ private struct AppearanceChoice: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 thumbnail
+                    // This is fixed desktop artwork, not a localized window.
+                    .environment(\.layoutDirection, .leftToRight)
                     .frame(height: 66)
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     .overlay {

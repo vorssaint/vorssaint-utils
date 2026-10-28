@@ -30,6 +30,25 @@ struct CodexAccountStrings {
 extension FeatureStrings {
     static func codexAccounts(_ language: AppLanguage) -> CodexAccountStrings {
         switch language {
+        case .ar: return CodexAccountStrings(
+            title: "حسابات Codex",
+            explanation: "يحصل كل مجلد CODEX_HOME تضيفه على بطاقة حدود مستقلة. ما دامت صفحة وكلاء الذكاء الاصطناعي مفتوحة، يتحقق Codex من كل حساب كل خمس دقائق تقريبًا باستخدام تسجيل الدخول الخاص بمجلده. لا تُرسل أي مطالبة.",
+            accountName: "اسم الحساب",
+            remove: "إزالة بطاقة هذا الحساب",
+            find: "البحث عن حسابات محلية",
+            add: "إضافة مجلد…",
+            check: "التحقق من الحدود",
+            fallback: "إذا لم تُضف حسابات، تُقرأ حدود Codex من جلساته المحلية.",
+            resetsNote: "تظل بطاقة إعادة الضبط خاصة بحساب Codex الافتراضي.",
+            chooseFolder: "اختيار مجلد Codex",
+            invalidFolder: "اختر مجلد CODEX_HOME مستقلًا يحتوي على config.toml أو auth.json. يجب أن يكون المجلد ملكك وألا يستطيع الآخرون الكتابة فيه، ويجب أن يكون auth.json خاصًا وألا يكون رابطًا. قد يجدّد Codex تسجيل دخوله وذاكرته المؤقتة هناك.",
+            folderProblem: "اختر مجلد هذا الحساب مجددًا في الإعدادات.",
+            defaultName: "الافتراضي",
+            defaultAccount: "الحساب الافتراضي",
+            refreshHint: "حدّث للتحقق من حدود هذا الحساب.",
+            signIn: "سجّل الدخول باستخدام ChatGPT في مجلد Codex هذا.",
+            update: "حدّث Codex للتحقق من الحدود.",
+            failed: "تعذر التحقق من الحدود. حاول مجددًا.")
         case .enUS: return CodexAccountStrings(
             title: "Codex accounts",
             explanation: "Each CODEX_HOME folder you add gets its own limits card. While the AI Agents page is open, Codex checks each one about every five minutes with that folder’s own sign-in. No prompt is sent.",

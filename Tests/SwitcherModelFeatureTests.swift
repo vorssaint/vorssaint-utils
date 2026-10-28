@@ -34,6 +34,10 @@ enum SwitcherModelFeatureTests {
                      "zero scrolling preserves the selection")
         suite.expect(navigation.selectionDelta(for: event(1, horizontal: -3)) == 1,
                      "horizontal scrolling uses the dominant axis")
+        suite.expect(navigation.selectionDelta(for: event(1, horizontal: -3), rightToLeft: true) == -1,
+                     "horizontal scrolling follows the mirrored RTL app order")
+        suite.expect(navigation.selectionDelta(for: event(-3), rightToLeft: true) == 1,
+                     "RTL preserves vertical scrolling order")
         let step = Int32(SwitcherScrollNavigation.gestureStep)
         suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began)) == 0,
                      "a gesture below the threshold preserves the selection")
@@ -43,6 +47,9 @@ enum SwitcherModelFeatureTests {
                      "trackpad momentum does not change the selection")
         suite.expect(navigation.selectionDelta(for: event(0, horizontal: step, continuous: true, phase: .began)) == -1,
                      "a horizontal trackpad gesture changes the selection")
+        suite.expect(navigation.selectionDelta(for: event(0, horizontal: step, continuous: true, phase: .began),
+                                              rightToLeft: true) == 1,
+                     "a horizontal trackpad gesture follows RTL app order")
         _ = navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began))
         suite.expect(navigation.selectionDelta(for: event(step / 2, continuous: true, phase: .changed)) == 0
                      && navigation.selectionDelta(for: event(step / 2, continuous: true, phase: .changed)) == -1,
@@ -88,6 +95,7 @@ enum SwitcherModelFeatureTests {
             for horizontal in [false, true] {
                 for inverted in [false, true] {
                     navigation = SwitcherScrollNavigation()
+                    var rtlNavigation = SwitcherScrollNavigation()
                     let fractions = [-0.25, -0.5, -0.5, -0.75]
                     let expected = [0, 0, inverted ? -1 : 1, inverted ? -1 : 1]
                     // Scroll Direction's tap runs after the switcher's, so the
@@ -102,6 +110,10 @@ enum SwitcherModelFeatureTests {
                                            timestamp: 1_000_000_000 + UInt64(index) * 500_000_000)
                         suite.expect(navigation.selectionDelta(for: sample, direction: direction) == expected[index],
                             "fractional wheel movement retains its remainder across pauses and inversion: continuous=\(continuous), horizontal=\(horizontal), inverted=\(inverted), sample=\(index)")
+                        let rtlExpected = horizontal ? -expected[index] : expected[index]
+                        suite.expect(rtlNavigation.selectionDelta(for: sample, direction: direction,
+                                                                  rightToLeft: true) == rtlExpected,
+                            "RTL wheel movement combines Scroll Direction with mirrored horizontal order: continuous=\(continuous), horizontal=\(horizontal), inverted=\(inverted), sample=\(index)")
                         suite.expect(sample.getDoubleValueField(horizontal ? .scrollWheelEventFixedPtDeltaAxis2
                                                                            : .scrollWheelEventFixedPtDeltaAxis1) == fractions[index],
                             "turning the wheel for the switcher leaves the event other taps see untouched")
@@ -158,7 +170,7 @@ enum SwitcherModelFeatureTests {
                      "scroll direction never stands aside for the open switcher")
         // Both wheel taps run after the switcher's session tap, so it applies
         // Scroll Direction itself, minus the apps excepted from it.
-        suite.expect(switcher.contains("scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil)")
+        suite.expect(switcher.contains("scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil,")
                 && switcher.contains(".scrollDirection, at: event.location"),
                      "the open switcher scrolls the way Scroll Direction turns the wheel, except where it is excepted")
         // A remote screen posts its scroll below the HID stage, already

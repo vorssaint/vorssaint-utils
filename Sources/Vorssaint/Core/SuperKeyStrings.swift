@@ -40,6 +40,7 @@ struct SuperKeyStrings {
 extension FeatureStrings {
     static func superKey(_ language: AppLanguage) -> SuperKeyStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -422,5 +423,31 @@ extension SuperKeyStrings {
         mappingForeignMapping: "Прив’язка клавіш іншої програми використовує обрану клавішу. Видаліть її у тій програмі: просто закрити її недостатньо.",
         mappingSystemRefused: "macOS відхилила прив’язку клавіш. Перепідключіть клавіатуру або перезавантажте Mac, потім увімкніть знову.",
         keyboardTapRefused: "macOS не дозволила Vorssaint стежити за клавіатурою. Вимкніть і знову ввімкніть Vorssaint у розділі «Системні параметри › Приватність і безпека › Доступність», а потім знову ввімкніть цю функцію."
+    )
+}
+
+extension SuperKeyStrings {
+    static let ar = SuperKeyStrings(
+        pageTitle: "المفتاح الفائق",
+        hubDescription: "يحوّل مفتاحًا واحدًا إلى مجموعة مفاتيح التعديل التي تختارها.",
+        enableToggle: "استخدام هذا المفتاح كمفتاح فائق",
+        enableCaption: "اضغطه باستمرار مع أي مفتاح. اختر مفتاح تعديل واحدًا أو أكثر أدناه.",
+        modifierKeysNote: "أبقِ هذا المفتاح على وظيفته الافتراضية في إعدادات النظام › لوحة المفاتيح › مفاتيح التعديل.",
+        sourceKey: "مفتاح الضغط المطول",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "%@ الأيمن",
+        holdHint: "ضغط مطول",
+        soloSection: "نقرة منفردة",
+        soloCaption: "وظيفة النقرة السريعة عند عدم ضغط أي مفتاح آخر.",
+        soloNothing: "لا شيء",
+        soloCapsLock: "تبديل الأحرف الكبيرة",
+        soloEscape: "ضغط Escape",
+        activeNow: "يعمل الآن",
+        panelCaptionFormat: "%1$@ يضغط %2$@.",
+        manageButton: "إعداد…",
+        soloInputSource: "تبديل مصدر الإدخال؛ ضغط مطول لـCaps Lock",
+        mappingForeignMapping: "يستخدم تعيين مفاتيح في تطبيق آخر المفتاح المحدد. أزله في ذلك التطبيق؛ إغلاقه وحده لا يكفي.",
+        mappingSystemRefused: "رفض macOS تعيين المفتاح. أعد توصيل لوحة المفاتيح أو أعد تشغيل الـMac ثم فعّل الخيار مجددًا.",
+        keyboardTapRefused: "لم يسمح macOS لـVorssaint بمراقبة لوحة المفاتيح. أوقفه ثم فعّله في إعدادات النظام › الخصوصية والأمان › تسهيلات الاستخدام، ثم فعّل هذا الخيار مجددًا."
     )
 }

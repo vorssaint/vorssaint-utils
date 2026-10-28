@@ -14,6 +14,7 @@ struct WindowPreviewExclusionStrings {
 extension FeatureStrings {
     static func windowPreviewExclusions(_ language: AppLanguage) -> WindowPreviewExclusionStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -151,5 +152,15 @@ extension WindowPreviewExclusionStrings {
         addButton: "Додати програму…",
         removeButton: "Видалити",
         caption: "Мініатюри вікон зупиняються, поки одна з цих програм на передньому плані."
+    )
+}
+
+extension WindowPreviewExclusionStrings {
+    static let ar = WindowPreviewExclusionStrings(
+        sectionTitle: "مصغرات النوافذ",
+        listTitle: "إيقاف مؤقت في هذه التطبيقات",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        caption: "تتوقف مصغرات النوافذ أثناء وجود أحد هذه التطبيقات في المقدمة."
     )
 }

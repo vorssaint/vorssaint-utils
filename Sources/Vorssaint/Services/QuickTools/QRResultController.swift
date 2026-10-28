@@ -140,6 +140,11 @@ private struct QRResultView: View {
     let open: () -> Void
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 7) {
                 Image(systemName: "qrcode")
@@ -189,5 +194,6 @@ private struct QRResultView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
         )
+
     }
 }

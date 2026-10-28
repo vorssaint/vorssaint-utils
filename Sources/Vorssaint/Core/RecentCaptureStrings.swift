@@ -17,6 +17,7 @@ struct RecentCaptureStrings {
 extension FeatureStrings {
     static func recentCaptures(_ language: AppLanguage) -> RecentCaptureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -199,5 +200,18 @@ extension RecentCaptureStrings {
         open: "Відкрити",
         remove: "Видалити з історії",
         clear: "Очистити історію"
+    )
+}
+
+extension RecentCaptureStrings {
+    static let ar = RecentCaptureStrings(
+        title: "الالتقاطات الأخيرة",
+        empty: "التقط صورة شاشة أو احفظ تسجيلًا لتجده هنا.",
+        screenshot: "لقطة شاشة",
+        recording: "تسجيل",
+        restore: "استعادة",
+        open: "فتح",
+        remove: "إزالة من السجل",
+        clear: "مسح السجل"
     )
 }

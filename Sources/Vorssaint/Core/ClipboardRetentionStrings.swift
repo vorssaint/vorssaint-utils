@@ -22,6 +22,7 @@ struct ClipboardRetentionStrings {
 extension FeatureStrings {
     static func clipboardRetention(_ language: AppLanguage) -> ClipboardRetentionStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -160,5 +161,15 @@ extension ClipboardRetentionStrings {
         oneDay: "1 день",
         daysFormat: "%d днів",
         caption: "Старіші елементи видаляються, навіть якщо ліміт не досягнуто. Закріплені елементи зберігаються завжди."
+    )
+}
+
+extension ClipboardRetentionStrings {
+    static let ar = ClipboardRetentionStrings(
+        title: "الاحتفاظ بالعناصر لمدة",
+        forever: "دائمًا",
+        oneDay: "يوم واحد",
+        daysFormat: "%d أيام",
+        caption: "تُحذف العناصر الأقدم حتى إن لم يبلغ العدد الحد الأقصى. يُحتفظ بالعناصر المثبتة دائمًا."
     )
 }

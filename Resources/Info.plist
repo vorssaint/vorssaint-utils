@@ -20,6 +20,7 @@
 	<string>6.0</string>
 	<key>CFBundleLocalizations</key>
 	<array>
+		<string>ar</string>
 		<string>en</string>
 		<string>pt-BR</string>
 		<string>es</string>

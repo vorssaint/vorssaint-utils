@@ -47,6 +47,25 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    write("MenuBarOrganizerInventory.swift", "import ApplicationServices\nimport CoreGraphics\nimport Foundation\n"
+          + "extension MenuBarOrganizerTests.InventoryReader {\n"
+          + declaration("Sources/Vorssaint/Services/MenuBarOrganizer/MenuBarAccessibilityInventory.swift",
+                        "    private static func statusElement(").replace("private static func", "static func", 1)
+          + "}\n")
+    organizer_settings = "Sources/Vorssaint/UI/Settings/MenuBarOrganizerSettings.swift"
+    write("MenuBarOrganizerRevealActions.swift", "import Foundation\n"
+          + "extension MenuBarOrganizerTests.RevealActions {\nfinal class Service: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/MenuBarOrganizer/MenuBarOrganizerService.swift",
+                        "    func expand()")
+          + declaration("Sources/Vorssaint/Services/MenuBarOrganizer/MenuBarOrganizerService.swift",
+                        "    func refreshAutoRehide()")
+          + "}\n}\n")
+    write("MenuBarOrganizerSettingsActions.swift", "import Foundation\n"
+          + "extension MenuBarOrganizerTests.SettingsActions {\nfinal class View: Fixture {\n"
+          + declaration(organizer_settings, "    private func move(").replace("private func", "func", 1)
+          + "}\nfinal class Drop: DropFixture {\n"
+          + declaration(organizer_settings, "    func performDrop(info: DropInfo)")
+          + "}\n}\n")
     recent_captures = "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift"
     write("RecentCapturePanel.swift", "import Foundation\nimport Carbon.HIToolbox\n"
           + "extension RecentCapturePanelTests {\nfinal class Service: Fixture {\n"
@@ -1650,8 +1669,8 @@ def main():
           + "}\nextension SwitcherSearchLayoutTests.Host {\n"
           + "".join(f"typealias {name} = SwitcherSearchLayoutTests.{name}\n"
                     for name in ["SwitcherGrid", "HUDBackdrop", "SwitcherIconStyle", "SwitcherIconRowSurface"])
-          + declaration(switcher, "    var body: some View {", scope="struct SwitcherView: View {")
-              .replace("    var body:", "    @ViewBuilder var body:", 1)
+          + declaration(switcher, "    private var localizedContent: some View {", scope="struct SwitcherView: View {")
+              .replace("    private var localizedContent:", "    @ViewBuilder var body:", 1)
           + "".join(declaration(switcher, prefix).replace("private ", "", 1)
                     for prefix in ["    private var standardPanel:", "    private var iconRowPanel:",
                                    "    private var iconRowPanelSize:"])

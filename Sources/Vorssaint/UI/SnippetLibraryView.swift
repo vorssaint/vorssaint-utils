@@ -16,6 +16,11 @@ struct SnippetLibraryView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(spacing: 0) {
             searchBar
             Divider()
@@ -35,6 +40,7 @@ struct SnippetLibraryView: View {
         .onAppear {
             searchFocused = true
         }
+
     }
 
     private var searchBar: some View {

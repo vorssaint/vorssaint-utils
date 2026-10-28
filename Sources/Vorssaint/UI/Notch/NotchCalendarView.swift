@@ -417,10 +417,12 @@ private struct NotchCalendarEventRow: View {
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 // The mark of an event chosen to count down on its own.
-                if countdown == true {
-                    Image(systemName: "timer")
-                        .accessibilityLabel(text.countdown)
-                }
+                // Reserve the mark's width so choosing a countdown never wraps
+                // a localized time range onto an extra line in a narrow card.
+                Image(systemName: "timer")
+                    .opacity(countdown == true ? 1 : 0)
+                    .accessibilityLabel(text.countdown)
+                    .accessibilityHidden(countdown != true)
             }
             .font(.system(size: 11)).monospacedDigit()
             .foregroundStyle(.white.opacity(0.75))

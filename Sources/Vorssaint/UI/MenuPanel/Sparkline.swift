@@ -69,7 +69,9 @@ extension View {
     /// Marks the top of a graph with a dashed rule and names its value on that
     /// rule, so the number reads as the scale and not as a sample.
     func graphCeilingLabel(_ text: String) -> some View {
+        // History advances left to right, independently of the surrounding labels.
         modifier(GraphCeilingLabel(text: text))
+            .environment(\.layoutDirection, .leftToRight)
     }
 }
 

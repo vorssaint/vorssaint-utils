@@ -16,7 +16,8 @@ struct SwitcherScrollNavigation {
     /// Its tap turns the wheel around only after this one has consumed it,
     /// so a mouse wheel is turned here to follow the way everything else
     /// scrolls, as it did when that tap ran first.
-    mutating func selectionDelta(for input: CGEvent, direction: ScrollDirectionPreferences? = nil) -> Int {
+    mutating func selectionDelta(for input: CGEvent, direction: ScrollDirectionPreferences? = nil,
+                                 rightToLeft: Bool = false) -> Int {
         guard input.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
             return 0
         }
@@ -65,7 +66,7 @@ struct SwitcherScrollNavigation {
                                 point: .scrollWheelEventPointDeltaAxis1)
         let horizontal = movement(line: .scrollWheelEventDeltaAxis2, fixed: .scrollWheelEventFixedPtDeltaAxis2,
                                   point: .scrollWheelEventPointDeltaAxis2)
-        let delta = abs(horizontal) > abs(vertical) ? horizontal : vertical
+        let delta = abs(horizontal) > abs(vertical) ? (rightToLeft ? -horizontal : horizontal) : vertical
         guard delta.isFinite, delta != 0 else { return 0 }
         if accumulated * delta < 0 { accumulated = 0 }
         accumulated += delta

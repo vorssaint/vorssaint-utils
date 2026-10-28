@@ -34,6 +34,7 @@ struct MouseExceptionStrings {
 extension FeatureStrings {
     static func mouseExceptions(_ language: AppLanguage) -> MouseExceptionStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -276,5 +277,22 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Наведення не змінює фокус та не піднімає вікно в цих програмах.",
         captionSuperKey: "Коли будь-яка з цих програм відкрита, навіть у фоновому режимі, Super Key призупиняється, і вибрана клавіша відновлює свою звичайну функцію.",
         pausedSuperKey: "Призупинено, поки відкрита вибрана програма"
+    )
+}
+
+extension MouseExceptionStrings {
+    static let ar = MouseExceptionStrings(
+        listTitle: "التطبيقات المستثناة",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        captionSmoothScroll: "تحتفظ العجلة بخطواتها العادية في هذه التطبيقات التي تقرؤها بطريقتها، مثل أدوات التصميم وثلاثية الأبعاد.",
+        captionLinearScroll: "تحتفظ العجلة بإيقاع macOS في هذه التطبيقات، كالألعاب والأدوات ثلاثية الأبعاد التي تعد الخطوات بنفسها.",
+        captionScrollDirection: "تحتفظ العجلة باتجاه macOS في هذه التطبيقات.",
+        captionNavigation: "تحتفظ الأزرار الجانبية بوظائفها المعتادة في هذه التطبيقات.",
+        captionButtonShortcuts: "لا تُنفّذ اختصارات الأزرار الإضافية في هذه التطبيقات وتصل الضغطة إليها مباشرة.",
+        captionMiddleClick: "تبقى نقرة الثلاثة أصابع نقرة عادية في هذه التطبيقات.",
+        captionFocusFollowsMouse: "التحويم لا يغيّر التركيز ولا يُظهر نافذة في هذه التطبيقات.",
+        captionSuperKey: "أثناء فتح أي من هذه التطبيقات، حتى في الخلفية، يتوقف المفتاح الفائق ويعمل المفتاح المختار بصورة عادية.",
+        pausedSuperKey: "متوقف مؤقتًا أثناء فتح تطبيق محدد"
     )
 }

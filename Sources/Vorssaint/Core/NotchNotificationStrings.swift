@@ -20,6 +20,18 @@ struct NotchNotificationStrings {
 extension FeatureStrings {
     static func notchNotifications(_ language: AppLanguage) -> NotchNotificationStrings {
         switch language {
+        case .ar: return NotchNotificationStrings(
+            title: "الإشعارات",
+            description: "إشعارات النظام الجديدة في الجزيرة الديناميكية.",
+            privacy: "يعرض اللافتات الجديدة الظاهرة فقط. تبقى الرسائل في الذاكرة وتُمسح عند قفل هذا الـMac أو إيقاف الخيار.",
+            empty: "ستظهر الإشعارات الجديدة هنا",
+            waiting: "في انتظار خدمة إشعارات النظام",
+            open: "فتح",
+            dismiss: "تجاهل",
+            clearAll: "مسح الكل",
+            unavailable: "لم يعد هذا الإشعار يقبل هذا الإجراء.",
+            hideSystemBanner: "إخفاء لافتة النظام",
+            hideSystemBannerHint: "إخفاء الأصل أثناء عرض الجزيرة الديناميكية له.")
         case .enUS: return NotchNotificationStrings(
             title: "Notifications",
             description: "New system notifications in the Dynamic Island.",

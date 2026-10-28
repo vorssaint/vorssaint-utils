@@ -46,6 +46,7 @@ struct MouseButtonFeatureStrings {
 extension FeatureStrings {
     static func mouseButtons(_ language: AppLanguage) -> MouseButtonFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -603,5 +604,43 @@ extension MouseButtonFeatureStrings {
         spacesCaptureExists: "Ця кнопка вже має клавіатурне скорочення. Виберіть іншу.",
         spacesFollowsDragLabel: "Space слідує за перетягуванням",
         spacesFollowsDragCaption: "Перетягування вправо підтягує Space ліворуч, як на трекпеді, коли робочий стіл слідує за пальцем."
+    )
+}
+
+extension MouseButtonFeatureStrings {
+    static let ar = MouseButtonFeatureStrings(
+        pageTitle: "اختصارات أزرار الماوس",
+        hubDescription: "تنفّذ الأزرار الإضافية واتجاهات العجلة الجانبية مجموعات المفاتيح التي تختارها.",
+        enableLabel: "استخدام الأزرار الإضافية كاختصارات",
+        enableCaption: "يمكن لكل زر إضافي أو اتجاه للعجلة الجانبية ضغط مجموعة مفاتيح نيابة عنك. يتوقف عن وظيفته السابقة ما دام له اختصار.",
+        addButton: "إضافة زر أو عجلة جانبية",
+        captureWaiting: "اضغط الآن زرًا إضافيًا أو حرّك العجلة الجانبية.",
+        captureCancel: "إلغاء",
+        captureBlind: "لا يستطيع Vorssaint مراقبة الماوس الآن.",
+        captureUnsupported: "لا يمكن تعيين اختصار لهذا الإدخال. استخدم زرًا إضافيًا أو اتجاهًا للعجلة الجانبية.",
+        captureWheel: "يفتح هذا الزر القائمة الدائرية بالفعل. اختر آخر أو ألغِ تعيينه هناك أولًا.",
+        captureExists: "هذا الزر أو الاتجاه موجود بالفعل في القائمة أدناه.",
+        captureHint: "إذا لم يحدث شيء، فقد يستخدم برنامج الماوس هذا العنصر بالفعل.",
+        middleButtonName: "زر الماوس الأوسط",
+        backButtonName: "زر الرجوع الجانبي",
+        forwardButtonName: "زر التقدم الجانبي",
+        otherButtonFormat: "الزر %d",
+        setShortcutButton: "تعيين اختصار",
+        removeButton: "إزالة",
+        emptyCaption: "لا توجد اختصارات بعد. أضف زرًا أو اتجاهًا للعجلة الجانبية.",
+        rowWheelNote: "يفتح هذا الزر القائمة الدائرية الآن، لذا ينتظر الاختصار.",
+        manageButton: "إعداد…",
+        panelCaption: "تنفّذ الأزرار الإضافية واتجاهات العجلة الجانبية مجموعات مفاتيح تختارها.",
+        sideWheelLeftName: "العجلة الجانبية لليسار",
+        sideWheelRightName: "العجلة الجانبية لليمين",
+        spacesEnableLabel: "تبديل المساحات بسحب زر",
+        spacesEnableCaption: "اضغط الزر المختار واسحب: يسارًا أو يمينًا للانتقال مساحة واحدة، للأعلى لفتح Mission Control، وللأسفل لفتح App Exposé. تبقى النقرة القصيرة بوظيفتها المعتادة.",
+        spacesPickButton: "اختيار زر",
+        spacesShortcutsOffNote: "اختصارات Mission Control متوقفة في إعدادات النظام، لذا لا يمكن للإيماءة تشغيلها.",
+        spacesCaptureWaiting: "اضغط الآن زرًا إضافيًا.",
+        spacesCaptureUnsupported: "لا يمكن ضغط هذا الإدخال باستمرار للسحب. استخدم زرًا إضافيًا.",
+        spacesCaptureExists: "هذا الزر له اختصار بالفعل. اختر زرًا آخر.",
+        spacesFollowsDragLabel: "المساحات تتبع السحب",
+        spacesFollowsDragCaption: "يجلب السحب لليمين المساحة التي على اليسار، كما تحملها إيماءة لوحة التعقب مع أصابعك."
     )
 }

@@ -22,6 +22,11 @@ struct ScratchpadView: View {
     private var textSize: CGFloat { CGFloat(ScratchpadSupport.sanitizedTextSize(storedTextSize)) }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(spacing: 0) {
             header
             tabBar
@@ -77,6 +82,7 @@ struct ScratchpadView: View {
             guard let selectedPad else { return }
             requestClose(selectedPad)
         }
+
     }
 
     private var tabBar: some View {

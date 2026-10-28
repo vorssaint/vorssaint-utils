@@ -18,6 +18,7 @@ struct RecorderShareStrings {
 extension FeatureStrings {
     static func recorderShare(_ language: AppLanguage) -> RecorderShareStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -215,5 +216,19 @@ extension RecorderShareStrings {
         tooLarge: "Цей запис не може уміститися в 100 МБ без зайвої втрати якості.",
         failed: "Не вдалося створити тимчасове посилання",
         tourCaption: "Стисніть завершений запис на цьому Mac та поділіться ним на 1 або 6 годин."
+    )
+}
+
+extension RecorderShareStrings {
+    static let ar = RecorderShareStrings(
+        caption: "اختر ساعة أو 6 ساعات. يُضغط الفيديو النهائي على هذا الـMac ليقل عن 100 م.ب ثم يُحذف تلقائيًا.",
+        privacyData: "يرسل Vorssaint الفيديو النهائي الناتج من هذا التسجيل فقط، بما فيه الصوت الذي أبقيته، ومدة الصلاحية المختارة. لا يرسل اسمك أو حسابك أو معرّف جهازك.",
+        privacyStorage: "يعالج مزودو الشبكة والخدمة عنوان IP العام مؤقتًا لمنع إساءة الاستخدام. يُحذف الفيديو وبيانات الرابط نهائيًا عند حذف الرابط أو انتهاء مدته. لا تنشئ الخدمة نسخًا احتياطية.",
+        privacyAccess: "يمكن لأي شخص معه الرابط مشاهدة الفيديو وتنزيله وحفظه وإعادة توزيعه. يمكن لمشغّل الخدمة الوصول إلى الروابط النشطة لمراجعة الإساءة. شارك مع من تثق بهم فقط.",
+        compressing: "جارٍ الضغط للمشاركة…",
+        uploading: "جارٍ الرفع الآمن…",
+        tooLarge: "لا يمكن أن يقل هذا التسجيل عن 100 م.ب دون فقد كبير للجودة.",
+        failed: "تعذر إنشاء الرابط المؤقت",
+        tourCaption: "اضغط تسجيلًا مكتملًا على هذا الـMac وشاركه لمدة ساعة أو 6 ساعات."
     )
 }

@@ -32,6 +32,11 @@ struct ShelfView: View {
     private static let tileAreaHeight: CGFloat = 188
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(alignment: .leading, spacing: 11) {
             header
             tiles
@@ -61,6 +66,7 @@ struct ShelfView: View {
         .onHover { inside in
             shelf.setPointerInsidePanel(inside)
         }
+
 
     }
 

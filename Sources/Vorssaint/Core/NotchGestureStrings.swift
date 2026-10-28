@@ -12,6 +12,10 @@ struct NotchGestureStrings {
 extension FeatureStrings {
     static func notchGestures(_ language: AppLanguage) -> NotchGestureStrings {
         switch language {
+        case .ar: return NotchGestureStrings(
+            title: "إيماءات الجزيرة الديناميكية",
+            description: "افتح الجزيرة الديناميكية وأغلقها بالتمرير، واسحب لتغيير المقطوعات.",
+            hint: "مرر لأسفل للفتح. مرر لأعلى فوق الصف العلوي للإغلاق. اسحب لليسار أو اليمين فوق الموسيقى لتغيير المقطوعات. تحتفظ القوائم بتمريرها الخاص.")
         case .enUS: return NotchGestureStrings(
             title: "Dynamic Island Gestures",
             description: "Open and close the Dynamic Island with scrolling, and swipe to change tracks.",

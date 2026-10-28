@@ -8,6 +8,10 @@ struct MixerScreenSharingStrings {
 
     static func localized(_ language: AppLanguage) -> MixerScreenSharingStrings {
         switch language {
+        case .ar: return .init(
+            allowVolumeControl: "السماح بالتحكم في مستوى الصوت",
+            protectedCaption: "التحكم في مستوى الصوت متوقف لمنع الصدى عند مشاركة الصوت.",
+            sharingWarning: "أوقف التحكم في مستوى الصوت قبل مشاركة الصوت لتجنب الصدى.")
         case .enUS: return .init(
             allowVolumeControl: "Allow volume control",
             protectedCaption: "Volume control is off to prevent echo when sharing audio.",

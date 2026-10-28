@@ -90,6 +90,11 @@ enum NotchClipboardCardSize: String, CaseIterable, Identifiable {
 extension FeatureStrings {
     static func notchClipboardSize(_ language: AppLanguage) -> NotchClipboardSizeStrings {
         switch language {
+        case .ar: return NotchClipboardSizeStrings(
+            entrySize: "حجم العنصر",
+            compact: "مضغوط",
+            comfortable: "مريح",
+            hint: "تُظهر العناصر المضغوطة سطرًا أو سطرين وتتوسع عندما يستقر المؤشر عليها.")
         case .enUS: return NotchClipboardSizeStrings(
             entrySize: "Entry size",
             compact: "Compact",
