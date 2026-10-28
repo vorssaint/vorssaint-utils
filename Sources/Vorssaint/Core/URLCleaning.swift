@@ -228,6 +228,18 @@ enum URLCleaning {
         if let end = value.firstIndex(where: { $0 == "/" || $0 == "?" || $0 == "#" }) {
             value = String(value[..<end])
         }
+        // `URLComponents.host` carries neither a login nor a port, so a key
+        // that kept them would never match the link it was written for.
+        if let login = value.lastIndex(of: "@") {
+            value = String(value[value.index(after: login)...])
+        }
+        // Colons inside a bracketed IPv6 host belong to the address.
+        let portSearchStart = value.hasPrefix("[")
+            ? value.firstIndex(of: "]") ?? value.endIndex
+            : value.startIndex
+        if let port = value[portSearchStart...].firstIndex(of: ":") {
+            value = String(value[..<port])
+        }
         if value.hasPrefix("www.") {
             value = String(value.dropFirst(4))
         }
