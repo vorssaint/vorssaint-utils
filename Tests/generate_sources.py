@@ -329,6 +329,14 @@ def main():
           + declaration("Sources/Vorssaint/UI/Settings/RadialMenuSettings.swift",
                         "    private func deleteProfile(").replace("private ", "", 1)
           + "}\n}\n")
+    write("RadialFilePicker.swift", "import Foundation\n"
+          + "extension RadialFilePickerTests {\nstruct Editor {\n"
+          + "let state: ItemState\nvar item: RadialMenuItem {\n"
+          + "get { state.item }\nnonmutating set { state.item = newValue }\n}\n"
+          + "".join(declaration("Sources/Vorssaint/UI/Settings/RadialMenuSettings.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    private func choose(applications:", "    private func applyChosen("])
+          + "}\n}\n")
     fan_control = "Sources/Vorssaint/Services/FanControl/FanControlService.swift"
     write("FanControlResume.swift", "import Foundation\n"
           + "extension FanControlResumeContract {\nfinal class Service: Fixture {\n"
