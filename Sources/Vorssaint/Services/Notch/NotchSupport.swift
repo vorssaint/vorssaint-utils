@@ -1098,9 +1098,13 @@ enum NotchCapsuleLayout {
 
     /// Playing music: the cover in the round end, the title and the bars.
     /// Without a title, only the cover and the bars, at the capsule's ends.
-    static func musicSurface(title: String?, geometry: NotchGeometry) -> CGSize {
+    static func musicSurface(title: String?, companion: NotchCompactActivity? = nil, workingAgents: Int = 0, geometry: NotchGeometry) -> CGSize {
         let named = title.map { endPadding + width($0, font: titleFont) + endPadding } ?? endPadding
-        let content = artworkSide(geometry) + named + barsWidth
+        var content = artworkSide(geometry) + named + barsWidth
+        if let companion {
+            content += spacing + timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: false,
+                                                geometry: geometry, language: .enUS)
+        }
         return surface(content: content, leading: artworkInset(geometry), maximum: Maximum.music, geometry: geometry)
     }
 
@@ -1160,10 +1164,15 @@ enum NotchCapsuleLayout {
     }
 
     /// Working agents' marks and the reading the person chose.
-    static func agentSurface(reading: String, working: Int, geometry: NotchGeometry) -> CGSize {
-        let content = agentMarksWidth(working: working) + spacing
+    static func agentSurface(reading: String, working: Int, companion: NotchCompactActivity? = nil,
+                             downloadPercent: Bool = false, geometry: NotchGeometry, language: AppLanguage = .enUS) -> CGSize {
+        let mark = timerMarkWidth(companion: companion, workingAgents: working, downloadPercent: downloadPercent,
+                                  geometry: geometry, language: language)
+        let companionExtra = companion != nil ? mark + markGap(companion) : 0
+        let content = companionExtra + agentMarksWidth(working: working) + spacing
             + width(NotchAgentSupport.readingShape(reading), font: readingFont)
-        return surface(content: content, maximum: Maximum.activity, geometry: geometry)
+        return surface(content: content, leading: companion == .music ? artworkInset(geometry) : endPadding,
+                       maximum: Maximum.activity, geometry: geometry)
     }
 
     /// A download's arrow and name, then its meter and percentage, or a
@@ -1807,6 +1816,10 @@ enum NotchSupport {
                      (running && music, .music)]
         case .calendar where calendar:
             pairs = [(downloads, .downloads), (agents, .agents), (music, .music)]
+        case .agents where agents:
+            pairs = [(music, .music), (downloads, .downloads), (timer, .timer), (calendar, .calendar)]
+        case .music where music:
+            pairs = [(agents, .agents), (downloads, .downloads), (timer, .timer), (calendar, .calendar)]
         default:
             pairs = []
         }

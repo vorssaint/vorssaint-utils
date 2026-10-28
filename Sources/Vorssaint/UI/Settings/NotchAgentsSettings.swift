@@ -12,6 +12,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsAgy) private var agy = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -49,6 +50,7 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
+            providerRow(.agy, isOn: $agy)
             if codex { CodexAccountsSettings() }
 
             Divider()
@@ -80,7 +82,7 @@ struct NotchAgentsSettingsControls: View {
             // The resting island shows this allowance whatever the live
             // reading, and the live reading uses it when it shows a limit.
             SettingsMenuRow(symbol: "rectangle.topthird.inset.filled", title: text.limitFocus, selection: $limitFocus) {
-                ForEach(NotchAgentLimitFocus.allCases) { focus in
+                ForEach([NotchAgentLimitFocus.session, .weekly, .geminiSession, .geminiWeekly, .claudeGptSession, .claudeGptWeekly, .mostUsed]) { focus in
                     Text(text.limitFocus(focus)).tag(focus.rawValue)
                 }
             }
@@ -245,7 +247,7 @@ struct NotchAgentsSettingsControls: View {
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, agy].filter { $0 }.count <= 1)
         }
     }
 
@@ -322,6 +324,23 @@ private struct NotchAgentStripSample: View {
                                               lastActivity: now, model: "", project: "",
                                               tokens: AgentTokens(input: 1_180_000, cacheWrite: 0, cacheRead: 0, output: 20_000),
                                               cost: 4.56)]
+        }
+        if snapshot.limits[provider] == nil {
+            snapshot.limits[provider] = AgentLimits(
+                provider: provider,
+                windows: [
+                    AgentLimitWindow(
+                        id: "example",
+                        kind: .session,
+                        minutes: 300,
+                        scope: nil,
+                        usedPercent: 35,
+                        resetsAt: now.addingTimeInterval(7200)
+                    )
+                ],
+                observedAt: now,
+                source: .account
+            )
         }
         return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, focus: focus, now: now)
     }

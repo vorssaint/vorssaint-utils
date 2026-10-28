@@ -93,7 +93,8 @@ final class AgentUsageStore {
                 waiting[file] = nil
                 turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
-                                               model: "", project: "", tokens: AgentTokens(), cost: 0)
+                                               model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                               needsApproval: false)
             case .turnContext(let model, let project):
                 guard tracksTurns else { continue }
                 if var turn = turns[file] {
@@ -111,10 +112,30 @@ final class AgentUsageStore {
                 let moment = date ?? modified
                 if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
                     turn.lastActivity = max(turn.lastActivity, moment)
+                    turn.needsApproval = false
                     turns[file] = turn
                 } else {
                     turns[file] = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
-                                                   model: "", project: "", tokens: AgentTokens(), cost: 0)
+                                                   model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                                   needsApproval: false)
+                }
+            case .turnNeedsApproval(let date):
+                guard tracksTurns else { continue }
+                settled[file] = nil
+                let moment = date ?? modified
+                if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
+                    turn.lastActivity = max(turn.lastActivity, moment)
+                    if !turn.needsApproval {
+                        turn.needsApproval = true
+                        events.append(.needsApproval(provider: provider, project: turn.project))
+                    }
+                    turns[file] = turn
+                } else {
+                    let turn = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
+                                                   model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                                   needsApproval: true)
+                    turns[file] = turn
+                    events.append(.needsApproval(provider: provider, project: ""))
                 }
             case .turnSettled(let date):
                 guard tracksTurns, var turn = turns[file] ?? waiting.removeValue(forKey: file) else { continue }
@@ -475,7 +496,8 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.agy, ".gemini/antigravity-cli/brain"), (.agy, ".gemini/antigravity-ide/brain"), (.agy, ".gemini/antigravity/brain")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -499,6 +521,9 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
+        if provider == .agy {
+            return path.hasSuffix("/.system_generated/logs/transcript.jsonl") || path.hasSuffix("/transcript.jsonl")
+        }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
@@ -580,6 +605,12 @@ final class AgentLogCursor {
         self.provider = provider
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
+        if provider == .agy {
+            let parts = path.split(separator: "/")
+            if let brainIdx = parts.firstIndex(of: "brain"), brainIdx + 1 < parts.count {
+                state.session = String(parts[brainIdx + 1])
+            }
+        }
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -756,6 +787,14 @@ enum AgentLogReader {
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                continue
+            }
+            if root.provider == .agy {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [])) ?? []
+                for session in sessions {
+                    include(session.appending(path: ".system_generated/logs/transcript.jsonl"), from: root)
+                }
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,

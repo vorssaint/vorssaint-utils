@@ -26,6 +26,8 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAppChecked: Date?
     @Published private(set) var claudeAccountChecking = false
     @Published private(set) var claudeAccountFailure: AgentClaudeServer.Failure?
+    @Published private(set) var agyChecking = false
+    @Published private(set) var agyFailure: AgentAgyServer.Failure?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
     let events = PassthroughSubject<AgentUsageEvent, Never>()
@@ -74,6 +76,9 @@ final class AgentUsageService: ObservableObject {
     /// Checks in a row that Claude Code did not answer, counted again from
     /// zero once the Mac is back online.
     private var claudeAccountUnreachable = 0
+    private let agyAccountQueue = DispatchQueue(label: "com.vorssaint.agy-limits", qos: .utility)
+    private var agyRequest: AgentAgyServer.Request?
+    private var agyAttempted = Date.distantPast
     /// Whether the Mac has a network, as the reading queue last heard.
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
@@ -137,6 +142,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshAgyLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -150,6 +156,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelAgyLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -184,8 +191,11 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         running = false
         cancelClaudeLimits()
+        cancelAgyLimits()
         claudeAccountAttempted = .distantPast
+        agyAttempted = .distantPast
         claudeAccountFailure = nil
+        agyFailure = nil
         claudeAccountUnreachable = 0
         online = true
         paused = false
@@ -243,6 +253,7 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshAgyLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -558,6 +569,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshAgyLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -647,6 +659,8 @@ final class AgentUsageService: ObservableObject {
                 guard self.providers.contains(provider), NotchAgentSupport.limitThreshold() != nil else { return }
             case .budgetReached:
                 guard NotchAgentSupport.dailyBudget() != nil else { return }
+            case .needsApproval(let provider, _):
+                guard self.providers.contains(provider) else { return }
             }
             self.events.send(event)
         }
@@ -831,6 +845,59 @@ final class AgentUsageService: ObservableObject {
         guard online != self.online else { return }
         self.online = online
         if online { claudeAccountUnreachable = 0 }
+    }
+
+    // MARK: Antigravity
+
+    func refreshAgyLimits(now: Date = Date(), pageShows: Bool = false, force: Bool = false) {
+        guard force || agyLimitsDue(at: now, pageShows: pageShows) else { return }
+        agyAttempted = now
+        agyChecking = true
+        let request = AgentAgyServer.Request()
+        agyRequest = request
+        let session = self.session
+        let home = self.home
+        agyAccountQueue.async { [weak self] in
+            let result: Result<AgentLimits, AgentAgyServer.Failure>
+            if let executable = AgentAgyServer.executable(home: home, searchPath: ProcessInfo.processInfo.environment["PATH"]) {
+                result = request.run(executable: executable, home: home)
+            } else {
+                result = .failure(.missing)
+            }
+            DispatchQueue.main.async {
+                guard let self, self.running, !self.paused, self.session == session,
+                      self.agyRequest === request else { return }
+                self.agyRequest = nil
+                self.agyChecking = false
+                switch result {
+                case .failure(let failure):
+                    self.agyFailure = failure
+                case .success(let limits):
+                    self.agyFailure = nil
+                    self.queue.async {
+                        guard self.readerSession == session, self.enabled.contains(.agy) else { return }
+                        self.store.setLimits(limits)
+                        self.checkLimits()
+                        self.schedulePublish()
+                    }
+                }
+            }
+        }
+    }
+
+    private func cancelAgyLimits() {
+        guard let request = agyRequest else { return }
+        request.cancel()
+        agyRequest = nil
+        agyChecking = false
+        agyAttempted = .distantPast
+    }
+
+    private func agyLimitsDue(at now: Date, pageShows: Bool) -> Bool {
+        guard running, !paused, online, providers.contains(.agy), agyRequest == nil,
+              NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
+        let freshness = (pageVisible || pageShows) ? AgentAgyServer.freshness : AgentAgyServer.backgroundFreshness
+        return now.timeIntervalSince(agyAttempted) >= freshness
     }
 
     // MARK: Prices

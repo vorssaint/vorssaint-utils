@@ -215,6 +215,12 @@ enum AgentPricing {
     /// never inherits the price of the version it extends.
     static func price(for model: String, in list: AgentPriceList = AgentPricing.list) -> AgentPrice? {
         let id = normalized(model)
+        if id.hasPrefix("gemini-") || id.hasPrefix("agy") || id.contains("antigravity") {
+            if id.contains("pro") && !id.contains("flash") {
+                return AgentPrice(input: 1.25, output: 5.0, cacheRead: 0.3125, cacheWrite: 1.25, cacheWriteLong: 1.25)
+            }
+            return AgentPrice(input: 0.75, output: 3.75, cacheRead: 0.1875, cacheWrite: 0.75, cacheWriteLong: 0.75)
+        }
         let table = id.hasPrefix("claude-") ? list.claude : list.codex
         guard let match = table.filter({ matches(id, family: $0.id) })
             .max(by: { $0.id.count < $1.id.count }) else { return nil }
@@ -282,6 +288,10 @@ enum AgentPricing {
             let version = versions.joined(separator: ".")
             let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
             return name.filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        if id.hasPrefix("gemini-") {
+            let parts = id.split(separator: "-").map { $0.capitalized }
+            return parts.joined(separator: " ")
         }
         guard id.hasPrefix("gpt-") else { return id }
         var parts = id.dropFirst(4).split(separator: "-").map(String.init)
