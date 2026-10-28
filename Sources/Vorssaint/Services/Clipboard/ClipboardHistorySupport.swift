@@ -4,6 +4,7 @@
 import AppKit
 import Carbon.HIToolbox
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// How the history window shows its entries: a list in a window that keeps
 /// the size the user gives it, or a shelf of cards along the bottom of the
@@ -27,6 +28,9 @@ enum ClipboardHistoryWindowSizing {
     static let compactDefault = NSSize(width: 560, height: 420)
     static let compactMinimum = NSSize(width: 560, height: 300)
     static let previewExtra = NSSize(width: 280, height: 80)
+    /// The cards' shelf: a toolbar row over one row of cards with room for
+    /// their shadows and selection ring.
+    static let shelfHeight: CGFloat = 335
 
     static func minimumSize(preview: Bool) -> NSSize {
         NSSize(width: compactMinimum.width + (preview ? previewExtra.width : 0),
@@ -167,6 +171,10 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     /// a history written before it existed still decodes, and an older
     /// version reading this file skips the key.
     var sourceBundleID: String?
+    /// The group the entry was filed under. Only pinned entries belong to
+    /// one, so the history's limits never take a filed copy away; unpinning
+    /// takes it out again.
+    var pinboardID: UUID?
 
     init(id: UUID = UUID(),
          text: String,
@@ -237,6 +245,20 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         kind == .text ? ColorValue(text: text) : nil
     }
 
+    /// The web address a text entry holds, if it holds nothing else, so a
+    /// card can show it as a link. Only http and https with a host qualify.
+    var linkURL: URL? {
+        guard kind == .text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 2048,
+              trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = url.host, !host.isEmpty
+        else { return nil }
+        return url
+    }
+
     /// `preview` collapsed further to a menu bar sized excerpt, for the
     /// optional "show latest copy" status item. `preview` itself renders an
     /// image as bare dimensions (nothing else displays it raw — every other
@@ -283,6 +305,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     private enum CodingKeys: String, CodingKey {
         case id, text, copiedAt, pinnedAt, kind, filePaths, imageFile, imageHash, imageWidth, imageHeight
         case sourceBundleID
+        case pinboardID
     }
 
     init(from decoder: Decoder) throws {
@@ -299,6 +322,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         imageWidth = try container.decodeIfPresent(Int.self, forKey: .imageWidth)
         imageHeight = try container.decodeIfPresent(Int.self, forKey: .imageHeight)
         sourceBundleID = try container.decodeIfPresent(String.self, forKey: .sourceBundleID)
+        pinboardID = try container.decodeIfPresent(UUID.self, forKey: .pinboardID)
     }
 }
 
@@ -333,6 +357,32 @@ enum ClipboardHistoryEditing {
         return text != original
     }
 
+    /// The list with one entry moved in front of another, as a card dropped
+    /// on another card of the shelf lands; nil when the move is not one the
+    /// history allows (the same entry, a missing one, or a pinned entry
+    /// crossing into the unpinned ones or back).
+    static func movedEntries(_ entries: [ClipboardHistoryEntry], moving id: UUID,
+                             before targetID: UUID) -> [ClipboardHistoryEntry]? {
+        guard id != targetID,
+              let from = entries.firstIndex(where: { $0.id == id }),
+              let target = entries.firstIndex(where: { $0.id == targetID }),
+              entries[from].isPinned == entries[target].isPinned else { return nil }
+        var moved = entries
+        let entry = moved.remove(at: from)
+        let insertion = moved.firstIndex(where: { $0.id == targetID }) ?? target
+        moved.insert(entry, at: insertion)
+        return moved == entries ? nil : moved
+    }
+
+    /// A copy taken again is rebuilt from what was read, but the group the
+    /// user filed it under is theirs and stays with it while it is pinned.
+    static func keepingUserChoices(of existing: ClipboardHistoryEntry,
+                                   in recopied: ClipboardHistoryEntry) -> ClipboardHistoryEntry {
+        var entry = recopied
+        entry.pinboardID = entry.isPinned ? existing.pinboardID : nil
+        return entry
+    }
+
     /// `retentionDays` drops recent entries copied longer ago than that, even
     /// under `recentLimit`; 0 keeps them. Pinned entries never expire, and
     /// `ageExemptIDs` (an entry open in the editor) wait until they are let go.
@@ -342,6 +392,7 @@ enum ClipboardHistoryEditing {
     static func unpinned(_ entry: ClipboardHistoryEntry, now: Date = Date()) -> ClipboardHistoryEntry {
         var entry = entry
         entry.pinnedAt = nil
+        entry.pinboardID = nil
         entry.copiedAt = now
         return entry
     }
@@ -866,6 +917,22 @@ enum ClipboardHistoryNavigation {
         }
         return nil
     }
+
+    /// Which way a key turns the shelf's tabs, or nil. Tab and Shift-Tab do
+    /// so always; Command and a side arrow only while the search is empty,
+    /// where they would otherwise move a caret that has nowhere to go.
+    static func pinboardStep(keyCode: UInt16, modifiers: NSEvent.ModifierFlags,
+                             layout: ClipboardHistoryLayout, queryIsEmpty: Bool) -> Int? {
+        guard layout == .cards else { return nil }
+        if keyCode == UInt16(kVK_Tab) {
+            if modifiers.isEmpty { return 1 }
+            if modifiers == [.shift] { return -1 }
+        }
+        guard queryIsEmpty, modifiers == [.command] else { return nil }
+        if keyCode == UInt16(kVK_RightArrow) { return 1 }
+        if keyCode == UInt16(kVK_LeftArrow) { return -1 }
+        return nil
+    }
 }
 
 enum ClipboardHistoryEscape {
@@ -1175,5 +1242,246 @@ enum ClipboardHistoryImageSupport {
     static func isImageFilePath(_ path: String, fileManager: FileManager = .default) -> Bool {
         guard isImageFileName(path) else { return false }
         return fileManager.fileExists(atPath: path)
+    }
+}
+
+/// The color a card's header takes from the app a copy came from: the
+/// average of the icon's saturated, visible pixels, kept dark enough that
+/// white text stays readable on it. Pure math over RGBA bytes, so the view
+/// only has to draw the icon small.
+enum ClipboardCardTint {
+    struct RGB: Equatable {
+        let red: Double
+        let green: Double
+        let blue: Double
+    }
+
+    /// `pixels` holds premultiplied RGBA bytes. Nil when the icon has no
+    /// color to speak of (a monochrome glyph), so the caller falls back.
+    static func headerColor(rgba pixels: [UInt8]) -> RGB? {
+        var red = 0.0, green = 0.0, blue = 0.0, weight = 0.0
+        var index = 0
+        while index + 3 < pixels.count {
+            let alpha = Double(pixels[index + 3]) / 255
+            if alpha > 0.8 {
+                let r = Double(pixels[index]) / 255 / alpha
+                let g = Double(pixels[index + 1]) / 255 / alpha
+                let b = Double(pixels[index + 2]) / 255 / alpha
+                let maximum = max(r, g, b), minimum = min(r, g, b)
+                let saturation = maximum > 0 ? (maximum - minimum) / maximum : 0
+                // Near-white, near-black and gray pixels say nothing about
+                // the app's color; vivid ones say the most.
+                if saturation > 0.3, maximum > 0.25 {
+                    red += r * saturation
+                    green += g * saturation
+                    blue += b * saturation
+                    weight += saturation
+                }
+            }
+            index += 4
+        }
+        // A few stray colored pixels on a gray icon are not its color.
+        guard weight > Double(pixels.count / 4) * 0.04 else { return nil }
+        return readable(RGB(red: red / weight, green: green / weight, blue: blue / weight))
+    }
+
+    /// Keeps white header text legible: a light color is darkened until its
+    /// luminance sits below the threshold, its hue unchanged.
+    static func readable(_ color: RGB, maximumLuminance: Double = 0.62) -> RGB {
+        func luminance(_ c: RGB) -> Double { 0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue }
+        let current = luminance(color)
+        guard current > maximumLuminance, current > 0 else { return color }
+        let factor = maximumLuminance / current
+        return RGB(red: color.red * factor, green: color.green * factor, blue: color.blue * factor)
+    }
+}
+
+/// A named, colored group of pinned entries. The list lives in
+/// preferences as JSON, so it travels with a settings backup; which
+/// entries belong to a group stays with the history itself.
+struct ClipboardPinboard: Codable, Equatable, Identifiable {
+    enum Tint: String, Codable, CaseIterable {
+        case red, orange, yellow, green, teal, blue, purple, pink, gray
+
+        var rgb: (red: Double, green: Double, blue: Double) {
+            switch self {
+            case .red: return (1.00, 0.27, 0.23)
+            case .orange: return (1.00, 0.58, 0.00)
+            case .yellow: return (1.00, 0.80, 0.00)
+            case .green: return (0.20, 0.78, 0.35)
+            case .teal: return (0.19, 0.69, 0.78)
+            case .blue: return (0.04, 0.52, 1.00)
+            case .purple: return (0.69, 0.32, 0.87)
+            case .pink: return (1.00, 0.18, 0.33)
+            case .gray: return (0.56, 0.56, 0.58)
+            }
+        }
+    }
+
+    static let limit = 24
+    static let nameLimit = 40
+
+    let id: UUID
+    var name: String
+    var tint: Tint
+
+    init(id: UUID = UUID(), name: String, tint: Tint) {
+        self.id = id
+        self.name = name
+        self.tint = tint
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, tint
+    }
+
+    /// A color this version does not know reads as blue rather than
+    /// dropping the whole group.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        tint = (try? container.decode(Tint.self, forKey: .tint)) ?? .blue
+    }
+
+    /// Trimmed and capped, or nil when nothing is left to name the group.
+    static func sanitizedName(_ name: String) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(nameLimit))
+    }
+
+    /// Decodes the stored list, dropping repeats, nameless groups and any
+    /// past the limit, so a damaged or tampered value cannot wedge the bar.
+    static func decodedList(_ raw: String?) -> [ClipboardPinboard] {
+        guard let raw, !raw.isEmpty, let data = raw.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([ClipboardPinboard].self, from: data)
+        else { return [] }
+        var seen = Set<UUID>()
+        return decoded.compactMap { board -> ClipboardPinboard? in
+            guard seen.insert(board.id).inserted, let name = sanitizedName(board.name) else { return nil }
+            var board = board
+            board.name = name
+            return board
+        }
+        .prefix(limit)
+        .map { $0 }
+    }
+
+    static func encodedList(_ boards: [ClipboardPinboard]) -> String {
+        guard let data = try? JSONEncoder().encode(Array(boards.prefix(limit))) else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    /// The next color in turn, so new groups tell apart at a glance.
+    static func nextTint(after boards: [ClipboardPinboard]) -> Tint {
+        let all = Tint.allCases.filter { $0 != .gray }
+        return all[boards.count % all.count]
+    }
+}
+
+/// What a card carries when dragged out of the history: its content, for
+/// Finder and other apps, and its id for the shelf's own group tabs.
+enum ClipboardEntryDrag {
+    /// The mark a dragged card carries, visible to this app only, so the
+    /// shelf's group tabs know which entry arrived.
+    static let entryType = UTType(exportedAs: "com.vorssaint.clipboard-entry", conformingTo: .data)
+
+    /// A picture goes as a temporary copy written only when a drop asks for
+    /// it: a drop on the same volume would otherwise move the history's own
+    /// file away.
+    static func provider(for entry: ClipboardHistoryEntry, imageDirectory: URL?) -> NSItemProvider {
+        let provider = NSItemProvider()
+        switch entry.kind {
+        case .text:
+            if let url = entry.linkURL {
+                provider.registerObject(url as NSURL, visibility: .all)
+            }
+            provider.registerObject(entry.text as NSString, visibility: .all)
+        case .image:
+            if let name = entry.imageFile, let source = imageDirectory?.appendingPathComponent(name) {
+                let fileName = ScreenshotSupport.fileName(
+                    prefix: FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel,
+                    date: entry.copiedAt)
+                provider.suggestedName = (fileName as NSString).deletingPathExtension
+                provider.registerFileRepresentation(forTypeIdentifier: UTType.png.identifier,
+                                                    fileOptions: [], visibility: .all) { completion in
+                    do {
+                        let copy = try ScreenshotSupport.temporaryDragFile(
+                            data: try Data(contentsOf: source), name: fileName)
+                        // The receiver reads the file after the gesture ends.
+                        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 60 * 60) {
+                            try? FileManager.default.removeItem(at: copy.deletingLastPathComponent())
+                        }
+                        completion(copy, false, nil)
+                    } catch {
+                        completion(nil, false, error)
+                    }
+                    return nil
+                }
+            }
+        case .files:
+            if let path = entry.filePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) {
+                provider.registerObject(URL(fileURLWithPath: path) as NSURL, visibility: .all)
+            }
+        }
+        provider.registerDataRepresentation(forTypeIdentifier: entryType.identifier,
+                                            visibility: .ownProcess) { completion in
+            completion(Data(entry.id.uuidString.utf8), nil)
+            return nil
+        }
+        return provider
+    }
+
+    /// One dragging item per file of a card holding several, which a single
+    /// item provider cannot carry. The first also carries the card's id, so
+    /// the shelf's group tabs take it too. Empty for any other card.
+    static func fileDraggingItems(for entry: ClipboardHistoryEntry, at point: CGPoint) -> [NSDraggingItem] {
+        guard entry.kind == .files else { return [] }
+        let urls = entry.filePaths.filter { FileManager.default.fileExists(atPath: $0) }
+            .map { URL(fileURLWithPath: $0) }
+        guard urls.count > 1 else { return [] }
+        return urls.enumerated().map { index, url in
+            let writer: NSPasteboardWriting
+            if index == 0 {
+                let item = NSPasteboardItem()
+                item.setString(url.absoluteString, forType: .fileURL)
+                item.setData(Data(entry.id.uuidString.utf8),
+                             forType: NSPasteboard.PasteboardType(entryType.identifier))
+                writer = item
+            } else {
+                writer = url as NSURL
+            }
+            let dragging = NSDraggingItem(pasteboardWriter: writer)
+            let offset = CGFloat(min(index, 4)) * 6
+            dragging.setDraggingFrame(NSRect(x: point.x - 24 + offset, y: point.y - 24 - offset,
+                                             width: 48, height: 48),
+                                      contents: NSWorkspace.shared.icon(forFile: url.path))
+            return dragging
+        }
+    }
+
+    /// Reads the entry a drop carries, then calls back on the main thread.
+    /// False, and no callback, for anything that did not start as a card.
+    static func loadEntryID(from providers: [NSItemProvider],
+                            completion: @escaping (UUID) -> Void) -> Bool {
+        guard let provider = providers.first(where: {
+            $0.hasItemConformingToTypeIdentifier(entryType.identifier)
+        }) else { return false }
+        provider.loadDataRepresentation(forTypeIdentifier: entryType.identifier) { data, _ in
+            guard let data, let text = String(data: data, encoding: .utf8),
+                  let id = UUID(uuidString: text) else { return }
+            DispatchQueue.main.async { completion(id) }
+        }
+        return true
+    }
+}
+
+/// Hands files out as copies, never moves: they belong to wherever the user
+/// copied them from.
+final class ClipboardFileDragSource: NSObject, NSDraggingSource {
+    func draggingSession(_ session: NSDraggingSession,
+                         sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        .copy
     }
 }

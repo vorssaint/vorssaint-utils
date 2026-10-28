@@ -69,6 +69,19 @@ final class ClipboardHistoryService: ObservableObject {
     /// Read again on every opening, so the window's frame and its content
     /// always agree, even if the setting changes while it is open.
     @Published private(set) var quickLayout = ClipboardHistoryLayout.current()
+    /// Named groups of pinned entries the shelf offers beside the whole
+    /// history.
+    @Published private(set) var pinboards = ClipboardPinboard.decodedList(
+        UserDefaults.standard.string(forKey: DefaultsKey.clipboardPinboards))
+    /// The group the window shows, or nil for the whole history. Every
+    /// opening starts on the whole history.
+    @Published var quickPinboardID: UUID? {
+        didSet {
+            if quickPinboardID != oldValue { resetQuickSelection() }
+        }
+    }
+    /// ⌘ held over the shelf: its cards show their ⌘1 to ⌘9.
+    @Published private(set) var quickCommandHeld = false
 
     private var timer: Timer?
     /// Entries age out with nothing new copied, so the retention window is
@@ -96,6 +109,18 @@ final class ClipboardHistoryService: ObservableObject {
     private var panelResizeObserver: NSObjectProtocol?
     private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
+    private var modifierMonitor: Any?
+    /// Starts the drag of a card holding several files, which SwiftUI's
+    /// single item provider cannot carry.
+    private var fileDragMonitor: Any?
+    private var fileDragStart: (point: NSPoint, entryID: UUID)?
+    private let fileDragSource = ClipboardFileDragSource()
+    /// The card under the pointer, which such a drag starts from. Not
+    /// published: nothing redraws for it.
+    private var quickHoveredEntryID: UUID?
+    /// Polls a card dragged out of the shelf, which hands no events back
+    /// while the system runs the drag.
+    private var cardDragTimer: Timer?
     private var localClickMonitor: Any?
     private var outsideClickMonitor: Any?
     private var activationObserver: NSObjectProtocol?
@@ -415,7 +440,81 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     var filteredQuickEntries: [ClipboardHistoryEntry] {
-        filteredEntries(matching: quickQuery)
+        let matches = filteredEntries(matching: quickQuery)
+        guard let quickPinboardID else { return matches }
+        // Asked for many times per render, like the search it narrows.
+        if let cache = pinboardFilterCache, cache.pinboard == quickPinboardID,
+           cache.query == quickQuery, cache.stamp == entriesStamp {
+            return cache.result
+        }
+        let result = matches.filter { $0.pinboardID == quickPinboardID }
+        pinboardFilterCache = (quickPinboardID, quickQuery, entriesStamp, result)
+        return result
+    }
+
+    private var pinboardFilterCache: (pinboard: UUID, query: String, stamp: Int, result: [ClipboardHistoryEntry])?
+
+    // MARK: - Groups
+
+    /// Adds a group and returns it, or nil with no name or no room left.
+    @discardableResult
+    func createPinboard(named name: String, tint: ClipboardPinboard.Tint? = nil) -> ClipboardPinboard? {
+        guard pinboards.count < ClipboardPinboard.limit,
+              let name = ClipboardPinboard.sanitizedName(name) else { return nil }
+        let board = ClipboardPinboard(name: name, tint: tint ?? ClipboardPinboard.nextTint(after: pinboards))
+        pinboards.append(board)
+        savePinboards()
+        return board
+    }
+
+    func renamePinboard(_ id: UUID, to name: String) {
+        guard let index = pinboards.firstIndex(where: { $0.id == id }),
+              let name = ClipboardPinboard.sanitizedName(name) else { return }
+        pinboards[index].name = name
+        savePinboards()
+    }
+
+    func recolorPinboard(_ id: UUID, to tint: ClipboardPinboard.Tint) {
+        guard let index = pinboards.firstIndex(where: { $0.id == id }) else { return }
+        pinboards[index].tint = tint
+        savePinboards()
+    }
+
+    /// The group goes; its entries stay pinned, only no longer filed.
+    func deletePinboard(_ id: UUID) {
+        pinboards.removeAll { $0.id == id }
+        if quickPinboardID == id { quickPinboardID = nil }
+        var changed = false
+        for index in entries.indices where entries[index].pinboardID == id {
+            entries[index].pinboardID = nil
+            changed = true
+        }
+        savePinboards()
+        if changed { save() }
+    }
+
+    /// Files an entry under a group, pinning it first so the history's
+    /// limits keep it, or takes it out of its group with nil. A pin the
+    /// history refuses (it would not fit) leaves the entry unfiled.
+    func file(_ entry: ClipboardHistoryEntry, in pinboardID: UUID?) {
+        if let pinboardID {
+            guard pinboards.contains(where: { $0.id == pinboardID }) else { return }
+            if entries.first(where: { $0.id == entry.id })?.isPinned == false { togglePin(entry) }
+        }
+        guard let index = entries.firstIndex(where: { $0.id == entry.id }),
+              entries[index].isPinned || pinboardID == nil,
+              entries[index].pinboardID != pinboardID else { return }
+        entries[index].pinboardID = pinboardID
+        save()
+    }
+
+    func pinboard(for entry: ClipboardHistoryEntry) -> ClipboardPinboard? {
+        guard let id = entry.pinboardID else { return nil }
+        return pinboards.first { $0.id == id }
+    }
+
+    private func savePinboards() {
+        UserDefaults.standard.set(ClipboardPinboard.encodedList(pinboards), forKey: DefaultsKey.clipboardPinboards)
     }
 
     var selectedQuickEntryID: UUID? {
@@ -889,15 +988,17 @@ final class ClipboardHistoryService: ObservableObject {
         let hash = Self.sha256Hex(image.data)
         if let existing = entries.first(where: { $0.kind == .image && $0.imageHash == hash }) {
             entries.removeAll { $0.id == existing.id }
-            insertPromoted(ClipboardHistoryEntry(id: existing.id,
-                                                 text: "",
-                                                 copiedAt: Date(),
-                                                 pinnedAt: existing.pinnedAt,
-                                                 kind: .image,
-                                                 imageFile: existing.imageFile,
-                                                 imageHash: hash,
-                                                 imageWidth: existing.imageWidth,
-                                                 imageHeight: existing.imageHeight),
+            insertPromoted(ClipboardHistoryEditing.keepingUserChoices(
+                                of: existing,
+                                in: ClipboardHistoryEntry(id: existing.id,
+                                                          text: "",
+                                                          copiedAt: Date(),
+                                                          pinnedAt: existing.pinnedAt,
+                                                          kind: .image,
+                                                          imageFile: existing.imageFile,
+                                                          imageHash: hash,
+                                                          imageWidth: existing.imageWidth,
+                                                          imageHeight: existing.imageHeight)),
                            source: keepsSource ? existing.sourceBundleID : source)
         } else {
             guard let name = ClipboardImageStore.store(image.data) else { return }
@@ -917,12 +1018,14 @@ final class ClipboardHistoryService: ObservableObject {
         let existing = entries.first(where: { $0.kind == .files && $0.filePaths == paths })
         entries.removeAll { $0.kind == .files && $0.filePaths == paths }
         if let existing {
-            insertPromoted(ClipboardHistoryEntry(id: existing.id,
-                                                 text: "",
-                                                 copiedAt: Date(),
-                                                 pinnedAt: existing.pinnedAt,
-                                                 kind: .files,
-                                                 filePaths: paths),
+            insertPromoted(ClipboardHistoryEditing.keepingUserChoices(
+                                of: existing,
+                                in: ClipboardHistoryEntry(id: existing.id,
+                                                          text: "",
+                                                          copiedAt: Date(),
+                                                          pinnedAt: existing.pinnedAt,
+                                                          kind: .files,
+                                                          filePaths: paths)),
                            source: keepsSource ? existing.sourceBundleID : source)
         } else {
             insertPromoted(ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths), source: source)
@@ -968,10 +1071,12 @@ final class ClipboardHistoryService: ObservableObject {
         let existing = entries.first(where: { $0.kind == .text && $0.text == text })
         entries.removeAll { $0.kind == .text && $0.text == text }
         if let existing {
-            insertPromoted(ClipboardHistoryEntry(id: existing.id,
-                                                 text: text,
-                                                 copiedAt: Date(),
-                                                 pinnedAt: existing.pinnedAt),
+            insertPromoted(ClipboardHistoryEditing.keepingUserChoices(
+                                of: existing,
+                                in: ClipboardHistoryEntry(id: existing.id,
+                                                          text: text,
+                                                          copiedAt: Date(),
+                                                          pinnedAt: existing.pinnedAt)),
                            source: keepsSource ? existing.sourceBundleID : source)
         } else {
             insertPromoted(ClipboardHistoryEntry(text: text), source: source)
@@ -1257,7 +1362,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     func toggleHistoryWindow() {
         if NotchSupport.routesClipboardWindow(), NotchService.shared.showClipboard(toggle: true) { return }
-        if panel?.isVisible == true {
+        if panel?.isVisible == true, !shelfIsSlidingOut {
             hideHistoryWindow()
         } else {
             showHistoryWindow()
@@ -1271,6 +1376,8 @@ final class ClipboardHistoryService: ObservableObject {
         refreshQuickLayout()
         quickWindowPresentationID = UUID()
         quickQuery = ""
+        quickPinboardID = nil
+        pinboards = ClipboardPinboard.decodedList(UserDefaults.standard.string(forKey: DefaultsKey.clipboardPinboards))
         clearQuickBatchSelection()
         resetQuickSelection()
         position(panel)
@@ -1280,8 +1387,73 @@ final class ClipboardHistoryService: ObservableObject {
         // hold the keys yet, so it keeps the app it came from.
         captureIfChanged()
         panel.alphaValue = 1
+        if quickLayout == .cards, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            slideShelf(panel, in: true)
+            return
+        }
+        shelfSlideGeneration += 1
+        shelfIsSlidingOut = false
+        shelfDepartureWork = []
         panel.orderFrontRegardless()
         panel.makeKey()
+    }
+
+    /// Bumped by every opening and closing, so a slide that finishes after a
+    /// newer one began leaves the window to the newer one.
+    private var shelfSlideGeneration = 0
+    private var shelfIsSlidingOut = false
+    /// What waits for the shelf to finish sliding away: until then it keeps
+    /// the keyboard, so a Command-V sent to the app behind would land in the
+    /// shelf instead.
+    private var shelfDepartureWork: [() -> Void] = []
+
+    private func afterShelfLeaves(_ work: @escaping () -> Void) {
+        guard shelfIsSlidingOut else {
+            work()
+            return
+        }
+        shelfDepartureWork.append(work)
+    }
+
+    private func shelfDidLeave() {
+        shelfIsSlidingOut = false
+        let work = shelfDepartureWork
+        shelfDepartureWork = []
+        work.forEach { $0() }
+    }
+
+    /// The shelf rises from below the screen's bottom edge and sinks back
+    /// there. The window is placed fully off screen at the far end, so the
+    /// whole height travels.
+    private func slideShelf(_ panel: NSPanel, in comingIn: Bool) {
+        shelfSlideGeneration += 1
+        let generation = shelfSlideGeneration
+        shelfIsSlidingOut = !comingIn
+        let shown = panel.frame
+        let hidden = shown.offsetBy(dx: 0, dy: -(shown.height + 8))
+        (panel as? ClipboardShelfPanel)?.allowsFrameBelowScreen = true
+        if comingIn {
+            // A shelf coming back takes the keyboard again, so nothing that
+            // waited for it to leave may run any more.
+            shelfDepartureWork = []
+            panel.setFrame(hidden, display: false)
+            panel.orderFrontRegardless()
+            panel.makeKey()
+        }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = comingIn ? 0.3 : 0.2
+            context.timingFunction = comingIn
+                ? CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+                : CAMediaTimingFunction(name: .easeIn)
+            panel.animator().setFrame(comingIn ? shown : hidden, display: true)
+        }, completionHandler: { [weak self, weak panel] in
+            guard let self, let panel, self.shelfSlideGeneration == generation else { return }
+            if !comingIn {
+                panel.orderOut(nil)
+                self.shelfDidLeave()
+            }
+            (panel as? ClipboardShelfPanel)?.allowsFrameBelowScreen = false
+        })
     }
 
     func hideHistoryWindow() {
@@ -1293,7 +1465,14 @@ final class ClipboardHistoryService: ObservableObject {
         // Ordering out keeps an open confirmation attached, and it would come
         // back with its old count the next time the window opens.
         if let panel, let sheet = panel.attachedSheet { panel.endSheet(sheet) }
-        panel?.orderOut(nil)
+        if let panel, panel.isVisible, quickLayout == .cards,
+           !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            if !shelfIsSlidingOut { slideShelf(panel, in: false) }
+        } else {
+            shelfSlideGeneration += 1
+            panel?.orderOut(nil)
+            shelfDidLeave()
+        }
         clearQuickBatchSelection()
     }
 
@@ -1330,8 +1509,10 @@ final class ClipboardHistoryService: ObservableObject {
             }
             return
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            Self.postPasteShortcut()
+        afterShelfLeaves {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                Self.postPasteShortcut()
+            }
         }
     }
 
@@ -1352,11 +1533,11 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = OverlayPanel(contentRect: .zero,
-                                 styleMask: [.titled, .closable,
-                                             .fullSizeContentView, .nonactivatingPanel],
-                                 backing: .buffered,
-                                 defer: false)
+        let panel = ClipboardShelfPanel(contentRect: .zero,
+                                        styleMask: [.titled, .closable,
+                                                    .fullSizeContentView, .nonactivatingPanel],
+                                        backing: .buffered,
+                                        defer: false)
         panel.title = FeatureStrings.clipboard(L10n.shared.language).title
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
@@ -1422,19 +1603,30 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     /// Placed again on every open, so a changed display never strands it.
-    /// Cards make a shelf along the bottom of the screen the pointer is on.
-    /// The list is a window of the size the user last gave it, centered
-    /// toward the top.
+    /// Cards make a shelf along the bottom edge of the screen the pointer is
+    /// on, over the Dock. The list is a window of the size the user last gave
+    /// it, centered toward the top.
     private func position(_ panel: NSPanel) {
         let screen = NSScreen.pointerVisibleFrame
         switch quickLayout {
         case .cards:
             panel.styleMask.remove(.resizable)
-            panel.setFrame(NSRect(x: screen.minX + 16, y: screen.minY + 8,
-                                  width: screen.width - 32, height: min(318, screen.height - 16)),
+            // The Dock's level is below the main menu's.
+            panel.level = .mainMenu
+            // The shelf draws its own rounded glass or material; the window
+            // behind it stays clear so the desktop shows through the glass.
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            let full = NSScreen.pointerFrame
+            panel.setFrame(NSRect(x: full.minX + 8, y: full.minY + 8,
+                                  width: full.width - 16,
+                                  height: min(ClipboardHistoryWindowSizing.shelfHeight, screen.height - 16)),
                            display: true,
                            animate: false)
         case .list:
+            panel.level = .floating
+            panel.isOpaque = true
+            panel.backgroundColor = .windowBackgroundColor
             panel.styleMask.insert(.resizable)
             let size = preferredPanelSize(visibleFrame: screen)
             let x = screen.midX - size.width / 2
@@ -1466,6 +1658,37 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func installKeyMonitor(for panel: NSPanel) {
         removeKeyMonitor()
+        fileDragMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self, weak panel] event in
+            guard let self, let panel, event.window === panel else { return event }
+            switch event.type {
+            case .leftMouseDown:
+                self.fileDragStart = self.quickHoveredEntryID.map { (event.locationInWindow, $0) }
+            case .leftMouseDragged:
+                guard let start = self.fileDragStart,
+                      hypot(event.locationInWindow.x - start.point.x,
+                            event.locationInWindow.y - start.point.y) > 4 else { return event }
+                self.fileDragStart = nil
+                guard let view = panel.contentView,
+                      let entry = self.entries.first(where: { $0.id == start.entryID })
+                else { return event }
+                let items = ClipboardEntryDrag.fileDraggingItems(
+                    for: entry, at: view.convert(event.locationInWindow, from: nil))
+                guard !items.isEmpty else { return event }
+                view.beginDraggingSession(with: items, event: event, source: self.fileDragSource)
+                self.trackCardDrag()
+                return nil
+            default:
+                self.fileDragStart = nil
+            }
+            return event
+        }
+        modifierMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self, weak panel] event in
+            guard let self, let panel, event.window === panel else { return event }
+            let held = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.command]
+            if held != self.quickCommandHeld { self.quickCommandHeld = held }
+            return event
+        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             // An open confirmation owns Return and Escape.
             guard let self, let panel, event.window === panel, panel.attachedSheet == nil else { return event }
@@ -1497,7 +1720,8 @@ final class ClipboardHistoryService: ObservableObject {
                 return nil
             }
             if event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
-                if modifiers == [.command] {
+                // The shelf chooses one card at a time.
+                if modifiers == [.command], self.quickLayout == .list {
                     self.toggleSelectedQuickEntryBatchSelection()
                     return nil
                 }
@@ -1521,7 +1745,7 @@ final class ClipboardHistoryService: ObservableObject {
                 self.copySelectedQuickEntryOnly()
                 return nil
             }
-            if modifiers == [.command], key == "a",
+            if modifiers == [.command], key == "a", self.quickLayout == .list,
                ClipboardHistoryBatch.listOwnsSelectAllShortcut(
                    batchCount: self.quickBatchCount,
                    queryIsEmpty: self.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
@@ -1536,6 +1760,12 @@ final class ClipboardHistoryService: ObservableObject {
                 || (modifiers == [.command] && ClipboardHistoryBatch.listOwnsDeleteShortcut(batchCount: self.quickBatchCount))),
                event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete) {
                 self.removeSelectedQuickEntries()
+                return nil
+            }
+            if let step = ClipboardHistoryNavigation.pinboardStep(
+                keyCode: event.keyCode, modifiers: modifiers, layout: self.quickLayout,
+                queryIsEmpty: self.quickQuery.isEmpty) {
+                self.cyclePinboard(step)
                 return nil
             }
             if let step = ClipboardHistoryNavigation.step(keyCode: event.keyCode, modifiers: modifiers,
@@ -1557,7 +1787,7 @@ final class ClipboardHistoryService: ObservableObject {
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return event }
-            if event.window !== panel, !Self.mouseIsInside(panel) {
+            if !Self.window(event.window, belongsTo: panel), !Self.mouseIsInside(panel) {
                 self.hideHistoryWindow()
             }
             return event
@@ -1589,6 +1819,17 @@ final class ClipboardHistoryService: ObservableObject {
         panel.frame.insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
     }
 
+    /// The panel or a window it owns, such as a card's preview popover: a
+    /// click there is not a click away from the history.
+    private static func window(_ window: NSWindow?, belongsTo panel: NSPanel) -> Bool {
+        var current = window
+        while let candidate = current {
+            if candidate === panel { return true }
+            current = candidate.parent
+        }
+        return false
+    }
+
     private func removeDismissMonitors() {
         if let localClickMonitor {
             NSEvent.removeMonitor(localClickMonitor)
@@ -1609,11 +1850,80 @@ final class ClipboardHistoryService: ObservableObject {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
         }
+        if let modifierMonitor {
+            NSEvent.removeMonitor(modifierMonitor)
+            self.modifierMonitor = nil
+        }
+        if let fileDragMonitor {
+            NSEvent.removeMonitor(fileDragMonitor)
+            self.fileDragMonitor = nil
+        }
+        fileDragStart = nil
+        quickCommandHeld = false
     }
 
     private func resetQuickSelection() {
         quickSelectionID = nil
-        quickSelectionIsVisible = false
+        // The shelf shows its first card chosen until a search starts: Space
+        // then types instead of previewing.
+        quickSelectionIsVisible = quickLayout == .cards && quickQuery.isEmpty
+    }
+
+    func noteHoveredQuickEntry(_ id: UUID, hovering: Bool) {
+        if hovering {
+            quickHoveredEntryID = id
+        } else if quickHoveredEntryID == id {
+            quickHoveredEntryID = nil
+        }
+    }
+
+    /// A click on a card of the shelf chooses it; a double click pastes.
+    func selectQuickEntry(_ entry: ClipboardHistoryEntry) {
+        // Each publish redraws the window; a click on the chosen card changes nothing.
+        if quickSelectionID != entry.id { quickSelectionID = entry.id }
+        if !quickSelectionIsVisible { quickSelectionIsVisible = true }
+    }
+
+    func previewQuickEntry(_ entry: ClipboardHistoryEntry) {
+        selectQuickEntry(entry)
+        setQuickPreviewPresented(true)
+    }
+
+    /// Steps through the whole history and then each group, wrapping round.
+    func cyclePinboard(_ step: Int) {
+        let tabs: [UUID?] = [nil] + pinboards.map(\.id)
+        let current = tabs.firstIndex(of: quickPinboardID) ?? 0
+        quickPinboardID = tabs[(current + step % tabs.count + tabs.count) % tabs.count]
+    }
+
+    func openClipboardSettings() {
+        hideHistoryWindow()
+        SettingsRouter.shared.page = .clipboard
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+    }
+
+    /// A card dragged out of the shelf takes the shelf away with it, so
+    /// whatever lies under it can take the drop.
+    fileprivate func trackCardDrag() {
+        cardDragTimer?.invalidate()
+        guard quickLayout == .cards else { return }
+        cardDragTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+            guard NSEvent.pressedMouseButtons & 1 != 0, let panel = self.panel, panel.isVisible,
+                  !self.shelfIsSlidingOut else {
+                timer.invalidate()
+                self.cardDragTimer = nil
+                return
+            }
+            if !Self.mouseIsInside(panel) {
+                timer.invalidate()
+                self.cardDragTimer = nil
+                self.hideHistoryWindow()
+            }
+        }
     }
 
     private var quickBatchEntries: [ClipboardHistoryEntry] {
@@ -1888,5 +2198,38 @@ private final class ClipboardPanelSizeLimit: NSObject, NSWindowDelegate {
             NSSize(width: max(minimum.width, frameSize.width),
                    height: max(minimum.height, frameSize.height)),
             visibleFrame: visibleFrame(sender))
+    }
+}
+
+// MARK: - Dragging entries
+
+extension ClipboardHistoryService {
+    func dragItemProvider(for entry: ClipboardHistoryEntry) -> NSItemProvider {
+        trackCardDrag()
+        return ClipboardEntryDrag.provider(for: entry, imageDirectory: ClipboardImageStore.directory)
+    }
+
+    /// Puts a card dropped on another card in front of it.
+    func moveEntry(_ id: UUID, before targetID: UUID) {
+        guard let moved = ClipboardHistoryEditing.movedEntries(entries, moving: id, before: targetID) else { return }
+        entries = moved
+        save()
+    }
+
+    /// Files an entry that arrived by drag under a group.
+    func fileDraggedEntry(_ id: UUID, in pinboardID: UUID) {
+        guard let entry = entries.first(where: { $0.id == id }) else { return }
+        file(entry, in: pinboardID)
+    }
+}
+
+/// AppKit keeps a titled window's frame on screen, which would cut the
+/// shelf's slide short at the bottom edge. The constraint is lifted only
+/// while the shelf slides.
+private final class ClipboardShelfPanel: OverlayPanel {
+    var allowsFrameBelowScreen = false
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        allowsFrameBelowScreen ? frameRect : super.constrainFrameRect(frameRect, to: screen)
     }
 }
