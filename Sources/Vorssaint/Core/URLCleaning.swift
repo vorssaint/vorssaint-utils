@@ -333,6 +333,12 @@ enum URLCleaning {
     private static let plainPasteboardTypes: Set<String> = [
         "public.utf8-plain-text", "public.url", "public.url-name",
         "NSStringPboardType", "NSURLPboardType",
+        // Safari's preview card for the link (title and icon), an archive
+        // that repeats the tracked address. The system declares the type and
+        // it conforms to neither text nor a link, so the checks below would
+        // refuse the copy (#3599). The rewrite drops it like the HTML of the
+        // same link, which keeps the tracking out of the pasteboard.
+        "com.apple.linkpresentation.metadata",
     ]
 
     /// Marks from the nspasteboard.org convention: concealed is a password
