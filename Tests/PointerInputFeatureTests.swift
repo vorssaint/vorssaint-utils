@@ -4038,6 +4038,38 @@ enum PointerInputFeatureTests {
                                                  exceptions: ["com.example.editor"]),
                "all-except scope protects an unselected bundle")
 
+        let commandTab = GlobalShortcut(keyCode: 48, modifiers: [.command])
+        let commandShiftTab = GlobalShortcut(keyCode: 48, modifiers: [.command, .shift])
+        let factorySwitcher = [
+            LiveSystemShortcut(id: 1, shortcut: commandTab, enabled: true),
+            LiveSystemShortcut(id: 2, shortcut: commandShiftTab, enabled: true),
+        ]
+        suite.expect(QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand,
+                                                               entries: factorySwitcher)
+                && QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: [.maskCommand, .maskShift],
+                                                             entries: factorySwitcher),
+               "⌘Tab and ⌘⇧Tab open macOS's own switcher")
+        suite.expect(!QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 1, shortcut: commandTab, enabled: false),
+                ]),
+               "⌘Tab with the system row off, as the App Switcher's take-over leaves it, opens Vorssaint's switcher only")
+        suite.expect(QuitProtectionSupport.opensNativeSwitcher(keyCode: 50, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 1, shortcut: GlobalShortcut(keyCode: 50, modifiers: [.command]),
+                                       enabled: true),
+                ]) && !QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 1, shortcut: GlobalShortcut(keyCode: 50, modifiers: [.command]),
+                                       enabled: true),
+                ]),
+               "a remapped system switcher key is followed, and ⌘Tab then is not it")
+        suite.expect(!QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 27, shortcut: commandTab, enabled: true),
+                ]),
+               "only the app switcher rows count, not another system shortcut on the same keys")
+        suite.expect(QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: nil)
+                && !QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: [.maskCommand, .maskAlternate],
+                                                              entries: nil),
+               "without the system table only the factory ⌘Tab is assumed")
+
         suite.expect(QuitProtectionSupport.matchesKey(keyCharacter: "\u{439}", keyCode: 12,
                                                 commandLabel: "Q", shortcut: .quit),
                "a Cyrillic layout is protected on the key Command-Q quits from, "
