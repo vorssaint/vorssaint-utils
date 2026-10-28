@@ -29,6 +29,7 @@ struct DiskImageInstallerStrings {
 extension FeatureStrings {
     static func diskImageInstaller(_ language: AppLanguage) -> DiskImageInstallerStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -70,6 +71,29 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Show the installed app in Finder",
         installedKeptDownloadBodyFormat: "%@ is ready in %@. The disk image was ejected and its download kept.",
         installingFormat: "Installing %@…"
+    )
+
+    static let sv = DiskImageInstallerStrings(
+        title: "Installerare för skivavbild",
+        hubDescription: "Installera det enda programmet i en skivavbild och städa upp hämtningen",
+        useUserApplications: "Installera i mappen Program i din hemkatalog",
+        applicationsFolder: "mappen Program",
+        userApplicationsFolder: "mappen Program i din hemkatalog",
+        promptTitle: "Installera programmet?",
+        promptBodyFormat: "%@ kopieras till %@ och skivavbilden matas ut.",
+        installButton: "Installera",
+        installedTitle: "Programmet har installerats",
+        installedBodyFormat: "%@ är klart i %@. Skivavbilden har matats ut och hämtningen flyttats till papperskorgen.",
+        installedKeepingMountBodyFormat: "%@ har installerats i %@, men skivavbilden kunde inte matas ut. Hämtningen behölls.",
+        installedKeepingDownloadBodyFormat: "%@ har installerats i %@ och skivavbilden har matats ut, men hämtningen kunde inte flyttas till papperskorgen.",
+        failedTitle: "Det gick inte att installera",
+        failedBody: "Inget ändrades. Du kan fortfarande dra programmet till Program.",
+        verificationFailedBody: "Datorn kunde inte verifiera programmet, så ingenting installerades.",
+        alreadyInstalledBodyFormat: "%@ finns redan i Program.",
+        trashDownloadOption: "Flytta hämtningen till papperskorgen",
+        revealAppOption: "Visa det installerade programmet i Finder",
+        installedKeptDownloadBodyFormat: "%@ är klart i %@. Skivavbilden har matats ut och hämtningen behölls.",
+        installingFormat: "Installerar %@…"
     )
 
     static let ptBR = DiskImageInstallerStrings(
