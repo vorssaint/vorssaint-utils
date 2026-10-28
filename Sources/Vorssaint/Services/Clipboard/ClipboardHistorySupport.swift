@@ -27,6 +27,9 @@ enum ClipboardHistoryWindowSizing {
     static let compactDefault = NSSize(width: 560, height: 420)
     static let compactMinimum = NSSize(width: 560, height: 300)
     static let previewExtra = NSSize(width: 280, height: 80)
+    /// The cards' shelf: a toolbar row over one row of cards with room for
+    /// their shadows and selection ring.
+    static let shelfHeight: CGFloat = 335
 
     static func minimumSize(preview: Bool) -> NSSize {
         NSSize(width: compactMinimum.width + (preview ? previewExtra.width : 0),
@@ -235,6 +238,20 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     /// The color a text entry spells out, if that is all it holds.
     var color: ColorValue? {
         kind == .text ? ColorValue(text: text) : nil
+    }
+
+    /// The web address a text entry holds, if it holds nothing else, so a
+    /// card can show it as a link. Only http and https with a host qualify.
+    var linkURL: URL? {
+        guard kind == .text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 2048,
+              trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = url.host, !host.isEmpty
+        else { return nil }
+        return url
     }
 
     /// `preview` collapsed further to a menu bar sized excerpt, for the
@@ -1175,5 +1192,56 @@ enum ClipboardHistoryImageSupport {
     static func isImageFilePath(_ path: String, fileManager: FileManager = .default) -> Bool {
         guard isImageFileName(path) else { return false }
         return fileManager.fileExists(atPath: path)
+    }
+}
+
+/// The color a card's header takes from the app a copy came from: the
+/// average of the icon's saturated, visible pixels, kept dark enough that
+/// white text stays readable on it. Pure math over RGBA bytes, so the view
+/// only has to draw the icon small.
+enum ClipboardCardTint {
+    struct RGB: Equatable {
+        let red: Double
+        let green: Double
+        let blue: Double
+    }
+
+    /// `pixels` holds premultiplied RGBA bytes. Nil when the icon has no
+    /// color to speak of (a monochrome glyph), so the caller falls back.
+    static func headerColor(rgba pixels: [UInt8]) -> RGB? {
+        var red = 0.0, green = 0.0, blue = 0.0, weight = 0.0
+        var index = 0
+        while index + 3 < pixels.count {
+            let alpha = Double(pixels[index + 3]) / 255
+            if alpha > 0.8 {
+                let r = Double(pixels[index]) / 255 / alpha
+                let g = Double(pixels[index + 1]) / 255 / alpha
+                let b = Double(pixels[index + 2]) / 255 / alpha
+                let maximum = max(r, g, b), minimum = min(r, g, b)
+                let saturation = maximum > 0 ? (maximum - minimum) / maximum : 0
+                // Near-white, near-black and gray pixels say nothing about
+                // the app's color; vivid ones say the most.
+                if saturation > 0.3, maximum > 0.25 {
+                    red += r * saturation
+                    green += g * saturation
+                    blue += b * saturation
+                    weight += saturation
+                }
+            }
+            index += 4
+        }
+        // A few stray colored pixels on a gray icon are not its color.
+        guard weight > Double(pixels.count / 4) * 0.04 else { return nil }
+        return readable(RGB(red: red / weight, green: green / weight, blue: blue / weight))
+    }
+
+    /// Keeps white header text legible: a light color is darkened until its
+    /// luminance sits below the threshold, its hue unchanged.
+    static func readable(_ color: RGB, maximumLuminance: Double = 0.62) -> RGB {
+        func luminance(_ c: RGB) -> Double { 0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue }
+        let current = luminance(color)
+        guard current > maximumLuminance, current > 0 else { return color }
+        let factor = maximumLuminance / current
+        return RGB(red: color.red * factor, green: color.green * factor, blue: color.blue * factor)
     }
 }

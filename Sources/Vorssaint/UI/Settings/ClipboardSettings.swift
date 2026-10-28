@@ -16,6 +16,7 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryRetentionDays) private var retentionDays = 0
     @AppStorage(DefaultsKey.clipboardHistoryFilterSensitiveText) private var skipSensitive = false
     @AppStorage(DefaultsKey.clipboardHistoryIncludeImagesFiles) private var includeImagesFiles = true
+    @AppStorage(DefaultsKey.clipboardLinkPreviews) private var linkPreviews = false
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.clipboardHistoryLayout) private var historyLayout = ClipboardHistoryLayout.list
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreview) private var menuBarPreview = false
@@ -67,6 +68,14 @@ struct ClipboardSettings: View {
                     Toggle(text.includeImagesFiles, isOn: $includeImagesFiles)
                         .disabled(!enabled)
                     Text(text.includeImagesFilesCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(text.linkPreviewsToggle, isOn: $linkPreviews)
+                        .onChange(of: linkPreviews) { _, on in
+                            // Turning it off forgets what was fetched.
+                            if !on { ClipboardLinkPreviewStore.shared.removeAll() }
+                        }
+                    Text(text.linkPreviewsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Toggle(text.skipSensitive, isOn: $skipSensitive)
