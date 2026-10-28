@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CryptoKit
 import Foundation
 
 /// The portable part of the app's settings: what a backup file carries and
@@ -220,6 +221,10 @@ enum SettingsBackupSupport {
         // A fit measured against one Mac's camera housing would misfit another's.
         DefaultsKey.notchCameraFitWidth,
         DefaultsKey.notchCameraFitHeight,
+        // Each Mac chooses whether it writes the settings file; the digest
+        // describes this Mac's copy of it.
+        DefaultsKey.settingsFileSaveOnQuit,
+        DefaultsKey.settingsFileLastSeenDigest,
     ]
 
     /// The file's content: an envelope with the format version, the app
@@ -285,8 +290,8 @@ enum SettingsBackupSupport {
         return result
     }
 
-    /// An optional settings file the app applies at launch and never writes
-    /// (issue #497): `$XDG_CONFIG_HOME/vorssaint/settings.plist`, or
+    /// An optional settings file the app applies at launch, and writes on quit
+    /// only when asked to (issue #497): `$XDG_CONFIG_HOME/vorssaint/settings.plist`, or
     /// `~/.config` in its place when the variable is unset, empty or relative,
     /// as the XDG spec asks. The Developer build reads its own folder.
     static func configFileURL(environment: [String: String],
@@ -303,6 +308,27 @@ enum SettingsBackupSupport {
         return base
             .appendingPathComponent(folder, isDirectory: true)
             .appendingPathComponent("settings.plist")
+    }
+
+    /// Identifies one version of the settings file, so the app can tell
+    /// whether anything else changed it since the app last read or wrote it.
+    static func digest(of data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Launch applies the file only when it changed since the app last saw it.
+    /// A quit whose write failed leaves the file as it was seen, so the newer
+    /// preferences are kept instead of being replaced by the stale file.
+    static func appliesConfigFile(digest: String, lastSeen: String?) -> Bool {
+        digest != lastSeen
+    }
+
+    /// Quit writes only over the version the app last saw (or where there is
+    /// none yet). A file edited or merged while the app ran is left for the
+    /// next launch to apply, never overwritten.
+    static func overwritesConfigFile(digest: String?, lastSeen: String?) -> Bool {
+        guard let digest else { return true }
+        return digest == lastSeen
     }
 
     /// Every cleanup, diagnostic and backup mode is a `--` flag, and none of

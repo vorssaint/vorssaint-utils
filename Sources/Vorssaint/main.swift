@@ -36,6 +36,7 @@ if NotchPresentationProbe.isRequested(by: CommandLine.arguments) {
 }
 #endif
 
+SettingsBackup.startSavingConfigFileOnQuit()
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

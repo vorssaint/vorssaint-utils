@@ -173,21 +173,30 @@ enum SettingsBackup {
         exit(EXIT_FAILURE)
     }
 
-    /// Applies the optional settings file (issue #497) when it differs from the
-    /// preferences. The app only reads it: `--export-settings` writes one. Runs
-    /// before the defaults are registered and migrated, so the file's values go
-    /// through the same migrations as an imported backup after its relaunch.
-    static func applyConfigFileAtLaunch() {
-        // The bare binary (`--selftest` builds) has no preferences of the app's.
-        guard Bundle.main.bundleIdentifier != nil,
-              SettingsBackupSupport.appliesConfigFile(arguments: CommandLine.arguments) else { return }
-        let url = SettingsBackupSupport.configFileURL(
+    /// The optional settings file (issue #497).
+    static var configFileURL: URL {
+        SettingsBackupSupport.configFileURL(
             environment: ProcessInfo.processInfo.environment,
             home: FileManager.default.homeDirectoryForCurrentUser,
             isDeveloperBuild: AppInfo.isDeveloperBuild)
-        guard FileManager.default.fileExists(atPath: url.path),
-              let settings = readSettings(at: url) else { return }
+    }
+
+    /// Applies the settings file when it changed since the app last read or
+    /// wrote it and differs from the preferences. Runs before the defaults are
+    /// registered and migrated, so the file's values go through the same
+    /// migrations as an imported backup after its relaunch.
+    static func applyConfigFileAtLaunch() {
+        // The bare binary (`--selftest` builds) has no preferences of the app's.
+        guard Bundle.main.bundleIdentifier != nil,
+              SettingsBackupSupport.appliesConfigFile(arguments: CommandLine.arguments),
+              let data = try? Data(contentsOf: configFileURL),
+              let settings = readSettings(at: configFileURL) else { return }
         let defaults = UserDefaults.standard
+        let digest = SettingsBackupSupport.digest(of: data)
+        guard SettingsBackupSupport.appliesConfigFile(
+                digest: digest,
+                lastSeen: defaults.string(forKey: DefaultsKey.settingsFileLastSeenDigest)) else { return }
+        defaults.set(digest, forKey: DefaultsKey.settingsFileLastSeenDigest)
         let availability = AppFeature.availabilityDefaults
         // Nothing is registered yet, so fall back to the registered values an
         // export writes; otherwise every launch would look like a change.
@@ -199,5 +208,37 @@ enum SettingsBackup {
         else { return }
         let local = defaults.dictionaryRepresentation()
         apply(settings: SettingsBackupSupport.keepingLocalMediaLogos(settings, local: local))
+    }
+
+    /// With Save on quit turned on, writes the settings file as the app quits,
+    /// once per session rather than on every change, so a versioned dotfile
+    /// sees one change to merge. Uninstalling clears the choice with the rest
+    /// of the preferences, so it never writes over the file.
+    static func startSavingConfigFileOnQuit() {
+        guard Bundle.main.bundleIdentifier != nil,
+              SettingsBackupSupport.appliesConfigFile(arguments: CommandLine.arguments) else { return }
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
+                                               object: nil, queue: .main) { _ in
+            saveConfigFile()
+        }
+    }
+
+    private static func saveConfigFile() {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: DefaultsKey.settingsFileSaveOnQuit) else { return }
+        // Follow a symlink so a dotfiles link stays a link.
+        let url = configFileURL.resolvingSymlinksInPath()
+        let lastSeen = defaults.string(forKey: DefaultsKey.settingsFileLastSeenDigest)
+        let existing = (try? Data(contentsOf: url)).map(SettingsBackupSupport.digest(of:))
+        guard SettingsBackupSupport.overwritesConfigFile(digest: existing, lastSeen: lastSeen) else { return }
+        // An atomic write replaces the file through its folder, so a file the
+        // user made read-only would be replaced without this check.
+        if existing != nil {
+            guard FileManager.default.isWritableFile(atPath: url.path) else { return }
+        }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        guard write(to: url), let written = try? Data(contentsOf: url) else { return }
+        defaults.set(SettingsBackupSupport.digest(of: written), forKey: DefaultsKey.settingsFileLastSeenDigest)
     }
 }
