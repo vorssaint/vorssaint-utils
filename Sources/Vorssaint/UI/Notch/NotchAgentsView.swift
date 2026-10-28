@@ -125,6 +125,8 @@ struct NotchAgentsView: View {
         case .models:
             NotchAgentShareCard(title: text.modelsCard, symbol: NotchAgentCard.models.symbol,
                                 shares: snapshot.usage(shown).models, byCost: snapshot.usage(shown).fullyPriced, text: text)
+        case .providers:
+            NotchAgentProvidersCard(usage: snapshot.usage(shown), text: text)
         case .projects:
             NotchAgentShareCard(title: text.projectsCard, symbol: NotchAgentCard.projects.symbol,
                                 shares: snapshot.usage(shown).projects, byCost: snapshot.usage(shown).fullyPriced, text: text)
@@ -404,6 +406,9 @@ private struct NotchAgentLimitsCard: View {
                         Text(AgentFormat.tokens(todayUsage.tokens.total))
                             .font(.system(size: 9.5))
                             .foregroundStyle(.secondary)
+                        Text("· \(text.requests): \(todayUsage.requests.formatted(.number.locale(locale)))")
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.tertiary)
                         if let rate = todayUsage.tokens.cacheHitRate, rate > 0 {
                             Text("· " + text.cached(AgentFormat.percent(rate)))
                                 .font(.system(size: 9.5))
@@ -699,6 +704,86 @@ private struct NotchAgentTrendCard: View {
     }
 }
 
+// MARK: Model providers
+
+/// Services stay separate from the agents that call them. Every recorded model
+/// remains reachable here, even before a provider reports an account allowance.
+struct NotchAgentProvidersCard: View {
+    let usage: AgentPeriodUsage
+    let text: NotchAgentStrings
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 6) {
+                NotchAgentCardHeader(title: text.providersCard, symbol: NotchAgentCard.providers.symbol) {
+                    Text(text.requests + ": " + count(usage.total.requests))
+                        .font(.system(size: 9.5, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
+                }
+                if usage.services.isEmpty {
+                    Text(text.noActivity).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            ForEach(usage.services) { service in row(service) }
+                        }
+                    }
+                    .scrollIndicators(.automatic)
+                }
+                Text(text.localUsageNote)
+                    .font(.system(size: 9)).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func row(_ service: AgentShare) -> some View {
+        let tint = AgentModelService.tint(service.serviceID, agent: service.provider)
+        return VStack(alignment: .leading, spacing: 3) {
+            NotchAgentCardHeader(title: service.name, symbol: "circle.fill", tint: tint) {
+                Text(count(service.totals.requests))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .monospacedDigit().foregroundStyle(tint)
+            }
+            .help(service.serviceID ?? service.name)
+            HStack(spacing: 5) {
+                if service.serviceID != nil, let agent = service.provider {
+                    Text(agent.displayName).foregroundStyle(.secondary)
+                } else if service.provider == .opencode {
+                    Text(text.providerNotRecorded).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                if service.totals.freeRequests > 0 {
+                    NotchAgentChip(text: text.freeRequests + ": " + count(service.totals.freeRequests),
+                                   tint: AgentProvider.opencode.tint)
+                }
+            }
+            .font(.system(size: 9.5))
+            NotchAgentMeter(value: Double(service.totals.requests) / Double(max(1, usage.total.requests)),
+                            tint: tint, height: 4)
+            ForEach(usage.models.filter { $0.provider == service.provider && $0.serviceID == service.serviceID }) { model in
+                let name = model.modelID ?? model.name
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(name.isEmpty ? "?" : name)
+                        .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    NotchAgentMeter(value: Double(model.totals.requests) / Double(max(1, service.totals.requests)),
+                                    tint: tint, height: 3).frame(width: 36)
+                    Text(count(model.totals.requests))
+                        .font(.system(size: 10, weight: .medium)).monospacedDigit()
+                        .foregroundStyle(model.totals.freeRequests > 0 ? AgentProvider.opencode.tint : Color.secondary)
+                }
+                .font(.system(size: 9.5)).foregroundStyle(.secondary).padding(.leading, 9)
+                .accessibilityElement(children: .combine)
+                .help(text.requests + ": " + count(model.totals.requests)
+                      + (model.totals.freeRequests > 0 ? " · " + text.freeRequests : ""))
+            }
+        }
+    }
+
+    private func count(_ value: Int) -> String { value.formatted(.number.locale(locale)) }
+}
+
 // MARK: Models and projects
 
 private struct NotchAgentShareCard: View {
@@ -727,7 +812,7 @@ private struct NotchAgentShareCard: View {
 
     private func row(_ share: AgentShare, peak: Double) -> some View {
         let weight = share.totals.weight(byCost: byCost)
-        let tint = share.provider?.tint ?? .white
+        let tint = AgentModelService.tint(share.serviceID, agent: share.provider)
         return HStack(spacing: 6) {
             Text(share.name)
                 .font(.system(size: 10.5, weight: .medium))
@@ -745,7 +830,8 @@ private struct NotchAgentShareCard: View {
                 .frame(minWidth: 40, alignment: .trailing)
         }
         .frame(height: 14)
-        .help([share.name, text.tokens(AgentFormat.tokens(share.totals.tokens.total)),
+        .help([share.modelID ?? share.name, share.serviceID.map(AgentModelService.name) ?? share.provider?.displayName ?? "",
+               text.requests + ": " + share.totals.requests.formatted(), text.tokens(AgentFormat.tokens(share.totals.tokens.total)),
                AgentFormat.cost(share.totals.cost)].joined(separator: " · "))
     }
 }

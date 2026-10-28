@@ -16,6 +16,24 @@ extension AgentProvider {
     }
 }
 
+extension AgentModelService {
+    /// Shared by provider meters and model bars; a large local share is not a quota warning.
+    static func tint(_ id: String?, agent: AgentProvider?) -> Color {
+        switch id {
+        case "openrouter", "openai": return AgentProvider.codex.tint
+        case "groq", "anthropic": return AgentProvider.claude.tint
+        case "opencode", "opencode-go": return AgentProvider.opencode.tint
+        case "github-copilot", "github-copilot-enterprise": return AgentProvider.copilot.tint
+        case "antigravity", "google-antigravity", "google": return .purple
+        case "mistral": return .yellow
+        case "cloudflare-workers-ai", "cloudflare-ai-gateway": return .orange
+        case "ollama-cloud": return .mint
+        case "ollama", "cursor", "grok-build", "xai": return .white.opacity(0.85)
+        default: return agent?.tint ?? .white
+        }
+    }
+}
+
 /// Green reads as fine and red as trouble only when it earns it: the agent's
 /// own color while there is room, orange once a window runs low.
 func agentLimitTint(_ provider: AgentProvider, usedFraction: Double) -> Color {

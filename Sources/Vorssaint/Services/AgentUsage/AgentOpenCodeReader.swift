@@ -31,7 +31,8 @@ enum AgentOpenCodeReader {
     /// the state of a compaction and how a turn ended, never their text.
     private static let values: [(name: String, path: String)] = [
         ("role", "$.role"), ("parentID", "$.parentID"), ("modelID", "$.modelID"), ("model_id", "$.model_id"),
-        ("model", "$.model"), ("tokens", "$.tokens"), ("cost", "$.cost"), ("finish", "$.finish"),
+        ("model", "$.model"), ("providerID", "$.providerID"), ("provider_id", "$.provider_id"),
+        ("tokens", "$.tokens"), ("cost", "$.cost"), ("finish", "$.finish"),
         ("time", "$.time"), ("cwd", "$.path.cwd"), ("status", "$.status"), ("outcome", "$.outcome"),
     ]
 

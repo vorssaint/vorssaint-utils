@@ -283,6 +283,13 @@ enum AgentUsageArchiveTests {
             suite.expect(false, "the archive fixture holds a record, limits with a window and an open turn")
             return
         }
+        var attributed = sampleRecord.record
+        attributed.serviceID = "openrouter"
+        var routed = contents
+        routed.store.records[0] = AgentUsageStore.Saved.Record(key: sampleRecord.key, record: attributed,
+                                                             billable: sampleRecord.billable, sources: sampleRecord.sources)
+        suite.expect(AgentUsageArchive.decode(AgentUsageArchive.encode(routed, build: build), build: build) == routed,
+                     "the current cache layout round-trips a recorded service identifier")
         let layouts: [(name: String, stored: [String], written: [String])] = [
             ("AgentUsageArchive.Contents", labels(contents), ["providers", "store", "cursors"]),
             ("AgentUsageStore", labels(first),
@@ -292,7 +299,7 @@ enum AgentUsageArchiveTests {
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),
             ("AgentUsageStore.Saved.Record", labels(sampleRecord), ["key", "record", "billable", "sources"]),
             ("AgentUsageRecord", labels(sampleRecord.record),
-             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost"]),
+             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost", "serviceID"]),
             ("AgentBillable", labels(sampleRecord.billable),
              ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),

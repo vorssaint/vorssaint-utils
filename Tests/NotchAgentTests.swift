@@ -19,6 +19,7 @@ enum NotchAgentTests {
         offlineTurns(suite)
         codexParsing(suite)
         openCodeParsing(suite)
+        modelProviders(suite)
         CopilotAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
         timestamps(suite)
@@ -633,6 +634,61 @@ enum NotchAgentTests {
 
     // MARK: OpenCode logs
 
+    private static func modelProviders(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 1_790_100_000)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let store = AgentUsageStore()
+        func response(_ id: String, _ service: String?, _ model: String, nested: Bool = false) -> [AgentLogEntry] {
+            var json: [String: Any] = ["id": id, "session_id": "routes", "role": "assistant",
+                "modelID": model, "tokens": ["input": 2, "output": 1], "cost": 0, "finish": "stop"]
+            if let service {
+                if nested { json["model"] = ["id": model, "providerID": service] }
+                else { json["providerID"] = service }
+            }
+            var state = AgentLogState()
+            return AgentLogParser.parseOpenCode(try! JSONSerialization.data(withJSONObject: json), state: &state, now: now)
+        }
+        func apply(_ entries: [AgentLogEntry]) {
+            store.apply(entries, file: "routes.db", provider: .opencode, tracksTurns: false, modified: now, now: now)
+        }
+        apply(response("router", "openrouter", "same-model:free"))
+        apply(response("groq", "groq", "same-model:free", nested: true))
+        apply(response("unknown", nil, "same-model:free"))
+        apply(response("zen", "opencode", "stealth-free"))
+        apply(response("zero", "mistral", "some-model"))
+        var snapshot = store.snapshot(plans: [:], providers: [.opencode], now: now, calendar: calendar)
+        let today = snapshot.usage(.today)
+        suite.expect(today.total.requests == 5 && today.total.freeRequests == 2,
+                     "only explicitly free OpenRouter and Zen routes count as marked free; zero cost and other services do not")
+        suite.expect(today.models.count == 5 && today.services.count == 5,
+                     "the same model reached through different providers or an unknown provider keeps separate rows")
+        suite.expect(today.services.first { $0.serviceID == "groq" }?.name == "GroqCloud"
+                        && today.models.first { $0.serviceID == "groq" }?.modelID == "same-model:free",
+                     "nested provider metadata retains the exact model and names the serving provider")
+        let late = response("unknown", "openrouter", "same-model:free")
+        apply(late)
+        apply(late)
+        snapshot = store.snapshot(plans: [:], providers: [.opencode], now: now, calendar: calendar)
+        let full = AgentUsageSummary.snapshot(records: store.records, limits: [:], live: [], plans: [:],
+                                             providers: [.opencode], now: now, calendar: calendar)
+        suite.expect(snapshot == full && snapshot.usage(.today).total.requests == 5
+                        && snapshot.usage(.today).total.freeRequests == 3,
+                     "late route metadata rebuilds attribution without counting streamed or repeated responses again")
+        apply(response("router", "openrouter", "same-model:free"))
+        suite.expect(store.snapshot(plans: [:], providers: [.opencode], now: now, calendar: calendar) == snapshot,
+                     "a repeated routed response leaves the cached summary unchanged")
+        suite.expect(AgentModelService.identifier("OPENROUTER") == "openrouter"
+                        && AgentModelService.identifier("https://example.com/key") == nil
+                        && AgentModelService.identifier("secret\nvalue") == nil
+                        && AgentModelService.identifier(String(repeating: "a", count: 129)) == nil,
+                     "route identifiers accept bounded metadata and reject URLs or control characters")
+        suite.expect(AgentModelService.name("xai") != AgentModelService.name("grok-build")
+                        && AgentModelService.name("ollama") != AgentModelService.name("ollama-cloud"),
+                     "xAI API is not Grok Build and an Ollama request does not imply cloud usage")
+        suite.expect(store.saved.records.isEmpty, "OpenCode provider and model metadata remain in memory only")
+    }
+
     private static func openCodeParsing(_ suite: TestSuite) {
         let now = Date(timeIntervalSince1970: 0)
         var state = AgentLogState()
@@ -740,7 +796,7 @@ enum NotchAgentTests {
         sqlite3_exec(db, """
         INSERT INTO session VALUES ('s1', '/Users/me/code/app', 1790088000000, 1790088020000);
         INSERT INTO message VALUES ('m1', 's1', 1790088000000, 1790088000000, '{"role":"user","parts":[{"type":"text","text":"hello"}]}');
-        INSERT INTO message VALUES ('m2', 's1', 1790088005000, 1790088005000, '{"role":"assistant","model_id":"stealth/ox-alpha","cost":0.001,"tokens":{"total":100,"input":80,"output":20,"reasoning":0,"cache":{"read":0,"write":0}},"finish":"stop"}');
+        INSERT INTO message VALUES ('m2', 's1', 1790088005000, 1790088005000, '{"role":"assistant","providerID":"groq","model_id":"stealth/ox-alpha","cost":0.001,"tokens":{"total":100,"input":80,"output":20,"reasoning":0,"cache":{"read":0,"write":0}},"finish":"stop"}');
         """, nil, nil, nil)
         sqlite3_close(db)
 
@@ -751,6 +807,8 @@ enum NotchAgentTests {
         }
         suite.expect(linesRead.count == 2 && cursor.offset == 2,
                      "OpenCode reader retrieves messages in order and moves past the last row read")
+        suite.expect(linesRead.last?.contains(#""providerID":"groq""#) == true,
+                     "the read-only query preserves OpenCode 1's serving provider metadata")
 
         // Incremental check: add message m3
         var db2: OpaquePointer?
@@ -810,7 +868,7 @@ enum NotchAgentTests {
         var v2State = AgentLogState()
         let v2Entries = AgentLogParser.parseOpenCode(v2Payload, state: &v2State, now: now)
         suite.expect(v2Lines.count == 1 && v2Payload.contains(Data(#""role":"assistant""#.utf8))
-                        && v2Entries.contains { if case .usage = $0 { return true }; return false },
+                        && v2Entries.contains { if case .usage(_, let record, _) = $0 { return record.serviceID == "provider" }; return false },
                      "OpenCode 2 tables provide assistant usage to the existing parser")
 
         // Cancellation check
@@ -3120,7 +3178,7 @@ enum NotchAgentTests {
 
         defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
-        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .providers, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
@@ -3176,7 +3234,7 @@ enum NotchAgentTests {
                      "cards pair in reading order, and charts and lone cards take the row")
         suite.expect(NotchAgentSupport.rows([limits, codex], width: 330) == [[limits], [codex]],
                      "a narrow island stacks every card")
-        suite.expect(NotchAgentCard.allCases.filter(\.followsPeriod) == [.spend, .trend, .models, .projects],
+        suite.expect(NotchAgentCard.allCases.filter(\.followsPeriod) == [.spend, .trend, .models, .providers, .projects],
                      "the period in the island's top row covers spending, the trend, models and projects")
         suite.expect(NotchAgentSupport.contentHeight([[limits, codex], [trend]])
                         == NotchAgentSupport.cardHeight + NotchAgentSupport.spacing + NotchAgentSupport.chartHeight

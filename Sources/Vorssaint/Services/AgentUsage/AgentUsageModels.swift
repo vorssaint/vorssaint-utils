@@ -80,9 +80,12 @@ struct AgentUsageRecord: Equatable {
     var savings: Double
     /// Whether cost was reported directly by the provider rather than derived from list pricing.
     var reportedCost: Bool = false
+    /// The service OpenCode routed this response to, independently of the agent.
+    var serviceID: String?
 
     init(provider: AgentProvider, date: Date, model: String, project: String, session: String,
-         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, reportedCost: Bool = false) {
+         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, reportedCost: Bool = false,
+         serviceID: String? = nil) {
         self.provider = provider
         self.date = date
         self.model = model
@@ -93,6 +96,49 @@ struct AgentUsageRecord: Equatable {
         self.cost = cost
         self.savings = savings
         self.reportedCost = reportedCost
+        self.serviceID = AgentModelService.identifier(serviceID)
+    }
+
+    var modelShareID: String { provider.rawValue + ":" + (serviceID ?? "") + ":" + model }
+    var serviceShareID: String { provider.rawValue + ":" + (serviceID ?? "") }
+    var serviceName: String { serviceID.map(AgentModelService.name) ?? provider.displayName }
+    var isFreeModel: Bool {
+        (serviceID == "openrouter" && (model.hasSuffix(":free") || model == "openrouter/free"))
+            || (serviceID == "opencode" && model.hasSuffix("-free"))
+    }
+}
+
+/// Provider identifiers are metadata, never URLs, credentials or inferred model vendors.
+enum AgentModelService {
+    static func identifier(_ value: String?) -> String? {
+        guard let value, !value.isEmpty, value.utf8.count <= 128,
+              value.utf8.allSatisfy({ (48...57).contains($0) || (65...90).contains($0)
+                  || (97...122).contains($0) || [45, 46, 95].contains($0) }) else { return nil }
+        return value.lowercased()
+    }
+
+    static func name(_ id: String) -> String {
+        switch id {
+        case "opencode": return "OpenCode Zen"
+        case "opencode-go": return "OpenCode Go"
+        case "github-copilot": return "GitHub Copilot"
+        case "github-copilot-enterprise": return "GitHub Copilot Enterprise"
+        case "antigravity", "google-antigravity": return "Antigravity"
+        case "cursor": return "Cursor"
+        case "groq": return "GroqCloud"
+        case "openrouter": return "OpenRouter"
+        case "mistral": return "Mistral API"
+        case "cloudflare-workers-ai": return "Cloudflare Workers AI"
+        case "cloudflare-ai-gateway": return "Cloudflare AI Gateway"
+        case "grok-build": return "Grok Build"
+        case "xai": return "xAI API"
+        case "ollama-cloud": return "Ollama Cloud"
+        case "ollama": return "Ollama"
+        case "anthropic": return "Anthropic API"
+        case "openai": return "OpenAI API"
+        case "google": return "Google AI"
+        default: return id
+        }
     }
 }
 

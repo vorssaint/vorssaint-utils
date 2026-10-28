@@ -21,12 +21,15 @@ struct AgentTotals: Equatable {
     var cost = 0.0
     var savings = 0.0
     var requests = 0
+    /// Only routes explicitly named free; zero cost alone says nothing about a plan.
+    var freeRequests = 0
     /// Responses from a model without a known price, left out of `cost`.
     var unpriced = 0
 
     mutating func add(_ record: AgentUsageRecord) {
         tokens += record.tokens
         requests += max(0, record.requests)
+        if record.isFreeModel { freeRequests += max(0, record.requests) }
         savings += record.savings
         if let price = record.cost { cost += price } else { unpriced += 1 }
     }
@@ -36,6 +39,7 @@ struct AgentTotals: Equatable {
         lhs.cost += rhs.cost
         lhs.savings += rhs.savings
         lhs.requests += rhs.requests
+        lhs.freeRequests += rhs.freeRequests
         lhs.unpriced += rhs.unpriced
     }
 
@@ -50,6 +54,8 @@ struct AgentShare: Equatable, Identifiable {
     let name: String
     let provider: AgentProvider?
     var totals: AgentTotals
+    var serviceID: String? = nil
+    var modelID: String? = nil
 }
 
 struct AgentPeriodUsage: Equatable {
@@ -57,6 +63,7 @@ struct AgentPeriodUsage: Equatable {
     var byProvider: [AgentProvider: AgentTotals] = [:]
     var models: [AgentShare] = []
     var projects: [AgentShare] = []
+    var services: [AgentShare] = []
 
     /// Whether every response in the period could be priced.
     var fullyPriced: Bool { total.unpriced == 0 }
@@ -133,6 +140,7 @@ enum AgentUsageSummary {
         var periods: [AgentPeriod: AgentPeriodUsage] = [:]
         var models: [AgentPeriod: [String: AgentShare]] = [:]
         var projects: [AgentPeriod: [String: AgentShare]] = [:]
+        var services: [AgentPeriod: [String: AgentShare]] = [:]
         var claude: [AgentUsageRecord] = []
         var names: [String: String] = [:]
         let recent = now.addingTimeInterval(-burnWindow)
@@ -162,13 +170,17 @@ enum AgentUsageSummary {
                 name = AgentPricing.displayName(record.model)
                 names[record.model] = name
             }
-            let modelID = record.provider.rawValue + ":" + name
+            let modelID = record.modelShareID
             for period in AgentPeriod.allCases where day > lastDay - period.days {
                 periods[period, default: AgentPeriodUsage()].total.add(record)
                 periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
                 models[period, default: [:]][modelID, default: AgentShare(
-                    id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())]
+                    id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals(),
+                    serviceID: record.serviceID, modelID: record.model)]
                     .totals.add(record)
+                services[period, default: [:]][record.serviceShareID, default: AgentShare(
+                    id: record.serviceShareID, name: record.serviceName, provider: record.provider, totals: AgentTotals(),
+                    serviceID: record.serviceID)].totals.add(record)
                 if !record.project.isEmpty {
                     projects[period, default: [:]][record.project, default: AgentShare(
                         id: record.project, name: record.project, provider: nil, totals: AgentTotals())]
@@ -181,6 +193,7 @@ enum AgentUsageSummary {
             let byCost = usage.fullyPriced
             usage.models = sorted(models[period].map { Array($0.values) } ?? [], byCost: byCost)
             usage.projects = sorted(projects[period].map { Array($0.values) } ?? [], byCost: byCost)
+            usage.services = sorted(services[period].map { Array($0.values) } ?? [], byCost: byCost)
             periods[period] = usage
         }
         for provider in Array(snapshot.burnRate.keys) {
@@ -213,7 +226,8 @@ enum AgentUsageSummary {
     static func sorted(_ shares: [AgentShare], byCost: Bool) -> [AgentShare] {
         shares.sorted {
             let left = $0.totals.weight(byCost: byCost), right = $1.totals.weight(byCost: byCost)
-            return left != right ? left > right : $0.name < $1.name
+            if left != right { return left > right }
+            return $0.name != $1.name ? $0.name < $1.name : $0.id < $1.id
         }
     }
 
@@ -259,6 +273,7 @@ final class AgentUsageSummaryCache {
     private var providers: Set<AgentProvider> = []
     private var models: [AgentPeriod: [String: AgentShare]] = [:]
     private var projects: [AgentPeriod: [String: AgentShare]] = [:]
+    private var services: [AgentPeriod: [String: AgentShare]] = [:]
     private var names: [String: String] = [:]
     private var starts: [Date] = []
     private var hourStarts: [Date] = []
@@ -295,6 +310,7 @@ final class AgentUsageSummaryCache {
             self.providers = providers
             models.removeAll(keepingCapacity: true)
             projects.removeAll(keepingCapacity: true)
+            services.removeAll(keepingCapacity: true)
             names.removeAll(keepingCapacity: true)
             recentPositions.removeAll(keepingCapacity: true)
             history = AgentUsageSummary.snapshot(records: [], limits: [:], live: [], plans: [:],
@@ -320,6 +336,8 @@ final class AgentUsageSummaryCache {
                     models[period].map { Array($0.values) } ?? [], byCost: byCost)
                 history!.periods[period]!.projects = AgentUsageSummary.sorted(
                     projects[period].map { Array($0.values) } ?? [], byCost: byCost)
+                history!.periods[period]!.services = AgentUsageSummary.sorted(
+                    services[period].map { Array($0.values) } ?? [], byCost: byCost)
             }
         }
         changes.removeAll(keepingCapacity: true)
@@ -375,6 +393,7 @@ final class AgentUsageSummaryCache {
             delta.cost -= previous.cost ?? 0
             delta.savings -= previous.savings
             delta.requests -= previous.requests
+            if previous.isFreeModel { delta.freeRequests -= previous.requests }
             delta.unpriced -= previous.cost == nil ? 1 : 0
         }
         history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
@@ -383,12 +402,16 @@ final class AgentUsageSummaryCache {
         }
         let name = names[record.model] ?? AgentPricing.displayName(record.model)
         names[record.model] = name
-        let modelID = record.provider.rawValue + ":" + name
+        let modelID = record.modelShareID
         for period in AgentPeriod.allCases where day > starts.count - 1 - period.days {
             history!.periods[period]!.total += delta
             history!.periods[period]!.byProvider[record.provider, default: AgentTotals()] += delta
             models[period, default: [:]][modelID, default: AgentShare(
-                id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())].totals += delta
+                id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals(),
+                serviceID: record.serviceID, modelID: record.model)].totals += delta
+            services[period, default: [:]][record.serviceShareID, default: AgentShare(
+                id: record.serviceShareID, name: record.serviceName, provider: record.provider, totals: AgentTotals(),
+                serviceID: record.serviceID)].totals += delta
             if !record.project.isEmpty {
                 projects[period, default: [:]][record.project, default: AgentShare(
                     id: record.project, name: record.project, provider: nil, totals: AgentTotals())].totals += delta

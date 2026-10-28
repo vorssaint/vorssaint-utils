@@ -293,7 +293,11 @@ struct OpenCodeReader: AgentHarnessReader {
         let key = "opencode:\(session):\(id.isEmpty ? "\(date.timeIntervalSince1970)" : id)"
         let record = AgentUsageRecord(provider: .opencode, date: date, model: model, project: project,
                                       session: session, tokens: tokens, cost: cost, savings: priced.savings,
-                                      reportedCost: isReported)
+                                      reportedCost: isReported,
+                                      serviceID: json["providerID"] as? String ?? json["provider_id"] as? String
+                                        ?? (json["model"] as? [String: Any])?["providerID"] as? String
+                                        ?? (json["model"] as? [String: Any])?["providerId"] as? String
+                                        ?? (json["model"] as? [String: Any])?["provider"] as? String)
         return .usage(key: key, record: record, billable: billable)
     }
 }

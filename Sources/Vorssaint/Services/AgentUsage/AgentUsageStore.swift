@@ -71,7 +71,8 @@ final class AgentUsageStore {
                 let old = records[position]
                 records[position] = AgentUsageRecord(provider: old.provider, date: old.date, model: model,
                     project: old.project, session: old.session, requests: old.requests,
-                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost)
+                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost,
+                    serviceID: old.serviceID)
                 // Incremental token updates keep the same model; attribution
                 // changes instead rebuild model buckets from the records.
                 summary.invalidate()
@@ -167,6 +168,11 @@ final class AgentUsageStore {
         if let position = index[key] {
             if !sources[position].contains(source) { sources[position].append(source) }
             let old = records[position]
+            if let service = record.serviceID, service != old.serviceID {
+                records[position].serviceID = service
+                // A streamed row can acquire its route after its first usage.
+                summary.invalidate()
+            }
             let merged = old.tokens.merged(with: record.tokens)
             if merged == old.tokens {
                 if record.provider == .opencode {

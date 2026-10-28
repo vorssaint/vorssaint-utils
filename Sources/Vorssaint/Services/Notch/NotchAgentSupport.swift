@@ -7,7 +7,7 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity, resets
+    case limits, spend, live, trend, models, providers, projects, activity, resets
 
     var id: String { rawValue }
 
@@ -18,6 +18,7 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
         case .live: return "waveform.path.ecg"
         case .trend: return "chart.bar.xaxis"
         case .models: return "cpu"
+        case .providers: return "network"
         case .projects: return "folder"
         case .activity: return "square.grid.3x3.fill"
         case .resets: return "arrow.counterclockwise.circle"
@@ -25,10 +26,10 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
     }
 
     /// Charts need the island's width; everything else pairs up.
-    var fullWidth: Bool { self == .trend || self == .activity }
+    var fullWidth: Bool { self == .trend || self == .activity || self == .providers }
 
     /// Cards that cover the period chosen in the island's top row.
-    var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
+    var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .providers || self == .projects }
 }
 
 /// What the closed island shows beside the camera while an agent works.
@@ -303,6 +304,7 @@ enum NotchAgentSupport {
     }
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
+        if row.contains(where: { $0.card == .providers }) { return 188 }
         if row.contains(where: \.card.fullWidth) { return chartHeight }
         return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
     }
