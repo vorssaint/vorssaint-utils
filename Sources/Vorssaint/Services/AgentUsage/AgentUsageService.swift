@@ -78,6 +78,7 @@ final class AgentUsageService: ObservableObject {
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
     private var pageVisible = false
+    private var inputObserver: NSObjectProtocol?
 
     // Confined to `queue`.
     private var readerSession = -1
@@ -131,12 +132,25 @@ final class AgentUsageService: ObservableObject {
             session += 1
             cancellation = Cancellation()
             providers = wanted
+            observeInput()
             start(session: session, providers: Set(wanted), cancellation: cancellation)
         } else if paused {
             resume()
         }
         syncPrices()
         refreshClaudeLimits()
+    }
+
+    /// Claude Code says it waits for you only through its hooks, never in
+    /// its logs, so a hook posts `NotchAgentSupport.inputNotification`.
+    private func observeInput() {
+        guard inputObserver == nil else { return }
+        inputObserver = DistributedNotificationCenter.default().addObserver(
+            forName: NotchAgentSupport.inputNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, self.running, self.providers.contains(.claude),
+                  let kind = (note.object as? String).flatMap(AgentInputKind.init(rawValue:)) else { return }
+            self.events.send(.needsInput(provider: .claude, kind: kind))
+        }
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -190,6 +204,8 @@ final class AgentUsageService: ObservableObject {
         online = true
         paused = false
         session += 1
+        if let inputObserver { DistributedNotificationCenter.default().removeObserver(inputObserver) }
+        inputObserver = nil
         timer?.invalidate()
         timer = nil
         providers = []
@@ -647,6 +663,8 @@ final class AgentUsageService: ObservableObject {
                 guard self.providers.contains(provider), NotchAgentSupport.limitThreshold() != nil else { return }
             case .budgetReached:
                 guard NotchAgentSupport.dailyBudget() != nil else { return }
+            case .needsInput:
+                break
             }
             self.events.send(event)
         }
