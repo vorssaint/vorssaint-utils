@@ -316,13 +316,7 @@ private struct NotchAgentStripSample: View {
     }
 
     private func reading(at now: Date) -> String {
-        var snapshot = usage.snapshot
-        if snapshot.live.isEmpty {
-            snapshot.live = [AgentLiveSession(id: "example", provider: provider, started: now.addingTimeInterval(-754),
-                                              lastActivity: now, model: "", project: "",
-                                              tokens: AgentTokens(input: 1_180_000, cacheWrite: 0, cacheRead: 0, output: 20_000),
-                                              cost: 4.56)]
-        }
+        let snapshot = NotchAgentSupport.stripSampleSnapshot(usage.snapshot, provider: provider, focus: focus, now: now)
         return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, focus: focus, now: now)
     }
 }
