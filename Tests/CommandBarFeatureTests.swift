@@ -264,7 +264,8 @@ enum CommandBarFeatureTests {
                 suite.expect(CommandBarSearch.matchesVerb(query, in: quitFormats),
                              "localized and English quit queries pass the pool gate in \(language)")
             }
-            suite.expect(!CommandBarSearch.matchesVerb("Safari", in: quitFormats),
+            suite.expect(!CommandBarSearch.matchesVerb("Safari", in: quitFormats)
+                         && !CommandBarSearch.matchesVerb("SafariQuitHelper", in: quitFormats),
                          "an ordinary app search never gains quit commands")
             let pairs = [
                 ("answer.battery", bar.answerBatteryLabel, englishBar.answerBatteryLabel, "battery"),
