@@ -27,6 +27,9 @@ enum ClipboardHistoryWindowSizing {
     static let compactDefault = NSSize(width: 560, height: 420)
     static let compactMinimum = NSSize(width: 560, height: 300)
     static let previewExtra = NSSize(width: 280, height: 80)
+    /// The cards' shelf: a toolbar row over one row of cards with room for
+    /// their shadows and selection ring.
+    static let shelfHeight: CGFloat = 335
 
     static func minimumSize(preview: Bool) -> NSSize {
         NSSize(width: compactMinimum.width + (preview ? previewExtra.width : 0),
@@ -167,6 +170,10 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     /// a history written before it existed still decodes, and an older
     /// version reading this file skips the key.
     var sourceBundleID: String?
+    /// The RTF a text copy came with, kept beside the history so its card can
+    /// show the formatting and a paste can bring it back. Its text stays the
+    /// plain `text`, which the search and every plain paste read.
+    var richTextFile: String?
 
     init(id: UUID = UUID(),
          text: String,
@@ -237,6 +244,20 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         kind == .text ? ColorValue(text: text) : nil
     }
 
+    /// The web address a text entry holds, if it holds nothing else, so a
+    /// card can show it as a link. Only http and https with a host qualify.
+    var linkURL: URL? {
+        guard kind == .text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 2048,
+              trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = url.host, !host.isEmpty
+        else { return nil }
+        return url
+    }
+
     /// `preview` collapsed further to a menu bar sized excerpt, for the
     /// optional "show latest copy" status item. `preview` itself renders an
     /// image as bare dimensions (nothing else displays it raw — every other
@@ -283,6 +304,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     private enum CodingKeys: String, CodingKey {
         case id, text, copiedAt, pinnedAt, kind, filePaths, imageFile, imageHash, imageWidth, imageHeight
         case sourceBundleID
+        case richTextFile
     }
 
     init(from decoder: Decoder) throws {
@@ -299,6 +321,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         imageWidth = try container.decodeIfPresent(Int.self, forKey: .imageWidth)
         imageHeight = try container.decodeIfPresent(Int.self, forKey: .imageHeight)
         sourceBundleID = try container.decodeIfPresent(String.self, forKey: .sourceBundleID)
+        richTextFile = try container.decodeIfPresent(String.self, forKey: .richTextFile)
     }
 }
 
@@ -1175,5 +1198,153 @@ enum ClipboardHistoryImageSupport {
     static func isImageFilePath(_ path: String, fileManager: FileManager = .default) -> Bool {
         guard isImageFileName(path) else { return false }
         return fileManager.fileExists(atPath: path)
+    }
+}
+
+/// The color a card's header takes from the app a copy came from: the
+/// average of the icon's saturated, visible pixels, kept dark enough that
+/// white text stays readable on it. Pure math over RGBA bytes, so the view
+/// only has to draw the icon small.
+enum ClipboardCardTint {
+    struct RGB: Equatable {
+        let red: Double
+        let green: Double
+        let blue: Double
+    }
+
+    /// `pixels` holds premultiplied RGBA bytes. Nil when the icon has no
+    /// color to speak of (a monochrome glyph), so the caller falls back.
+    static func headerColor(rgba pixels: [UInt8]) -> RGB? {
+        var red = 0.0, green = 0.0, blue = 0.0, weight = 0.0
+        var index = 0
+        while index + 3 < pixels.count {
+            let alpha = Double(pixels[index + 3]) / 255
+            if alpha > 0.8 {
+                let r = Double(pixels[index]) / 255 / alpha
+                let g = Double(pixels[index + 1]) / 255 / alpha
+                let b = Double(pixels[index + 2]) / 255 / alpha
+                let maximum = max(r, g, b), minimum = min(r, g, b)
+                let saturation = maximum > 0 ? (maximum - minimum) / maximum : 0
+                // Near-white, near-black and gray pixels say nothing about
+                // the app's color; vivid ones say the most.
+                if saturation > 0.3, maximum > 0.25 {
+                    red += r * saturation
+                    green += g * saturation
+                    blue += b * saturation
+                    weight += saturation
+                }
+            }
+            index += 4
+        }
+        // A few stray colored pixels on a gray icon are not its color.
+        guard weight > Double(pixels.count / 4) * 0.04 else { return nil }
+        return readable(RGB(red: red / weight, green: green / weight, blue: blue / weight))
+    }
+
+    /// Keeps white header text legible: a light color is darkened until its
+    /// luminance sits below the threshold, its hue unchanged.
+    static func readable(_ color: RGB, maximumLuminance: Double = 0.62) -> RGB {
+        func luminance(_ c: RGB) -> Double { 0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue }
+        let current = luminance(color)
+        guard current > maximumLuminance, current > 0 else { return color }
+        let factor = maximumLuminance / current
+        return RGB(red: color.red * factor, green: color.green * factor, blue: color.blue * factor)
+    }
+}
+
+/// The RTF that came with text copies, one file per entry beside the
+/// history, and the formatted text a card shows from it.
+enum ClipboardRichTextStore {
+    /// A formatted copy past this is kept as plain text only.
+    static let maxBytes = 1_000_000
+
+    static var directory: URL? {
+        PrivateFileStore.containerURL?.appendingPathComponent("ClipboardRichText", isDirectory: true)
+    }
+
+    private static let cache: NSCache<NSString, NSAttributedString> = {
+        let cache = NSCache<NSString, NSAttributedString>()
+        cache.countLimit = 64
+        return cache
+    }()
+
+    /// Writes the RTF for an entry and returns its file name, or nil when it
+    /// is too big, unreadable as RTF, or cannot be written.
+    static func store(_ data: Data, for id: UUID) -> String? {
+        guard data.count <= maxBytes, NSAttributedString(rtf: data, documentAttributes: nil) != nil,
+              let directory, PrivateFileStore.createDirectory(at: directory) else { return nil }
+        let name = "\(id.uuidString).rtf"
+        do {
+            try data.write(to: directory.appendingPathComponent(name), options: .atomic)
+        } catch {
+            return nil
+        }
+        cache.removeObject(forKey: name as NSString)
+        displayCache.removeObject(forKey: name as NSString)
+        return name
+    }
+
+    static func attributedString(named name: String) -> NSAttributedString? {
+        if let cached = cache.object(forKey: name as NSString) { return cached }
+        guard let url = directory?.appendingPathComponent((name as NSString).lastPathComponent),
+              let data = try? Data(contentsOf: url), data.count <= maxBytes,
+              let text = NSAttributedString(rtf: data, documentAttributes: nil) else { return nil }
+        cache.setObject(text, forKey: name as NSString)
+        return text
+    }
+
+    private static let displayCache: NSCache<NSString, NSAttributedString> = {
+        let cache = NSCache<NSString, NSAttributedString>()
+        cache.countLimit = 128
+        return cache
+    }()
+
+    /// The card's version of a stored copy, made once and kept.
+    static func displayString(named name: String) -> NSAttributedString? {
+        if let shown = displayCache.object(forKey: name as NSString) { return shown }
+        guard let rich = attributedString(named: name) else { return nil }
+        let shown = displayString(rich)
+        displayCache.setObject(shown, forKey: name as NSString)
+        return shown
+    }
+
+    static func remove(named name: String) {
+        cache.removeObject(forKey: name as NSString)
+        displayCache.removeObject(forKey: name as NSString)
+        guard let url = directory?.appendingPathComponent((name as NSString).lastPathComponent) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    /// Removes the files no entry points at any more.
+    static func cleanup(keeping names: Set<String>) {
+        guard let directory,
+              let files = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else { return }
+        for file in files where file.hasSuffix(".rtf") && !names.contains(file) {
+            remove(named: file)
+        }
+    }
+
+    /// The copy as a card shows it: its own fonts, weights and vivid colors,
+    /// at a size that fits the card, while black, gray and white text takes
+    /// the label color so it reads in light and dark alike. Highlights go.
+    static func displayString(_ source: NSAttributedString, maxCharacters: Int = 800) -> NSAttributedString {
+        let length = min(source.length, maxCharacters)
+        let text = NSMutableAttributedString(attributedString:
+            source.attributedSubstring(from: NSRange(location: 0, length: length)))
+        let whole = NSRange(location: 0, length: text.length)
+        text.removeAttribute(.backgroundColor, range: whole)
+        text.enumerateAttribute(.foregroundColor, in: whole) { value, range, _ in
+            let color = (value as? NSColor)?.usingColorSpace(.sRGB)
+            if color.map({ $0.saturationComponent < 0.2 }) ?? true {
+                text.addAttribute(.foregroundColor, value: NSColor.labelColor, range: range)
+            }
+        }
+        text.enumerateAttribute(.font, in: whole) { value, range, _ in
+            let font = (value as? NSFont) ?? NSFont.systemFont(ofSize: 12)
+            let size = min(max(font.pointSize * 0.9, 10), 17)
+            text.addAttribute(.font, value: NSFont(descriptor: font.fontDescriptor, size: size)
+                                  ?? NSFont.systemFont(ofSize: size), range: range)
+        }
+        return text
     }
 }

@@ -623,6 +623,9 @@ def main():
           + "extension ClipboardFeatureTests.QuickPasteHost {\n"
           + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
                         "    private func pasteIntoPreviousApp(").replace("private func", "func", 1)
+          + "".join(declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift", prefix)
+                    .replace("private func", "func", 1)
+                    for prefix in ["    private func afterShelfLeaves(", "    private func shelfDidLeave("])
           + "}\n")
     write("ClipboardPanelPlacement.swift", "import AppKit\n"
           + "extension ClipboardFeatureTests.PanelPlacementHost {\n"
