@@ -824,7 +824,7 @@ enum NotchMusicStripLayout {
 }
 
 enum NotchCompactActivity: String, Identifiable {
-    case timer, watch, downloads, agents, calendar, music, keepAwake
+    case timer, watch, downloads, agents, calendar, music, keepAwake, pasteStack
 
     var id: String { rawValue }
 
@@ -837,10 +837,12 @@ enum NotchCompactActivity: String, Identifiable {
         case .calendar: return FeatureStrings.notchCalendar(language).title
         case .music: return FeatureStrings.notch(language).music
         case .keepAwake: return Strings.localized(language).keepAwakeTitle
+        case .pasteStack: return FeatureStrings.clipboard(language).pasteStackTitle
         }
     }
 
-    /// Keep Awake has no page of its own: its tile is on Controls.
+    /// Keep Awake has no page of its own: its tile is on Controls. A paste
+    /// stack's cards come from the clipboard history.
     var module: NotchModule {
         switch self {
         case .timer: return .timer
@@ -850,11 +852,16 @@ enum NotchCompactActivity: String, Identifiable {
         case .calendar: return .calendar
         case .music: return .music
         case .keepAwake: return .controls
+        case .pasteStack: return .clipboard
         }
     }
 
     var symbol: String {
-        self == .keepAwake ? NotchControlItem.keepAwake.symbol : module.symbol
+        switch self {
+        case .keepAwake: return NotchControlItem.keepAwake.symbol
+        case .pasteStack: return NotchPasteStackSupport.symbol
+        default: return module.symbol
+        }
     }
 }
 
@@ -1151,6 +1158,13 @@ enum NotchCapsuleLayout {
                                   geometry: geometry, language: language)
         return surface(content: mark + markGap(.calendar) + calendarClockWidth(leadTime: calendarLeadTime),
                        leading: companion == .music ? artworkInset(geometry) : endPadding,
+                       maximum: Maximum.activity, geometry: geometry)
+    }
+
+    /// A paste stack's mark and the number of cards it has left.
+    static func pasteStackSurface(count: Int, geometry: NotchGeometry) -> CGSize {
+        let mark = NotchKeepAwakeSupport.symbolWidth(NotchPasteStackSupport.symbol, size: symbolSize)
+        return surface(content: mark + spacing + width("\(count)", font: readingFont),
                        maximum: Maximum.activity, geometry: geometry)
     }
 
@@ -1792,8 +1806,11 @@ enum NotchSupport {
     /// music plays, and it only says that the Mac stays awake. A watch
     /// follows the timer: the person started both and is waiting on them.
     static func compactActivities(timer: Bool, watch: Bool = false, downloads: Bool, agents: Bool,
-                                  calendar: Bool, music: Bool, keepAwake: Bool = false) -> [NotchCompactActivity] {
+                                  calendar: Bool, music: Bool, keepAwake: Bool = false,
+                                  pasteStack: Bool = false) -> [NotchCompactActivity] {
+        // A paste stack lasts only while the person pastes it, so it leads.
         let candidates: [(Bool, NotchCompactActivity)] = [
+            (pasteStack, .pasteStack),
             (timer, .timer), (watch, .watch), (downloads, .downloads), (agents, .agents),
             (calendar, .calendar), (music, .music), (keepAwake, .keepAwake)
         ]
@@ -3203,5 +3220,28 @@ enum NotchTranslucentTint {
             (Double($0 / height), opacity(atDepth: $0, stripHeight: stripHeight,
                                           openness: openness, increasedContrast: increasedContrast))
         }
+    }
+}
+
+/// The closed island while a paste stack runs: its mark, and how many cards
+/// are left to paste, in the clipboard's blue.
+enum NotchPasteStackSupport {
+    static let symbol = "square.stack.3d.down.right.fill"
+
+    /// The wider side, the mark or the count, with air beside the camera,
+    /// measured as the strip draws them.
+    static func stripWing(count: Int, in geometry: NotchGeometry) -> CGFloat {
+        let provisional = geometry.compactTimerGeometry(showsDownloads: false,
+                                                        wing: NotchTimerSupport.stripWingRange.lowerBound)
+        let height = provisional.compactActivityContentHeight
+        let textSize = NotchTimerSupport.stripTextSize(height: height)
+        let reading = ("\(count)" as NSString)
+            .size(withAttributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: textSize, weight: .semibold)])
+            .width.rounded(.up)
+        let iconSize = NotchTimerSupport.stripIconSize(height: height)
+        let mark = NotchKeepAwakeSupport.symbolWidth(symbol, size: iconSize)
+            + provisional.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2)
+        return max(reading + provisional.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0), mark)
+            + NotchTimerSupport.stripCameraGap
     }
 }

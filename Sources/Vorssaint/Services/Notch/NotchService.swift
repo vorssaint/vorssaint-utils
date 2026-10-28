@@ -538,6 +538,11 @@ final class NotchService: ObservableObject {
         NotchKeepAwakeSupport.showsActivity() && KeepAwakeManager.shared.isActive
     }
 
+    var hasPasteStackActivity: Bool { pasteStackCount > 0 }
+
+    /// The cards a running paste stack has left.
+    var pasteStackCount: Int { ClipboardHistoryService.shared.pasteStackIDs.count }
+
     var compactActivity: NotchCompactActivity? {
         // A new song waiting for its notice is not drawn yet.
         activitySelection.current(available: awaitsTrackNotice ? compactActivities.filter { $0 != .music } : compactActivities)
@@ -546,7 +551,8 @@ final class NotchService: ObservableObject {
     var compactActivities: [NotchCompactActivity] {
         NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, downloads: hasDownloadActivity,
                                       agents: hasAgentActivity, calendar: hasCalendarActivity,
-                                      music: hasMusicActivity, keepAwake: hasKeepAwakeActivity)
+                                      music: hasMusicActivity, keepAwake: hasKeepAwakeActivity,
+                                      pasteStack: hasPasteStackActivity)
     }
 
     var showsCompactActivityPicker: Bool {
@@ -672,6 +678,10 @@ final class NotchService: ObservableObject {
                                                     paired: companion != nil)
         // Its reading is a countdown like the timer's, so it takes the timer's wings.
         case .keepAwake: return geometry.compactTimerGeometry(showsDownloads: false, wing: keepAwakeStripWing(in: geometry))
+        case .pasteStack:
+            return geometry.compactTimerGeometry(
+                showsDownloads: false,
+                wing: NotchPasteStackSupport.stripWing(count: pasteStackCount, in: geometry))
         default: return geometry
         }
     }
@@ -1088,6 +1098,8 @@ final class NotchService: ObservableObject {
                 NotchKeepAwakeSupport.compactText(until: $0, now: Date(), locale: Locale(identifier: language.rawValue))
             }
             return layout.keepAwakeSurface(reading: reading, geometry: geometry)
+        case .pasteStack:
+            return layout.pasteStackSurface(count: pasteStackCount, geometry: geometry)
         }
     }
 
@@ -4203,6 +4215,14 @@ final class NotchService: ObservableObject {
                     self?.refreshPresentation()
                 }.store(in: &subscriptions)
         }
+        // A paste stack starting, ending, or its count changing, which can
+        // change the wings it needs.
+        ClipboardHistoryService.shared.$pasteStackIDs.map(\.count).removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+                self?.refreshPresentation()
+            }.store(in: &subscriptions)
         if NotchSupport.routes(.agents) {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showAgentEvent($0) }

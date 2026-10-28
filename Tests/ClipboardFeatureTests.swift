@@ -18,6 +18,7 @@ enum ClipboardFeatureTests {
     final class PanelPlacementHost {
         enum Screen {
             static let pointerVisibleFrame = CGRect(x: 0, y: 25, width: 1512, height: 920)
+            static let pointerFrame = CGRect(x: 0, y: 0, width: 1512, height: 982)
         }
         typealias NSScreen = Screen
         enum UserDefaults {
@@ -55,6 +56,8 @@ enum ClipboardFeatureTests {
         var events: [String] = []
         var trusted = true
         var promptedForAccessibility = false
+        var shelfIsSlidingOut = false
+        var shelfDepartureWork: [() -> Void] = []
         init() { Self.host = self }
         func AXIsProcessTrusted() -> Bool { trusted }
         static func postPasteShortcut() { host?.events.append("paste") }
@@ -435,6 +438,47 @@ enum ClipboardFeatureTests {
         suite.expect(searchCache.foldCount == initialFoldCount,
                      "keystrokes reuse folded entries without refolding a single one")
 
+        // A running paste stack leads the closed island, opens the clipboard
+        // page, and is named in every language.
+        suite.expect(NotchSupport.compactActivities(timer: true, downloads: false, agents: false, calendar: false,
+                                                    music: true, pasteStack: true).first == .pasteStack
+                && !NotchSupport.compactActivities(timer: true, downloads: false, agents: false, calendar: false,
+                                                   music: true).contains(.pasteStack)
+                && NotchCompactActivity.pasteStack.module == .clipboard
+                && AppLanguage.allCases.allSatisfy { !NotchCompactActivity.pasteStack.title($0).isEmpty },
+               "a paste stack leads the closed island only while it runs and opens the clipboard")
+        // A card shows a link only for an entry that is one web address.
+        suite.expect(ClipboardHistoryEntry(text: "  https://example.com/home  ").linkURL?.host == "example.com"
+                && ClipboardHistoryEntry(text: "http://example.com/a?b=c").linkURL != nil,
+               "a copied web address reads as a link")
+        suite.expect(ClipboardHistoryEntry(text: "see https://example.com").linkURL == nil
+                && ClipboardHistoryEntry(text: "file:///Users/me/notes.txt").linkURL == nil
+                && ClipboardHistoryEntry(text: "mailto:me@example.com").linkURL == nil
+                && ClipboardHistoryEntry(text: "https://").linkURL == nil
+                && ClipboardHistoryEntry(text: "https://example.com", kind: .files,
+                                         filePaths: ["/tmp/a"]).linkURL == nil,
+               "text around an address, other schemes and non-text entries are not links")
+        // The header takes an icon's vivid color, never its gray or white,
+        // and stays dark enough for white text.
+        func pixels(_ rgba: [(UInt8, UInt8, UInt8, UInt8)]) -> [UInt8] {
+            rgba.flatMap { [$0.0, $0.1, $0.2, $0.3] }
+        }
+        let greenIcon = pixels(Array(repeating: (40, 200, 70, 255), count: 30)
+                               + Array(repeating: (250, 250, 250, 255), count: 30)
+                               + Array(repeating: (0, 0, 0, 0), count: 40))
+        if let tint = ClipboardCardTint.headerColor(rgba: greenIcon) {
+            suite.expect(tint.green > tint.red && tint.green > tint.blue,
+                   "an icon's vivid color wins over its white")
+        } else {
+            suite.expect(false, "an icon with a vivid color yields a header color")
+        }
+        let grayIcon = pixels(Array(repeating: (128, 128, 128, 255), count: 100))
+        suite.expect(ClipboardCardTint.headerColor(rgba: grayIcon) == nil,
+               "a gray icon has no color, so the card falls back to its kind's")
+        let yellow = ClipboardCardTint.readable(ClipboardCardTint.RGB(red: 1, green: 0.85, blue: 0.1))
+        suite.expect(0.2126 * yellow.red + 0.7152 * yellow.green + 0.0722 * yellow.blue <= 0.6201
+                && yellow.red > yellow.green && yellow.green > yellow.blue,
+               "a light color darkens for white text and keeps its hue")
         let newEntry = ClipboardHistoryEntry(text: "Brand new clipboard item")
         testEntries.append(newEntry)
         let updatedCandidates = searchCache.candidates(for: testEntries, stamp: 2, imageLabel: "Image")
@@ -737,10 +781,14 @@ enum ClipboardFeatureTests {
                                      backing: .buffered, defer: true)
         let placementScreen = PanelPlacementHost.Screen.pointerVisibleFrame
         placement.position(placementPanel)
+        let placementFullScreen = PanelPlacementHost.Screen.pointerFrame
         suite.expect(!placementPanel.styleMask.contains(.resizable)
-                     && placementPanel.frame == NSRect(x: placementScreen.minX + 16, y: placementScreen.minY + 8,
-                                                       width: placementScreen.width - 32, height: 318),
-               "the cards make a shelf along the bottom of the screen that does not resize")
+                     && placementPanel.frame == NSRect(x: placementFullScreen.minX + 8,
+                                                       y: placementFullScreen.minY + 8,
+                                                       width: placementFullScreen.width - 16,
+                                                       height: ClipboardHistoryWindowSizing.shelfHeight)
+                     && placementPanel.level == .mainMenu,
+               "the cards make a shelf along the screen's bottom edge, over the Dock, that does not resize")
         placement.quickLayout = .list
         placement.position(placementPanel)
         suite.expect(placementPanel.styleMask.contains(.resizable)
@@ -950,6 +998,15 @@ enum ClipboardFeatureTests {
                    && !clipboardStrings.historyLayoutList.isEmpty
                    && clipboardStrings.historyLayoutCards != clipboardStrings.historyLayoutList,
                    "\(language.rawValue) clipboard history layout choice is localized")
+            suite.expect([clipboardStrings.cardKindText, clipboardStrings.cardKindLink,
+                          clipboardStrings.cardKindColor, clipboardStrings.cardKindFile]
+                            .allSatisfy { !$0.isEmpty }
+                   && String(format: clipboardStrings.cardCharacterCountFormat, 42).contains("42"),
+                   "\(language.rawValue) clipboard card kinds and character count are localized")
+            suite.expect([clipboardStrings.pasteStackTitle, clipboardStrings.pasteStackEnd,
+                          clipboardStrings.pasteStackAdd].allSatisfy { !$0.isEmpty }
+                   && String(format: clipboardStrings.pasteStackRemainingFormat, 2).contains("2"),
+                   "\(language.rawValue) the clipboard paste stack is localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty
@@ -1619,6 +1676,19 @@ enum ClipboardFeatureTests {
             suite.expect(host.events == expected,
                    "quick paste beeps or asks for Accessibility when it cannot paste, found \(host.events)")
         }
+        // The shelf keeps the keyboard while it slides away, so Command-V
+        // waits for it to leave; a shelf that never leaves pastes nothing.
+        let slidingHost = QuickPasteHost()
+        slidingHost.shelfIsSlidingOut = true
+        slidingHost.pasteIntoPreviousApp(QuickPasteHost.App(isTerminated: false))
+        suite.expect(slidingHost.events == ["activate"],
+               "a paste from the shelf waits while it slides away, found \(slidingHost.events)")
+        slidingHost.shelfDidLeave()
+        suite.expect(slidingHost.events == ["activate", "paste"] && !slidingHost.shelfIsSlidingOut,
+               "the paste follows once the shelf has left the screen, found \(slidingHost.events)")
+        slidingHost.shelfDidLeave()
+        suite.expect(slidingHost.events == ["activate", "paste"],
+               "a paste waiting for the shelf runs only once")
         for trusted in [true, false] {
             let host = QuickPasteHost()
             host.trusted = trusted
