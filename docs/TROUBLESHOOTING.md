@@ -75,6 +75,25 @@ starting a multiplexer or a slow prompt:
 [[ -n $VORSSAINT_RESOLVING_ENVIRONMENT ]] && return
 ```
 
+## Keeping settings in your dotfiles
+
+At launch, Vorssaint applies an optional settings file at
+`~/.config/vorssaint/settings.plist`, or `$XDG_CONFIG_HOME/vorssaint/` when
+that is an absolute path. The Developer build reads `vorssaint-dev/` instead.
+The app never writes, moves or deletes this file, so a read-only link, such
+as one from Nix, works. Create it, or update it after changing settings in
+the app, with an export:
+
+```sh
+/Applications/Vorssaint.app/Contents/MacOS/Vorssaint --export-settings ~/.config/vorssaint/settings.plist
+```
+
+The file holds the same settings as a backup and is applied the same way.
+Settings changed in the app last only until the next launch unless you
+export again. A file that is not a valid backup is ignored. Apps opened from
+Finder do not see `XDG_CONFIG_HOME` from `~/.zshrc`; set it with
+`launchctl setenv XDG_CONFIG_HOME "$HOME/.config"` and reopen Vorssaint.
+
 ## Resetting permissions
 
 To wipe Vorssaint's granted permissions and let macOS ask again from scratch, pick one of these.
