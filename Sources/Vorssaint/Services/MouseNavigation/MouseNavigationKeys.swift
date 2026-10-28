@@ -113,27 +113,43 @@ enum MouseNavigationKeys {
     /// for the rare fallback that has to type the shortcut instead of pressing
     /// the menu item. Nil when no key produces it without Option, which is the
     /// case the system's own move exists to avoid.
-    static func keyStroke(for character: String) -> (keyCode: CGKeyCode, needsShift: Bool)? {
-        guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+    static func keyStroke(for character: String, command: Bool = false) -> (keyCode: CGKeyCode, needsShift: Bool)? {
+        guard Thread.isMainThread,
+              let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
               let pointer = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else {
             return nil
         }
         let data = Unmanaged<CFData>.fromOpaque(pointer).takeUnretainedValue() as Data
+        return keyStroke(for: character, layout: data, command: command)
+    }
+
+    /// Some layouts, including Dvorak–QWERTY Command, have a distinct
+    /// Command map. Resolve the same modifiers the caller will actually post.
+    static func keyStroke(for character: String, layout: Data,
+                           command: Bool) -> (keyCode: CGKeyCode, needsShift: Bool)? {
         // Plain keys first: a shortcut that needs Shift is a worse match than
         // the same character sitting on a key of its own.
         for needsShift in [false, true] {
-            for keyCode in UInt16(0)...127 where producedCharacter(from: data, keyCode: keyCode, shift: needsShift) == character {
+            for keyCode in UInt16(0)...127
+                where keyCode != UInt16(kVK_ANSI_KeypadPlus) && keyCode != UInt16(kVK_ANSI_KeypadMinus)
+                    && producedCharacter(from: layout, keyCode: keyCode, shift: needsShift, command: command) == character {
                 return (CGKeyCode(keyCode), needsShift)
             }
+        }
+        // The US Command table suppresses Shift for punctuation and reports
+        // "=" for Shift-Command-Equal too. Standard zoom-in uses that key;
+        // resolve Equal in the Command map, never in the typing layout.
+        if command, character == "+", let equal = keyStroke(for: "=", layout: layout, command: true) {
+            return (equal.keyCode, true)
         }
         return nil
     }
 
-    private static func producedCharacter(from layout: Data, keyCode: UInt16, shift: Bool) -> String? {
+    private static func producedCharacter(from layout: Data, keyCode: UInt16, shift: Bool, command: Bool) -> String? {
         var deadKeyState: UInt32 = 0
         var length = 0
         var characters = [UniChar](repeating: 0, count: 8)
-        let modifiers = shift ? UInt32(shiftKey >> 8) : 0
+        let modifiers = UInt32(((shift ? shiftKey : 0) | (command ? cmdKey : 0)) >> 8)
         let status = layout.withUnsafeBytes { raw -> OSStatus in
             guard let base = raw.bindMemory(to: UCKeyboardLayout.self).baseAddress else { return -1 }
             return UCKeyTranslate(base,

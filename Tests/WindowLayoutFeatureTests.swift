@@ -13,6 +13,8 @@ import VMStatisticsCompat
 
 enum WindowLayoutFeatureTests {
     static func run(_ suite: TestSuite) {
+        WindowStageManagerTests.run(suite)
+        WindowStageManagerMaximizerTests.run(suite)
         WindowDirectionalModifierRuntimeTests.run(suite)
         WindowEdgeSnapRuntimeTests.run(suite)
         WindowGestureApplyRuntimeTests.run(suite)

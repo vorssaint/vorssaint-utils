@@ -70,6 +70,121 @@ enum NotchPresentationProbe {
             && !path.contains(CGPoint(x: x, y: box.maxY - 1))
     }
 
+    /// Native host contracts run with transparent panels. A second geometry
+    /// exercises relocation even on one display; only a physical second display
+    /// can establish that the handoff looks continuous on both screens.
+    private static func checkRelocation(screen: NSScreen) -> [String] {
+        var failures: [String] = []
+        let geometry = NotchGeometry(screen: screen.frame, safeAreaTop: 32, cameraWidth: 210)
+        let destination = NSScreen.screens.first { $0.frame != screen.frame }?.frame
+            ?? screen.frame.offsetBy(dx: screen.frame.width, dy: 0)
+        let away = NotchGeometry(screen: destination, safeAreaTop: 0, cameraWidth: 0, silhouette: .capsule)
+        func advance(_ seconds: TimeInterval) {
+            RunLoop.current.run(until: Date().addingTimeInterval(seconds))
+        }
+        for ignored in [false, true] {
+            let host = NotchWindowHost(content: AnyView(Color.clear), geometry: geometry, size: geometry.expanded,
+                                      quickAccess: { _, _ in AnyView(Color.clear) })
+            host.panel.alphaValue = 0
+            host.setMouseEventsIgnored(ignored)
+            host.present(size: geometry.expanded, geometry: geometry, animated: false, quickAccess: .initial)
+            host.panel.orderFrontRegardless()
+
+            if !host.orderOutForRelocation() || host.panel.isVisible || !host.canRelocateOnScreen()
+                || !host.orderOutForRelocation() {
+                failures.append("a repeated display move lost its pending native arrival")
+            }
+            host.present(size: geometry.expanded, geometry: geometry, animated: false, quickAccess: .initial)
+            host.orderFrontForRelocation()
+            if !host.panel.isVisible || host.panel.ignoresMouseEvents != ignored || host.panel.alphaValue != 0
+                || host.panel.holdsWave || host.contentProbeOpacity != 1 {
+                failures.append("relocation changed the panel's mouse policy, opacity or content")
+            }
+
+            // Hiding and reopening before the queued arrival must still show
+            // the island, at the same requested size and with the saved policy.
+            _ = host.orderOutForRelocation()
+            host.hide(animated: true)
+            if host.panel.isVisible || !host.panel.ignoresMouseEvents || host.targetSize.height != 0
+                || host.quickAccessProbeInteractive || host.panel.holdsWave {
+                failures.append("hiding during relocation did not finish the ordinary hide lifecycle")
+            }
+            host.present(size: geometry.expanded, geometry: geometry, animated: false, quickAccess: .initial)
+            host.orderFrontForRelocation()
+            if !host.panel.isVisible || host.panel.ignoresMouseEvents != ignored || host.panel.alphaValue != 0
+                || host.contentProbeOpacity != 1 || !host.quickAccessProbeInteractive {
+                failures.append("reopening during relocation lost input, content or floating controls")
+            }
+
+            _ = host.orderOutForRelocation()
+            host.setMouseEventsIgnored(!ignored)
+            host.hide(animated: false)
+            host.present(size: geometry.expanded, geometry: geometry, animated: false)
+            host.orderFrontForRelocation()
+            if host.panel.ignoresMouseEvents != !ignored {
+                failures.append("hiding a relocation lost a mouse policy changed during the move")
+            }
+            _ = host.orderOutForRelocation()
+            host.hide(animated: false)
+            host.setMouseEventsIgnored(ignored)
+            host.orderFrontForRelocation()
+            if host.panel.isVisible || host.panel.holdsWave {
+                failures.append("a cancelled arrival revealed a hidden island")
+            }
+            host.present(size: geometry.expanded, geometry: geometry, animated: false)
+            host.panel.orderFrontRegardless()
+            if host.panel.ignoresMouseEvents != ignored || host.contentProbeOpacity != 1 {
+                failures.append("reopening after a cancelled arrival lost the updated mouse policy or content")
+            }
+
+            _ = host.orderOutForRelocation()
+            host.probeOnNextLayout { host.hide(animated: false) }
+            host.orderFrontForRelocation()
+            if host.panel.isVisible || host.panel.holdsWave || host.canRelocateOnScreen() {
+                failures.append("a hide during arrival layout failed to cancel the native reveal")
+            }
+            host.present(size: geometry.expanded, geometry: geometry, animated: false)
+            host.panel.orderFrontRegardless()
+            _ = host.orderOutForRelocation()
+            host.probeOnNextLayout {
+                _ = host.orderOutForRelocation()
+                host.present(size: away.expanded, geometry: away, animated: false)
+            }
+            host.orderFrontForRelocation()
+            if host.panel.isVisible || !host.canRelocateOnScreen() {
+                failures.append("arrival layout let an older move reveal a newer destination")
+            }
+            host.orderFrontForRelocation()
+
+            // A screen change during a live shape/content animation settles on
+            // the destination and releases the waiters exactly once.
+            host.present(size: geometry.collapsed, geometry: geometry, animated: false)
+            host.present(size: geometry.expanded, geometry: geometry, animated: true,
+                         transitionContent: .reveal, quickAccess: .initial)
+            var settled = 0
+            host.whenSettled { settled += 1 }
+            advance(0.06)
+            _ = host.orderOutForRelocation()
+            host.present(size: away.expanded, geometry: away, animated: true, quickAccess: .initial)
+            advance(0.04)
+            if host.panel.isVisible || settled != 1 || host.contentProbeOpacity != 1 {
+                failures.append("a screen change during animation revealed early or retained its old transition")
+            }
+            host.orderFrontForRelocation()
+            if !host.panel.isVisible || abs(host.panel.frame.maxY - destination.maxY) > 0.5
+                || host.panel.ignoresMouseEvents != ignored || host.panel.alphaValue != 0 {
+                failures.append("an animated island failed to arrive with its geometry and interaction intact")
+            }
+            _ = host.orderOutForRelocation()
+            host.close()
+            host.orderFrontForRelocation()
+            if host.panel.isVisible || host.panel.holdsWave || host.canRelocateOnScreen() {
+                failures.append("a late arrival revived a closed native host")
+            }
+        }
+        return failures
+    }
+
     private static func checkHiddenReveal(screen: NSScreen) -> [String] {
         var failures: [String] = []
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -456,7 +571,7 @@ enum NotchPresentationProbe {
         host.panel.alphaValue = 0
         host.panel.ignoresMouseEvents = true
         host.panel.orderFrontRegardless()
-        var failures = checkHiddenReveal(screen: screen)
+        var failures = checkHiddenReveal(screen: screen) + checkRelocation(screen: screen)
         for height: CGFloat in [16, 24, 32, 64] {
             let path = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: height))
                 .path(in: CGRect(x: 0, y: 0, width: 180, height: height)).cgPath
@@ -730,6 +845,40 @@ enum NotchPresentationProbe {
         }
         advance(0.60)
         if !matchesNativeFrame(host.panel.frame, geometry.frame(for: geometry.collapsed)) { failures.append("interrupted motion did not settle") }
+        // The Command Bar's rows, measured while the island opens around its
+        // field, move the target further down. Asked for as SwiftUI draws
+        // them, the resize reaches the screen only with them, a few frames on;
+        // the island carries on from where it has got to by then.
+        if !reduceMotion {
+            let field = CGSize(width: geometry.expanded.width, height: geometry.collapsed.height + 40)
+            host.present(size: field, geometry: geometry, animated: true, transitionContent: .reveal)
+            advance(0.03)
+            let earlier = host.visibleFrame.width
+            advance(0.03)
+            let before = host.visibleFrame.width
+            CATransaction.begin()
+            host.present(size: geometry.expanded, geometry: geometry, animated: true)
+            Thread.sleep(forTimeInterval: 0.03)
+            CATransaction.commit()
+            var widths = [host.visibleFrame.width]
+            if widths[0] < before + (before - earlier) / 2 {
+                failures.append("an opening island went back as its target moved on: \(Int(earlier)), \(Int(before)), \(Int(widths[0]))")
+            }
+            let began = CACurrentMediaTime()
+            while CACurrentMediaTime() - began < 0.12 {
+                advance(0.008)
+                widths.append(host.visibleFrame.width)
+            }
+            if zip(widths, widths.dropFirst()).contains(where: { $1 < $0 - 0.5 }) {
+                failures.append("a carried opening narrowed before reaching its width")
+            }
+            advance(0.6)
+            if !matchesNativeFrame(host.panel.frame, geometry.frame(for: geometry.expanded)) {
+                failures.append("a carried opening did not settle at its new size")
+            }
+            host.present(size: geometry.collapsed, geometry: geometry, animated: true, transitionContent: .dismiss)
+            advance(0.6)
+        }
         noticeHeightLimit = geometry.notice.height
         for wing in [CGFloat(112), 190, 240] {
             let size = geometry.noticeSize(wingWidth: wing)

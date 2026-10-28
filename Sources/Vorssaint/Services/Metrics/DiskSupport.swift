@@ -99,6 +99,18 @@ struct DiskReading: Equatable {
 enum DiskSupport {
     static let nvmeDataUnitBytes: UInt64 = 512_000
 
+    /// Important-use capacity can add reclaimable space, but must never hide
+    /// bytes already free on the volume. Keep a real zero distinct from a
+    /// missing reading, and calculate physical usage from the raw free count.
+    static func capacity(total: UInt64, rawFree: UInt64?, importantFree: UInt64?)
+        -> (free: UInt64, used: UInt64, purgeable: UInt64?)? {
+        guard total > 0, rawFree != nil || importantFree != nil else { return nil }
+        let free = min(total, max(rawFree ?? 0, importantFree ?? 0))
+        let physicalFree = min(total, rawFree ?? free)
+        let purgeable = rawFree != nil && free > physicalFree ? free - physicalFree : nil
+        return (free, total - physicalFree, purgeable)
+    }
+
     /// Short user-facing label for a volume format. `type` is the mount table
     /// token (statfs f_fstypename / diskutil FilesystemType); `name` is the
     /// verbose diskutil FilesystemName, used only to tell FAT widths apart.

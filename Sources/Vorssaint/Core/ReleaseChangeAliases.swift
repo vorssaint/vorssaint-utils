@@ -72,6 +72,7 @@ enum ReleaseChangeAliases {
         case .scrollInverter: return ["scroll inverter", "invert mouse scrolling", "inverted mouse scrolling",
             "invert scrolling", "inverted scrolling", "scroll inversion"]
         case .scrollHorizontal: return ["scroll sideways", "horizontal scrolling"]
+        case .scrollZoom: return ["scroll zoom", "vertical zoom", "pinch zoom"]
         case .focusFollowsMouse: return ["focus follows mouse", "focus follows the mouse"]
         case .smoothScroll: return ["smooth scrolling", "smooth scroll"]
         case .linearScroll: return ["linear scrolling", "linear scroll"]
@@ -113,6 +114,7 @@ enum ReleaseChangeAliases {
         case .bluetoothSleep: return ["bluetooth on sleep", "bluetooth power", "bluetooth off during sleep"]
         case .quickLauncher: return ["quick panel", "quick launcher"]
         case .quickToggles: return ["quick toggles"]
+        case .quitApps: return ["quit apps", "quit all apps"]
         case .colorPicker: return ["color picker"]
         case .screenOCR: return ["copy text from screen", "screen ocr"]
         case .cleaningMode: return ["cleaning mode"]

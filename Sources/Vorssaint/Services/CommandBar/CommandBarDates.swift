@@ -131,7 +131,7 @@ enum CommandBarDates {
         var amount: Int?
         var component: Calendar.Component?
         for index in tokens.indices.dropLast() {
-            guard let value = Int(tokens[index]), abs(value) <= 10_000,
+            guard let value = Int(tokens[index]), value.magnitude <= 10_000,
                   let unit = units[tokens[index + 1]] else { continue }
             amount = value
             component = unit

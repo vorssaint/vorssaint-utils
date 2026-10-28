@@ -292,6 +292,42 @@ struct HomebrewPendingAction {
     }
 }
 
+/// A command handed to the person's own terminal, never a named app: an
+/// executable file with no extension, which macOS types as a Unix executable
+/// and opens with the app the person chose to run those. A `.command` file
+/// would not do, because Terminal keeps that type even on a Mac where another
+/// terminal runs every other script. The file deletes itself as it starts,
+/// then passes the command to the login shell, which reads it in its own
+/// syntax, as it did when Terminal typed it in.
+enum HomebrewTerminalScript {
+    static func contents(command: String, shellPath: String) -> String {
+        let shell = shellPath.isEmpty ? "/bin/sh" : shellPath
+        // csh and tcsh accept -l only as their sole argument. Their interactive
+        // command mode still reads the shell's startup configuration.
+        let name = URL(fileURLWithPath: shell).lastPathComponent
+        let arguments = ["csh", "tcsh"].contains(name) ? "-i -c" : "-l -i -c"
+        return """
+        #!/bin/sh
+        rm -f -- "$0"
+        exec \(HomebrewCommandBuilder.shellQuote(shell)) \(arguments) \(HomebrewCommandBuilder.shellQuote(command))
+
+        """
+    }
+
+    /// Readable and runnable by the person alone, in their own temporary folder.
+    static func write(command: String,
+                      shellPath: String = HomebrewCommandBuilder.currentShellPath,
+                      directory: URL = FileManager.default.temporaryDirectory) throws -> URL {
+        let url = directory.appendingPathComponent("vorssaint-homebrew-\(UUID().uuidString)")
+        let data = Data(contents(command: command, shellPath: shellPath).utf8)
+        guard FileManager.default.createFile(atPath: url.path, contents: data,
+                                             attributes: [.posixPermissions: 0o700]) else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
+        }
+        return url
+    }
+}
+
 enum HomebrewCommandBuilder {
     static let candidatePaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
     static let installerCommand = #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#

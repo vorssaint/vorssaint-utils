@@ -838,6 +838,66 @@ enum RepositoryFeatureTests {
                "sudo terminal error triggers Homebrew terminal fallback")
         suite.expect(HomebrewCommandBuilder.installerCommand == #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#,
                "Homebrew installer command matches the official install script entrypoint")
+        // The terminal handoff: a script the person's own terminal runs once in
+        // their own shell, leaving nothing behind (issue #598).
+        do {
+            let folder = FileManager.default.temporaryDirectory
+                .appendingPathComponent("vorssaint-terminal-script-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            // A stand-in login shell that writes down the arguments it was given.
+            let shell = folder.appendingPathComponent("shell")
+            let received = folder.appendingPathComponent("received")
+            try? "#!/bin/sh\nprintf '%s\\n' \"$@\" > \(HomebrewCommandBuilder.shellQuote(received.path))\n"
+                .write(to: shell, atomically: true, encoding: .utf8)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: shell.path)
+            let command = #"eval (/opt/homebrew/bin/brew shellenv fish); echo "it's $HOME" 'a\b'"#
+            let script = try? HomebrewTerminalScript.write(command: command, shellPath: shell.path, directory: folder)
+            let permissions = script
+                .flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path)[.posixPermissions] as? NSNumber }
+            suite.expect(script?.pathExtension == "" && permissions?.intValue == 0o700,
+                   "the terminal script has no extension, so macOS opens it in the terminal the person chose, "
+                   + "and only they can read or run it")
+            if let script {
+                let process = Process()
+                process.executableURL = script
+                try? process.run()
+                process.waitUntilExit()
+            }
+            let arguments = (try? String(contentsOf: received, encoding: .utf8))?
+                .split(separator: "\n", omittingEmptySubsequences: false).map(String.init) ?? []
+            suite.expect(arguments == ["-l", "-i", "-c", command, ""],
+                   "the terminal script hands the command, unchanged, to the person's own shell as a login "
+                   + "and interactive shell, the way Terminal ran it before, found \(arguments)")
+            suite.expect(script.map { !FileManager.default.fileExists(atPath: $0.path) } ?? false,
+                   "the terminal script deletes itself as it runs")
+            do {
+                for shellPath in ["/bin/csh", "/bin/tcsh"] {
+                    let output = folder.appendingPathComponent(URL(fileURLWithPath: shellPath).lastPathComponent)
+                    let command = "/usr/bin/printf '%s' 'terminal handoff' > "
+                        + HomebrewCommandBuilder.shellQuote(output.path)
+                    let script = try HomebrewTerminalScript.write(command: command,
+                                                                   shellPath: shellPath, directory: folder)
+                    let process = Process()
+                    process.executableURL = script
+                    let input = Pipe()
+                    process.standardInput = input
+                    try process.run()
+                    try input.fileHandleForWriting.close()
+                    process.waitUntilExit()
+                    suite.expect(process.terminationStatus == 0
+                                 && (try? String(contentsOf: output, encoding: .utf8)) == "terminal handoff",
+                                 "the production terminal script runs commands in \(shellPath)")
+                    suite.expect(!FileManager.default.fileExists(atPath: script.path),
+                                 "the \(shellPath) terminal script removes itself")
+                }
+            } catch {
+                suite.expect(false, "could not run the csh terminal handoff: \(error)")
+            }
+            suite.expect((try? HomebrewTerminalScript.write(command: command, shellPath: shell.path,
+                                                            directory: folder.appendingPathComponent("missing"))) == nil,
+                   "a terminal script that cannot be written reports an error instead of opening nothing")
+        }
         expectEqual(HomebrewCommandBuilder.shellProfilePath(homeDirectory: "/Users/test", shellPath: "/bin/zsh"),
                     "/Users/test/.zprofile",
                     "Homebrew shell setup uses zprofile for zsh")

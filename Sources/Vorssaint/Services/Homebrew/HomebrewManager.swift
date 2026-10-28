@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Combine
 import Darwin
 import Foundation
@@ -304,8 +305,8 @@ final class HomebrewManager: ObservableObject {
 
     func openHomebrewInstaller() {
         errorMessage = nil
-        if openTerminal(command: HomebrewCommandBuilder.installerCommand) {
-            didOpenInstaller = true
+        openTerminal(command: HomebrewCommandBuilder.installerCommand) { [weak self] in
+            self?.didOpenInstaller = true
         }
     }
 
@@ -314,8 +315,8 @@ final class HomebrewManager: ObservableObject {
         self.brewPath = brewPath
         errorMessage = nil
         let command = HomebrewCommandBuilder.shellConfigCommand(brewPath: brewPath)
-        if openTerminal(command: command) {
-            didOpenShellConfig = true
+        openTerminal(command: command) { [weak self] in
+            self?.didOpenShellConfig = true
         }
     }
 
@@ -329,23 +330,29 @@ final class HomebrewManager: ObservableObject {
         updateShellConfigStatus(brewPath: brewPath)
     }
 
-    @discardableResult
-    private func openTerminal(command: String) -> Bool {
-        let source = """
-        tell application "Terminal"
-            activate
-            do script \(appleScriptString(command))
-        end tell
-        """
-        // In-process Apple Events (see AppleScriptRunner): the Terminal Automation
-        // consent is attributed to this app and re-requested if it was lost,
-        // instead of a fragile osascript subprocess. Same permission as before.
-        let result = AppleScriptRunner.run(source)
-        if !result.ok {
-            errorMessage = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-            return false
+    /// Opens the command in the person's own terminal (see
+    /// `HomebrewTerminalScript`), with no Automation consent involved;
+    /// `opened` runs on the main thread once macOS has handed it over.
+    private func openTerminal(command: String, opened: (() -> Void)? = nil) {
+        let script: URL
+        do {
+            script = try HomebrewTerminalScript.write(command: command)
+        } catch {
+            errorMessage = error.localizedDescription
+            return
         }
-        return true
+        NSWorkspace.shared.open(script, configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
+            DispatchQueue.main.async {
+                guard let error else {
+                    opened?()
+                    return
+                }
+                // Nothing ran the script, so nothing deleted it; a file that is
+                // already gone needs no report.
+                try? FileManager.default.removeItem(at: script)
+                self?.errorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func perform(_ action: HomebrewOperation.Action,
@@ -823,13 +830,6 @@ final class HomebrewManager: ObservableObject {
 
     private func appendLog(_ text: String) {
         log.append(text)
-    }
-
-    private func appleScriptString(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
     }
 }
 

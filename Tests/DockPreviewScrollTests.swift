@@ -121,12 +121,14 @@ enum DockPreviewScrollTests {
             buttonActions.removeAll()
             window.close()
         }
-        func settle() {
-            let deadline = Date().addingTimeInterval(0.25)
+        func settle(timeout: TimeInterval = 0.25, until condition: () -> Bool = { false }) {
+            let deadline = Date().addingTimeInterval(timeout)
             repeat {
                 hosting.layoutSubtreeIfNeeded()
                 RunLoop.current.run(until: min(deadline, Date().addingTimeInterval(0.01)))
+                if condition() { return }
             } while Date() < deadline
+            hosting.layoutSubtreeIfNeeded()
         }
         func findScroll(_ view: NSView) -> NSScrollView? {
             if let scroll = view as? NSScrollView { return scroll }
@@ -159,15 +161,21 @@ enum DockPreviewScrollTests {
                     suite.expect(false, "\(name): missing navigation action \(title)")
                     return
                 }
-                action()
-                settle()
-                let clip = scroll.contentView.bounds
                 let start = DockPreviewSupport.panelPadding
                     + CGFloat(expectedIndex) * (extent + DockPreviewSupport.cardSpacing)
+                action()
+                // The animation can start late on a busy CI runner. Wait for
+                // the actual reveal instead of assuming 250 ms is enough.
+                settle(timeout: 2) {
+                    let clip = scroll.contentView.bounds
+                    return model.selectedWindowID == model.windows[expectedIndex].windowID
+                        && start >= clip.minX - 0.5 && start + extent <= clip.maxX + 0.5
+                }
+                let clip = scroll.contentView.bounds
                 suite.expect(model.selectedWindowID == model.windows[expectedIndex].windowID,
                              "\(name): navigation selects window \(expectedIndex + 1)")
                 suite.expect(start >= clip.minX - 0.5 && start + extent <= clip.maxX + 0.5,
-                             "\(name): navigation reveals window \(expectedIndex + 1), including wraparound")
+                             "\(name): navigation reveals window \(expectedIndex + 1), including wraparound; card \(start)...\(start + extent), clip \(clip)")
             }
             model.preview(model.windows[0])
             settle()

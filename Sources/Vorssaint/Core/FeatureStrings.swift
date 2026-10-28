@@ -212,7 +212,8 @@ extension ClipboardFeatureStrings {
         clearRecentConfirmMessage: "고정된 항목과 이후에 복사한 내용은 유지됩니다. 되돌릴 수 없습니다.",
         historyLayout: "기록 레이아웃",
         historyLayoutCards: "카드",
-        historyLayoutList: "목록"
+        historyLayoutList: "목록",
+        showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시"
     )
 }
 
@@ -537,6 +538,7 @@ struct ClipboardFeatureStrings {
     let historyLayout: String
     let historyLayoutCards: String
     let historyLayoutList: String
+    let showSourceAppIconsInList: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -600,7 +602,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Pinned items stay, and so does anything copied after this. This can’t be undone.",
         historyLayout: "History layout",
         historyLayoutCards: "Cards",
-        historyLayoutList: "List"
+        historyLayoutList: "List",
+        showSourceAppIconsInList: "Show source app icons in list view"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -665,7 +668,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Os itens fixados ficam, e o que for copiado depois disso também. Não dá para desfazer.",
         historyLayout: "Layout do histórico",
         historyLayoutCards: "Cartões",
-        historyLayoutList: "Lista"
+        historyLayoutList: "Lista",
+        showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -730,7 +734,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Sabitlenen öğeler ve bundan sonra kopyalananlar kalır. Bu işlem geri alınamaz.",
         historyLayout: "Geçmiş yerleşimi",
         historyLayoutCards: "Kartlar",
-        historyLayoutList: "Liste"
+        historyLayoutList: "Liste",
+        showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -795,7 +800,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Закреплённые останутся, как и всё, что скопировано после этого. Отменить нельзя.",
         historyLayout: "Макет истории",
         historyLayoutCards: "Карточки",
-        historyLayoutList: "Список"
+        historyLayoutList: "Список",
+        showSourceAppIconsInList: "Показывать значки исходных приложений в списке"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -860,7 +866,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Los fijados se conservan, y también lo que copies después. No se puede deshacer.",
         historyLayout: "Diseño del historial",
         historyLayoutCards: "Tarjetas",
-        historyLayoutList: "Lista"
+        historyLayoutList: "Lista",
+        showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista"
     )
 
     static let sk = ClipboardFeatureStrings(
@@ -925,7 +932,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Pripnuté položky zostanú, rovnako ako všetko, čo skopírujete potom. Nedá sa to vrátiť späť.",
         historyLayout: "Rozloženie histórie",
         historyLayoutCards: "Karty",
-        historyLayoutList: "Zoznam"
+        historyLayoutList: "Zoznam",
+        showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -990,7 +998,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Angeheftete bleiben, ebenso alles, was du danach kopierst. Das lässt sich nicht widerrufen.",
         historyLayout: "Verlaufslayout",
         historyLayoutCards: "Karten",
-        historyLayoutList: "Liste"
+        historyLayoutList: "Liste",
+        showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -1055,7 +1064,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Les éléments épinglés restent, comme tout ce qui sera copié ensuite. Action irréversible.",
         historyLayout: "Disposition de l’historique",
         historyLayoutCards: "Cartes",
-        historyLayoutList: "Liste"
+        historyLayoutList: "Liste",
+        showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -1120,7 +1130,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Gli elementi fissati restano, come tutto ciò che copi dopo. Non si può annullare.",
         historyLayout: "Layout cronologia",
         historyLayoutCards: "Schede",
-        historyLayoutList: "Elenco"
+        historyLayoutList: "Elenco",
+        showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -1185,7 +1196,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "固定済みの項目と、このあとにコピーした内容は残ります。元に戻せません。",
         historyLayout: "履歴のレイアウト",
         historyLayoutCards: "カード",
-        historyLayoutList: "リスト"
+        historyLayoutList: "リスト",
+        showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1250,7 +1262,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已固定的项目和此后拷贝的内容会保留。此操作无法撤销。",
         historyLayout: "历史布局",
         historyLayoutCards: "卡片",
-        historyLayoutList: "列表"
+        historyLayoutList: "列表",
+        showSourceAppIconsInList: "在列表中显示来源应用图标"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1315,7 +1328,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。",
         historyLayout: "剪貼簿紀錄佈局",
         historyLayoutCards: "卡片",
-        historyLayoutList: "列表"
+        historyLayoutList: "列表",
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1380,7 +1394,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。",
         historyLayout: "剪貼簿記錄佈局",
         historyLayoutCards: "卡片",
-        historyLayoutList: "列表"
+        historyLayoutList: "列表",
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
     )
 }
 
@@ -3250,7 +3265,8 @@ extension ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Закріплені залишаться, як і все, що скопійовано після цього. Скасувати не можна.",
         historyLayout: "Розкладка історії",
         historyLayoutCards: "Картки",
-        historyLayoutList: "Список"
+        historyLayoutList: "Список",
+        showSourceAppIconsInList: "Показувати значки вихідних програм у списку"
     )
 }
 
