@@ -48,6 +48,36 @@ struct NotchActivityStrings {
 extension FeatureStrings {
     static func notchActivities(_ language: AppLanguage) -> NotchActivityStrings {
         switch language {
+        case .sv: return NotchActivityStrings(
+            timer: "Tidtagare",
+            timerDescription: "Tidtagare, stoppur och fokuserade arbetspass i Dynamic Island.",
+            pomodoro: "Pomodoro",
+            stopwatch: "Stoppur",
+            focus: "Fokus",
+            shortBreak: "Kort paus",
+            longBreak: "Lång paus",
+            pomodoroHint: "Starta varje fas när du är redo. Cykeln avslutas efter det sista fokuserade arbetspasset.",
+            totalSessions: "Totalt antal pass",
+            longBreakInterval: "Pass mellan långa pauser",
+            sessionProgress: "Pass %d av %d",
+            pomodoroFinished: "Pomodoro klar",
+            minutes: "Minuter",
+            start: "Start",
+            resume: "Fortsätt",
+            finished: "Tiden är slut",
+            soundEnabled: "Spela upp ett ljud när tiden är slut",
+            hideTimerCountdown: "Dölj tidtagarens nedräkning",
+            camera: "Kameraspegel",
+            cameraUnavailable: "Kameran kunde inte starta. Försök öppna den igen.",
+            cameraHint: "Öppna en live-spegel här. Kameran stängs av när du lämnar vyn.",
+            startCamera: "Öppna kameran",
+            stopCamera: "Stäng av kameran",
+            accessories: "Aviseringar för tillbehör",
+            accessoryDescription: "Visa anslutna tillbehör och varna en gång när batterinivån sjunker till 20 %.",
+            connected: "Ansluten",
+            lowBattery: "Låg batterinivå",
+            keepAwakeActivity: "Visa ”Håll vaken” i den stängda ön",
+            keepAwakeActivityHint: "En pågående session visas bredvid kameran med återstående tid, eller ∞ när den saknar sluttid.")
         case .enUS: return NotchActivityStrings(
             timer: "Timer",
             timerDescription: "Timers, a stopwatch and focused work sessions in the Dynamic Island.",

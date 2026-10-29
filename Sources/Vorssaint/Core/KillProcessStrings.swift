@@ -42,6 +42,7 @@ struct KillProcessFeatureStrings {
 extension FeatureStrings {
     static func killProcess(_ language: AppLanguage) -> KillProcessFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -93,6 +94,39 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "Couldn’t Kill Process",
         killFailedMessage: "The process may have already exited or require additional privileges.",
         adminPromptFormat: "Vorssaint needs administrator access to end “%@”."
+    )
+
+    static let sv = KillProcessFeatureStrings(
+        pageTitle: "Avsluta process",
+        browseSubtitle: "Bläddra och avsluta",
+        hubDescription: "Sök bland körande processer och tvångsavsluta, starta om eller avsluta processträd",
+        searchPlaceholder: "Filtrera efter namn",
+        columnProcess: "Process",
+        columnCPU: "CPU",
+        columnMemory: "Minne",
+        columnPID: "PID",
+        groupToggle: "Gruppera relaterade processer",
+        groupCaption: "Grupperar hjälpprocesser under den app som ansvarar för dem.",
+        commandBarToggle: "Visa i Kommandofält",
+        commandBarCaption: "Lägger till körande processer i Kommandofält så att du kan hitta och avsluta dem utan att öppna Inställningar.",
+        refreshTooltip: "Uppdatera",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "Processer: %d",
+        killButton: "Avsluta",
+        forceKillButton: "Tvångsavsluta",
+        killAllFormat: "Avsluta alla ”%@”",
+        killTreeButton: "Avsluta processträd",
+        restartButton: "Starta om",
+        copyPID: "Kopiera PID",
+        copyPath: "Kopiera sökväg",
+        emptyStateTitle: "Inga processer hittades",
+        confirmKillFormat: "Avsluta %@?",
+        confirmForceKillFormat: "Tvångsavsluta %@?",
+        confirmKillAllFormat: "Avsluta alla ”%@”-processer?",
+        confirmKillTreeFormat: "Avsluta %@ och alla dess underprocesser?",
+        killFailedTitle: "Det gick inte att avsluta processen",
+        killFailedMessage: "Processen kan redan ha avslutats eller kräva ytterligare behörighet.",
+        adminPromptFormat: "Vorssaint behöver administratörsbehörighet för att avsluta ”%@”."
     )
 
     static let ptBR = KillProcessFeatureStrings(

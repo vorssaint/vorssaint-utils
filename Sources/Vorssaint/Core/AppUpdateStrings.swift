@@ -61,6 +61,7 @@ struct AppUpdateStrings {
 extension FeatureStrings {
     static func appUpdates(_ language: AppLanguage) -> AppUpdateStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -133,6 +134,60 @@ extension AppUpdateStrings {
         noVisibleUpdates: "No updates outside your rules",
         uncomparableVersions: "Versions not compared",
         uncomparableVersionsNote: "No update is shown when an app’s own version can’t be compared with the catalog. Check for updates in the app itself."
+    )
+
+    static let sv = AppUpdateStrings(
+        pageTitle: "Appuppdateringar",
+        hubDescription: "Hitta och installera uppdateringar för dina appar",
+        caption: "Söker efter nyare versioner av apparna på den här datorn och hjälper dig att slutföra varje uppdatering från dess ursprungliga källa.",
+        panelCaption: "Se vilka appar som har en nyare version",
+        checkNow: "Sök nu",
+        checking: "Söker",
+        lastCheckFormat: "Senast kontrollerad %@",
+        neverChecked: "Inte kontrollerad än",
+        upToDate: "Inga uppdateringar hittades",
+        partialUpToDate: "Inga uppdateringar hittades i den här delkontrollen",
+        coverageNote: "Kontrollerar de ursprungliga källorna för installerade appar och en offentlig katalog. Uppdateringar installeras via sin ursprungliga källa.",
+        selectAll: "Markera alla",
+        clearSelection: "Rensa markering",
+        updateSelectedFormat: "Uppdatera %d",
+        updateOne: "Uppdatera",
+        openAppStore: "Öppna App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Öppnar App Store, där uppdateringen installeras",
+        frequencyLabel: "Sök i bakgrunden",
+        frequencyOff: "AV",
+        frequencyDaily: "Varje dag",
+        frequencyWeekly: "Varje vecka",
+        nextCheckFormat: "Nästa kontroll %@",
+        notifyToggle: "Meddela mig när en app har en uppdatering",
+        includeStoreToggle: "Ta med appar från App Store",
+        includeStoreCaption: "Kontrollerar butiksversioner med den här datorns region. Apple installerar dessa uppdateringar.",
+        packageMissing: "Homebrew är inte installerat, så appar kan inte uppdateras härifrån än.",
+        notificationBodyFormat: "%@ appar har en nyare version.",
+        notificationBodyOne: "En app har en nyare version.",
+        showInPanel: "Visa i panelen",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Källor",
+        includeHomebrewToggle: "Ta med Homebrew-appar",
+        onlineBadge: "Online",
+        openApp: "Öppna",
+        openAppHint: "Öppnar appen så att dess egen uppdaterare kan slutföra uppdateringen",
+        includeOnlineToggle: "Ta med andra installerade appar",
+        includeOnlineCaption: "Kontrollerar direkt med apputvecklare när det stöds och använder sedan en offentlig katalog. Appens egen uppdaterare installerar uppdateringen.",
+        incompleteCheck: "Ofullständig kontroll",
+        onlineUnavailable: "Onlinesökningen kunde inte slutföras. Övriga resultat visas fortfarande.",
+        skipVersionFormat: "Hoppa över version %@",
+        excludeApp: "Kontrollera inte den här appen",
+        rulesTitle: "Uppdateringsregler",
+        addException: "Lägg till en app som inte ska kontrolleras",
+        skippedVersionFormat: "Överhoppad version %@",
+        excludedApp: "Kontrolleras inte förrän regeln tas bort",
+        removeRule: "Ta bort regel",
+        rulesHint: "När en version hoppas över tillåts fortfarande nyare utgåvor. När en appexkludering tas bort använder du Sök nu för att uppdatera listan.",
+        noVisibleUpdates: "Inga uppdateringar utanför dina regler",
+        uncomparableVersions: "Versioner jämfördes inte",
+        uncomparableVersionsNote: "Ingen uppdatering visas när appens egen version inte kan jämföras med katalogen. Sök efter uppdateringar i appen i stället."
     )
 
     static let ptBR = AppUpdateStrings(

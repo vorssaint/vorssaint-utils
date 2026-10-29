@@ -12,6 +12,7 @@ struct BatteryTimeFeatureStrings {
 extension FeatureStrings {
     static func batteryTime(_ language: AppLanguage) -> BatteryTimeFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -36,6 +37,12 @@ extension BatteryTimeFeatureStrings {
         title: "Battery time remaining",
         systemEstimate: "System estimate",
         calculating: "Calculating…"
+    )
+
+    static let sv = BatteryTimeFeatureStrings(
+        title: "Återstående batteritid",
+        systemEstimate: "Systemuppskattning",
+        calculating: "Beräknar…"
     )
 
     static let ptBR = BatteryTimeFeatureStrings(
