@@ -257,6 +257,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "指標停在圖示上多久之後才打開面板。",
         dockPreviewQuitAppOnClose: "使用 × 按鈕結束 App",
         dockPreviewQuitAppOnCloseCaption: "在 Dock Preview 中，× 會結束整個 App，而不只是關閉該視窗。",
+        dockPreviewPeekWindows: "懸停時預覽視窗",
+        dockPreviewPeekWindowsCaption: "指標停在面板中的某個視窗上時，該視窗會在原位置顯示並加上外框，螢幕其他部分變暗。移開指標即回復原狀；按一下之前不會將視窗移到最前。",
         dockPreviewKeepDockVisible: "保持 Dock 顯示（實驗性）",
         dockPreviewKeepDockVisibleCaption: "預覽開啟時暫停自動隱藏，離開時恢復。可能調整視窗大小。如果 App 意外中斷，請重新開啟以恢復 Dock 設定。",
         dockPreviewOrderByCreation: "按建立時間排序視窗",

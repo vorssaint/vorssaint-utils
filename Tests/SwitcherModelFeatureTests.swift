@@ -1830,6 +1830,57 @@ enum SwitcherModelFeatureTests {
                "the Dock Preview panel starts fully solid")
         suite.expect(registeredDefaults[DefaultsKey.dockPreviewQuitAppOnClose] as? Bool == false,
                "the Dock Preview close button closes one window by default")
+        suite.expect(registeredDefaults[DefaultsKey.dockPreviewPeekWindows] as? Bool == false,
+               "Dock Preview peeks at windows only once turned on")
+        for peekWindows in [false, true] {
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.dockPreviewPeekWindows ? peekWindows : nil
+            }
+            suite.expect(SettingsBackupSupport.sanitizedSettings(from: backup)?[DefaultsKey.dockPreviewPeekWindows] as? Bool
+                    == peekWindows,
+                   "backup preserves the Dock Preview peek choice")
+        }
+        let peekScreens = [CGRect(x: 0, y: 0, width: 1512, height: 982),
+                           CGRect(x: 1512, y: 0, width: 3840, height: 1080)]
+        let onScreen = CGRect(x: 200, y: 150, width: 800, height: 600)
+        suite.expect(DockPreviewSupport.canPeek(hasWindowID: true, isMinimized: false, isOnHiddenSpace: false,
+                                                frame: onScreen, screenFrames: peekScreens)
+                && DockPreviewSupport.canPeek(hasWindowID: true, isMinimized: false, isOnHiddenSpace: false,
+                                              frame: CGRect(x: 1400, y: 100, width: 600, height: 400),
+                                              screenFrames: peekScreens),
+               "a window on a display, or across two, is peeked at in place")
+        suite.expect(!DockPreviewSupport.canPeek(hasWindowID: true, isMinimized: true, isOnHiddenSpace: false,
+                                                 frame: onScreen, screenFrames: peekScreens)
+                && !DockPreviewSupport.canPeek(hasWindowID: true, isMinimized: false, isOnHiddenSpace: true,
+                                               frame: onScreen, screenFrames: peekScreens),
+               "a minimized window or one on another desktop has no place on screen to peek at")
+        suite.expect(!DockPreviewSupport.canPeek(hasWindowID: false, isMinimized: false, isOnHiddenSpace: false,
+                                                 frame: onScreen, screenFrames: peekScreens)
+                && !DockPreviewSupport.canPeek(hasWindowID: true, isMinimized: false, isOnHiddenSpace: false,
+                                               frame: CGRect(x: 6000, y: 100, width: 800, height: 600),
+                                               screenFrames: peekScreens)
+                && !DockPreviewSupport.canPeek(hasWindowID: true, isMinimized: false, isOnHiddenSpace: false,
+                                               frame: CGRect(x: 200, y: 150, width: 0, height: 0),
+                                               screenFrames: peekScreens),
+               "a card without a window, or a window off every display or without a size, is not peeked at")
+        suite.expect(DockPreviewSupport.peekDelay(alreadyPeeking: false) == DockPreviewSupport.peekDelay
+                && DockPreviewSupport.peekDelay > 0
+                && DockPreviewSupport.peekDelay(alreadyPeeking: true) == 0,
+               "a peek waits for the pointer to rest, and moving on to the next card follows at once")
+        let menuBarTop = DockPreviewSupport.menuBarScreenTopY(
+            screenFrames: [CGRect(x: -1440, y: 982, width: 1440, height: 900), peekScreens[0]],
+            fallback: nil)
+        suite.expect(menuBarTop == 982
+                && DockPreviewSupport.menuBarScreenTopY(screenFrames: [], fallback: peekScreens[0]) == 982
+                && DockPreviewSupport.menuBarScreenTopY(screenFrames: [], fallback: nil) == 0,
+               "window frames are measured from the top of the display at the origin, wherever the others sit")
+        suite.expect(DockPreviewSupport.appKitFrame(fromTopLeft: CGRect(x: 100, y: 50, width: 800, height: 600),
+                                                    menuBarScreenTopY: 982)
+                == CGRect(x: 100, y: 332, width: 800, height: 600)
+                && DockPreviewSupport.appKitFrame(fromTopLeft: CGRect(x: 0, y: -900, width: 1440, height: 900),
+                                                  menuBarScreenTopY: 982)
+                == CGRect(x: 0, y: 982, width: 1440, height: 900),
+               "a top-left window frame lands on the same pixels in AppKit coordinates, above the menu bar display too")
         suite.expect(registeredDefaults[DefaultsKey.dockPreviewOrderByCreation] as? Bool == false,
                "Dock Preview keeps last-use window order by default")
         func dockPreviewWindow(id: CGWindowID) -> SwitcherItem {

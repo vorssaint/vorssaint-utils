@@ -267,6 +267,7 @@ enum SettingsDirectory {
                                                         s.dockPreviewOpenDelay,
                                                         s.dockPreviewBackgroundOpacity,
                                                         s.dockPreviewQuitAppOnClose,
+                                                        s.dockPreviewPeekWindows,
                                                         s.dockPreviewKeepDockVisible,
                                                         s.dockPreviewOrderByCreation,
                                                         FeatureStrings.windowPreviewExclusions(language).listTitle]),

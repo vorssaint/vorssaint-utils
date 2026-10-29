@@ -256,6 +256,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Ako dlho musí kurzor ostať na ikone, kým sa jej panel otvorí.",
         dockPreviewQuitAppOnClose: "Tlačidlom × ukončiť aplikáciu",
         dockPreviewQuitAppOnCloseCaption: "V Dock Preview × ukončí celú aplikáciu namiesto zatvorenia jediného okna.",
+        dockPreviewPeekWindows: "Ukázať okno pri prejdení kurzorom",
+        dockPreviewPeekWindowsCaption: "Keď kurzor zastane na okne v paneli, okno sa ukáže na svojom mieste s obrysom a zvyšok obrazovky stmavne. Po odsunutí kurzora sa všetko vráti späť; do popredia sa okno dostane až po kliknutí.",
         dockPreviewKeepDockVisible: "Ponechať Dock viditeľný (experimentálne)",
         dockPreviewKeepDockVisibleCaption: "Pozastaví automatické skrývanie, kým je náhľad otvorený, a po odchode ho obnoví. Môže zmeniť veľkosť okien. Ak sa aplikácia preruší, otvorte ju znova a Dock sa obnoví.",
         dockPreviewOrderByCreation: "Zoradiť okná podľa času vytvorenia",

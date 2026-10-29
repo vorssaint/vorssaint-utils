@@ -256,6 +256,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Panelin açılması için imlecin bir simgenin üzerinde ne kadar bekleyeceği.",
         dockPreviewQuitAppOnClose: "× düğmesiyle uygulamadan çık",
         dockPreviewQuitAppOnCloseCaption: "Dock Preview’da × yalnızca o pencereyi kapatmak yerine uygulamadan tamamen çıkar.",
+        dockPreviewPeekWindows: "Üzerine gelince pencereye göz at",
+        dockPreviewPeekWindowsCaption: "İmleç paneldeki bir pencerenin üzerinde durunca pencere bulunduğu yerde çerçeveli görünür ve ekranın geri kalanı kararır. İmleci çekince her şey eski hâline döner; tıklamadan hiçbir şey öne gelmez.",
         dockPreviewKeepDockVisible: "Dock’u görünür tut (deneysel)",
         dockPreviewKeepDockVisibleCaption: "Önizleme açıkken otomatik gizlemeyi duraklatır ve ayrıldığınızda geri açar. Pencereler yeniden boyutlanabilir. Uygulama kesintiye uğrarsa Dock’u geri yüklemek için yeniden açın.",
         dockPreviewOrderByCreation: "Pencereleri oluşturma zamanına göre sırala",

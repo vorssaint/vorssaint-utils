@@ -256,6 +256,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Wie lange der Zeiger auf einem Symbol ruhen muss, bevor sich das Panel öffnet.",
         dockPreviewQuitAppOnClose: "App mit der ×-Taste beenden",
         dockPreviewQuitAppOnCloseCaption: "In Dock Preview beendet × die gesamte App, statt nur dieses Fenster zu schließen.",
+        dockPreviewPeekWindows: "Fenster beim Darüberfahren zeigen",
+        dockPreviewPeekWindowsCaption: "Ruht der Zeiger auf einem Fenster im Panel, erscheint es an seiner Position mit Rahmen und der Rest des Bildschirms wird abgedunkelt. Beim Weiterbewegen ist alles wieder wie vorher; erst ein Klick holt das Fenster nach vorn.",
         dockPreviewKeepDockVisible: "Dock sichtbar halten (experimentell)",
         dockPreviewKeepDockVisibleCaption: "Pausiert das automatische Ausblenden bei geöffneter Vorschau und stellt es beim Verlassen wieder her. Fenstergrößen können sich ändern. Wird die App unterbrochen, öffne sie erneut, um das Dock wiederherzustellen.",
         dockPreviewOrderByCreation: "Fenster nach Erstellungszeit sortieren",

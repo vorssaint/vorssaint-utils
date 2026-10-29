@@ -17,6 +17,7 @@ struct DockSettings: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var dockPreviewQuitAppOnClose = false
+    @AppStorage(DefaultsKey.dockPreviewPeekWindows) private var dockPreviewPeekWindows = false
     @AppStorage(DefaultsKey.dockPreviewOrderByCreation) private var dockPreviewOrderByCreation = false
     @AppStorage(DefaultsKey.dockPreviewKeepDockVisible) private var dockPreviewKeepDockVisible = false
     @State private var dockPreviewMoreOptionsExpanded = false
@@ -126,6 +127,10 @@ struct DockSettings: View {
                 SettingsRow(symbol: "xmark.circle", title: l10n.s.dockPreviewQuitAppOnClose,
                             caption: l10n.s.dockPreviewQuitAppOnCloseCaption) {
                     Toggle(l10n.s.dockPreviewQuitAppOnClose, isOn: $dockPreviewQuitAppOnClose).labelsHidden()
+                }
+                SettingsRow(symbol: "macwindow.on.rectangle", title: l10n.s.dockPreviewPeekWindows,
+                            caption: l10n.s.dockPreviewPeekWindowsCaption) {
+                    Toggle(l10n.s.dockPreviewPeekWindows, isOn: $dockPreviewPeekWindows).labelsHidden()
                 }
                 DisclosureGroup(isExpanded: $dockPreviewMoreOptionsExpanded) {
                     SettingsRow(symbol: "dock.rectangle", title: l10n.s.dockPreviewKeepDockVisible,

@@ -256,6 +256,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Quanto a lungo il puntatore deve restare su un’icona prima che il pannello si apra.",
         dockPreviewQuitAppOnClose: "Chiudi l’app con il pulsante ×",
         dockPreviewQuitAppOnCloseCaption: "In Dock Preview, × chiude l’intera app invece della sola finestra.",
+        dockPreviewPeekWindows: "Anteprima delle finestre al passaggio",
+        dockPreviewPeekWindowsCaption: "Quando il puntatore si ferma su una finestra del pannello, la finestra appare dove si trova, con un contorno, e il resto dello schermo si scurisce. Spostandosi tutto torna com’era; nulla passa in primo piano finché non fai clic.",
         dockPreviewKeepDockVisible: "Mantieni il Dock visibile (sperimentale)",
         dockPreviewKeepDockVisibleCaption: "Sospende la scomparsa automatica durante l’anteprima e la ripristina quando esci. Può ridimensionare le finestre. Se l’app si interrompe, riaprila per ripristinare il Dock.",
         dockPreviewOrderByCreation: "Ordina le finestre per creazione",

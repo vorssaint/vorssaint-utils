@@ -806,7 +806,7 @@ def main():
     write("PreviewCapturePause.swift", "import Foundation\n"
           + "extension SwitcherModelFeatureTests.PreviewProvider {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/WindowPreviewProvider.swift",
-                        "    private static func captureIsPaused(").replace("private static", "static", 1)
+                        "    static func captureIsPaused(")
           + "}\n")
     write("DockAutohideInput.swift", "import CoreGraphics\nimport Foundation\nextension DockAutohideHoldTests.Service {\n"
           + "".join(declaration(dock, prefix, scope="final class DockPreviewService:")

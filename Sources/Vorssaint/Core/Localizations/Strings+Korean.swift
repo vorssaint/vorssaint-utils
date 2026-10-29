@@ -257,6 +257,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "포인터가 아이콘 위에 머문 뒤 패널이 열리기까지의 시간입니다.",
         dockPreviewQuitAppOnClose: "× 버튼으로 앱 종료",
         dockPreviewQuitAppOnCloseCaption: "Dock Preview에서 ×는 해당 윈도우만 닫는 대신 앱 전체를 종료합니다.",
+        dockPreviewPeekWindows: "포인터를 올리면 윈도우 미리 보기",
+        dockPreviewPeekWindowsCaption: "패널의 윈도우 위에 포인터를 올리면 해당 윈도우가 제자리에 테두리와 함께 표시되고 화면의 나머지 부분이 어두워집니다. 포인터를 떼면 원래대로 돌아가며, 클릭하기 전에는 앞으로 가져오지 않습니다.",
         dockPreviewKeepDockVisible: "Dock 표시 유지(실험적)",
         dockPreviewKeepDockVisibleCaption: "미리보기가 열려 있는 동안 자동 숨기기를 일시 중지하고 벗어나면 복원합니다. 윈도우 크기가 바뀔 수 있습니다. 앱이 중단되면 다시 열어 Dock 설정을 복원하세요.",
         dockPreviewOrderByCreation: "생성 시간순으로 윈도우 정렬",
