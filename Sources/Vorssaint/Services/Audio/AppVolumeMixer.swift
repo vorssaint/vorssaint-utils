@@ -86,6 +86,8 @@ final class AppVolumeMixer: ObservableObject {
     @Published private(set) var currentSystemSoundOutputDeviceUID: String?
     @Published private(set) var systemOutputVolume: Double?
     @Published private(set) var systemOutputMuted: Bool?
+    @Published private(set) var softwareOutputVolume: Double?
+    @Published private(set) var softwareOutputFailed = false
     @Published private(set) var outputSwitchError: String?
     /// Set when tap creation fails with a permission error, so the panel can
     /// point at the System Audio Recording consent.
@@ -95,6 +97,13 @@ final class AppVolumeMixer: ObservableObject {
     @Published private(set) var hiddenApps: [MixerHiddenApp] = []
 
     private var engines: [String: any GainEngine] = [:]
+    private var softwareEngine: (any GainEngine)?
+    private var softwareTargetUID: String?
+    private var softwareFailedUID: String?
+    private var softwareBuildGeneration = 0
+    private var softwareRetiringAt: CFAbsoluteTime?
+    private var softwareLastAudibleVolume = 0.5
+    private var softwareRenderProgress: MixerRoutingSupport.EngineRenderObservation?
     /// Arbitrates the engine builds running off-main: it suppresses duplicate
     /// builds while a slider keeps dragging, and discards a build that lands
     /// after the mixer moved on (which would leave two live taps on one app).
@@ -271,6 +280,7 @@ final class AppVolumeMixer: ObservableObject {
                 // sequence deterministically, so a frozen engine is caught
                 // even on a quiet wake.
                 self.engineRenderProgress.removeAll()
+                self.softwareRenderProgress = nil
                 self.engineRecovery.clearAll()
                 // An output that drops away during sleep can come back under
                 // the same object ID without the volume and mute listeners
@@ -289,6 +299,7 @@ final class AppVolumeMixer: ObservableObject {
     /// hands back the one system setting the mixer changes on its own.
     func stopAll() {
         stopped = true
+        stopSoftwareOutput()
         builds.invalidateAll()
         for engine in engines.values { engine.stop() }
         engines.removeAll()
@@ -326,6 +337,7 @@ final class AppVolumeMixer: ObservableObject {
         if currentSystemSoundOutputDeviceUID != nil { currentSystemSoundOutputDeviceUID = nil }
         if systemOutputVolume != nil { systemOutputVolume = nil }
         if systemOutputMuted != nil { systemOutputMuted = nil }
+        if softwareOutputFailed { softwareOutputFailed = false }
         if outputSwitchError != nil { outputSwitchError = nil }
         if needsPermission { needsPermission = false }
         processMonitoringEnabled = false
@@ -692,6 +704,119 @@ final class AppVolumeMixer: ObservableObject {
         guard !hasCurrentOutputAdjustment else { return }
         if systemOutputVolume != volume { systemOutputVolume = volume }
         if systemOutputMuted != muted { systemOutputMuted = muted }
+    }
+
+    /// Called when the preference changes and whenever the default output
+    /// changes. The physical output remains the system default; a private,
+    /// device-scoped tap attenuates its mix before the monitor receives it.
+    func syncSoftwareOutputWithPreferences() {
+        let eligible = AppFeature.mixer.isAvailable && Self.isSupported
+            && UserDefaults.standard.bool(forKey: DefaultsKey.mixerSoftwareVolumeEnabled)
+            && systemOutputVolume == nil
+            && outputDevices.contains {
+                $0.uid == currentOutputDeviceUID && $0.priorityTier != .virtual
+            }
+        let target = eligible ? currentOutputDeviceUID : nil
+        if target == nil {
+            softwareFailedUID = nil
+            if softwareOutputFailed { softwareOutputFailed = false }
+        }
+        if let target, target == softwareFailedUID { return }
+        guard target != softwareTargetUID else {
+            if softwareRetiringAt != nil {
+                softwareRetiringAt = nil
+                builds.invalidateAll()
+                reconcileEngines(with: apps)
+            }
+            return
+        }
+        if target == nil, softwareEngine != nil, softwareRetiringAt == nil {
+            // Keep the master gain in place until the per-app taps are ready.
+            softwareRetiringAt = CFAbsoluteTimeGetCurrent()
+            reconcileEngines(with: apps)
+            return
+        }
+        if target == nil, softwareRetiringAt != nil { return }
+        stopSoftwareOutput()
+        guard let target else {
+            reconcileEngines(with: apps)
+            PreciseVolumeRollerService.shared.syncWithPreferences()
+            return
+        }
+        softwareTargetUID = target
+        softwareOutputFailed = false
+        // Keep the per-app gain path until the replacement tap has started.
+        let saved = UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerSoftwareVolumes)
+        let level = MixerSoftwareVolumeSupport.savedLevel(saved?[target])
+        softwareLastAudibleVolume = level > 0 ? level : 0.5
+        let generation = softwareBuildGeneration
+        buildQueue.async { [weak self] in
+            let engine: (any GainEngine)?
+            if #available(macOS 14.4, *) {
+                engine = TapGainEngine(objects: [], gain: Float(level),
+                                       outputDeviceUID: target, softwareMaster: true)
+            } else {
+                engine = nil
+            }
+            DispatchQueue.main.async {
+                guard let self, self.softwareBuildGeneration == generation,
+                      self.softwareTargetUID == target else {
+                    engine?.stop()
+                    return
+                }
+                guard let engine else {
+                    self.stopSoftwareOutput()
+                    self.softwareFailedUID = target
+                    self.softwareOutputFailed = true
+                    self.reconcileEngines(with: self.apps)
+                    PreciseVolumeRollerService.shared.syncWithPreferences()
+                    return
+                }
+                self.softwareEngine = engine
+                self.softwareOutputVolume = level
+                // Capturing the per-app taps' re-rendered output as well
+                // would make the same app play twice.
+                self.builds.invalidateAll()
+                for id in Array(self.engines.keys) { self.discardEngine(for: id) }
+                self.reconcileEngines(with: self.apps)
+                PreciseVolumeRollerService.shared.syncWithPreferences()
+            }
+        }
+    }
+
+    private func stopSoftwareOutput() {
+        softwareBuildGeneration &+= 1
+        softwareTargetUID = nil
+        softwareOutputVolume = nil
+        softwareOutputFailed = false
+        softwareRenderProgress = nil
+        softwareRetiringAt = nil
+        softwareEngine?.stop()
+        softwareEngine = nil
+    }
+
+    func setSoftwareOutputVolume(_ value: Double) {
+        guard value.isFinite, let uid = softwareTargetUID, let engine = softwareEngine else { return }
+        let level = min(1, max(0, value))
+        if level > 0 { softwareLastAudibleVolume = level }
+        engine.gain = Float(level)
+        softwareOutputVolume = level
+        if level > 0, systemOutputMuted == true {
+            requestOutputAdjustment(muted: false)
+        }
+        var saved = UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerSoftwareVolumes) ?? [:]
+        saved[uid] = level
+        UserDefaults.standard.set(saved, forKey: DefaultsKey.mixerSoftwareVolumes)
+    }
+
+    func toggleSoftwareOutputMute() {
+        guard let level = softwareOutputVolume else { return }
+        if systemOutputMuted == true {
+            if level == 0 { setSoftwareOutputVolume(softwareLastAudibleVolume) }
+            else { requestOutputAdjustment(muted: false) }
+            return
+        }
+        setSoftwareOutputVolume(level > 0 ? 0 : softwareLastAudibleVolume)
     }
 
     private func isCurrentOutputKey(_ adjustment: OutputAdjustment) -> Bool {
@@ -1178,6 +1303,8 @@ final class AppVolumeMixer: ObservableObject {
         sessionRoutes.removeAll()
         // A second shortcut press can precede the HAL snapshot. Cycle from
         // the successful choice, while the per-app routes await that read.
+        if softwareTargetUID != nil { stopSoftwareOutput() }
+        PreciseVolumeRollerService.shared.syncWithPreferences()
         currentOutputDeviceUID = device.uid
 
         // Builds started for the previous device can no longer be installed;
@@ -1468,6 +1595,7 @@ final class AppVolumeMixer: ObservableObject {
 
     private func appNeedsEngine(_ app: MixerApp) -> Bool {
         guard !app.isBypassed else { return false }
+        if softwareOutputVolume != nil && softwareRetiringAt == nil { return false }
         // A universal route and its effective output come from one snapshot.
         // The picker may already show the next successful choice, but that
         // must not dismantle this route before its replacement is ready.
@@ -1643,6 +1771,7 @@ final class AppVolumeMixer: ObservableObject {
         }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
         applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
+        syncSoftwareOutputWithPreferences()
 
         guard let readApps = snapshot.apps else {
             if !apps.isEmpty {
@@ -2026,6 +2155,42 @@ final class AppVolumeMixer: ObservableObject {
 
         let now = CFAbsoluteTimeGetCurrent()
         var nextPassDelay: Double?
+        if let engine = softwareEngine, let target = softwareTargetUID {
+            if engine.requiresRebuild {
+                // A changed tap or output format suspends rendering. Release
+                // the master so it cannot keep muting the physical output.
+                stopSoftwareOutput()
+                softwareFailedUID = target
+                softwareOutputFailed = true
+                PreciseVolumeRollerService.shared.syncWithPreferences()
+            } else {
+                let targetIsPlaying = apps.contains {
+                    $0.isPlaying && $0.effectiveOutputDeviceUID == target
+                }
+                switch MixerRoutingSupport.engineRenderVerdict(
+                    previous: softwareRenderProgress,
+                    cycles: engine.renderCycles,
+                    isPlaying: targetIsPlaying,
+                    now: now) {
+                case .note(let observation, let recheckAfter):
+                    softwareRenderProgress = observation
+                    // Keep watching while any app is playing: an aggregate can
+                    // stop rendering later without another HAL notification.
+                    nextPassDelay = recheckAfter
+                case .stalled(let recheckAfter):
+                    nextPassDelay = recheckAfter
+                case .wedged:
+                    // A muted device tap with a stopped IO proc silences the
+                    // output. Tear it down so the physical path plays again.
+                    stopSoftwareOutput()
+                    softwareFailedUID = target
+                    softwareOutputFailed = true
+                    PreciseVolumeRollerService.shared.syncWithPreferences()
+                case nil:
+                    softwareRenderProgress = nil
+                }
+            }
+        }
 
         for (id, engine) in Array(engines) {
             let app = byId[id]
@@ -2136,6 +2301,21 @@ final class AppVolumeMixer: ObservableObject {
 
         for app in apps where appNeedsEngine(app) && engines[app.id] == nil {
             applyRouting(for: app)
+        }
+        if let retiringAt = softwareRetiringAt {
+            let replacementsReady = apps.allSatisfy { app in
+                guard appNeedsEngine(app) else { return true }
+                guard let engine = engines[app.id] else { return false }
+                return engine.tappedObjects == app.audioObjects
+                    && engine.outputDeviceUID == app.effectiveOutputDeviceUID
+            }
+            if replacementsReady || now - retiringAt >= 3 {
+                // A failed per-app build must not leave an opt-out active forever.
+                stopSoftwareOutput()
+                PreciseVolumeRollerService.shared.syncWithPreferences()
+            } else {
+                nextPassDelay = min(nextPassDelay ?? 0.1, 0.1)
+            }
         }
         forgetEngineStateOfMissingRows(byId)
         if let nextPassDelay {
@@ -3367,18 +3547,20 @@ private final class TapGainEngine: GainEngine {
     private var configuration: MixerTapConfiguration?
     private var levelWatch: LevelCompensationWatch?
 
-    init?(objects: [AudioObjectID], gain: Float, outputDeviceUID: String) {
+    init?(objects: [AudioObjectID], gain: Float, outputDeviceUID: String,
+          softwareMaster: Bool = false) {
         tappedObjects = objects
         gainBox.value = min(max(gain, 0), Float(AppVolumeMixer.maxVolume))
         self.outputDeviceUID = outputDeviceUID
 
-        guard let capture = Self.createTap(objects: objects, outputDeviceUID: outputDeviceUID) else { return nil }
+        guard let capture = Self.createTap(objects: objects, outputDeviceUID: outputDeviceUID,
+                                           softwareMaster: softwareMaster) else { return nil }
         tapID = capture.id
         let description = capture.description
         // Started before the aggregate, so its first read runs while the
         // aggregate is built. Every failure from here on calls stop().
         let compensation = compensationBox
-        if capture.source == nil {
+        if !softwareMaster, capture.source == nil {
             levelWatch = LevelCompensationWatch.started(objects: objects) { compensation.value = $0 }
         }
 
@@ -3399,6 +3581,10 @@ private final class TapGainEngine: GainEngine {
             // Fully initialized from here, so deinit calls stop() too. One
             // stop() tears down once and leaves nothing for the second.
             aggregateID = 0
+            stop()
+            return nil
+        }
+        if softwareMaster && !Self.waitUntilAlive(aggregateID) {
             stop()
             return nil
         }
@@ -3515,6 +3701,20 @@ private final class TapGainEngine: GainEngine {
                                    mElement: kAudioObjectPropertyElementMain)
     }
 
+    /// The HAL publishes an aggregate before its streams are ready. Starting
+    /// the master tap against that transient device can produce only zeroes
+    /// while it mutes the original output. Engine construction is off-main.
+    private static func waitUntilAlive(_ deviceID: AudioObjectID) -> Bool {
+        for _ in 0..<30 {
+            var alive: UInt32 = 0
+            if AppVolumeMixer.read(deviceID, kAudioDevicePropertyDeviceIsAlive, &alive), alive != 0 {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return false
+    }
+
     private struct Capture {
         let id: AudioObjectID
         let description: CATapDescription
@@ -3522,7 +3722,26 @@ private final class TapGainEngine: GainEngine {
         let source: MixerTapConfiguration.Source?
     }
 
-    private static func createTap(objects: [AudioObjectID], outputDeviceUID: String) -> Capture? {
+    private static func createTap(objects: [AudioObjectID], outputDeviceUID: String,
+                                  softwareMaster: Bool) -> Capture? {
+        if softwareMaster {
+            // The tap captures the physical device's mix. Exclude this process
+            // because its IO proc renders those samples back to that device.
+            var pid = ProcessInfo.processInfo.processIdentifier
+            var ownProcess = AudioObjectID(kAudioObjectUnknown)
+            var address = AudioObjectPropertyAddress(
+                mSelector: kAudioHardwarePropertyTranslatePIDToProcessObject,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain)
+            var size = UInt32(MemoryLayout<AudioObjectID>.size)
+            let status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
+                &address, UInt32(MemoryLayout<pid_t>.size), &pid, &size, &ownProcess)
+            guard status == noErr, ownProcess != AudioObjectID(kAudioObjectUnknown) else {
+                return nil
+            }
+            return createTap(CATapDescription(excludingProcesses: [ownProcess],
+                                              deviceUID: outputDeviceUID, stream: 0), source: nil)
+        }
         let source = deviceStreamSource(objects: objects, outputDeviceUID: outputDeviceUID)
         if let source,
            let capture = createTap(CATapDescription(processes: objects, deviceUID: outputDeviceUID, stream: 0),

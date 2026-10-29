@@ -29,6 +29,10 @@ enum LocalizationFeatureContractTests {
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
             suite.expect(values.allSatisfy { !$0.contains("\u{2014}") },
                    "no em-dash in visible strings (\(language.rawValue))")
+            let software = FeatureStrings.mixerSoftwareVolume(language)
+            suite.expect(!software.title.isEmpty && !software.caption.isEmpty
+                && !software.failure.isEmpty && !software.pausedApps.isEmpty,
+                "software volume labels are present in \(language.rawValue)")
             suite.expect(!strings.switcherMinimizedPlacementLabel.isEmpty
                    && !strings.switcherTreatHiddenAppsLikeMinimized.isEmpty,
                    "the minimized-window picker and separate hidden-app choice are labeled "

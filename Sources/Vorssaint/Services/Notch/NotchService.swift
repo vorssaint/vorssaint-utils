@@ -4287,6 +4287,10 @@ final class NotchService: ObservableObject {
 
     func showCurrentVolume() {
         let mixer = AppVolumeMixer.shared
+        if let software = mixer.softwareOutputVolume {
+            showVolume(software, muted: software <= 0.001 || mixer.systemOutputMuted == true)
+            return
+        }
         guard let volume = mixer.systemOutputVolume else { return }
         showVolume(volume, muted: mixer.systemOutputMuted)
     }

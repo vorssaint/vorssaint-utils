@@ -23,6 +23,7 @@ enum NotchVolumeFeedbackTests {
         @Published var currentOutputDeviceUID: String? = "speakers"
         @Published var systemOutputVolume: Double? = 0.3
         @Published var systemOutputMuted: Bool? = false
+        var softwareOutputVolume: Double?
 
         func publish(device: String?, volume: Double?, muted: Bool?, identityFirst: Bool = true) {
             if identityFirst { currentOutputDeviceUID = device }

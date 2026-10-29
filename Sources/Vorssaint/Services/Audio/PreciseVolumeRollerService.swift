@@ -32,7 +32,8 @@ final class PreciseVolumeRollerService: ObservableObject {
     func syncWithPreferences() {
         let wanted = AppFeature.mixer.isAvailable
             && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
-                || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback))
+                || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback)
+                || AppVolumeMixer.shared.softwareOutputVolume != nil)
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -120,6 +121,8 @@ final class PreciseVolumeRollerService: ObservableObject {
         if PreciseVolumeKeyEvents.isPosted(event) {
             return Unmanaged.passUnretained(event)
         }
+        if AppVolumeMixer.shared.softwareOutputVolume != nil,
+           routeSoftwareOutputVolume(nsEvent, event: event) { return nil }
         if routeNotchVolume(nsEvent, event: event) { return nil }
         guard UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled),
               let volumePress = Self.volumePress(fromData1: nsEvent.data1) else {
@@ -139,6 +142,28 @@ final class PreciseVolumeRollerService: ObservableObject {
         }
         Self.postFineStep(volumePress.keyCode)
         return nil
+    }
+
+    private func routeSoftwareOutputVolume(_ nsEvent: NSEvent, event: CGEvent) -> Bool {
+        let code = Int32((nsEvent.data1 >> 16) & 0xffff)
+        guard let key = PreciseVolumeMediaKey(rawValue: code), key != .play else { return false }
+        if event.flags.contains(.maskCommand) || event.flags.contains(.maskControl)
+            || event.flags.contains(.maskAlternate) { return false }
+        let state = (nsEvent.data1 >> 8) & 0xff
+        guard state == 0x0a else { return true }
+        let fine = UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+        DispatchQueue.main.async {
+            let mixer = AppVolumeMixer.shared
+            guard let current = mixer.softwareOutputVolume else { return }
+            if key == .mute {
+                mixer.toggleSoftwareOutputMute()
+            } else {
+                mixer.setSoftwareOutputVolume(MixerSoftwareVolumeSupport.adjustedLevel(
+                    current, direction: key == .volumeUp ? 1 : -1, fine: fine))
+            }
+            NotchService.shared.showCurrentVolume()
+        }
+        return true
     }
 
     private func routeNotchVolume(_ nsEvent: NSEvent, event: CGEvent) -> Bool {

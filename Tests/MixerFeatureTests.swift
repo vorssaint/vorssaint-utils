@@ -23,6 +23,17 @@ enum MixerFeatureTests {
                 && !unavailable.devices && !unavailable.processes,
                "output switcher alone watches devices without starting per-app mixer taps")
 
+        suite.expectClose(MixerSoftwareVolumeSupport.savedLevel(NSNumber(value: 0.27)), 0.27,
+            "device volume restores its own saved level")
+        suite.expectClose(MixerSoftwareVolumeSupport.savedLevel(NSNumber(value: Double.infinity)), 0.5,
+            "non-finite saved level falls back to a safe middle level")
+        suite.expectClose(MixerSoftwareVolumeSupport.adjustedLevel(0.02, direction: -1, fine: false), 0,
+            "volume down clamps at silence")
+        suite.expectClose(MixerSoftwareVolumeSupport.adjustedLevel(1, direction: 1, fine: true), 1,
+            "volume up clamps at full scale")
+        suite.expectClose(MixerSoftwareVolumeSupport.adjustedLevel(0.5, direction: 1, fine: true),
+            0.5 + 1.0 / 64, "fine keys use the existing one-sixty-fourth step")
+
         suite.expectClose(Defaults.sanitizedAppVolume(1.5), 1.5, "valid app volume is preserved")
         suite.expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         suite.expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
@@ -811,7 +822,7 @@ enum MixerFeatureTests {
                      && levelWatch.contains("mScope: kAudioObjectPropertyScopeOutput")
                      && mixerCode.components(separatedBy: "LevelCompensationWatch.started(objects: objects)").count == 3,
                      "both engines follow the app to another output, on the scope the HAL announces it")
-        let engineInits = ["init?(objects: [AudioObjectID], gain: Float, outputDeviceUID: String)",
+        let engineInits = ["init?(objects: [AudioObjectID], gain: Float, outputDeviceUID: String,",
                            "init?(appID: String, objects: [AudioObjectID], gain: Float, clockDeviceUID: String)"]
             .map { signature in
                 mixerCode.range(of: signature).flatMap { start in

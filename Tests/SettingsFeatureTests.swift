@@ -132,6 +132,9 @@ enum SettingsFeatureTests {
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability, never a session's all-apps output")
         suite.expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.mixerSoftwareVolumeEnabled)
+                && !backupKeys.contains(DefaultsKey.mixerSoftwareVolumes),
+               "software volume choice is portable but output UID levels stay on this Mac")
         let islandKeys: Set<String> = [
             DefaultsKey.notchEnabled,
             DefaultsKey.notchShowPlayingMusic,

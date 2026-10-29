@@ -68,6 +68,8 @@ struct MixerSection: View {
                 emptyLabel(l10n.s.mixerUnavailable)
             } else if mixer.needsPermission {
                 permissionHint
+            } else if mixer.softwareOutputVolume != nil {
+                emptyLabel(FeatureStrings.mixerSoftwareVolume(l10n.language).pausedApps)
             } else if visibleApps.isEmpty {
                 emptyLabel(l10n.s.mixerEmpty)
             } else {
@@ -156,7 +158,8 @@ struct MixerSection: View {
                 .help(l10n.s.mixerSystemOutputTooltip)
             }
 
-            if let volume = mixer.systemOutputVolume {
+            if let volume = mixer.systemOutputVolume
+                ?? mixer.softwareOutputVolume.map({ mixer.systemOutputMuted == true ? 0 : $0 }) {
                 HStack(spacing: 8) {
                     Image(systemName: mixer.systemOutputMuted == true || volume <= 0.001
                           ? "speaker.slash.fill"
@@ -260,6 +263,10 @@ struct MixerSection: View {
     }
 
     private func setSystemOutputVolume(_ value: Double) {
+        if mixer.softwareOutputVolume != nil {
+            mixer.setSoftwareOutputVolume(value)
+            return
+        }
         if inNotch {
             // The slider shows the level; the island's header need not repeat it.
             NotchService.shared.noteOwnLevelAdjustment(.volume)
@@ -270,7 +277,8 @@ struct MixerSection: View {
 
     private var systemOutputVolumeBinding: Binding<Double> {
         Binding(
-            get: { mixer.systemOutputVolume ?? 0 },
+            get: { mixer.systemOutputVolume
+                ?? mixer.softwareOutputVolume.map({ mixer.systemOutputMuted == true ? 0 : $0 }) ?? 0 },
             set: { setSystemOutputVolume($0) }
         )
     }
@@ -551,8 +559,13 @@ struct MixerOptionsControls: View {
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
     @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
     private var preciseVolumeRollerEnabled = false
+    @AppStorage(DefaultsKey.mixerSoftwareVolumeEnabled)
+    private var softwareVolumeEnabled = false
     @State private var showListChooser = false
     var includeSharedAudioFeatures = true
+    private var softwareStrings: MixerSoftwareVolumeStrings {
+        FeatureStrings.mixerSoftwareVolume(l10n.language)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -560,6 +573,7 @@ struct MixerOptionsControls: View {
                 inactiveAppsVisibilityToggle
             }
             headphoneDisconnectProtectionToggle
+            softwareVolumeToggle
             preciseVolumeRollerToggle
             if includeSharedAudioFeatures, AppFeature.soundOutputSwitcher.isAvailable {
                 SoundOutputSwitcherControls()
@@ -639,17 +653,51 @@ struct MixerOptionsControls: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if preciseVolumeRollerEnabled, !permissions.accessibility {
+            if preciseVolumeRollerEnabled, !softwareVolumeEnabled, !permissions.accessibility {
                 Button {
-                    Permissions.shared.openAccessibilitySettings()
+                    permissions.requestAccessibility()
                 } label: {
                     Label(l10n.s.permissionOpenSettings, systemImage: "hand.raised")
                 }
                 .buttonStyle(.link)
                 .font(.system(size: 10.5, weight: .medium))
-            } else if preciseVolumeRoller.tapFailed {
+            } else if !softwareVolumeEnabled, preciseVolumeRoller.tapFailed {
                 inputMessage(l10n.s.preciseVolumeRollerTapFailed,
                              systemImage: "exclamationmark.triangle")
+            }
+        }
+    }
+
+    private var softwareVolumeToggle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(softwareStrings.title, isOn: $softwareVolumeEnabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+                .disabled(!AppVolumeMixer.isSupported)
+                .onChange(of: softwareVolumeEnabled) { _, enabled in
+                    if enabled { permissions.requestAccessibility() }
+                    mixer.syncSoftwareOutputWithPreferences()
+                }
+            Text(softwareStrings.caption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if softwareVolumeEnabled, !permissions.accessibility {
+                inputMessage("\(l10n.s.permissionRequired): \(l10n.s.permissionAccessibility)",
+                             systemImage: "keyboard")
+                Button {
+                    permissions.requestAccessibility()
+                } label: {
+                    Label(l10n.s.permissionOpenSettings, systemImage: "hand.raised")
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 10.5, weight: .medium))
+            } else if softwareVolumeEnabled, preciseVolumeRoller.tapFailed {
+                inputMessage(l10n.s.preciseVolumeRollerTapFailed,
+                             systemImage: "exclamationmark.triangle")
+            }
+            if mixer.softwareOutputFailed {
+                inputMessage(softwareStrings.failure, systemImage: "exclamationmark.triangle")
             }
         }
     }

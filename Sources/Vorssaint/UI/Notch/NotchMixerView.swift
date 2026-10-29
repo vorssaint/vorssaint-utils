@@ -93,6 +93,9 @@ struct NotchMixerView: View {
             NotchEmptyView(symbol: NotchModule.mixer.symbol, message: l10n.s.mixerUnavailable)
         } else if mixer.needsPermission {
             permission
+        } else if mixer.softwareOutputVolume != nil {
+            NotchEmptyView(symbol: NotchModule.mixer.symbol,
+                           message: FeatureStrings.mixerSoftwareVolume(l10n.language).pausedApps)
         } else if apps.isEmpty {
             NotchEmptyView(symbol: NotchModule.mixer.symbol, message: l10n.s.mixerEmpty)
         } else {
@@ -196,20 +199,36 @@ private struct NotchMasterFader: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private var level: Double? { mixer.systemOutputVolume.map { mixer.systemOutputMuted == true ? 0 : $0 } }
-    private var muted: Bool { mixer.systemOutputMuted == true }
+    private var level: Double? {
+        if let software = mixer.softwareOutputVolume {
+            return mixer.systemOutputMuted == true ? 0 : software
+        }
+        return mixer.systemOutputVolume.map { mixer.systemOutputMuted == true ? 0 : $0 }
+    }
+    private var muted: Bool {
+        if let software = mixer.softwareOutputVolume {
+            return software <= 0.001 || mixer.systemOutputMuted == true
+        }
+        return mixer.systemOutputMuted == true
+    }
 
     /// The fader already shows the level it sets, so the island's top row
     /// stays in view instead of repeating it.
     private func adjustOutput(volume: Double? = nil, muted: Bool? = nil) {
         NotchService.shared.noteOwnLevelAdjustment(.volume)
+        if mixer.softwareOutputVolume != nil {
+            if let volume { mixer.setSoftwareOutputVolume(volume) }
+            if muted != nil { mixer.toggleSoftwareOutputMute() }
+            return
+        }
         mixer.requestOutputAdjustment(volume: volume, muted: muted)
     }
 
     var body: some View {
         VStack(spacing: 6) {
             Button {
-                if let muted = mixer.systemOutputMuted { adjustOutput(muted: !muted) }
+                if mixer.softwareOutputVolume != nil { adjustOutput(muted: !muted) }
+                else if let muted = mixer.systemOutputMuted { adjustOutput(muted: !muted) }
             } label: {
                 Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .font(.system(size: 15, weight: .medium))
@@ -220,7 +239,7 @@ private struct NotchMasterFader: View {
                     .contentShape(Circle())
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-            .disabled(mixer.systemOutputMuted == nil)
+            .disabled(mixer.systemOutputMuted == nil && mixer.softwareOutputVolume == nil)
             .accessibilityLabel(muted ? l10n.s.actionUnmute : l10n.s.actionMute)
             if let level {
                 NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),
