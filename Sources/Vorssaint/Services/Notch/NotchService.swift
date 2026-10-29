@@ -1750,6 +1750,8 @@ final class NotchService: ObservableObject {
         guard captureControls == nil, !heldDrag else { return }
         if showingSections {
             open(appPanel: showingAppPanel, metric: selectedMetric)
+            // The gallery stopped the mirror; going back to its page chooses it again.
+            if NotchCameraSupport.opensDirectly(choosing: selected) { CameraPreviewService.shared.showEmbedded() }
         } else {
             sectionQuery = ""
             // The gallery opens from its top, stepping only as far as the

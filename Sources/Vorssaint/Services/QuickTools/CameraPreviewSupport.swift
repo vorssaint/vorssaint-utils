@@ -25,8 +25,9 @@ enum NotchCameraSupport {
     }
 
     /// Whether choosing a page starts the mirror at once instead of waiting
-    /// for its button. Only a deliberate choice counts: the island reopening
-    /// on the camera page, or opening under the pointer, still waits.
+    /// for its button. Only a deliberate choice counts, going back to the page
+    /// from the sections included: the island reopening on the camera page,
+    /// or opening under the pointer, still waits.
     static func opensDirectly(choosing module: NotchModule, in defaults: UserDefaults = .standard) -> Bool {
         module == .camera && defaults.bool(forKey: DefaultsKey.notchCameraOpensDirectly)
     }

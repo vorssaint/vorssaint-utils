@@ -1445,6 +1445,8 @@ def main():
               .replace("NotchSupport.routesShelf()", "NotchSupport.routesShelf(in: ReviewDefaults.current)")
           + declaration(notch, "    func resignPanelKey()")
           + declaration(notch, "    func toggleSections()")
+              .replace("NotchCameraSupport.opensDirectly(choosing: selected)",
+                       "NotchCameraSupport.opensDirectly(choosing: selected, in: ReviewDefaults.current)")
           + declaration(notch, "    func goBack()")
           + declaration(notch, "    private func stepBack()").replace("private func", "func", 1)
           + declaration(notch, "    func setPageLayer(")
