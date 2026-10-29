@@ -28,6 +28,12 @@ enum ScreenshotSpotlightEditingTests {
         func set() { NSCursor.current = self }
     }
 
+    /// The pointer state the hover and the new marks read.
+    final class Inspector {
+        var unit = ScreenshotInspectionSupport.MeasureUnit.points
+        var liveMode: ScreenshotInspectionSupport.LiveMode?
+    }
+
     class State {
         var tool: ScreenshotSupport.Tool = .spotlight
         var annotations: [ScreenshotSupport.Annotation] = []
@@ -55,6 +61,7 @@ enum ScreenshotSpotlightEditingTests {
         var blurLevel = ScreenshotSupport.BlurStrength.defaultLevel
         var blurStyle: ScreenshotSupport.BlurStyleID = .pixelate
         var blurTextOnly = false
+        let inspector = Inspector()
         var selectDrags: [CGPoint] = []
 
         let baseImage: CGImage
@@ -187,5 +194,23 @@ enum ScreenshotSpotlightEditingTests {
                 && ScreenshotSupport.steppedSpotlightDim(-0.2) == 0
                 && ScreenshotSupport.steppedSpotlightDim(0.35) == 0.35,
                "the continuous dim slider settles on the nearest 5% step")
+
+        let measuring = Model(image: image)
+        measuring.tool = .ruler
+        measuring.inspector.unit = .pixels
+        measuring.beginDrag(at: CGPoint(x: 10, y: 10))
+        suite.expect(measuring.annotations.last?.tool == .ruler
+                && measuring.annotations.last?.points == [CGPoint(x: 10, y: 10), CGPoint(x: 10, y: 10)]
+                && measuring.annotations.last?.text == "px"
+                && measuring.draftID == measuring.annotations.last?.id,
+               "a ruler starts as a line that keeps the unit it was drawn in")
+        let live = Model(image: image)
+        live.tool = .select
+        live.inspector.liveMode = .distance(.horizontal)
+        Bar(model: live).updateHoverCursor(at: CGPoint(x: 1, y: 1))
+        suite.expect(NSCursor.current === NSCursor.crosshair,
+               "the pointer shows a crosshair while measuring")
+        suite.expect(Bar(model: model(tool: .select, selected: .ruler)).showsColorControls,
+               "a picked ruler takes a color and a thickness")
     }
 }
