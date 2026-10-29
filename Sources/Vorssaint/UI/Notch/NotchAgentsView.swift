@@ -277,9 +277,11 @@ private struct NotchAgentLimitsCard: View {
         return [session, longer].compactMap { $0 }
     }
 
-    var body: some View {
+    var body: some View { baseCard }
+
+    private var baseCard: some View {
         let windows = windows
-        NotchAgentCardChrome {
+        return NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
                 NotchAgentCardHeader(title: (account?.name ?? accountName).map { provider.displayName + " · " + $0 }
                                         ?? provider.displayName,
@@ -608,7 +610,7 @@ private struct NotchAgentLiveCard: View {
 
     var body: some View {
         let live = snapshot.live.filter { providers.contains($0.provider) }
-        NotchAgentCardChrome {
+        let card = NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 7) {
                 NotchAgentCardHeader(title: text.liveCard, symbol: NotchAgentCard.live.symbol,
                                      tint: live.first?.provider.tint ?? .secondary) {
@@ -629,6 +631,23 @@ private struct NotchAgentLiveCard: View {
                     }
                 }
             }
+        }
+        if live.count > 2 {
+            card
+                .notchExpansionTap(id: "agent.live")
+                .notchExpandable(id: "agent.live", title: text.liveCard, preferredSize: CGSize(width: 390, height: 300)) {
+                    NotchAgentExpandedScroll {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(live) { session in
+                                    row(session, now: context.date)
+                                }
+                            }
+                        }
+                    }
+                }
+        } else {
+            card
         }
     }
 
@@ -761,7 +780,7 @@ private struct NotchAgentShareCard: View {
     var body: some View {
         let shown = Array(shares.prefix(3))
         let peak = max(shown.map { $0.totals.weight(byCost: byCost) }.max() ?? 0, .leastNonzeroMagnitude)
-        NotchAgentCardChrome {
+        let card = NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
                 NotchAgentCardHeader(title: title, symbol: symbol)
                 if shown.isEmpty {
@@ -772,6 +791,20 @@ private struct NotchAgentShareCard: View {
                     }
                 }
             }
+        }
+        if shares.count > shown.count {
+            card
+                .notchExpansionTap(id: "agent.\(title)")
+                .notchExpandable(id: "agent.\(title)", title: title, preferredSize: CGSize(width: 390, height: 300)) {
+                    NotchAgentExpandedScroll {
+                        let peak = max(shares.map { $0.totals.weight(byCost: byCost) }.max() ?? 0, .leastNonzeroMagnitude)
+                        ForEach(shares) { share in
+                            row(share, peak: peak)
+                        }
+                    }
+                }
+        } else {
+            card
         }
     }
 
@@ -917,6 +950,7 @@ private struct NotchAgentResetsCard: View {
                         ProgressView().controlSize(.mini)
                     }
                 }
+
                 if showsDefaultAccount {
                     Text("Codex · " + FeatureStrings.codexAccounts(l10n.language).defaultAccount)
                         .font(.system(size: 8.5)).foregroundStyle(.secondary).lineLimit(1)
@@ -944,6 +978,7 @@ private struct NotchAgentResetsCard: View {
                     resets.redeem()
                 }
             }
+
         } else if let finished {
             if finished.outcome == nil, let summary = resets.summary, summary.available > 0 {
                 // Trying again repeats the same use, which never spends a second reset.

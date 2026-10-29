@@ -279,7 +279,14 @@ struct NotchView: View {
         let geometry = service.expandedGeometry
         let band = NotchBand(geometry: geometry, contentWidth: service.contentSize.width)
         let wraps = geometry.pageTop == .wrapsCamera
-        return page
+        return Group {
+            if showsDetail || service.showingSections {
+                page
+            } else {
+                NotchCardExpansionHost(module: service.selected, size: service.contentSize) { page }
+                    .id(service.selected)
+            }
+        }
             .frame(width: service.contentSize.width, height: service.contentSize.height, alignment: .top)
             .clipShape(NotchPageClip(top: geometry.pageTopInset))
             // With no title on screen, VoiceOver still names the page.
