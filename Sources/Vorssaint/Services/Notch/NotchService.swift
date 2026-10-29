@@ -2967,11 +2967,12 @@ final class NotchService: ObservableObject {
     }
 
     /// A new song's title shows in the capsule for a few seconds, then the
-    /// capsule keeps only the cover and the bars.
+    /// capsule keeps only the cover and the bars. With New track off it
+    /// keeps to those from the start, as the notched strip does (#3573).
     private func nameCapsuleSong() {
         // The song held for the next one's notice is the one that ended; the
         // next song is named once the notice lets it go.
-        guard heldMusic == nil else { return }
+        guard heldMusic == nil, NotchSupport.routes(.track) else { return }
         musicTitleWork?.cancel()
         capsuleMusicTitleShown = true
         refreshCapsuleMusic()
