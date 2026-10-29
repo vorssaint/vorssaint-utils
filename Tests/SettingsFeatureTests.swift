@@ -221,6 +221,8 @@ enum SettingsFeatureTests {
                "a backup keeps the choice of every display")
         suite.expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
                "the cleaning mode keep screen visible choice travels with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.cleaningModeBuiltInOnly),
+               "the cleaning mode built-in display choice travels with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.appearance),
                "the light or dark choice travels with the settings backup")
         suite.expect(Set([

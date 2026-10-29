@@ -897,6 +897,8 @@ extension Strings {
         cleaningOverlayMouseHint: "Мышь и трекпад продолжают работать",
         cleaningKeepScreenVisibleToggle: "Оставлять экран видимым",
         cleaningKeepScreenVisibleCaption: "Показывает компактный индикатор в углу экрана вместо затемнения содержимого.",
+        cleaningBuiltInOnlyToggle: "Закрывать только встроенный дисплей",
+        cleaningBuiltInOnlyCaption: "Внешние дисплеи остаются доступными, пока клавиатура заблокирована. Если встроенного дисплея нет, закрываются все дисплеи.",
         cleaningStartNow: "Заблокировать клавиатуру сейчас",
         cleaningNeedsAxTitle: "Нужен Универсальный доступ",
         cleaningNeedsAxBody: "Чтобы безопасно блокировать клавиатуру, Vorssaint нужен доступ к Универсальному доступу. Выдайте его в Системных настройках и попробуйте снова.",

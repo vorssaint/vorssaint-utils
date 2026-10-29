@@ -285,6 +285,7 @@ enum LocalizationFeatureContractTests {
             suite.expect(ocrStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) screen OCR strings are present without em dash")
             let cleaningStrings = [strings.cleaningKeepScreenVisibleToggle, strings.cleaningKeepScreenVisibleCaption,
+                                   strings.cleaningBuiltInOnlyToggle, strings.cleaningBuiltInOnlyCaption,
                                    strings.cleaningStartNow, strings.cleaningOverlayTitle,
                                    strings.cleaningOverlaySubtitle, strings.cleaningOverlayUnlock,
                                    strings.cleaningOverlayMouseHint, strings.cleaningPanelCaption]
