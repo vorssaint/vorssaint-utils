@@ -134,7 +134,11 @@ struct NotchAgentsView: View {
         case .activity:
             NotchAgentActivityCard(snapshot: snapshot, text: text)
         case .resets:
-            NotchAgentResetsCard(now: now, text: text, showsDefaultAccount: tile.namesDefaultAccount)
+            if tile.provider == .claude {
+                NotchAgentClaudeResetsCard(now: now, text: text)
+            } else {
+                NotchAgentResetsCard(now: now, text: text, showsDefaultAccount: tile.namesDefaultAccount)
+            }
         }
     }
 
@@ -900,6 +904,7 @@ private struct NotchAgentResetsCard: View {
     @Environment(\.locale) private var locale
 
     private let tint = AgentProvider.codex.tint
+    private let parts = NotchAgentResetParts(tint: AgentProvider.codex.tint)
 
     /// What a use did stays on the card for a minute.
     private var finished: AgentCodexResetService.Finished? {
@@ -934,12 +939,12 @@ private struct NotchAgentResetsCard: View {
         if resets.redeeming {
             HStack(spacing: 5) {
                 ProgressView().controlSize(.mini)
-                line(text.resetting)
+                parts.line(text.resetting)
             }
         } else if confirming, let summary = resets.summary, summary.available > 0 {
-            action(text.resetConfirm, emphasized: true) {
-                pill(FeatureStrings.clipboard(l10n.language).cancel, prominent: false) { confirming = false }
-                pill(text.confirmReset) {
+            parts.action(text.resetConfirm, emphasized: true) {
+                parts.pill(FeatureStrings.clipboard(l10n.language).cancel, prominent: false) { confirming = false }
+                parts.pill(text.confirmReset) {
                     confirming = false
                     resets.redeem()
                 }
@@ -956,8 +961,8 @@ private struct NotchAgentResetsCard: View {
                 outcome(finished.outcome)
             }
         } else if resets.summary == nil, let failure = resets.failure {
-            action(message(failure)) {
-                pill(FeatureStrings.notchMusicExtras(l10n.language).retry, prominent: false) {
+            parts.action(message(failure)) {
+                parts.pill(FeatureStrings.notchMusicExtras(l10n.language).retry, prominent: false) {
                     resets.refresh(searchingShell: failure == .missing)
                 }
             }
@@ -965,20 +970,53 @@ private struct NotchAgentResetsCard: View {
             if summary.available > 0 {
                 // A reset a day from expiring is worth using soon.
                 let soon = summary.nextExpiry.map { $0.timeIntervalSince(now) < 86_400 } ?? false
-                action(summary.nextExpiry.map(expiry) ?? "", tint: soon ? .orange : nil) { useButton }
+                parts.action(summary.nextExpiry.map(expiry) ?? "", tint: soon ? .orange : nil) { useButton }
             } else {
-                line(text.resetsNone)
+                parts.line(text.resetsNone)
             }
         }
     }
 
     private var useButton: some View {
-        pill(text.useReset, symbol: "arrow.counterclockwise") { confirming = true }
+        parts.pill(text.useReset, symbol: "arrow.counterclockwise") { confirming = true }
     }
 
+    private func expiry(_ date: Date) -> String {
+        text.resetsExpiry(date.formatted(.relative(presentation: .named).locale(locale)))
+    }
+
+    @ViewBuilder private func outcome(_ outcome: AgentCodexServer.Outcome?) -> some View {
+        switch outcome {
+        case .reset?:
+            parts.line(text.resetDone, symbol: "checkmark.circle.fill", tint: .green)
+        case .nothingToReset?:
+            parts.line(text.resetNotNeeded, symbol: "info.circle.fill", tint: .secondary)
+        case .alreadyRedeemed?:
+            parts.line(text.resetTaken, symbol: "info.circle.fill", tint: .secondary)
+        case .noCredit?:
+            parts.line(text.resetsNone)
+        case nil:
+            parts.line(text.resetFailed, symbol: "exclamationmark.circle.fill", tint: .orange)
+        }
+    }
+
+    private func message(_ failure: AgentCodexServer.Failure) -> String {
+        switch failure {
+        case .missing: return text.resetsNeedCodex
+        case .needsSignIn: return text.resetsSignIn
+        case .outdated: return text.resetsUpdate
+        case .unreachable, .refused: return text.resetsCheckFailed
+        }
+    }
+}
+
+/// What both resets cards are drawn with, in their agent's color.
+private struct NotchAgentResetParts {
+    let tint: Color
+
     /// A line above the card's buttons, which keep to its bottom edge.
-    private func action<Buttons: View>(_ message: String, emphasized: Bool = false, tint: Color? = nil,
-                                       @ViewBuilder buttons: () -> Buttons) -> some View {
+    func action<Buttons: View>(_ message: String, emphasized: Bool = false, tint: Color? = nil,
+                               @ViewBuilder buttons: () -> Buttons) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if !message.isEmpty {
                 Text(message)
@@ -994,35 +1032,7 @@ private struct NotchAgentResetsCard: View {
         }
     }
 
-    private func expiry(_ date: Date) -> String {
-        text.resetsExpiry(date.formatted(.relative(presentation: .named).locale(locale)))
-    }
-
-    @ViewBuilder private func outcome(_ outcome: AgentCodexServer.Outcome?) -> some View {
-        switch outcome {
-        case .reset?:
-            line(text.resetDone, symbol: "checkmark.circle.fill", tint: .green)
-        case .nothingToReset?:
-            line(text.resetNotNeeded, symbol: "info.circle.fill", tint: .secondary)
-        case .alreadyRedeemed?:
-            line(text.resetTaken, symbol: "info.circle.fill", tint: .secondary)
-        case .noCredit?:
-            line(text.resetsNone)
-        case nil:
-            line(text.resetFailed, symbol: "exclamationmark.circle.fill", tint: .orange)
-        }
-    }
-
-    private func message(_ failure: AgentCodexServer.Failure) -> String {
-        switch failure {
-        case .missing: return text.resetsNeedCodex
-        case .needsSignIn: return text.resetsSignIn
-        case .outdated: return text.resetsUpdate
-        case .unreachable, .refused: return text.resetsCheckFailed
-        }
-    }
-
-    private func line(_ message: String, symbol: String? = nil, tint: Color = .secondary) -> some View {
+    func line(_ message: String, symbol: String? = nil, tint: Color = .secondary) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             if let symbol { Image(systemName: symbol).foregroundStyle(tint) }
             Text(message).foregroundStyle(symbol == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.white.opacity(0.9)))
@@ -1033,8 +1043,8 @@ private struct NotchAgentResetsCard: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func pill(_ title: String, symbol: String? = nil, prominent: Bool = true,
-                      action: @escaping () -> Void) -> some View {
+    func pill(_ title: String, symbol: String? = nil, prominent: Bool = true,
+              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 3) {
                 if let symbol { Image(systemName: symbol).imageScale(.small) }
@@ -1049,5 +1059,130 @@ private struct NotchAgentResetsCard: View {
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 10))
+    }
+}
+
+/// Claude's banked resets: how many the account holds, when the next grant
+/// ends, and a use that asks first, offered only when claude.ai says one
+/// would lift a limit now. Cancel takes the place of the button that asked.
+private struct NotchAgentClaudeResetsCard: View {
+    let now: Date
+    let text: NotchAgentStrings
+    @ObservedObject private var resets = AgentClaudeResetService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @State private var confirming = false
+    @Environment(\.locale) private var locale
+
+    private let tint = AgentProvider.claude.tint
+    private let parts = NotchAgentResetParts(tint: AgentProvider.claude.tint)
+
+    /// What a use did stays on the card for a minute.
+    private var finished: AgentClaudeResetService.Finished? {
+        resets.finished.flatMap { now.timeIntervalSince($0.date) < 60 ? $0 : nil }
+    }
+
+    var body: some View {
+        NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 6) {
+                NotchAgentCardHeader(title: text.resetsCard, symbol: NotchAgentCard.resets.symbol, tint: tint,
+                                     provider: .claude) {
+                    if let summary = resets.summary, summary.available > 0 {
+                        NotchAgentChip(text: summary.available.formatted(.number.locale(locale)), tint: tint)
+                    } else if resets.checking {
+                        ProgressView().controlSize(.mini)
+                    }
+                }
+                content
+            }
+        }
+        .help(text.claudeResetsHelp)
+        .onAppear { resets.refreshIfStale() }
+        // A count that changed while the question was open asks again.
+        .onChange(of: resets.summary?.available) { _, _ in confirming = false }
+    }
+
+    @ViewBuilder private var content: some View {
+        if resets.redeeming {
+            HStack(spacing: 5) {
+                ProgressView().controlSize(.mini)
+                parts.line(text.resetting)
+            }
+        } else if confirming, resets.summary?.usable != nil {
+            parts.action(text.claudeResetConfirm, emphasized: true) {
+                parts.pill(FeatureStrings.clipboard(l10n.language).cancel, prominent: false) { confirming = false }
+                parts.pill(text.confirmReset) {
+                    confirming = false
+                    resets.redeem()
+                }
+            }
+        } else if let finished {
+            if finished.outcome == nil, resets.summary?.usable != nil {
+                // Trying again repeats the same use, which never spends a second reset.
+                VStack(alignment: .leading, spacing: 0) {
+                    outcome(nil)
+                    Spacer(minLength: 4)
+                    useButton
+                }
+            } else {
+                outcome(finished.outcome)
+            }
+        } else if resets.summary == nil, let failure = resets.failure {
+            if case .busy = failure {
+                // It asks again on its own once claude.ai allows.
+                parts.line(text.resetsBusy)
+            } else {
+                parts.action(message(failure)) {
+                    parts.pill(FeatureStrings.notchMusicExtras(l10n.language).retry, prominent: false) { resets.refresh() }
+                }
+            }
+        } else if let summary = resets.summary {
+            if summary.available > 0 {
+                // A grant a day from ending is worth using soon.
+                let soon = summary.nextExpiry.map { $0.timeIntervalSince(now) < 86_400 } ?? false
+                let ends = summary.nextExpiry.map(expiry) ?? ""
+                if summary.usable != nil {
+                    parts.action(ends, tint: soon ? .orange : nil) { useButton }
+                } else {
+                    // Kept for a limit: claude.ai offers it once one is reached.
+                    parts.action(ends, tint: soon ? .orange : nil) { parts.line(text.resetsSaved) }
+                }
+            } else {
+                parts.line(text.resetsNone)
+            }
+        }
+    }
+
+    private var useButton: some View {
+        parts.pill(text.useReset, symbol: "arrow.counterclockwise") { confirming = true }
+    }
+
+    private func expiry(_ date: Date) -> String {
+        text.resetsExpiry(date.formatted(.relative(presentation: .named).locale(locale)))
+    }
+
+    @ViewBuilder private func outcome(_ outcome: AgentClaudeResets.Outcome?) -> some View {
+        switch outcome {
+        case .reset?:
+            parts.line(text.resetDone, symbol: "checkmark.circle.fill", tint: .green)
+        case .notLimited?:
+            parts.line(text.resetNotNeeded, symbol: "info.circle.fill", tint: .secondary)
+        case .alreadyUsed?:
+            parts.line(text.resetTaken, symbol: "info.circle.fill", tint: .secondary)
+        case .cooldown?:
+            parts.line(text.resetsBusy, symbol: "clock.fill", tint: .secondary)
+        case .ineligible?:
+            parts.line(text.resetsNone)
+        case .unavailable?, nil:
+            parts.line(text.resetFailed, symbol: "exclamationmark.circle.fill", tint: .orange)
+        }
+    }
+
+    private func message(_ failure: AgentClaudeResets.Failure) -> String {
+        switch failure {
+        case .missing: return text.resetsNeedClaude
+        case .needsSignIn: return text.resetsClaudeSignIn
+        case .busy: return text.resetsBusy
+        case .unreachable: return text.resetsCheckFailed
+        }
     }
 }
