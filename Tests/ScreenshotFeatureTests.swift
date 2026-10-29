@@ -3754,6 +3754,14 @@ enum ScreenshotFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotFullScreenShortcut] as? String
                 == "control+option+command:20",
                "the full-screen shortcut sits beside screenshot selection")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotAreaShortcutEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.screenshotWindowShortcutEnabled] as? Bool == false,
+               "the area-only and window-only shortcuts ship off")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotAreaShortcut] as? String
+                == "control+option+command:19"
+                && Defaults.registeredDefaults[DefaultsKey.screenshotWindowShortcut] as? String
+                == "control+option+command:18",
+               "the area and window shortcuts continue the digit row down from full screen")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastCaptureShortcutEnabled]
                 as? Bool == false,
                "the latest screenshot editor shortcut ships off")
@@ -3834,6 +3842,13 @@ enum ScreenshotFeatureTests {
                 == [DefaultsKey.screenshotFullScreenShortcutEnabled]
                 && GlobalShortcutRole.screenshotFullScreen.feature == .screenshot,
                "the full-screen shortcut has its own opt-in gate")
+        suite.expect(GlobalShortcutRole.screenshotArea.requiredEnableKeys
+                == [DefaultsKey.screenshotAreaShortcutEnabled]
+                && GlobalShortcutRole.screenshotWindow.requiredEnableKeys
+                == [DefaultsKey.screenshotWindowShortcutEnabled]
+                && GlobalShortcutRole.screenshotArea.feature == .screenshot
+                && GlobalShortcutRole.screenshotWindow.feature == .screenshot,
+               "the area-only and window-only shortcuts each have their own opt-in gate")
         suite.expect(GlobalShortcutRole.screenshotLastCapture.requiredEnableKeys
                 == [DefaultsKey.screenshotLastCaptureShortcutEnabled]
                 && GlobalShortcutRole.screenshotLastCapture.feature == .screenshot,
