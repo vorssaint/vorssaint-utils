@@ -1551,7 +1551,16 @@ def main():
           + (battery_segments + battery_warning).replace("private static", "static")
               .replace("UserDefaults.standard", "ReviewDefaults.current!")
           + "".join(declaration(renderer, prefix).replace("private static", "static")
-                    .replace("UserDefaults.standard", "ReviewDefaults.current!") for prefix in [
+                    .replace("UserDefaults.standard", "ReviewDefaults.current!")
+                    .replace("MenuBarFontWeight.current()", "MenuBarFontWeight.current(in: ReviewDefaults.current!)") for prefix in [
+                        "    static func statusFont(", "    static func statusFontSize(",
+                        "    static func metricLabelFont(", "    static func metricValueFont(",
+                        "    static func usageBarLabelFont(", "    static func rateFont(",
+                        "    static func networkBlockFontSize(", "    static func networkBlockLineHeight(",
+                        "    static func rateBlockWidth(style:", "    private static func rateBlockWidth(candidates:",
+                        "    static func usageBarSize(", "    private static func usageBarColor(",
+                        "    private static func usageBarBlockImage(", "    private static func networkBlockImage(",
+                        "    private static func diskActivityBlockImage(", "    private static func stackedRatesImage(",
                         "    static func attributed(", "    private static func metricBlockAttachment(",
                         "    private static func metricBlockImage(", "    private static func batteryBlockAttachment(",
                         "    private static func batteryBlockImage(", "    private static func blockImageCost(",
