@@ -1392,6 +1392,25 @@ MUTATIONS = [
      "AirPlayRouteManager.shared.routedAudioChanged(active: apps.contains { app in",
      "_ = (apps.contains { app in",
      "every mixer reconcile tells AirPlay whether a routed app plays, only while AirPlay is listed"),
+    ("the gain slide starts at its target", "mixer", "Sources/Vorssaint/Services/Audio/MixerRender.swift",
+     ": renderSliding(source: source, into: output, from: start, to: gain)",
+     ": renderSliding(source: source, into: output, from: gain, to: gain)",
+     "a changed gain starts from the gain the last block ended on"),
+    ("the gain slide never moves on from its first gain", "mixer", "Sources/Vorssaint/Services/Audio/MixerRender.swift",
+     "if written > 0 { applied.value = gain }",
+     "if written > 0 { applied.value = applied.value ?? gain }",
+     "the block after a slide holds the new gain from its first sample"),
+    ("the channels of a slide share one vDSP start", "mixer", "Sources/Vorssaint/Services/Audio/MixerRender.swift",
+     "                channelStart = start\n"
+     "                vDSP_vrampmul(samples + sourceChannel",
+     "                vDSP_vrampmul(samples + sourceChannel",
+     "both sides of a sliding gain stay equal"),
+    ("a gain that is not a number stays in the slide", "mixer", "Sources/Vorssaint/Services/Audio/MixerRender.swift",
+     "        guard gain.isFinite else {\n"
+     "            applied.value = nil\n"
+     "            return render(source: source, into: output, gain: gain)\n"
+     "        }\n", "",
+     "a gain that is not a number spoils only its own block"),
     ("a script row's late answer closes a bar showing a row's actions", "command-bar",
      "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
      "            guard case .search = service.mode,\n"

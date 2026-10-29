@@ -26,6 +26,7 @@ enum MixerRenderContinuityTests {
         let compensation = FloatBox(1)
         let release = FloatBox(BoostLimiter.release(sampleRate: 48_000))
         let ramp = TapLevelRamp()
+        let appliedGain = MixerRender.AppliedGain()
         let cycles = Counter()
         let configuration = Configuration()
         let tapChannels: Int

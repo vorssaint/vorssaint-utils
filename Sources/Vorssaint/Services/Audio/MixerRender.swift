@@ -200,4 +200,126 @@ enum MixerRender {
         written = didWriteSourceChannel ? frames : 0
         return written
     }
+
+    /// The gain an engine put on the last block it wrote, which the next
+    /// block slides away from. Made outside the audio thread and touched only
+    /// by it, as `TapLevelRamp` is.
+    ///
+    /// It holds the gain the engine was given, not where the ramp ended up:
+    /// vDSP leaves its start value near the target but not on it, and on a
+    /// long block the gap adds up.
+    final class AppliedGain {
+        fileprivate var value: Float?
+    }
+
+    /// Renders like `render(source:into:gain:)`, but a gain that differs from
+    /// the one `applied` holds slides to it across the block instead of
+    /// stepping at its first sample. A volume change used to reach the audio
+    /// as one constant gain per block, so every slider or fader event stepped
+    /// the waveform at a block edge and a drag sounded like a zipper.
+    ///
+    /// A steady gain, an engine's first block and a gain that is not finite
+    /// take the constant path, which is `render(source:into:gain:)` as it
+    /// was: a steady volume plays the same samples as before, and a first
+    /// block has nothing to slide from. A gain that is not finite also
+    /// forgets `applied`, so it spoils its own block and nothing after it.
+    @discardableResult
+    static func render(source: AudioBuffer,
+                       into output: UnsafeMutableAudioBufferListPointer,
+                       gain: Float,
+                       rampingFrom applied: AppliedGain) -> Int {
+        guard gain.isFinite else {
+            applied.value = nil
+            return render(source: source, into: output, gain: gain)
+        }
+        let start = applied.value ?? gain
+        let written = start == gain
+            ? render(source: source, into: output, gain: gain)
+            : renderSliding(source: source, into: output, from: start, to: gain)
+        if written > 0 { applied.value = gain }
+        return written
+    }
+
+    /// Three paths like `render(source:into:gain:)`, with the gain moving from
+    /// `start` to `target` over the frames it writes. The first takes only
+    /// stereo onto one stereo buffer; one channel to one and four to four go
+    /// through the per-channel loop, which routes them the same way. vDSP
+    /// leaves each start value where its ramp ended, so every channel starts
+    /// again from the same `start`.
+    private static func renderSliding(source: AudioBuffer,
+                                      into output: UnsafeMutableAudioBufferListPointer,
+                                      from start: Float,
+                                      to target: Float) -> Int {
+        var written = 0
+        defer { silence(output, from: written) }
+        let sourceChannels = Int(source.mNumberChannels)
+        guard sourceChannels > 0,
+              let samples = source.mData?.assumingMemoryBound(to: Float.self) else { return 0 }
+
+        var frames = self.frames(bytes: source.mDataByteSize, channels: source.mNumberChannels)
+        var outputChannels = 0
+        var hasWritableOutput = false
+        for buffer in output where buffer.mNumberChannels > 0 {
+            outputChannels += Int(buffer.mNumberChannels)
+            guard buffer.mData != nil else { continue }
+            hasWritableOutput = true
+            frames = min(frames, self.frames(bytes: buffer.mDataByteSize,
+                                             channels: buffer.mNumberChannels))
+        }
+        guard frames > 0, outputChannels > 0, hasWritableOutput else { return 0 }
+        var step = (target - start) / Float(frames)
+        let length = vDSP_Length(frames)
+
+        // Interleaved stereo onto one interleaved stereo buffer: one pass
+        // that ramps both sides.
+        if output.count == 1, sourceChannels == 2, Int(output[0].mNumberChannels) == 2,
+           let destination = output[0].mData?.assumingMemoryBound(to: Float.self) {
+            var pairStart = start
+            vDSP_vrampmul2(samples, samples + 1, 2, &pairStart, &step,
+                           destination, destination + 1, 2, length)
+            written = frames
+            return written
+        }
+
+        // One channel to play with: fold the source into it. Each source
+        // channel carries its share of the ramp, so together they slide from
+        // `start` to `target`.
+        if outputChannels == 1, sourceChannels > 1 {
+            guard let buffer = output.first(where: { $0.mNumberChannels == 1 && $0.mData != nil }),
+                  let destination = buffer.mData?.assumingMemoryBound(to: Float.self) else { return 0 }
+            var foldStep = step / Float(sourceChannels)
+            var foldStart = start / Float(sourceChannels)
+            vDSP_vrampmul(samples, vDSP_Stride(sourceChannels), &foldStart, &foldStep, destination, 1, length)
+            for channel in 1..<sourceChannels {
+                foldStart = start / Float(sourceChannels)
+                vDSP_vrampmuladd(samples + channel, vDSP_Stride(sourceChannels), &foldStart, &foldStep,
+                                 destination, 1, length)
+            }
+            written = frames
+            return written
+        }
+
+        var firstOutputChannel = 0
+        var didWriteSourceChannel = false
+        var channelStart = start
+        for buffer in output {
+            let channels = Int(buffer.mNumberChannels)
+            guard channels > 0 else { continue }
+            defer { firstOutputChannel += channels }
+            guard let destination = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
+            for channel in 0..<channels {
+                guard let sourceChannel = sourceChannel(for: firstOutputChannel + channel,
+                                                        sourceChannels: sourceChannels) else {
+                    vDSP_vclr(destination + channel, vDSP_Stride(channels), length)
+                    continue
+                }
+                didWriteSourceChannel = true
+                channelStart = start
+                vDSP_vrampmul(samples + sourceChannel, vDSP_Stride(sourceChannels), &channelStart, &step,
+                              destination + channel, vDSP_Stride(channels), length)
+            }
+        }
+        written = didWriteSourceChannel ? frames : 0
+        return written
+    }
 }

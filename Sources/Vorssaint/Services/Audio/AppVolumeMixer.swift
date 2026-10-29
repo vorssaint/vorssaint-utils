@@ -3423,6 +3423,7 @@ private final class TapGainEngine: GainEngine {
         }
         self.configuration = configuration
         let ramp = TapLevelRamp()
+        let appliedGain = MixerRender.AppliedGain()
         // A boost pushes loud samples past full scale, and clamping the
         // overshoot flattens every peak into audible crackle (issue #326).
         // The limiter turns the whole signal down for just the moment a peak
@@ -3459,7 +3460,8 @@ private final class TapGainEngine: GainEngine {
             // here on leaves the output written.
             let frames = MixerRender.render(source: inputBuffers[tapIndex],
                                             into: outputBuffers,
-                                            gain: gain)
+                                            gain: gain,
+                                            rampingFrom: appliedGain)
             // Draining delayed audio alone must not hide a stalled capture
             // from the engine's recovery check.
             guard frames > 0 else { return }
