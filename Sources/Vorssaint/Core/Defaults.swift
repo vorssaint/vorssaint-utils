@@ -40,6 +40,7 @@ enum DefaultsKey {
     static let keepAwakeUntilTime = "keepAwakeUntilTime"  // last picked end time; 0 = none yet
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
+    static let keepAwakeShutDownAfterAgents = "keepAwakeShutDownAfterAgents" // agents session shuts the Mac down when it ends
     static let hotkeyEnabled = "hotkeyEnabled"
     static let launchAtLoginWanted = "launchAtLoginWanted"  // the user's choice; the system record can be lost
     static let keepAwakeShortcut = "keepAwakeShortcut"    // GlobalShortcut storage value
@@ -1231,6 +1232,7 @@ enum Defaults {
         DefaultsKey.keepAwakeUntilTime: 0.0,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,
+        DefaultsKey.keepAwakeShutDownAfterAgents: false,
         DefaultsKey.hotkeyEnabled: true,
         DefaultsKey.launchAtLoginWanted: false,
         DefaultsKey.keepAwakeShortcut: "control+option+command:40",
