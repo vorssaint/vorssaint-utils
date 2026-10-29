@@ -360,6 +360,13 @@ enum WindowLayoutSideRepeat {
     static var cyclesThirds: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutSideRepeatCyclesThirds)
     }
+
+    /// Whether a repeated Left or Right that leaves the display follows Next
+    /// display's order through every screen, stacked ones included, instead of
+    /// stopping at the nearest display on that side.
+    static var cyclesDisplays: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutSideRepeatCyclesDisplays)
+    }
 }
 
 enum WindowLayoutGeometry {
@@ -471,6 +478,22 @@ enum WindowLayoutGeometry {
         case .bottomHalf: return (.topHalf, .down)
         default: return nil
         }
+    }
+
+    /// The display a repeated half crosses onto. Normally the nearest one in
+    /// that physical direction. With the display cycle on, left and right
+    /// follow Next display's order instead and wrap at the ends, so a display
+    /// stacked above or below is reached too; up and down stay physical.
+    static func crossingDisplayIndex(currentIndex: Int,
+                                     frames: [CGRect],
+                                     direction: DisplayDirection,
+                                     followsDisplayOrder: Bool) -> Int? {
+        if followsDisplayOrder, direction == .left || direction == .right {
+            return adjacentDisplayIndex(currentIndex: currentIndex,
+                                        frames: frames,
+                                        movingForward: direction == .right)
+        }
+        return neighbourIndex(currentIndex: currentIndex, frames: frames, direction: direction)
     }
 
     /// The display in one physical direction. Sideways, only a display starting

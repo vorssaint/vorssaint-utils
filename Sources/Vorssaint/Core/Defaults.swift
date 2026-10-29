@@ -513,6 +513,7 @@ enum DefaultsKey {
     static let windowReserveStageManagerSpace = "windowReserveStageManagerSpace"
     static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // per-edge percentage for margin maximize
     static let windowLayoutSideRepeatCyclesThirds = "windowLayoutSideRepeatCyclesThirds" // repeated Left/Right cycles half, 2/3, 1/3 on the same display
+    static let windowLayoutSideRepeatCyclesDisplays = "windowLayoutSideRepeatCyclesDisplays" // repeated Left/Right crosses displays in Next display order, stacked ones included
     static let windowLayoutIgnoredApps = "windowLayoutIgnoredApps" // apps that temporarily disable window layout while focused
     static let panelCollapsedSections = "panelCollapsedSections"
     static let panelCollapsedResetVersion = "panelCollapsedResetVersion"
@@ -1680,6 +1681,7 @@ enum Defaults {
         DefaultsKey.windowReserveStageManagerSpace: false,
         DefaultsKey.windowLayoutMarginPercent: 5.0,
         DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
+        DefaultsKey.windowLayoutSideRepeatCyclesDisplays: false,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,

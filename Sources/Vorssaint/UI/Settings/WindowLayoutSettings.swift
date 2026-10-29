@@ -27,6 +27,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowReserveStageManagerSpace) private var reserveStageManagerSpace = false
     @AppStorage(DefaultsKey.windowLayoutMarginPercent) private var marginPercent = WindowLayoutMargin.defaultPercent
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
+    @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesDisplays) private var sideRepeatCyclesDisplays = false
     @State private var directionalError: String?
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
@@ -368,6 +369,13 @@ struct WindowLayoutSettings: View {
             }
             Toggle(text.sideRepeatCycle, isOn: $sideRepeatCyclesThirds)
             Text(text.sideRepeatCycleCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            // The size cycle keeps a repeated Left or Right on its display,
+            // so the display cycle has nothing to do while it is on.
+            Toggle(text.sideRepeatAllDisplays, isOn: $sideRepeatCyclesDisplays)
+                .disabled(sideRepeatCyclesThirds)
+            Text(text.sideRepeatAllDisplaysCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

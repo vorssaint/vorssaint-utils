@@ -1071,6 +1071,42 @@ enum WindowLayoutFeatureTests {
                                                         frames: stackedDisplays,
                                                         direction: .left) == nil,
                "window layout never answers a sideways push with a stacked display")
+        // Two stacked monitors with a laptop to their left: sideways, the top
+        // monitor is never the nearest display on either side.
+        let besideStackedDisplays = [
+            CGRect(x: 0, y: 0, width: 3440, height: 1440),
+            CGRect(x: -1470, y: 723, width: 1470, height: 956),
+            CGRect(x: 0, y: 1440, width: 3440, height: 1440),
+        ]
+        func crossing(_ index: Int,
+                      _ direction: WindowLayoutGeometry.DisplayDirection,
+                      followsDisplayOrder: Bool) -> Int? {
+            WindowLayoutGeometry.crossingDisplayIndex(currentIndex: index,
+                                                      frames: besideStackedDisplays,
+                                                      direction: direction,
+                                                      followsDisplayOrder: followsDisplayOrder)
+        }
+        suite.expect(crossing(1, .right, followsDisplayOrder: false) == 0
+                && crossing(0, .right, followsDisplayOrder: false) == nil
+                && crossing(0, .left, followsDisplayOrder: false) == 1
+                && crossing(2, .left, followsDisplayOrder: false) == 1,
+               "window layout side crossing keeps the physical neighbour while the display cycle is off")
+        suite.expect(crossing(1, .right, followsDisplayOrder: true) == 0
+                && crossing(0, .right, followsDisplayOrder: true) == 2
+                && crossing(2, .right, followsDisplayOrder: true) == 1
+                && crossing(2, .left, followsDisplayOrder: true) == 0
+                && crossing(0, .left, followsDisplayOrder: true) == 1
+                && crossing(1, .left, followsDisplayOrder: true) == 2,
+               "window layout display cycle walks every display in Next display order, stacked ones included, and wraps")
+        suite.expect(crossing(0, .up, followsDisplayOrder: true) == 2
+                && crossing(2, .down, followsDisplayOrder: true) == 0
+                && crossing(1, .up, followsDisplayOrder: true) == nil,
+               "window layout display cycle leaves vertical crossings physical")
+        suite.expect(WindowLayoutGeometry.crossingDisplayIndex(currentIndex: 0,
+                                                               frames: [besideStackedDisplays[0]],
+                                                               direction: .right,
+                                                               followsDisplayOrder: true) == nil,
+               "window layout display cycle has nowhere to go with one display")
         let towerDisplays = [
             CGRect(x: 0, y: 0, width: 1440, height: 900),
             CGRect(x: 1440, y: 800, width: 1000, height: 1000),
@@ -1457,6 +1493,8 @@ enum WindowLayoutFeatureTests {
                 && sideRepeatSettingsCode.contains("text.sideRepeatCycle")
                 && sideRepeatSettingsCode.contains("text.sideRepeatCycleCaption"),
                "window layout settings expose the side repeat cycle toggle with its caption")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.windowLayoutSideRepeatCyclesDisplays] as? Bool == false,
+               "window layout display cycle stays off by default")
         let sideRepeatServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/WindowLayout/WindowLayoutService.swift",
             encoding: .utf8)) ?? ""

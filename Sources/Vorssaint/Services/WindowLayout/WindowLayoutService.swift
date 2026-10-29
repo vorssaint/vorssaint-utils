@@ -314,7 +314,8 @@ final class WindowLayoutService: ObservableObject {
                     action: action),
            let destination = neighbourScreen(to: screen,
                                              screens: screens,
-                                             direction: crossing.direction) {
+                                             direction: crossing.direction,
+                                             followsDisplayOrder: WindowLayoutSideRepeat.cyclesDisplays) {
             // The window is already parked on that half, so the same shortcut
             // keeps pushing in the same direction. Without a display there,
             // the placement below keeps its normal repeated-action behavior.
@@ -2614,12 +2615,14 @@ final class WindowLayoutService: ObservableObject {
 
     private func neighbourScreen(to current: NSScreen,
                                  screens: [NSScreen],
-                                 direction: WindowLayoutGeometry.DisplayDirection) -> NSScreen? {
+                                 direction: WindowLayoutGeometry.DisplayDirection,
+                                 followsDisplayOrder: Bool) -> NSScreen? {
         guard let currentIndex = screens.firstIndex(where: { $0 === current }),
-              let destinationIndex = WindowLayoutGeometry.neighbourIndex(
+              let destinationIndex = WindowLayoutGeometry.crossingDisplayIndex(
                 currentIndex: currentIndex,
                 frames: screens.map(\.frame),
-                direction: direction
+                direction: direction,
+                followsDisplayOrder: followsDisplayOrder
               )
         else { return nil }
         return screens[destinationIndex]
