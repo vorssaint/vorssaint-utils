@@ -992,6 +992,8 @@ extension Strings {
         cleanerPanelCaption: "Restes d’apps, caches et journaux",
         cleanerSafeSection: "Nettoyage sûr",
         cleanerOptionalSection: "Facultatif, vérifiez d’abord",
+        cleanerExpandAll: "Tout développer",
+        cleanerCollapseAll: "Tout réduire",
         cleanerCatOtherCaches: "Autres caches",
         cleanerCachesCaption: "Fichiers temporaires que les apps recréent seules.",
         cleanerLogsCaption: "Anciens journaux de diagnostic.",

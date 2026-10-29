@@ -992,6 +992,8 @@ extension Strings {
         cleanerPanelCaption: "Zvyšky aplikácií, cache a protokoly",
         cleanerSafeSection: "Bezpečné čistenie",
         cleanerOptionalSection: "Voliteľné, najprv skontrolujte",
+        cleanerExpandAll: "Rozbaliť všetko",
+        cleanerCollapseAll: "Zbaliť všetko",
         cleanerCatOtherCaches: "Ostatné cache",
         cleanerCachesCaption: "Dočasné súbory, ktoré si aplikácie samy obnovia.",
         cleanerLogsCaption: "Staré diagnostické protokoly.",

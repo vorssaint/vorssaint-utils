@@ -100,12 +100,17 @@ struct CleanerView: View {
     /// The panel hosted card starts folded; the Settings page shows it open.
     @State private var scheduleExpanded = false
     @State private var whatsAppExpanded = false
+    /// Result groups the user has opened. Every scan starts folded.
+    @State private var expandedGroups: Set<DisplayGroup> = []
     /// Tightens paddings for the panel and launcher.
     var compact = false
 
     var body: some View {
         content
             .frame(maxWidth: .infinity)
+            .onChange(of: cleaner.phase) { _, phase in
+                if phase == .scanning { expandedGroups = [] }
+            }
     }
 
     @ViewBuilder
@@ -812,6 +817,9 @@ struct CleanerView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            if !visibleGroups.isEmpty {
+                expansionToggle(for: visibleGroups, prominent: true)
+            }
             Button { cleaner.reset() } label: {
                 Image(systemName: "xmark.circle.fill").font(.system(size: 16)).foregroundStyle(.secondary)
             }
@@ -820,22 +828,75 @@ struct CleanerView: View {
         .padding(compact ? 12 : 16)
     }
 
+    /// Groups with at least one find; only these have rows to open.
+    private var visibleGroups: [DisplayGroup] {
+        DisplayGroup.allCases.filter { !items(for: $0).isEmpty }
+    }
+
+    /// Opens the given groups, or folds them once every one is open. The
+    /// header passes every group as a bordered button; a section header
+    /// passes only its own as lighter accent-coloured text. The chevron
+    /// points the way the click will move the rows.
+    @ViewBuilder
+    private func expansionToggle(for groups: [DisplayGroup], prominent: Bool) -> some View {
+        let allOpen = groups.allSatisfy(expandedGroups.contains)
+        let title = allOpen ? l10n.s.cleanerCollapseAll : l10n.s.cleanerExpandAll
+        let button = Button {
+            if allOpen {
+                expandedGroups.subtract(groups)
+            } else {
+                expandedGroups.formUnion(groups)
+            }
+        } label: {
+            Label(title, systemImage: allOpen ? "chevron.up" : "chevron.down")
+        }
+        if prominent {
+            button
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        } else {
+            button
+                .buttonStyle(.borderless)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.accentColor)
+        }
+    }
+
+    private func sectionHeader(_ title: String, groups: [DisplayGroup]) -> some View {
+        HStack {
+            Text(title).font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+            expansionToggle(for: groups, prominent: false)
+        }
+    }
+
+    private func expansionBinding(_ group: DisplayGroup) -> Binding<Bool> {
+        Binding(
+            get: { expandedGroups.contains(group) },
+            set: { open in
+                if open { expandedGroups.insert(group) } else { expandedGroups.remove(group) }
+            }
+        )
+    }
+
     @ViewBuilder
     private func section(_ header: String, groups: [DisplayGroup]) -> some View {
         let visible = groups.filter { !items(for: $0).isEmpty }
         if !visible.isEmpty {
             if compact {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(header).font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                    sectionHeader(header, groups: visible)
                     ForEach(visible) { group in
                         groupRow(group)
                         Divider()
                     }
                 }
             } else {
-                Section(header) {
+                Section {
                     ForEach(visible) { group in groupRow(group) }
+                } header: {
+                    sectionHeader(header, groups: visible)
                 }
             }
         }
@@ -843,7 +904,7 @@ struct CleanerView: View {
 
     private func groupRow(_ group: DisplayGroup) -> some View {
         let group_items = items(for: group)
-        return DisclosureGroup {
+        return DisclosureGroup(isExpanded: expansionBinding(group)) {
             if group == .leftovers {
                 Text(l10n.s.cleanerLeftoversNote)
                     .font(.caption2)

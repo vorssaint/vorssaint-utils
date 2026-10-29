@@ -992,6 +992,8 @@ extension Strings {
         cleanerPanelCaption: "App-Reste, Caches und Protokolle",
         cleanerSafeSection: "Sichere Reinigung",
         cleanerOptionalSection: "Optional, vorher prüfen",
+        cleanerExpandAll: "Alle aufklappen",
+        cleanerCollapseAll: "Alle zuklappen",
         cleanerCatOtherCaches: "Weitere Caches",
         cleanerCachesCaption: "Temporäre Dateien, die Apps von selbst neu anlegen.",
         cleanerLogsCaption: "Alte Diagnoseprotokolle.",

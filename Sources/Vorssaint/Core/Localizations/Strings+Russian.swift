@@ -993,6 +993,8 @@ extension Strings {
         cleanerPanelCaption: "Остатки приложений, кэши и журналы",
         cleanerSafeSection: "Безопасная очистка",
         cleanerOptionalSection: "По желанию, сначала проверьте",
+        cleanerExpandAll: "Развернуть все",
+        cleanerCollapseAll: "Свернуть все",
         cleanerCatOtherCaches: "Прочие кэши",
         cleanerCachesCaption: "Временные файлы, которые приложения создают заново сами.",
         cleanerLogsCaption: "Старые журналы диагностики.",
