@@ -14,6 +14,7 @@ extension FeatureStrings {
     static func clipboardIgnoredApps(_ language: AppLanguage) -> ClipboardIgnoredAppsStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -38,6 +39,13 @@ extension ClipboardIgnoredAppsStrings {
         addButton: "Add an app…",
         removeButton: "Remove",
         caption: "Nothing you copy in these apps is saved to the history."
+    )
+
+    static let pl = ClipboardIgnoredAppsStrings(
+        listTitle: "Aplikacje do pominięcia",
+        addButton: "Dodaj aplikację…",
+        removeButton: "Usuń",
+        caption: "Nic, co skopiujesz w tych aplikacjach, nie zostanie zapisane w historii."
     )
 
     static let ptBR = ClipboardIgnoredAppsStrings(

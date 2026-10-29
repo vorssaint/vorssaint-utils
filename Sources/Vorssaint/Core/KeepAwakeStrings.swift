@@ -48,6 +48,7 @@ extension FeatureStrings {
     static func keepAwakeAutomation(_ language: AppLanguage) -> KeepAwakeAutomationStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -68,6 +69,7 @@ extension FeatureStrings {
     static func keepAwakeDisplaySleep(_ language: AppLanguage) -> KeepAwakeDisplaySleepStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -90,6 +92,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let enUS = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Allow the display to sleep",
         allowDisplaySleepCaption: "Keeps the Mac awake while the display follows its normal sleep timer."
+    )
+
+    static let pl = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Zezwól na usypianie ekranu",
+        allowDisplaySleepCaption: "Utrzymuje komputer Mac w stanie czuwania, podczas gdy wyświetlacz działa według normalnego licznika czasu uśpienia."
     )
 
     static let ptBR = KeepAwakeDisplaySleepStrings(
@@ -183,6 +190,28 @@ extension KeepAwakeAutomationStrings {
         matchAny: "Any",
         matchAll: "All",
         automationCaptionAll: "Starts only when every selected condition is active."
+    )
+
+    static let pl = KeepAwakeAutomationStrings(
+        automationSection: "Automatyzacja",
+        automationCaption: "Uruchamia się, gdy dowolny wybrany warunek jest aktywny.",
+        automationOff: "Wyłączone",
+        externalDisplayToggle: "Wyświetlacz zewnętrzny",
+        externalDisplayActive: "Aktywne, gdy podłączony jest wyświetlacz zewnętrzny",
+        powerToggle: "Zasilanie",
+        powerActive: "Aktywny po podłączeniu do zasilania",
+        runningAppsToggle: "Aplikacje",
+        runningAppsActive: "Aktywne, gdy działa wybrana aplikacja",
+        runningAppsListTitle: "Wybrane aplikacje",
+        runningAppsAddButton: "Dodaj aplikację…",
+        runningAppsRemoveButton: "Usuń",
+        runningAppsListCaption: "Funkcja Keep Awake uruchamia się, gdy dowolna z tych aplikacji jest otwarta, nawet w tle.",
+        automationActive: "Aktywny, ponieważ został spełniony automatyczny warunek",
+        pauseWhenLockedToggle: "Wstrzymaj, gdy Mac jest zablokowany",
+        pauseWhenLockedCaption: "Po zablokowaniu Maca przywraca normalne usypianie. Po odblokowaniu wznawia pozostałą część sesji.",
+        matchAny: "Każdy",
+        matchAll: "Wszystko",
+        automationCaptionAll: "Uruchamia się tylko wtedy, gdy każdy wybrany warunek jest aktywny."
     )
 
     static let ptBR = KeepAwakeAutomationStrings(
