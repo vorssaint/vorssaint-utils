@@ -7,7 +7,8 @@ import Carbon.HIToolbox
 import CoreGraphics
 
 /// Adds optional actions when the active app's Dock icon is clicked: minimize
-/// its windows, hide the app, or cycle its windows. The Dock's native behavior
+/// its windows, hide the app, or cycle its windows. Finder can instead launch
+/// a chosen app, whether or not Finder is active. The Dock's native behavior
 /// remains untouched for every other click. Requires Accessibility.
 final class DockClickService {
     static let shared = DockClickService()
@@ -40,6 +41,7 @@ final class DockClickService {
     private var runLoopSource: CFRunLoopSource?
     private var dockPIDCache: pid_t?
     private var pendingClick: PendingClick?
+    private var finderReplacementURL: URL?
     /// Last handled click per app: follow-up clicks toggle from this record
     /// instead of re-deriving from ambiguous mid-animation AX state. The tap
     /// runs on the main run loop, so both dictionaries are main-thread-only.
@@ -68,9 +70,13 @@ final class DockClickService {
         let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
         let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
         let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
+        finderReplacementURL = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickFinderReplacement)
+            ? DockClickSupport.validatedFinderReplacementURL(
+                path: UserDefaults.standard.string(forKey: DefaultsKey.dockClickFinderReplacementPath) ?? "")
+            : nil
         if SessionActivitySupport.tapShouldRun(
             featureWanted: AppFeature.dockClick.isAvailable
-                && (minimizeEnabled || hideEnabled || cycleEnabled),
+                && (minimizeEnabled || hideEnabled || cycleEnabled || finderReplacementURL != nil),
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive) {
             start()
@@ -207,6 +213,12 @@ final class DockClickService {
         else { return Unmanaged.passUnretained(event) }
 
         let pid = app.processIdentifier
+        if let action = DockClickSupport.finderReplacementAction(
+            clickedBundleIdentifier: app.bundleIdentifier, replacementURL: finderReplacementURL) {
+            pendingClick = PendingClick(pid: pid, app: app, origin: point, action: action,
+                                        unminimized: [], minimized: [], priorRecord: nil)
+            return nil
+        }
         let now = CFAbsoluteTimeGetCurrent()
         lastAction = lastAction.filter { now - $0.value.time < DockClickSupport.toggleIntentWindow }
         let record = lastAction[pid]
@@ -325,6 +337,20 @@ final class DockClickService {
         let pid = pending.pid
         let now = CFAbsoluteTimeGetCurrent()
         switch pending.action {
+        case .openFinderReplacement(let url):
+            // Launch outside the tap, after a clean release. A bundle can be
+            // removed after validation; a failed launch must still open Finder.
+            DispatchQueue.main.async {
+                DockPreviewService.shared.dockClickWasHandled()
+                NSWorkspace.shared.openApplication(at: url, configuration: .init()) { _, error in
+                    guard error != nil else { return }
+                    DispatchQueue.main.async {
+                        NSWorkspace.shared.openApplication(
+                            at: URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app"),
+                            configuration: .init())
+                    }
+                }
+            }
         case .cycleWindows:
             lastAction[pid] = ActionRecord(kind: .cycleWindows, time: now, targets: [])
             let unminimized = pending.unminimized

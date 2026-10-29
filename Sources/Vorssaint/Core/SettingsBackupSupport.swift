@@ -185,6 +185,8 @@ enum SettingsBackupSupport {
         DefaultsKey.recorderSaveFolder,
         DefaultsKey.screenshotSaveFolder,
         DefaultsKey.musicBlockReplacementPath,
+        // Another Mac must choose its own installed Finder replacement.
+        DefaultsKey.dockClickFinderReplacementPath,
         // A local watermark file is authority on this Mac, not portable data.
         DefaultsKey.mediaImageWatermarkLogoPath,
         DefaultsKey.simulateUpdate,

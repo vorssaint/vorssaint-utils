@@ -106,6 +106,17 @@ enum SettingsFeatureTests {
             }, "backup dispatch precedes every startup handler with side effects")
 
         let backupKeys = SettingsBackupSupport.exportKeys()
+        let finderReplacementBackup = SettingsBackupSupport.payload(appVersion: "test") { key -> Any? in
+            if key == DefaultsKey.dockClickFinderReplacement { return true }
+            if key == DefaultsKey.dockClickFinderReplacementPath { return "/Applications/FileWorks.app" }
+            return nil
+        }
+        let restoredFinderReplacement = SettingsBackupSupport.sanitizedSettings(from: finderReplacementBackup)
+        suite.expect(restoredFinderReplacement?[DefaultsKey.dockClickFinderReplacement] as? Bool == true
+                && restoredFinderReplacement?[DefaultsKey.dockClickFinderReplacementPath] == nil,
+               "backup preserves the Finder Dock choice but leaves the app path on this Mac")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.dockClickFinderReplacement] as? Bool == false,
+               "Finder Dock redirection stays off until explicitly enabled")
         for reserved in [false, true] {
             let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
                 key == DefaultsKey.windowReserveStageManagerSpace ? reserved : nil

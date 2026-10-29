@@ -238,7 +238,8 @@ extension AppFeature {
         case .dockPreview: return [DefaultsKey.dockPreviewEnabled]
         case .dockClick: return [DefaultsKey.dockClickMinimize,
                                  DefaultsKey.dockClickHide,
-                                 DefaultsKey.dockClickCycleWindows]
+                                 DefaultsKey.dockClickCycleWindows,
+                                 DefaultsKey.dockClickFinderReplacement]
         case .windowMaximizer: return [DefaultsKey.windowMaximizeEnabled]
         case .autoQuit: return [DefaultsKey.autoQuitEnabled]
         case .spacesOrder: return [DefaultsKey.spacesOrderEnabled]
