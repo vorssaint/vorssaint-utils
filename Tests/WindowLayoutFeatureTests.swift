@@ -261,6 +261,28 @@ enum WindowLayoutFeatureTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterTwoThirds] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "center two thirds starts with no combination of its own")
+        // Minimize (issue #967) is offered wherever placements are, so a
+        // shortcut, the radial menu or a trackpad gesture can send the focused
+        // window to the Dock. It moves no frame and claims no combination.
+        suite.expect(WindowLayoutAction.allCases.contains(.minimize)
+                && WindowLayoutAction.minimize.shortcutID == 71
+                && WindowLayoutAction(shortcutID: 71) == .minimize,
+               "minimize exists and answers to its own shortcut id")
+        suite.expect(WindowLayoutAction.minimize.defaultShortcut == nil
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutMinimize] as? String
+                    == WindowLayoutAction.clearedShortcutStorageValue,
+               "minimize starts with no combination of its own")
+        suite.expect(WindowLayoutAction.minimize.targetCapability == .minimize,
+               "minimize only needs a window that can be minimized, not a movable frame")
+        let minimizeCurrent = CGRect(x: 120, y: 90, width: 640, height: 480)
+        let minimizeVisible = CGRect(x: 0, y: 40, width: 1440, height: 860)
+        suite.expect(WindowLayoutGeometry.rect(for: .minimize, current: minimizeCurrent,
+                                              visibleFrame: minimizeVisible,
+                                              windowGap: 16, screenGap: 32) == minimizeCurrent
+                && WindowLayoutGeometry.displayCrossing(for: .minimize, previousAction: .minimize) == nil,
+               "minimize keeps the window frame and never crosses displays")
+        suite.expect(!WindowEdgeSnapPlacementGroup.placements.contains(.minimize),
+               "minimize is not offered as an edge snap placement")
         let verticalLayouts: [(WindowLayoutAction, UInt32, String)] = [
             (.topQuarter, 66, DefaultsKey.windowLayoutShortcutTopQuarter),
             (.upperMiddleQuarter, 58, DefaultsKey.windowLayoutShortcutUpperMiddleQuarter),
@@ -298,6 +320,7 @@ enum WindowLayoutFeatureTests {
         for language in AppLanguage.allCases {
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
+                    && !layoutStrings.minimize.isEmpty
                     && !layoutStrings.marginMaximize.isEmpty
                     && !layoutStrings.marginPerEdge.isEmpty
                     && !layoutStrings.centerHalf.isEmpty
