@@ -27,7 +27,9 @@ enum CleanerPolicy {
     /// Relative to the home folder. Only ever offered when they exist. The
     /// DeviceSupport folders are debug symbol caches Xcode rebuilds on the
     /// next device connection; they quietly grow to tens of gigabytes and
-    /// are a classic slice of the storage macOS files under "Other".
+    /// are a classic slice of the storage macOS files under "Other". The npx
+    /// and Bun folders are package download caches the tools fill again when
+    /// they next need a package.
     static let developerJunkPaths: [String] = [
         "/Library/Developer/Xcode/DerivedData",
         "/Library/Developer/Xcode/DocumentationCache",
@@ -35,6 +37,8 @@ enum CleanerPolicy {
         "/Library/Developer/Xcode/iOS DeviceSupport",
         "/Library/Developer/Xcode/watchOS DeviceSupport",
         "/Library/Developer/Xcode/tvOS DeviceSupport",
+        "/.npm/_npx",
+        "/.bun/install/cache",
     ]
 
     /// Device backups are the user's safety net: enormous, ancient, and the
