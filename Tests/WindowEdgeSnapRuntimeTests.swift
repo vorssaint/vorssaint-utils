@@ -305,6 +305,8 @@ enum WindowEdgeSnapRuntimeTests {
             return canBePlaced
         }
         func pruneWindowState(keeping key: WindowLayoutWindowKey) {}
+        /// The restore of a snapped window's earlier size has its own tests.
+        func restoreSnappedWindowIfNeeded(_ drag: inout WindowEdgeSnapDrag, pointer: CGPoint) {}
         func isTrackedButtonDown() -> Bool { false }
         func flushPending(proxy: CGEventTapProxy?, at point: CGPoint?) {
             guard pendingGesture != nil else { return }

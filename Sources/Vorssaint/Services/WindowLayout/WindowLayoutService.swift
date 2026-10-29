@@ -37,6 +37,10 @@ final class WindowLayoutService: ObservableObject {
 
     private var frameHistory = WindowLayoutHistory()
     private var lastActions: [WindowLayoutWindowKey: WindowLayoutAction] = [:]
+    // What a window measured before the first placement of a run of snaps put
+    // it where it is now. Dragging it out of the snapped place hands this size
+    // back, so half then maximize still returns to the size before the half.
+    private var restoreFrames: [WindowLayoutWindowKey: WindowLayoutFrame] = [:]
     // Where each window's last placement left it, as requested and as read
     // back, minimum sizes included: the side size cycle only advances from there.
     private var settledFrames: [WindowLayoutWindowKey: WindowLayoutSettledFrame] = [:]
@@ -243,6 +247,7 @@ final class WindowLayoutService: ObservableObject {
             }
             if setFrame(previous, on: target.window, windowKey: target.key) {
                 lastActions.removeValue(forKey: target.key)
+                restoreFrames.removeValue(forKey: target.key)
                 return finish(.success(restored: true))
             }
             frameHistory.record(previous, for: target.key)
@@ -381,6 +386,12 @@ final class WindowLayoutService: ObservableObject {
             return finish(.success(restored: false))
         }
         frameHistory.record(historyFrame ?? target.frame, for: target.key)
+        // A placement from a window that is not sitting in a snapped place
+        // starts a new run, so its size is the one a drag away gives back.
+        let previousRestoreFrame = restoreFrames[target.key]
+        if previousRestoreFrame == nil || !isSnapped(target) {
+            restoreFrames[target.key] = historyFrame ?? target.frame
+        }
         if setFrame(placement.frame,
                     targetRect: placement.rect,
                     screenVisibleFrame: visibleFrame,
@@ -392,7 +403,20 @@ final class WindowLayoutService: ObservableObject {
             return finish(.success(restored: false))
         }
         frameHistory.discardLatest(for: target.key)
+        restoreFrames[target.key] = previousRestoreFrame
         return finish(.failure(.failed))
+    }
+
+    /// Whether the window still sits where its last placement put it. A window
+    /// moved or resized by hand since then is no longer snapped.
+    private func isSnapped(_ target: WindowLayoutTarget) -> Bool {
+        guard let action = lastActions[target.key],
+              action != .fullScreen,
+              let screen = bestScreen(for: target.frame) else { return false }
+        let rect = placement(for: action,
+                             current: target.frame,
+                             visibleFrame: screen.windowLayoutVisibleFrame).rect
+        return accepted(actual: target.frame, targetRect: rect, action: action)
     }
 
     private func focusedTarget(for action: WindowLayoutAction) -> WindowLayoutTarget? {
@@ -498,6 +522,7 @@ final class WindowLayoutService: ObservableObject {
         frameHistory.removeStaleWindows(keeping: activeWindows)
         lastActions = lastActions.filter { activeWindows.contains($0.key) }
         settledFrames = settledFrames.filter { activeWindows.contains($0.key) }
+        restoreFrames = restoreFrames.filter { activeWindows.contains($0.key) }
     }
 
     private func activeWindowKeys() -> Set<WindowLayoutWindowKey>? {
@@ -1849,6 +1874,7 @@ final class WindowLayoutService: ObservableObject {
             case .moving:
                 drag.isMoving = true
                 drag.mismatchCount = 0
+                restoreSnappedWindowIfNeeded(&drag, pointer: location)
             case .resizing:
                 cancelEdgeSnapTracking()
                 return
@@ -1873,6 +1899,41 @@ final class WindowLayoutService: ObservableObject {
             }
         }
         edgeSnapDrag = drag
+    }
+
+    /// The moment a drag is confirmed to carry the window: when it was sitting
+    /// in a snapped place, it takes the size it had before back, with the
+    /// pointer kept at the same relative spot on its title bar. Only a drag
+    /// by the title bar is handled; a modifier move places the window itself.
+    private func restoreSnappedWindowIfNeeded(_ drag: inout WindowEdgeSnapDrag, pointer: CGPoint) {
+        guard !edgeSnapFollowsMoveGesture,
+              UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag),
+              let restore = restoreFrames[drag.key],
+              let app = NSRunningApplication(processIdentifier: drag.key.processID),
+              !WindowLayoutIgnoredApps.shared.contains(bundleID: app.bundleIdentifier,
+                                                       executablePath: app.executableURL?.path),
+              canSetFrame(on: drag.window)
+        else { return }
+        let pressed = WindowLayoutFrame(origin: drag.initialFrame.origin, size: drag.initialFrame.size)
+        let target = WindowLayoutTarget(window: drag.window, key: drag.key, frame: pressed)
+        guard WindowEdgeSnapSupport.needsSizeRestore(from: pressed.size, to: restore.size),
+              isSnapped(target) else { return }
+        let screenFrame = drag.quartzScreenFrames.first { $0.contains(pointer) }
+        let frame = WindowEdgeSnapSupport.restoredFrame(snapped: drag.initialFrame,
+                                                        restoreSize: restore.size,
+                                                        pointerStart: drag.pointerStart,
+                                                        pointerNow: pointer,
+                                                        screenFrame: screenFrame)
+        let restored = WindowLayoutFrame(origin: frame.origin, size: frame.size)
+        cancelSettle(for: drag.key.windowID)
+        let suspension = EnhancedUserInterfaceSuspension.suspend(forAppOf: drag.window)
+        applyFrame(restored, on: drag.window)
+        suspension?.resume()
+        lastActions.removeValue(forKey: drag.key)
+        settledFrames.removeValue(forKey: drag.key)
+        restoreFrames.removeValue(forKey: drag.key)
+        // Snapping again in the same drag then remembers this unsnapped frame.
+        drag.initialFrame = frame
     }
 
     /// `velocity` is in Quartz points per second, like the point.
@@ -3085,7 +3146,7 @@ private enum WindowEdgeSnapPointerInput {
 private struct WindowEdgeSnapDrag {
     let window: AXUIElement
     let key: WindowLayoutWindowKey
-    let initialFrame: CGRect
+    var initialFrame: CGRect
     let pointerStart: CGPoint
     let protectsSystemTopEdge: Bool
     let quartzScreenFrames: [CGRect]

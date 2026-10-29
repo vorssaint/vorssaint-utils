@@ -17,6 +17,7 @@ enum WindowLayoutFeatureTests {
         WindowStageManagerMaximizerTests.run(suite)
         WindowDirectionalModifierRuntimeTests.run(suite)
         WindowEdgeSnapRuntimeTests.run(suite)
+        WindowEdgeSnapRestoreTests.run(suite)
         WindowGestureApplyRuntimeTests.run(suite)
         let modifierTrigger = WindowDirectionalTrigger(storageValue: "modifiers:control+command")
         suite.expect(modifierTrigger?.displayString == "⌃⌘"
