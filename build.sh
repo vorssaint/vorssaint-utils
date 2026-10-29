@@ -96,7 +96,7 @@ legacy_identity_installed() {
 # keeps showing them as granted, and no new prompt ever appears. A plain
 # --install strands them under the released bundle id, on the app the user
 # actually relies on. When no identity is installed, create the stable local one
-# up front instead of falling through to ad-hoc — setup-signing.sh is free,
+# up front instead of falling through to ad-hoc; setup-signing.sh is free,
 # offline and idempotent. Gating on the install rather than the variant keeps
 # this off CI, where neither ci.yml nor release.yml passes --install.
 if (( DEV || INSTALL )) && [[ -z "$(developer_id_identity)" ]] \
@@ -510,6 +510,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotCanvasSupport.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotSaveFormat.swift
+        Sources/Vorssaint/Core/ScreenshotFormatStrings.swift
         Sources/Vorssaint/UI/Settings/ScreenCaptureToolPicker.swift
         Sources/Vorssaint/UI/Settings/MonitorToken.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
@@ -745,15 +747,15 @@ fi
 xattr -c -r "$STAGE" 2>/dev/null || true
 
 # Signing, in order of preference:
-#   1. Developer ID Application — the real, Apple-issued identity used for
+#   1. Developer ID Application: the real, Apple-issued identity used for
 #      notarized releases. Signed with the hardened runtime (required for
 #      notarization), the app's entitlements and a secure timestamp. Gives a
 #      stable, team-based designated requirement, so permissions persist across
 #      updates AND Gatekeeper shows no "unverified developer" warning.
-#   2. "Vorssaint Utils Signing" — the legacy stable self-signed identity, kept
+#   2. "Vorssaint Utils Signing": the legacy stable self-signed identity, kept
 #      as a fallback so contributors without a Developer ID still get a constant
 #      designated requirement across their local builds.
-#   3. Ad-hoc — fresh clone with no identity at all.
+#   3. Ad-hoc: fresh clone with no identity at all.
 DEVID="$(developer_id_identity)"
 codesign_app() {
     local target="$1"
@@ -804,7 +806,7 @@ sign_bundle() {
     elif legacy_identity_installed; then
         echo "  signing with legacy self-signed identity: $LEGACY_IDENTITY"
     else
-        echo "  signing ad-hoc (no identity installed — run Tools/setup-signing.sh)"
+        echo "  signing ad-hoc (no identity installed; run Tools/setup-signing.sh)"
     fi
     [[ -f "$helper" ]] && codesign_fan_helper "$helper"
     [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
@@ -855,7 +857,7 @@ stop_process() {
         fi
         sleep 0.1
     done
-    echo "✗ $proc is still running — quit it and retry" >&2
+    echo "✗ $proc is still running; quit it and retry" >&2
     return 1
 }
 
