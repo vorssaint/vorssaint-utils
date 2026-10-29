@@ -3946,8 +3946,14 @@ enum PointerInputFeatureTests {
                "Cleaning Mode ends and releases its filter tap when the login session leaves the screen")
 
         // MARK: Command-Q / Command-W protection
-        suite.expect(QuitProtectionSupport.sanitizedHoldDuration(100) == 250,
+        suite.expect(QuitProtectionSupport.sanitizedHoldDuration(100) == 125,
                "quit protection clamps a too-short hold duration")
+        for milliseconds in [125.0, 150, 175, 200, 225] + Array(stride(from: 250.0, through: 2_000, by: 50)) {
+            suite.expect(QuitProtectionSupport.sanitizedHoldDuration(milliseconds) == milliseconds,
+                   "quit protection preserves the selected \(milliseconds) ms hold duration")
+        }
+        suite.expect(QuitProtectionSupport.defaultHoldDurationMilliseconds == 800,
+               "quit protection keeps its existing 800 ms default")
         suite.expect(QuitProtectionSupport.sanitizedHoldDuration(3_000) == 2_000,
                "quit protection clamps an overly long hold duration")
         suite.expect(QuitProtectionSupport.sanitizedHoldDuration(.nan)
