@@ -313,10 +313,10 @@ enum NotchWatchTests {
     private static func readingLoopContracts(_ suite: TestSuite) {
         let source = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchWatchService.swift",
                                   encoding: .utf8)) ?? ""
-        func line(_ fragment: String) -> Int? {
-            source.components(separatedBy: "\n").enumerated().first { _, line in
+        func line(_ fragment: String, after start: Int = 0) -> Int? {
+            source.components(separatedBy: "\n").enumerated().first { offset, line in
                 let code = line.trimmingCharacters(in: .whitespaces)
-                return !code.hasPrefix("//") && code.contains(fragment)
+                return offset >= start && !code.hasPrefix("//") && code.contains(fragment)
             }.map { $0.offset + 1 }
         }
         suite.expect(line("tracker.observe(signature: signature, reading: text, at: Date())") != nil
@@ -327,13 +327,32 @@ enum NotchWatchTests {
         } else {
             suite.expect(false, "the reading loop still reads text and keeps the area's picture")
         }
-        if let permission = line("guard CGPreflightScreenCaptureAccess() else"),
+        // Choosing an area checks the permission too; this is the reading's own check.
+        if let reading = line("private func read() async"),
+           let permission = line("guard CGPreflightScreenCaptureAccess() else", after: reading),
            let capture = line("await WindowPreviewProvider.captureViaWindowServer(windowID)"),
-           let region = line("await regionCapture?.image()") {
+           let region = line("await region?.image()") {
             suite.expect(permission < capture && permission < region,
                          "without Screen Recording nothing is captured, so the system is not asked again")
         } else {
             suite.expect(false, "the reading loop still checks Screen Recording before capturing")
         }
+        // Issue #1863: a paused capture keeps the last reading, and readings
+        // take the shared capture turns.
+        if let paused = line("guard !WindowPreviewProvider.capturesArePaused else { return }"),
+           let info = line("guard let info = Self.windowInfo(windowID) else { finish(.closed); return }"),
+           let capture = line("await WindowPreviewProvider.captureViaWindowServer(windowID)") {
+            suite.expect(info < paused && paused < capture,
+                         "while captures are paused Watch still notices a closed window but keeps its last reading")
+        } else {
+            suite.expect(false, "Watch still waits out paused captures before reading")
+        }
+        suite.expect(line("if !WindowPreviewProvider.capturesArePaused, state != .hidden { state = .hidden }") != nil,
+                     "a capture refused because captures just paused does not call the window hidden")
+        suite.expect(source.components(separatedBy: "WindowPreviewProvider.captureViaScreenCaptureKit {").count == 3
+                     && !source.contains("ScreenshotCaptureEngine.captureWindow(")
+                     && source.contains("if captured == nil, info.onScreen, !displaysAsleep {")
+                     && source.contains("guard !displaysAsleep else { return }\n            let region = regionCapture"),
+                     "Watch's ScreenCaptureKit readings take a capture turn and wait for the displays to wake")
     }
 }

@@ -40,7 +40,11 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     /// recording. One way, and read from the audio threads, so it is the flag
     /// type rather than a plain Bool.
     private let tapReaderLost = RecorderAudioFlag()
+    /// Whether the stream heard sound at all, and whether it heard sound the
+    /// tap was there to hear. They differ only for an app's tap, which can be
+    /// built after the stream first hears the app.
     private let streamHeard = RecorderAudioFlag()
+    private let streamHeardSinceTap = RecorderAudioFlag()
     private let pointer: RecorderPointerSampler
     private let typing: RecorderTypingSampler
     private let writerQueue = DispatchQueue(label: "com.vorssaint.recorder.writer",
@@ -199,7 +203,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             UserDefaults.standard.set(
                 RecorderSupport.trustsSystemAudioTap(previously: writesTapAudio,
                                                      tapHeardSound: tap.heardSound,
-                                                     streamHeardSound: streamHeard.value),
+                                                     streamHeardSound: streamHeardSound(against: tap)),
                 forKey: DefaultsKey.recorderSystemAudioTapVerified)
         }
         let (track, typingTrack) = await MainActor.run { (pointer.stop(), typing.stop()) }
@@ -214,6 +218,14 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         return written
     }
 
+    /// Whether the stream heard sound the tap should have heard too. An app's
+    /// tap that never ran through a recording in which the stream heard the
+    /// app cannot hear that app at all, so all of the stream's sound counts
+    /// against it, as against the whole Mac's tap.
+    private func streamHeardSound(against tap: RecorderSystemAudioTap) -> Bool {
+        tap.ranPipeline ? streamHeardSinceTap.value : streamHeard.value
+    }
+
     func captureEngine(_ engine: RecorderCaptureEngine,
                        didOutput sampleBuffer: CMSampleBuffer,
                        of kind: RecorderCaptureEngine.Kind) {
@@ -221,8 +233,15 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             // The stream keeps listening even when the tap is written: a tap
             // that stays silent through sound the stream heard has lost its
             // permission, and the next recording goes back to the stream.
-            if !streamHeard.value, RecorderAudioProbe.containsSound(sampleBuffer) {
+            if !streamHeardSinceTap.value, RecorderAudioProbe.containsSound(sampleBuffer) {
                 streamHeard.raise()
+                let tap = systemAudioTap
+                let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                if RecorderSupport.streamSoundCountsAgainstTap(at: time,
+                                                               hearsOneApp: tap?.hearsOneApp == true,
+                                                               pipelineStart: tap?.pipelineStart ?? 0) {
+                    streamHeardSinceTap.raise()
+                }
             }
             if writesTapAudio, !tapReaderLost.value { return }
         }

@@ -20,6 +20,8 @@ struct UninstallerView: View {
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear { uninstaller.clearRefusal() }
+            .onDisappear { uninstaller.clearRefusal() }
             .alert(l10n.s.homebrewConfirmUninstallTitle,
                    isPresented: Binding(get: { pendingHomebrewRemoval != nil },
                                         set: { if !$0 { pendingHomebrewRemoval = nil } }),
@@ -86,6 +88,10 @@ struct UninstallerView: View {
                 )
                 .animation(.easeOut(duration: 0.15), value: dropTargeted)
 
+            if let refusal = uninstaller.refusal {
+                UninstallRefusalNote(refusal: refusal).frame(width: 360)
+            }
+
             Button(l10n.s.uninstallerChoose) { choose() }
                 .controlSize(.large)
 
@@ -102,7 +108,7 @@ struct UninstallerView: View {
         }
         .padding(28)
         .sheet(isPresented: $showingAppPicker) {
-            AppPickerView {
+            AppPickerView(emptyNote: l10n.s.uninstallerPickerHiddenNote) {
                 showingAppPicker = false
             } onSelect: { url in
                 showingAppPicker = false
@@ -241,7 +247,7 @@ struct UninstallerView: View {
             }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
-                .disabled(!uninstaller.items.contains(where: \.include)
+                .disabled(!uninstaller.canRemoveSelected
                           || (uninstaller.selectedHomebrewPackage != nil && homebrew.isBusy))
         }
         .padding(16)
@@ -253,7 +259,11 @@ struct UninstallerView: View {
 
     @ViewBuilder
     private var homebrewStatus: some View {
-        if let package = uninstaller.selectedHomebrewPackage {
+        if uninstaller.homebrewCheckFailed {
+            UninstallerHomebrewFailureNote(onRetry: uninstaller.retryHomebrewCheck)
+                .padding(12)
+            Divider()
+        } else if let package = uninstaller.selectedHomebrewPackage {
             if let status = homebrew.operationStatus,
                status.action == .uninstall,
                status.package?.id == package.id {
@@ -346,5 +356,24 @@ struct UninstallerView: View {
 
     private static func byteString(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+/// The same failed-check state in Settings, the panel and Command Bar.
+struct UninstallerHomebrewFailureNote: View {
+    @ObservedObject private var l10n = L10n.shared
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(l10n.s.uninstallerHomebrewCheckFailed, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(l10n.s.homebrewRefresh, action: onRetry)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -19,17 +19,36 @@ enum LinearScrollTapTests {
     }
     final class Target {
         static let shared = Target()
-        func contains(_ point: CGPoint) -> Bool { false }
+        var isOwn = false
+        let clickThroughWindowIDs = Set<CGWindowID>()
+        func contains(_ point: CGPoint) -> Bool { isOwn }
     }
     final class Session {
         static let shared = Session()
         let isActive = true
+    }
+    /// False stands for a remote screen's scroll, posted below the HID stage.
+    final class HIDStage {
+        static let shared = HIDStage()
+        var passes = true
+        func passed(_ event: CGEvent) -> Bool { passes }
+    }
+    /// Mouse button shortcuts' side-wheel reader, extracted as shipped.
+    final class SideWheel {
+        typealias ScrollInverter = Inverter
+        var lastGesturePhaseTimestamp: UInt64?
+    }
+    final class Switcher {
+        static let shared = Switcher()
+        var scrollNavigationActive = false
     }
     final class Inverter {
         typealias UserDefaults = StandardDefaults
         typealias MouseAppExceptions = Exceptions
         typealias ScrollWheelTarget = Target
         typealias SessionActivity = Session
+        typealias ScrollWheelHIDStage = HIDStage
+        typealias AppSwitcher = Switcher
         // Events built here carry this process's id, which the shipped tap
         // skips as its own glide frames.
         static let ownProcessID: Int64 = -1
@@ -38,6 +57,14 @@ enum LinearScrollTapTests {
         var lastGesturePhaseTimestamp: UInt64?
         var linearCarryVertical: Double = 0
         var linearCarryHorizontal: Double = 0
+        let pinchZoomLock = NSLock()
+        var zoomState = ScrollZoomGestureState()
+        var pinchPosts = 0
+        var pinchEvents: [(phase: Int64, point: CGPoint?)] = []
+        func postPinch(phase: Int64, magnification: Double, at point: CGPoint?) {
+            pinchEvents.append((phase, point))
+            if phase == 2 { pinchPosts += 1 }
+        }
     }
 
     static func run(_ suite: TestSuite) {
@@ -47,15 +74,19 @@ enum LinearScrollTapTests {
         defer {
             defaults.removePersistentDomain(forName: name)
             Exceptions.shared.excepted = []
+            HIDStage.shared.passes = true
+            Switcher.shared.scrollNavigationActive = false
+            Target.shared.isOwn = false
         }
         func configure(linear: Bool = true, installed: Bool = true, lines: Int = 3,
-                       invert: Bool = false, inverterInstalled: Bool = true,
+                       invert: Bool = false, invertHorizontal: Bool = false, inverterInstalled: Bool = true,
                        sidewaysKey: ScrollHorizontalModifier? = nil) {
             defaults.set(installed, forKey: AppFeature.linearScroll.availabilityKey)
             defaults.set(linear, forKey: DefaultsKey.linearScrollEnabled)
             defaults.set(lines, forKey: DefaultsKey.linearScrollLines)
             defaults.set(inverterInstalled, forKey: AppFeature.scrollInverter.availabilityKey)
             defaults.set(invert, forKey: DefaultsKey.scrollInverterEnabled)
+            defaults.set(invertHorizontal, forKey: DefaultsKey.scrollInverterHorizontalEnabled)
             defaults.set(sidewaysKey != nil, forKey: AppFeature.scrollHorizontal.availabilityKey)
             defaults.set(sidewaysKey != nil, forKey: DefaultsKey.scrollHorizontalEnabled)
             defaults.set(sidewaysKey?.rawValue, forKey: DefaultsKey.scrollHorizontalModifier)
@@ -136,6 +167,49 @@ enum LinearScrollTapTests {
         suite.expect(directionExcepted.map(verticalLine) == 3,
                      "an app excepted from the direction change is still capped by linear scrolling")
 
+        configure(linear: false, invert: true)
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+        defaults.set(ScrollZoomModifier.command.rawValue, forKey: DefaultsKey.pinchZoomModifier)
+        Switcher.shared.scrollNavigationActive = true
+        let switcherInverter = Inverter()
+        let switcherWheel = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskCommand),
+                                    through: switcherInverter)
+        suite.expect(switcherWheel.map(verticalLine) == -4 && switcherInverter.pinchPosts == 0,
+                     "Command-wheel keeps inversion and never enters Zoom while the switcher owns scrolling")
+        Switcher.shared.scrollNavigationActive = false
+        let pinchDirection = ScrollDirectionPreferences(defaults: defaults)
+        let ownInverter = Inverter()
+        _ = ownInverter.zoomState.update(pinchDirection.zoom)
+        ownInverter.zoomState.start()
+        Target.shared.isOwn = true
+        suite.expect(!ownInverter.consumeZoom(wheel(line: 1, fixed: 1, point: 10, flags: .maskCommand),
+                                              direction: pinchDirection) && ownInverter.pinchPosts == 0,
+                     "Pinch leaves an own panel's wheel unchanged")
+        configure(invert: true)
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+        defaults.set(ScrollZoomModifier.option.rawValue, forKey: DefaultsKey.pinchZoomModifier)
+        let ownWheel = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskAlternate))
+        suite.expect(ownWheel.map(verticalLine) == -3,
+                     "a panel that declines zoom still receives inversion and the linear cap")
+        Target.shared.isOwn = false
+        suite.expect(ownInverter.consumeZoom(wheel(line: 1, fixed: 1, point: 10, flags: .maskCommand),
+                                             direction: pinchDirection) && ownInverter.pinchPosts == 1,
+                     "Pinch still consumes a single tick over an external window")
+        let a = CGPoint(x: 10, y: 20), b = CGPoint(x: 30, y: 40)
+        let gestures = Inverter()
+        gestures.postPinchZoomLocked(1, modifier: .option, at: a)
+        gestures.postPinchZoomLocked(1, modifier: .option, at: a)
+        gestures.postPinchZoomLocked(-1, modifier: .option, at: b)
+        gestures.endPinchZoomLocked()
+        suite.expect(gestures.pinchEvents.map(\.phase) == [1, 2, 2, 4, 1, 2, 4]
+                     && gestures.pinchEvents.map(\.point) == [a, a, a, a, b, b, b],
+                     "moving between views ends the old gesture at its original point before beginning the next")
+
+        defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.pinchZoomEnabled)
+
         configure(sidewaysKey: .option)
         let sideways = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskAlternate))
         suite.expect(sideways.map(verticalLine) == 0
@@ -167,6 +241,53 @@ enum LinearScrollTapTests {
         trackpad.setIntegerValueField(.scrollWheelEventScrollPhase, value: 1)
         suite.expect(deliver(trackpad)?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 40,
                      "a trackpad gesture passes through untouched")
+
+        // Screen Sharing posts the controlling computer's scroll below the
+        // HID stage as phaseless pixel events, already turned its way.
+        configure(invert: true)
+        let local = Inverter()
+        _ = deliver(wheel(line: 0, fixed: 0.25, point: 0), through: local)
+        let carried = local.linearCarryVertical
+        HIDStage.shared.passes = false
+        let remote = wheel(continuous: true, line: 0, fixed: 4, point: 40)
+        suite.expect(deliver(remote, through: local) === remote
+                        && remote.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 40
+                        && verticalFixed(remote) == 4 && local.linearCarryVertical == carried,
+                     "a remote screen's scroll is neither capped nor turned, and leaves the local carry alone")
+        HIDStage.shared.passes = true
+
+        // The session taps that keep the wheel read it through this copy.
+        configure(invert: true)
+        let notch = wheel(line: 2, fixed: 2, point: 20)
+        let turned = Inverter.directionApplied(to: notch)
+        suite.expect(turned !== notch && verticalLine(turned) == -2 && verticalLine(notch) == 2,
+                     "session taps read a local wheel turned the way Scroll Direction turns it, on a copy")
+        HIDStage.shared.passes = false
+        suite.expect(Inverter.directionApplied(to: notch) === notch,
+                     "session taps read a remote screen's scroll as it came")
+        HIDStage.shared.passes = true
+        Exceptions.shared.excepted = [.scrollDirection]
+        suite.expect(Inverter.directionApplied(to: notch) === notch,
+                     "session taps read the wheel unturned over an app excepted from Scroll Direction")
+        configure(invert: false)
+        suite.expect(Inverter.directionApplied(to: notch) === notch,
+                     "session taps read the wheel unturned while Scroll Direction is off")
+
+        // Scroll Direction turned the side wheel at the HID stage before
+        // Mouse button shortcuts saw it, so saved shortcuts hold the turned
+        // direction. A push AppKit calls left reads right while it is on.
+        let push = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 2,
+                           wheel1: 0, wheel2: 0, wheel3: 0)!
+        push.setIntegerValueField(.scrollWheelEventIsContinuous, value: 0)
+        push.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: 1)
+        push.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: 1)
+        push.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: 10)
+        configure(invertHorizontal: true)
+        suite.expect(SideWheel().sideWheelInput(for: push) == MouseButtonShortcutSupport.sideWheelRightInput,
+                     "a side-wheel push reads the way horizontal Scroll Direction turns it, so saved shortcuts keep their direction")
+        configure()
+        suite.expect(SideWheel().sideWheelInput(for: push) == MouseButtonShortcutSupport.sideWheelLeftInput,
+                     "a side-wheel push reads as pushed while horizontal Scroll Direction is off")
     }
 
     private static func verticalLine(_ event: CGEvent) -> Int64 {

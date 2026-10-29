@@ -6,6 +6,7 @@ import SwiftUI
 struct ClipboardQuickPanelView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var history = ClipboardHistoryService.shared
+    @AppStorage(DefaultsKey.clipboardHistoryShowSourceAppIcons) private var showSourceAppIcons = false
     @FocusState private var searchFocused: Bool
     @State private var previewSelection = QuickPreviewSelection()
     @State private var previewIsEditing = false
@@ -254,6 +255,7 @@ struct ClipboardQuickPanelView: View {
 
     private func entryView(_ entry: ClipboardHistoryEntry) -> some View {
         QuickEntryView(layout: layout,
+                       showSourceAppIcons: showSourceAppIcons,
                        entry: entry,
                        tokens: searchTokens,
                        shortcutIndex: shortcutIndex(for: entry),
@@ -368,6 +370,7 @@ private struct QuickPreviewPane: View {
 private struct QuickEntryView: View, Equatable {
     static let cardSize = CGSize(width: 184, height: 210)
     let layout: ClipboardHistoryLayout
+    let showSourceAppIcons: Bool
     let entry: ClipboardHistoryEntry
     let tokens: [String]
     let shortcutIndex: Int?
@@ -396,6 +399,7 @@ private struct QuickEntryView: View, Equatable {
     // appearance, so it stays out of the comparison.
     static func == (lhs: QuickEntryView, rhs: QuickEntryView) -> Bool {
         lhs.layout == rhs.layout
+            && lhs.showSourceAppIcons == rhs.showSourceAppIcons
             && lhs.entry == rhs.entry
             && lhs.tokens == rhs.tokens
             && lhs.shortcutIndex == rhs.shortcutIndex
@@ -446,6 +450,13 @@ private struct QuickEntryView: View, Equatable {
     private var row: some View {
         HStack(alignment: .center, spacing: 9) {
             selectionButton
+            if showSourceAppIcons, let app = sourceApp {
+                Image(nsImage: app.icon)
+                    .resizable()
+                    .frame(width: 18, height: 18)
+                    .help(app.name)
+                    .accessibilityLabel(app.name)
+            }
             entryContent(entry)
             Spacer(minLength: 8)
             entryTrailing(entry, isHovered: isHovered)

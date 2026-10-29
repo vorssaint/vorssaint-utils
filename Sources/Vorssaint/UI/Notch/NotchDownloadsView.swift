@@ -128,43 +128,45 @@ struct NotchDownloadsView: View {
     @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
+    private var needsSetup: Bool { !enabled || downloads.folderName == nil || downloads.folderUnavailable }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: NotchLayout.rowSpacing) {
-            if !enabled || downloads.folderName == nil || downloads.folderUnavailable {
+        VStack(alignment: .leading, spacing: 0) {
+            if needsSetup {
                 NotchDownloadsSetupView()
+            } else if downloads.items.isEmpty {
+                NotchEmptyView(symbol: "arrow.down.circle", message: text.waiting)
+                    .frame(maxHeight: .infinity)
             } else {
-                HStack {
-                    Label(downloads.folderName ?? text.downloadsTitle, systemImage: "folder")
-                        .lineLimit(1).truncationMode(.middle)
-                    Spacer()
-                    Menu {
-                        Button(text.chooseFolder, action: downloads.chooseFolder)
-                        Button(text.clearFolder, action: downloads.forgetFolder)
-                    } label: { Image(systemName: "ellipsis.circle") }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                    .accessibilityLabel(FeatureStrings.notch(l10n.language).events)
-                }
-                .font(.caption).foregroundStyle(.secondary)
-                .frame(height: 20)
-                if downloads.items.isEmpty {
-                    NotchEmptyView(symbol: "arrow.down.circle", message: text.waiting)
-                        .frame(maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(downloads.items) { item in
-                                downloadCard(item)
-                            }
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(downloads.items) { item in
+                            downloadCard(item)
                         }
                     }
-                    .scrollIndicators(.automatic)
                 }
+                .scrollIndicators(.automatic)
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // The watched folder heads the island's top row, so the cards start at
+        // the top of the page. The setup offers its own choice instead.
+        .notchBand(leading: { if !needsSetup { folderMenu } })
         // Another section or a collapse takes the page away; its chooser
         // could no longer return the folder here. Settings keeps its own.
         .onDisappear { if !preview { downloads.cancelNotchFolderChoice() } }
+    }
+
+    /// The watched folder by name, with the choice of another one or none.
+    private var folderMenu: some View {
+        let name = downloads.folderName ?? text.downloadsTitle
+        return NotchMenuButton(title: text.downloadsTitle, items: [
+            NotchMenuItem(title: text.chooseFolder, action: downloads.chooseFolder),
+            NotchMenuItem(title: text.clearFolder, action: downloads.forgetFolder)
+        ], cornerRadius: 9) {
+            NotchBandMenuLabel(title: name, symbol: "folder", truncation: .middle)
+        }
+        .help(name)
+        .accessibilityValue(name)
     }
 
     private func downloadCard(_ item: NotchDownloadItem) -> some View {

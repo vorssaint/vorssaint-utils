@@ -235,7 +235,7 @@ struct NotchLockScreenPlayer: View {
     }
 
     private func cover(size: CGFloat, playback: NotchPlayback) -> some View {
-        NotchArtwork(image: music.artwork, size: size)
+        NotchArtwork(image: music.artwork, size: size, source: playback.track)
             .shadow(color: (music.artworkTint?.color ?? .black).opacity(0.5), radius: size * 0.28, y: size * 0.1)
             .scaleEffect(playback.isPlaying || reduceMotion ? 1 : 0.92)
             .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: playback.isPlaying)
@@ -329,7 +329,7 @@ struct NotchLockScreenActivities: View {
         return NotchLockScreenSupport.activities(
             timer: gates.timer && timer.session.hasSession,
             calendar: calendar.countdown.map {
-                ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date)
+                ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date, leadTime: calendar.countdownLeadTime)
             } == true,
             agents: gates.agents && !usage.snapshot.live.isEmpty,
             downloads: gates.downloads && downloads.items.contains { $0.active && !$0.completed })

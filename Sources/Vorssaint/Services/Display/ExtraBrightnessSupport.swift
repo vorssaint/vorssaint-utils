@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
 
 /// Pure math for the extra brightness boost, kept free of AppKit and Metal so
@@ -157,11 +158,34 @@ enum ExtraBrightnessSupport {
     }
 
     /// Whether the live window pair already followed a Space transition and
-    /// can keep presenting without a teardown. Both windows matter: losing the
-    /// one-pixel trigger lets macOS revoke the headroom moments later.
+    /// can keep presenting without a teardown. Windows in the overlay's own
+    /// Space never leave, though AppKit never reports them on the active
+    /// Space. Otherwise both windows matter: losing the one-pixel trigger
+    /// lets macOS revoke the headroom moments later.
     static func canReuseSpaceWindows(sameDisplay: Bool,
+                                     inOwnSpace: Bool,
                                      overlayOnActiveSpace: Bool,
                                      triggerOnActiveSpace: Bool) -> Bool {
-        sameDisplay && overlayOnActiveSpace && triggerOnActiveSpace
+        sameDisplay && (inOwnSpace || (overlayOnActiveSpace && triggerOnActiveSpace))
+    }
+
+    // MARK: - Overlay geometry
+
+    /// The multiply overlay is two windows, the lower and upper half of the
+    /// screen, never one over the whole display. AppKit tells the window
+    /// manager that a window above the main menu level is a full screen window
+    /// when its frame contains the screen's safe area
+    /// (`-[NSWindow _updateWMWindowPresentationMode]`, macOS 27.2), and the
+    /// overlay is on every Space. The halves keep that from happening, but
+    /// alone they did not bring windows back into Mission Control's desktop
+    /// thumbnails (#3292); the overlay's own Space does that. The halves
+    /// meet on a whole point, so the uniform multiply shows no seam.
+    static func overlayFrames(for screen: CGRect) -> [CGRect] {
+        let lowerHeight = (screen.height / 2).rounded(.down)
+        let lower = CGRect(x: screen.minX, y: screen.minY,
+                           width: screen.width, height: lowerHeight)
+        let upper = CGRect(x: screen.minX, y: screen.minY + lowerHeight,
+                           width: screen.width, height: screen.height - lowerHeight)
+        return [lower, upper]
     }
 }

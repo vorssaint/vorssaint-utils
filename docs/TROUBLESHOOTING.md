@@ -39,7 +39,7 @@ This permission is used by the mixer, the optional live equalizer and system aud
 
 ### Automation
 
-Finder cut and paste, the uninstaller and Homebrew's Terminal handoff may ask for Automation. If a Finder move or Terminal handoff does nothing after a denial, open System Settings, Privacy and Security, Automation, and allow Vorssaint for the app it needs to control.
+Finder cut and paste and the uninstaller may ask for Automation. If a Finder move does nothing after a denial, open System Settings, Privacy and Security, Automation, and allow Vorssaint for Finder.
 
 ## Clipboard history does not copy or paste
 

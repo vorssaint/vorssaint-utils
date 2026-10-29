@@ -387,6 +387,49 @@ enum MetricsFeatureTests {
                                              batteryWatts: -4,
                                              externalConnected: true) == nil,
                "battery flow alone does not claim total system power while plugged in")
+        suite.expect(MetricFormat.systemPowerWatts(measured: nil,
+                                             batteryWatts: nil,
+                                             externalConnected: true) == nil,
+               "a desktop without a system sensor does not claim adapter input as system power")
+        suite.expect(MetricFormat.systemPowerWatts(measured: 30,
+                                             batteryWatts: nil,
+                                             externalConnected: true) == 30,
+               "a desktop keeps its independent system total sensor")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: nil,
+                                                   dcInRailWatts: 198,
+                                                   hasInternalBattery: false,
+                                                   externalConnected: true) == 198,
+               "a desktop reports its DC-In rail as adapter input when the adapter total is unavailable")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: 210,
+                                                   dcInRailWatts: 198,
+                                                   hasInternalBattery: false,
+                                                   externalConnected: true) == 210,
+               "the measured adapter total takes priority over the desktop rail")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: 210,
+                                                   dcInRailWatts: 198,
+                                                   hasInternalBattery: false,
+                                                   externalConnected: false) == 210,
+               "the measured adapter total does not depend on a power-connection flag")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: nil,
+                                                   dcInRailWatts: 198,
+                                                   hasInternalBattery: false,
+                                                   externalConnected: false) == nil,
+               "a desktop without a confirmed power connection does not use the DC-In rail")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: nil,
+                                                   dcInRailWatts: 13,
+                                                   hasInternalBattery: true,
+                                                   externalConnected: true) == nil,
+               "a Mac with a battery never uses the desktop DC-In rail fallback")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: 13,
+                                                   dcInRailWatts: 198,
+                                                   hasInternalBattery: true,
+                                                   externalConnected: true) == 13,
+               "a Mac with a battery keeps its measured adapter input")
+        suite.expect(MetricFormat.adapterPowerWatts(measured: nil,
+                                                   dcInRailWatts: nil,
+                                                   hasInternalBattery: false,
+                                                   externalConnected: true) == nil,
+               "an unavailable desktop rail does not create an adapter reading")
 
         // MARK: Peripheral battery helpers
 
@@ -594,6 +637,84 @@ enum MetricsFeatureTests {
 
         // MARK: Temperature sensor selection
 
+        let m4MaxPlatform = TemperatureSensorSelector.platform(
+            brandString: "Apple M4 Max", modelIdentifier: "Mac16,5",
+            performanceCoreCount: 10, efficiencyCoreCount: 4
+        )
+        suite.expect(m4MaxPlatform == .appleM4MaxFamily,
+                     "the measured M4 Max configuration enables the verified Pro/Max map")
+        let otherM4MaxConfigurations: [(String?, Int?, Int?)] = [
+            ("Mac16,5", 12, 4), ("Mac16,6", 10, 4), ("Mac16,5", 10, 3),
+            (nil, 10, 4), ("Mac16,5", nil, 4), ("Mac16,5", 10, nil),
+            (nil, nil, nil),
+        ]
+        for (model, performance, efficiency) in otherM4MaxConfigurations {
+            let platform = TemperatureSensorSelector.platform(
+                brandString: "Apple M4 Max", modelIdentifier: model,
+                performanceCoreCount: performance, efficiencyCoreCount: efficiency
+            )
+            suite.expect(platform == .appleM4Family,
+                         "other or incompletely identified M4 Max configurations preserve the existing M4 map")
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: [("Tp01", 80), ("Te05", 60), ("Tpx5", 100), ("Tp3X", 110)], platform: platform
+            ) ?? -1, 80, "other M4 Max configurations keep their mapped display and alert temperature")
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: [("Tp0M", 67)], platform: platform
+            ) ?? -1, 67, "other M4 Max configurations preserve display fallback when no mapped sensor answers")
+        }
+        suite.expect(TemperatureSensorSelector.platform(brandString: "  Apple M4 Max\n") == .appleM4Family,
+                     "M4 Max identification by brand alone preserves the existing M4 map")
+        suite.expect(TemperatureSensorSelector.platform(
+            brandString: "  Apple M4 Max\n", modelIdentifier: "Mac16,5",
+            performanceCoreCount: 10, efficiencyCoreCount: 4
+        ) == m4MaxPlatform,
+                     "M4 Max identification ignores surrounding whitespace")
+        suite.expect(TemperatureSensorSelector.isCPUCoreKey("Tpx5", platform: m4MaxPlatform)
+                     && !TemperatureSensorSelector.isCPUCoreKey("Tp01", platform: m4MaxPlatform),
+                     "M4 Max selects its measured regions instead of the base M4 map")
+        for (name, sample) in [("loaded", M4MaxTemperatureFixtures.loaded),
+                               ("parked", M4MaxTemperatureFixtures.parked),
+                               ("idle", M4MaxTemperatureFixtures.idle)] {
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: sample.cpu, platform: m4MaxPlatform
+            ) ?? -1, sample.hottest, "M4 Max reads the measured hottest region when \(name)")
+            suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+                readings: sample.cpu + [("Tp3X", 110)], platform: m4MaxPlatform
+            ) ?? -1, sample.hottest, "an auxiliary hotspot cannot override mapped M4 Max \(name) regions")
+        }
+        let m4MaxBroken: [(key: String, value: Double)] = [
+            ("Tex0", .nan), ("Tex1", .infinity), ("Tex2", 9), ("Tex3", 125),
+            ("Tpx0", 0), ("Tpx1", -4), ("Tp0M", 88),
+        ]
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m4MaxBroken, platform: m4MaxPlatform
+        ) ?? -1, 88, "M4 Max display preserves family fallback when its mapped set has no valid reading")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m4MaxBroken + [("Tex1", 53.234375)], platform: m4MaxPlatform
+        ) ?? -1, 53.234375, "one valid M4 Max region outranks auxiliary readings despite missing or invalid peers")
+        suite.expect(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: Array(m4MaxBroken.dropLast()), platform: m4MaxPlatform
+        ) == nil, "M4 Max does not fabricate temperatures from invalid readings")
+        suite.expect(TemperatureSensorSelector.isCPUTemperatureKey("Tex1", platform: m4MaxPlatform)
+                     && TemperatureSensorSelector.isCPUTemperatureKey("Tp0M", platform: m4MaxPlatform)
+                     && !TemperatureSensorSelector.isCPUTemperatureKey("Tf26", platform: m4MaxPlatform)
+                     && !TemperatureSensorSelector.isCPUTemperatureKey("Tg05", platform: m4MaxPlatform),
+                     "M4 Max discovery keeps CPU families without admitting Tf or GPU sensors")
+        let otherM4Platforms: [(String, CPUTemperaturePlatform)] = [
+            ("Apple M4", .appleM4Family), ("Apple M4 Pro", .appleM4ProFamily),
+            ("Apple M4 Ultra", .appleM4Family), ("Apple M5 Max", .appleM5Family),
+        ]
+        for (brand, expected) in otherM4Platforms {
+            suite.expect(TemperatureSensorSelector.platform(
+                brandString: brand, modelIdentifier: nil,
+                performanceCoreCount: nil, efficiencyCoreCount: nil
+            ) == expected, "M4 Max hardware validation does not restrict \(brand)")
+            suite.expect(TemperatureSensorSelector.platform(
+                brandString: brand, modelIdentifier: "Mac16,5",
+                performanceCoreCount: 10, efficiencyCoreCount: 4
+            ) == expected, "matching model and core counts cannot opt another chip into the M4 Max map")
+        }
+
         suite.expect(TemperatureSensorSelector.platform(brandString: "Apple M1") == .appleM1Family,
                "Apple M1 uses the mapped CPU core sensor set")
         suite.expect(TemperatureSensorSelector.platform(brandString: "Apple M2 Pro") == .appleM2Family,
@@ -757,8 +878,8 @@ enum MetricsFeatureTests {
         // machines that lost it rather than against invented keys.
         //
         // Mac mini (2020), Macmini9,1, Apple M1, reported on 3.3.2 (issue
-        // #1353): not one of its sensors is in this chip generation's mapped
-        // core set, which is what 3.3.3 then required before showing anything.
+        // #1353): none of its sensors were in the original M1 core set,
+        // which is what 3.3.3 required before showing anything.
         let macMini9_1M1Sensors: [(key: String, value: Double)] = [
             ("Te0a", 36.31), ("Te0b", 36.31), ("Te0x", 38.08), ("Te0z", 38.08),
             ("Te3a", 37.95), ("Te3b", 46.65), ("Te3x", 40.02), ("Te3z", 60.02),
@@ -772,12 +893,51 @@ enum MetricsFeatureTests {
         ]
         suite.expect(macMini9_1M1Sensors.allSatisfy {
             TemperatureSensorSelector.isCPUTemperatureKey($0.key, platform: .appleM1Family)
-        } && !macMini9_1M1Sensors.contains {
+        }, "this M1 exposes every one of its sensors as a CPU sensor")
+        suite.expect(macMini9_1M1Sensors.filter {
             TemperatureSensorSelector.isCPUCoreKey($0.key, platform: .appleM1Family)
-        }, "this M1 exposes CPU sensors, none of them in the mapped core set")
+        }.map(\.key) == ["Te0a", "Te3a", "Tp2a", "Tp3a", "Tp4a", "Tp5a", "Tp7a", "Tp8a", "Tp9a"],
+               "this M1 layout maps only its a variants as cores")
+        let otherMappedPlatforms: [CPUTemperaturePlatform] = [
+            .appleM2Family, .appleM3Family, .appleM4Family, .appleM4ProFamily, .appleM5Family,
+        ]
+        for platform in otherMappedPlatforms {
+            suite.expect(!macMini9_1M1Sensors.contains {
+                TemperatureSensorSelector.isCPUCoreKey($0.key, platform: platform)
+            }, "the alternate M1 layout does not become a core set on another chip generation")
+        }
+        // 3.3.4 showed 64.61 here, the Tp4z variant, which reads well above
+        // the die sensors.
         suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
             readings: macMini9_1M1Sensors, platform: .appleM1Family
-        ) ?? -1, 64.61, "this M1 shows the CPU temperature it showed on 3.3.2 again")
+        ) ?? -1, 40.71, "this M1 shows its hottest core instead of an offset variant")
+
+        // MacBook Pro 13-inch, MacBookPro17,1, Apple M1, macOS 27, read with
+        // --sensors after a minute of full CPU load. The named HID die
+        // sensors peaked at 78.23 in the same sample; the hottest variant
+        // the compatibility reading would pick is Tp9z at 93.88.
+        let macBookPro17_1M1Sensors: [(key: String, value: Double)] = [
+            ("Te0a", 62.95), ("Te0b", 62.95), ("Te0x", 65.42), ("Te0z", 65.42),
+            ("Te3a", 59.55), ("Te3b", 68.25), ("Te3x", 60.88), ("Te3z", 80.88),
+            ("Tp2a", 71.69), ("Tp2b", 80.79), ("Tp2x", 75.19), ("Tp2z", 90.19),
+            ("Tp3a", 75.11), ("Tp3b", 82.51), ("Tp3x", 79.67), ("Tp3z", 91.67),
+            ("Tp4a", 71.72), ("Tp4b", 81.82), ("Tp4x", 75.33), ("Tp4z", 92.33),
+            ("Tp5a", 67.30), ("Tp5b", 77.50), ("Tp5x", 68.91), ("Tp5z", 84.91),
+            ("Tp7a", 71.16), ("Tp7b", 80.26), ("Tp7x", 75.34), ("Tp7z", 90.34),
+            ("Tp8a", 74.52), ("Tp8b", 81.92), ("Tp8x", 79.39), ("Tp8z", 91.39),
+            ("Tp9a", 72.42), ("Tp9b", 82.52), ("Tp9x", 76.88), ("Tp9z", 93.88),
+        ]
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: macBookPro17_1M1Sensors, platform: .appleM1Family
+        ) ?? -1, 75.11, "a loaded MacBook Pro M1 shows its hottest core, not an offset variant")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: macBookPro17_1M1Sensors.filter { !$0.key.hasSuffix("a") },
+            platform: .appleM1Family
+        ) ?? -1, 93.88, "an offset variant is only the compatibility reading when no core answers")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("Tp09", 43.0), ("Tp01", 49.0), ("Tp2z", 70.0)],
+            platform: .appleM1Family
+        ) ?? -1, 49.0, "the first M1 layout keeps its cores ahead of the second layout's variants")
 
         // This project's own Mac, Apple M4, read with --sensors: its mapped
         // cores answer and sit well below the hottest auxiliary sensor, so it

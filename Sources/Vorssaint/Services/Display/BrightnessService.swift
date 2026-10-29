@@ -50,7 +50,7 @@ struct BrightnessDisplay: Identifiable, Equatable {
 /// succeed. Keyboard light state is read when Quick toggles opens or one of
 /// its global shortcuts is pressed.
 /// While display control is on, the standing resources are one screen change
-/// observer and a pair of wake observers, and no timers; everything else
+/// observer and sleep/wake observers, and no standing timers; everything else
 /// happens when a slider moves, a panel opens or the Mac wakes. All I2C work
 /// runs on a serial queue with the pacing displays need, and slider drags
 /// coalesce to the newest value per display.
@@ -87,6 +87,24 @@ final class BrightnessService: ObservableObject {
     @Published private(set) var keyboardLightEnabled: Bool?
     @Published private(set) var displayBrightnessShortcutRegistrationFailed = false
     @Published private(set) var keyboardBrightnessShortcutRegistrationFailed = false
+    /// The display the island's brightness level shows: the one the
+    /// brightness keys last moved, or the one picked there. Nil shows the
+    /// built-in panel.
+    @Published var focusedDisplayID: CGDirectDisplayID?
+
+    /// Whether the island's brightness slider is on and shows the focused
+    /// display, so a key that moved it moves the slider.
+    var islandSliderShowsFocusedDisplay: Bool {
+        BrightnessSupport.sliderShowsFocusedDisplay(
+            controlEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled),
+            shown: displays.filter { $0.isActive && $0.method != nil }.map(\.id), focused: focusedDisplayID)
+    }
+
+    private func focusKeyDisplay(_ id: CGDirectDisplayID) {
+        guard BrightnessSupport.keyMovesFocus(islandOpen: NotchService.shared.expanded,
+                                              focused: focusedDisplayID, key: id) else { return }
+        focusedDisplayID = id
+    }
 
     enum DisplayControlFailure: Equatable {
         case unavailable
@@ -112,6 +130,9 @@ final class BrightnessService: ObservableObject {
     private var rebuildDebounce: DispatchWorkItem?
     private var wakeObservers: [NSObjectProtocol] = []
     private var wakeRebuild: DispatchWorkItem?
+    /// Sleep and the wake settle window can temporarily report no displays.
+    /// Main thread only; that gap must never be treated as an unplug.
+    private var displayPowerIsSuspended = false
     /// How long displays are given to finish coming back before they are
     /// spoken to again. A monitor still bringing its connection up answers
     /// nothing, and taking that silence at face value would move it off the
@@ -247,6 +268,9 @@ final class BrightnessService: ObservableObject {
     }
     private var knownTopology = Set<CGDirectDisplayID>()
     private var knownActiveTopology = Set<CGDirectDisplayID>()
+    private var knownMirrorSources: [CGDirectDisplayID: CGDirectDisplayID] = [:]
+    /// Main thread only, like `NSScreen` it is read from.
+    private var builtInScreenName: String?
     /// Keep a managed display's latest identified monitor across connection
     /// gaps, when CoreGraphics may answer zeroes or all ones for its display number.
     private var knownDisplayFingerprints: [CGDirectDisplayID: String] = [:]
@@ -561,6 +585,7 @@ final class BrightnessService: ObservableObject {
         lastApplied = [:]
         knownTopology = []
         knownActiveTopology = []
+        knownMirrorSources = [:]
         stateLock.unlock()
         ddcPendingSteps = [:]
         pendingDisplayIDs = []
@@ -593,7 +618,7 @@ final class BrightnessService: ObservableObject {
     /// page appears, so the sliders match changes made elsewhere (brightness
     /// keys, System Settings, the monitor's own buttons).
     func refresh(force: Bool = false) {
-        guard running else { return }
+        guard running, !displayPowerIsSuspended else { return }
         let topology = Self.currentTopology()
         let previousDisplays = displays
         stateLock.lock()
@@ -607,7 +632,14 @@ final class BrightnessService: ObservableObject {
         let generation = rebuildGeneration
         rebuildingTopology = topology
         stateLock.unlock()
-        let screenNames = Self.localizedScreenNames()
+        var screenNames = Self.localizedScreenNames()
+        // A panel mirroring another display has no screen of its own, so the
+        // name it had before mirroring started labels its row.
+        if let id = screenNames.keys.first(where: { CGDisplayIsBuiltin($0) != 0 }) {
+            builtInScreenName = screenNames[id]
+        } else if let name = builtInScreenName {
+            for id in topology.online where CGDisplayIsBuiltin(id) != 0 { screenNames[id] = name }
+        }
         workQueue.async { [weak self] in
             self?.rebuild(generation: generation, previousDisplays: previousDisplays,
                           screenNames: screenNames)
@@ -631,12 +663,13 @@ final class BrightnessService: ObservableObject {
     /// Moves one display's brightness. The published value updates on the
     /// spot for a responsive slider; the hardware write happens on the work
     /// queue, and a drag folds into one write of the newest value. A key
-    /// step passes `smooth`, so a system display eases into it.
+    /// step passes `smooth`, so a system display eases into it. A slider
+    /// that shows the level itself passes `announces: false`.
     func setBrightness(_ value: Double, for id: CGDirectDisplayID,
-                       showOSD: Bool = false, smooth: Bool = false) {
+                       showOSD: Bool = false, smooth: Bool = false, announces: Bool = true) {
         guard value.isFinite else { return }
         let clamped = min(max(value, 0), 1)
-        let shownInNotch = NotchService.shared.showBrightness(clamped)
+        let shownInNotch = announces ? NotchService.shared.showBrightness(clamped) : false
         if let index = displays.firstIndex(where: { $0.id == id }),
            displays[index].brightness != clamped {
             displays[index].brightness = clamped
@@ -931,6 +964,7 @@ final class BrightnessService: ObservableObject {
     }
 
     private func restoreDeferredDisplays(retryFailures: Bool = false) {
+        guard !displayPowerIsSuspended else { return }
         for id in deferredRestoration.candidates(lidClosed: Self.lidClosed(),
                                                  retryFailures: retryFailures) {
             guard restoreDisplay(id) == .success else { continue }
@@ -951,13 +985,25 @@ final class BrightnessService: ObservableObject {
         return Set(ids.prefix(Int(count)))
     }
 
+    /// Active counts the displays mirroring an active one, which the active
+    /// list leaves out (see `BrightnessSupport.participatingDisplayIDs`).
+    private static func topology(online: Set<CGDirectDisplayID>) -> BrightnessSupport.DisplayTopology {
+        let mirrorSources = Dictionary(uniqueKeysWithValues: online.compactMap { id in
+            let source = CGDisplayMirrorsDisplay(id)
+            return source == kCGNullDirectDisplay ? nil : (id, source)
+        })
+        return BrightnessSupport.DisplayTopology(
+            online: online,
+            active: BrightnessSupport.participatingDisplayIDs(
+                activeDisplayIDs: activeDisplayIDs(), mirrorSources: mirrorSources),
+            mirrorSources: mirrorSources)
+    }
+
     private static func currentTopology() -> BrightnessSupport.DisplayTopology {
         var ids = [CGDirectDisplayID](repeating: 0, count: 16)
         var count: UInt32 = 0
         CGGetOnlineDisplayList(16, &ids, &count)
-        return BrightnessSupport.DisplayTopology(
-            online: Set(ids.prefix(Int(count))),
-            active: activeDisplayIDs())
+        return topology(online: Set(ids.prefix(Int(count))))
     }
 
     /// Callers hold the state lock. Discovery is an observation, not a
@@ -966,9 +1012,11 @@ final class BrightnessService: ObservableObject {
     /// monitor retires its saved row.
     private func recordDiscoveredTopology(online: Set<CGDirectDisplayID>,
                                           active: Set<CGDirectDisplayID>,
+                                          mirrorSources: [CGDirectDisplayID: CGDirectDisplayID],
                                           fingerprints: [CGDirectDisplayID: String] = [:]) {
         knownTopology = online
         knownActiveTopology = active
+        knownMirrorSources = mirrorSources
         knownDisplayFingerprints = knownDisplayFingerprints.filter {
             online.contains($0.key) || managedDisabledIDs.contains($0.key)
         }
@@ -1142,15 +1190,16 @@ final class BrightnessService: ObservableObject {
         guard !tapsAreSuspended() else { return }
         let defaults = UserDefaults.standard
         let wantsKeyRouting = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
-        // An island away in full screen, or set to stay hidden until hover,
-        // shows no notices while closed, so its keys keep the system's own
-        // feedback. The plain key tap runs on its own thread and keeps this
-        // sample; the island asks for a new one when full screen hides it.
+        // An island away in full screen, or set to stay hidden until hover
+        // without showing activity, shows no notices while closed, so its
+        // keys keep the system's own feedback. The plain key tap runs on its
+        // own thread and keeps this sample; the island asks for a new one
+        // when full screen hides it.
         let wantsBrightnessOSD = BrightnessSupport.overlayReplacesNative(
             overlayEnabled: defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled),
             islandRoutes: NotchSupport.routes(.brightness),
             islandShowsNotices: NotchService.shared.acceptsSystemFeedback
-                && !NotchSupport.hidesUntilHover(in: defaults)) && brightnessOSDSupported
+                && !NotchSupport.hidesNoticesUntilHover(in: defaults)) && brightnessOSDSupported
         let wantsKeyboardLight = NotchSupport.routes(.keyboardLight) && keyboardLightBridge != nil
         if !wantsKeyboardLight || !SessionActivity.shared.isActive {
             keyboardNoticeWork?.cancel(); keyboardNoticeWork = nil
@@ -1488,6 +1537,7 @@ final class BrightnessService: ObservableObject {
                       method: BrightnessDisplay.Method,
                       delta: Double,
                       showOSD: Bool) {
+        focusKeyDisplay(displayID)
         let cached = displays.first(where: { $0.id == displayID })?.brightness
         if method == .system {
             guard let current = currentSystemBrightness(for: displayID, fallback: cached) else { return }
@@ -1700,6 +1750,7 @@ final class BrightnessService: ObservableObject {
                 return leaveToSystem()
             }
             swallowedMediaKeys.insert(increases)
+            focusKeyDisplay(displayID)
             if let current = currentSystemBrightness(
                 for: displayID,
                 fallback: displays.first(where: { $0.id == displayID })?.brightness
@@ -1744,20 +1795,30 @@ final class BrightnessService: ObservableObject {
     /// window from the first event: resetting it for every notification made
     /// a newly connected display wait behind the whole storm.
     private func screensChanged() {
-        guard running, rebuildDebounce == nil else { return }
+        guard running, !displayPowerIsSuspended, rebuildDebounce == nil else { return }
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.running else { return }
+            guard let self else { return }
             self.rebuildDebounce = nil
+            guard self.running, !self.displayPowerIsSuspended else { return }
+            // Discovery may already have cached an active monitor before
+            // this notification settles. Enforce the choice independently
+            // of whether the cached topology still looks different.
+            let reapplied = self.reapplyManagedDisplayDisables()
             let topology = Self.currentTopology()
             self.stateLock.lock()
             let changed = topology.online != self.knownTopology
                 || topology.active != self.knownActiveTopology
+                || topology.mirrorSources != self.knownMirrorSources
             self.stateLock.unlock()
-            if changed {
+            if changed || reapplied {
                 Self.log.log("topology changed to \(topology.online.sorted().map(String.init).joined(separator: ","), privacy: .public); rebuilding")
                 let drawable = Self.drawableDisplayIDs(online: topology.online,
                                                        active: topology.active)
-                if !self.restoreManagedDisplayIfHeadless(drawableDisplayIDs: drawable) {
+                // Closing the lid is allowed to leave no drawable displays.
+                // It is not a request to bring an intentionally disabled
+                // external monitor back onto this Mac's input.
+                if Self.lidClosed() == true
+                    || !self.restoreManagedDisplayIfHeadless(drawableDisplayIDs: drawable) {
                     self.refresh()
                 }
             }
@@ -1771,6 +1832,7 @@ final class BrightnessService: ObservableObject {
     /// is no UI left to reverse the choice, so restore one display that this
     /// process disabled and leave every unrelated display configuration alone.
     private func restoreManagedDisplayIfHeadless(drawableDisplayIDs: Set<CGDirectDisplayID>) -> Bool {
+        guard running, !displayPowerIsSuspended, Self.lidClosed() != true else { return false }
         stateLock.lock()
         let candidates = BrightnessSupport.headlessRecoveryCandidates(
             drawableDisplayIDs: drawableDisplayIDs,
@@ -1786,41 +1848,67 @@ final class BrightnessService: ObservableObject {
         // reach the panel before the transaction blocks it.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            var restored: CGDirectDisplayID?
-            var failure: DisplayControlFailure = .closedLid
-            for id in candidates {
-                if self.discardReplacedDisplay(id) {
-                    failure = .failed
-                    continue
-                }
-                let result: BrightnessSupport.DisplayConfigurationResult = self.canRestoreDisplay(id)
-                    ? Self.configureDisplay(id, enabled: true) : .failed
-                self.deferredRestoration.recordHeadless(id, result: result)
-                self.syncLidObserver()
-                if result == .success { self.displayControlFailure = nil }
-                if result == .success {
-                    restored = id
-                    break
-                }
-                if result == .failed { failure = .failed }
+            guard self.running, !self.displayPowerIsSuspended, Self.lidClosed() != true else {
+                self.pendingDisplayIDs.subtract(candidates)
+                return
             }
-            if let restored {
-                self.deferredRestoration.cancelHeadless()
-                self.syncLidObserver()
-                self.stateLock.lock()
-                self.managedDisabledIDs.remove(restored)
-                self.managedDisabledDisplays.removeValue(forKey: restored)
-                self.stateLock.unlock()
-                Self.forgetDisplaySwitchedOff(restored)
-                Self.log.log("restored display \(restored) after the active display set became empty")
-            } else {
-                Self.log.error("could not restore a display after the active display set became empty")
+            let topology = Self.currentTopology()
+            guard Self.drawableDisplayIDs(online: topology.online, active: topology.active).isEmpty else {
+                self.pendingDisplayIDs.subtract(candidates)
+                self.refresh(force: true)
+                return
             }
-            self.pendingDisplayIDs.subtract(candidates)
-            self.displayControlFailure = restored == nil ? failure : nil
-            self.refresh(force: true)
+            self.stateLock.lock()
+            let stillDisabled = candidates.filter { self.managedDisabledIDs.contains($0) }
+            self.stateLock.unlock()
+            defer { self.pendingDisplayIDs.subtract(candidates) }
+            guard !stillDisabled.isEmpty else { return }
+            self.performHeadlessDisplayRestoration(candidates: stillDisabled)
         }
         return true
+    }
+
+    /// Main-thread transactions after the automatic recovery policy has
+    /// checked the current power state and topology. Explicit restoration
+    /// still shares the closed-lid/deferred bookkeeping with this path.
+    private func performHeadlessDisplayRestoration(candidates: [CGDirectDisplayID]) {
+        defer { pendingDisplayIDs.subtract(candidates) }
+        var restored: CGDirectDisplayID?
+        var failure: DisplayControlFailure = .closedLid
+        for id in candidates {
+            stateLock.lock()
+            let stillDisabled = managedDisabledIDs.contains(id)
+            stateLock.unlock()
+            guard stillDisabled else { continue }
+            if discardReplacedDisplay(id) {
+                failure = .failed
+                continue
+            }
+            let result: BrightnessSupport.DisplayConfigurationResult = canRestoreDisplay(id)
+                ? Self.configureDisplay(id, enabled: true) : .failed
+            deferredRestoration.recordHeadless(id, result: result)
+            syncLidObserver()
+            if result == .success { displayControlFailure = nil }
+            if result == .success {
+                restored = id
+                break
+            }
+            if result == .failed { failure = .failed }
+        }
+        if let restored {
+            deferredRestoration.cancelHeadless()
+            syncLidObserver()
+            stateLock.lock()
+            managedDisabledIDs.remove(restored)
+            managedDisabledDisplays.removeValue(forKey: restored)
+            stateLock.unlock()
+            Self.forgetDisplaySwitchedOff(restored)
+            Self.log.log("restored display \(restored) after the active display set became empty")
+        } else {
+            Self.log.error("could not restore a display after the active display set became empty")
+        }
+        displayControlFailure = restored == nil ? failure : nil
+        refresh(force: true)
     }
 
     // MARK: - Waking up
@@ -1842,6 +1930,12 @@ final class BrightnessService: ObservableObject {
                 self?.displaysWokeUp()
             }
         }
+        wakeObservers += [NSWorkspace.willSleepNotification,
+                          NSWorkspace.screensDidSleepNotification].map { name in
+            workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.displaysWillSleep()
+            }
+        }
     }
 
     private func removeWakeObservers() {
@@ -1850,6 +1944,19 @@ final class BrightnessService: ObservableObject {
         wakeObservers = []
         wakeRebuild?.cancel()
         wakeRebuild = nil
+        displayPowerIsSuspended = false
+    }
+
+    private func displaysWillSleep() {
+        displayPowerIsSuspended = true
+        wakeRebuild?.cancel()
+        wakeRebuild = nil
+        rebuildDebounce?.cancel()
+        rebuildDebounce = nil
+        stateLock.lock()
+        rebuildGeneration += 1
+        rebuildingTopology = nil
+        stateLock.unlock()
     }
 
     /// One wake arrives as both notifications, and the screens usually wake a
@@ -1857,16 +1964,61 @@ final class BrightnessService: ObservableObject {
     /// into a single pass that waits for the connections to settle.
     private func displaysWokeUp() {
         guard running || !deferredRestoration.ids.isEmpty else { return }
+        displayPowerIsSuspended = true
+        rebuildDebounce?.cancel()
+        rebuildDebounce = nil
         wakeRebuild?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.running || !self.deferredRestoration.ids.isEmpty else { return }
+            self.wakeRebuild = nil
+            self.displayPowerIsSuspended = false
             self.restoreDeferredDisplays(retryFailures: true)
             guard self.running else { return }
+            _ = self.reapplyManagedDisplayDisables()
             Self.log.log("woke from sleep; rebuilding display routes")
+            let topology = Self.currentTopology()
+            let drawable = Self.drawableDisplayIDs(online: topology.online, active: topology.active)
+            if self.restoreManagedDisplayIfHeadless(drawableDisplayIDs: drawable) { return }
             self.refresh(force: true)
         }
         wakeRebuild = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.wakeSettleDelay, execute: work)
+    }
+
+    /// macOS may re-enable an app-only disabled display after sleep or a
+    /// connection change. Keep the person's choice until an explicit enable
+    /// or safety recovery retires it. Unknown identities are safe to enable
+    /// during recovery, but must never be automatically switched off.
+    private func reapplyManagedDisplayDisables() -> Bool {
+        guard running, !displayPowerIsSuspended else { return false }
+        var reapplied = false
+        stateLock.lock()
+        let disabled = managedDisabledDisplays
+        stateLock.unlock()
+        for (id, display) in disabled.sorted(by: { $0.key < $1.key }) {
+            guard !deferredRestoration.ids.contains(id), !pendingDisplayIDs.contains(id) else { continue }
+            if !display.isBuiltIn {
+                guard let original = display.restorationFingerprint,
+                      Self.restorationDisplayFingerprint(id) == original else { continue }
+            }
+            // Re-read before every transaction: the previous disable or a
+            // cable removal may have changed which displays remain usable.
+            let topology = Self.currentTopology()
+            let drawable = Self.drawableDisplayIDs(online: topology.online, active: topology.active)
+            guard BrightnessSupport.canDisableDisplay(drawableDisplayIDs: drawable, target: id) else { continue }
+            let result = Self.configureDisplay(id, enabled: false)
+            guard result == .success else {
+                Self.log.error("could not reapply disabled state for display \(id); keeping the saved choice")
+                continue
+            }
+            stateLock.lock()
+            knownActiveTopology.remove(id)
+            pendingLevels.removeValue(forKey: id)
+            stateLock.unlock()
+            reapplied = true
+            Self.log.log("reapplied disabled state for display \(id) after a connection change")
+        }
+        return reapplied
     }
 
     // MARK: - Rebuild (work queue)
@@ -1882,7 +2034,8 @@ final class BrightnessService: ObservableObject {
         })
 
         let seenTopology = Set(onlineIDs)
-        let activeTopology = Self.activeDisplayIDs()
+        let topology = Self.topology(online: seenTopology)
+        let activeTopology = topology.active
         var built: [BrightnessDisplay] = []
         var newRoutes: [CGDirectDisplayID: Route] = [:]
         var ddcCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
@@ -1890,13 +2043,14 @@ final class BrightnessService: ObservableObject {
 
         for id in onlineIDs {
             let info = Self.displayInfoDictionary(id)
-            // Read before the mirroring guard below, so the snapshot the panel
-            // decides from covers every online display, exactly like the live
-            // reading it replaces.
+            // Read before the guard below, so the snapshot the panel decides
+            // from covers every online display, exactly like the live reading
+            // it replaces.
             if (info?["kCGDisplayIsVirtualDevice"] as? Bool ?? false) { virtualIDs.insert(id) }
-            // A mirroring display follows its source; the source's slider is
-            // the real control.
-            guard CGDisplayMirrorsDisplay(id) == 0 else { continue }
+            // A display mirroring another keeps its own row, unlike virtual
+            // and AirPlay ones: the picture is shared, the backlight is not.
+            // Skipping mirrors took a MacBook panel mirroring a monitor off
+            // every Displays surface.
             if let info,
                (info["kCGDisplayIsVirtualDevice"] as? Bool ?? false)
                 || (info["kCGDisplayIsAirPlay"] as? Bool ?? false) {
@@ -1964,12 +2118,14 @@ final class BrightnessService: ObservableObject {
         let previousTopology = knownTopology
         let topologyChanged = seenTopology != knownTopology
             || activeTopology != knownActiveTopology
+            || topology.mirrorSources != knownMirrorSources
         let discoveryIsCurrent = generation == rebuildGeneration
         let canPublishDiscovery = discoveryIsCurrent && topologyChanged
         if discoveryIsCurrent {
             // The power control only becomes safe when it sees the new active
             // set. Brightness routes remain untouched until probing finishes.
             recordDiscoveredTopology(online: seenTopology, active: activeTopology,
+                                     mirrorSources: topology.mirrorSources,
                                      fingerprints: fingerprints)
         }
         stateLock.unlock()
@@ -2213,6 +2369,7 @@ final class BrightnessService: ObservableObject {
             }
             routes = newRoutes
             recordDiscoveredTopology(online: seenTopology, active: activeTopology,
+                                     mirrorSources: topology.mirrorSources,
                                      fingerprints: fingerprints)
             rebuildingTopology = nil
             for display in resolved where display.method != nil {

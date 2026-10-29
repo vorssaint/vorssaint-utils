@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Combine
+import CoreAudio
 import Foundation
 
 /// Runs the production subscription and notice selection with real Combine
@@ -37,7 +38,7 @@ enum NotchVolumeFeedbackTests {
         var volumeDeviceUID: String?
         var volumeBaseline: Double?
         var muteBaseline: Bool?
-        var ownVolumeAdjustmentUntil: TimeInterval = 0
+        var ownLevelAdjustmentUntil: [NotchEvent: TimeInterval] = [:]
         var lastVolumeRide: TimeInterval = -.infinity
         var expanded = false
         var showsSystemFeedback = true
@@ -64,14 +65,17 @@ enum NotchVolumeFeedbackTests {
             suite.expect(delivered, "queued volume publications settle within the test deadline")
         }
         defer { AppVolumeMixer.shared = AppVolumeMixer() }
-        let outputs: [(name: String, dataSource: String?, symbol: String)] = [
-            ("MacBook Pro Speakers", nil, "speaker.wave.2.fill"),
-            ("Built-in Output", "Headphones", "headphones"),
-            ("WH-1000XM5", "Headphones", "headphones"),
-            ("Alex's AirPods", nil, "airpods"),
-            ("Alex's AirPods Pro", nil, "airpodspro"),
-            ("Alex's AirPods Max", nil, "airpodsmax"),
-            ("JBL Flip 6", nil, "speaker.wave.2.fill")
+        let outputs: [(name: String, dataSource: String?, terminals: [UInt32], symbol: String)] = [
+            ("MacBook Pro Speakers", nil, [kAudioStreamTerminalTypeSpeaker], "speaker.wave.2.fill"),
+            ("Built-in Output", "Headphones", [], "headphones"),
+            ("WH-1000XM5", "Headphones", [], "headphones"),
+            ("Alex's AirPods", nil, [kAudioStreamTerminalTypeHeadphones], "airpods"),
+            ("Alex's AirPods Pro", nil, [kAudioStreamTerminalTypeHeadphones], "airpodspro"),
+            ("Alex's AirPods Max", nil, [kAudioStreamTerminalTypeHeadphones], "airpodsmax"),
+            ("JBL Flip 6", nil, [kAudioStreamTerminalTypeSpeaker], "speaker.wave.2.fill"),
+            ("HUAWEI FreeClip 2", nil, [kAudioStreamTerminalTypeHeadphones], "headphones"),
+            ("My renamed audio device", nil, [kAudioStreamTerminalTypeHeadphones], "headphones"),
+            ("Soundcore speaker", nil, [kAudioStreamTerminalTypeSpeaker], "speaker.wave.2.fill")
         ]
         for output in outputs {
             let mixer = AppVolumeMixer()
@@ -79,7 +83,8 @@ enum NotchVolumeFeedbackTests {
             mixer.outputDevices.append(OutputDevice(
                 uid: "selected", name: output.name,
                 isHeadphones: MixerRoutingSupport.outputLooksLikeHeadphones(
-                    name: output.name, uid: "selected", dataSourceName: output.dataSource)))
+                    name: output.name, uid: "selected", dataSourceName: output.dataSource,
+                    terminalTypes: output.terminals)))
             mixer.currentOutputDeviceUID = "selected"
             let service = Service()
             service.showCurrentVolume()
@@ -163,26 +168,26 @@ enum NotchVolumeFeedbackTests {
                    "volume changes supply header feedback while the island is open on any page")
             service.presented.removeAll()
             // Each step of the island's slider or mute button marks its change.
-            service.noteOwnVolumeAdjustment()
+            service.noteOwnLevelAdjustment(.volume)
             mixer.systemOutputVolume = 0.35
             drain()
-            service.noteOwnVolumeAdjustment()
+            service.noteOwnLevelAdjustment(.volume)
             mixer.systemOutputMuted = true
             drain()
             suite.expect(service.presented.isEmpty,
-                   "the island's own level and mute controls leave the open header's title alone")
+                   "the island's own level and mute controls leave the open island's top row alone")
             service.showCurrentVolume()
             suite.expect(service.presented.count == 1 && service.notice?.level == 0,
                    "a volume key right after an own adjustment still shows feedback")
             service.presented.removeAll()
-            service.ownVolumeAdjustmentUntil = 0
+            service.ownLevelAdjustmentUntil = [:]
             mixer.systemOutputMuted = false
             drain()
             suite.expect(service.presented.count == 1 && service.notice?.level == 0.35,
-                   "a change after the own adjustment's moment shows in the open header again")
+                   "a change after the own adjustment's moment shows in the open island's top row again")
             service.presented.removeAll()
             service.expanded = false
-            service.noteOwnVolumeAdjustment()
+            service.noteOwnLevelAdjustment(.volume)
             mixer.systemOutputVolume = 0.5
             drain()
             suite.expect(service.presented.count == 1,
@@ -218,6 +223,27 @@ enum NotchVolumeFeedbackTests {
         suite.expect(!service.showVolume(0.9) && service.notice?.level == 0.2,
                "an island that cannot show volume leaves the confirmation to the caller")
         service.subscriptions.removeAll()
+
+        // The island's keyboard light controls mark their own changes the same
+        // way, apart from volume's, and still count as shown.
+        let lights = Service()
+        lights.expanded = true
+        lights.noteOwnLevelAdjustment(.keyboardLight)
+        let ownKeyboardQuiet = lights.showKeyboardLight(0.5) && lights.presented.isEmpty
+        let otherLevelShows = lights.showBrightness(0.4) && lights.presented.last?.event == .brightness
+        suite.expect(ownKeyboardQuiet && otherLevelShows,
+               "the island's own keyboard light slider leaves the open island's top row alone")
+        lights.presented.removeAll()
+        lights.notice = nil
+        lights.ownLevelAdjustmentUntil = [:]
+        let laterShows = lights.showKeyboardLight(0.6) && lights.presented.last?.level == 0.6
+        lights.presented.removeAll()
+        lights.notice = nil
+        lights.expanded = false
+        lights.noteOwnLevelAdjustment(.keyboardLight)
+        let closedShows = lights.showKeyboardLight(0.7) && lights.presented.last?.level == 0.7
+        suite.expect(laterShows && closedShows,
+               "a level change after the slider's moment, or on a closed island, shows its reading")
 
         // An output that adapts its own level, measured from AirPods Pro
         // reacting to the room: a hundredth at a time, a ramp up and back

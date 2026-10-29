@@ -31,6 +31,13 @@ struct AppUpdatesListView: View {
             && !updates.isChecking
             && (storeCoverageIncomplete || (includeOnlineCatalog && !updates.onlineCatalogAvailable))
     }
+    private var versionsUncompared: Bool {
+        updates.hasCheckedThisSession
+            && !updates.isChecking
+            && includeOnlineCatalog && !updates.uncomparableAppNames.isEmpty
+    }
+    /// An app named as not compared is not known to be current either.
+    private var coveragePartial: Bool { coverageIncomplete || versionsUncompared }
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 8 : 12) {
@@ -45,6 +52,9 @@ struct AppUpdatesListView: View {
             rulesSection
             if coverageIncomplete {
                 incompleteCheck
+            }
+            if versionsUncompared {
+                uncomparableVersions
             }
             if let status = homebrew.operationStatus {
                 HomebrewOperationStatusView(status: status,
@@ -115,12 +125,12 @@ struct AppUpdatesListView: View {
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 6) {
             if updates.hasCheckedThisSession, !updates.isChecking {
-                Label(coverageIncomplete ? text.partialUpToDate
+                Label(coveragePartial ? text.partialUpToDate
                       : (updates.rules.isEmpty ? text.upToDate : text.noVisibleUpdates),
-                      systemImage: coverageIncomplete || !updates.rules.isEmpty
+                      systemImage: coveragePartial || !updates.rules.isEmpty
                           ? "info.circle" : "checkmark.circle.fill")
                     .font(.system(size: compact ? 11 : 12, weight: .medium))
-                    .foregroundStyle(coverageIncomplete || !updates.rules.isEmpty
+                    .foregroundStyle(coveragePartial || !updates.rules.isEmpty
                                      ? Color.secondary : Color.green)
             }
             Text(text.coverageNote)
@@ -159,6 +169,26 @@ struct AppUpdatesListView: View {
                     .buttonStyle(.link)
                     .font(.system(size: compact ? 10 : 11))
             }
+        }
+    }
+
+    /// Not a failure, so not a warning: the catalog answered, but the version
+    /// these apps report cannot be lined up with it.
+    private var uncomparableVersions: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Label(text.uncomparableVersions, systemImage: "info.circle")
+                .font(.system(size: compact ? 10.5 : 11.5, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(updates.uncomparableAppNames.joined(separator: ", "))
+                .font(.system(size: compact ? 9.5 : 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(compact ? 3 : nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(updates.uncomparableAppNames.joined(separator: ", "))
+            Text(text.uncomparableVersionsNote)
+                .font(.system(size: compact ? 9.5 : 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

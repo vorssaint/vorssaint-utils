@@ -53,15 +53,12 @@ enum NotchMediaPresentationProbe {
         @ObservedObject var model: Model
 
         var body: some View {
-            VStack(spacing: NotchLayout.spacing) {
-                Text("Files").frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: model.geometry.headerRowHeight)
-                MediaWorkspaceView(compact: true, media: model.media, initialTool: .videoCompressor,
-                                   preservesServiceState: true, workspace: model.workspace,
-                                   onContentHeightChange: model.measured, onToolChange: model.willChange)
-            }
+            // The page below the island's top row, which names it no more.
+            MediaWorkspaceView(compact: true, media: model.media, initialTool: .videoCompressor,
+                               preservesServiceState: true, workspace: model.workspace,
+                               onContentHeightChange: model.measured, onToolChange: model.willChange)
             .padding(.horizontal, NotchLayout.horizontalInset)
-            .padding(.top, model.geometry.headerTopInset)
+            .padding(.top, model.geometry.pageTopInset)
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: model.size.width, height: model.size.height, alignment: .top)
             .background(.black).foregroundStyle(.white)

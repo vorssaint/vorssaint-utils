@@ -706,7 +706,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
             draggingItem.setDraggingFrame(bounds, contents: entry.icon)
             return draggingItem
         }
-        shelf.beginInternalDrag(ids: draggedIDs, from: window)
+        shelf.beginInternalDrag(items: living, from: window)
         shelf.beginInteraction()
         beginDraggingSession(with: draggingItems, event: event, source: self)
     }
@@ -716,6 +716,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
     func draggingSession(_ session: NSDraggingSession,
                          sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
         ShelfService.shared.sourceOperationMask(for: context)
+    }
+
+    func draggingSession(_ session: NSDraggingSession, movedTo screenPoint: NSPoint) {
+        ShelfService.shared.internalDragMoved(to: screenPoint)
     }
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {

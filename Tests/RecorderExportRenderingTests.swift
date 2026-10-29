@@ -62,6 +62,16 @@ enum RecorderExportRenderingTests {
         input.markAsFinished()
         await writer.finishWriting()
         suite.expect(writer.status == .completed, "the synthetic 60 fps master is written")
+        // 120 frames, each appended far sooner than the editor should redraw.
+        var plainDocument = RecorderEditDocument()
+        plainDocument.showsPointer = false
+        plainDocument.zoomEnabled = false
+        let videoProgress = ProgressLog()
+        let plainFailure = await RecorderExporter().export(take: take, document: plainDocument,
+            output: .video, to: folder.appendingPathComponent("progress.mp4"),
+            progress: videoProgress.record)
+        suite.expect(plainFailure == nil, "the progress fixture exports")
+        expectThrottledProgress(suite, videoProgress.entries, frameReportsUpTo: 0.9, "video export")
         try await audioAndGIF(suite, take: take)
         // The last case ends protection in the removed interval. The frame
         // held immediately before the splice must retain the pre-cut blur.
@@ -192,6 +202,13 @@ enum RecorderExportRenderingTests {
         let gifFailure = await RecorderExporter().export(take: gifTake,
             document: gifDocument, output: .gif, to: gifURL, progress: { _ in })
         suite.expect(gifFailure == nil, "GIF uses the current trim and retimed composition")
+        let ordinaryURL = folder.appendingPathComponent("ordinary-file")
+        try Data([0]).write(to: ordinaryURL)
+        func mode(_ url: URL) -> Int? {
+            (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber)?.intValue
+        }
+        suite.expect(mode(gifURL) != nil && mode(gifURL) == mode(ordinaryURL),
+                     "a saved GIF gets the same permissions as any other saved file")
         if let source = CGImageSourceCreateWithURL(gifURL as CFURL, nil) {
             suite.expect(CGImageSourceGetCount(source) == 6,
                          "one trimmed source second at 2x produces six GIF frames")
@@ -235,6 +252,27 @@ enum RecorderExportRenderingTests {
         } else {
             suite.expect(false, "copied GIF data decodes from its native pasteboard type")
         }
+        // A long recording's GIF goes on the pasteboard as its file alone,
+        // rather than as data every clipboard reader would copy whole.
+        let gifBytes = (try? gifURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        pasteboard.clearContents()
+        pasteboard.setString("keep me", forType: .string)
+        suite.expect(RecorderGIFClipboard.publish(fileURL: gifURL, to: pasteboard,
+                                                  inlineByteLimit: gifBytes - 1),
+                     "a GIF past the inline limit still copies")
+        suite.expect(pasteboard.data(forType: nativeGIFType) == nil
+                        && pasteboard.string(forType: .fileURL) == gifURL.absoluteString,
+                     "a GIF past the inline limit is copied as its file alone")
+        suite.expect(RecorderGIFClipboard.publish(fileURL: gifURL, to: pasteboard,
+                                                  inlineByteLimit: gifBytes)
+                        && pasteboard.data(forType: nativeGIFType) == (try? Data(contentsOf: gifURL)),
+                     "a GIF within the inline limit keeps its animation data")
+        pasteboard.clearContents()
+        pasteboard.setString("keep me", forType: .string)
+        suite.expect(!RecorderGIFClipboard.publish(
+                        fileURL: folder.appendingPathComponent("missing.gif"), to: pasteboard)
+                        && pasteboard.string(forType: .string) == "keep me",
+                     "a missing GIF leaves the existing clipboard untouched")
         let longFolder = folder.appendingPathComponent("long-gif-source")
         try FileManager.default.createDirectory(at: longFolder, withIntermediateDirectories: true)
         let longTake = RecorderTakeStore.Take(id: UUID(), folder: longFolder)
@@ -246,9 +284,11 @@ enum RecorderExportRenderingTests {
         longDocument.zoomEnabled = false
         let scratchBefore = Set((try? FileManager.default.contentsOfDirectory(
             atPath: RecorderGIFWorkspace.root.path)) ?? [])
+        let gifProgress = ProgressLog()
         let longFailure = await RecorderExporter().export(take: longTake, document: longDocument,
-            output: .gif, to: longURL, progress: { _ in })
+            output: .gif, to: longURL, progress: gifProgress.record)
         suite.expect(longFailure == nil, "30-second GIF at 15 fps exports beyond the old 20-second cap")
+        expectThrottledProgress(suite, gifProgress.entries, frameReportsUpTo: 0.99, "GIF export")
         if let source = CGImageSourceCreateWithURL(longURL as CFURL, nil) {
             suite.expect(CGImageSourceGetCount(source) == 450,
                          "long production GIF retains all 450 frames")
@@ -273,6 +313,7 @@ enum RecorderExportRenderingTests {
                          "clipboard retains all frames of the long GIF")
         } else { suite.expect(false, "long copied GIF decodes") }
         try await stillClipStaysCompact(suite, folder: folder)
+        try await damagedFramesHold(suite, folder: folder)
         let scratchAfter = Set((try? FileManager.default.contentsOfDirectory(
             atPath: RecorderGIFWorkspace.root.path)) ?? [])
         suite.expect(scratchAfter.subtracting(scratchBefore).isEmpty,
@@ -388,6 +429,106 @@ enum RecorderExportRenderingTests {
                      "a mostly still GIF stays as compact as the single encoder (\(size) vs \(reference.length))")
     }
 
+    /// A movie damaged on disk, as one brought in through Media tools can be:
+    /// every frame is a key frame, and three stretches of them hold zeros.
+    private static func damagedFramesHold(_ suite: TestSuite, folder: URL) async throws {
+        let damagedFolder = folder.appendingPathComponent("damaged-gif-source")
+        try FileManager.default.createDirectory(at: damagedFolder, withIntermediateDirectories: true)
+        let take = RecorderTakeStore.Take(id: UUID(), folder: damagedFolder)
+        var document = RecorderEditDocument()
+        document.showsPointer = false
+        document.zoomEnabled = false
+        let destination = folder.appendingPathComponent("damaged.gif")
+        // 2 s of red, green, blue and white at 60 fps, sampled at 12 fps:
+        // GIF frame i shows source frame 5i.
+        try await writePhaseVideo(to: take.videoURL, everyFrameKey: true)
+        try await zeroFrames(Array(0...29) + Array(60...64) + Array(110...119), in: take.videoURL)
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: take.videoURL))
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        let lost = try? await generator.image(at: CMTime(value: 60, timescale: 60))
+        let kept = try? await generator.image(at: CMTime(value: 65, timescale: 60))
+        suite.expect(lost == nil && kept != nil, "the damaged fixture leaves its zeroed frames undecodable")
+
+        let failure = await RecorderExporter().export(take: take, document: document, output: .gif,
+                                                      to: destination, progress: { _ in })
+        suite.expect(failure == nil, "a GIF exports past frames that do not decode")
+        guard let source = CGImageSourceCreateWithURL(destination as CFURL, nil) else {
+            suite.expect(false, "the GIF of a damaged movie decodes")
+            return
+        }
+        let colours = (0..<CGImageSourceGetCount(source)).compactMap {
+            CGImageSourceCreateImageAtIndex(source, $0, nil).map(meanRGB)
+        }
+        func phase(_ colour: (red: Double, green: Double, blue: Double)) -> Character {
+            if colour.red > 100, colour.green > 100, colour.blue > 100 { return "W" }
+            if colour.red > colour.green * 2, colour.red > colour.blue * 2 { return "R" }
+            if colour.green > colour.red * 2, colour.green > colour.blue * 2 { return "G" }
+            if colour.blue > colour.red * 2, colour.blue > colour.green * 2 { return "B" }
+            return "?"
+        }
+        // Frames before the first that decodes take it, and one that does
+        // not decode repeats the one before it, so the length is kept.
+        let phases = String(colours.map(phase))
+        let expected = ["GGGGGG", "GGGGGG", "G", "BBBBB", "WWWW", "WW"].joined()
+        suite.expect(phases == expected,
+                     "undecodable frames take their nearest earlier frame, or the first one \(phases)")
+
+        let previous = Data("previous gif".utf8)
+        try previous.write(to: destination)
+        try await writePhaseVideo(to: take.videoURL, everyFrameKey: true)
+        try await zeroFrames(Array(0...119), in: take.videoURL)
+        let nothing = await RecorderExporter().export(take: take, document: document, output: .gif,
+                                                      to: destination, progress: { _ in })
+        suite.expect(nothing == .readFailed && (try? Data(contentsOf: destination)) == previous,
+                     "a movie with no frame that decodes fails and keeps the existing GIF")
+    }
+
+    /// Overwrites the stored bytes of the given source frames with zeros.
+    private static func zeroFrames(_ frames: [Int], in url: URL) async throws {
+        let track = try await AVURLAsset(url: url).loadTracks(withMediaType: .video)[0]
+        var data = try Data(contentsOf: url)
+        for frame in frames {
+            guard let cursor = track.makeSampleCursor(
+                presentationTimeStamp: CMTime(value: Int64(frame), timescale: 60)) else {
+                throw FixtureFailure.writeFailed
+            }
+            let range = cursor.currentSampleStorageRange
+            let start = Int(range.offset)
+            data.resetBytes(in: start..<(start + Int(range.length)))
+        }
+        try data.write(to: url)
+    }
+
+    private final class ProgressLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var recorded: [(time: TimeInterval, value: Double)] = []
+
+        func record(_ value: Double) {
+            let time = ProcessInfo.processInfo.systemUptime
+            lock.withLock { recorded.append((time, value)) }
+        }
+
+        var entries: [(time: TimeInterval, value: Double)] { lock.withLock { recorded } }
+    }
+
+    /// Frame by frame progress reaches the editor a few times a second and
+    /// in visible steps, then rises to one once the file is done (#3075).
+    /// The exporter allows ten reports a second; the bound here leaves room
+    /// for a busy test machine between its clock and this one.
+    private static func expectThrottledProgress(_ suite: TestSuite,
+                                                _ entries: [(time: TimeInterval, value: Double)],
+                                                frameReportsUpTo ceiling: Double,
+                                                _ label: String) {
+        let values = entries.map(\.value)
+        suite.expect(values.last == 1 && zip(values, values.dropFirst()).allSatisfy { $0 <= $1 },
+                     "\(label) progress only rises and ends at one")
+        let frames = entries.filter { $0.value <= ceiling }
+        let gaps = zip(frames, frames.dropFirst()).map { ($1.time - $0.time, $1.value - $0.value) }
+        suite.expect(!frames.isEmpty && gaps.allSatisfy { $0.0 >= 0.05 && $0.1 >= 0.0049 },
+                     "\(label) progress reaches the editor a few times a second, in visible steps (\(frames.count) reports)")
+    }
+
     private static func readAudio(_ url: URL) async throws -> [Float] {
         let asset = AVURLAsset(url: url)
         let track = try await asset.loadTracks(withMediaType: .audio)[0]
@@ -428,11 +569,17 @@ enum RecorderExportRenderingTests {
     }
 
     private static func writePhaseVideo(to url: URL, seconds: Int = 2,
-                                        movingSquare: Bool = false) async throws {
+                                        movingSquare: Bool = false,
+                                        everyFrameKey: Bool = false) async throws {
+        try? FileManager.default.removeItem(at: url)
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
-        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+        var settings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 128, AVVideoHeightKey: 128,
-        ])
+        ]
+        if everyFrameKey {
+            settings[AVVideoCompressionPropertiesKey] = [AVVideoMaxKeyFrameIntervalKey: 1]
+        }
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         let adapter = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
             sourcePixelBufferAttributes: [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,

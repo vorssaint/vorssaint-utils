@@ -45,7 +45,14 @@ enum NotchKeyMonitorTests {
     }
     final class MixerPercentNativeTextField {}
     enum PlainTextEditor { static func findBarHasKeyboard(in window: Panel?) -> Bool { false } }
-    final class Host { func contains(_ point: CGPoint) -> Bool { false } }
+    final class Host {
+        var underPointer = false
+        func contains(_ point: CGPoint) -> Bool { underPointer }
+    }
+    final class Mirror {
+        final class Model { var shown = true }
+        let model = Model(), host = Host()
+    }
     final class AppDelegate { func isOverStatusItem(_ point: CGPoint) -> Bool { false } }
     struct Application { let delegate: AnyObject? = nil }
     static let NSApp = Application()
@@ -65,10 +72,12 @@ enum NotchKeyMonitorTests {
     enum QuickLauncherService { static let shared = Launcher() }
 
     class State {
+        var mirrors: [Int: Mirror] = [:]
         var eventMonitors: [Any] = []
         var clickedSinceOpening = false
         var showsKeyboardFocus = false
-        var keepsWorkingSurface = false
+        var keepsSurfaceOnClick = false, showsCapturePreview = false
+        var captureDismiss: (() -> Void)?
         let panel: Panel? = Panel()
         var windowHost: Host? = Host()
         var captureControls: Int?
@@ -79,13 +88,14 @@ enum NotchKeyMonitorTests {
         var showingCommandBar = false
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180)
-        var headerTitleWidth: CGFloat = 0
+        var fullWidthRow = false
         var expandedGeometry: NotchGeometry {
             var result = geometry
-            result.headerTitleWidth = headerTitleWidth
+            result.requiresFullWidthHeader = fullWidthRow
             return result
         }
         func collapse() { NotchKeyMonitorTests.actions.append("collapse") }
+        func openSettings() { NotchKeyMonitorTests.actions.append("settings") }
         func stepBack() { NotchKeyMonitorTests.actions.append("stepBack") }
         func toggleSections() { NotchKeyMonitorTests.actions.append("sections") }
         func select(_ module: NotchModule) { selected = module }
@@ -107,6 +117,21 @@ enum NotchKeyMonitorTests {
         _ = NSEvent.handler?(NSEvent(window: Panel(), keyCode: 48))
         suite.expect(!service.showsKeyboardFocus,
                      "pointer input and keys in another window do not expose the island's automatic focus")
+        let mirror = Mirror()
+        mirror.host.underPointer = true
+        service.mirrors[1] = mirror
+        service.showsCapturePreview = true
+        var dismissals = 0
+        service.captureDismiss = { dismissals += 1 }
+        let mirrorClick = NSEvent(type: .leftMouseDown, window: Panel(), keyCode: 0)
+        _ = NSEvent.handler?(mirrorClick)
+        suite.expect(dismissals == 0, "the local click monitor preserves a screenshot on a visible island copy")
+        mirror.model.shown = false
+        _ = NSEvent.handler?(mirrorClick)
+        suite.expect(dismissals == 1, "the local click monitor dismisses a screenshot at a hidden copy's old position")
+        service.showsCapturePreview = false
+        service.mirrors = [:]
+        service.captureDismiss = nil
         let tab = NSEvent(window: service.panel, keyCode: 48)
         suite.expect(NSEvent.handler?(tab) != nil && service.showsKeyboardFocus,
                      "Tab restores visible focus and still reaches the controls for navigation")
@@ -157,8 +182,24 @@ enum NotchKeyMonitorTests {
         actions = []
         suite.expect(NSEvent.handler?(escape) == nil && actions == ["stepBack"],
                      "without the bar, Escape steps back through the island again")
-        // A title too long to sit beside the camera takes a row below it, so
-        // a custom island leaves the Tools rail fewer rows than the island
+        // With no settings button in the island, Command-Comma opens its page.
+        actions = []
+        let commandComma = NSEvent(window: service.panel, keyCode: 43, modifierFlags: .command,
+                                   charactersIgnoringModifiers: ",")
+        suite.expect(NSEvent.handler?(commandComma) == nil && actions == ["settings"],
+                     "Command-Comma opens the island's settings from inside it")
+        // Keep open, Settings and Collapse have no button in the row; besides
+        // the secondary-click menu, VoiceOver reaches them as named actions.
+        let islandSource = ((try? String(contentsOfFile: "Sources/Vorssaint/UI/Notch/NotchView.swift",
+                                         encoding: .utf8)) ?? "")
+            .filter { !$0.isWhitespace }
+        suite.expect([".accessibilityAction(named:service.pinned?text.unpin:text.pin){service.pinned.toggle()}",
+                      ".accessibilityAction(named:l10n.s.menuSettings){service.openSettings()}",
+                      ".accessibilityAction(named:text.collapse){service.collapse()}"]
+                        .allSatisfy(islandSource.contains),
+                     "the open island names Keep open, Settings and Collapse as accessibility actions")
+        // A top row that cannot wrap the camera takes a row below it, so a
+        // custom island leaves the Tools rail fewer rows than the island
         // without its page would. The arrows walk the rail the page draws.
         let launcher = QuickLauncherService.shared
         let items = launcher.visibleItems
@@ -170,11 +211,11 @@ enum NotchKeyMonitorTests {
         service.panel?.firstResponder = nil
         service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: 37.5,
                                          cameraWidth: 208, layout: .custom, customWidth: 480, customHeight: 330)
-        service.headerTitleWidth = 200
+        service.fullWidthRow = true
         launcher.flows = []
         _ = NSEvent.handler?(NSEvent(window: service.panel, keyCode: 125))
         let drawn = service.expandedGeometry.toolFlow(count: 12)
         suite.expect(launcher.flows == [drawn] && drawn != service.geometry.toolFlow(count: 12),
-                     "the Tools arrows follow the rail below a title that takes the row under the camera")
+                     "the Tools arrows follow the rail below a top row under the camera")
     }
 }
