@@ -1647,8 +1647,12 @@ enum ScreenshotFeatureTests {
                "the smallest editor shows every tool and the gear in compact rows")
         let defaultRail = RailLayout(toolCount: railTools, height: ScreenshotSupport.toolRailHeight(
             column: editorMinimum.height - 70 - 40, footer: 40))
-        suite.expect(defaultRail.visibleTools == railTools && defaultRail.rowHeight == 29,
-               "a comfortable editor keeps regular tool rows")
+        suite.expect(defaultRail.visibleTools == railTools && defaultRail.rowHeight >= 26,
+               "a comfortable editor keeps roomy tool rows")
+        let comfortableRail = ScreenshotSupport.toolRailHeight(column: editorMinimum.height - 70 - 40, footer: 40)
+        suite.expect(RailLayout(toolCount: 15, height: comfortableRail).rowHeight == 29
+                && RailLayout(toolCount: 15, height: smallestRails[0]).rowHeight == 23,
+               "fifteen tools keep the regular and compact rows they always had")
         let crampedRail = RailLayout(toolCount: railTools, height: 300)
         suite.expect(crampedRail.visibleTools < railTools && crampedRail.visibleTools > 0,
                "a shorter rail moves its last tools behind the overflow button")
@@ -3235,7 +3239,7 @@ enum ScreenshotFeatureTests {
                 && ScreenshotSupport.joinedWords(recognizedWords, selected: []).isEmpty,
                "out of range or empty selections copy nothing")
         let defaultScreenshotTools = ScreenshotSupport.Tool.editorTools
-        suite.expect(defaultScreenshotTools.count == 15
+        suite.expect(defaultScreenshotTools.count == 16
                 && Array(defaultScreenshotTools.prefix(9))
                     == [.select, .arrow, .pixelate, .crop, .text, .sticker,
                         .rect, .highlight, .freehand],
@@ -3249,8 +3253,8 @@ enum ScreenshotFeatureTests {
         let customScreenshotTools = ScreenshotSupport.Tool.ordered(
             from: "crop,arrow,arrow,invalid")
         suite.expect(Array(customScreenshotTools.prefix(2)) == [.crop, .arrow]
-                && customScreenshotTools.count == 15
-                && Set(customScreenshotTools).count == 15,
+                && customScreenshotTools.count == 16
+                && Set(customScreenshotTools).count == 16,
                "a saved screenshot tool order drops invalid duplicates and appends missing tools")
         suite.expect(ScreenshotSupport.Tool.shortcutTool(number: 1,
                                                    orderRaw: nil,
