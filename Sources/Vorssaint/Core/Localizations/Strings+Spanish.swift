@@ -1106,6 +1106,8 @@ extension Strings {
         smoothScrollCoastLabel: "Inercia",
         mouseAccelerationName: "Desactivar la aceleración del ratón",
         mouseAccelerationCaption: "Elimina la aceleración del puntero para los ratones conectados. El ajuste anterior vuelve al desactivarlo o salir de Vorssaint.",
+        mousePointerSpeedLabel: "Velocidad del puntero del ratón",
+        mousePointerSpeedCaption: "Solo ratones. El trackpad conserva su propia velocidad.",
         linearScrollName: "Desplazamiento lineal",
         linearScrollCaption: "Cada paso de la rueda del ratón desplaza la misma distancia, sin importar la velocidad del giro. El trackpad no cambia.",
         linearScrollLinesLabel: "Líneas por paso",

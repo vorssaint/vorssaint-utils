@@ -1107,6 +1107,8 @@ extension Strings {
         smoothScrollCoastLabel: "Инерция",
         mouseAccelerationName: "Отключить ускорение мыши",
         mouseAccelerationCaption: "Отключает ускорение указателя для подключённых мышей. Прежняя настройка вернётся после выключения функции или выхода из Vorssaint.",
+        mousePointerSpeedLabel: "Скорость указателя мыши",
+        mousePointerSpeedCaption: "Только для мышей. Трекпад сохраняет свою скорость.",
         linearScrollName: "Линейная прокрутка",
         linearScrollCaption: "Каждый щелчок колёсика мыши прокручивает одно и то же расстояние независимо от скорости вращения. Трекпад не меняется.",
         linearScrollLinesLabel: "Строк на щелчок",

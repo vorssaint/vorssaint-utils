@@ -31,6 +31,7 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
+    @AppStorage(DefaultsKey.mousePointerSpeed) private var mousePointerSpeed = MouseAccelerationSupport.defaultSpeed
     @AppStorage(DefaultsKey.linearScrollEnabled) private var linearScrollEnabled = false
     @AppStorage(DefaultsKey.linearScrollLines) private var linearScrollLines =
         ScrollWheelSupport.defaultLinesPerNotch
@@ -141,7 +142,9 @@ struct MouseSettings: View {
         case .focusFollowsMouse: return focusFollowsMouseEnabled
         case .smoothScroll: return smoothScrollEnabled
         case .linearScroll: return linearScrollEnabled
-        case .mouseAcceleration: return mouseAccelerationDisabled
+        case .mouseAcceleration:
+            return mouseAccelerationDisabled
+                || MouseAccelerationSupport.sanitizedSpeed(mousePointerSpeed) != MouseAccelerationSupport.defaultSpeed
         case .mouseNavigation: return mouseNavigationEnabled
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .mouseClickDebounce: return mouseClickDebounceEnabled
@@ -476,7 +479,29 @@ struct MouseSettings: View {
                         MouseAccelerationService.shared.syncWithPreferences()
                     }
             }
+            VStack(alignment: .leading, spacing: 6) {
+                sliderRow(l10n.s.mousePointerSpeedLabel,
+                          value: mousePointerSpeedBinding,
+                          range: Double(MouseAccelerationSupport.speedRange.lowerBound)
+                              ... Double(MouseAccelerationSupport.speedRange.upperBound),
+                          step: 5,
+                          readout: "\(MouseAccelerationSupport.sanitizedSpeed(mousePointerSpeed))%")
+                Text(l10n.s.mousePointerSpeedCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.leading, settingsRowTextInset)
         }
+    }
+
+    private var mousePointerSpeedBinding: Binding<Double> {
+        Binding(
+            get: { Double(MouseAccelerationSupport.sanitizedSpeed(mousePointerSpeed)) },
+            set: {
+                mousePointerSpeed = Int($0)
+                MouseAccelerationService.shared.syncWithPreferences()
+            }
+        )
     }
 
     private var navigationCard: some View {

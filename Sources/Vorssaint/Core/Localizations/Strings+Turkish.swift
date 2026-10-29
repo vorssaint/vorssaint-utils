@@ -1106,6 +1106,8 @@ extension Strings {
         smoothScrollCoastLabel: "Atalet",
         mouseAccelerationName: "Fare hızlandırmasını kapat",
         mouseAccelerationCaption: "Bağlı farelerde işaretçi hızlandırmasını kaldırır. Seçenek kapatıldığında veya Vorssaint’ten çıkıldığında önceki ayar geri yüklenir.",
+        mousePointerSpeedLabel: "Fare imleci hızı",
+        mousePointerSpeedCaption: "Yalnızca fareler. Trackpad kendi hızını korur.",
         linearScrollName: "Doğrusal kaydırma",
         linearScrollCaption: "Fare tekerleğinin her adımı, ne kadar hızlı çevrilirse çevrilsin aynı mesafeyi kaydırır. İzleme dörtgeni değişmez.",
         linearScrollLinesLabel: "Adım başına satır",

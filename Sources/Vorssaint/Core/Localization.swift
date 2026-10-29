@@ -1312,6 +1312,8 @@ struct Strings {
     let smoothScrollCoastLabel: String
     let mouseAccelerationName: String
     let mouseAccelerationCaption: String
+    let mousePointerSpeedLabel: String
+    let mousePointerSpeedCaption: String
     let linearScrollName: String
     let linearScrollCaption: String
     let linearScrollLinesLabel: String
@@ -2430,6 +2432,8 @@ extension Strings {
         smoothScrollCoastLabel: "Inércia",
         mouseAccelerationName: "Desativar aceleração do mouse",
         mouseAccelerationCaption: "Remove a aceleração do cursor para os mouses conectados. A configuração anterior volta ao desligar esta opção ou sair do Vorssaint.",
+        mousePointerSpeedLabel: "Velocidade do ponteiro do mouse",
+        mousePointerSpeedCaption: "Só para mouses. O trackpad mantém a própria velocidade.",
         linearScrollName: "Rolagem linear",
         linearScrollCaption: "Cada passo da rodinha do mouse rola a mesma distância, não importa a velocidade do giro. O trackpad não muda.",
         linearScrollLinesLabel: "Linhas por passo",
@@ -3549,6 +3553,8 @@ extension Strings {
         smoothScrollCoastLabel: "Coast",
         mouseAccelerationName: "Disable mouse acceleration",
         mouseAccelerationCaption: "Removes pointer acceleration for connected mice. Your previous setting returns when this is turned off or Vorssaint quits.",
+        mousePointerSpeedLabel: "Mouse pointer speed",
+        mousePointerSpeedCaption: "Mice only. The trackpad keeps its own speed.",
         linearScrollName: "Linear scrolling",
         linearScrollCaption: "Every notch of the mouse wheel scrolls the same distance, no matter how fast it spins. The trackpad is not affected.",
         linearScrollLinesLabel: "Lines per step",

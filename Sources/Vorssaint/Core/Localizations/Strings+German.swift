@@ -1106,6 +1106,8 @@ extension Strings {
         smoothScrollCoastLabel: "Auslauf",
         mouseAccelerationName: "Mausbeschleunigung deaktivieren",
         mouseAccelerationCaption: "Deaktiviert die Zeigerbeschleunigung für angeschlossene Mäuse. Die vorherige Einstellung wird beim Ausschalten oder Beenden von Vorssaint wiederhergestellt.",
+        mousePointerSpeedLabel: "Zeigergeschwindigkeit der Maus",
+        mousePointerSpeedCaption: "Nur Mäuse. Das Trackpad behält seine eigene Geschwindigkeit.",
         linearScrollName: "Lineares Scrollen",
         linearScrollCaption: "Jeder Rastschritt des Mausrads scrollt dieselbe Strecke, egal wie schnell es gedreht wird. Das Trackpad bleibt unverändert.",
         linearScrollLinesLabel: "Zeilen pro Rastschritt",

@@ -1106,6 +1106,8 @@ extension Strings {
         smoothScrollCoastLabel: "惯性",
         mouseAccelerationName: "关闭鼠标加速",
         mouseAccelerationCaption: "移除已连接鼠标的指针加速。关闭此选项或退出 Vorssaint 后，会恢复之前的设置。",
+        mousePointerSpeedLabel: "鼠标指针速度",
+        mousePointerSpeedCaption: "仅限鼠标。触控板保持原有速度。",
         linearScrollName: "线性滚动",
         linearScrollCaption: "无论转动多快，鼠标滚轮每一格都滚动相同的距离。触控板不受影响。",
         linearScrollLinesLabel: "每格行数",
