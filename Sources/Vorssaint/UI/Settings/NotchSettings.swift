@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 import EventKit
 
@@ -16,6 +17,9 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchDismissNativeNotifications) private var dismissNativeNotifications = false
     @AppStorage(DefaultsKey.notchTimerEnabled) private var timerEnabled = true
     @AppStorage(DefaultsKey.notchTimerSoundEnabled) private var timerSoundEnabled = true
+    @AppStorage(DefaultsKey.notchTimerSoundName) private var timerSoundName = Defaults.defaultNotchTimerSoundName
+    /// Held so a long ringtone preview stops when another sound is picked.
+    @State private var timerSoundPreview: NSSound?
     @AppStorage(DefaultsKey.notchHideTimerCountdown) private var hideTimerCountdown = false
     @AppStorage(DefaultsKey.notchCameraEnabled) private var cameraEnabled = true
     @AppStorage(DefaultsKey.notchAccessoriesEnabled) private var accessoriesEnabled = true
@@ -497,6 +501,7 @@ struct NotchSettings: View {
                 .disabled(!AppFeature.notchTimer.isAvailable)
             switchRow("speaker.wave.2", activities.soundEnabled, isOn: $timerSoundEnabled)
                 .disabled(!AppFeature.notchTimer.isAvailable)
+            if timerSoundEnabled { timerSoundPicker }
         case .camera:
             Text(FeatureStrings.notchActivities(l10n.language).cameraHint).font(.callout).foregroundStyle(.secondary)
             if permissions.camera == .granted {
@@ -1001,6 +1006,35 @@ struct NotchSettings: View {
     }
 
     /// An option with its icon, one line and a switch, like every other page.
+    /// The alarm's sound, listed like the snippet sound and previewed on change.
+    private var timerSoundPicker: some View {
+        let snippets = FeatureStrings.snippets(l10n.language)
+        return SettingsRow(symbol: "bell", title: snippets.soundPickerLabel) {
+            Picker(snippets.soundPickerLabel, selection: $timerSoundName) {
+                ForEach(NotchTimerSound.ringtones, id: \.self) { id in
+                    Text(NotchTimerSound.title(for: id, language: l10n.language)).tag(id)
+                }
+                if !NotchTimerSound.ringtones.isEmpty { Divider() }
+                ForEach(AlertSoundStrings.sortedNames(TextSnippetSupport.alertSoundNames,
+                                                      language: l10n.language), id: \.self) { name in
+                    Text(AlertSoundStrings.displayName(for: name, language: l10n.language)).tag(name)
+                }
+                if NotchTimerSupport.soundName() != timerSoundName {
+                    Text(snippets.soundUnavailable).tag(timerSoundName)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+            .onChange(of: timerSoundName) { _, _ in
+                timerSoundPreview?.stop()
+                timerSoundPreview = NotchTimerSupport.sound()
+                timerSoundPreview?.play()
+            }
+        }
+        .disabled(!AppFeature.notchTimer.isAvailable)
+        .onDisappear { timerSoundPreview?.stop() }
+    }
+
     private func switchRow(_ symbol: String, _ title: String, caption: String? = nil, isOn: Binding<Bool>) -> some View {
         SettingsRow(symbol: symbol, title: title, caption: caption) {
             Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch)

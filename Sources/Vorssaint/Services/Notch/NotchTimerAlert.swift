@@ -15,11 +15,19 @@ final class NotchTimerAlert {
     private let stopSound: () -> Void
 
     convenience init() {
-        let tone = NSSound(contentsOfFile: "/System/Library/Sounds/Glass.aiff", byReference: false)
+        // Reloaded when the chosen sound changes, so a new pick rings at once.
+        var tone: (name: String?, sound: NSSound?)?
+        func current() -> NSSound? {
+            let name = NotchTimerSupport.soundName()
+            if tone?.name != name { tone?.sound?.stop(); tone = (name, NotchTimerSupport.sound()) }
+            return tone?.sound
+        }
         self.init(sound: {
-            if let tone { tone.stop(); tone.play() }
+            // A ringtone can run longer than the repeat interval, so each one
+            // finishes before it rings again.
+            if let sound = current() { if !sound.isPlaying { sound.play() } }
             else { NSSound.beep() }
-        }, stopSound: { tone?.stop() })
+        }, stopSound: { tone?.sound?.stop() })
     }
 
     init(interval: Duration = .seconds(2), now: @escaping () -> ContinuousClock.Instant = { .now },

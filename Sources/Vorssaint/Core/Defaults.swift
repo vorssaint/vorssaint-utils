@@ -857,6 +857,7 @@ enum DefaultsKey {
     static let notchTimerMode = "notchTimerMode"
     static let notchTimerMinutes = "notchTimerMinutes"
     static let notchTimerSoundEnabled = "notchTimerSoundEnabled"
+    static let notchTimerSoundName = "notchTimerSoundName"
     static let notchHideTimerCountdown = "notchHideTimerCountdown"
     static let notchPomodoroFocusMinutes = "notchPomodoroFocusMinutes"
     static let notchPomodoroShortBreakMinutes = "notchPomodoroShortBreakMinutes"
@@ -1179,6 +1180,8 @@ enum Defaults {
     static let allowedMonitorIntervals = [1, 2, 5]
     static let defaultKeyboardDebounceWindowMs = 5
     static let defaultSnippetSoundName = "Tink"
+    /// The timer's alarm until the user picks another sound.
+    static let defaultNotchTimerSoundName = "Glass"
     static let allowedKeyboardDebounceWindowRange = 0...500
     /// Stepper increment for the keyboard debounce window. Kept at 1 ms so
     /// magnetic-keyboard users can pick values below the old 5 ms UI step
@@ -1470,6 +1473,7 @@ enum Defaults {
         DefaultsKey.notchTimerMode: NotchTimerMode.timer.rawValue,
         DefaultsKey.notchTimerMinutes: 15,
         DefaultsKey.notchTimerSoundEnabled: true,
+        DefaultsKey.notchTimerSoundName: defaultNotchTimerSoundName,
         DefaultsKey.notchHideTimerCountdown: false,
         DefaultsKey.notchPomodoroFocusMinutes: 25,
         DefaultsKey.notchPomodoroShortBreakMinutes: 5,
