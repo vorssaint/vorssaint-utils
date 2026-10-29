@@ -20,6 +20,7 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarRowShortcuts) private var rowShortcutsRaw = ""
     @AppStorage(DefaultsKey.commandBarFileScopes) private var fileScopesRaw = ""
     @AppStorage(DefaultsKey.commandBarFileIgnores) private var fileIgnoresRaw = ""
+    @AppStorage(DefaultsKey.commandBarAppFolders) private var appFoldersRaw = ""
     @State private var editing: CommandBarLink?
     @State private var ignoreDraft = ""
     @State private var showsFileOptions = false
@@ -139,6 +140,30 @@ struct CommandBarSettings: View {
                 Text(text.appCenterCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Text(text.appFoldersCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(appFolders, id: \.self) { folder in
+                    HStack(spacing: 8) {
+                        Image(systemName: "folder")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 16)
+                        Text(folder)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Button(text.removeButton) { removeAppFolder(folder) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                    }
+                }
+                Button {
+                    addAppFolder()
+                } label: {
+                    Label(text.filesAddFolder, systemImage: "plus")
+                }
             }
 
             Section {
@@ -478,6 +503,31 @@ struct CommandBarSettings: View {
         case .files: return text.sourceFiles
         case .killProcess: return FeatureStrings.killProcess(l10n.language).pageTitle
         }
+    }
+
+    // MARK: - The folders apps are listed from
+
+    private var appFolders: [String] {
+        CommandBarFileSearchSupport.decodeList(appFoldersRaw)
+    }
+
+    private func addAppFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        guard panel.runModal() == .OK else { return }
+        let added = panel.urls.map { ($0.path as NSString).abbreviatingWithTildeInPath }
+        writeAppFolders(appFolders + added)
+    }
+
+    private func removeAppFolder(_ folder: String) {
+        writeAppFolders(appFolders.filter { $0 != folder })
+    }
+
+    private func writeAppFolders(_ folders: [String]) {
+        appFoldersRaw = CommandBarFileSearchSupport.encodeList(folders)
+        CommandBarService.shared.refreshApplications()
     }
 
     // MARK: - The folders a file search looks in

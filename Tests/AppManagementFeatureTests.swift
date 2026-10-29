@@ -642,6 +642,19 @@ enum AppManagementFeatureTests {
         try? FileManager.default.moveItem(at: mimoApp, to: listedRoot.appendingPathComponent("Mimo.app"))
         suite.expect(InstalledApps.installedApplications(roots: [listedRoot]).map(\.name) == ["Mimo"],
                "the application walk lists a wrapper once, not the bundle inside it")
+        // A folder added for the Command Bar, such as one on an external disk,
+        // is walked only as deep as an application folder's vendor folders (#3604).
+        let addedRoot = selectionFixture.appendingPathComponent("Added", isDirectory: true)
+        for path in ["Direct.app", "Vendor/Nested.app", "Projects/build/Release/Deep.app"] {
+            try? FileManager.default.createDirectory(at: addedRoot.appendingPathComponent(path, isDirectory: true),
+                                                     withIntermediateDirectories: true)
+        }
+        suite.expect(InstalledApps.installedApplications(roots: [], addedFolders: [addedRoot]).map(\.name)
+                == ["Direct", "Nested"],
+               "an added folder lists its apps and those one folder down, but not a deep build product")
+        suite.expect(InstalledApps.installedApplications(
+                roots: [], addedFolders: [selectionFixture.appendingPathComponent("Unplugged", isDirectory: true)]).isEmpty,
+               "an added folder on a disk that is not connected lists nothing")
         try? FileManager.default.removeItem(at: selectionFixture)
         // While the Finder shows every extension, the file manager spells an
         // app's name with its ".app" ("Google Chrome.app"). The lists read it

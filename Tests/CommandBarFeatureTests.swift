@@ -999,6 +999,9 @@ enum CommandBarFeatureTests {
                "a path is written the short way only where it really is inside home")
         suite.expect(CommandBarFileSearchSupport.candidateLimit >= CommandBarFileSearchSupport.resultLimit,
                "more names are asked for than are shown, since most are filtered away")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.commandBarAppFolders] as? String == ""
+                && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarAppFolders),
+               "added app folders start empty and stay on this Mac, like file search folders")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.commandBarFileScopes] as? String == ""
                 && Defaults.registeredDefaults[DefaultsKey.commandBarFileIgnores] as? String == "",
                "out of the box the bar has been given no folder, so it looks for no files")

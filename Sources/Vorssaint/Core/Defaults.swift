@@ -639,6 +639,9 @@ enum DefaultsKey {
     // the bar looks for no files at all, which is the setting out of the box.
     static let commandBarFileScopes = "commandBarFileScopes"
     static let commandBarFileIgnores = "commandBarFileIgnores" // names a file search never shows
+    // Folders besides the application folders whose apps the bar lists, such
+    // as one on an external disk, one per line and written with a tilde.
+    static let commandBarAppFolders = "commandBarAppFolders"
     static let panelUtilityCommandBar = "panelUtilityCommandBar"
     static let scratchpadRetention = "scratchpadRetention"   // never | day | week | month
     static let scratchpadCloseOnClickOutside = "scratchpadCloseOnClickOutside"
@@ -1851,6 +1854,7 @@ enum Defaults {
         DefaultsKey.commandBarPins: "",
         DefaultsKey.commandBarHidden: "",
         DefaultsKey.commandBarFileScopes: "",
+        DefaultsKey.commandBarAppFolders: "",
         DefaultsKey.commandBarFileIgnores: "",
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
         DefaultsKey.commandBarPositionOffset: "",
