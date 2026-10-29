@@ -1047,7 +1047,7 @@ final class CommandBarService: ObservableObject {
             }
         case .killProcess:
             return AppFeature.killProcess.isAvailable
-        case .quitApps, .uninstallApps, .answers, .calculator, .selection, .files:
+        case .quitApps, .uninstallApps, .answers, .calculator, .selection, .files, .webSearch:
             return false
         }
     }
@@ -1077,7 +1077,7 @@ final class CommandBarService: ObservableObject {
                 self?.paste(entry)
             }
         case .killProcess: rows = killProcessEntries
-        case .quitApps, .answers, .calculator, .selection, .files:
+        case .quitApps, .answers, .calculator, .selection, .files, .webSearch:
             rows = []
         }
         return rows.filter { !hidden.contains($0.stableKey) }
@@ -1114,6 +1114,7 @@ final class CommandBarService: ObservableObject {
         case .files: return bar.sourceFiles
         case .links: return bar.linksTitle
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).pageTitle
+        case .webSearch: return bar.sourceWebSearch
         }
     }
 
@@ -1138,6 +1139,7 @@ final class CommandBarService: ObservableObject {
     private var usageCache: [String: CommandBarUse] = [:]
     /// Cached like the pins: read once per open, checked on every keystroke.
     private var compactMode = false
+    private var webSearchEngine = CommandBarWebSearch.defaultEngine
     /// The list was asked for anyway, through `peekHome()`. Cleared on the
     /// next open.
     private var isPeekingHome = false
@@ -1162,6 +1164,8 @@ final class CommandBarService: ObservableObject {
             UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
         shortcutCache = rowShortcuts
         compactMode = UserDefaults.standard.bool(forKey: DefaultsKey.commandBarCompactMode)
+        webSearchEngine = CommandBarWebSearch.engine(
+            from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarWebSearchEngine))
         hasCustomPosition = positionOffset != .zero
         reloadFileSearchCaches()
     }
@@ -1695,7 +1699,7 @@ final class CommandBarService: ObservableObject {
         case .snippets: return bar.kindSnippet
         case .folders: return bar.kindFolder
         case .actions, .apps, .menus, .windows, .quitApps, .uninstallApps, .settingsPages,
-             .macSettings, .clipboard, .emoji, .calculator, .selection, .files, .killProcess:
+             .macSettings, .clipboard, .emoji, .calculator, .selection, .files, .killProcess, .webSearch:
             return entry.subtitle.isEmpty ? bar.everythingTitle : entry.subtitle
         }
     }
@@ -2005,6 +2009,12 @@ final class CommandBarService: ObservableObject {
                 rowTitles: result.map(\.title), query: trimmed))
             if result.count > 12 { result.removeLast() }
         }
+        if isEnabled(.webSearch),
+           CommandBarWebSearch.shouldOffer(query: trimmed, inCategory: false),
+           !hidden.contains(CommandBarWebSearch.rowID),
+           let webSearch = CommandBarCatalog.webSearchEntry(for: trimmed, engine: webSearchEngine, bar: bar) {
+            result.append(webSearch)
+        }
         return result
     }
 
@@ -2091,10 +2101,13 @@ final class CommandBarService: ObservableObject {
     /// Whether the selected row has anything to offer here. A clipboard item
     /// is a passing thing with no lasting id, so it is not in the index and
     /// there is nothing to pin, name or hide about it: the bar says so by not
-    /// offering the panel at all instead of opening an empty one.
+    /// offering the panel at all instead of opening an empty one. The web
+    /// search fallback is the other way around: built only while you type,
+    /// but the same row every time, so ⌘K still opens.
     var canOpenActions: Bool {
-        guard case .search = mode, let entry = selectedEntry, !entry.isAnswer,
-              entriesByID[entry.id] != nil else { return false }
+        guard case .search = mode, let entry = selectedEntry, !entry.isAnswer else { return false }
+        guard entriesByID[entry.id] != nil
+                || CommandBarWebSearch.offersActions(forRowID: entry.id) else { return false }
         return !actions(for: entry).isEmpty
     }
 
@@ -2197,10 +2210,23 @@ final class CommandBarService: ObservableObject {
                 })
             }
         }
-        actions.append(RowAction(id: "hide", title: bar.actionHide, symbolName: "eye.slash") { [weak self] in
-            self?.toggleHidden(entry)
-            self?.leaveActions()
-        })
+        if CommandBarWebSearch.offersActions(forRowID: entry.id) {
+            let searchQuery = query
+            for engine in CommandBarWebSearch.Engine.allCases {
+                let current = engine == webSearchEngine
+                actions.append(RowAction(id: CommandBarWebSearch.engineActionID(engine),
+                                         title: engine.title,
+                                         symbolName: current ? "checkmark" : "globe") { [weak self] in
+                    self?.runWebSearch(query: searchQuery, engine: engine)
+                })
+            }
+        }
+        if CommandBarPreferences.acceptsHide(rowID: entry.id) {
+            actions.append(RowAction(id: "hide", title: bar.actionHide, symbolName: "eye.slash") { [weak self] in
+                self?.toggleHidden(entry)
+                self?.leaveActions()
+            })
+        }
         if entry.countsUsage {
             actions.append(RowAction(id: "forget",
                                      title: bar.actionForget,
@@ -2533,6 +2559,20 @@ final class CommandBarService: ObservableObject {
         }
         rebuildRunningEntries()
         refreshAfterPreferenceChange()
+    }
+
+    /// Search once with this engine. The saved engine stays in Settings.
+    private func runWebSearch(query: String, engine: CommandBarWebSearch.Engine) {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let search = text.isEmpty
+            ? savedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            : text
+        guard let url = CommandBarWebSearch.url(for: search, engine: engine) else {
+            NSSound.beep()
+            return
+        }
+        hide()
+        NSWorkspace.shared.open(url)
     }
 
     func openActions() {

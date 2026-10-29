@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Command Bar can search the web in your default browser as a last result, DuckDuckGo unless you pick another engine.
+
 ## [3.4.3] - 2026-10-29
 
 ### Summary

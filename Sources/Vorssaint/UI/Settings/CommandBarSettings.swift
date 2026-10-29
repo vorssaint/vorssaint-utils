@@ -20,6 +20,7 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarRowShortcuts) private var rowShortcutsRaw = ""
     @AppStorage(DefaultsKey.commandBarFileScopes) private var fileScopesRaw = ""
     @AppStorage(DefaultsKey.commandBarFileIgnores) private var fileIgnoresRaw = ""
+    @AppStorage(DefaultsKey.commandBarWebSearchEngine) private var webSearchEngineRaw = CommandBarWebSearch.Engine.duckDuckGo.rawValue
     @State private var editing: CommandBarLink?
     @State private var ignoreDraft = ""
     @State private var showsFileOptions = false
@@ -154,6 +155,22 @@ struct CommandBarSettings: View {
                 Text(text.sourcesCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Picker(text.webSearchEngineLabel, selection: $webSearchEngineRaw) {
+                    ForEach(CommandBarWebSearch.Engine.allCases) { engine in
+                        Text(engine.title).tag(engine.rawValue)
+                    }
+                }
+                .onChange(of: webSearchEngineRaw) { _, _ in
+                    CommandBarService.shared.syncWithPreferences()
+                }
+                Text(text.webSearchEngineCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text(text.sourceWebSearch)
             }
 
             Section {
@@ -477,6 +494,7 @@ struct CommandBarSettings: View {
         case .links: return text.linksTitle
         case .files: return text.sourceFiles
         case .killProcess: return FeatureStrings.killProcess(l10n.language).pageTitle
+        case .webSearch: return text.sourceWebSearch
         }
     }
 

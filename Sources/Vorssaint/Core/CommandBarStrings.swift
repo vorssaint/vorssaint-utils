@@ -173,6 +173,10 @@ struct CommandBarFeatureStrings {
     let emojiSkinToneCaption: String
     let asciiLayoutToggle: String
     let asciiLayoutCaption: String
+    let sourceWebSearch: String
+    let webSearchTitleFormat: String
+    let webSearchEngineLabel: String
+    let webSearchEngineCaption: String
 }
 
 extension FeatureStrings {
@@ -364,7 +368,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "Skin tone",
         emojiSkinToneCaption: "By default, emoji that can take a tone use this one. Open the actions on an emoji row to choose a different one.",
         asciiLayoutToggle: "Switch to an ABC layout while the bar is open",
-        asciiLayoutCaption: "The field types Latin characters whatever layout was active, and the previous layout comes back when the bar closes.")
+        asciiLayoutCaption: "The field types Latin characters whatever layout was active, and the previous layout comes back when the bar closes.",
+        sourceWebSearch: "Web search",
+        webSearchTitleFormat: "Search the web for \"%@\"",
+        webSearchEngineLabel: "Search engine",
+        webSearchEngineCaption: "The last result opens this engine in your browser.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -532,7 +540,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "Tom de pele",
         emojiSkinToneCaption: "Por padrão, os emojis que aceitam tom usam este. Abra as ações em uma linha de emoji para escolher outro.",
         asciiLayoutToggle: "Mudar para um layout ABC enquanto a barra está aberta",
-        asciiLayoutCaption: "O campo digita caracteres latinos independente do layout ativo, e o layout anterior volta quando a barra fecha.")
+        asciiLayoutCaption: "O campo digita caracteres latinos independente do layout ativo, e o layout anterior volta quando a barra fecha.",
+        sourceWebSearch: "Busca na web",
+        webSearchTitleFormat: "Buscar na web por \"%@\"",
+        webSearchEngineLabel: "Mecanismo de busca",
+        webSearchEngineCaption: "O último resultado abre este mecanismo no navegador.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -700,7 +712,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "Ten rengi",
         emojiSkinToneCaption: "Ton alabilen emojiler varsayılan olarak bunu kullanır. Farklı birini seçmek için bir emoji satırında eylemleri açın.",
         asciiLayoutToggle: "Çubuk açıkken ABC düzene geç",
-        asciiLayoutCaption: "Alan, etkin düzen ne olursa olsun Latin karakterler yazar; çubuk kapandığında önceki düzen geri gelir.")
+        asciiLayoutCaption: "Alan, etkin düzen ne olursa olsun Latin karakterler yazar; çubuk kapandığında önceki düzen geri gelir.",
+        sourceWebSearch: "Web araması",
+        webSearchTitleFormat: "Web’de \"%@\" ara",
+        webSearchEngineLabel: "Arama motoru",
+        webSearchEngineCaption: "Son sonuç bu motoru tarayıcıda açar.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -868,7 +884,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "Тон кожи",
         emojiSkinToneCaption: "По умолчанию эмодзи с поддержкой тона используют этот. Чтобы выбрать другой, откройте действия в строке эмодзи.",
         asciiLayoutToggle: "Переключаться на ABC-раскладку, пока открыта строка",
-        asciiLayoutCaption: "Поле набирает латиницу, какая бы раскладка ни была активна; при закрытии строки прежняя раскладка возвращается.")
+        asciiLayoutCaption: "Поле набирает латиницу, какая бы раскладка ни была активна; при закрытии строки прежняя раскладка возвращается.",
+        sourceWebSearch: "Поиск в интернете",
+        webSearchTitleFormat: "Искать в интернете «%@»",
+        webSearchEngineLabel: "Поисковая система",
+        webSearchEngineCaption: "Последний результат открывает эту систему в браузере.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -1036,7 +1056,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "Tono de piel",
         emojiSkinToneCaption: "De forma predeterminada, los emojis que admiten tono usan este. Abre las acciones en una fila de emoji para elegir otro.",
         asciiLayoutToggle: "Cambiar a una disposición ABC mientras la barra esté abierta",
-        asciiLayoutCaption: "El campo escribe caracteres latinos aunque haya otra disposición activa, y la anterior vuelve al cerrar la barra.")
+        asciiLayoutCaption: "El campo escribe caracteres latinos aunque haya otra disposición activa, y la anterior vuelve al cerrar la barra.",
+        sourceWebSearch: "Búsqueda web",
+        webSearchTitleFormat: "Buscar en la web \"%@\"",
+        webSearchEngineLabel: "Motor de búsqueda",
+        webSearchEngineCaption: "El último resultado abre este motor en el navegador.")
 
     static let sk = CommandBarFeatureStrings(
         pageTitle: "Príkazová lišta",
@@ -1204,7 +1228,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "Odtieň pleti",
         emojiSkinToneCaption: "Emoji, ktoré môžu mať odtieň, štandardne použijú tento. Otvorte akcie na riadku s emoji a vyberte iný.",
         asciiLayoutToggle: "Prepnúť na rozloženie ABC, kým je lišta otvorená",
-        asciiLayoutCaption: "Pole píše latinské znaky bez ohľadu na aktívne rozloženie a po zatvorení lišty sa vráti predchádzajúce rozloženie.")
+        asciiLayoutCaption: "Pole píše latinské znaky bez ohľadu na aktívne rozloženie a po zatvorení lišty sa vráti predchádzajúce rozloženie.",
+        sourceWebSearch: "Webové vyhľadávanie",
+        webSearchTitleFormat: "Hľadať na webe „%@“",
+        webSearchEngineLabel: "Vyhľadávací nástroj",
+        webSearchEngineCaption: "Posledný výsledok otvorí tento nástroj v prehliadači.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1372,7 +1400,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "Hautton",
         emojiSkinToneCaption: "Emojis mit Hautton verwenden standardmäßig diesen. Öffne die Aktionen in einer Emoji-Zeile, um einen anderen zu wählen.",
         asciiLayoutToggle: "Bei geöffneter Leiste zum ABC-Layout wechseln",
-        asciiLayoutCaption: "Das Feld tippt lateinische Zeichen, egal welches Layout aktiv ist; beim Schließen kehrt das vorherige Layout zurück.")
+        asciiLayoutCaption: "Das Feld tippt lateinische Zeichen, egal welches Layout aktiv ist; beim Schließen kehrt das vorherige Layout zurück.",
+        sourceWebSearch: "Websuche",
+        webSearchTitleFormat: "Im Web nach „%@“ suchen",
+        webSearchEngineLabel: "Suchmaschine",
+        webSearchEngineCaption: "Das letzte Ergebnis öffnet diese Suchmaschine im Browser.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1540,7 +1572,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "Teinte de peau",
         emojiSkinToneCaption: "Par défaut, les émojis qui acceptent une teinte utilisent celle-ci. Ouvrez les actions sur une ligne d’émoji pour en choisir une autre.",
         asciiLayoutToggle: "Passer en disposition ABC quand la barre est ouverte",
-        asciiLayoutCaption: "Le champ saisit des caractères latins quelle que soit la disposition active, et la précédente revient à la fermeture de la barre.")
+        asciiLayoutCaption: "Le champ saisit des caractères latins quelle que soit la disposition active, et la précédente revient à la fermeture de la barre.",
+        sourceWebSearch: "Recherche web",
+        webSearchTitleFormat: "Rechercher «\u{00A0}%@\u{00A0}» sur le web",
+        webSearchEngineLabel: "Moteur de recherche",
+        webSearchEngineCaption: "Le dernier résultat ouvre ce moteur dans le navigateur.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1708,7 +1744,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "Tonalità della pelle",
         emojiSkinToneCaption: "Per impostazione predefinita, le emoji che accettano una tonalità usano questa. Apri le azioni su una riga di emoji per sceglierne un’altra.",
         asciiLayoutToggle: "Passa a un layout ABC mentre la barra è aperta",
-        asciiLayoutCaption: "Il campo digita caratteri latini indipendentemente dal layout attivo; alla chiusura torna il layout precedente.")
+        asciiLayoutCaption: "Il campo digita caratteri latini indipendentemente dal layout attivo; alla chiusura torna il layout precedente.",
+        sourceWebSearch: "Ricerca web",
+        webSearchTitleFormat: "Cerca sul web \"%@\"",
+        webSearchEngineLabel: "Motore di ricerca",
+        webSearchEngineCaption: "L’ultimo risultato apre questo motore nel browser.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1876,7 +1916,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "肌の色",
         emojiSkinToneCaption: "肌の色を持てる絵文字は標準でこの色になります。別の色を選ぶには、絵文字の行でアクションを開きます。",
         asciiLayoutToggle: "バーを開いている間はABCレイアウトに切り替える",
-        asciiLayoutCaption: "アクティブなレイアウトに関係なく、フィールドにはラテン文字が入力されます。バーを閉じると元のレイアウトに戻ります。")
+        asciiLayoutCaption: "アクティブなレイアウトに関係なく、フィールドにはラテン文字が入力されます。バーを閉じると元のレイアウトに戻ります。",
+        sourceWebSearch: "ウェブ検索",
+        webSearchTitleFormat: "ウェブで「%@」を検索",
+        webSearchEngineLabel: "検索エンジン",
+        webSearchEngineCaption: "最後の結果はこのエンジンをブラウザで開きます。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -2044,7 +2088,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "피부색",
         emojiSkinToneCaption: "기본적으로 피부색을 가질 수 있는 이모티콘은 이 색을 사용합니다. 다른 색을 선택하려면 이모티콘 행에서 동작을 여세요.",
         asciiLayoutToggle: "막대가 열려 있는 동안 ABC 자판으로 전환",
-        asciiLayoutCaption: "활성 자판과 관계없이 입력 필드에는 라틴 문자가 입력되고, 막대를 닫으면 이전 자판으로 돌아갑니다.")
+        asciiLayoutCaption: "활성 자판과 관계없이 입력 필드에는 라틴 문자가 입력되고, 막대를 닫으면 이전 자판으로 돌아갑니다.",
+        sourceWebSearch: "웹 검색",
+        webSearchTitleFormat: "웹에서 \"%@\" 검색",
+        webSearchEngineLabel: "검색 엔진",
+        webSearchEngineCaption: "마지막 결과는 이 엔진을 브라우저에서 엽니다.")
 
     static let uk = CommandBarFeatureStrings(
         pageTitle: "Панель команд",
@@ -2212,8 +2260,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "Тон шкіри",
         emojiSkinToneCaption: "Типово емодзі з підтримкою тону використовують цей. Щоб вибрати інший, відкрийте дії в рядку емодзі.",
         asciiLayoutToggle: "Перемикатися на розкладку ABC, поки відкрита панель команд",
-        asciiLayoutCaption: "У полі вводяться латинські символи незалежно від активної розкладки. Після закриття панелі команд повертається попередня розкладка."
-    )
+        asciiLayoutCaption: "У полі вводяться латинські символи незалежно від активної розкладки. Після закриття панелі команд повертається попередня розкладка.",
+        sourceWebSearch: "Пошук в інтернеті",
+        webSearchTitleFormat: "Шукати в інтернеті «%@»",
+        webSearchEngineLabel: "Пошукова система",
+        webSearchEngineCaption: "Останній результат відкриває цю систему в браузері.")
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
         hubDescription: "一个输入框，找到并执行 App 的所有功能",
@@ -2380,7 +2431,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "肤色",
         emojiSkinToneCaption: "支持肤色的表情默认使用此肤色。若要选择其他肤色，请在表情结果行打开操作。",
         asciiLayoutToggle: "命令栏打开时切换到 ABC 布局",
-        asciiLayoutCaption: "无论当前布局为何，输入栏都会键入拉丁字符；命令栏关闭后恢复原布局。")
+        asciiLayoutCaption: "无论当前布局为何，输入栏都会键入拉丁字符；命令栏关闭后恢复原布局。",
+        sourceWebSearch: "网页搜索",
+        webSearchTitleFormat: "在网上搜索“%@”",
+        webSearchEngineLabel: "搜索引擎",
+        webSearchEngineCaption: "最后一项会在浏览器中打开这个搜索引擎。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2548,7 +2603,11 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "膚色",
         emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。",
         asciiLayoutToggle: "指令列開啟時切換到 ABC 配置",
-        asciiLayoutCaption: "無論目前配置為何，輸入欄都會鍵入拉丁字元；指令列關閉後恢復原配置。")
+        asciiLayoutCaption: "無論目前配置為何，輸入欄都會鍵入拉丁字元；指令列關閉後恢復原配置。",
+        sourceWebSearch: "網頁搜尋",
+        webSearchTitleFormat: "在網路上搜尋「%@」",
+        webSearchEngineLabel: "搜尋引擎",
+        webSearchEngineCaption: "最後一項會在瀏覽器中開啟這個搜尋引擎。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2716,5 +2775,9 @@ extension CommandBarFeatureStrings {
         emojiSkinToneLabel: "膚色",
         emojiSkinToneCaption: "支援膚色的表情符號預設使用此膚色。若要選擇其他膚色，請在表情符號列打開動作。",
         asciiLayoutToggle: "指令列開啟時切換到 ABC 配置",
-        asciiLayoutCaption: "無論目前配置為何，輸入欄都會鍵入拉丁字元；指令列關閉後恢復原配置。")
+        asciiLayoutCaption: "無論目前配置為何，輸入欄都會鍵入拉丁字元；指令列關閉後恢復原配置。",
+        sourceWebSearch: "網頁搜尋",
+        webSearchTitleFormat: "在網路上搜尋「%@」",
+        webSearchEngineLabel: "搜尋引擎",
+        webSearchEngineCaption: "最後一項會在瀏覽器中開啟這個搜尋引擎。")
 }

@@ -29,10 +29,12 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
     case selection
     /// The links, folders and searches the person saved themselves.
     case links
-    /// Files found by name in the folders the person named. Last, because it
-    /// is the one source that has to go and look.
+    /// Files found by name in the folders the person named. Last among the
+    /// looking sources, because it is the one that has to go and look.
     case files
     case killProcess
+    /// Search the web for what was typed, offered under every other match.
+    case webSearch
 
     var id: String { rawValue }
 
@@ -60,6 +62,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .links: return "bookmark"
         case .files: return "doc.text.magnifyingglass"
         case .killProcess: return "xmark.octagon"
+        case .webSearch: return "globe"
         }
     }
 
@@ -84,6 +87,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .links: return "link."
         case .files: return "file."
         case .killProcess: return "kill."
+        case .webSearch: return "websearch."
         }
     }
 }
@@ -187,7 +191,7 @@ enum CommandBarPreferences {
         case .files, .settingsPages: return -40
         case .apps: return 80
         case .actions, .windows, .quitApps, .uninstallApps, .macSettings, .snippets,
-             .clipboard, .emoji, .folders, .answers, .calculator, .selection, .links, .killProcess:
+             .clipboard, .emoji, .folders, .answers, .calculator, .selection, .links, .killProcess, .webSearch:
             return 0
         }
     }
@@ -216,7 +220,7 @@ enum CommandBarPreferences {
     /// pinned to one would silently point somewhere else tomorrow.
     static func acceptsAlias(rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
-        case .menus, .windows, .clipboard, .selection, .files, .killProcess, .uninstallApps: return false
+        case .menus, .windows, .clipboard, .selection, .files, .killProcess, .uninstallApps, .webSearch: return false
         case .actions, .apps, .quitApps, .settingsPages, .macSettings, .snippets, .emoji,
              .folders, .answers, .calculator, .links:
             return true
@@ -294,7 +298,7 @@ enum CommandBarPreferences {
     /// again, which reads as the pin being broken.
     static func acceptsPin(rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
-        case .menus, .quitApps, .uninstallApps, .clipboard, .emoji, .selection, .files, .killProcess:
+        case .menus, .quitApps, .uninstallApps, .clipboard, .emoji, .selection, .files, .killProcess, .webSearch:
             return false
         case .actions, .apps, .windows, .settingsPages, .macSettings, .snippets, .folders,
              .links, .answers, .calculator:
@@ -355,7 +359,7 @@ enum CommandBarPreferences {
         switch source(ofRowID: rowID) {
         case .actions, .settingsPages, .snippets: return true
         case .apps, .uninstallApps, .menus, .windows, .quitApps, .macSettings, .clipboard, .emoji,
-             .folders, .answers, .calculator, .selection, .links, .files, .killProcess:
+             .folders, .answers, .calculator, .selection, .links, .files, .killProcess, .webSearch:
             return false
         }
     }
@@ -369,6 +373,12 @@ enum CommandBarPreferences {
 
     static func encodeHidden(_ hidden: Set<String>) -> String {
         hidden.sorted().joined(separator: "\n")
+    }
+
+    /// Web search is switched off under sources. Hiding it from ⌘K would
+    /// store a bare id that Settings' hidden list cannot name.
+    static func acceptsHide(rowID: String) -> Bool {
+        source(ofRowID: rowID) != .webSearch
     }
 
     static func togglingHidden(_ key: String, in hidden: Set<String>) -> Set<String> {
