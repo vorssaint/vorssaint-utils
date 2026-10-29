@@ -55,7 +55,8 @@ final class ScreenTextService: ObservableObject {
     /// What a captured region turned out to hold.
     enum Outcome: Equatable {
         case qr(BarcodeDetector.Reading)
-        case text(String)
+        /// The copied text, and the other line-break choice when it differs.
+        case text(String, toggled: String? = nil)
         case empty
     }
 
@@ -84,9 +85,15 @@ final class ScreenTextService: ObservableObject {
                     // Show what the code holds instead of copying it blindly;
                     // the panel offers copy and, for a link, open.
                     QRResultController.shared.show(reading: reading)
-                case .text(let text):
+                case .text(let text, let toggled):
                     Self.copyToPasteboard(text)
-                    QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied)
+                    if let toggled {
+                        Self.offerLineBreakChoice(copied: text, toggled: toggled,
+                                                  removedBreaks: removeLineBreaks)
+                    } else {
+                        QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied,
+                                          detail: QuickToolsSupport.copiedTextPreview(text))
+                    }
                 case .empty:
                     QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrNoText)
                 }
@@ -138,9 +145,29 @@ final class ScreenTextService: ObservableObject {
                                     automaticallyDetectLanguage: false,
                                     preferredLanguages: fallbackLanguages)
         }
-        let text = QuickToolsSupport.joinedRecognizedText(lines,
-                                                         removingLineBreaks: removeLineBreaks)
-        return text.isEmpty ? .empty : .text(text)
+        let variants = QuickToolsSupport.recognizedTextVariants(lines,
+                                                               removingLineBreaks: removeLineBreaks)
+        return variants.text.isEmpty ? .empty : .text(variants.text, toggled: variants.toggled)
+    }
+
+    /// The confirmation shows what was copied and offers the other
+    /// line-break choice (issue #1794). Choosing it copies that text instead,
+    /// shows it in place of the first, and keeps the choice for the next
+    /// capture, as the setting does; a copy made since is left alone.
+    private static func offerLineBreakChoice(copied text: String, toggled: String, removedBreaks: Bool) {
+        let strings = FeatureStrings.screenText(L10n.shared.language)
+        let changeCount = NSPasteboard.general.changeCount
+        QuickToolHUD.showAction(
+            icon: "text.viewfinder",
+            message: removedBreaks ? strings.ocrCopiedWithoutBreaks : L10n.shared.s.ocrCopied,
+            detail: QuickToolsSupport.copiedTextPreview(text),
+            actionTitle: removedBreaks ? strings.ocrKeepBreaks : strings.ocrRemoveBreaks
+        ) {
+            guard NSPasteboard.general.changeCount == changeCount else { return }
+            UserDefaults.standard.set(!removedBreaks, forKey: DefaultsKey.screenOCRRemoveLineBreaks)
+            copyToPasteboard(toggled)
+            offerLineBreakChoice(copied: toggled, toggled: text, removedBreaks: !removedBreaks)
+        }
     }
 
     private static func recognizedLines(

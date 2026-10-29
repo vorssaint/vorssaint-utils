@@ -35,9 +35,10 @@ enum QuickToolHUD {
         return scrollingPanel.windowNumber
     }
 
-    static func show(icon: String, message: String, swatch: NSColor? = nil) {
+    /// `detail` is a preview of what was copied, shown under the message.
+    static func show(icon: String, message: String, swatch: NSColor? = nil, detail: String? = nil) {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async { show(icon: icon, message: message, swatch: swatch) }
+            DispatchQueue.main.async { show(icon: icon, message: message, swatch: swatch, detail: detail) }
             return
         }
         let content = HStack(spacing: 8) {
@@ -54,27 +55,95 @@ enum QuickToolHUD {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
             }
-            Text(message)
-                .font(.system(size: 12, weight: .semibold))
-                // What was copied can be a whole paragraph, and the panel is
-                // laid out at whatever the text asks for. Unbounded, one long
-                // line measures wider than the screen and the panel, centred on
-                // that width, hangs off both edges with nothing readable left.
-                //
-                // Truncating at the tail rather than the middle so that the
-                // ellipsis is always drawn: a value whose first paragraph ends
-                // on the second line is cut at a line break, not inside one,
-                // and middle truncation leaves no mark at all there — the
-                // preview then reads as the whole of what was copied.
-                .lineLimit(2)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(message)
+                    .font(.system(size: 12, weight: .semibold))
+                    // What was copied can be a whole paragraph, and the panel is
+                    // laid out at whatever the text asks for. Unbounded, one long
+                    // line measures wider than the screen and the panel, centred on
+                    // that width, hangs off both edges with nothing readable left.
+                    //
+                    // Truncating at the tail rather than the middle so that the
+                    // ellipsis is always drawn: a value whose first paragraph ends
+                    // on the second line is cut at a line break, not inside one,
+                    // and middle truncation leaves no mark at all there, so the
+                    // preview would read as the whole of what was copied.
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: messageWidthLimit, alignment: .leading)
+                detailText(detail)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
+
+        // A preview takes a moment longer to read than a word.
+        present(AnyView(content), dismissAfter: detail == nil ? 1.5 : 3)
+        announce(message, detail: detail)
+    }
+
+    /// The copied text under the message, as far as three rows go. The
+    /// builder already bounds it; the line limit keeps a long word from
+    /// stretching the panel past it.
+    @ViewBuilder
+    private static func detailText(_ detail: String?) -> some View {
+        if let detail {
+            Text(detail)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
                 .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: messageWidthLimit, alignment: .leading)
+        }
+    }
+
+    /// The panel never takes focus, so VoiceOver hears a confirmation that
+    /// carries copied text only when it is announced.
+    private static func announce(_ message: String, detail: String?) {
+        guard let detail, NSWorkspace.shared.isVoiceOverEnabled else { return }
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested, userInfo: [
+            .announcement: message + ", " + detail,
+            .priority: NSAccessibilityPriorityLevel.high.rawValue,
+        ])
+    }
+
+    /// A confirmation with one follow-up, such as the other line-break choice
+    /// after text is copied. It stays a little longer and takes clicks for
+    /// its button, but still never takes focus.
+    static func showAction(icon: String, message: String, detail: String? = nil, actionTitle: String,
+                           action: @escaping () -> Void) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async {
+                showAction(icon: icon, message: message, detail: detail, actionTitle: actionTitle,
+                           action: action)
+            }
+            return
+        }
+        let content = HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(message)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: messageWidthLimit, alignment: .leading)
+                detailText(detail)
+            }
+            .accessibilityElement(children: .combine)
+            Button(actionTitle, action: action)
+                .controlSize(.small)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-        present(AnyView(content), dismissAfter: 1.5)
+        present(AnyView(content), dismissAfter: 4, interactive: true)
+        announce(message, detail: detail)
     }
 
     static func showCountdown(_ value: Int) {
@@ -163,14 +232,25 @@ enum QuickToolHUD {
 
     private static func present(_ content: AnyView,
                                 dismissAfter: Double,
-                                windowShadow: Bool = true) {
-        let host = NSHostingController(rootView: content)
-        host.view.layoutSubtreeIfNeeded()
-        let size = host.view.fittingSize
-
+                                windowShadow: Bool = true,
+                                interactive: Bool = false) {
         let panel = ensurePanel()
         panel.hasShadow = windowShadow
-        panel.contentViewController = host
+        panel.ignoresMouseEvents = !interactive
+        let size: CGSize
+        if interactive {
+            // The button answers the first click without the panel turning key.
+            let host = ScrollingCaptureHostingView(rootView: content)
+            host.layoutSubtreeIfNeeded()
+            size = host.fittingSize
+            panel.contentViewController = nil
+            panel.contentView = host
+        } else {
+            let host = NSHostingController(rootView: content)
+            host.view.layoutSubtreeIfNeeded()
+            size = host.view.fittingSize
+            panel.contentViewController = host
+        }
 
         let frame = NSScreen.pointerVisibleFrame
         panel.setFrame(NSRect(x: frame.midX - size.width / 2,
