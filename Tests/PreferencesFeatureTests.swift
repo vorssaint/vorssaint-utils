@@ -30,6 +30,11 @@ enum PreferencesFeatureTests {
                "a chosen screenshot save folder is authority on one Mac and must not travel in a settings backup")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.musicBlockReplacementPath),
                "a chosen replacement app bundle path is authority on one Mac and must not travel in a settings backup")
+        suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.mailBlockAppPath)
+            && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.mailBlockPreviousHandlerPath)
+            && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mailBlockEnabled)
+            && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mailBlockAction),
+               "the Mail link choice travels in backups, while this Mac's app paths stay behind")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotSaveSubfolder),
                "a screenshot subfolder name is a pattern rather than a path, so it still follows settings backups")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarFileScopes)
