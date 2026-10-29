@@ -213,6 +213,9 @@ struct GlobalShortcut: Equatable, Hashable {
     // Full screen sits beside the selector's 4 and the recorder's 5.
     static let screenshotFullScreenDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_3),
                                                             modifiers: [.control, .option, .command])
+    // Scrolling capture follows the recorder's 5.
+    static let screenshotScrollingDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_6),
+                                                           modifiers: [.control, .option, .command])
     static let screenshotUploadDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_U),
                                                         modifiers: [.control, .option, .command])
     // E opens the latest capture in the editor, beside the capture shortcut.
@@ -721,6 +724,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case quickLauncher
     case screenshot
     case screenshotFullScreen
+    case screenshotScrolling
     case screenshotLastCapture
     case screenshotUpload
     case recentCaptures
@@ -759,6 +763,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quickLauncher: return DefaultsKey.quickLauncherShortcut
         case .screenshot: return DefaultsKey.screenshotShortcut
         case .screenshotFullScreen: return DefaultsKey.screenshotFullScreenShortcut
+        case .screenshotScrolling: return DefaultsKey.screenshotScrollingShortcut
         case .screenshotLastCapture: return DefaultsKey.screenshotLastCaptureShortcut
         case .screenshotUpload: return DefaultsKey.screenshotUploadShortcut
         case .recentCaptures: return DefaultsKey.recentCapturesShortcut
@@ -797,6 +802,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quickLauncher: return .quickLauncherDefault
         case .screenshot: return .screenshotDefault
         case .screenshotFullScreen: return .screenshotFullScreenDefault
+        case .screenshotScrolling: return .screenshotScrollingDefault
         case .screenshotLastCapture: return .screenshotLastCaptureDefault
         case .screenshotUpload: return .screenshotUploadDefault
         case .recentCaptures: return .recentCapturesDefault
@@ -859,6 +865,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.screenshot(L10n.shared.language).pageTitle
         case .screenshotFullScreen:
             return FeatureStrings.screenshot(L10n.shared.language).fullScreenShortcutTitle
+        case .screenshotScrolling:
+            return FeatureStrings.screenshot(L10n.shared.language).scrollingCaptureTitle
         case .screenshotUpload:
             return FeatureStrings.screenshot(L10n.shared.language).uploadLastCapture
         case .screenshotLastCapture:
@@ -929,6 +937,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quickLauncher: return [DefaultsKey.quickLauncherShortcutEnabled]
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
         case .screenshotFullScreen: return [DefaultsKey.screenshotFullScreenShortcutEnabled]
+        case .screenshotScrolling: return [DefaultsKey.screenshotScrollingShortcutEnabled]
         case .screenshotLastCapture: return [DefaultsKey.screenshotLastCaptureShortcutEnabled]
         case .screenshotUpload: return [DefaultsKey.screenshotUploadShortcutEnabled, DefaultsKey.screenshotSharingEnabled]
         case .recentCaptures: return [DefaultsKey.recentCapturesShortcutEnabled]
@@ -965,7 +974,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return .micMute
         case .quitAll, .quitAllExceptFront: return .quitApps
         case .quickLauncher: return .quickLauncher
-        case .screenshot, .screenshotFullScreen, .screenshotLastCapture, .recentCaptures,
+        case .screenshot, .screenshotFullScreen, .screenshotScrolling, .screenshotLastCapture, .recentCaptures,
              .screenshotClipboard, .screenshotUpload:
             return .screenshot
         case .cameraPreview: return .cameraPreview
@@ -1061,7 +1070,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     /// Chooser tools first, in chooser order, then shared history and screenshot extras.
     static let captureDisplayOrder: [GlobalShortcutRole] = [
         .screenshot, .screenRecorder, .screenOCR, .colorPicker,
-        .recentCaptures, .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard, .screenshotUpload,
+        .recentCaptures, .screenshotFullScreen, .screenshotScrolling, .screenshotLastCapture, .screenshotClipboard,
+        .screenshotUpload,
     ]
 
     /// The given roles narrowed to the capture group, in display order. The

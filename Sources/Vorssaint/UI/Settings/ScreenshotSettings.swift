@@ -13,6 +13,8 @@ struct ScreenshotCaptureSettings: View {
     private var fullScreenShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotLastCaptureShortcutEnabled)
     private var lastCaptureShortcutEnabled = false
+    @AppStorage(DefaultsKey.screenshotScrollingShortcutEnabled)
+    private var scrollingShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotClipboardShortcutEnabled)
     private var clipboardShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotFreeze) private var freeze = true
@@ -87,6 +89,19 @@ struct ScreenshotCaptureSettings: View {
                     ScreenshotService.shared.syncWithPreferences()
                 }
                 if fullScreenShortcutEnabled, service.fullScreenShortcutRegistrationFailed {
+                    Text(l10n.s.shortcutUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Toggle(strings.scrollingCaptureTitle, isOn: $scrollingShortcutEnabled)
+                    .onChange(of: scrollingShortcutEnabled) { _, _ in
+                        ScreenshotService.shared.syncWithPreferences()
+                    }
+                ShortcutPreferenceRow(role: .screenshotScrolling,
+                                      isEnabled: scrollingShortcutEnabled) {
+                    ScreenshotService.shared.syncWithPreferences()
+                }
+                if scrollingShortcutEnabled, service.scrollingShortcutRegistrationFailed {
                     Text(l10n.s.shortcutUnavailable)
                         .font(.caption)
                         .foregroundStyle(.orange)

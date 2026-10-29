@@ -14,6 +14,7 @@ final class ScreenshotService: ObservableObject {
     static let shared = ScreenshotService()
 
     @Published private(set) var fullScreenShortcutRegistrationFailed = false
+    @Published private(set) var scrollingShortcutRegistrationFailed = false
     @Published private(set) var lastCaptureShortcutRegistrationFailed = false
     @Published private(set) var clipboardShortcutRegistrationFailed = false
 
@@ -33,6 +34,7 @@ final class ScreenshotService: ObservableObject {
     private let lastCaptureHotkey = QuickToolHotkey(id: 22)
     private let fullScreenHotkey = QuickToolHotkey(id: 23)
     private let clipboardHotkey = QuickToolHotkey(id: 24)
+    private let scrollingHotkey = QuickToolHotkey(id: 25)
     private var session: ScreenshotSelectionController?
     private var preview: ScreenshotQuickPreviewController?
     private var editors: [ScreenshotEditorController] = []
@@ -109,6 +111,7 @@ final class ScreenshotService: ObservableObject {
             ScreenshotSupport.removeTemporaryDragDirectories()
         }
         fullScreenHotkey.onPress = { [weak self] in self?.captureFullScreen() }
+        scrollingHotkey.onPress = { [weak self] in self?.captureScrolling() }
         lastCaptureHotkey.onPress = { [weak self] in self?.openLastCapture() }
         uploadHotkey.onPress = { [weak self] in
             Task { @MainActor [weak self] in self?.uploadLastCapture() }
@@ -119,10 +122,12 @@ final class ScreenshotService: ObservableObject {
     func syncWithPreferences() {
         guard AppFeature.screenshot.isAvailable else {
             fullScreenShortcutRegistrationFailed = false
+            scrollingShortcutRegistrationFailed = false
             lastCaptureShortcutRegistrationFailed = false
             clipboardShortcutRegistrationFailed = false
             uploadShortcutRegistrationFailed = false
             fullScreenHotkey.unregister()
+            scrollingHotkey.unregister()
             lastCaptureHotkey.unregister()
             clipboardHotkey.unregister()
             uploadHotkey.unregister()
@@ -140,6 +145,11 @@ final class ScreenshotService: ObservableObject {
             enabled: fullScreenEnabled,
             shortcut: fullScreenShortcut,
             storageKey: DefaultsKey.screenshotFullScreenShortcut)
+        scrollingShortcutRegistrationFailed = !scrollingHotkey.sync(
+            enabled: defaults.bool(forKey: DefaultsKey.screenshotScrollingShortcutEnabled),
+            shortcut: GlobalShortcut.saved(for: DefaultsKey.screenshotScrollingShortcut,
+                                           fallback: .screenshotScrollingDefault),
+            storageKey: DefaultsKey.screenshotScrollingShortcut)
         let lastCaptureEnabled = defaults.bool(
             forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled)
         let lastCaptureShortcut = GlobalShortcut.saved(
@@ -180,6 +190,7 @@ final class ScreenshotService: ObservableObject {
 
     func suspend() {
         fullScreenHotkey.unregister()
+        scrollingHotkey.unregister()
         lastCaptureHotkey.unregister()
         clipboardHotkey.unregister()
         uploadHotkey.unregister()

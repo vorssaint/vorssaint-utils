@@ -3852,6 +3852,17 @@ enum ScreenshotFeatureTests {
                 == [DefaultsKey.screenshotClipboardShortcutEnabled]
                 && GlobalShortcutRole.screenshotClipboard.feature == .screenshot,
                "the clipboard image shortcut gates on its own toggle and the screenshot feature")
+        // Scrolling capture gets a direct shortcut beside 4 and 5 (#3512).
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotScrollingShortcutEnabled]
+                as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.screenshotScrollingShortcut] as? String
+                == "control+option+command:22",
+               "the scrolling capture shortcut ships off with control-option-command-6")
+        suite.expect(GlobalShortcutRole.screenshotScrolling.requiredEnableKeys
+                == [DefaultsKey.screenshotScrollingShortcutEnabled]
+                && GlobalShortcutRole.screenshotScrolling.feature == .screenshot
+                && GlobalShortcutRole.captureRoles(in: GlobalShortcutRole.allCases).contains(.screenshotScrolling),
+               "the scrolling capture shortcut gates on its own toggle and is listed with the capture shortcuts")
         suite.expect(ScreenshotSupport.clipboardImageScale(
             pixelSize: CGSize(width: 1200, height: 800),
             pointSize: CGSize(width: 600, height: 400)) == 2,
