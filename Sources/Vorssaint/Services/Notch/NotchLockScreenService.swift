@@ -3,7 +3,6 @@
 
 import AppKit
 import AudioToolbox
-import Combine
 import SwiftUI
 
 /// The island over the lock screen: music on a pane of Liquid Glass between
@@ -29,7 +28,6 @@ final class NotchLockScreenService {
     private var scene: [NotchLockScreenPanel] = []
     private var island: NotchLockScreenPanel?
     private var space: NotchOverlaySpace?
-    private var playbackSubscription: AnyCancellable?
     private var screenObserver: NSObjectProtocol?
     private var padlockWork: DispatchWorkItem?
     private var shownFrames = Frames()
@@ -42,7 +40,6 @@ final class NotchLockScreenService {
     func sync(_ session: NotchSessionState) {
         let locking = session.locked && !wasLocked
         wasLocked = session.locked
-        if !session.locked { model.playedWhileLocked = false }
         if session.showsLockScreen, NotchLockScreenSupport.isEnabled() {
             // Locked at the Mac, the padlock is seen closing; back from a
             // dark display it is simply closed.
@@ -57,7 +54,6 @@ final class NotchLockScreenService {
     /// The island is off: nothing it started keeps running.
     func close() {
         wasLocked = false
-        model.playedWhileLocked = false
         hide(unlocking: false, stopsSources: true)
     }
 
@@ -150,12 +146,6 @@ final class NotchLockScreenService {
                 panel.animator().alphaValue = 1
             }
         }
-        playbackSubscription = NotchMusicService.shared.$playback
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] playback in
-                guard let self, playback?.isPlaying == true, !self.model.playedWhileLocked else { return }
-                self.model.playedWhileLocked = true
-            }
         // A display attached or rearranged while locked moves the clock, the
         // login controls and the camera; the scene and the padlock follow.
         screenObserver = NotificationCenter.default.addObserver(
@@ -183,7 +173,6 @@ final class NotchLockScreenService {
             NotchCalendarService.shared.stop()
             AgentUsageService.shared.pause()
         }
-        playbackSubscription = nil
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
         padlockWork?.cancel()
