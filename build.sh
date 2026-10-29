@@ -266,6 +266,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchTimerAlert.swift
         Sources/Vorssaint/UI/Notch/NotchIslandAlert.swift
         Sources/Vorssaint/Services/Notch/NotchAccessorySupport.swift
+        Sources/Vorssaint/Services/Notch/NotchAccessoryConnectionMonitor.swift
         Sources/Vorssaint/Services/QuickTools/CameraPreviewSupport.swift
         Sources/Vorssaint/Core/NotchMusicExtrasStrings.swift
         Sources/Vorssaint/Core/NotchClipboardSizeStrings.swift
@@ -352,7 +353,9 @@ if (( TEST )); then
         Sources/Vorssaint/Core/FeatureCatalog.swift
         Sources/Vorssaint/Core/FeaturePresets.swift
         Sources/Vorssaint/Core/FeatureHubStrings.swift
+        Sources/Vorssaint/Core/MixerScreenSharingStrings.swift
         Sources/Vorssaint/Core/ShortcutSettingsStrings.swift
+        Sources/Vorssaint/Core/SwitcherShortcutStrings.swift
         Sources/Vorssaint/Core/SettingsBackupSupport.swift
         Sources/Vorssaint/Core/BackupStrings.swift
         Sources/Vorssaint/Core/SnippetStrings.swift
@@ -367,6 +370,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/CameraPreviewStrings.swift
         Sources/Vorssaint/Core/WallpaperStrings.swift
         Sources/Vorssaint/Services/Wallpaper/WallpaperSupport.swift
+        Sources/Vorssaint/UI/MenuPanel/WallpaperThumbnailView.swift
         Sources/Vorssaint/Core/ScratchpadStrings.swift
         Sources/Vorssaint/Core/FinderRenameStrings.swift
         Sources/Vorssaint/Core/CommandBarStrings.swift
@@ -441,6 +445,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/ReleaseChangeAliases.swift
         Sources/Vorssaint/Core/WhatsNewStrings.swift
         Sources/Vorssaint/Core/URLCleaning.swift
+        Sources/Vorssaint/Services/URLCleanerLinkMetadata.swift
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardHistoryWrite.swift
         Sources/Vorssaint/Services/Audio/AirPlayRouteManager.swift
@@ -467,6 +472,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/ColorValue.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardAutoClearSupport.swift
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift
+        Sources/Vorssaint/Core/AutoQuitDockAppsStrings.swift
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift
         Sources/Vorssaint/Services/Shelf/ShelfFilePromiseTransfer.swift
         Sources/Vorssaint/Core/ShelfPromiseDeliveryStrings.swift
@@ -580,6 +586,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift
         Sources/Vorssaint/Services/Metrics/SustainedAlertGate.swift
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutSupport.swift
+        Sources/Vorssaint/Services/WindowLayout/WindowStageManagerSupport.swift
+        Sources/Vorssaint/Core/WindowStageManagerStrings.swift
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift
         Sources/Vorssaint/Core/PointerDisplayStrings.swift

@@ -68,6 +68,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
     private var visibleMonth: Date?
     private var countdownEnabled = false
     private var timeLeftEnabled = false
+    /// How long before a start the island counts down, from Settings.
+    private(set) var countdownLeadTime = NotchCalendarSupport.countdownLeadTime()
     private var excludedCalendars = Set<String>()
     /// Events whose start has sounded, kept until they begin. Survives a
     /// stop, so turning the island off and on does not sound one twice.
@@ -109,17 +111,20 @@ final class NotchCalendarService: NSObject, ObservableObject {
         guard NotchCalendarSupport.isEnabled() else { stop(); return }
         let countdownEnabled = NotchCalendarSupport.showsCountdown()
         let timeLeftEnabled = NotchCalendarSupport.showsTimeLeft()
+        let countdownLeadTime = NotchCalendarSupport.countdownLeadTime()
         let excludedCalendars = NotchCalendarSupport.excludedCalendars()
         let chosenCountdowns = Set(NotchCalendarSupport.chosenCountdowns().keys)
         guard reader == nil else {
             if self.countdownEnabled != countdownEnabled || self.timeLeftEnabled != timeLeftEnabled
-                || self.excludedCalendars != excludedCalendars || self.chosenCountdowns != chosenCountdowns {
+                || self.countdownLeadTime != countdownLeadTime || self.excludedCalendars != excludedCalendars
+                || self.chosenCountdowns != chosenCountdowns {
                 if !excludedCalendars.isSubset(of: self.excludedCalendars) {
                     events = []
                     countdown = nil
                 }
                 self.countdownEnabled = countdownEnabled
                 self.timeLeftEnabled = timeLeftEnabled
+                self.countdownLeadTime = countdownLeadTime
                 self.excludedCalendars = excludedCalendars
                 if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
                 if let countdown, !follows(countdown) { self.countdown = nil }
@@ -129,6 +134,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         }
         self.countdownEnabled = countdownEnabled
         self.timeLeftEnabled = timeLeftEnabled
+        self.countdownLeadTime = countdownLeadTime
         self.excludedCalendars = excludedCalendars
         if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
         reader = NotchCalendarReader()
@@ -177,14 +183,15 @@ final class NotchCalendarService: NSObject, ObservableObject {
             let currentEvents = needsCurrentRead ? NotchCalendarSupport.ordered(currentResult) : self.events
             self.updateChosenCountdowns(currentEvents, now: now)
             self.countdown = NotchCalendarSupport.countdown(currentEvents, now: now, starts: self.countdownEnabled,
-                                                            ends: self.timeLeftEnabled, chosen: self.chosenCountdowns)
+                                                            ends: self.timeLeftEnabled, chosen: self.chosenCountdowns,
+                                                            leadTime: self.countdownLeadTime)
             self.loading = false
             self.task = nil
             let soundRefresh = self.soundForEvents(currentEvents, now: now)
             let agendaRefresh = NotchCalendarSupport.nextRefresh(self.events, now: now)
             let countdownRefresh = NotchCalendarSupport.countdownTransition(
                 currentEvents, now: now, starts: self.countdownEnabled, ends: self.timeLeftEnabled,
-                chosen: self.chosenCountdowns)
+                chosen: self.chosenCountdowns, leadTime: self.countdownLeadTime)
             let nextRefresh = [countdownRefresh, soundRefresh].compactMap { $0 }.reduce(agendaRefresh, min)
             let timer = Timer(fireAt: nextRefresh,
                               interval: 0, target: self, selector: #selector(self.timedRefresh),

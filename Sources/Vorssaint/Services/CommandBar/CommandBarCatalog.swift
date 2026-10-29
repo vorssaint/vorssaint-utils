@@ -31,8 +31,9 @@ struct CommandBarEntry: Identifiable {
     /// throw the person's name for it away.
     let stableKey: String
     let title: String
+    var englishTitle: String?
     let subtitle: String
-    let keywords: String
+    var keywords: String
     let icon: Icon
     let shortcut: GlobalShortcut?
     /// A shortcut that belongs to someone else's menu, already written out.
@@ -95,7 +96,7 @@ struct CommandBarEntry: Identifiable {
     /// The same row with a different caption, for the browse list: under a
     /// heading that already says "Tools", every row repeating "Tools" is noise.
     func withSubtitle(_ subtitle: String) -> CommandBarEntry {
-        CommandBarEntry(id: id, stableKey: stableKey, title: title, subtitle: subtitle,
+        CommandBarEntry(id: id, stableKey: stableKey, title: title, englishTitle: englishTitle, subtitle: subtitle,
                         keywords: keywords, icon: icon, shortcut: shortcut,
                         menuShortcut: menuShortcut, isActive: isActive, trouble: trouble,
                         numericRange: numericRange, numericIsOptional: numericIsOptional,
@@ -104,6 +105,14 @@ struct CommandBarEntry: Identifiable {
                         matchTitle: matchTitle, keepsBarOpen: keepsBarOpen,
                         takesArgument: takesArgument, revealPath: revealPath,
                         uninstallAppURL: uninstallAppURL, run: run)
+    }
+
+    /// System answers require a name, not a short prefix or a broad keyword.
+    /// The English name follows the same gate as the displayed local name.
+    func matchesAnswerName(_ firstToken: String) -> Bool {
+        guard firstToken.count >= 3 else { return false }
+        return CommandBarSearch.normalized(title).hasPrefix(firstToken)
+            || (englishTitle.map { CommandBarSearch.normalized($0).hasPrefix(firstToken) } ?? false)
     }
 
     var isColor: Bool {
@@ -122,6 +131,7 @@ struct CommandBarEntry: Identifiable {
     init(id: String,
          stableKey: String? = nil,
          title: String,
+         englishTitle: String? = nil,
          subtitle: String,
          keywords: String = "",
          icon: Icon,
@@ -144,6 +154,7 @@ struct CommandBarEntry: Identifiable {
         self.id = id
         self.stableKey = stableKey ?? id
         self.title = title
+        self.englishTitle = englishTitle
         self.subtitle = subtitle
         self.keywords = keywords
         self.icon = icon
@@ -182,17 +193,43 @@ enum CommandBarCatalog {
         let s = L10n.shared.s
         let language = L10n.shared.language
         let bar = FeatureStrings.commandBar(language)
-        var entries: [CommandBarEntry] = []
-        entries.append(contentsOf: actionEntries(s, language: language, bar: bar,
-                                                 automationDenied: automationDenied))
-        entries.append(contentsOf: toggleEntries(s, language: language, bar: bar))
-        entries.append(contentsOf: systemAnswerEntries(s, bar: bar))
-        entries.append(contentsOf: settingsEntries(s, language: language, bar: bar))
+        var entries = builtInEntries(s, language: language, bar: bar,
+                                     automationDenied: automationDenied)
+        if language != .enUS {
+            let english = builtInEntries(.enUS, language: .enUS,
+                                         bar: FeatureStrings.commandBar(.enUS),
+                                         automationDenied: automationDenied)
+            entries = includingEnglishNames(entries, english: english)
+        }
         entries.append(contentsOf: snippetEntries(bar))
         entries.append(contentsOf: linkEntries(
             CommandBarLinks.decode(UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks)),
             bar: bar))
         return entries
+    }
+
+    private static func builtInEntries(_ s: Strings,
+                                       language: AppLanguage,
+                                       bar: CommandBarFeatureStrings,
+                                       automationDenied: Bool) -> [CommandBarEntry] {
+        actionEntries(s, language: language, bar: bar, automationDenied: automationDenied)
+            + toggleEntries(s, language: language, bar: bar)
+            + systemAnswerEntries(s, bar: bar)
+            + settingsEntries(s, language: language, bar: bar)
+    }
+
+    /// Read both languages from the same definitions, including live action
+    /// states, and keep one localized row with its original identity and rank.
+    static func includingEnglishNames(_ entries: [CommandBarEntry],
+                                      english: [CommandBarEntry]) -> [CommandBarEntry] {
+        let englishByID = Dictionary(english.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return entries.map { entry in
+            guard let name = englishByID[entry.id] else { return entry }
+            var entry = entry
+            entry.englishTitle = name.title
+            entry.keywords = [entry.keywords, name.title, name.keywords].joined(separator: " ")
+            return entry
+        }
     }
 
     /// The human name of the area a feature lives in, the same words the hub
@@ -260,7 +297,7 @@ enum CommandBarCatalog {
                 return [
                     entry(for: feature,
                           key: DefaultsKey.mouseButtonShortcutsEnabled,
-                          name: feature.hubTitle(s, hub: hub),
+                          name: feature.hubTitle(s, hub: hub, language: language),
                           id: "toggle.mouseButtonShortcuts"),
                     entry(for: feature,
                           key: DefaultsKey.mouseSpacesGestureEnabled,
@@ -272,7 +309,7 @@ enum CommandBarCatalog {
             // would flip is a guess, and a guess here changes the person's Mac.
             guard feature.enabledKeys.count == 1,
                   let key = feature.enabledKeys.first else { return [] }
-            let name = feature.hubTitle(s, hub: hub)
+            let name = feature.hubTitle(s, hub: hub, language: language)
             return [entry(for: feature,
                           key: key,
                           name: name,
@@ -293,7 +330,7 @@ enum CommandBarCatalog {
         /// ("Screenshot" under "Screenshot" reads silly), the group name
         /// stands in.
         func area(_ feature: AppFeature, under title: String = "") -> String {
-            let hubTitle = feature.hubTitle(s, hub: hub)
+            let hubTitle = feature.hubTitle(s, hub: hub, language: language)
             guard hubTitle == title else { return hubTitle }
             return groupTitle(feature.group, hub: hub)
         }
@@ -636,6 +673,25 @@ enum CommandBarCatalog {
                 run: { _ in QuickTogglesService.shared.emptyTrashConfirmed() }))
         }
 
+        if AppFeature.quitApps.isAvailable {
+            let quitText = FeatureStrings.quickToggles(L10n.shared.language)
+            // Both open the Quit apps window, which is the confirmation.
+            entries.append(CommandBarEntry(
+                id: "action.quitAllApps",
+                title: quitText.quitAllTitle,
+                subtitle: area(.quitApps),
+                icon: .symbol("xmark.app"),
+                shortcut: roleShortcut(.quitAll),
+                run: { _ in QuickTogglesService.shared.showQuitApps(scope: .all) }))
+            entries.append(CommandBarEntry(
+                id: "action.quitAllExceptFront",
+                title: quitText.quitOthersTitle,
+                subtitle: area(.quitApps),
+                icon: .symbol("xmark.app"),
+                shortcut: roleShortcut(.quitAllExceptFront),
+                run: { _ in QuickTogglesService.shared.showQuitApps(scope: .allExceptFront) }))
+        }
+
         if AppFeature.urlCleaner.isAvailable {
             entries.append(CommandBarEntry(
                 id: "action.cleanURL",
@@ -816,7 +872,7 @@ enum CommandBarCatalog {
                 id: "folder.\(folder.url.path)",
                 title: folder.name,
                 subtitle: bar.kindFolder,
-                keywords: bar.kindFolder,
+                keywords: bar.kindFolder + " " + folder.url.lastPathComponent,
                 icon: .filePath(folder.url.path),
                 countsUsage: true,
                 revealPath: folder.url.path,
@@ -1049,7 +1105,7 @@ enum CommandBarCatalog {
                 id: "quit.\(app.bundleIdentifier ?? String(pid))",
                 title: String(format: bar.quitFormat, name),
                 subtitle: bar.kindApp,
-                keywords: name,
+                keywords: String(format: FeatureStrings.commandBar(.enUS).quitFormat, name),
                 icon: app.bundleURL.map { .appIcon(path: $0.path) } ?? .symbol("xmark.circle"),
                 confirmationPrompt: String(format: bar.quitConfirmFormat, name),
                 countsUsage: app.bundleIdentifier != nil,
@@ -1138,6 +1194,7 @@ enum CommandBarCatalog {
             id: "selection.uninstall",
             title: String(format: bar.uninstallAppFormat, name),
             subtitle: L10n.shared.s.uninstallerName,
+            keywords: String(format: FeatureStrings.commandBar(.enUS).uninstallAppFormat, name),
             icon: .appIcon(path: url.path),
             trouble: automationDenied ? .needsPermission : nil,
             revealPath: url.path,
@@ -1542,6 +1599,7 @@ enum CommandBarCatalog {
                                  bar: CommandBarFeatureStrings,
                                  useInSearch: @escaping (String) -> Void) -> [CommandBarEntry] {
         guard !text.isEmpty else { return [] }
+        let english = FeatureStrings.commandBar(.enUS)
         let kind = bar.kindSelection
         var entries: [CommandBarEntry] = []
 
@@ -1549,6 +1607,7 @@ enum CommandBarCatalog {
             id: "selection.copy",
             title: bar.selectionCopy,
             subtitle: kind,
+            keywords: english.selectionCopy,
             icon: .symbol("doc.on.doc"),
             run: { _ in copyAnswer(text) }))
 
@@ -1556,6 +1615,7 @@ enum CommandBarCatalog {
             id: "selection.search",
             title: bar.selectionSearch,
             subtitle: kind,
+            keywords: english.selectionSearch,
             icon: .symbol("magnifyingglass"),
             // The bar stays open for this one: the whole point is to convert,
             // add up or look the selection up without retyping it.
@@ -1569,7 +1629,8 @@ enum CommandBarCatalog {
                 id: "selection.cleanLink",
                 title: bar.actionCleanURL,
                 subtitle: kind,
-                keywords: L10n.shared.s.urlCleanerName,
+                keywords: [L10n.shared.s.urlCleanerName, Strings.enUS.urlCleanerName,
+                           english.actionCleanURL].joined(separator: " "),
                 icon: .symbol("link"),
                 run: { _ in
                     URLCleanerService.shared.copy(cleaned.url)
@@ -1584,20 +1645,21 @@ enum CommandBarCatalog {
         // the case rows only earn their place when the case would change.
         let replacement = selected ?? text
         if typesOver, replacement.count <= 5_000 {
-            let cases: [(String, String, String, (String) -> String)] = [
-                ("selection.upper", bar.selectionUpper, "textformat.size.larger",
+            let cases: [(String, String, String, String, (String) -> String)] = [
+                ("selection.upper", bar.selectionUpper, english.selectionUpper, "textformat.size.larger",
                  { $0.localizedUppercase }),
-                ("selection.lower", bar.selectionLower, "textformat.size.smaller",
+                ("selection.lower", bar.selectionLower, english.selectionLower, "textformat.size.smaller",
                  { $0.localizedLowercase }),
-                ("selection.titleCase", bar.selectionTitleCase, "textformat",
+                ("selection.titleCase", bar.selectionTitleCase, english.selectionTitleCase, "textformat",
                  { $0.localizedCapitalized }),
             ]
-            for (id, title, symbol, transform) in cases
+            for (id, title, englishTitle, symbol, transform) in cases
             where CommandBarText.changesCase(text, to: transform) {
                 entries.append(CommandBarEntry(
                     id: id,
                     title: title,
                     subtitle: kind,
+                    keywords: englishTitle,
                     icon: .symbol(symbol),
                     trouble: Permissions.shared.accessibility ? nil : .needsPermission,
                     run: { _ in typeAtCursor(transform(replacement)) }))
@@ -1610,7 +1672,8 @@ enum CommandBarCatalog {
                 id: "selection.shelf",
                 title: bar.selectionShelf,
                 subtitle: kind,
-                keywords: L10n.shared.s.shelfName,
+                keywords: [L10n.shared.s.shelfName, Strings.enUS.shelfName,
+                           english.selectionShelf].joined(separator: " "),
                 icon: .symbol("tray.full"),
                 run: { _ in keepOnShelf(text) }))
         }
@@ -1622,6 +1685,7 @@ enum CommandBarCatalog {
             id: "selection.count",
             title: bar.selectionCount,
             subtitle: count,
+            keywords: english.selectionCount,
             icon: .symbol("number"),
             answerValue: "\(characters)",
             countsUsage: false,

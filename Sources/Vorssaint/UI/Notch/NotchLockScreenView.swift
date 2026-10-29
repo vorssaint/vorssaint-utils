@@ -318,7 +318,7 @@ struct NotchLockScreenActivities: View {
             timer: gates.timer && timer.session.hasSession,
             // The stage's calendar and Agents at work say these themselves.
             calendar: !gates.calendar && calendar.countdown.map {
-                ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date)
+                ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date, leadTime: calendar.countdownLeadTime)
             } == true,
             agents: !gates.widgets.contains(.agents) && gates.agents && !usage.snapshot.live.isEmpty,
             downloads: gates.downloads && downloads.items.contains { $0.active && !$0.completed })

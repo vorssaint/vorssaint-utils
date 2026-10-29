@@ -208,6 +208,55 @@ private struct NotchAgentChip: View {
 
 // MARK: Limits
 
+/// The share keeps its meaning at every width. A reset countdown uses spare
+/// room, otherwise its full date remains in the row's tooltip.
+private struct NotchAgentLimitReading: View {
+    let title: String
+    let share: String
+    let countdown: String?
+    let tint: Color
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 5) {
+                heading.fixedSize()
+                if let countdown {
+                    Label(countdown, systemImage: "arrow.clockwise")
+                        .labelStyle(NotchAgentInlineLabel())
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                        .accessibilityIdentifier("notch.agentLimitCountdown")
+                }
+                Spacer(minLength: 2)
+                reading
+            }
+            HStack(spacing: 5) {
+                heading.minimumScaleFactor(0.8)
+                Spacer(minLength: 2)
+                reading
+            }
+        }
+    }
+
+    private var heading: some View {
+        Text(title)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.white.opacity(0.85))
+            .lineLimit(1)
+    }
+
+    private var reading: some View {
+        Text(share)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(tint)
+            .fixedSize()
+            .contentTransition(.numericText())
+            .accessibilityIdentifier("notch.agentLimitShare")
+    }
+}
+
 /// An added Codex home's card: only its own checks, never the reading the
 /// logs give the provider's other account, even when its check failed.
 struct NotchAgentAccount {
