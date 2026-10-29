@@ -6301,6 +6301,44 @@ enum SwitcherModelFeatureTests {
                && secureInputChange.contains("cancelSession()")
                && secureInputChange.contains("restoreNativeHotkeys()"),
                "secure input turning on gives the keys back and drops an open session, and turning off takes them again")
+        suite.expect(secureInputChange.contains("if secureInputHotKeys.isEmpty { restoreNativeHotkeys() }")
+               && secureInputSwitcher.contains(
+                   "secureInputEnabled: IsSecureEventInputEnabled() && secureInputHotKeys.isEmpty"),
+               "macOS keeps its switcher keys under secure input only while no Carbon stand-in is registered")
+        let secureInputRestore = sourceBody(of: secureInputSwitcher,
+                                            from: "private func restoreNativeHotkeys() {",
+                                            to: "\n    }")
+        suite.expect(secureInputRestore.contains("unregisterSecureInputHotKeys()"),
+               "every hand-back to macOS also drops the Carbon stand-ins, so two switchers never answer one key")
+        let secureInputReplay = sourceBody(of: secureInputSwitcher,
+                                           from: "private func routeSecureInputHotKey(id: UInt32) {",
+                                           to: "\n    }\n")
+        suite.expect(secureInputReplay.contains("IsSecureEventInputEnabled()")
+               && secureInputReplay.contains("CFRunLoopPerformBlock(runLoop")
+               && secureInputReplay.contains("route(type: .keyDown, event: event)"),
+               "a stand-in press replays through the tap's own routing on the tap thread, and only under secure input")
+        let tab = Int64(kVK_Tab)
+        let grave = Int64(kVK_ANSI_Grave)
+        suite.expect(SwitcherSupport.secureInputHotKeyShortcuts(appsShortcut: .switcherDefault,
+                                                                windowShortcut: .switcherWindowDefault)
+               == [.switcherDefault,
+                   GlobalShortcut(keyCode: tab, modifiers: [.command, .shift]),
+                   .switcherWindowDefault,
+                   GlobalShortcut(keyCode: grave, modifiers: [.command, .shift])],
+               "under secure input Carbon stands in for ⌘Tab, ⇧⌘Tab, ⌘` and ⇧⌘`")
+        let shiftedApps = GlobalShortcut(keyCode: tab, modifiers: [.option, .shift])
+        suite.expect(SwitcherSupport.secureInputHotKeyShortcuts(appsShortcut: shiftedApps,
+                                                                windowShortcut: shiftedApps)
+               == [shiftedApps],
+               "a shortcut that already uses Shift gets no backward variant, and a shared combination registers once")
+        let switcherSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/SwitcherSettings.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(switcherSettingsSource.contains(
+                         "secureInput.holder != .off, !switcherCoversSecureInput {")
+               && switcherSettingsSource.contains(
+                   ".onReceive(AppSwitcher.shared.$coversSecureInput) { switcherCoversSecureInput = $0 }"),
+               "Settings explains the macOS switcher under secure input only when no Carbon stand-in covers it")
         let secureInputSuspend = sourceBody(of: secureInputSwitcher, from: "func suspend() {",
                                             to: "\n    }")
         suite.expect(secureInputSuspend.contains("secureInputWatch.stop()")

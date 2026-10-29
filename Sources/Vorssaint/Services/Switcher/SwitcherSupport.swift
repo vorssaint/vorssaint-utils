@@ -1880,9 +1880,10 @@ enum SwitcherSupport {
     ///
     /// Secure Event Input hides every key from event taps, the switcher's
     /// included, while macOS still answers its own switcher keys (measured on
-    /// 27.2: a session tap saw no key while another process held it). Asking
-    /// for nothing then keeps ⌘Tab working instead of leaving it dead until
-    /// the app holding it lets go.
+    /// 27.2: a session tap saw no key while another process held it). Callers
+    /// pass true only when no Carbon stand-in is registered, and asking for
+    /// nothing then keeps ⌘Tab working instead of leaving it dead until the
+    /// app holding it lets go.
     static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
                                 secureInputEnabled: Bool,
                                 appsShortcut: GlobalShortcut,
@@ -1900,6 +1901,22 @@ enum SwitcherSupport {
                                            windowShortcut: windowShortcut,
                                            allWindowsShortcut: allWindowsShortcut,
                                            nativeShortcuts: nativeShortcuts).map(\.rawValue))
+    }
+
+    static func secureInputHotKeyShortcuts(appsShortcut: GlobalShortcut,
+                                           windowShortcut: GlobalShortcut) -> [GlobalShortcut] {
+        var shortcuts: [GlobalShortcut] = []
+        for shortcut in [appsShortcut, windowShortcut] {
+            var variants = [shortcut]
+            if shortcut.shiftIsNavigationModifier {
+                variants.append(GlobalShortcut(keyCode: shortcut.keyCode,
+                                               modifiers: shortcut.modifiers.union(.shift)))
+            }
+            for variant in variants where !shortcuts.contains(variant) {
+                shortcuts.append(variant)
+            }
+        }
+        return shortcuts
     }
 
     /// Mirrors the event tap's `allowingExtraShift` match: Shift reverses a
