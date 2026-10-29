@@ -52,6 +52,22 @@ enum MetricsFeatureTests {
         expectEqual(MetricFormat.diskBytes(1_000_000_000), "1.0 GB", "disk bytes keep the decimal 1000 base")
         expectEqual(MetricFormat.diskBytesPrecise(14_878_047_232_000), "14.88 TB",
                     "precise disk bytes keep SMART totals readable")
+        // The unit and the decimal follow the number as printed, so a disk just
+        // short of a terabyte never reads "1000 GB" and 9.96 GB never "10.0 GB".
+        expectEqual(MetricFormat.diskBytes(999_400_000_000), "999 GB", "disk bytes short of the edge stay in GB")
+        expectEqual(MetricFormat.diskBytes(999_600_000_000), "1.0 TB", "disk bytes that round to 1000 GB read as TB")
+        expectEqual(MetricFormat.diskBytes(9_940_000_000), "9.9 GB", "disk bytes under ten keep the decimal")
+        expectEqual(MetricFormat.diskBytes(9_960_000_000), "10 GB", "disk bytes that round to ten drop the decimal")
+        expectEqual(MetricFormat.diskBytesPrecise(999_600_000_000), "1.00 TB",
+                    "precise disk bytes that round to 1000 GB read as TB")
+        expectEqual(MetricFormat.diskBytesPrecise(9_960_000_000), "10 GB",
+                    "precise disk bytes that round to ten drop the decimal")
+        expectEqual(MetricFormat.diskBytesPrecise(999_999_000_000_000), "1.00 PB",
+                    "precise disk bytes that round to 1000 TB read as PB")
+        expectEqual(MetricFormat.diskBytesPrecise(999_700_000_000_000), "999.70 TB",
+                    "precise terabytes short of the edge keep their two decimals")
+        expectEqual(MetricFormat.bytes(10_199), "10 KB", "a total that rounds to ten drops the decimal")
+        expectEqual(MetricFormat.bytes(10_178), "9.9 KB", "a total under ten keeps the decimal")
 
         expectEqual(MetricFormat.bytesPerSec(0), "0 B/s", "rate zero")
         expectEqual(MetricFormat.bytesPerSec(2 * 1024 * 1024), "2.0 MB/s", "rate 2M")
