@@ -80,7 +80,8 @@ final class CameraPreviewService: ObservableObject {
             || permissionResolvedAt.map { Date().timeIntervalSince($0) < 1 } == true)
     }
 
-    /// The notch calls this only from its explicit camera button. Ownership
+    /// The notch calls this only from its explicit camera button, or on a
+    /// deliberate choice of its page when the camera opens directly. Ownership
     /// transfers from the floating mirror; the two never capture together.
     func showEmbedded() {
         let notch = NotchService.shared

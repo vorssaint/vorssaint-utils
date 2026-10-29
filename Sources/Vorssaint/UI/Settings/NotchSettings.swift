@@ -18,6 +18,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchTimerSoundEnabled) private var timerSoundEnabled = true
     @AppStorage(DefaultsKey.notchHideTimerCountdown) private var hideTimerCountdown = false
     @AppStorage(DefaultsKey.notchCameraEnabled) private var cameraEnabled = true
+    @AppStorage(DefaultsKey.notchCameraOpensDirectly) private var cameraOpensDirectly = false
     @AppStorage(DefaultsKey.notchAccessoriesEnabled) private var accessoriesEnabled = true
     @AppStorage(DefaultsKey.notchCalendarEnabled) private var calendarEnabled = true
     @AppStorage(DefaultsKey.notchCalendarCountdown) private var calendarCountdown = false
@@ -486,7 +487,10 @@ struct NotchSettings: View {
             switchRow("speaker.wave.2", activities.soundEnabled, isOn: $timerSoundEnabled)
                 .disabled(!AppFeature.notchTimer.isAvailable)
         case .camera:
-            Text(FeatureStrings.notchActivities(l10n.language).cameraHint).font(.callout).foregroundStyle(.secondary)
+            let activities = FeatureStrings.notchActivities(l10n.language)
+            Text(activities.cameraHint).font(.callout).foregroundStyle(.secondary)
+            switchRow("video", activities.cameraOpensDirectly, caption: activities.cameraOpensDirectlyHint,
+                      isOn: $cameraOpensDirectly)
             if permissions.camera == .granted {
                 Label(l10n.s.permissionGranted, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             } else {

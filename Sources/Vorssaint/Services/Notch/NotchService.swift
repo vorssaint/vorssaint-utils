@@ -1895,6 +1895,7 @@ final class NotchService: ObservableObject {
     func select(_ module: NotchModule) {
         guard modules.contains(module) else { return }
         open(module)
+        if NotchCameraSupport.opensDirectly(choosing: module) { CameraPreviewService.shared.showEmbedded() }
     }
 
     /// The pad lives in the island when its page is on; otherwise the

@@ -852,6 +852,7 @@ enum DefaultsKey {
     static let notchPomodoroLongBreakInterval = "notchPomodoroLongBreakInterval"
     static let notchPomodoroTotalSessions = "notchPomodoroTotalSessions"
     static let notchCameraEnabled = "notchCameraEnabled"
+    static let notchCameraOpensDirectly = "notchCameraOpensDirectly"
     static let notchAccessoriesEnabled = "notchAccessoriesEnabled"
     static let notchLyricsEnabled = "notchLyricsEnabled"
     static let notchLyricsOnline = "notchLyricsOnline"
@@ -1459,6 +1460,7 @@ enum Defaults {
         DefaultsKey.notchPomodoroLongBreakInterval: 4,
         DefaultsKey.notchPomodoroTotalSessions: 4,
         DefaultsKey.notchCameraEnabled: true,
+        DefaultsKey.notchCameraOpensDirectly: false,
         DefaultsKey.notchAccessoriesEnabled: true,
         DefaultsKey.notchCalendarEnabled: true,
         DefaultsKey.notchCalendarCountdown: false,

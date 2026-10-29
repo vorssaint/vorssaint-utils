@@ -369,6 +369,7 @@ enum SettingsDirectory {
                                                  FeatureStrings.notchEditor(language).hideMenuBarIcon,
                                                  FeatureStrings.notchActivities(language).keepAwakeActivity,
                                                  FeatureStrings.notchActivities(language).hideTimerCountdown,
+                                                 FeatureStrings.notchActivities(language).cameraOpensDirectly,
                                                  FeatureStrings.notchCalendar(language).weekNumbers,
                                                  "notch", "camera", "music", "clipboard",
                                                  FeatureStrings.notchAgents(language).title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens",
