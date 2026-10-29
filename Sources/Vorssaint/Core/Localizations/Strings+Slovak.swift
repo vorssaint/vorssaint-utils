@@ -196,6 +196,8 @@ extension Strings {
         colorPickerCaption: "Zoberte farbu ľubovoľného pixelu na obrazovke a skopírujte ju vo svojom obľúbenom formáte.",
         colorPickerFormatLabel: "Formát kopírovania",
         colorPickerBareHexToggle: "Kopírovať bez predpony #",
+        colorPickerMenuBarIconToggle: "Zobraziť ikonu palety v lište",
+        colorPickerPanelName: "Otvoriť panel farieb",
         colorPickerPickNow: "Vybrať farbu",
         micMuteName: "Stlmiť mikrofón",
         micUnmuteName: "Zrušiť stlmenie mikrofónu",

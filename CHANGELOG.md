@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- The color picker can add a palette icon to the menu bar that opens the macOS color panel, with its color wheel and your own color palettes.
+
+## [Unreleased]
+
 ### Summary
 Safer Shelf drags and app removal, with more reliable window switching, quit protection, keyboard shortcuts, clipboard navigation, screenshots, image exports, audio, display recovery, network readings, URL Cleaner and Settings. New controls add an all-windows shortcut, Claude account selection, configurable calendar countdowns, mouse-wheel zoom and app quitting, alongside clipboard source icons, more switcher columns, smoother sliders, English command search and command-line settings backups.
 

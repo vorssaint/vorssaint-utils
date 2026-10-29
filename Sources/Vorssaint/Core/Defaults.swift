@@ -596,6 +596,7 @@ enum DefaultsKey {
     static let colorPickerShortcut = "colorPickerShortcut"
     static let colorPickerFormat = "colorPickerFormat"       // hex | rgb | hsl | swiftui
     static let colorPickerBareHex = "colorPickerBareHex"     // copy HEX without the leading #
+    static let colorPickerMenuBarIcon = "colorPickerMenuBarIcon" // menu bar icon opening the system color panel
     static let screenOCRShortcutEnabled = "screenOCRShortcutEnabled"
     static let screenOCRShortcut = "screenOCRShortcut"
     static let screenOCRRemoveLineBreaks = "screenOCRRemoveLineBreaks"
@@ -1826,6 +1827,7 @@ enum Defaults {
         DefaultsKey.colorPickerShortcut: GlobalShortcut.colorPickerDefault.storageValue,
         DefaultsKey.colorPickerFormat: "hex",
         DefaultsKey.colorPickerBareHex: false,
+        DefaultsKey.colorPickerMenuBarIcon: false,
         DefaultsKey.screenOCRShortcutEnabled: false,
         DefaultsKey.screenOCRShortcut: GlobalShortcut.screenOCRDefault.storageValue,
         DefaultsKey.screenOCRRemoveLineBreaks: false,
