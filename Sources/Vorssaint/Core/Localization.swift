@@ -661,6 +661,13 @@ struct Strings {
     let mediaStartImage: String
     let mediaStartConvertPDF: String
     let mediaStartText: String
+    let mediaToolPDF: String
+    let mediaStartMergePDF: String
+    let mediaMergeOrderCaption: String
+    let mediaMergeNeedsTwo: String
+    let mediaErrorPasswordProtectedFormat: String
+    let mediaErrorRestrictedPDFFormat: String
+    let mediaErrorUnreadableFormat: String
     let mediaCancel: String
     let mediaStartTime: String
     let mediaEndTime: String
@@ -1813,6 +1820,13 @@ extension Strings {
         mediaStartImage: "Processar imagem",
         mediaStartConvertPDF: "Converter em PDF",
         mediaStartText: "Extrair texto",
+        mediaToolPDF: "PDF",
+        mediaStartMergePDF: "Combinar PDF",
+        mediaMergeOrderCaption: "Os arquivos são combinados de cima para baixo. Arraste para reordenar ou selecione um e pressione Espaço para visualizá-lo.",
+        mediaMergeNeedsTwo: "Adicione pelo menos dois PDFs ou imagens para combinar.",
+        mediaErrorPasswordProtectedFormat: "“%@” está protegido por senha. Desbloqueie-o no Pré-Visualização e tente novamente.",
+        mediaErrorRestrictedPDFFormat: "“%@” tem restrições definidas pelo proprietário, por isso não pode ser combinado.",
+        mediaErrorUnreadableFormat: "Não foi possível ler “%@” como PDF ou imagem.",
         mediaCancel: "Cancelar",
         mediaStartTime: "Início",
         mediaEndTime: "Fim",
@@ -2932,6 +2946,13 @@ extension Strings {
         mediaStartImage: "Process image",
         mediaStartConvertPDF: "Convert to PDF",
         mediaStartText: "Extract text",
+        mediaToolPDF: "PDF",
+        mediaStartMergePDF: "Merge PDF",
+        mediaMergeOrderCaption: "Files are merged from top to bottom. Drag to reorder, or select one and press Space to preview it.",
+        mediaMergeNeedsTwo: "Add at least two PDFs or images to merge.",
+        mediaErrorPasswordProtectedFormat: "“%@” is password-protected. Unlock it in Preview, then try again.",
+        mediaErrorRestrictedPDFFormat: "“%@” has restrictions set by its owner, so it can’t be merged.",
+        mediaErrorUnreadableFormat: "Couldn’t read “%@” as a PDF or image.",
         mediaCancel: "Cancel",
         mediaStartTime: "Start",
         mediaEndTime: "End",

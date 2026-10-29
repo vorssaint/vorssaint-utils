@@ -72,7 +72,7 @@ enum MediaWorkspaceLayoutTests {
         let picker = ToolPicker(fixture: selection, onToolChange: {
             selection.events.append("transition:\(selection.tool.rawValue)")
         })
-        for tool in [MediaTool.gifMaker, .textExtractor, .imageCompressor, .videoCompressor] {
+        for tool in [MediaTool.gifMaker, .textExtractor, .imageCompressor, .pdfMerger, .videoCompressor] {
             let previous = selection.tool
             selection.events = []
             picker.selectedToolBinding.wrappedValue = tool

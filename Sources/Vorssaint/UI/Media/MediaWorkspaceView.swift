@@ -165,12 +165,20 @@ struct MediaWorkspaceView: View {
         FeatureStrings.screenshot(l10n.language)
     }
 
+    private var mixerText: MixerFeatureStrings {
+        FeatureStrings.mixer(l10n.language)
+    }
+
     private var selectedTool: MediaTool {
         get { workspace.tool ?? MediaSupport.sanitizedTool(toolRaw) }
         nonmutating set {
             cancelVideoImport()
+            // Remember every file before the new tool filters them: switching back to a tool
+            // that can use the set-aside files brings them back in their places.
+            workspace.allInputs = selectedTool.updatingAllInputs(workspace.allInputs, current: inputURLs)
             if preservesServiceState { workspace.tool = newValue }
             else { toolRaw = newValue.rawValue }
+            inputURLs = newValue.usableInputs(workspace.allInputs)
             inputImageSize = newValue == .imageCompressor
                 ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
                 : nil
@@ -210,6 +218,12 @@ struct MediaWorkspaceView: View {
             } else {
                 applyMediaDefaults(for: inputURL, tool: selectedTool, replacingInput: false)
             }
+        }
+        .onChange(of: workspace.inputURLs) { _, urls in
+            // Reordering the merge list changes which file comes first, and with it the
+            // automatic output name. A name the person chose stays.
+            guard selectedTool == .pdfMerger, !outputWasChosenManually, !isRunning else { return }
+            outputURL = defaultOutputURL(for: urls, tool: .pdfMerger)
         }
         .onChange(of: currentImageOptions) { oldOptions, newOptions in
             guard selectedTool == .imageCompressor else { return }
@@ -469,6 +483,23 @@ struct MediaWorkspaceView: View {
                 }
             }
             .panelCard()
+        case .pdfMerger:
+            VStack(alignment: .leading, spacing: 10) {
+                if inputURLs.count >= MediaTool.pdfMerger.minimumInputs {
+                    MediaPDFMergeOrderView(urls: $workspace.inputURLs,
+                                           caption: l10n.s.mediaMergeOrderCaption,
+                                           previewHelp: imageText.preview,
+                                           moveUpHelp: mixerText.moveUp,
+                                           moveDownHelp: mixerText.moveDown,
+                                           compact: compact,
+                                           isDisabled: isRunning)
+                } else {
+                    Text(l10n.s.mediaMergeNeedsTwo)
+                        .font(.system(size: compact ? 9.5 : 10.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .panelCard()
         case .textExtractor:
             VStack(alignment: .leading, spacing: 10) {
                 Picker(l10n.s.mediaOCRMode, selection: $textAccurate) {
@@ -486,10 +517,10 @@ struct MediaWorkspaceView: View {
             Button {
                 run()
             } label: {
-                Label(actionTitle, systemImage: selectedTool == .textExtractor ? "text.viewfinder" : "play.fill")
+                Label(actionTitle, systemImage: actionSymbol)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(inputURLs.isEmpty || isRunning)
+            .disabled(inputURLs.count < selectedTool.minimumInputs || isRunning)
 
             if selectedTool == .videoCompressor {
                 Button {
@@ -546,6 +577,12 @@ struct MediaWorkspaceView: View {
         }
     }
 
+    /// A merge has no before/after size to compare; the size lines and the "came out larger"
+    /// caption describe the compressing and converting tools only.
+    private static func comparesSizes(_ result: MediaResult) -> Bool {
+        result.tool != .pdfMerger
+    }
+
     private func resultCard(_ result: MediaResult) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(l10n.s.mediaCompleted, systemImage: "checkmark.circle.fill")
@@ -556,17 +593,20 @@ struct MediaWorkspaceView: View {
                     .font(.system(size: compact ? 10 : 11))
                     .lineLimit(2)
                     .truncationMode(.middle)
-                Text(String(format: l10n.s.mediaResultSizeFormat,
-                            ByteCountFormatter.string(fromByteCount: result.originalBytes, countStyle: .file),
-                            ByteCountFormatter.string(fromByteCount: result.outputBytes, countStyle: .file)))
-                    .font(.system(size: compact ? 9.5 : 10.5))
-                    .foregroundStyle(.secondary)
-                if let delta = resultSizeDelta(result) {
-                    Text(delta)
+                if Self.comparesSizes(result) {
+                    Text(String(format: l10n.s.mediaResultSizeFormat,
+                                ByteCountFormatter.string(fromByteCount: result.originalBytes, countStyle: .file),
+                                ByteCountFormatter.string(fromByteCount: result.outputBytes, countStyle: .file)))
                         .font(.system(size: compact ? 9.5 : 10.5))
                         .foregroundStyle(.secondary)
+                    if let delta = resultSizeDelta(result) {
+                        Text(delta)
+                            .font(.system(size: compact ? 9.5 : 10.5))
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                if MediaSupport.outputGrew(originalBytes: result.originalBytes,
+                if Self.comparesSizes(result),
+                   MediaSupport.outputGrew(originalBytes: result.originalBytes,
                                            outputBytes: result.outputBytes) {
                     Text(l10n.s.mediaResultGrewCaption)
                         .font(.system(size: compact ? 9.5 : 10.5))
@@ -1127,7 +1167,7 @@ struct MediaWorkspaceView: View {
 
     private var inputTitle: String {
         guard !inputURLs.isEmpty else { return l10n.s.mediaSelectFile }
-        if selectedTool == .imageCompressor, inputURLs.count > 1 {
+        if selectedTool.acceptsMultipleInputs, inputURLs.count > 1 {
             return String(format: imageText.filesSelectedFormat, inputURLs.count)
         }
         return inputURLs[0].lastPathComponent
@@ -1255,6 +1295,15 @@ struct MediaWorkspaceView: View {
                 ? l10n.s.mediaStartConvertPDF
                 : l10n.s.mediaStartImage
         case .textExtractor: return l10n.s.mediaStartText
+        case .pdfMerger: return l10n.s.mediaStartMergePDF
+        }
+    }
+
+    private var actionSymbol: String {
+        switch selectedTool {
+        case .textExtractor: return "text.viewfinder"
+        case .pdfMerger: return "doc.on.doc"
+        default: return "play.fill"
         }
     }
 
@@ -1264,6 +1313,7 @@ struct MediaWorkspaceView: View {
         case .gifMaker: return l10n.s.mediaToolGIF
         case .imageCompressor: return l10n.s.mediaToolImage
         case .textExtractor: return l10n.s.mediaToolText
+        case .pdfMerger: return l10n.s.mediaToolPDF
         }
     }
 
@@ -1286,11 +1336,16 @@ struct MediaWorkspaceView: View {
     private func chooseInput() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = selectedTool == .imageCompressor
+        panel.allowsMultipleSelection = selectedTool.acceptsMultipleInputs
         panel.allowedContentTypes = inputTypes
         Self.runPanelModal(panel) { response in
             if response == .OK {
-                setInputs(panel.urls)
+                if selectedTool == .pdfMerger {
+                    // The open panel reports no meaningful order; start from Finder's.
+                    addMergeInputs(MediaPDFMerger.defaultOrder(panel.urls))
+                } else {
+                    setInputs(panel.urls)
+                }
             }
         }
     }
@@ -1398,13 +1453,14 @@ struct MediaWorkspaceView: View {
         group.notify(queue: .main) {
             let urls = MediaSupport.urlsInProviderOrder(indexedURLs)
             let accepted = urls.filter { url in
-                let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
-                return MediaSupport.inputMatchesTool(contentType: contentType, inputTypes: inputTypes)
+                MediaSupport.inputMatchesTool(contentType: MediaSupport.contentType(of: url), inputTypes: inputTypes)
             }
-            if accepted.isEmpty || (selectedTool != .imageCompressor && accepted.count != urls.count) {
+            if accepted.isEmpty || (!selectedTool.acceptsMultipleInputs && accepted.count != urls.count) {
                 media.rejectUnsupportedInput()
+            } else if selectedTool == .pdfMerger {
+                addMergeInputs(accepted)
             } else {
-                setInputs(selectedTool == .imageCompressor ? accepted : Array(accepted.prefix(1)))
+                setInputs(selectedTool.acceptsMultipleInputs ? accepted : Array(accepted.prefix(1)))
             }
         }
         return true
@@ -1412,7 +1468,8 @@ struct MediaWorkspaceView: View {
 
     private func setInputs(_ urls: [URL], resetsMedia: Bool = true) {
         cancelVideoImport()
-        inputURLs = selectedTool == .imageCompressor ? urls : Array(urls.prefix(1))
+        inputURLs = selectedTool.acceptsMultipleInputs ? urls : Array(urls.prefix(1))
+        workspace.allInputs = inputURLs  // new files replace what was set aside
         inputImageSize = selectedTool == .imageCompressor
             ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
             : nil
@@ -1423,11 +1480,28 @@ struct MediaWorkspaceView: View {
         if resetsMedia { media.reset() }
     }
 
+    /// The merge list grows with each drop or pick, so files from different folders can be
+    /// combined; the clear button starts over. A manually chosen output is kept.
+    private func addMergeInputs(_ urls: [URL]) {
+        // Changing inputs resets the service, which would cancel the merge in progress.
+        guard !isRunning else {
+            NSSound.beep()
+            return
+        }
+        let chosenOutput = outputWasChosenManually ? outputURL : nil
+        setInputs(MediaPDFMerger.appending(urls, to: inputURLs))
+        if let chosenOutput {
+            outputURL = chosenOutput
+            outputWasChosenManually = true
+        }
+    }
+
     private func clearInput() {
         mediaDefaultsTask?.cancel()
         workspace.durationLoading.reset()
         cancelVideoImport()
         inputURLs = []
+        workspace.allInputs = []
         inputImageSize = nil
         outputURL = nil
         outputWasChosenManually = false
@@ -1461,7 +1535,7 @@ struct MediaWorkspaceView: View {
                 case .gifMaker:
                     gifStart = 0
                     gifEnd = duration
-                case .imageCompressor, .textExtractor:
+                case .imageCompressor, .textExtractor, .pdfMerger:
                     break
                 }
             }
@@ -1574,6 +1648,12 @@ struct MediaWorkspaceView: View {
                                     outputURL: outputURL,
                                     options: currentImageOptions)
             }
+        case .pdfMerger:
+            guard MediaPDFMerger.canMerge(inputURLs) else {
+                localMessage = l10n.s.mediaMergeNeedsTwo
+                return
+            }
+            media.mergePDFs(inputURLs: inputURLs, outputURL: outputURL)
         case .textExtractor:
             media.extractText(inputURL: inputURL, outputURL: outputURL,
                               options: MediaTextOptions(accurate: textAccurate,
@@ -1583,12 +1663,7 @@ struct MediaWorkspaceView: View {
     }
 
     private var inputTypes: [UTType] {
-        switch selectedTool {
-        case .videoCompressor, .gifMaker:
-            return [.movie, .video, .mpeg4Movie, .quickTimeMovie]
-        case .imageCompressor, .textExtractor:
-            return [.image]
-        }
+        selectedTool.inputTypes
     }
 
     private var outputType: UTType {
@@ -1603,6 +1678,7 @@ struct MediaWorkspaceView: View {
             case .pdf: return .pdf
             }
         case .textExtractor: return .plainText
+        case .pdfMerger: return .pdf
         }
     }
 
@@ -1625,6 +1701,8 @@ struct MediaWorkspaceView: View {
                                                outputSize: currentResizeMode.targetSize(for: sourceSize))
         case .textExtractor:
             return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-text", fileExtension: "txt")
+        case .pdfMerger:
+            return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-merged", fileExtension: "pdf")
         }
     }
 
@@ -1640,6 +1718,9 @@ struct MediaWorkspaceView: View {
                           maxSeconds)
         case .targetTooSmall: return l10n.s.mediaErrorTargetTooSmall
         case .watermarkUnavailable: return imageText.noLogo
+        case let .passwordProtected(name): return String(format: l10n.s.mediaErrorPasswordProtectedFormat, name)
+        case let .restrictedPDF(name): return String(format: l10n.s.mediaErrorRestrictedPDFFormat, name)
+        case let .unreadableInput(name): return String(format: l10n.s.mediaErrorUnreadableFormat, name)
         case .cancelled: return l10n.s.mediaCancelled
         case let .failed(message): return message.isEmpty ? l10n.s.mediaErrorUnsupported : message
         }
