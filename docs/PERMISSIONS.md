@@ -35,6 +35,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Middle click**, which turns a three finger press on the trackpad into a middle click.
 - **Paste as plain text**, which presses ⌘V for you after stripping the formatting.
 - **Finder cut and paste**, which steps in on ⌘X and ⌘V while Finder is in front.
+- **Fn input source**, which watches for a tap of Fn/🌐 on its own and selects the next input source. It looks only at which keys go down and up, never at what they type.
 - **Quit on close**, which spots when an app's last window goes away.
 - **Radial menu**, for wheel actions that press a key combo or a media key
   for you and for the optional side button trigger; opening apps, files and

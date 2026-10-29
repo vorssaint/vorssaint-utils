@@ -111,6 +111,9 @@ final class CleaningModeManager: ObservableObject {
         // the repeated same-key presses the unlock gesture counts on.
         KeyboardDebounceService.shared.suspend()
         MouseClickDebounceService.shared.suspend()
+        // A tap of Fn while wiping the keys must not switch the input source
+        // under the overlay.
+        FnInputSourceService.shared.suspend()
         // Wiping the trackpad is nothing but stray three-finger contacts;
         // middle-click emulation must not fire from them.
         MiddleClickService.shared.suspend()
@@ -199,6 +202,7 @@ final class CleaningModeManager: ObservableObject {
         // so a feature changed while Cleaning Mode was active stays changed.
         KeyboardDebounceService.shared.syncWithPreferences()
         MouseClickDebounceService.shared.syncWithPreferences()
+        FnInputSourceService.shared.syncWithPreferences()
         MiddleClickService.shared.syncWithPreferences()
         MouseNavigationService.shared.syncWithPreferences()
         MouseButtonShortcutService.shared.syncWithPreferences()
