@@ -42,8 +42,15 @@ enum NotchFullscreenTests {
     enum NotchService { static var shared = Service() }
     class VolumeState {
         var running = false
+        let bannerGuard = BannerGuard()
+        final class BannerGuard {
+            var running = false
+            func start() { running = true }
+            func stop() { running = false }
+        }
+        var tapFailed = false
         func start() { running = true }
-        func stop() { running = false }
+        func removeTap() { running = false }
     }
     enum NSScreen { static var screensHaveSeparateSpaces = true }
     enum SpaceWindowBridge {
@@ -233,14 +240,20 @@ enum NotchFullscreenTests {
             volume.syncWithPreferences()
             suite.expect(service.hiddenInFullscreen && volume.running == preciseVolume,
                          "fullscreen startup keeps the tap only when the precise volume roller needs it")
+            suite.expect(!volume.bannerGuard.running,
+                         "the system volume banner stays while the island cannot show volume")
             displayID = 1
             service.fullscreenEnvironmentDidChange()
             suite.expect(!service.hiddenInFullscreen && service.acceptsSystemFeedback && volume.running,
                          "returning to the desktop restores the volume tap without a preference change")
+            suite.expect(volume.bannerGuard.running,
+                         "the island takes over the system volume banner for levels set outside the keys")
             displayID = 2
             service.fullscreenEnvironmentDidChange()
             suite.expect(service.hiddenInFullscreen && volume.running == preciseVolume,
                          "entering fullscreen releases the notch tap but preserves the precise volume roller")
+            suite.expect(!volume.bannerGuard.running,
+                         "entering fullscreen gives the volume banner back even when the roller keeps the tap")
         }
     }
 }

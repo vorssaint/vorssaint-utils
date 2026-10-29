@@ -1107,6 +1107,29 @@ final class NotchService: ObservableObject {
     var showsSystemFeedback: Bool {
         acceptsSystemFeedback && (!hiddenUntilHover || NotchSupport.hiddenShowsActivity())
     }
+    /// Whether macOS' volume banner may leave: the island shows the same
+    /// level (.shown), or something keeps it from showing one (.covered: a
+    /// cover, a hidden island, another notice in its place). A notice that
+    /// simply ended is .quiet and leaves its banner to expire.
+    var volumeBanner: NotchVolumeBannerState {
+        guard showsSystemFeedback, captureControls == nil, !dragPlaceholder, !showingCommandBar else { return .covered }
+        guard let notice else { return .quiet }
+        return notice.event == .volume ? .shown : .covered
+    }
+    /// Every published value the answer above depends on. Opening and
+    /// peeking also decide whether the island waits for the pointer. Each
+    /// value arrives before its change lands.
+    var volumeNoticeChanges: AnyPublisher<Void, Never> {
+        Publishers.MergeMany([
+            $notice.map { _ in () }.eraseToAnyPublisher(),
+            $showingCommandBar.map { _ in () }.eraseToAnyPublisher(),
+            $captureControls.map { _ in () }.eraseToAnyPublisher(),
+            $dragPlaceholder.map { _ in () }.eraseToAnyPublisher(),
+            $hiddenInFullscreen.map { _ in () }.eraseToAnyPublisher(),
+            $expanded.map { _ in () }.eraseToAnyPublisher(),
+            $peeking.map { _ in () }.eraseToAnyPublisher()
+        ]).eraseToAnyPublisher()
+    }
 
     var protectedWindowIDs: Set<CGWindowID> {
         islandWindowIDs.subtracting(captureVisibleWindowIDs)

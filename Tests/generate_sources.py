@@ -1239,6 +1239,7 @@ def main():
           + "}\nfinal class PreciseVolumeRollerService: VolumeState {\n"
           + "static let shared = PreciseVolumeRollerService()\n"
           + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    func syncWithPreferences()")
+          + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    func stop()")
           + "}\n}\n")
     write("NotchNotice.swift", "import AppKit\n" + declaration(notch, "struct NotchNotice:"))
     agent_view = "Sources/Vorssaint/UI/Notch/NotchAgentsView.swift"
@@ -1266,6 +1267,7 @@ def main():
               "    func noteOwnLevelAdjustment(", "    private func ownsLevelAdjustment(",
               "    func showBrightness(", "    func showKeyboardLight("])
           + declaration(notch, "    func showVolume(").replace("    func", "    @discardableResult func", 1)
+          + declaration(notch, "    var volumeBanner: NotchVolumeBannerState {")
           + "}\n}\n")
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
