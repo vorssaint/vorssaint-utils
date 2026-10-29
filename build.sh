@@ -66,7 +66,14 @@ TARGET="arm64-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
 
+# A keychain can hold several Developer ID identities, for example a client's
+# beside your own, and the first one listed would sign the build unasked.
+# VORSSAINT_SIGNING_IDENTITY names the one to use.
 developer_id_identity() {
+    if [[ -n "${VORSSAINT_SIGNING_IDENTITY:-}" ]]; then
+        print -r -- "$VORSSAINT_SIGNING_IDENTITY"
+        return
+    fi
     security find-identity -v -p codesigning 2>/dev/null \
         | grep 'Developer ID Application' \
         | head -1 \
