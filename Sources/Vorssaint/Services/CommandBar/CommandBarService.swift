@@ -2866,7 +2866,15 @@ final class CommandBarService: ObservableObject {
         // gives it a reaction of its own, which takes this one's place: it
         // waits a moment for one, as Keep Awake's arrives just after.
         NotchService.shared.reactMascot(.celebrate, after: 0.3)
-        entry.run(value)
+        // Runs once the close is done: an app it brings forward may switch
+        // Stage Manager stages, and that animation would make the drop rising
+        // back into the island stutter. With no drop rising, a frame is
+        // enough for the close to be committed first.
+        let wait = CommandBarDropletMotion.runDelay(climbEnds: CommandBarDroplet.shared.climbEnds,
+                                                    now: CACurrentMediaTime())
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) {
+            entry.run(value)
+        }
     }
 
     // MARK: - Clipboard paste

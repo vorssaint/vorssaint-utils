@@ -25,6 +25,8 @@ final class CommandBarDroplet {
     /// the bar, fading in over the seconds it is given.
     private var fall: (motion: CommandBarDropletMotion, edge: CGFloat, centerX: CGFloat, begin: CFTimeInterval)?
     private var reveal: ((TimeInterval) -> Void)?
+    /// When the drop rising back into the island gets there, while it rises.
+    private(set) var climbEnds: CFTimeInterval?
 
     private init() {
         stage.isGeometryFlipped = true
@@ -140,8 +142,11 @@ final class CommandBarDroplet {
         let icon = CGPoint(x: fieldRect.minX + 16 + CommandBarDropletMotion.mascotSize / 2, y: fieldRect.midY)
         let motion = CommandBarDropletMotion.retract(edge: edge, centerX: centerX, bar: local(bar), field: fieldRect, icon: icon)
         prepare(in: area, look: look, mood: mood)
-        play(motion, edge: edge, centerX: centerX, begin: CACurrentMediaTime()) { [weak self] in
+        let begin = CACurrentMediaTime()
+        climbEnds = begin + motion.duration
+        play(motion, edge: edge, centerX: centerX, begin: begin) { [weak self] in
             guard let self, self.generation == current else { return }
+            self.climbEnds = nil
             self.panel?.orderOut(nil)
             // Back in the island, it hops out to rest there again.
             NotchService.shared.setMascotInBar(false, homecoming: mood)
@@ -154,6 +159,7 @@ final class CommandBarDroplet {
         falling = false
         fall = nil
         reveal = nil
+        climbEnds = nil
         for layer in [stage, neck, bead, mascot.root] { layer.removeAllAnimations() }
         panel?.orderOut(nil)
     }
@@ -172,8 +178,10 @@ final class CommandBarDroplet {
         let now = CACurrentMediaTime()
         let back = fall.motion.rewound(from: fall.motion.frameIndex(at: now - fall.begin),
                                        within: CommandBarDropletMotion.rewindLength)
+        climbEnds = now + back.duration
         play(back, edge: fall.edge, centerX: fall.centerX, begin: now) { [weak self] in
             guard let self, self.generation == current else { return }
+            self.climbEnds = nil
             self.panel?.orderOut(nil)
             NotchService.shared.setMascotInBar(false, homecoming: mood)
         }

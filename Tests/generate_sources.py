@@ -723,7 +723,7 @@ def main():
           + "extension PointerScreenContract.Screen {\n"
           + declaration("Sources/Vorssaint/Core/AppKitExtensions.swift", "    static var withMouse:")
           + "}\n")
-    write("CommandBarEmojiBodies.swift", "import Foundation\n"
+    write("CommandBarEmojiBodies.swift", "import Foundation\nimport QuartzCore\n"
           + "extension CommandBarEmojiContract.Catalog {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
                         "    static func emojiEntries(")
@@ -1326,6 +1326,10 @@ def main():
               .replace("private struct UpdateHighlightsGIF", "struct UpdateHighlightsGIF")
           + "}\n")
     canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
+    write("NotchCanvasActivationArea.swift", "import AppKit\n"
+          + "extension NotchCanvasActivationAreaTests {\nfinal class Canvas: Layouts {\n"
+          + declaration(canvas, "    func setActivationArea(", scope="private final class NotchCanvas: NSView {")
+          + "}\n}\n")
     write("NotchMissionControlPolling.swift", "import Foundation\n"
           + "extension NotchMissionControlPollingTests {\nfinal class Host: State {\n"
           + "".join(declaration(canvas, prefix).replace("    private ", "    ", 1) for prefix in [
