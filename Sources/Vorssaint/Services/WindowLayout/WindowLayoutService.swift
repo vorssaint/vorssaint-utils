@@ -126,8 +126,12 @@ final class WindowLayoutService: ObservableObject {
         // The pointer shortcut needs no Accessibility, so it counts on its own.
         let pointerEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.pointerDisplayEnabled)
+        let zonesEnabled = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.windowZonesEnabled)
+            && trusted
         syncIgnoredAppsActivationObserver(inputsEnabled: shortcutsEnabled || directionalEnabled
-                                          || gestureEnabled || edgeSnapEnabled || pointerEnabled)
+                                          || gestureEnabled || edgeSnapEnabled || pointerEnabled
+                                          || zonesEnabled)
         let frontmost = NSWorkspace.shared.frontmostApplication
         let inputAllowed = !WindowLayoutIgnoredApps.shared.contains(
             bundleID: frontmost?.bundleIdentifier,
@@ -153,6 +157,7 @@ final class WindowLayoutService: ObservableObject {
 
         // Its key pauses for a listed app like the ones above.
         PointerDisplayService.shared.syncWithPreferences()
+        WindowZonesService.shared.syncWithPreferences()
     }
 
     private func syncIgnoredAppsActivationObserver(inputsEnabled: Bool) {
@@ -180,6 +185,7 @@ final class WindowLayoutService: ObservableObject {
         unregisterDirectionalHotkey()
         stopGestureTap()
         stopEdgeSnapTap()
+        WindowZonesService.shared.suspend()
         if let ignoredAppsActivationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(ignoredAppsActivationObserver)
             self.ignoredAppsActivationObserver = nil
@@ -338,6 +344,59 @@ final class WindowLayoutService: ObservableObject {
         resultGeneration += 1
         lastResult = result
         return result
+    }
+
+    // MARK: - Zones
+
+    /// A window zones may move: the one the window server saw under the
+    /// pointer, looked up through the same checks a shortcut uses.
+    func zoneTarget(processID: pid_t, windowID: CGWindowID) -> WindowLayoutTarget? {
+        guard AXIsProcessTrusted(),
+              let app = NSRunningApplication(processIdentifier: processID),
+              !app.isTerminated, app.activationPolicy == .regular,
+              let onScreen = onScreenWindowIDs() else { return nil }
+        let axApp = AXUIElementCreateApplication(processID)
+        AXUIElementSetMessagingTimeout(axApp, 0.25)
+        guard let window = windowsAttribute(axApp)?.first(where: {
+            AXWindowResolver.windowID(for: $0) == windowID
+        }) else { return nil }
+        return target(from: window, app: app, onScreenWindowIDs: onScreen, capability: .frame)
+    }
+
+    /// The focused window, as the layout shortcuts find it.
+    func focusedZoneTarget() -> WindowLayoutTarget? {
+        guard AXIsProcessTrusted() else { return nil }
+        return focusedTarget(for: .maximize)
+    }
+
+    /// A target for a window element an app just announced.
+    func zoneTarget(for window: AXUIElement, processID: pid_t) -> WindowLayoutTarget? {
+        guard AXIsProcessTrusted(),
+              let app = NSRunningApplication(processIdentifier: processID),
+              !app.isTerminated, app.activationPolicy == .regular,
+              let onScreen = onScreenWindowIDs() else { return nil }
+        return target(from: window, app: app, onScreenWindowIDs: onScreen, capability: .frame)
+    }
+
+    /// Places one window on a zone rectangle, in window-server coordinates.
+    /// Zones work out the rectangle; the frame goes through the settling
+    /// path every placement uses, and Restore brings back where it was.
+    @discardableResult
+    func placeInZone(_ target: WindowLayoutTarget, rect: CGRect,
+                     historyFrame: WindowLayoutFrame? = nil) -> Bool {
+        guard AXIsProcessTrusted(), canSetFrame(on: target.window) else { return false }
+        let frame = WindowLayoutFrame(origin: rect.origin, size: rect.size)
+        guard !frame.isClose(to: target.frame, tolerance: frameTolerance) else { return true }
+        let appKitRect = appKitFrame(fromAX: frame)
+        let visibleFrame = bestScreen(for: frame)?.windowLayoutVisibleFrame ?? appKitRect
+        frameHistory.record(historyFrame ?? target.frame, for: target.key)
+        lastActions.removeValue(forKey: target.key)
+        if setFrame(frame, targetRect: appKitRect, screenVisibleFrame: visibleFrame,
+                    action: .restore, on: target.window, windowKey: target.key) {
+            return true
+        }
+        frameHistory.discardLatest(for: target.key)
+        return false
     }
 
     private func applyPlacement(_ action: WindowLayoutAction,
@@ -1582,6 +1641,12 @@ final class WindowLayoutService: ObservableObject {
             cancelEdgeSnapTracking()
 
         case .dragged(let location, let time):
+            // A drag showing zones drops into a zone instead, for the rest of
+            // the drag, so the window is never snapped twice.
+            if WindowZonesService.shared.isShowingZones {
+                cancelEdgeSnapTracking()
+                return
+            }
             guard let pressOrigin = edgeSnapPressOrigin,
                   let pressCandidate = edgeSnapPressCandidate,
                   edgeSnapFollowsMoveGesture || (activeGesture == nil && pendingGesture == nil)
@@ -2710,7 +2775,7 @@ final class WindowLayoutService: ObservableObject {
     }
 }
 
-private struct WindowLayoutTarget {
+struct WindowLayoutTarget {
     let window: AXUIElement
     let key: WindowLayoutWindowKey
     let frame: WindowLayoutFrame

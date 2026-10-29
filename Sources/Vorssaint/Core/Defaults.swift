@@ -768,6 +768,25 @@ enum DefaultsKey {
     static let windowGestureEnabled = "windowGestureEnabled"
     static let windowGestureModifiers = "windowGestureModifiers"
     static let windowGestureRaiseWindow = "windowGestureRaiseWindow"
+    static let windowZonesEnabled = "windowZonesEnabled"
+    static let windowZonesShiftDrag = "windowZonesShiftDrag" // zones show while Shift is held; off shows them on every drag until Shift
+    static let windowZonesShowAllDisplays = "windowZonesShowAllDisplays"
+    static let windowZonesShowNumbers = "windowZonesShowNumbers"
+    static let windowZonesFillColor = "windowZonesFillColor" // #RRGGBB
+    static let windowZonesBorderColor = "windowZonesBorderColor" // #RRGGBB
+    static let windowZonesHighlightColor = "windowZonesHighlightColor" // #RRGGBB
+    static let windowZonesOpacity = "windowZonesOpacity" // 0.05...1
+    static let windowZonesOverlapPolicy = "windowZonesOverlapPolicy" // WindowZoneOverlapPolicy raw value
+    static let windowZonesRestoreSize = "windowZonesRestoreSize"
+    static let windowZonesMoveNewWindows = "windowZonesMoveNewWindows"
+    static let windowZonesPerSpace = "windowZonesPerSpace"
+    static let windowZonesKeyboardEnabled = "windowZonesKeyboardEnabled"
+    static let windowZonesAcrossDisplays = "windowZonesAcrossDisplays"
+    static let windowZonesQuickSwitchEnabled = "windowZonesQuickSwitchEnabled"
+    static let windowZonesWheelSwitch = "windowZonesWheelSwitch"
+    static let windowZonesEditorShortcut = "windowZonesEditorShortcut"
+    static let windowZonesConfiguration = "windowZonesConfiguration" // JSON: custom layouts, display and Space layouts, quick keys
+    static let windowZonesHistory = "windowZonesHistory" // JSON: each app's last zone on this Mac
     static let windowLayoutShortcutLeft = "windowLayoutShortcutLeft"
     static let windowLayoutShortcutRight = "windowLayoutShortcutRight"
     static let windowLayoutShortcutTop = "windowLayoutShortcutTop"
@@ -1965,6 +1984,23 @@ enum Defaults {
         DefaultsKey.windowGestureEnabled: false,
         DefaultsKey.windowGestureModifiers: WindowGestureSupport.defaultModifierStorageValue,
         DefaultsKey.windowGestureRaiseWindow: false,
+        DefaultsKey.windowZonesEnabled: false,
+        DefaultsKey.windowZonesShiftDrag: true,
+        DefaultsKey.windowZonesShowAllDisplays: false,
+        DefaultsKey.windowZonesShowNumbers: true,
+        DefaultsKey.windowZonesFillColor: WindowZoneColors.standard.fill,
+        DefaultsKey.windowZonesBorderColor: WindowZoneColors.standard.border,
+        DefaultsKey.windowZonesHighlightColor: WindowZoneColors.standard.highlight,
+        DefaultsKey.windowZonesOpacity: WindowZoneColors.standard.opacity,
+        DefaultsKey.windowZonesOverlapPolicy: WindowZoneOverlapPolicy.smallest.rawValue,
+        DefaultsKey.windowZonesRestoreSize: true,
+        DefaultsKey.windowZonesMoveNewWindows: true,
+        DefaultsKey.windowZonesPerSpace: false,
+        DefaultsKey.windowZonesKeyboardEnabled: true,
+        DefaultsKey.windowZonesAcrossDisplays: false,
+        DefaultsKey.windowZonesQuickSwitchEnabled: true,
+        DefaultsKey.windowZonesWheelSwitch: true,
+        DefaultsKey.windowZonesEditorShortcut: GlobalShortcut.windowZonesEditorDefault.storageValue,
         DefaultsKey.windowLayoutShortcutLeft: GlobalShortcut.windowLayoutLeftDefault.storageValue,
         DefaultsKey.windowLayoutShortcutRight: GlobalShortcut.windowLayoutRightDefault.storageValue,
         DefaultsKey.windowLayoutShortcutTop: GlobalShortcut.windowLayoutTopDefault.storageValue,
