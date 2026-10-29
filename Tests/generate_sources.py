@@ -341,6 +341,9 @@ def main():
           + "extension BrightnessKeyRoutingTests {\nfinal class Service: Fixture {\n"
           + "".join(declaration(brightness, prefix).replace("private func", "func", 1)
                     for prefix in ["    private func handleKeyEvent(",
+                                   "    private func handleKeyboardLightKey(",
+                                   "    private func keyboardLightLevel(using",
+                                   "    private func showKeyboardLightNotice(",
                                    "    private func routeFunctionKey("])
           + "}\n}\n")
     activator = "Sources/Vorssaint/Services/Switcher/WindowActivator.swift"
