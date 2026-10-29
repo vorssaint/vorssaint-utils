@@ -1368,6 +1368,22 @@ enum RecorderFeatureTests {
                 == [true, true, true, true, false, false, false, false],
                "a stretch where the system hid the pointer stays hidden in the video")
 
+        // The system hides the pointer while typing,
+        // but it remains hidden from the system even after it reappears on screen
+        var visibility = RecorderMotion.PointerVisibility()
+        let restPoint = CGPoint(x: 0.5, y: 0.5), nextPoint = CGPoint(x: 0.6, y: 0.5)
+        suite.expect(visibility.isShown(systemVisible: true, at: restPoint),
+               "a pointer the system shows is shown")
+        suite.expect(!visibility.isShown(systemVisible: false, at: restPoint),
+               "hidden while typing, it stays hidden while it doesn't move")
+        suite.expect(visibility.isShown(systemVisible: false, at: nextPoint),
+               "moved while the system still hides it: shown again")
+        suite.expect(visibility.isShown(systemVisible: false, at: nextPoint),
+               "...and stays shown where it stopped")
+        _ = visibility.isShown(systemVisible: true, at: nextPoint)
+        suite.expect(!visibility.isShown(systemVisible: false, at: nextPoint),
+               "hidden anew by the system (typing again): hidden until it moves again")
+
         let studio = RecorderEditDocument().applying(.studio)
         suite.expect(studio.zoomEnabled && studio.showsPointer && !studio.backdrop.isEmpty,
                "the studio look turns on everything it promises")

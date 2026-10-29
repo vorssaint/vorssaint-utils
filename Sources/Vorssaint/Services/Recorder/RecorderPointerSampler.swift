@@ -34,6 +34,7 @@ final class RecorderPointerSampler {
     private var generation = 0
     private var lastSeed: Int32?
     private var currentIdentity: UInt64 = 0
+    private var visibility = RecorderMotion.PointerVisibility()
     private let displayScale: Double
 
     /// 125 Hz: comfortably above any mouse report rate we care about, and
@@ -60,6 +61,7 @@ final class RecorderPointerSampler {
             identities.reserveCapacity(Int(Self.sampleRate) * 60)
             lastSeed = nil
             currentIdentity = 0
+            visibility = RecorderMotion.PointerVisibility()
             clicks.removeAll(keepingCapacity: true)
             return self.generation
         }
@@ -125,7 +127,8 @@ final class RecorderPointerSampler {
                     let sample = RecorderMotion.Sample(
                         time: time,
                         point: point,
-                        isPointerVisible: cursors.isPointerVisible()
+                        isPointerVisible: visibility.isShown(systemVisible: cursors.isPointerVisible(),
+                                                             at: point)
                     )
                     samples.append(sample)
                     identities.append(currentIdentity)
