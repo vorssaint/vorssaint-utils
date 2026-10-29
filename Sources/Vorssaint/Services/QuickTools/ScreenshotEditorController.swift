@@ -10,8 +10,13 @@ import Vision
 /// document (image, annotations, undo history) and the export paths. The
 /// SwiftUI editor view observes this model; geometry is in image pixels.
 final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
-    @Published private(set) var baseImage: CGImage
+    @Published private(set) var baseImage: CGImage {
+        didSet { inspector.setImage(baseImage, scale: scale) }
+    }
     @Published var annotations: [ScreenshotSupport.Annotation] = []
+    /// Pointer, live measurement and selection readings. Its own object, so a
+    /// moving pointer redraws the readouts and never the whole canvas.
+    let inspector = ScreenshotEditorInspector()
     /// How dark a spotlight turns everything outside its regions,
     /// remembered between captures like the blur strength.
     @Published var spotlightDimStrength: CGFloat {
@@ -38,6 +43,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 selectedID = nil
                 editingTextID = nil
             }
+            // Picking a tool means drawing with it, not measuring.
+            if tool != oldValue { inspector.liveMode = nil }
             if tool == .crop, oldValue != .crop {
                 selectedID = nil
                 cropDraft = CGRect(origin: .zero, size: imageSize)
@@ -110,6 +117,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             applyStickerToSelection()
         }
     }
+    /// How many times a new magnifier enlarges, remembered between captures.
+    @Published var magnification: Int {
+        didSet {
+            UserDefaults.standard.set(magnification, forKey: DefaultsKey.screenshotLastMagnification)
+            applyMagnificationToSelection()
+        }
+    }
     @Published var annotationShadowsEnabled: Bool {
         didSet {
             UserDefaults.standard.set(annotationShadowsEnabled,
@@ -159,7 +173,11 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 forKey: DefaultsKey.screenshotWatermarkPresets)
         }
     }
-    @Published var cropDraft: CGRect?
+    @Published var cropDraft: CGRect? {
+        didSet {
+            if cropDraft != oldValue { inspector.readSelection(cropDraft) }
+        }
+    }
     /// Exact image pixel under a crop resize grip. Nil while moving the
     /// whole crop so the loupe appears only when it adds precision.
     @Published private(set) var cropLoupePoint: CGPoint?
@@ -255,6 +273,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             defaults.string(forKey: DefaultsKey.screenshotLastArrowStyle))
         sticker = ScreenshotSupport.StickerID.sanitized(
             defaults.string(forKey: DefaultsKey.screenshotLastSticker))
+        magnification = ScreenshotSupport.sanitizedMagnification(
+            defaults.integer(forKey: DefaultsKey.screenshotLastMagnification))
         annotationShadowsEnabled = defaults.bool(
             forKey: DefaultsKey.screenshotAnnotationShadows)
         let rawStyle = defaults.string(forKey: DefaultsKey.screenshotBackdropStyle) ?? ""
@@ -266,6 +286,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         watermarkPresets = ScreenshotSupport.decodedWatermarkPresets(
             defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets))
         pixelated = [:]
+        inspector.setImage(image, scale: scale)
         reloadBackdropImageIfNeeded()
         reloadWatermarkImageIfNeeded()
         recordCleanState()
@@ -777,6 +798,19 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         if annotation.tool == .sticker {
             sticker = ScreenshotSupport.StickerID.sanitized(annotation.text)
         }
+        if annotation.tool == .magnifier {
+            magnification = ScreenshotSupport.sanitizedMagnification(annotation.magnification)
+        }
+    }
+
+    private func applyMagnificationToSelection() {
+        guard let selectedID,
+              let index = annotations.firstIndex(where: { $0.id == selectedID }),
+              annotations[index].tool == .magnifier,
+              annotations[index].magnification != magnification
+        else { return }
+        registerUndo()
+        annotations[index].magnification = magnification
     }
 
     // MARK: - Gestures (image-pixel coordinates)
@@ -814,12 +848,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             } else if let draft = cropDraft, draft.contains(point) {
                 cropMoveOrigin = draft
             }
-        case .arrow, .line:
+        case .arrow, .line, .ruler:
             registerUndo()
             dragRegistered = true
+            // A ruler keeps its unit, and its length follows its ends.
             let annotation = ScreenshotSupport.Annotation(
-                tool: tool, points: [point, point], color: color, stroke: stroke,
-                arrowStyle: arrowStyle)
+                tool: tool, points: [point, point], text: tool == .ruler ? inspector.unit.rawValue : "",
+                color: color, stroke: stroke, arrowStyle: arrowStyle)
             annotations.append(annotation)
             draftID = annotation.id
         case .freehand:
@@ -829,14 +864,15 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 tool: tool, points: [point], color: color, stroke: stroke)
             annotations.append(annotation)
             draftID = annotation.id
-        case .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight:
+        case .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight, .magnifier:
             if tool == .pixelate { ensureBlurSample(blurStyle, level: blurLevel) }
             registerUndo()
             dragRegistered = true
-            let annotation = ScreenshotSupport.Annotation(
+            var annotation = ScreenshotSupport.Annotation(
                 tool: tool, rect: CGRect(origin: point, size: .zero),
                 color: color, stroke: stroke, blurLevel: blurLevel,
                 blurStyle: blurStyle, blurTextOnly: blurTextOnly)
+            annotation.magnification = magnification
             annotations.append(annotation)
             draftID = annotation.id
         case .expandCanvas:
@@ -846,7 +882,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 rect: CGRect(origin: .zero, size: imageSize),
                 tolerance: ScreenshotCanvasSupport.expansionGripReach / max(currentDisplayZoom, 0.001))
             expansionStartPoint = expansionHandle == nil ? nil : point
-        case .text, .sticker, .counter, .image:
+        case .text, .sticker, .counter, .image, .guide:
             break
         }
     }
@@ -918,9 +954,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             }
         case .arrow, .line:
             updateDraft { $0.points = [dragStart, point] }
+        case .ruler:
+            let end = ScreenshotInspectionSupport.constrainedEnd(
+                from: dragStart, to: point, axisLocked: NSEvent.modifierFlags.contains(.shift))
+            updateDraft { $0.points = [dragStart, end] }
         case .freehand:
             updateDraft { $0.points.append(point) }
-        case .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight:
+        case .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight, .magnifier:
             updateDraft { $0.rect = ScreenshotSupport.selectionRect(from: dragStart, to: point) }
         case .expandCanvas:
             if let handle = expansionHandle, let start = expansionStartPoint {
@@ -929,7 +969,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 expansionDraft = ScreenshotCanvasSupport.expandedRect(size: imageSize, handle: handle, point: target)
                 expansionRejected = expansionDraft == nil
             }
-        case .text, .sticker, .counter, .image:
+        case .text, .sticker, .counter, .image, .guide:
             break
         }
     }
@@ -1032,7 +1072,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             annotations.append(annotation)
             annotations = ScreenshotSupport.renumberingCounters(annotations)
             selectedID = annotation.id
-        case .arrow, .line, .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight, .freehand:
+        case .arrow, .line, .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight, .freehand,
+             .ruler, .magnifier:
             if isTap {
                 // A tap never leaves a degenerate shape behind; treat it as
                 // picking whatever is under the cursor instead.
@@ -1051,7 +1092,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 if !commitCanvasExpansion(to: draft) { NSSound.beep() }
             }
             cancelCanvasExpansion()
-        case .image:
+        case .image, .guide:
             break
         case .select:
             finishSelectDrag(at: point, isTap: isTap)
@@ -1132,12 +1173,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// `includeShapeInteriors: false` is the creation-tap variant: area
     /// shapes (boxes, ellipses, highlights, censors) only answer near their
     /// edge, so their inside stays free for placing a new text, sticker or
-    /// counter — the tap that used to create one there must keep doing so.
+    /// counter: the tap that used to create one there must keep doing so.
     func hitTest(_ point: CGPoint, includeShapeInteriors: Bool = true) -> UUID? {
         let tolerance = 10 * scale
         for annotation in annotations.reversed() {
             switch annotation.tool {
-            case .arrow, .line:
+            case .arrow, .line, .ruler, .guide:
                 guard annotation.points.count >= 2 else { continue }
                 if ScreenshotSupport.distance(from: point,
                                               toSegment: annotation.points[0],
@@ -1156,7 +1197,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                     <= radius + 4 * scale {
                     return annotation.id
                 }
-        case .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight:
+        case .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight, .magnifier:
                 let outer = annotation.rect.insetBy(dx: -tolerance / 2, dy: -tolerance / 2)
                 guard outer.contains(point) else { continue }
                 if includeShapeInteriors {
@@ -1320,12 +1361,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Output
 
-    func exportImage(withBackdrop: Bool = true) -> ScreenshotRenderer.Export? {
+    func exportImage(withBackdrop: Bool = true,
+                     annotations marks: [ScreenshotSupport.Annotation]? = nil) -> ScreenshotRenderer.Export? {
         ensureBlurSamplesForAnnotations()
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         return ScreenshotRenderer.renderExport(
             baseImage: baseImage,
-            annotations: annotations,
+            annotations: marks ?? annotations,
             blurSources: blurSources,
             scale: scale,
             annotationShadowsEnabled: annotationShadowsEnabled,
@@ -1365,6 +1407,112 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         softBlurred = softBlurred.filter { softBlurLevels.contains($0.key) }
         for level in mosaicLevels { ensureBlurSample(.pixelate, level: level) }
         for level in softBlurLevels { ensureBlurSample(.blur, level: level) }
+    }
+}
+
+// MARK: - Inspection
+
+extension ScreenshotEditorModel {
+    /// Marks what the live measurement shows: a ruler with its length, or a
+    /// guide across the capture. False when there is nothing to mark.
+    @discardableResult
+    func imprintLiveMeasurement() -> Bool {
+        guard let mode = inspector.liveMode, let span = inspector.liveSpan, span.length > 0 else { return false }
+        registerUndo()
+        let annotation: ScreenshotSupport.Annotation
+        switch mode {
+        case .guide:
+            annotation = ScreenshotSupport.Annotation(tool: .guide, points: [span.start, span.end],
+                                                      color: color, stroke: stroke)
+        case .distance:
+            annotation = ScreenshotSupport.Annotation(tool: .ruler, points: [span.start, span.end],
+                                                      text: inspector.unit.rawValue,
+                                                      color: color, stroke: stroke)
+        }
+        annotations.append(annotation)
+        return true
+    }
+
+    /// Narrows the crop selection to what it holds, dropping plain border.
+    @discardableResult
+    func fitCropToContent() -> Bool {
+        guard tool == .crop, let draft = cropDraft,
+              let content = inspector.contentRect(in: draft),
+              content != draft.integral
+        else { return false }
+        cropDraft = ScreenshotSupport.pixelSnappedCropRect(content,
+                                                           within: CGRect(origin: .zero, size: imageSize))
+        return true
+    }
+
+    /// Resamples the capture to `size`. The marks are merged into it first,
+    /// so they keep their place and weight; undo brings them back as marks.
+    @discardableResult
+    func resizeImage(to size: CGSize) -> Bool {
+        guard size != imageSize else { return false }
+        ensureBlurSamplesForAnnotations()
+        guard let flattened = ScreenshotRenderer.renderExport(
+                baseImage: baseImage,
+                annotations: annotations,
+                blurSources: blurSources,
+                scale: scale,
+                annotationShadowsEnabled: annotationShadowsEnabled,
+                watermark: ScreenshotSupport.WatermarkStyle(),
+                watermarkImage: nil,
+                style: ScreenshotSupport.BackdropStyle(kind: .none, cornerRadius: 0),
+                fill: .none,
+                downscaleTo1x: false,
+                spotlightDimStrength: spotlightDimStrength)?.image,
+              let resized = ScreenshotRenderer.resized(flattened, to: size)
+        else { return false }
+        registerUndo()
+        baseImage = resized
+        annotations = []
+        pixelated = [:]
+        softBlurred = [:]
+        textRuns = nil
+        textWords = []
+        clearTextSelection()
+        selectedID = nil
+        editingTextID = nil
+        cropDraft = nil
+        if tool == .crop || tool == .expandCanvas { tool = .select }
+        pruneCarriedRuns()
+        recognizeText()
+        recognizeQRCodes()
+        return true
+    }
+
+    /// The picked pasted image's see-through, which the footer controls.
+    var selectedImageOpacity: CGFloat? {
+        guard let selectedID,
+              let selected = annotations.first(where: { $0.id == selectedID }),
+              selected.tool == .image
+        else { return nil }
+        return selected.opacity
+    }
+
+    /// One undo step for a whole slider drag.
+    func beginImageOpacityChange() {
+        guard selectedImageOpacity != nil else { return }
+        registerUndo()
+    }
+
+    func setSelectedImageOpacity(_ opacity: CGFloat) {
+        guard let selectedID,
+              let index = annotations.firstIndex(where: { $0.id == selectedID }),
+              annotations[index].tool == .image
+        else { return }
+        annotations[index].opacity = min(max(opacity, 0.1), 1)
+        refreshDirtyState()
+    }
+
+    /// The capture without its pasted images, then with them, as a looping GIF.
+    func comparisonGIFData() -> Data? {
+        guard let frames = ScreenshotOutputSupport.comparisonFrames(annotations) else { return nil }
+        let images = [frames.before, frames.after].compactMap { exportImage(annotations: $0)?.image }
+        guard images.count == 2 else { return nil }
+        return ScreenshotOutputSupport.gifData(frames: images)
     }
 }
 
@@ -1532,6 +1680,13 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             return true
         }
 
+        // Option-S and Option-D lay a guide through the pointer.
+        if flags.intersection([.command, .control, .option, .shift]) == .option,
+           key == kVK_ANSI_S || key == kVK_ANSI_D {
+            toggleLiveMode(.guide(key == kVK_ANSI_S ? .vertical : .horizontal))
+            return true
+        }
+
         if flags.contains(.command) {
             switch key {
             case kVK_ANSI_C:
@@ -1567,6 +1722,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             }
         }
         guard flags.isDisjoint(with: [.command, .control, .option]) else { return false }
+        if handleInspectionKey(key, shift: flags.contains(.shift), isRepeat: event.isARepeat) {
+            return true
+        }
 
         switch key {
         case kVK_Delete, kVK_ForwardDelete:
@@ -1580,7 +1738,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             }
             return true
         case kVK_Escape:
-            if model.tool == .expandCanvas {
+            if model.inspector.liveMode != nil {
+                model.inspector.liveMode = nil
+            } else if model.tool == .expandCanvas {
                 model.leaveCanvasExpansion()
             } else if model.tool == .crop, model.cropDraft != nil {
                 model.tool = .select
@@ -1595,6 +1755,59 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         default:
             return false
         }
+    }
+
+    // MARK: Inspection keys
+
+    /// The measuring and color keys. Each answers only where it means
+    /// something, so Tab still moves focus when the pointer is off the
+    /// capture and C or A type nothing while no area is selected.
+    private func handleInspectionKey(_ key: Int, shift: Bool, isRepeat: Bool) -> Bool {
+        let inspector = model.inspector
+        switch key {
+        case kVK_LeftArrow, kVK_RightArrow:
+            guard !isRepeat else { return true }
+            toggleLiveMode(.distance(.horizontal))
+            return true
+        case kVK_UpArrow, kVK_DownArrow:
+            guard !isRepeat else { return true }
+            toggleLiveMode(.distance(.vertical))
+            return true
+        case kVK_Tab:
+            guard inspector.pointer != nil else { return false }
+            copyColor(shift ? inspector.textColorNearPointer() : inspector.pointerColor)
+            return true
+        case kVK_ANSI_C where !shift:
+            guard model.tool == .crop, model.cropDraft != nil else { return false }
+            copyColor(inspector.selection?.average)
+            return true
+        case kVK_ANSI_A where !shift:
+            guard model.tool == .crop, model.cropDraft != nil else { return false }
+            if !model.fitCropToContent() { NSSound.beep() }
+            return true
+        case kVK_ANSI_P where !shift:
+            guard inspector.liveMode != nil || model.tool == .ruler || model.tool == .crop else { return false }
+            inspector.unit = inspector.unit.toggled
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Copies a color in the format the color picker uses, with its swatch.
+    private func copyColor(_ color: ScreenshotInspectionSupport.RGBA?) {
+        guard let color else {
+            NSSound.beep()
+            return
+        }
+        let swatch = ScreenshotEditorInspector.nsColor(color)
+        guard let value = ColorSamplerService.shared.copyQuietly(swatch) else { return }
+        QuickToolHUD.show(icon: "eyedropper", message: value, swatch: swatch)
+    }
+
+    private func toggleLiveMode(_ mode: ScreenshotInspectionSupport.LiveMode) {
+        model.inspector.liveMode = ScreenshotInspectionSupport.toggledMode(model.inspector.liveMode,
+                                                                          pressing: mode)
     }
 
     // MARK: Export actions
@@ -1805,6 +2018,27 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         model.markExported()
         QuickToolHUD.show(icon: "tray.full", message: L10n.shared.s.shelfName)
         window?.close()
+    }
+
+    /// Saves the capture without and then with its pasted images as a
+    /// looping GIF beside the screenshots, and keeps the editor open.
+    func saveComparisonGIF() {
+        guard let data = model.comparisonGIFData() else {
+            NSSound.beep()
+            return
+        }
+        let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings, fileExtension: "gif")
+        do {
+            try data.write(to: url, options: .atomic)
+            QuickToolHUD.show(icon: "photo.stack",
+                              message: String(format: strings.savedHUDFormat,
+                                              url.deletingLastPathComponent().lastPathComponent))
+        } catch {
+            if let consumedNumber {
+                ScreenshotService.rewindNumberSequence(toReuse: consumedNumber)
+            }
+            NSSound.beep()
+        }
     }
 
     /// Pinning snapshots the current export and leaves the editor open.
