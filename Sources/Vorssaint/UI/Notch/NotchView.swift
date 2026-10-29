@@ -10,6 +10,7 @@ struct NotchView: View {
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
+    @ObservedObject private var pageEditor = PageEditorWindowController.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -55,11 +56,22 @@ struct NotchView: View {
             .onChange(of: contrast) {
                 DispatchQueue.main.async { service.refreshPresentation(animated: false) }
             }
+            // Teleprompter size sliders publish at drag frequency. Keep the
+            // native panel frame in lockstep with the SwiftUI content and
+            // skip the island's open/close animation while it is being resized.
+            .onChange(of: service.teleprompterSurfaceSize) { _, _ in
+                guard service.selected == .teleprompter else { return }
+                DispatchQueue.main.async { service.refreshPresentation(animated: false) }
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .environment(\.colorScheme, .dark)
             .environment(\.notchPresentation, true)
             .environment(\.notchGlassSurface, usesGlassSurface)
             .tint(.white)
+            // The page editor is a separate modal window. Keep the running
+            // island visible beneath it, but do not let clicks pass through to
+            // pause, timer, music, or other notch controls.
+            .allowsHitTesting(!pageEditor.isShowing)
             .accessibilityIdentifier("notch.surface")
     }
 
@@ -232,6 +244,7 @@ struct NotchView: View {
         if floats {
             switch activity {
             case .timer: NotchCapsuleTimerStrip(service: service, size: size)
+            case .teleprompter: NotchCapsuleTeleprompterStrip(service: service, size: size)
             case .watch: NotchCapsuleWatchStrip(service: service, size: size)
             case .downloads: NotchCapsuleDownloadStrip(service: service, size: size)
             case .agents: NotchCapsuleAgentStrip(service: service, size: size)
@@ -246,6 +259,7 @@ struct NotchView: View {
             let geometry = service.compactActivityGeometry
             switch activity {
             case .timer: NotchTimerStrip(service: service, displayGeometry: geometry)
+            case .teleprompter: NotchTeleprompterStrip(service: service, displayGeometry: geometry)
             case .watch: NotchWatchStrip(service: service, displayGeometry: geometry)
             case .downloads: NotchDownloadStrip(service: service, displayGeometry: geometry)
             case .agents: NotchAgentStrip(service: service, displayGeometry: geometry)
@@ -600,6 +614,7 @@ struct NotchView: View {
             case .scratchpad: NotchScratchpadView(service: service)
             case .agents: NotchAgentsView(size: pageSize)
             case .watch: NotchWatchView(size: pageSize)
+            case .teleprompter: NotchTeleprompterView(size: pageSize)
             }
         }
     }
@@ -835,6 +850,7 @@ extension NotchModule: PanelOrderItem {
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .agents: return FeatureStrings.notchAgents(language).title
         case .watch: return FeatureStrings.notchWatch(language).title
+        case .teleprompter: return FeatureStrings.teleprompter(language).title
         }
     }
 }

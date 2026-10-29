@@ -91,6 +91,10 @@ enum NotchMirrorContract {
             mascotVisible && (geometry.floats || geometry.restingWingWidth > 0)
         }
         var expanded = false, peeking = false, canFollowPointer = true
+        var selected = NotchModule.timer
+        var teleprompterActivityIsRunning = false
+        var teleprompterPreviewIsActive = false
+        var teleprompterHideFromScreenSharing = true
         var hidesUntilHover = false, hiddenShowsActivity = false, coversMenus = true, showsInCaptures = true
         var outlineEnabled = false, hidesInFullscreen = false
         let openTitle = "Open"
@@ -294,6 +298,16 @@ enum NotchMirrorContract {
         service.syncMirrors()
         suite.expect(!service.mirrors.isEmpty && service.mirrors.values.allSatisfy { $0.host.panel.sharingType == .none },
                      "copies stay out of screenshots with the island")
+        service.showsInCaptures = true
+        service.selected = .teleprompter
+        service.teleprompterActivityIsRunning = true
+        service.syncMirrors()
+        suite.expect(service.mirrors.values.allSatisfy { $0.host.panel.sharingType == .none },
+                     "a running teleprompter stays hidden when its screen-sharing privacy option is on")
+        service.teleprompterHideFromScreenSharing = false
+        service.syncMirrors()
+        suite.expect(service.mirrors.values.allSatisfy { $0.host.panel.sharingType == .readOnly },
+                     "the teleprompter privacy option allows capture when disabled")
         service.running = false
         service.syncMirrors()
         suite.expect(service.mirrors.isEmpty, "a stopped island leaves no copies")

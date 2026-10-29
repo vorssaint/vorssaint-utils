@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
+    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot, teleprompter
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -58,6 +58,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case keyboardBrightnessShortcuts
     case fanControl
     case windowMaximizer
+    case teleprompter
 
     var page: SettingsPage {
         switch self {
@@ -80,6 +81,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .keyboardBrightnessShortcuts: return .shortcuts
         case .fanControl: return .monitor
         case .windowMaximizer: return .windowLayout
+        case .teleprompter: return .teleprompter
         }
     }
 }
@@ -166,6 +168,8 @@ final class SettingsRouter: ObservableObject {
     /// One-shot hint for the Dynamic Island page, so a section of the island
     /// can open its own options. Consumed and cleared on arrival.
     @Published var notchModule: NotchModule?
+    /// One-shot hint to open the Dynamic Island Behavior tab at its Privacy card.
+    @Published var notchPrivacySettingsRequested = false
     /// One-shot hint for the Dynamic Island page to show the companion's tab,
     /// where its settings live. Consumed and cleared on arrival.
     @Published var notchCompanion = false
@@ -388,6 +392,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.monitor)
         case .fanControl:
             return FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl)
+        case .teleprompter:
+            return FeatureSettingsDestination(.teleprompter, sectionAnchor: .teleprompter)
         }
     }
 }
@@ -434,6 +440,7 @@ enum FeatureVisibilitySupport {
         case .notchMascot: return [.notchMascot]
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]
+        case .teleprompter: return [.teleprompter]
         case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support:
             return []
         }

@@ -38,6 +38,7 @@ enum SettingsDirectory {
     /// Shared pages whose tools cover the page without a separate overview row.
     private static let toolOnlyPages: Set<SettingsPage> = [
         .energy, .mouse, .switcher, .dock, .clipboard, .cutPaste, .quickTools, .screenshot,
+        .teleprompter,
     ]
 
     /// Keep the directory's destinations, but show the most useful groups
@@ -443,6 +444,13 @@ enum SettingsDirectory {
                                                  FeatureStrings.radialMenu(language).kindMedia,
                                                  FeatureStrings.radialMenu(language).kindSubmenu,
                                                  FeatureStrings.radialMenu(language).mouseTriggerRequirement]),
+                SettingsDirectoryItem(page: .teleprompter,
+                                      title: FeatureStrings.teleprompter(language).title,
+                                      icon: "waveform.and.mic",
+                                      keywords: [FeatureStrings.teleprompter(language).title,
+                                                 FeatureStrings.teleprompter(language).hubDescription,
+                                                 "teleprompter", "prompter", "speech", "speech recognition",
+                                                 "presentation", "slides", "pptx", "remote prompter", "qr"]),
             ]),
             (categories.app, [
                 SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",

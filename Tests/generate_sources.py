@@ -1438,6 +1438,9 @@ def main():
           + declaration(notch, "    private func cancelRelocation()").replace("private func", "func", 1)
           + "}\n}\n")
     write("NotchMirrors.swift", "import AppKit\nextension NotchMirrorContract {\nfinal class Service: State {\n"
+          + declaration(notch, "    private var screenCaptureSharingType:")
+              .replace("private var", "var", 1)
+              .replace("NotchSupport.showsInCaptures()", "showsInCaptures")
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func syncMirrors()", "    private func mirrorSurface(", "    private func mirrorSideRoom(",
               "    private func closeMirrors()", "    private func updateFullscreenDisplays()",
@@ -1503,6 +1506,7 @@ def main():
           + declaration(notch, "    private func compactMusicTransition(").replace("private func", "func", 1)
           + declaration(notch, "    private func rememberPresentedMusic(").replace("private func", "func", 1)
           + declaration(notch, "    private func switchCompactSelection(").replace("private func", "func", 1)
+          + "func applyScreenCaptureVisibility() {}\n"
           + declaration(notch, "    func refreshPresentation(")
               .replace("NotchSupport.coversMenus()", "UserDefaults.standard.coversMenus")
           + declaration(notch, "    private func applyMenuSpace(").replace("private func", "func", 1)

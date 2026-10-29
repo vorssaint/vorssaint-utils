@@ -239,7 +239,7 @@ final class AppUninstaller: ObservableObject {
 
     func retryHomebrewCheck() {
         guard phase == .results, homebrewCheckFailed, let target else { return }
-        select(appURL: target.url)
+        _ = select(appURL: target.url)
     }
 
     /// Drops the refusal note, for an uninstaller view that opens or closes.

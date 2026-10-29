@@ -171,6 +171,9 @@ enum NotchPresentationRefreshContract {
         var mode = NotchTimerMode.timer
         var session = NotchTimerSession()
         var selected = NotchModule.timer
+        var teleprompterSurfaceSize: CGSize?
+        var teleprompterActivityIsRunning = false
+        var teleprompterFocusNotchEnabled = true
         var captureID: UUID?
         var captureActions: Bool?
         var captureContent: Bool?

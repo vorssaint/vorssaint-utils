@@ -97,6 +97,8 @@ enum NotchDestinationContract {
         var windowHost: Host? = Host()
         var modules: [NotchModule] = []
         var selected = NotchModule.controls
+        var teleprompterCameFromSections = false
+        var teleprompterPreviousModule: NotchModule?
         var selectedMetric: MetricDetailKind?
         var expanded = false
         var showsKeyboardFocus = false
