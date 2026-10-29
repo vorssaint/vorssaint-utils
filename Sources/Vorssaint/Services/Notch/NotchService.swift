@@ -2678,7 +2678,8 @@ final class NotchService: ObservableObject {
             finishMusicDeparture()
             presentedMusic = nil
             if heldMusic != nil { heldMusic = nil }
-            windowHost?.hide(animated: animated, transitionContent: transitionContent)
+            if hiddenAtRestInFullscreen { windowHost?.vanish(animated: animated) }
+            else { windowHost?.hide(animated: animated, transitionContent: transitionContent) }
             removeScreenEdgeClickMonitors()
             return
         }

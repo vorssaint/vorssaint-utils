@@ -119,6 +119,11 @@ enum NotchPresentationRefreshContract {
             hideAnimations.append(animated)
             panel.orderOut(nil)
         }
+        var vanishAnimations: [Bool] = []
+        func vanish(animated: Bool) {
+            vanishAnimations.append(animated)
+            panel.orderOut(nil)
+        }
         var targetSize: CGSize = .zero
         var frame: CGRect = .zero
         var animatingFrame: CGRect?
@@ -557,9 +562,11 @@ enum NotchPresentationRefreshContract {
                      && fullscreenSimulated.panel?.level == NotchPanel.fullscreenLevel,
                      "a simulated island opened by a shortcut yields to the menu bar in fullscreen")
         fullscreenSimulated.collapse()
-        fullscreenSimulated.refreshPresentation(animated: false)
+        fullscreenSimulated.refreshPresentation(animated: true)
         suite.expect(fullscreenSimulated.panel?.isVisible == false,
                      "closing a simulated island in fullscreen hides it again")
+        suite.expect(fullscreenSimulated.windowHost?.vanishAnimations.last == true,
+                     "full screen shrinks a simulated island to its centre as it fades")
         fullscreenSimulated.expanded = true
         fullscreenSimulated.hiddenInFullscreen = false
         fullscreenSimulated.refreshPresentation(animated: false)
