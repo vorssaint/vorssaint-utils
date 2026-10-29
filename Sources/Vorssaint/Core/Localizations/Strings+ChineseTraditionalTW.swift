@@ -1110,6 +1110,8 @@ extension Strings {
         linearScrollName: "線性捲動",
         linearScrollCaption: "無論轉動多快，滑鼠滾輪每一格都捲動相同的距離。觸控式軌跡板不受影響。",
         linearScrollLinesLabel: "每格行數",
+        linearScrollHorizontalSeparate: "獨立設定水平速度",
+        linearScrollHorizontalLinesLabel: "水平每格行數",
         shelfClearOnClose: "關閉時清空",
         shelfClearOnCloseCaption: "只有點按關閉按鈕時才會清空暫存架。自動隱藏或收合時會保留項目。",
         shelfShortcutFinderSelection: "使用快速鍵加入 Finder 所選項目",

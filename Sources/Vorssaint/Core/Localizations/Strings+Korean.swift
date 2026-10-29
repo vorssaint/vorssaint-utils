@@ -1110,6 +1110,8 @@ extension Strings {
         linearScrollName: "선형 스크롤",
         linearScrollCaption: "마우스 휠을 얼마나 빨리 돌리든 한 칸마다 항상 같은 거리만큼 스크롤합니다. 트랙패드는 변경되지 않습니다.",
         linearScrollLinesLabel: "한 칸당 줄 수",
+        linearScrollHorizontalSeparate: "가로 속도 따로 설정",
+        linearScrollHorizontalLinesLabel: "가로 한 칸당 줄 수",
         shelfClearOnClose: "닫을 때 항목 지우기",
         shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다.",
         shelfShortcutFinderSelection: "단축키로 Finder 선택 항목 추가",

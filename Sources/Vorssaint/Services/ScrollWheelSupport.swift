@@ -436,6 +436,14 @@ extension ScrollWheelSupport {
         return sanitizedLinesPerNotch(defaults.integer(forKey: DefaultsKey.linearScrollLines))
     }
 
+    /// Lines per notch for a wheel that scrolls sideways, such as a tilt or
+    /// thumb wheel. It follows the vertical count unless set apart. Shift and
+    /// the sideways shortcut turn the vertical wheel, so they keep its count.
+    static func linearHorizontalLinesPerNotch(defaults: UserDefaults, vertical: Int) -> Int {
+        guard defaults.bool(forKey: DefaultsKey.linearScrollHorizontalSeparate) else { return vertical }
+        return sanitizedLinesPerNotch(defaults.integer(forKey: DefaultsKey.linearScrollHorizontalLines))
+    }
+
     /// Clamps the persisted value to its allowed range (0 or garbage falls
     /// back to the default).
     static func sanitizedLinesPerNotch(_ value: Int) -> Int {

@@ -1109,6 +1109,8 @@ extension Strings {
         linearScrollName: "线性滚动",
         linearScrollCaption: "无论转动多快，鼠标滚轮每一格都滚动相同的距离。触控板不受影响。",
         linearScrollLinesLabel: "每格行数",
+        linearScrollHorizontalSeparate: "单独设置水平速度",
+        linearScrollHorizontalLinesLabel: "水平每格行数",
         shelfClearOnClose: "关闭时清空",
         shelfClearOnCloseCaption: "仅在点按关闭按钮时清空暂存架。自动隐藏或收起时会保留项目。",
         shelfShortcutFinderSelection: "使用快捷键添加访达中的所选项",

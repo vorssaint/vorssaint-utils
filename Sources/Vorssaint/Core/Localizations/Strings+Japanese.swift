@@ -1109,6 +1109,8 @@ extension Strings {
         linearScrollName: "リニアスクロール",
         linearScrollCaption: "マウスホイールの1目盛りで、回す速さに関係なく常に同じ距離をスクロールします。トラックパッドは変わりません。",
         linearScrollLinesLabel: "1目盛りあたりの行数",
+        linearScrollHorizontalSeparate: "横スクロールの速度を個別に設定",
+        linearScrollHorizontalLinesLabel: "横方向の1目盛りあたりの行数",
         shelfClearOnClose: "閉じるときに項目を消去",
         shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。",
         shelfShortcutFinderSelection: "ショートカットで Finder の選択項目を追加",

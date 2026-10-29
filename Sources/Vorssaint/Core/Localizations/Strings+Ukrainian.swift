@@ -1079,6 +1079,8 @@ extension Strings {
         linearScrollName: "Лінійна прокрутка",
         linearScrollCaption: "Кожен клац колеса миші прокручує однакову відстань, хоч як швидко воно обертається. Трекпед не змінюється.",
         linearScrollLinesLabel: "Рядків на клац",
+        linearScrollHorizontalSeparate: "Окрема швидкість по горизонталі",
+        linearScrollHorizontalLinesLabel: "Рядків на клац по горизонталі",
         shelfClearOnClose: "Очищати при закритті",
         shelfClearOnCloseCaption: "Спорожнює полицю лише після натискання кнопки закриття. Автоматичне приховування та згортання зберігають елементи.",
         shelfShortcutFinderSelection: "Додавати вибране у Finder клавіатурним скороченням",

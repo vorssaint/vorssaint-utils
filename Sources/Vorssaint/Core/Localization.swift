@@ -1315,6 +1315,8 @@ struct Strings {
     let linearScrollName: String
     let linearScrollCaption: String
     let linearScrollLinesLabel: String
+    let linearScrollHorizontalSeparate: String
+    let linearScrollHorizontalLinesLabel: String
     let shelfClearOnClose: String
     let shelfClearOnCloseCaption: String
     let shelfShortcutFinderSelection: String
@@ -2433,6 +2435,8 @@ extension Strings {
         linearScrollName: "Rolagem linear",
         linearScrollCaption: "Cada passo da rodinha do mouse rola a mesma distância, não importa a velocidade do giro. O trackpad não muda.",
         linearScrollLinesLabel: "Linhas por passo",
+        linearScrollHorizontalSeparate: "Velocidade horizontal separada",
+        linearScrollHorizontalLinesLabel: "Linhas horizontais por passo",
         shelfClearOnClose: "Limpar ao fechar",
         shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens.",
         shelfShortcutFinderSelection: "Adicionar a seleção do Finder com o atalho",
@@ -3552,6 +3556,8 @@ extension Strings {
         linearScrollName: "Linear scrolling",
         linearScrollCaption: "Every notch of the mouse wheel scrolls the same distance, no matter how fast it spins. The trackpad is not affected.",
         linearScrollLinesLabel: "Lines per step",
+        linearScrollHorizontalSeparate: "Separate horizontal speed",
+        linearScrollHorizontalLinesLabel: "Horizontal lines per step",
         shelfClearOnClose: "Clear when closed",
         shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items.",
         shelfShortcutFinderSelection: "Add the Finder selection with the shortcut",

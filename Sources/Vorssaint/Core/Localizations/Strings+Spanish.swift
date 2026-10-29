@@ -1109,6 +1109,8 @@ extension Strings {
         linearScrollName: "Desplazamiento lineal",
         linearScrollCaption: "Cada paso de la rueda del ratón desplaza la misma distancia, sin importar la velocidad del giro. El trackpad no cambia.",
         linearScrollLinesLabel: "Líneas por paso",
+        linearScrollHorizontalSeparate: "Velocidad horizontal independiente",
+        linearScrollHorizontalLinesLabel: "Líneas horizontales por paso",
         shelfClearOnClose: "Borrar al cerrar",
         shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems.",
         shelfShortcutFinderSelection: "Añadir la selección del Finder con el atajo",
