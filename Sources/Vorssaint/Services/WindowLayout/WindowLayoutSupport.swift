@@ -36,6 +36,10 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case topLeft, topRight, bottomLeft, bottomRight
     case maximize, marginMaximize, fullScreen, center
     case previousDisplay, nextDisplay, restore
+    case customZone1, customZone2, customZone3, customZone4, customZone5
+    case customZone6, customZone7, customZone8, customZone9
+    case focusZonePrevious, focusZoneNext
+    case customZoneLeft, customZoneRight, customZoneUp, customZoneDown
 
     var id: String { rawValue }
 
@@ -50,6 +54,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .topLeft, .topRight, .bottomLeft, .bottomRight,
         .maximize, .marginMaximize, .fullScreen, .center, .restore,
         .previousDisplay, .nextDisplay,
+         .customZoneLeft, .customZoneRight, .customZoneUp, .customZoneDown,
+         .focusZonePrevious, .focusZoneNext,
     ]
 
     var supportsShortcut: Bool {
@@ -58,7 +64,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
 
     var targetCapability: WindowLayoutTargetCapability {
         switch self {
-        case .center, .restore:
+        case .center, .restore, .focusZonePrevious, .focusZoneNext:
             return .position
         case .fullScreen:
             return .fullScreen
@@ -112,12 +118,57 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftMiddleQuarter: return 68
         case .rightMiddleQuarter: return 69
         case .rightQuarter: return 70
+        case .customZone1: return 71
+        case .customZone2: return 72
+        case .customZone3: return 73
+        case .customZone4: return 74
+        case .customZone5: return 75
+        case .customZone6: return 76
+        case .customZone7: return 77
+        case .customZone8: return 78
+        case .customZone9: return 79
+        case .focusZonePrevious: return 80
+        case .focusZoneNext: return 81
+        case .customZoneLeft: return 82
+        case .customZoneRight: return 83
+        case .customZoneUp: return 84
+        case .customZoneDown: return 85
         }
     }
 
     init?(shortcutID: UInt32) {
         guard let action = Self.allCases.first(where: { $0.shortcutID == shortcutID }) else { return nil }
         self = action
+    }
+
+    /// Zero-based zone index for the assign-to-zone actions, nil for the rest.
+    var customZoneIndex: Int? {
+        switch self {
+        case .customZone1: return 0
+        case .customZone2: return 1
+        case .customZone3: return 2
+        case .customZone4: return 3
+        case .customZone5: return 4
+        case .customZone6: return 5
+        case .customZone7: return 6
+        case .customZone8: return 7
+        case .customZone9: return 8
+        default: return nil
+        }
+    }
+
+    var customZoneDirection: WindowCustomZoneDirection? {
+        switch self {
+        case .customZoneLeft: return .left
+        case .customZoneRight: return .right
+        case .customZoneUp: return .up
+        case .customZoneDown: return .down
+        default: return nil
+        }
+    }
+
+    var isCustomZoneDirectional: Bool {
+        customZoneDirection != nil
     }
 
     var shortcutKey: String {
@@ -163,6 +214,21 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomLeftSixth: return DefaultsKey.windowLayoutShortcutBottomLeftSixth
         case .bottomCenterSixth: return DefaultsKey.windowLayoutShortcutBottomCenterSixth
         case .bottomRightSixth: return DefaultsKey.windowLayoutShortcutBottomRightSixth
+        case .customZone1: return DefaultsKey.windowLayoutShortcutCustomZone1
+        case .customZone2: return DefaultsKey.windowLayoutShortcutCustomZone2
+        case .customZone3: return DefaultsKey.windowLayoutShortcutCustomZone3
+        case .customZone4: return DefaultsKey.windowLayoutShortcutCustomZone4
+        case .customZone5: return DefaultsKey.windowLayoutShortcutCustomZone5
+        case .customZone6: return DefaultsKey.windowLayoutShortcutCustomZone6
+        case .customZone7: return DefaultsKey.windowLayoutShortcutCustomZone7
+        case .customZone8: return DefaultsKey.windowLayoutShortcutCustomZone8
+        case .customZone9: return DefaultsKey.windowLayoutShortcutCustomZone9
+        case .focusZonePrevious: return DefaultsKey.windowLayoutShortcutFocusZonePrevious
+        case .focusZoneNext: return DefaultsKey.windowLayoutShortcutFocusZoneNext
+        case .customZoneLeft: return DefaultsKey.windowLayoutShortcutCustomZoneLeft
+        case .customZoneRight: return DefaultsKey.windowLayoutShortcutCustomZoneRight
+        case .customZoneUp: return DefaultsKey.windowLayoutShortcutCustomZoneUp
+        case .customZoneDown: return DefaultsKey.windowLayoutShortcutCustomZoneDown
         }
     }
 
@@ -193,9 +259,20 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
                 .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
                 .topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter,
                 .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
-                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds:
+                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds,
+                .customZone1, .customZone2, .customZone3, .customZone4, .customZone5,
+                .customZone6, .customZone7, .customZone8, .customZone9,
+                .focusZonePrevious, .focusZoneNext:
             // New actions must never claim a system-wide combination unasked.
             return nil
+        case .customZoneLeft:
+            return .windowLayoutCustomZoneLeftDefault
+        case .customZoneRight:
+            return .windowLayoutCustomZoneRightDefault
+        case .customZoneUp:
+            return .windowLayoutCustomZoneUpDefault
+        case .customZoneDown:
+            return .windowLayoutCustomZoneDownDefault
         }
     }
 
@@ -278,6 +355,21 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomRightSixth: return text.bottomRightSixth
         case .previousDisplay: return text.previousDisplay
         case .nextDisplay: return text.nextDisplay
+        case .customZone1: return String(format: text.customZoneFormat, 1)
+        case .customZone2: return String(format: text.customZoneFormat, 2)
+        case .customZone3: return String(format: text.customZoneFormat, 3)
+        case .customZone4: return String(format: text.customZoneFormat, 4)
+        case .customZone5: return String(format: text.customZoneFormat, 5)
+        case .customZone6: return String(format: text.customZoneFormat, 6)
+        case .customZone7: return String(format: text.customZoneFormat, 7)
+        case .customZone8: return String(format: text.customZoneFormat, 8)
+        case .customZone9: return String(format: text.customZoneFormat, 9)
+        case .focusZonePrevious: return text.focusZonePrevious
+        case .focusZoneNext: return text.focusZoneNext
+        case .customZoneLeft: return text.leftHalf
+        case .customZoneRight: return text.rightHalf
+        case .customZoneUp: return text.topHalf
+        case .customZoneDown: return text.bottomHalf
         }
     }
 
@@ -320,6 +412,15 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .previousDisplay: return "arrow.left.to.line"
         case .nextDisplay: return "arrow.right.to.line"
         case .restore: return "arrow.uturn.backward"
+        case .customZone1, .customZone2, .customZone3, .customZone4, .customZone5,
+                .customZone6, .customZone7, .customZone8, .customZone9:
+            return "rectangle.3.group"
+        case .focusZonePrevious: return "arrow.left.circle"
+        case .focusZoneNext: return "arrow.right.circle"
+        case .customZoneLeft: return "arrow.left"
+        case .customZoneRight: return "arrow.right"
+        case .customZoneUp: return "arrow.up"
+        case .customZoneDown: return "arrow.down"
         }
     }
 }
@@ -735,6 +836,13 @@ enum WindowLayoutGeometry {
             return current.integral
         case .restore:
             return current.integral
+        case .customZone1, .customZone2, .customZone3, .customZone4, .customZone5,
+                .customZone6, .customZone7, .customZone8, .customZone9,
+                .focusZonePrevious, .focusZoneNext,
+                .customZoneLeft, .customZoneRight, .customZoneUp, .customZoneDown:
+            // Zone rectangles come from the per-display layout, never from
+            // this preset table; the service resolves them before placement.
+            return current.integral
         case .fullScreen:
             // Handled by the system, not by a frame.
             return current.integral
@@ -747,7 +855,10 @@ enum WindowLayoutGeometry {
                              visibleFrame: CGRect) -> CGRect {
         guard action != .maximize, action != .restore,
               action != .previousDisplay, action != .nextDisplay,
-              action != .fullScreen else { return targetRect.integral }
+              action != .fullScreen, action.customZoneIndex == nil,
+              action.customZoneDirection == nil,
+              action != .focusZonePrevious, action != .focusZoneNext
+        else { return targetRect.integral }
 
         let size = CGSize(width: max(1, actualSize.width),
                           height: max(1, actualSize.height))
@@ -812,6 +923,11 @@ enum WindowLayoutGeometry {
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.midY - size.height / 2
         case .maximize, .previousDisplay, .nextDisplay, .restore, .fullScreen:
+            break
+        case .customZone1, .customZone2, .customZone3, .customZone4, .customZone5,
+                .customZone6, .customZone7, .customZone8, .customZone9,
+                .focusZonePrevious, .focusZoneNext,
+                .customZoneLeft, .customZoneRight, .customZoneUp, .customZoneDown:
             break
         }
 
@@ -916,6 +1032,11 @@ enum WindowLayoutGeometry {
                 && abs(actualRect.minY - targetRect.minY) <= anchorTolerance
                 && overlap > 0.35
         case .maximize:
+            return overlap > 0.90
+        case .customZone1, .customZone2, .customZone3, .customZone4, .customZone5,
+                .customZone6, .customZone7, .customZone8, .customZone9,
+                .focusZonePrevious, .focusZoneNext,
+                .customZoneLeft, .customZoneRight, .customZoneUp, .customZoneDown:
             return overlap > 0.90
         case .marginMaximize:
             return abs(actualRect.midX - targetRect.midX) <= anchorTolerance

@@ -765,6 +765,9 @@ enum DefaultsKey {
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
     static let windowEdgeSnapDisabledZones = "windowEdgeSnapDisabledZones" // comma-separated visual zone ids
     static let windowEdgeSnapZoneActions = "windowEdgeSnapZoneActions" // zone=action entries, + between split areas
+    static let windowCustomZonesEnabled = "windowCustomZonesEnabled"
+    static let windowCustomZonesFancyZonesMode = "windowCustomZonesFancyZonesMode"
+    static let windowCustomZoneLayouts = "windowCustomZoneLayouts" // display UUID -> normalised tile rectangles
     static let windowGestureEnabled = "windowGestureEnabled"
     static let windowGestureModifiers = "windowGestureModifiers"
     static let windowGestureRaiseWindow = "windowGestureRaiseWindow"
@@ -809,6 +812,21 @@ enum DefaultsKey {
     static let windowLayoutShortcutBottomLeftSixth = "windowLayoutShortcutBottomLeftSixth"
     static let windowLayoutShortcutBottomCenterSixth = "windowLayoutShortcutBottomCenterSixth"
     static let windowLayoutShortcutBottomRightSixth = "windowLayoutShortcutBottomRightSixth"
+    static let windowLayoutShortcutCustomZone1 = "windowLayoutShortcutCustomZone1"
+    static let windowLayoutShortcutCustomZone2 = "windowLayoutShortcutCustomZone2"
+    static let windowLayoutShortcutCustomZone3 = "windowLayoutShortcutCustomZone3"
+    static let windowLayoutShortcutCustomZone4 = "windowLayoutShortcutCustomZone4"
+    static let windowLayoutShortcutCustomZone5 = "windowLayoutShortcutCustomZone5"
+    static let windowLayoutShortcutCustomZone6 = "windowLayoutShortcutCustomZone6"
+    static let windowLayoutShortcutCustomZone7 = "windowLayoutShortcutCustomZone7"
+    static let windowLayoutShortcutCustomZone8 = "windowLayoutShortcutCustomZone8"
+    static let windowLayoutShortcutCustomZone9 = "windowLayoutShortcutCustomZone9"
+    static let windowLayoutShortcutFocusZonePrevious = "windowLayoutShortcutFocusZonePrevious"
+    static let windowLayoutShortcutFocusZoneNext = "windowLayoutShortcutFocusZoneNext"
+    static let windowLayoutShortcutCustomZoneLeft = "windowLayoutShortcutCustomZoneLeft"
+    static let windowLayoutShortcutCustomZoneRight = "windowLayoutShortcutCustomZoneRight"
+    static let windowLayoutShortcutCustomZoneUp = "windowLayoutShortcutCustomZoneUp"
+    static let windowLayoutShortcutCustomZoneDown = "windowLayoutShortcutCustomZoneDown"
 
     // Text snippets: type a trigger, get the expansion.
     static let textSnippetsEnabled = "textSnippetsEnabled"
@@ -1962,6 +1980,9 @@ enum Defaults {
         DefaultsKey.windowEdgeSnapEnabled: false,
         DefaultsKey.windowEdgeSnapDisabledZones: "",
         DefaultsKey.windowEdgeSnapZoneActions: "",
+        DefaultsKey.windowCustomZonesEnabled: false,
+        DefaultsKey.windowCustomZonesFancyZonesMode: false,
+        DefaultsKey.windowCustomZoneLayouts: "",
         DefaultsKey.windowGestureEnabled: false,
         DefaultsKey.windowGestureModifiers: WindowGestureSupport.defaultModifierStorageValue,
         DefaultsKey.windowGestureRaiseWindow: false,
@@ -2005,6 +2026,17 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomLeftSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutCustomZone1: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutCustomZone2: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutCustomZone3: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutCustomZone4: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutCustomZone5: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutCustomZone6: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutCustomZone7: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutCustomZone8: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutCustomZone9: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutFocusZonePrevious: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutFocusZoneNext: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
     ]
 

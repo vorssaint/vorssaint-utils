@@ -19,6 +19,9 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowEdgeSnapEnabled) private var edgeSnapEnabled = false
     @AppStorage(DefaultsKey.windowEdgeSnapDisabledZones) private var edgeSnapDisabledZones = ""
     @AppStorage(DefaultsKey.windowEdgeSnapZoneActions) private var edgeSnapZoneActions = ""
+    @AppStorage(DefaultsKey.windowCustomZonesEnabled) private var customZonesEnabled = false
+    @AppStorage(DefaultsKey.windowCustomZonesFancyZonesMode) private var fancyZonesMode = false
+    @AppStorage(DefaultsKey.windowCustomZoneLayouts) private var customZoneLayouts = ""
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
@@ -127,6 +130,33 @@ struct WindowLayoutSettings: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Toggle(text.gestureRaiseWindow, isOn: $gestureRaiseWindow)
+                    }
+                }
+
+                Section(WindowCustomZoneStrings.localized(l10n.language).section) {
+                    Toggle(WindowCustomZoneStrings.localized(l10n.language).enabled,
+                           isOn: $customZonesEnabled)
+                        .onChange(of: customZonesEnabled) { _, _ in
+                            service.syncWithPreferences()
+                        }
+                    if customZonesEnabled {
+                        Toggle(WindowCustomZoneStrings.localized(l10n.language).fancyZonesMode,
+                               isOn: $fancyZonesMode)
+                            .onChange(of: fancyZonesMode) { _, _ in
+                                service.syncWithPreferences()
+                            }
+                    }
+                    Text(WindowCustomZoneStrings.localized(l10n.language).instructions)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if customZonesEnabled && fancyZonesMode {
+                        Button(WindowCustomZoneStrings.localized(l10n.language).showLayout) {
+                            service.toggleCustomZonePreview()
+                        }
+                        .controlSize(.small)
+                        ForEach(Array(NSScreen.screens.enumerated()), id: \.offset) { _, screen in
+                            WindowCustomZoneEditor(screen: screen, storageValue: $customZoneLayouts)
+                        }
                     }
                 }
 
@@ -357,6 +387,9 @@ struct WindowLayoutSettings: View {
     private static let cornerActions: [WindowLayoutAction] = [
         .topLeft, .topRight, .bottomLeft, .bottomRight,
     ]
+    private static let customZoneActions: [WindowLayoutAction] = [
+        .customZoneLeft, .customZoneRight, .customZoneUp, .customZoneDown,
+    ]
 
     /// The placement families, grouped so the form body stays within the
     /// ten-view ViewBuilder limit.
@@ -376,6 +409,9 @@ struct WindowLayoutSettings: View {
         actionSection(text.quarterColumns, Self.quarterColumnActions)
         actionSection(text.sixths, Self.sixthActions)
         actionSection(text.corners, Self.cornerActions)
+        if customZonesEnabled {
+            actionSection(text.customZoneShortcuts, Self.customZoneActions)
+        }
     }
 
     /// One section per placement family. Building the rows from an array keeps

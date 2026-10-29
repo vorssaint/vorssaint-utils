@@ -308,7 +308,11 @@ extension WindowLayoutFeatureStrings {
         gapSmall: "작게",
         gapMedium: "중간",
         gapLarge: "크게",
-        gapExtraLarge: "아주 크게"
+gapExtraLarge: "아주 크게",
+        customZoneShortcuts: "영역 단축키",
+        customZoneFormat: "영역 %d",
+        focusZonePrevious: "이전 영역으로 포커스",
+        focusZoneNext: "다음 영역으로 포커스"
     )
 }
 
@@ -1490,6 +1494,10 @@ struct WindowLayoutFeatureStrings {
     let gapMedium: String
     let gapLarge: String
     let gapExtraLarge: String
+    let customZoneShortcuts: String
+    let customZoneFormat: String
+    let focusZonePrevious: String
+    let focusZoneNext: String
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -1581,7 +1589,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Small",
         gapMedium: "Medium",
         gapLarge: "Large",
-        gapExtraLarge: "Extra large"
+gapExtraLarge: "Extra large",
+        customZoneShortcuts: "Zone shortcuts",
+        customZoneFormat: "Zone %d",
+        focusZonePrevious: "Focus previous zone",
+        focusZoneNext: "Focus next zone"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1674,7 +1686,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Pequeno",
         gapMedium: "Médio",
         gapLarge: "Grande",
-        gapExtraLarge: "Extragrande"
+gapExtraLarge: "Extragrande",
+        customZoneShortcuts: "Atalhos de áreas",
+        customZoneFormat: "Área %d",
+        focusZonePrevious: "Focar área anterior",
+        focusZoneNext: "Focar próxima área"
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1767,7 +1783,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Küçük",
         gapMedium: "Orta",
         gapLarge: "Büyük",
-        gapExtraLarge: "Çok büyük"
+gapExtraLarge: "Çok büyük",
+        customZoneShortcuts: "Bölge kısayolları",
+        customZoneFormat: "%d. bölge",
+        focusZonePrevious: "Önceki bölgeye odaklan",
+        focusZoneNext: "Sonraki bölgeye odaklan"
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1860,7 +1880,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Маленький",
         gapMedium: "Средний",
         gapLarge: "Большой",
-        gapExtraLarge: "Очень большой"
+gapExtraLarge: "Очень большой",
+        customZoneShortcuts: "Горячие клавиши областей",
+        customZoneFormat: "Область %d",
+        focusZonePrevious: "Фокус на предыдущую область",
+        focusZoneNext: "Фокус на следующую область"
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1953,7 +1977,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Pequeño",
         gapMedium: "Mediano",
         gapLarge: "Grande",
-        gapExtraLarge: "Extragrande"
+gapExtraLarge: "Extragrande",
+        customZoneShortcuts: "Atajos de zonas",
+        customZoneFormat: "Zona %d",
+        focusZonePrevious: "Enfocar zona anterior",
+        focusZoneNext: "Enfocar siguiente zona"
     )
 
     static let sk = WindowLayoutFeatureStrings(
@@ -2046,7 +2074,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Malá",
         gapMedium: "Stredná",
         gapLarge: "Veľká",
-        gapExtraLarge: "Extra veľká"
+gapExtraLarge: "Extra veľká",
+        customZoneShortcuts: "Skratky zón",
+        customZoneFormat: "Zóna %d",
+        focusZonePrevious: "Zamerať na predchádzajúcu zónu",
+        focusZoneNext: "Zamerať na ďalšiu zónu"
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -2139,7 +2171,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Klein",
         gapMedium: "Mittel",
         gapLarge: "Groß",
-        gapExtraLarge: "Sehr groß"
+gapExtraLarge: "Sehr groß",
+        customZoneShortcuts: "Zonen-Verknüpfungen",
+        customZoneFormat: "Zone %d",
+        focusZonePrevious: "Vorherige Zone fokussieren",
+        focusZoneNext: "Nächste Zone fokussieren"
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -2232,7 +2268,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Petit",
         gapMedium: "Moyen",
         gapLarge: "Grand",
-        gapExtraLarge: "Très grand"
+gapExtraLarge: "Très grand",
+        customZoneShortcuts: "Raccourcis des zones",
+        customZoneFormat: "Zone %d",
+        focusZonePrevious: "Focus sur la zone précédente",
+        focusZoneNext: "Focus sur la zone suivante"
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -2325,7 +2365,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Piccolo",
         gapMedium: "Medio",
         gapLarge: "Grande",
-        gapExtraLarge: "Molto grande"
+gapExtraLarge: "Molto grande",
+        customZoneShortcuts: "Scorciatoie zone",
+        customZoneFormat: "Zona %d",
+        focusZonePrevious: "Focus sulla zona precedente",
+        focusZoneNext: "Focus sulla zona successiva"
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -2418,7 +2462,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+gapExtraLarge: "特大",
+        customZoneShortcuts: "領域ショートカット",
+        customZoneFormat: "領域 %d",
+        focusZonePrevious: "前の領域にフォーカス",
+        focusZoneNext: "次の領域にフォーカス"
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -2511,7 +2559,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+gapExtraLarge: "特大",
+        customZoneShortcuts: "区域快捷键",
+        customZoneFormat: "区域 %d",
+        focusZonePrevious: "聚焦上一个区域",
+        focusZoneNext: "聚焦下一个区域"
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -2604,7 +2656,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+gapExtraLarge: "特大",
+        customZoneShortcuts: "區域快捷鍵",
+        customZoneFormat: "區域 %d",
+        focusZonePrevious: "聚焦上一個區域",
+        focusZoneNext: "聚焦下一個區域"
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -2697,7 +2753,11 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+gapExtraLarge: "特大",
+        customZoneShortcuts: "區域快捷鍵",
+        customZoneFormat: "區域 %d",
+        focusZonePrevious: "聚焦上一個區域",
+        focusZoneNext: "聚焦下一個區域"
     )
 }
 
@@ -3361,7 +3421,11 @@ extension WindowLayoutFeatureStrings {
         gapSmall: "Малий",
         gapMedium: "Середній",
         gapLarge: "Великий",
-        gapExtraLarge: "Дуже великий"
+gapExtraLarge: "Дуже великий",
+        customZoneShortcuts: "Гарячі клавіші зон",
+        customZoneFormat: "Зона %d",
+        focusZonePrevious: "Фокус на попередню зону",
+        focusZoneNext: "Фокус на наступну зону"
     )
 }
 

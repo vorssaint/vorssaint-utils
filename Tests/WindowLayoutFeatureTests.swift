@@ -15,6 +15,7 @@ enum WindowLayoutFeatureTests {
     static func run(_ suite: TestSuite) {
         WindowStageManagerTests.run(suite)
         WindowStageManagerMaximizerTests.run(suite)
+        customZoneTests(suite)
         WindowDirectionalModifierRuntimeTests.run(suite)
         WindowEdgeSnapRuntimeTests.run(suite)
         WindowGestureApplyRuntimeTests.run(suite)
@@ -348,7 +349,11 @@ enum WindowLayoutFeatureTests {
         suite.expect(WindowLayoutAction.resolvedShortcut(storedValue: nil, defaultShortcut: nil) == nil,
                "a window layout action without a default shortcut stays unassigned")
         suite.expect(WindowLayoutAction.resolvedShortcut(storedValue: "garbage-value", defaultShortcut: nil) == nil,
-               "a corrupt shortcut cannot assign an action that has no default")
+                "a corrupt shortcut cannot assign an action that has no default")
+        let customZoneShortcut = GlobalShortcut(storageValue: "control+command:18")
+        suite.expect(customZoneShortcut?.isValid == true
+                && customZoneShortcut?.storageValue == "control+command:18",
+                "a custom-zone shortcut round-trips its persisted key and modifiers")
 
         // MARK: Window layout restore history (issue #414)
 
@@ -1193,8 +1198,14 @@ enum WindowLayoutFeatureTests {
                                                        destinationVisibleFrame: portraitFrame)
                     == portraitWindow,
                "display transfer keeps size and edge insets across rotated frames")
-        suite.expect(WindowLayoutAction.shortcutActions.count == WindowLayoutAction.allCases.count,
-               "every window layout action can register a global shortcut")
+        let fixedZoneActions: [WindowLayoutAction] = [
+            .customZone1, .customZone2, .customZone3, .customZone4, .customZone5,
+            .customZone6, .customZone7, .customZone8, .customZone9,
+        ]
+        suite.expect(WindowLayoutAction.shortcutActions.count
+                == WindowLayoutAction.allCases.count - fixedZoneActions.count
+                && fixedZoneActions.allSatisfy { !$0.supportsShortcut },
+                "custom zones use directional shortcuts instead of fixed-zone registration")
         suite.expect(WindowLayoutAction.shortcutActions.contains(.previousDisplay)
                 && WindowLayoutAction.shortcutActions.contains(.nextDisplay),
                "both display directions can register a global shortcut")
@@ -1626,5 +1637,196 @@ enum WindowLayoutFeatureTests {
                                             anchorTolerance: 36) == false,
                "window layout margin maximize rejects a merely centered small window")
 
+    }
+
+    private static func customZoneTests(_ suite: TestSuite) {
+        for language in AppLanguage.allCases {
+            let strings = WindowCustomZoneStrings.localized(language)
+            let labels = [strings.section, strings.enabled, strings.fancyZonesMode, strings.showLayout,
+                          strings.instructions, strings.preset,
+                          strings.twoColumns, strings.threeColumns, strings.fourColumns,
+                          strings.fourTiles, strings.sixTiles, strings.tile, strings.addTile,
+                          strings.remove, strings.left, strings.top, strings.width, strings.height]
+            suite.expect(labels.allSatisfy { !$0.isEmpty } &&
+                         strings.editTile.contains("%d") && strings.tilePreview.contains("%@"),
+                         "custom tiles labels and accessibility formats exist in \(language.rawValue)")
+        }
+        var layouts = WindowCustomZoneLayouts(storageValue: nil)
+        suite.expect(layouts.zones(for: "ultrawide", aspectRatio: 3.55).count == 3
+                && layouts.zones(for: "laptop", aspectRatio: 1.6).count == 2,
+                     "custom tile defaults adapt to the display's aspect ratio")
+        let custom = [
+            WindowCustomZone(x: 0, y: 0, width: 0.6, height: 1),
+            WindowCustomZone(x: 0.6, y: 0, width: 0.4, height: 0.5),
+            WindowCustomZone(x: 0.6, y: 0.5, width: 0.4, height: 0.5),
+        ]
+        layouts.set(custom, for: "ultrawide")
+        let restored = WindowCustomZoneLayouts(storageValue: layouts.storageValue)
+        suite.expect(restored.zones(for: "ultrawide", aspectRatio: 3.55) == custom
+                && restored.zones(for: "laptop", aspectRatio: 1.6).count == 2,
+                     "display UUIDs preserve separate layouts after reload")
+
+        let wide = WindowCustomZoneScreen(id: "ultrawide",
+                                          visibleFrame: CGRect(x: 0, y: 0, width: 5120, height: 1380))
+        let laptop = WindowCustomZoneScreen(id: "laptop",
+                                            visibleFrame: CGRect(x: -1512, y: 0, width: 1512, height: 940))
+        let wideTarget = WindowCustomZoneLayouts.target(
+            at: CGPoint(x: 4000, y: 100), screens: [wide, laptop], layouts: restored)
+        let laptopTarget = WindowCustomZoneLayouts.target(
+            at: CGPoint(x: -1200, y: 400), screens: [wide, laptop], layouts: restored)
+        suite.expect(wideTarget?.displayID == "ultrawide" && wideTarget?.index == 2
+                && laptopTarget?.displayID == "laptop" && laptopTarget?.index == 0,
+                     "cross-monitor pointer coordinates select only the destination display's zones")
+        let bad = WindowCustomZone(x: 0.8, y: 0, width: 0.6, height: 1)
+        layouts.set([bad], for: "ultrawide")
+        suite.expect(WindowCustomZoneLayouts(storageValue: layouts.storageValue)
+                        .zones(for: "ultrawide", aspectRatio: 3.55) == custom,
+                     "invalid tile rectangles cannot overwrite a saved layout")
+        suite.expect(WindowCustomZoneLayouts(storageValue: #"{"ultrawide":[{"x":0,"y":0,"width":1.5,"height":1}]}"#)
+                        .zones(for: "ultrawide", aspectRatio: 3.55).count == 3,
+                     "invalid saved geometry falls back to an accessible default layout")
+
+        let zoneActions: [WindowLayoutAction] = [
+            .customZone1, .customZone2, .customZone3, .customZone4, .customZone5,
+            .customZone6, .customZone7, .customZone8, .customZone9,
+            .focusZonePrevious, .focusZoneNext,
+        ]
+        suite.expect(Set(zoneActions.map(\.shortcutID)).count == zoneActions.count
+                && Set(zoneActions.map(\.shortcutKey)).count == zoneActions.count
+                && zoneActions.allSatisfy { WindowLayoutAction(shortcutID: $0.shortcutID) == $0 },
+                     "zone actions own unique shortcut ids and keys that round-trip")
+        suite.expect(zoneActions.allSatisfy { $0.defaultShortcut == nil }
+                && WindowLayoutAction.resolvedShortcut(storedValue: nil, defaultShortcut: nil) == nil,
+                     "zone actions never claim a system-wide shortcut unasked")
+        let directionalActions: [WindowLayoutAction] = [
+            .customZoneLeft, .customZoneRight, .customZoneUp, .customZoneDown,
+        ]
+        suite.expect(Set(directionalActions.map(\.shortcutID)).count == directionalActions.count
+                && directionalActions.allSatisfy { WindowLayoutAction.shortcutActions.contains($0) }
+                && !WindowLayoutAction.shortcutActions.contains(.customZone1),
+                     "custom zones expose directional shortcuts instead of fixed zone shortcuts")
+        suite.expect(directionalActions.map(\.defaultShortcut) == [
+            .windowLayoutCustomZoneLeftDefault,
+            .windowLayoutCustomZoneRightDefault,
+            .windowLayoutCustomZoneUpDefault,
+            .windowLayoutCustomZoneDownDefault,
+        ], "directional custom-zone shortcuts use the four arrow directions")
+        suite.expect(directionalActions.allSatisfy(\.isCustomZoneDirectional),
+                     "directional custom-zone actions are isolated behind FancyZones mode")
+        suite.expect(Array(0...8) == [WindowLayoutAction.customZone1, .customZone2, .customZone3,
+                .customZone4, .customZone5, .customZone6, .customZone7, .customZone8, .customZone9]
+                .map { $0.customZoneIndex! }
+                && WindowLayoutAction.leftHalf.customZoneIndex == nil,
+                     "assign-to-zone actions map to zero-based zone indices")
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.windowLayout(language)
+            suite.expect(!strings.customZoneShortcuts.isEmpty
+                    && strings.customZoneFormat.contains("%d")
+                    && !strings.focusZonePrevious.isEmpty && !strings.focusZoneNext.isEmpty,
+                         "zone shortcut labels exist in \(language.rawValue)")
+        }
+
+        let laptopFrame = CGRect(x: -1512, y: 0, width: 1512, height: 940)
+        let thirds = WindowCustomZoneLayouts.columns(3)
+        suite.expect(WindowCustomZoneLayouts.zoneIndex(
+                        containingCenterOf: CGRect(x: -1512 + 100, y: 100, width: 300, height: 200),
+                        zones: thirds, visibleFrame: laptopFrame) == 0
+                && WindowCustomZoneLayouts.zoneIndex(
+                        containingCenterOf: CGRect(x: -1512 + 756, y: 100, width: 300, height: 200),
+                        zones: thirds, visibleFrame: laptopFrame) == 1
+                && WindowCustomZoneLayouts.zoneIndex(
+                        containingCenterOf: CGRect(x: -1512 - 400, y: 100, width: 300, height: 200),
+                        zones: thirds, visibleFrame: laptopFrame) == nil,
+                     "the focus walk reads a window's zone from its center")
+        suite.expect(WindowCustomZoneLayouts.nextZoneIndex(current: 1, count: 3, forward: true) == 2
+                && WindowCustomZoneLayouts.nextZoneIndex(current: 2, count: 3, forward: true) == 0
+                && WindowCustomZoneLayouts.nextZoneIndex(current: 0, count: 3, forward: false) == 2
+                && WindowCustomZoneLayouts.nextZoneIndex(current: nil, count: 3, forward: true) == 0
+                && WindowCustomZoneLayouts.nextZoneIndex(current: nil, count: 3, forward: false) == 2
+                 && WindowCustomZoneLayouts.nextZoneIndex(current: 0, count: 0, forward: true) == nil,
+                      "the focus walk cycles zones and starts from the ends when off-grid")
+        let directionalFrame = CGRect(x: 0, y: 0, width: 300, height: 100)
+        suite.expect(WindowCustomZoneLayouts.directionalZoneIndex(
+            from: CGRect(x: 110, y: 30, width: 80, height: 40),
+            zones: thirds,
+            visibleFrame: directionalFrame,
+            direction: .left) == 0
+                && WindowCustomZoneLayouts.directionalZoneIndex(
+                    from: CGRect(x: 110, y: 30, width: 80, height: 40),
+                    zones: thirds,
+                    visibleFrame: directionalFrame,
+                    direction: .right) == 2
+                && WindowCustomZoneLayouts.directionalZoneIndex(
+                    from: CGRect(x: 110, y: 30, width: 80, height: 40),
+                    zones: thirds,
+                    visibleFrame: directionalFrame,
+                    direction: .up) == nil,
+                     "directional movement chooses the nearest horizontal zone and does not wrap")
+        let grid = WindowCustomZoneLayouts.grid(columns: 2, rows: 2)
+        suite.expect(WindowCustomZoneLayouts.directionalZoneIndex(
+            from: CGRect(x: 25, y: 5, width: 50, height: 20),
+            zones: grid,
+            visibleFrame: directionalFrame,
+            direction: .up) == 0,
+                     "directional movement moves from the lower row upward")
+        suite.expect(WindowCustomZoneLayouts.directionalZoneIndex(
+                    from: CGRect(x: 25, y: 75, width: 50, height: 20),
+                    zones: grid,
+                    visibleFrame: directionalFrame,
+                    direction: .down) == 2,
+                     "directional movement moves from the upper row downward")
+
+        let sourceFrame = CGRect(x: 0, y: 0, width: 300, height: 100)
+        let rightMonitorFrame = CGRect(x: 300, y: 0, width: 300, height: 100)
+        let leftMonitorFrame = CGRect(x: -300, y: 0, width: 300, height: 100)
+        let sourceRightWindow = CGRect(x: 220, y: 30, width: 40, height: 40)
+        let sourceLeftWindow = CGRect(x: 40, y: 30, width: 40, height: 40)
+        suite.expect(WindowCustomZoneLayouts.crossDisplayZoneIndex(
+            from: sourceRightWindow,
+            sourceZones: thirds,
+            sourceVisibleFrame: sourceFrame,
+            destinationZones: WindowCustomZoneLayouts.columns(2),
+            destinationVisibleFrame: rightMonitorFrame,
+            direction: .right) == 0
+                && WindowCustomZoneLayouts.crossDisplayZoneIndex(
+                    from: sourceLeftWindow,
+                    sourceZones: thirds,
+                    sourceVisibleFrame: sourceFrame,
+                    destinationZones: thirds,
+                    destinationVisibleFrame: leftMonitorFrame,
+                    direction: .left) == 2,
+                     "edge zones continue into the facing zone of a neighboring monitor")
+        suite.expect(WindowCustomZoneLayouts.crossDisplayZoneIndex(
+            from: CGRect(x: 110, y: 30, width: 80, height: 40),
+            sourceZones: thirds,
+            sourceVisibleFrame: sourceFrame,
+            destinationZones: thirds,
+            destinationVisibleFrame: rightMonitorFrame,
+            direction: .right) == nil
+                && WindowCustomZoneLayouts.crossDisplayZoneIndex(
+                    from: sourceRightWindow,
+                    sourceZones: thirds,
+                    sourceVisibleFrame: sourceFrame,
+                    destinationZones: [WindowCustomZone(x: 0.2, y: 0, width: 0.6, height: 1)],
+                    destinationVisibleFrame: rightMonitorFrame,
+                    direction: .right) == nil,
+                     "cross-monitor movement stops when the source or destination has no facing edge")
+        let upperMonitorFrame = CGRect(x: 0, y: 100, width: 300, height: 100)
+        let lowerMonitorFrame = CGRect(x: 0, y: -100, width: 300, height: 100)
+        suite.expect(WindowCustomZoneLayouts.crossDisplayZoneIndex(
+            from: CGRect(x: 25, y: 55, width: 50, height: 20),
+            sourceZones: grid,
+            sourceVisibleFrame: sourceFrame,
+            destinationZones: grid,
+            destinationVisibleFrame: upperMonitorFrame,
+            direction: .up) == 2
+                && WindowCustomZoneLayouts.crossDisplayZoneIndex(
+                    from: CGRect(x: 25, y: 5, width: 50, height: 20),
+                    sourceZones: grid,
+                    sourceVisibleFrame: sourceFrame,
+                    destinationZones: grid,
+                    destinationVisibleFrame: lowerMonitorFrame,
+                    direction: .down) == 0,
+                     "vertical edge zones preserve their column across stacked monitors")
     }
 }
