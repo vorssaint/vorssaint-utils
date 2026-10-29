@@ -48,6 +48,12 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     /// Windows that also hold an alert the reader could not take apart. The
     /// island never showed it, so such a window stays in sight.
     private var untakenWindows: [Access.Element] = []
+    /// Windows moved away the moment the center made them, before anyone
+    /// read what they hold. The next placing pass keeps the ones the island
+    /// took and puts every other one back; one still empty gets a short
+    /// grace for its banner to lay out.
+    private var prehiddenWindows: [(window: Access.Element, since: TimeInterval)] = []
+    static var prehideGrace: TimeInterval { 0.5 }
     private var liveIDs = Set<UUID>()
     private var ambiguousIdentities = Set<String>()
     private var deadline: TimeInterval = 0
@@ -171,6 +177,7 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
             }
         }
         var failed = Set<UUID>()
+        var kept: [Access.Element] = []
         for group in groups {
             guard !untakenWindows.contains(where: { access.same($0, group.window) }),
                   group.targets.allSatisfy({ $0.transient && shown.contains($0.item.id) }) else {
@@ -178,7 +185,21 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
             }
             // Every message in the window must still be the one the island took.
             guard group.targets.allSatisfy({ validatedTarget($0.item.id) != nil }), usable else { continue }
-            if hide(group.window) == false { failed.formUnion(group.targets.map(\.item.id)) }
+            switch hide(group.window) {
+            case true?: kept.append(group.window)
+            case false?: failed.formUnion(group.targets.map(\.item.id))
+            case nil: break
+            }
+        }
+        // A window moved on arrival whose banner the island did not take
+        // comes back now; one still holding no banner, once its grace is over.
+        let now = clock()
+        prehiddenWindows.removeAll { record in
+            if kept.contains(where: { access.same($0, record.window) }) { return true }
+            let holdsBanner = groups.contains { access.same($0.window, record.window) }
+            guard holdsBanner || now - record.since >= Self.prehideGrace else { return false }
+            show(record.window)
+            return true
         }
         // Also once its banners are gone and only such an alert is left.
         for window in untakenWindows { show(window) }
@@ -191,10 +212,21 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         return failed
     }
 
+    /// Moves a window the center just made off screen at once, so a banner
+    /// the island goes on to show never draws its first frames.
+    func prehide(_ window: Access.Element) {
+        guard allowsNativeClose() else { return }
+        beginRead()
+        guard hide(window) == true else { return }
+        prehiddenWindows.removeAll { access.same($0.window, window) }
+        prehiddenWindows.append((window, clock()))
+    }
+
     /// Puts back every window this reader moved. Stopping or turning the
     /// option off runs this after the reader is no longer allowed to read.
     func showNative() {
         for window in hiddenWindows.map(\.window) { show(window) }
+        prehiddenWindows.removeAll()
     }
 
     /// False when the window cannot be moved. A pass that ran out of time

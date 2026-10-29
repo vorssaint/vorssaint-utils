@@ -62,13 +62,14 @@ final class NotchNotificationService: ObservableObject {
         detach()
         guard let nextPID else { return }
         var created: AXObserver?
-        let callback: AXObserverCallback = { _, _, name, context in
+        let callback: AXObserverCallback = { _, element, name, context in
             guard let context else { return }
             let service = Unmanaged<NotchNotificationService>.fromOpaque(context).takeUnretainedValue()
             // A new window usually brings a banner, laid out a few hundredths
             // of a second later. Reading it then lets a hidden original leave
             // before it slides in. The regular pass still follows.
             if name as String == kAXWindowCreatedNotification {
+                service.prehide(element)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak service] in service?.scan() }
             }
             service.scheduleScan()
@@ -88,6 +89,29 @@ final class NotchNotificationService: ObservableObject {
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(created), .commonModes)
         monitoring = true
         scan()
+    }
+
+    /// Moves a window the center just made out of sight before its banner
+    /// draws. The pass that follows reads it there and decides whether it
+    /// stays away or comes back.
+    private func prehide(_ window: AXUIElement) {
+        guard monitoring, NotchNotificationSupport.dismissesNative(), NotchNotificationSupport.movesNativeWindow,
+              let reader else { return }
+        hidesNative = true
+        let requested = generation
+        queue.async { [weak self] in
+            reader.prehide(window)
+            let hidden = reader.hidesWindows
+            DispatchQueue.main.async {
+                guard let self, self.generation == requested else { return }
+                self.hidesNative = self.hidesNative || hidden
+            }
+        }
+        // A window that never shows a banner still comes back.
+        DispatchQueue.main.asyncAfter(deadline: .now() + NotchNotificationReader.prehideGrace + 0.1) { [weak self] in
+            guard let self, self.generation == requested else { return }
+            self.scheduleScan()
+        }
     }
 
     private func scheduleScan() {

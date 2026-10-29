@@ -109,6 +109,67 @@ enum NotchNotificationReaderTests {
         busyClosing(suite)
         nativeHiding(suite)
         hiddenWindowReturns(suite)
+        arrivalHiding(suite)
+    }
+
+    /// A window the center just made leaves the screen before anything reads
+    /// it; only a banner the island shows keeps it away.
+    private static func arrivalHiding(_ suite: TestSuite) {
+        func arriving() -> (access: Access, reader: NotchNotificationReaderCore<Access>, window: Node, home: CGRect) {
+            let access = Access(), banner = card()
+            banner.strings["AXSubrole"] = "AXNotificationCenterBanner"
+            let window = Node("AXWindow", subrole: "AXSystemDialog", children: [banner])
+            access.roots = [window]
+            return (access, access.reader(), window, window.frame)
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            reader.prehide(window)
+            suite.expect(access.moves == 0 && window.frame == home && !reader.hidesWindows,
+                         "a new window stays in place without the option to hide native banners")
+        }
+        do {
+            let (access, reader, window, _) = arriving()
+            access.allowClose = true
+            reader.prehide(window)
+            suite.expect(!window.frame.intersects(screens) && reader.hidesWindows,
+                         "a new window leaves every display before its banner is read")
+            let id = reader.read()?.items.first?.id
+            suite.expect(id != nil, "a banner moved away on arrival is still read")
+            if let id {
+                suite.expect(reader.hideNative([id]).isEmpty && !window.frame.intersects(screens) && reader.hidesWindows,
+                             "a banner the island shows stays out of sight")
+            }
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            reader.prehide(window)
+            _ = reader.read()
+            suite.expect(reader.hideNative([]).isEmpty && window.frame == home && !reader.hidesWindows,
+                         "a banner the island passed over comes back where the center put it")
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            window.children = []
+            reader.prehide(window)
+            _ = reader.read()
+            suite.expect(reader.hideNative([]).isEmpty && !window.frame.intersects(screens),
+                         "an empty new window waits a moment for its banner to lay out")
+            access.time += NotchNotificationReaderCore<Access>.prehideGrace
+            _ = reader.read()
+            suite.expect(reader.hideNative([]).isEmpty && window.frame == home && !reader.hidesWindows,
+                         "a new window that never holds a banner comes back once its grace is over")
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            reader.prehide(window)
+            access.focused = true
+            suite.expect(reader.read() == nil && window.frame == home && !reader.hidesWindows,
+                         "opening the center brings a window moved on arrival back")
+        }
     }
 
     /// The center's window with one transient banner, read once.
