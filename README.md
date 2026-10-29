@@ -151,7 +151,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Camera preview.** Check your camera in a floating mirror or Dynamic Island before a call.
 - **Copy text from screen.** Recognize text offline from any screen area, or read a QR code.
 - **Color picker.** Copy a screen color as HEX, RGB, HSL or SwiftUI code.
-- **Media tools.** Compress and edit videos, batch-convert images, add watermarks, make GIFs and extract text, all locally.
+- **Media tools.** Compress and edit videos, convert audio and video to MP3, batch-convert images, add watermarks, make GIFs and extract text, all locally.
 
 ### App management
 

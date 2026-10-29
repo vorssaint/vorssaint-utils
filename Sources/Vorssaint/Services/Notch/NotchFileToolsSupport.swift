@@ -18,14 +18,21 @@ enum NotchFileToolsSupport {
     static func optimizationTool(for urls: [URL]) -> MediaTool? {
         if accepts(urls, for: .imageCompressor) { return .imageCompressor }
         if accepts(urls, for: .videoCompressor) { return .videoCompressor }
+        // A movie also carries sound, so only a file that is audio alone
+        // reaches the MP3 converter by default.
+        if accepts(urls, for: .audioConverter) { return .audioConverter }
         return nil
     }
 
     static func accepts(_ urls: [URL], for tool: MediaTool) -> Bool {
         guard !urls.isEmpty, urls.allSatisfy(\.isFileURL),
               tool == .imageCompressor || urls.count == 1 else { return false }
-        let types: [UTType] = tool == .videoCompressor || tool == .gifMaker
-            ? [.movie, .video] : [.image]
+        let types: [UTType]
+        switch tool {
+        case .videoCompressor, .gifMaker: types = [.movie, .video]
+        case .audioConverter: types = [.audio, .movie]
+        case .imageCompressor, .textExtractor: types = [.image]
+        }
         return urls.allSatisfy { url in
             let type = (try? url.resourceValues(forKeys: [.contentTypeKey]))?.contentType
             return MediaSupport.inputMatchesTool(contentType: type, inputTypes: types)

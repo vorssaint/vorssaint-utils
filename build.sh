@@ -251,6 +251,9 @@ if (( TEST )); then
     mkdir -p "$TEST_OBJECT_DIR"
     TEST_SOURCES=(
         Sources/Vorssaint/Services/Media/MediaSupport.swift
+        Sources/Vorssaint/Services/Media/MediaMP3Encoder.swift
+        Sources/Vorssaint/Services/Media/MediaMP3Tables.swift
+        Sources/Vorssaint/Services/Media/MediaAudioConverter.swift
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
@@ -343,6 +346,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/AlertSoundStrings.swift
         Sources/Vorssaint/Core/BrightnessStrings.swift
         Sources/Vorssaint/Core/MediaImageStrings.swift
+        Sources/Vorssaint/Core/MediaAudioStrings.swift
         Sources/Vorssaint/Core/QuickToggleStrings.swift
         Sources/Vorssaint/Core/ScreenshotStrings.swift
         Sources/Vorssaint/Core/RecentCaptureStrings.swift

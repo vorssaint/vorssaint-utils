@@ -201,11 +201,13 @@ enum ShelfDropRoutingTests {
             let image = folder.appendingPathComponent("image.png")
             let secondImage = folder.appendingPathComponent("second.jpg")
             let video = folder.appendingPathComponent("video.mov")
+            let song = folder.appendingPathComponent("song.m4a")
             let note = folder.appendingPathComponent("note.txt")
-            for url in [image, secondImage, video, note] { try Data([0]).write(to: url) }
+            for url in [image, secondImage, video, song, note] { try Data([0]).write(to: url) }
             let inputs: [([URL], MediaTool?)] = [
                 ([image], .imageCompressor), ([image, secondImage], .imageCompressor),
-                ([video], .videoCompressor), ([video, image], nil), ([image, note], nil),
+                ([video], .videoCompressor), ([song], .audioConverter), ([song, song], nil),
+                ([song, image], nil), ([video, image], nil), ([image, note], nil),
                 ([video, video], nil), ([note], nil), ([folder], nil),
                 ([folder.appendingPathComponent("missing.png")], nil),
                 ([URL(string: "https://example.com/image.png")!], nil), ([], nil),

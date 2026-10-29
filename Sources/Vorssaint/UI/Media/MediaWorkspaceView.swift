@@ -95,6 +95,7 @@ struct MediaWorkspaceView: View {
     @AppStorage(DefaultsKey.mediaImageSelectedProfileID) private var imageSelectedProfileID = ""
 
     @AppStorage(DefaultsKey.mediaTextAccurate) private var textAccurate = true
+    @AppStorage(DefaultsKey.mediaAudioBitRate) private var audioBitRate = MediaSupport.defaultMP3BitRate
 
     @StateObject private var workspace: MediaWorkspaceSelection
     private var inputURLs: [URL] {
@@ -163,6 +164,10 @@ struct MediaWorkspaceView: View {
 
     private var screenshotText: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
+    }
+
+    private var audioText: MediaAudioStrings {
+        FeatureStrings.mediaAudio(l10n.language)
     }
 
     private var selectedTool: MediaTool {
@@ -287,7 +292,18 @@ struct MediaWorkspaceView: View {
         }
     }
 
+    /// Five tool names fill the menu bar panel. Where a language's names run
+    /// longer than the regular segments allow, they take the small size
+    /// instead of pushing the whole panel wider than its window.
     private var toolPicker: some View {
+        ViewThatFits(in: .horizontal) {
+            toolPickerControl
+            toolPickerControl
+                .controlSize(.small)
+        }
+    }
+
+    private var toolPickerControl: some View {
         Picker("", selection: selectedToolBinding) {
             ForEach(MediaTool.allCases) { tool in
                 Text(title(for: tool)).tag(tool)
@@ -416,6 +432,9 @@ struct MediaWorkspaceView: View {
                 }
             }
             .panelCard()
+        case .audioConverter:
+            audioBitRateRow
+                .panelCard()
         case .gifMaker:
             VStack(alignment: .leading, spacing: 10) {
                 timeRangeRow(start: $gifStart, end: $gifEnd)
@@ -992,6 +1011,32 @@ struct MediaWorkspaceView: View {
         }
     }
 
+    private var audioBitRateRow: some View {
+        let bitRate = MediaSupport.sanitizedMP3BitRate(audioBitRate)
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(audioText.bitRate)
+                    .font(.system(size: compact ? 10 : 11, weight: .semibold))
+                Spacer()
+                Text("\(bitRate) kbps")
+                    .font(.system(size: compact ? 10 : 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            Picker("", selection: Binding(get: { bitRate }, set: { audioBitRate = $0 })) {
+                ForEach(MediaSupport.mp3BitRates, id: \.self) { rate in
+                    Text("\(rate)").tag(rate)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            Text(bitRate <= 128 ? audioText.smallCaption
+                 : bitRate <= 192 ? audioText.balancedCaption : audioText.highCaption)
+                .font(.system(size: compact ? 9.5 : 10.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private func compressionRow(value: Binding<Double>) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(l10n.s.mediaQuality)
@@ -1247,6 +1292,7 @@ struct MediaWorkspaceView: View {
     private var actionTitle: String {
         switch selectedTool {
         case .videoCompressor: return l10n.s.mediaStartVideo
+        case .audioConverter: return audioText.convert
         case .gifMaker: return l10n.s.mediaStartGIF
         case .imageCompressor:
             // Choosing PDF changes the file's kind, so the button says what
@@ -1261,6 +1307,7 @@ struct MediaWorkspaceView: View {
     private func title(for tool: MediaTool) -> String {
         switch tool {
         case .videoCompressor: return l10n.s.mediaToolVideo
+        case .audioConverter: return audioText.tool
         case .gifMaker: return l10n.s.mediaToolGIF
         case .imageCompressor: return l10n.s.mediaToolImage
         case .textExtractor: return l10n.s.mediaToolText
@@ -1461,7 +1508,7 @@ struct MediaWorkspaceView: View {
                 case .gifMaker:
                     gifStart = 0
                     gifEnd = duration
-                case .imageCompressor, .textExtractor:
+                case .audioConverter, .imageCompressor, .textExtractor:
                     break
                 }
             }
@@ -1549,6 +1596,9 @@ struct MediaWorkspaceView: View {
                                                            sizing: videoSizing,
                                                            targetBytes: MediaSupport.targetBytes(
                                                                megabytes: videoTargetMegabytes)))
+        case .audioConverter:
+            media.convertAudio(inputURL: inputURL, outputURL: outputURL,
+                               options: MediaAudioOptions(bitRate: MediaSupport.sanitizedMP3BitRate(audioBitRate)))
         case .gifMaker:
             media.makeGIF(inputURL: inputURL, outputURL: outputURL,
                           options: MediaGIFOptions(start: gifStart,
@@ -1586,6 +1636,8 @@ struct MediaWorkspaceView: View {
         switch selectedTool {
         case .videoCompressor, .gifMaker:
             return [.movie, .video, .mpeg4Movie, .quickTimeMovie]
+        case .audioConverter:
+            return [.audio, .movie]
         case .imageCompressor, .textExtractor:
             return [.image]
         }
@@ -1594,6 +1646,7 @@ struct MediaWorkspaceView: View {
     private var outputType: UTType {
         switch selectedTool {
         case .videoCompressor: return .mpeg4Movie
+        case .audioConverter: return .mp3
         case .gifMaker: return .gif
         case .imageCompressor:
             switch MediaImageFormat.sanitized(imageFormatRaw) {
@@ -1611,6 +1664,8 @@ struct MediaWorkspaceView: View {
         switch tool {
         case .videoCompressor:
             return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-compressed", fileExtension: "mp4")
+        case .audioConverter:
+            return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "", fileExtension: "mp3")
         case .gifMaker:
             return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "", fileExtension: "gif")
         case .imageCompressor:
@@ -1632,6 +1687,7 @@ struct MediaWorkspaceView: View {
         switch failure {
         case .noInput: return l10n.s.mediaErrorNoFile
         case .noVideoTrack: return l10n.s.mediaErrorNoVideo
+        case .noAudioTrack: return audioText.noAudio
         case .sameOutput: return l10n.s.mediaErrorSameOutput
         case .unsupported: return l10n.s.mediaErrorUnsupported
         case .imageTooLarge: return imageText.tooLarge
