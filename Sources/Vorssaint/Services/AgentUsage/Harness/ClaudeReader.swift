@@ -21,6 +21,11 @@ struct ClaudeReader: AgentHarnessReader {
             state.turnOpen = false
             return open ? [.turnEnded(nil, completed: false, duration: nil)] : []
         }
+        if AgentLogParser.contains(line, "Base directory for this skill: "), let json = AgentLogParser.object(line),
+           json["isMeta"] as? Bool == true, json["sourceToolUseID"] == nil,
+           let name = startedSkill(json) {
+            state.pendingSkills[AgentSkill(name: name, byPerson: true), default: 0] += 1
+        }
         // A tool that ends the turn, like the structured output a scripted
         // session returns, gets no reply after its result: the session is done.
         if AgentLogParser.contains(line, #""toolEndsTurn":true"#), let json = AgentLogParser.object(line), json["type"] as? String == "user",
@@ -86,9 +91,12 @@ struct ClaudeReader: AgentHarnessReader {
             let key = id.isEmpty && request.isEmpty
                 ? "claude:\(state.session):\(date.timeIntervalSince1970)" : "claude:\(id):\(request)"
             let priced = AgentPricing.cost(billable, model: model)
+            var skills = skills(in: message)
+            skills.merge(state.pendingSkills, uniquingKeysWith: +)
+            state.pendingSkills = [:]
             entries.append(.usage(key: key, record: AgentUsageRecord(
                 provider: .claude, date: date, model: model, project: state.project, session: state.session,
-                tokens: billable.tokens, cost: priced.cost, savings: priced.savings), billable: billable))
+                tokens: billable.tokens, cost: priced.cost, savings: priced.savings, skills: skills), billable: billable))
         }
         // A subagent's own ending is not the end of the turn it serves.
         guard json["isSidechain"] as? Bool != true else { return entries }
@@ -132,5 +140,34 @@ struct ClaudeReader: AgentHarnessReader {
     private func adopt(_ json: [String: Any], into state: inout AgentLogState) {
         if let session = json["sessionId"] as? String, !session.isEmpty { state.session = AgentLogParser.native(session) }
         if let cwd = json["cwd"] as? String, !cwd.isEmpty { state.project = AgentLogParser.projectName(cwd) }
+    }
+
+    private func skills(in message: [String: Any]) -> [AgentSkill: Int] {
+        var found: [AgentSkill: Int] = [:]
+        for block in message["content"] as? [[String: Any]] ?? []
+        where block["type"] as? String == "tool_use" && block["name"] as? String == "Skill" {
+            guard let raw = (block["input"] as? [String: Any])?["skill"] as? String,
+                  let name = skillName(raw) else { continue }
+            found[AgentSkill(name: name, byPerson: false), default: 0] += 1
+        }
+        return found
+    }
+
+    private func startedSkill(_ json: [String: Any]) -> String? {
+        let content = (json["message"] as? [String: Any])?["content"]
+        let text = content as? String
+            ?? (content as? [[String: Any]])?.first.flatMap { $0["text"] as? String } ?? ""
+        let prefix = "Base directory for this skill: "
+        guard text.hasPrefix(prefix),
+              let folder = text.dropFirst(prefix.count).split(separator: "\n", maxSplits: 1).first,
+              let name = folder.split(separator: "/").last else { return nil }
+        return skillName(String(name))
+    }
+
+    private func skillName(_ raw: String) -> String? {
+        let name = raw.split(separator: ":").last.map(String.init) ?? ""
+        guard !name.isEmpty, name.count <= 80,
+              name.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) else { return nil }
+        return AgentLogParser.native(name)
     }
 }
