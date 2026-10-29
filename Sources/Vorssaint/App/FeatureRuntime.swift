@@ -396,7 +396,10 @@ final class FeatureRuntime: ObservableObject {
         .monitorCPU: { FeatureRuntime.syncMonitor() },
         .monitorGPU: { FeatureRuntime.syncMonitor() },
         .monitorMemory: { FeatureRuntime.syncMonitor() },
-        .monitorNetwork: { FeatureRuntime.syncMonitor() },
+        .monitorNetwork: {
+            FeatureRuntime.syncMonitor()
+            NetworkStatusService.shared.syncWithPreferences()
+        },
         .monitorDisk: { FeatureRuntime.syncMonitor() },
         .monitorPower: { FeatureRuntime.syncMonitor() },
         .fanControl: {

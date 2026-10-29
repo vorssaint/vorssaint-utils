@@ -262,18 +262,7 @@ struct MetricDetailView: View {
         let down = monitor.snapshot.netDownHistory
         let up = monitor.snapshot.netUpHistory
         if down.count >= 2 || up.count >= 2 {
-            let inBits = speedUnit == .bits
-            let peak = MetricFormat.networkGraphCeiling(max(down.max() ?? 0, up.max() ?? 0, 1),
-                                                        inBits: inBits)
-            ZStack {
-                Sparkline(values: down, color: .accentColor, maxValue: peak, showsZeroBaseline: true)
-                Sparkline(values: up,
-                          color: PanelMetricColor.green(for: colorScheme),
-                          maxValue: peak,
-                          fillOpacity: 0.08)
-            }
-            .frame(height: 38)
-            .graphCeilingLabel(MetricFormat.networkRate(peak, inBits: inBits))
+            NetworkHistoryGraph(down: down, up: up, inBits: speedUnit == .bits, height: 38)
         }
     }
 
