@@ -1683,6 +1683,14 @@ def main():
           + declaration("Sources/Vorssaint/UI/Settings/NotchSettings.swift",
                         '                    SettingsChoiceRow(symbol: "rectangle.compress.vertical"')
           + "}\n"
+          # The calendar page's week layout, its value as Settings stored it.
+          + "}\nstruct CalendarWeekLayout: View {\nlet language: AppLanguage\n"
+          + "@State var calendarWeekLayout = NotchCalendarWeekLayout.horizontal.rawValue\n"
+          + "var calendar: NotchCalendarStrings { FeatureStrings.notchCalendar(language) }\n"
+          + "var body: some View {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/NotchSettings.swift",
+                        '            SettingsChoiceRow(symbol: "calendar.day.timeline.left"')
+          + "}\n"
           + "}\nstruct Limits: View {\nlet language: AppLanguage\n"
           + "@State var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue\n"
           + "var text: NotchAgentStrings { FeatureStrings.notchAgents(language) }\n"

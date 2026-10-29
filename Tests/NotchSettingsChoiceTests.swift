@@ -24,7 +24,8 @@ enum NotchSettingsChoiceTests {
                                 FeatureStrings.scratchpad(language).pageTitle]
             let choices = destinations.map { ($0, AnyView(Destination(language: language, title: $0))) }
                 + [(FeatureStrings.notchAgents(language).limitsAs, AnyView(Limits(language: language))),
-                   (FeatureStrings.notchClipboardSize(language).entrySize, AnyView(ClipboardEntrySize(language: language)))]
+                   (FeatureStrings.notchClipboardSize(language).entrySize, AnyView(ClipboardEntrySize(language: language))),
+                   (FeatureStrings.notchCalendar(language).weekLayout, AnyView(CalendarWeekLayout(language: language)))]
             for (title, row) in choices {
                 let overflow = problems(row, width: narrowest, textColumn: column)
                 suite.expect(overflow.isEmpty, "\(language.rawValue): \(title) fits the narrowest Dynamic Island "
@@ -55,6 +56,15 @@ enum NotchSettingsChoiceTests {
             let segments = controls(in: host(row, width: 1000)).compactMap { $0 as? NSSegmentedControl }.first
             suite.expect(segments?.selectedSegment == segment,
                          "the clipboard entry size shows \"\(stored)\" as \(segment == 0 ? "compact" : "comfortable")")
+        }
+        // The week layout reads a stored value the same way: anything it does
+        // not know, nothing stored included, keeps the week across the top.
+        for (stored, segment) in [("vertical", 1), ("horizontal", 0), ("", 0), ("sideways", 0)] {
+            let row = AnyView(CalendarWeekLayout(language: .enUS, calendarWeekLayout: stored))
+            let segments = controls(in: host(row, width: 1000)).compactMap { $0 as? NSSegmentedControl }.first
+            suite.expect(segments?.selectedSegment == segment,
+                         "the calendar week layout shows \"\(stored)\" as "
+                         + (segment == 0 ? "horizontal" : "vertical"))
         }
         // An option that cannot be used reads off and cannot be switched,
         // whatever was saved: its feature is uninstalled, or something else

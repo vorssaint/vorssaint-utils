@@ -11,6 +11,7 @@ struct NotchCalendarView: View {
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.notchCalendarCountdown) private var countdownForEvery = false
+    @AppStorage(DefaultsKey.notchCalendarWeekLayout) private var weekLayout = NotchCalendarWeekLayout.horizontal.rawValue
     @Environment(\.notchBand) private var band
     /// The day the month grid or the week strip is built around.
     @State private var focus = Date()
@@ -19,8 +20,15 @@ struct NotchCalendarView: View {
     @State private var showingMonth = false
     private var text: NotchCalendarStrings { FeatureStrings.notchCalendar(l10n.language) }
     /// A month grid needs six rows beside an agenda; anything shorter shows
-    /// the week as a strip above a vertical agenda.
+    /// the week alone, across the top of the agenda or down its side.
     private var showsMonth: Bool { size.height >= 300 && size.width >= 420 }
+    /// Whether the week runs down the side of the agenda instead of across
+    /// the top. A page too short for seven days keeps the strip, which costs
+    /// one row; the month beside the agenda already reads down the side.
+    private var railsWeek: Bool {
+        NotchCalendarWeekLayout(stored: weekLayout) == .vertical
+            && size.height >= NotchLayout.calendarDayRailMinimumHeight
+    }
 
     var body: some View {
         Group {
@@ -42,6 +50,13 @@ struct NotchCalendarView: View {
                             }
                         } else if showingMonth {
                             monthGrid(now: context.date)
+                        } else if railsWeek {
+                            HStack(alignment: .top, spacing: NotchLayout.calendarDayRailSpacing) {
+                                dayRail(now: context.date)
+                                Rectangle().fill(.white.opacity(0.12)).frame(width: 1)
+                                    .accessibilityHidden(true)
+                                agenda(now: context.date)
+                            }
                         } else {
                             VStack(spacing: NotchLayout.rowSpacing) {
                                 weekStrip(now: context.date)
@@ -95,6 +110,14 @@ struct NotchCalendarView: View {
     private func weekStrip(now: Date) -> some View {
         NotchCalendarWeekStrip(focus: focus, selectedDay: selectedDay, now: now,
                                events: calendar.events, text: text, select: select) {
+            selectedDay = nil
+            focus = now
+        }
+    }
+
+    private func dayRail(now: Date) -> some View {
+        NotchCalendarDayRail(focus: focus, selectedDay: selectedDay, now: now, height: size.height,
+                             events: calendar.events, text: text, select: select) {
             selectedDay = nil
             focus = now
         }
