@@ -23,6 +23,8 @@ struct NotchMascotSettings: View {
     @AppStorage(DefaultsKey.notchMascotPalette) private var palette = NotchMascotPalette.pearl.rawValue
     @AppStorage(DefaultsKey.notchMascotSide) private var side = NotchMascotSide.left.rawValue
     @AppStorage(DefaultsKey.notchMascotVisitFrequency) private var frequency = NotchMascotVisitFrequency.normal.rawValue
+    @AppStorage(DefaultsKey.companionChatAgent) private var chatAgent = ""
+    @ObservedObject private var chat = CompanionChatService.shared
     @AppStorage(DefaultsKey.notchCommandBar) private var commandBar = true
     @AppStorage(DefaultsKey.notchCommandBarStyle) private var commandBarStyle = NotchCommandBarStyle.droplet.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -59,11 +61,52 @@ struct NotchMascotSettings: View {
                                      language: l10n.language)
                 appearance
                 behavior
+                HStack {
+                    Text(CompanionSetupText.text(.chatAgent, l10n.language))
+                    Picker("", selection: Binding(get: { selectedAgent.rawValue }, set: { chatAgent = $0 })) {
+                        ForEach(CompanionAgent.listed(chosen: selectedAgent)) { Text($0.title).tag($0.rawValue) }
+                    }
+                    .labelsHidden().fixedSize()
+                    if selectedAgent.executable() == nil {
+                        Text(CompanionSetupText.text(.notInstalledShort, l10n.language)).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                aiStatus
+                Button(CompanionChatText.ask(selectedAgent.title)) { CompanionChatService.shared.companionClicked() }
+                    .disabled(!enabled || !islandOn)
                 commandBarCard
             }
             .padding(embedded ? [.bottom] : .all, 22)
         }
     }
+
+    /// each tools last check + a button to run again
+    private var aiStatus: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(CompanionAgent.listed(chosen: selectedAgent)) { agent in
+                let checking = chat.checkingAgents.contains(agent) || chat.watching.contains(agent)
+                let health = chat.results[agent] ?? (agent.isVerified && agent.executable() != nil ? CompanionHealth.ready : nil)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 10) {
+                        Text(agent.title)
+                        Text(CompanionSetupSupport.statusLabel(health, checking: checking))
+                            .font(.caption).foregroundStyle(health == .ready ? Color.green : Color.secondary)
+                        Spacer(minLength: 8)
+                        if let label = CompanionSetupSupport.actionLabel(health) {
+                            Button(label) { chat.runFix(agent) }.controlSize(.small)
+                        }
+                        Button(CompanionSetupText.text(.checkNow, l10n.language)) { chat.checkNow(agent) }.controlSize(.small).disabled(checking)
+                    }
+                    if let health, let fix = CompanionSetupSupport.fix(tool: agent.tool, health) {
+                        Text(fix).font(.caption2).foregroundStyle(.secondary).textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private var selectedAgent: CompanionAgent { CompanionAgent(rawValue: chatAgent) ?? .detected }
 
     private var header: some View {
         HStack(alignment: .center) {

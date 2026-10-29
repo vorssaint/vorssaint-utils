@@ -179,6 +179,9 @@ enum SettingsBackupSupport {
         // Restoring it elsewhere could search a different volume or trigger a
         // protected-folder prompt without a fresh choice.
         DefaultsKey.commandBarFileScopes,
+        // That a tool answered a test question is true of this Mac's install
+        // and sign-in only. Restoring it elsewhere would skip the first check.
+        DefaultsKey.companionChatVerified,
         DefaultsKey.notchDownloadsFolderBookmark,
         DefaultsKey.wallpaperOwnBookmarks,
         DefaultsKey.wallpaperExcludedOwnPaths,

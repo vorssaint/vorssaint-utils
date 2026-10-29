@@ -962,6 +962,8 @@ enum DefaultsKey {
     static let notchMascotStyle = "notchMascotStyle" // NotchMascotStyle.rawValue
     static let notchMascotShape = "notchMascotShape" // NotchMascotShape.rawValue
     static let notchMascotPalette = "notchMascotPalette" // NotchMascotPalette.rawValue
+    static let companionChatAgent = "companionChatAgent" // CompanionAgent.rawValue
+    static let companionChatVerified = "companionChatVerified" // tool name -> time a test question last passed
     static let notchMascotSide = "notchMascotSide" // NotchMascotSide.rawValue, beside the camera
     static let notchMascotVisitFrequency = "notchMascotVisitFrequency" // NotchMascotVisitFrequency.rawValue
     static let notchMascotHidesWhenIdle = "notchMascotHidesWhenIdle" // hops into the island after a quiet while
@@ -1564,6 +1566,8 @@ enum Defaults {
         DefaultsKey.notchMascotStyle: NotchMascotStyle.minimal.rawValue,
         DefaultsKey.notchMascotShape: NotchMascotShape.ball.rawValue,
         DefaultsKey.notchMascotPalette: NotchMascotPalette.pearl.rawValue,
+        DefaultsKey.companionChatAgent: "", // empty: the first installed tool
+        DefaultsKey.companionChatVerified: [String: Double](),
         DefaultsKey.notchMascotSide: NotchMascotSide.left.rawValue,
         DefaultsKey.notchMascotVisitFrequency: NotchMascotVisitFrequency.normal.rawValue,
         DefaultsKey.notchMascotHidesWhenIdle: true,

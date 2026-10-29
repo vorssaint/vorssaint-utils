@@ -164,7 +164,7 @@ extension FeatureStrings {
             visitMoment: "A visit", timerStarted: "Timer started", downloadFailed: "Download failed", unlocked: "Mac unlocked",
             petTip: "Rest the pointer on it to pet it. Left alone, it dozes off until you come back.",
             livesInIsland: "The companion lives in the Dynamic Island.",
-            keywords: "mascot pet buddy character")
+            keywords: "mascot pet buddy character chat claude codex cursor")
         case .ptBR: return NotchMascotStrings(
             title: "Companheiro",
             hint: "Um amiguinho que mora no Dynamic Island. Descansa ali quando não há mais nada aparecendo e sai por cima de músicas e atividades para dar oi e reagir ao que acontece.",
@@ -191,7 +191,7 @@ extension FeatureStrings {
             visitMoment: "Uma visita", timerStarted: "Temporizador iniciado", downloadFailed: "Falha no download", unlocked: "Mac desbloqueado",
             petTip: "Deixe o ponteiro parado sobre ele para fazer carinho. Sozinho, ele cochila até você voltar.",
             livesInIsland: "O companheiro mora no Dynamic Island.",
-            keywords: "mascote bichinho amigo personagem")
+            keywords: "mascote bichinho amigo personagem chat claude codex cursor")
         case .es: return NotchMascotStrings(
             title: "Compañero",
             hint: "Un amiguito que vive en el Dynamic Island. Descansa allí cuando no se muestra nada más y sale sobre la música y las actividades para saludar y reaccionar a lo que pasa.",
@@ -218,7 +218,7 @@ extension FeatureStrings {
             visitMoment: "Una visita", timerStarted: "Temporizador iniciado", downloadFailed: "Error en la descarga", unlocked: "Mac desbloqueado",
             petTip: "Deja el puntero quieto sobre él para acariciarlo. Si lo dejas solo, se duerme hasta que vuelvas.",
             livesInIsland: "El compañero vive en el Dynamic Island.",
-            keywords: "mascota amiguito personaje")
+            keywords: "mascota amiguito personaje chat claude codex cursor")
         case .sk: return NotchMascotStrings(
             title: "Spoločník",
             hint: "Malý kamarát, ktorý býva v Dynamic Island. Odpočíva tam, keď sa nič iné nezobrazuje, a ponad hudbu a aktivity sa ukáže, aby pozdravil a zareagoval na to, čo sa deje.",
@@ -245,7 +245,7 @@ extension FeatureStrings {
             visitMoment: "Návšteva", timerStarted: "Časovač spustený", downloadFailed: "Sťahovanie zlyhalo", unlocked: "Mac odomknutý",
             petTip: "Nechajte na ňom chvíľu ukazovateľ a pohladkáte ho. Keď je sám, zdriemne si, kým sa nevrátite.",
             livesInIsland: "Spoločník býva v Dynamic Island.",
-            keywords: "maskot zvieratko kamarát postavička")
+            keywords: "maskot zvieratko kamarát postavička chat claude codex cursor")
         case .de: return NotchMascotStrings(
             title: "Begleiter",
             hint: "Ein kleiner Freund, der im Dynamic Island wohnt. Er ruht dort, wenn sonst nichts angezeigt wird, und kommt über Musik und Aktivitäten hervor, um Hallo zu sagen und auf das Geschehen zu reagieren.",
@@ -272,7 +272,7 @@ extension FeatureStrings {
             visitMoment: "Ein Besuch", timerStarted: "Timer gestartet", downloadFailed: "Download fehlgeschlagen", unlocked: "Mac entsperrt",
             petTip: "Lass den Zeiger kurz auf ihm ruhen, um ihn zu streicheln. Allein döst er ein, bis du zurückkommst.",
             livesInIsland: "Der Begleiter wohnt im Dynamic Island.",
-            keywords: "Maskottchen Haustier Kumpel Figur")
+            keywords: "Maskottchen Haustier Kumpel Figur chat claude codex cursor")
         case .fr: return NotchMascotStrings(
             title: "Compagnon",
             hint: "Un petit ami qui vit dans le Dynamic Island. Il s’y repose quand rien d’autre n’est affiché, et sort par-dessus la musique et les activités pour dire bonjour et réagir à ce qui se passe.",
@@ -299,7 +299,7 @@ extension FeatureStrings {
             visitMoment: "Une visite", timerStarted: "Minuteur lancé", downloadFailed: "Échec du téléchargement", unlocked: "Mac déverrouillé",
             petTip: "Laissez le pointeur posé sur lui pour le caresser. Seul, il s’assoupit jusqu’à votre retour.",
             livesInIsland: "Le compagnon vit dans le Dynamic Island.",
-            keywords: "mascotte animal copain personnage")
+            keywords: "mascotte animal copain personnage chat claude codex cursor")
         case .it: return NotchMascotStrings(
             title: "Compagno",
             hint: "Un piccolo amico che vive nel Dynamic Island. Riposa lì quando non viene mostrato nient’altro ed esce sopra musica e attività per salutare e reagire a ciò che succede.",
@@ -326,7 +326,7 @@ extension FeatureStrings {
             visitMoment: "Una visita", timerStarted: "Timer avviato", downloadFailed: "Download non riuscito", unlocked: "Mac sbloccato",
             petTip: "Lascia il puntatore fermo su di lui per accarezzarlo. Da solo, si appisola finché non torni.",
             livesInIsland: "Il compagno vive nel Dynamic Island.",
-            keywords: "mascotte animaletto amico personaggio")
+            keywords: "mascotte animaletto amico personaggio chat claude codex cursor")
         case .ru: return NotchMascotStrings(
             title: "Компаньон",
             hint: "Маленький друг, который живёт в Dynamic Island. Он отдыхает там, когда больше ничего не показано, и выходит поверх музыки и активностей, чтобы поздороваться и отреагировать на происходящее.",
@@ -353,7 +353,7 @@ extension FeatureStrings {
             visitMoment: "Визит", timerStarted: "Таймер запущен", downloadFailed: "Загрузка не удалась", unlocked: "Mac разблокирован",
             petTip: "Задержите на нём указатель, чтобы погладить. Оставшись один, он дремлет, пока вы не вернётесь.",
             livesInIsland: "Компаньон живёт в Dynamic Island.",
-            keywords: "маскот питомец приятель персонаж")
+            keywords: "маскот питомец приятель персонаж chat claude codex cursor")
         case .tr: return NotchMascotStrings(
             title: "Arkadaş",
             hint: "Dynamic Island’da yaşayan küçük bir dost. Başka bir şey görünmediğinde orada dinlenir, merhaba demek ve olanlara tepki vermek için müziğin ve etkinliklerin üzerine çıkar.",
@@ -380,7 +380,7 @@ extension FeatureStrings {
             visitMoment: "Bir ziyaret", timerStarted: "Zamanlayıcı başladı", downloadFailed: "İndirme başarısız", unlocked: "Mac’in kilidi açıldı",
             petTip: "Sevmek için imleci bir an üzerinde tutun. Yalnız kalınca siz dönene kadar uyuklar.",
             livesInIsland: "Arkadaş Dynamic Island’da yaşar.",
-            keywords: "maskot evcil dost karakter")
+            keywords: "maskot evcil dost karakter chat claude codex cursor")
         case .ja: return NotchMascotStrings(
             title: "コンパニオン",
             hint: "Dynamic Island に住む小さな友だちです。ほかに何も表示されていないときはそこで休み、音楽やアクティビティの上にも出てきて、あいさつしたり出来事に反応したりします。",
@@ -407,7 +407,7 @@ extension FeatureStrings {
             visitMoment: "訪問", timerStarted: "タイマー開始", downloadFailed: "ダウンロード失敗", unlocked: "Mac のロック解除",
             petTip: "ポインタをしばらく乗せるとなでられます。ひとりにすると、戻ってくるまでうたた寝します。",
             livesInIsland: "コンパニオンは Dynamic Island に住んでいます。",
-            keywords: "マスコット ペット 相棒 キャラクター")
+            keywords: "マスコット ペット 相棒 キャラクター chat claude codex cursor")
         case .ko: return NotchMascotStrings(
             title: "컴패니언",
             hint: "Dynamic Island에 사는 작은 친구입니다. 다른 것이 표시되지 않을 때는 그곳에서 쉬고, 음악과 활동 위로도 나와 인사하고 일어난 일에 반응합니다.",
@@ -434,7 +434,7 @@ extension FeatureStrings {
             visitMoment: "방문", timerStarted: "타이머 시작", downloadFailed: "다운로드 실패", unlocked: "Mac 잠금 해제",
             petTip: "포인터를 잠시 올려 두면 쓰다듬을 수 있습니다. 혼자 두면 돌아올 때까지 꾸벅꾸벅 좁니다.",
             livesInIsland: "컴패니언은 Dynamic Island에 삽니다.",
-            keywords: "마스코트 펫 친구 캐릭터")
+            keywords: "마스코트 펫 친구 캐릭터 chat claude codex cursor")
         case .zhHans: return NotchMascotStrings(
             title: "小伙伴",
             hint: "住在Dynamic Island里的小伙伴。没有其他内容显示时，它就在那里休息，也会出现在音乐和活动上方打招呼，并对发生的事做出反应。",
@@ -461,7 +461,7 @@ extension FeatureStrings {
             visitMoment: "来访", timerStarted: "计时器已开始", downloadFailed: "下载失败", unlocked: "Mac 已解锁",
             petTip: "把指针在它身上停留片刻就能摸摸它。独自待着时，它会打盹，直到你回来。",
             livesInIsland: "小伙伴住在Dynamic Island里。",
-            keywords: "吉祥物 宠物 伙伴 角色")
+            keywords: "吉祥物 宠物 伙伴 角色 chat claude codex cursor")
         case .zhTW: return NotchMascotStrings(
             title: "小夥伴",
             hint: "住在Dynamic Island裡的小夥伴。沒有其他內容顯示時，它就在那裡休息，也會出現在音樂和活動上方打招呼，並對發生的事做出反應。",
@@ -488,7 +488,7 @@ extension FeatureStrings {
             visitMoment: "來訪", timerStarted: "計時器已開始", downloadFailed: "下載失敗", unlocked: "Mac 已解鎖",
             petTip: "把指標在它身上停留片刻就能摸摸它。獨自待著時，它會打盹，直到你回來。",
             livesInIsland: "小夥伴住在Dynamic Island裡。",
-            keywords: "吉祥物 寵物 夥伴 角色")
+            keywords: "吉祥物 寵物 夥伴 角色 chat claude codex cursor")
         case .zhHK: return NotchMascotStrings(
             title: "小夥伴",
             hint: "住在Dynamic Island裡的小夥伴。沒有其他內容顯示時，它就在那裡休息，也會出現在音樂和活動上方打招呼，並對發生的事作出反應。",
@@ -515,7 +515,7 @@ extension FeatureStrings {
             visitMoment: "來訪", timerStarted: "計時器已開始", downloadFailed: "下載失敗", unlocked: "Mac 已解鎖",
             petTip: "把指標在它身上停留片刻就能摸摸它。獨自待著時，它會打盹，直到你回來。",
             livesInIsland: "小夥伴住在Dynamic Island裡。",
-            keywords: "吉祥物 寵物 夥伴 角色")
+            keywords: "吉祥物 寵物 夥伴 角色 chat claude codex cursor")
         case .uk: return NotchMascotStrings(
             title: "Компаньйон",
             hint: "Маленький друг, який живе в Dynamic Island. Він відпочиває там, коли більше нічого не показано, і виходить поверх музики й активностей, щоб привітатися та відреагувати на те, що відбувається.",
@@ -542,7 +542,7 @@ extension FeatureStrings {
             visitMoment: "Візит", timerStarted: "Таймер запущено", downloadFailed: "Не вдалося завантажити", unlocked: "Mac розблоковано",
             petTip: "Затримайте на ньому вказівник, щоб погладити. Залишившись сам, він дрімає, доки ви не повернетеся.",
             livesInIsland: "Компаньйон живе в Dynamic Island.",
-            keywords: "маскот улюбленець приятель персонаж")
+            keywords: "маскот улюбленець приятель персонаж chat claude codex cursor")
         }
     }
 }

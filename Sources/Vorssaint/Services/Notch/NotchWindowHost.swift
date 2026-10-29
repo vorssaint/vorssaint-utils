@@ -1431,9 +1431,23 @@ private final class NotchCanvas: NSView {
         return point.y >= 0 && point.y <= box.minY
     }
 
+    private func companionAt(_ pointInWindow: NSPoint, in view: NSView) -> Bool {
+        if let mascot = view as? NotchMascotHostView, mascot.containsCompanion(pointInWindow) { return true }
+        return view.subviews.contains { companionAt(pointInWindow, in: $0) }
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard containsVisiblePoint(convert(point, from: superview)) else { return nil }
+        let windowPoint = superview?.convert(point, to: nil) ?? point
+        if companionAt(windowPoint, in: self) { return self }
         return super.hitTest(point)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseUp(with event: NSEvent) {
+        if companionAt(event.locationInWindow, in: self) { CompanionChatService.shared.companionClicked() }
+        else { super.mouseUp(with: event) }
     }
 
     override func mouseEntered(with event: NSEvent) {
