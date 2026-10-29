@@ -382,7 +382,7 @@ extension AppFeature {
         case .uninstaller: return [.fullDiskAccess, .automationFinder]
         // Only to list Chromium profiles, whose data folder macOS guards.
         case .browserPicker: return [.fullDiskAccess]
-        case .homebrew: return [.automationTerminal, .appManagement]
+        case .homebrew: return [.appManagement]
         case .appUpdates: return [.notifications, .appManagement]
         case .diskImageInstaller: return [.appManagement]
         case .mixer: return [.audioCapture, .accessibility]
