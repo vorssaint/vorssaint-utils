@@ -494,6 +494,7 @@ private struct NotchAppFader: View {
     @ObservedObject private var l10n = L10n.shared
     private var strings: MixerFeatureStrings { FeatureStrings.mixer(l10n.language) }
     private var percent: Int { MixerRoutingSupport.displayPercent(forVolume: app.volume) }
+    private var sharingStrings: MixerScreenSharingStrings { .localized(l10n.language) }
     private var boosting: Bool { percent > 100 }
     private var muted: Bool { app.volume <= 0.001 }
     private var routed: Bool { !app.isBypassed && app.selectedOutputDeviceUID != nil }
@@ -508,7 +509,7 @@ private struct NotchAppFader: View {
             icon
                 .frame(maxWidth: .infinity)
                 .frame(height: 32)
-                .help(app.name)
+                .help(app.supportsVolumeOverride && !app.isBypassed ? sharingStrings.sharingWarning : app.name)
                 .overlay(alignment: .trailing) {
                     if app.persistenceID != nil || !app.isBypassed { actionsMenu }
                 }
@@ -519,9 +520,7 @@ private struct NotchAppFader: View {
                     }
                 }
             if app.isBypassed {
-                // Conferencing and pro audio apps manage their own sound: listed so
-                // their absence never reads as a bug, never tapped.
-                Text(l10n.s.mixerBypassedCaption)
+                Text(app.supportsVolumeOverride ? sharingStrings.protectedCaption : l10n.s.mixerBypassedCaption)
                     .font(.system(size: 9)).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -629,6 +628,13 @@ private struct NotchAppFader: View {
                 .disabled(moveBack == nil)
             Button { moveForward?() } label: { Label(strings.moveRight, systemImage: "arrow.right") }
                 .disabled(moveForward == nil)
+        }
+        if app.supportsVolumeOverride {
+            Divider()
+            Toggle(sharingStrings.allowVolumeControl, isOn: Binding(
+                get: { !app.isBypassed },
+                set: { mixer.setCallAppVolumeControl($0, for: app) }))
+                .help(sharingStrings.sharingWarning)
         }
         if !app.isBypassed {
             if app.persistenceID != nil { Divider() }

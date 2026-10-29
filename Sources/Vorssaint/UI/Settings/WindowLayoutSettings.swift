@@ -24,6 +24,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
     @AppStorage(DefaultsKey.windowLayoutWindowGap) private var windowGap = 0
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
+    @AppStorage(DefaultsKey.windowReserveStageManagerSpace) private var reserveStageManagerSpace = false
     @AppStorage(DefaultsKey.windowLayoutMarginPercent) private var marginPercent = WindowLayoutMargin.defaultPercent
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
     @State private var directionalError: String?
@@ -62,6 +63,16 @@ struct WindowLayoutSettings: View {
             // when it is the only one of the two still switched on in the hub.
             if AppFeature.windowMaximizer.isAvailable {
                 windowMaximizerSection
+            }
+
+            if AppFeature.windowLayout.isAvailable || AppFeature.windowMaximizer.isAvailable {
+                Section {
+                    Toggle(WindowStageManagerStrings.localized(l10n.language).title,
+                           isOn: $reserveStageManagerSpace)
+                    Text(WindowStageManagerStrings.localized(l10n.language).caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if AppFeature.windowLayout.isAvailable {

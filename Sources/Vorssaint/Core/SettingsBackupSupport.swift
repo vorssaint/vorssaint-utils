@@ -12,6 +12,34 @@ enum SettingsBackupSupport {
     static let settingsKey = "settings"
     static let formatVersion = 1
 
+    /// `Vorssaint --export-settings FILE` and `Vorssaint --import-settings FILE`
+    /// write and apply the same file as the buttons in Advanced settings.
+    enum Command: Equatable {
+        case export(path: String)
+        case `import`(path: String)
+        case missingFile(flag: String)
+        case conflictingFlags
+    }
+
+    static let exportFlag = "--export-settings"
+    static let importFlag = "--import-settings"
+
+    /// nil when neither flag is given. A flag followed by another option or by
+    /// nothing has no file to work on.
+    static func command(in arguments: [String]) -> Command? {
+        let flags = arguments.filter { $0 == exportFlag || $0 == importFlag }
+        guard !flags.isEmpty else { return nil }
+        guard flags.count == 1 else { return .conflictingFlags }
+        for (flag, command) in [(exportFlag, Command.export), (importFlag, Command.import)] {
+            guard let index = arguments.firstIndex(of: flag) else { continue }
+            guard let path = arguments.dropFirst(index + 1).first, !path.hasPrefix("-") else {
+                return .missingFile(flag: flag)
+            }
+            return command(path)
+        }
+        return nil
+    }
+
     /// Keys the backup carries: every registered preference, the availability
     /// layer, and the deliberately unregistered selection/layout keys — minus
     /// state that belongs to one machine or one moment.
@@ -59,6 +87,7 @@ enum SettingsBackupSupport {
         DefaultsKey.appVolumes,
         DefaultsKey.appVolumesArePositions,
         DefaultsKey.appOutputDevices,
+        DefaultsKey.mixerCallAppVolumeEnabled,
         DefaultsKey.mixerHiddenApps,
         DefaultsKey.preferredInputDevice,
         DefaultsKey.soundOutputSwitcherDeviceUIDs,
@@ -107,9 +136,10 @@ enum SettingsBackupSupport {
         DefaultsKey.browserPickerReadsProfiles,
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
-        // Codex homes are folders on this Mac whose sign-in the cards use,
+        // Agent profiles are folders on this Mac whose sign-in the cards use,
         // never settings to bring to another one.
         DefaultsKey.notchAgentsCodexProfiles,
+        DefaultsKey.notchAgentsClaudeProfile,
         DefaultsKey.dockPreviewRestoreAutohide,
         // The Space arrangement setting to put back, and a Dock restart still
         // owed, belong to this Mac's Dock.
@@ -213,6 +243,7 @@ enum SettingsBackupSupport {
         settings = portableMouseExceptions(settings)
         settings = portableWindowLayoutIgnoredApps(settings)
         settings = portableThumbnailPauseLists(settings)
+        settings = exportedAppVolumes(settings)
         return [
             formatVersionKey: formatVersion,
             appVersionKey: appVersion,
@@ -232,6 +263,22 @@ enum SettingsBackupSupport {
         let filtered = settings.filter { allowed.contains($0.key) && valueLooksRight($0.key, $0.value) }
         return portableNotchDisplay(portableThumbnailPauseLists(portableWindowLayoutIgnoredApps(
             portableMouseExceptions(portableMediaSettings(filtered)))))
+    }
+
+    /// 3.4.1 and earlier play a saved app volume as the gain itself. A backup
+    /// keeps that format, so an older version restores the same loudness, and
+    /// leaves the marker out, so the relaunch after an import here converts
+    /// the levels back to slider positions.
+    private static func exportedAppVolumes(_ settings: [String: Any]) -> [String: Any] {
+        guard settings[DefaultsKey.appVolumesArePositions] as? Bool == true,
+              let positions = settings[DefaultsKey.appVolumes] as? [String: Any] else { return settings }
+        var result = settings
+        result[DefaultsKey.appVolumes] = positions.compactMapValues { value -> Double? in
+            guard let position = (value as? NSNumber)?.doubleValue, position.isFinite else { return nil }
+            return Double(MixerRoutingSupport.gain(forVolume: position))
+        }
+        result.removeValue(forKey: DefaultsKey.appVolumesArePositions)
+        return result
     }
 
     /// A display mode this version does not offer, such as one kept by an

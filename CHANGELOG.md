@@ -7,31 +7,196 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Clipboard history that can expire old items and a hidden Dynamic Island that still shows activity, plus steadier scrolling, AirPlay, displays and battery updates, and many fixes.
+Safer Shelf drags and app removal, with more reliable window switching, quit protection, keyboard shortcuts, clipboard navigation, screenshots, image exports, audio, display recovery, network readings, URL Cleaner and Settings. New controls add an all-windows shortcut, Claude account selection, configurable calendar countdowns, mouse-wheel zoom and app quitting, alongside clipboard source icons, more switcher columns, smoother sliders, English command search and command-line settings backups.
+
+### Added
+- The window switcher has an optional All windows shortcut that cycles through individual windows across apps in every layout, including Large icons. Settings → Window switcher → All windows. Thanks to BrainAPP for the suggestion.
+- AI Agents can select an existing Claude Code account profile and show the monitored account. Local usage and plan limits follow the selected profile. Settings → Dynamic Island → Content → AI Agents → Claude account.
+- Dynamic Island level controls and the menu panel's mixer can be adjusted with a mouse wheel or trackpad. Thanks to @JB-OD.
+- Dynamic Island can start event countdowns 15, 30, 60 or 120 minutes before an event and keeps longer countdowns fully visible. Thanks to @Aryan-Saini.
+- An optional Zoom feature turns a modifier and mouse-wheel movement into app zoom or pinch gestures, with separate controls and scroll exceptions. Thanks to @ahmadhatahet.
+- An optional Quit apps panel can request normal quits for one app, all apps or all except the current app, with a saved list of apps to keep running. Thanks to @thedankest.
+- Command Bar converts days, weeks and fixed 365-day years, with English and Portuguese unit names. Thanks to @asim-sde.
+- Settings backups can be exported or imported with `--export-settings FILE` and `--import-settings FILE`; importing requires the app to be closed. Thanks to @DrakeEvans.
+- Clipboard history can show source app icons in list view. The option starts off and preserves file icons and selection controls. Settings → Clipboard history → Show source app icons in list view. Thanks to @ywu73.
+- Dynamic Island can show a volume row below the music player. Settings → Dynamic Island → Content → Music → Show volume in the player.
+- Screenshots can copy only image data, without a file URL, for apps that otherwise paste the file instead of its image. Settings → Screenshot → Copy as image only.
+- Quit on close can handle selected menu bar apps that keep a Dock icon after their last window closes. The list starts empty, and existing exceptions still apply. Settings → Quit on close → Menu bar apps to quit.
+- Window layout can reserve space for Stage Manager when maximizing or arranging windows, including the green-button override. Settings → Window layout → Reserve space for Stage Manager.
+- Switch Spaces by dragging a button now accepts the middle mouse button, including upward drags for Mission Control and downward drags for App Exposé. A short click keeps its normal behavior. Settings → Mouse → Mouse button shortcuts.
+
+### Changed
+- Homebrew opens installer, setup and password-required commands in the default app for Unix executables, without Terminal Automation consent. Thanks to @hertza-haeon.
+- Snippet lists in Settings and the library use alphabetical order. Thanks to @Zekuath.
+- Clipboard history uses a smaller decoded-thumbnail cache while keeping the window preview cache unchanged.
+- Command Bar accepts British unit spellings and spaced fluid-ounce names.
+- The window switcher's icon row, previews and hints use Liquid Glass when available and enabled.
+- The window switcher allows up to 10 columns while preserving Auto and screen-width limits. Settings → Window switcher → Options → Maximum columns. Thanks to @EugeneCarldotme.
+
+### Fixed
+- Display controls restore manually disabled monitors to their off state after wake while keeping the last usable display on. Explicit restoration remains available. Thanks to @Fenrir200678.
+- Network readings avoid counting mirrored virtual interfaces twice, keep routed bridges counted and start a fresh baseline when switching connections to prevent false traffic spikes. Thanks to @Zekuath.
+- Super key modifiers reach session-based hotkey tools regardless of startup order, including after login. Shortcut recording still owns the source key and its solo actions. Thanks to @complicat9d for the diagnosis.
+- Dynamic Island's clipboard supports Control-N and Control-P to move through history, matching the separate clipboard panel. Thanks to @avgrpg for the report.
+- The uninstaller checks Homebrew again for each app and pauses removal when its package status cannot be verified, with a refresh action to retry. Thanks to @tzimpel.
+- URL Cleaner cleans Safari links that carry rich previews, preserving supported previews and removing tracking from their navigation addresses. Thanks to @anschmieg for the diagnosis.
+- Shelf copies files dragged from inside app packages or libraries, preserving the originals. Ordinary files and whole packages can still move. Thanks to @Dexist-hub.
+- Image exports and newly saved profiles preserve a zero watermark margin. Thanks to @JeanBaeez.
+- URL Cleaner rules added from links with login details or ports now match the intended site. Previously saved rules containing login details or ports need to be added again. Thanks to @g1obalworlds.
+- The radial menu's action editor keeps its file picker over the editor window, avoiding an invisible panel on multi-display setups. Thanks to @saiganeshreddy7.
+- Mic Mute describes its device-control limits and reports known failures even when no microphone could be changed. Siri and some apps may still hear audio. Thanks to @sarat03 for the diagnosis.
+- The onboarding feature picker stays responsive when scrolling. Thanks to @yousefhamza.
+- Ultra-wide wallpaper previews stay within their own grid cells. Thanks to @ozanuslan.
+- Dynamic Island keeps volume, brightness and keyboard-light notices at a stable width as the percentage gains a digit. Thanks to @nikigan.
+- AI Agents cards keep "left" or "used" beside limit percentages in narrow layouts, letting the reset countdown give way when needed. Thanks to @sakemyali.
+- AI Agents settings previews show example limit percentages when account limits are unavailable. Thanks to @hrithiksaini99.
+- Command Bar finds English built-in commands and system answers when the interface uses another language. Thanks to @ywu73.
+- Clicking outside Dynamic Island dismisses its screenshot preview while preserving active sharing, pinned surfaces and clicks in copies on other displays. Thanks to @samanyudas.
+- Extra Brightness keeps app windows visible in Mission Control's desktop thumbnails. Thanks to @othmanehousni.
+- Features keeps its rows and scroll position stable when restart and unused-feature notices change.
+- The window switcher can travel directly to fullscreen and hidden-Space windows, recover their titles and observe closing without repeating a delivered close request.
+- Opening the window switcher uses fewer Accessibility requests when many windows are open.
+- The window switcher's search field stays within its panel and remains readable on light backgrounds and Liquid Glass.
+- Focus follows mouse preserves window order when Bring the window to the front is off.
+- Quit Protection follows changes to macOS app-switcher shortcuts and respects required Fn, preventing unprotected quits after Vorssaint's switcher closes. Thanks to @ruvelro.
+- Quit on close ignores confirmed stale surfaces left by closed windows while preserving minimized windows and windows on other Spaces.
+- The menu bar panel recovers from interrupted closes so later clicks can open it again.
+- Recent captures keeps its Clear history confirmation open and removes a pending confirmation when the palette closes.
+- Dynamic Island moves between displays without stretching, losing mouse input or restarting the music bars.
+- Volume keys advance supported USB outputs that round volume changes into fixed steps, and feedback follows the device's confirmed level.
+- Volume mixer preserves gain on supported multichannel outputs and rebuilds its audio capture when device formats or sample rates change.
+- Disk-space alerts refresh capacity readings and avoid treating a smaller capacity estimate as the only available free space.
+- System monitor recognizes the alternate M1 CPU sensor layout and the measured 14-core M4 Max configuration while preserving readings on other Max models.
+- Power can use desktop DC input when the adapter reading is unavailable, without presenting it as system-only consumption.
+- Fan Control attempts to restore System control after partial hardware failures, keeps failed restoration available for retry and hides stale temperatures when the helper has failed.
+- The menu bar panel no longer draws a second background with mismatched corners on macOS Sonoma and Sequoia.
+- Scrolling screenshots preserve the selected width, keep sparse Terminal output aligned and continue through smaller overlaps on long pages, including blank spacing and low-contrast content.
+- The cleaner leaves system log files out of app leftovers.
+- Command Bar handles extreme date offsets without crashing and keeps tiny non-temperature unit conversions from reading as zero.
+- Clipboard history ignores marked temporary content and restores the previous copy without another notice, while preserving ordinary copies and sensitive-text filtering.
+- Pinned GPU, temperature and fan menu bar readings follow the selected System monitor update interval.
+- Dynamic Island's full-screen hiding recognizes games whose windows cover the desktop without entering a separate full-screen space.
+- Dynamic Island's Hide content in full screen blocks hover opening again. Hidden until hover in full screen is a separate option under Settings → Dynamic Island → Behavior → Display.
+- Dynamic Island keeps slow Bluetooth discovery from blocking the interface and discards delayed connection alerts after sleep or when alerts are turned off.
+- Volume mixer recognizes headphones from their Core Audio device information, including models whose names do not say headphones.
+- Volume mixer leaves Discord and Teams audio untouched by default to prevent call echo when sharing audio. Their app menus can re-enable volume control, with a reminder to turn it off before sharing; saved levels and outputs are preserved.
+- Volume mixer no longer cuts off buffered sound or replays it late after short gaps in captured audio.
+- Screen recordings avoid loud noise from 16-bit USB microphones.
+- Screenshot area selection keeps its crosshair over other apps, and card shadows follow the captured window's own rounded corners.
+
+### Contributors
+Thanks to @0miicr0n, @AB-boi, @ahmadhatahet, @ALaunert, @anschmieg, @Aryan-Saini, @asim-sde, @avgrpg, @BerkUyku, @Blasted246, @buhbyehotmail, @complicat9d, @derpyjoystick, @Dexist-hub, @DigitalWestern, @dimashpt, @dimitarmanov, @dongzoor, @DrakeEvans, @eliamarinen, @EugeneCarldotme, @fablau, @Fenrir200678, @Forenzo, @g1obalworlds, @globeatin, @Goonwb, @hash00, @hertza-haeon, @hrithiksaini99, @i0208, @ilvesBogdan, @iva-zhu, @Jacob-9909, @jainnam-1993, @JB-OD, @JeanBaeez, @kidtaroi, @Likheet, @LJXXXD, @MartinSchlender, @Mikkeep, @mthsmb, @muratozturk5, @nikigan, @oc7opu5, @othmanehousni, @ozanuslan, @pedro-fontinele, @pedrozimmermannsoares, @raymondchins, @RKeyProg, @rochapaesc, @ruvelro, @saarmiara, @saiganeshreddy7, @sakemyali, @samanyudas, @shlee0932-afk, @Spokplacenta, @stors789, @TarGz, @thedankest, @tzimpel, @ve3dy, @ygh1254, @yousefhamza, @ywu73 and @Zekuath.
+
+## [3.4.2] - 2026-10-21
+
+### Summary
+A cleaner Dynamic Island, clearer updates, more flexible screenshots and clipboard history, and smoother everyday controls. This release also improves AI Agents, recordings and window switching, with many fixes.
+
+### Added
+- After an update, What's New shows changes for the features you use, followed by the support page. Settings → About → Updates.
+- Dynamic Island can show the keyboard input source when it changes. Settings → Dynamic Island → Activity → Indicators.
+- Dynamic Island can open and close with a keyboard shortcut. Settings → Dynamic Island → Behavior → Opening.
+- Dynamic Island set to Hidden until hover can appear for activities, indicators and notifications, then hide again. Settings → Dynamic Island → Behavior → Opening → Show activity and indicators.
+- Dynamic Island can find covers for YouTube and YouTube Music in Firefox, Zen and other Firefox-based browsers. Cover lookups stop when disabled and ignore outdated replies. Settings → Dynamic Island → Content → Music → Find covers for Firefox and Zen.
+- AI Agents can show limits for each separate Codex account. Settings → Dynamic Island → Content → AI Agents.
+- The screenshot editor adds Spotlight, canvas expansion and editable images pasted with Command-V; previews can copy text when Copy text from screen is installed.
+- Clipboard history can remove old items after a set number of days while keeping pinned items. Settings → Clipboard history → Keep items for.
+- The window switcher can limit how many items fit in a row. Settings → Window switcher → Options → Maximum columns.
+- Window layout can snap windows moved with the modifier drag when Snap windows at screen edges is on. Settings → Window layout → Window dragging.
+- The scratchpad shows Markdown task lists as checkboxes, and Shift-Return continues a list.
+- App Updates can exclude any app, including one with no update showing. Settings → App updates → Update exceptions.
+
+### Changed
+- Dynamic Island has a simpler layout, a compact music player and page controls beside the camera. Pin, Settings and Close move to the context menu.
+- Dynamic Island's clipboard page opens on the last copy, keeps search behind a button and can show compact entries. Settings → Dynamic Island → Content → Clipboard.
+- Dynamic Island closes when a file or link is dragged out of its Shelf, making room for the drop destination; a pinned island stays open.
+- AI Agents reads Claude's limits through Claude Code when installed, including use on other Macs.
+- Command Bar opens and searches faster, with smoother opening inside Dynamic Island.
+- Clipboard history's sensitive-text filter is off by default, including after upgrading, and no longer rejects ordinary commands, output or links just for words such as "token" or "password". Confidential copies and ignored apps stay out. Settings → Clipboard history.
+- Volume mixer sliders follow perceived loudness while preserving saved levels, and the headphone-disconnect setting can now silence the speakers.
+- Settings → Features uses Install and Uninstall buttons instead of switches.
+- Release notes shown before updating can be turned off. Settings → About → Updates.
+
+### Fixed
+- Quit Protection lets macOS Command-Tab handle Q for the selected app, and sends confirmed quit shortcuts through to remote desktop and virtual machine sessions.
+- Quit on close keeps apps running when windows are minimized or floating controls, slideshows or Open dialogs remain.
+- The window switcher, Dock Preview and Watch pause captures when macOS takes too long to check screen access, reducing the risk of a logout under heavy load. Thumbnails also pause while the display sleeps or the screen is locked.
+- The window switcher, Dock Preview and Command Bar omit closed windows and helper entries, and selecting a window brings only that window forward.
+- The window switcher includes apps such as Xcode's Device Hub and can show fullscreen windows from other desktops when Show fullscreen windows is on.
+- The window switcher gives Command-Tab back to macOS while secure input is active, so the shortcut keeps working.
+- Dock clicks and Dock Preview target the correct instance of an app with multiple processes, and hovering the Dock no longer waits on a frozen neighboring app.
+- Window switcher, Dock Preview, mouse features and Window layout recognize programs added by path, including Java runtimes used by games.
+- Smooth scrolling stays in its original window or scroll area, and Focus follows mouse keeps address bar suggestions and other pop-ups open.
+- Mouse navigation handles rapid Back and Forward clicks and leaves unsupported clicks to the app.
+- Mouse features leave Launchpad alone when Launchpad or the Dock is listed under Apps to leave alone.
+- Cleaning Mode keeps middle click and debounce suspended, and input taps stopped for permission cleanup or shutdown stay stopped.
+- Dynamic Island fits the physical notch when the menu bar is taller, with Hide gap below notch off by default, and opens on hover on displays without a notch when hidden in full screen.
+- Dynamic Island keeps playing music ahead of the idle companion and selectable beside AI activity, finds lyrics across more catalog variations and shows the playing app's icon when a cover is missing.
+- Dynamic Island's scratchpad shortcut opens and closes it reliably, shortcuts to other pages expand active capture controls, and timed screenshot previews close as expected.
+- Volume keys handle coarse steps and show the correct output icon, and Volume mixer controls mute at 0% without crashing on invalid microphone readings.
+- Volume mixer sliders keep their latest value, AirPlay pauses and resumes with playback, and Studio Pro 8 stays outside audio routing.
+- Paste as plain text and snippets cancel after a newer copy, and snippets remove their whole trigger in address bars with autocomplete.
+- Clipboard history, Dynamic Island, Command Bar, snippets and Quick Launcher accept numeric keypad shortcuts.
+- Command Bar preserves hidden apps and text spacing, reads more browser selections, finds Xcode tools and copies script results reached through partial names or shortcuts.
+- Command Bar handles leap days, invalid dates and large calculator results without losing meaningful digits.
+- Screenshots keep selection drags and the dimmed overlay working across capture modes, and the editor keeps every tool reachable in short windows.
+- Single-window recordings capture only that app's sound, including when a browser starts playback during recording.
+- Recordings fall back to H.264 when HEVC rejects the size, start and export more smoothly, and save or copy long recordings as GIFs without excessive memory use.
+- AI Agents follows OpenCode 2, keeps edited Codex conversations together with their reviews and subagents, and improves Claude renewal estimates.
+- Display brightness ignores stale monitor replies and keeps controls for mirrored displays; Extra Brightness preserves windows in Mission Control's desktop thumbnails.
+- System monitor reads CPU temperature from the hottest M4 Pro cores, updates battery readings promptly and can show accessory batteries without their menu bar item.
+- App Updates avoids false updates from incompatible version numbering, compares beta and rc numbers correctly, and opens destinations without freezing.
+- The uninstaller handles iPhone and iPad apps and rejects apps nested inside another app; Disk Image Installer ignores Homebrew's cached installers.
+- The Settings window no longer freezes or jumps while scrolling Monitor or installing features, and Wallpaper's file pickers open in front on the first click.
+
+### Contributors
+Thanks to @2-Chengs, @69grcv8vfm-sys, @AB-boi, @Acronyxxx, @Adridot, @ahmedabdullah-o, @akune, @Alpaka05, @andrewgribben, @baacon, @bebricoOOOOOOf, @becastellani, @beckhauser, @benjcrich, @bharathvbcr, @brtkdev, @capozz03, @carltonking, @cdbrandt729-code, @chadfidev, @Chubi01, @claude, @COMEBACKISREAL, @cprecioso, @CSkjolden, @DanyRodier, @DigitalWestern, @Dusk-afk, @eioz, @emreertunc, @Ep0chalypse, @EtienneLescot, @EugeneCarldotme, @fandiyi047, @galpressman, @georgeat8, @gustavoramalho, @Hackmodford, @Hongsheng-Y, @iancenry, @iltonandrew, @jainnam-1993, @JeanBaeez, @JoeC-Dev, @jonathanrparis, @joshrad-dev, @juanra, @kit101, @LechTheMitch, @Likheet, @LoBot9, @louisboii747, @luantedesco, @ManuLorenzzo, @marianhoenscheid, @Memphizzz, @mendozal, @mikeknight85, @mmoradi97, @Mohamed-Elshesheny, @mohammadhprp, @morhaf-ko, @mr-tco, @mschoeffmann, @N-o-c-t-i-s, @Narangor, @nateships, @ncesar, @Noelia09, @npcmail010, @oecer, @oskarsss, @pedro-fontinele, @PerretWilliam, @PHSM22, @PratikPawar1401, @rgndxzzk, @rhukster, @RKeyProg, @RoccoRakete, @rohanod, @root-daemon, @runxel, @samanyudas, @Samuel61904, @schematicdnb, @skiner68, @StudioKeys, @suhrudsh, @thitiwats, @Timothy-ZhangYF, @tyfoan, @ucrbuffalo, @unfilet, @voljumet, @webipsum, @webuildfabian, @Werkezeugs, @xftvl, @Yahddyyp, @yuzu-octopus, @ywu73, @zepeng-jin, @zhanghk2001 and @Zvzdov.
+Feedback: Brain.
+
+## [3.4.2-beta.2] - 2026-10-20
+
+### Summary
+Clipboard history that can expire old items and a hidden Dynamic Island that still shows activity, plus fixes for AirPlay, displays, battery updates and more.
+
+### Highlights
+- **A hidden island that still shows activity.** Dynamic Island set to Hidden until hover can come into view for activities, indicators and notifications, then hide again. Settings → Dynamic Island → Behavior → Opening → Show activity and indicators.
+- **Clipboard history that expires.** Items can be removed after a set number of days, while pinned items stay. Settings → Clipboard → Keep items for.
+- **⌘Tab under secure input.** When the window switcher replaces macOS ⌘Tab, the shortcut no longer goes dead while another app has secure input on, as password fields do.
 
 ### Added
 - Clipboard history can remove items after a set number of days, while pinned items stay. Settings → Clipboard → Keep items for.
-- Dynamic Island set to Hidden until hover can still come into view for activities and indicators, then hide again. Settings → Dynamic Island → Behavior → Opening → Show activity and indicators.
+- Dynamic Island set to Hidden until hover can still come into view for activities, indicators and notifications, then hide again. Settings → Dynamic Island → Behavior → Opening → Show activity and indicators.
+
+### Changed
+- Dynamic Island closes when a file or link is dragged out of its Shelf, so it no longer covers browser tabs or other places to drop it. A pinned island stays open.
 
 ### Fixed
 - Dynamic Island's Now Playing page shows the Explore button again when Explore is not a floating button, and can grow a little to fit it while a song plays. The System page shows it too where it had no top row, such as on displays without a notch.
-- Smooth scrolling keeps its remaining motion in the original window or scroll area when the pointer moves. New wheel input elsewhere starts there immediately.
 - Dock Preview avoids waiting on a frozen neighboring app when hovering the uncovered Dock.
-- Mirrored displays remain listed with their own brightness controls, including the built-in screen.
-- Battery status updates promptly when connecting or disconnecting power, including when background monitoring uses a longer interval.
+- Mirrored displays stay listed with their own display brightness controls and power button, including the built-in screen.
+- Battery readings update promptly when connecting or disconnecting power, including when background monitoring uses a longer interval.
 - Screen capture's dimmed overlay keeps covering the display when switching between screenshot, recording and color picker.
 - Volume mixer controls show their own tooltips, with the reorder hint kept on each app's icon and name.
 - Command Bar keeps meaningful digits in large calculator results and reused expressions while still hiding small rounding noise.
-- App lists in Settings show names without ".app" when the Finder shows all filename extensions.
+- App names in the Settings window, clipboard history and Dynamic Island's player no longer end in ".app" when the Finder shows all filename extensions.
 - The volume mixer's AirPlay stream pauses once routed apps go quiet, so iPhones and HomePods stop showing the Mac as playing, and sound comes back after pausing from the phone.
 - Command Bar copies a script's output and closes when the script row was reached by part of its name or opened from its shortcut.
-- Settings says when the chosen display keeps Dynamic Island off displays without a notch, such as a monitor beside a MacBook, and offers All displays. Settings → Dynamic Island → Behavior → Display.
+- Settings says when the chosen display keeps Dynamic Island off displays without a notch, such as a monitor beside a MacBook, and offers All displays. Settings → Dynamic Island → Layout → Displays without a notch.
 - Focus follows mouse keeps Chrome's address bar suggestions and other pop-ups open when the pointer moves between them and their window.
 - App Switcher, Dock Preview and Watch pause window captures while macOS is slow to check the app's permission to see the screen, which could log you out under heavy load. Thumbnails also stop updating while the displays sleep or the screen is locked.
-- App Updates stops showing false updates for Private Internet Access, and lists apps it can't compare, such as Unified Remote and Android Studio, under Versions not compared.
+- App Updates stops showing false updates for apps numbered differently in the public catalog, such as Private Internet Access, Sonos, Sublime Text and Positron, and lists apps it can't compare, such as Unified Remote and Android Studio, under Versions not compared.
+- A custom Dynamic Island width applies to Controls, Now Playing and Timer again, and the Layout preview shows the island at the size it opens. Settings → Dynamic Island → Layout → Size.
+- On a display without a notch, Dynamic Island hidden by Hide content in full screen opens on hover, not only with its shortcut.
+- A timed screenshot preview on Dynamic Island set to Hidden until hover closes on its own again while the mouse moves.
+- When the window switcher replaces macOS ⌘Tab, the shortcut no longer goes dead while another app has secure input on, as password fields do. macOS's switcher answers until it turns off, and Window switcher settings say why.
+- Text Snippets and Command Bar settings no longer claim to know which app holds secure input. They name the app that was active when it turned on, never Vorssaint itself.
+- Quit Protection in Screen Sharing and other remote desktop or virtual machine apps passes a ⌘Q confirmed by holding it or pressing it twice on to the other computer instead of quitting the app itself.
+- Smooth scrolling keeps its glide in the window or scroll area where it started instead of carrying into the one under the pointer.
+- Quit on close no longer quits an app when you minimize its window, as Premiere Pro did.
+- Extra Brightness no longer leaves only the wallpaper in Mission Control's desktop thumbnails.
 
 ### Contributors
-Thanks to @andrewgribben, @bebricoOOOOOOf, @becastellani, @bharathvbcr, @cdbrandt729-code, @Chubi01, @Dusk-afk, @emreertunc, @iltonandrew, @jainnam-1993, @juanra, @Likheet, @marianhoenscheid, @mendozal, @mikeknight85, @mmoradi97, @mschoeffmann, @pedro-fontinele, @RKeyProg, @rohanod, @root-daemon, @StudioKeys and @webipsum.
+Thanks to @andrewgribben, @baacon, @bebricoOOOOOOf, @becastellani, @bharathvbcr, @cdbrandt729-code, @Chubi01, @Dusk-afk, @emreertunc, @iltonandrew, @jainnam-1993, @juanra, @Likheet, @marianhoenscheid, @mendozal, @mikeknight85, @mmoradi97, @mschoeffmann, @pedro-fontinele, @RKeyProg, @rohanod, @root-daemon, @StudioKeys, @suhrudsh, @ucrbuffalo, @webipsum, @Yahddyyp and @Zvzdov.
 Feedback: Brain.
 
 ## [3.4.2-beta.1] - 2026-10-18

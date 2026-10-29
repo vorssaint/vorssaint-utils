@@ -9,6 +9,7 @@ import SwiftUI
 struct WallpaperSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = WallpaperService.shared
+    @Environment(\.notchPresentation) private var inNotch
     @State private var page = 1
     @State private var isRemovingSources = false
     @State private var viewerID = UUID()
@@ -109,11 +110,11 @@ struct WallpaperSection: View {
             .controlSize(.small)
 
             HStack(spacing: 8) {
-                Button(text.addImage) { service.addImages() }
+                Button(text.addImage) { service.addImages(inNotch: inNotch) }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(isRemovingSources)
-                Button(text.addFolder) { service.addFolder() }
+                Button(text.addFolder) { service.addFolder(inNotch: inNotch) }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(isRemovingSources)
@@ -305,26 +306,11 @@ private struct WallpaperThumbButton: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Button(action: action) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.secondary.opacity(0.15))
-                    if let image {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        Image(systemName: "photo")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(isApplied ? Color.accentColor : Color.clear, lineWidth: 2)
-                )
+                WallpaperThumbnailView(image: image, height: height)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(isApplied ? Color.accentColor : Color.clear, lineWidth: 2)
+                    )
             }
             .buttonStyle(.plain)
             .disabled(!appliesEnabled)

@@ -103,8 +103,36 @@ enum AppUpdateRulesContract {
 
         serviceRules(suite, excludedRaw: excludedRaw)
         pickedExclusions(suite)
+        productVersions(suite)
         listControls(suite)
         sourceIdentity(suite, app: app)
+    }
+
+    /// Positron's bundle shows the version of the editor it is built on, so
+    /// the scan takes its own release from the product file beside its code.
+    private static func productVersions(_ suite: TestSuite) {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorss-app-update-products-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        func scanned(_ name: String, product: String?) -> Support.InstalledApp? {
+            let url = folder.appendingPathComponent("\(name).app", isDirectory: true)
+            let code = url.appendingPathComponent("Contents/Resources/app", isDirectory: true)
+            try? FileManager.default.createDirectory(at: code, withIntermediateDirectories: true)
+            let info = ["CFBundleIdentifier": "com.example.\(name.lowercased())",
+                        "CFBundleShortVersionString": "1.134.0", "CFBundleVersion": "1.134.0"]
+            try? PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+                .write(to: url.appendingPathComponent("Contents/Info.plist"))
+            if let product { try? Data(product.utf8).write(to: code.appendingPathComponent("product.json")) }
+            return Service.scannedApp(at: url, includePublisherFeeds: false)
+        }
+        let positron = scanned("Positron",
+                               product: #"{"version":"1.134.0","positronVersion":"2026.10.0","positronBuildNumber":"297"}"#)
+        let editor = scanned("Editor", product: #"{"version":"1.134.0","vscodeVersion":"1.134.0"}"#)
+        let plain = scanned("Plain", product: nil)
+        suite.expect(positron?.version == "2026.10.0" && positron?.buildVersion == "297"
+                     && editor?.version == "1.134.0" && editor?.buildVersion == "1.134.0"
+                     && plain?.version == "1.134.0" && plain?.buildVersion == "1.134.0",
+                     "the scan reads Positron's own release from its product file and leaves other bundles alone")
     }
 
     /// The add button reads the picked bundle itself, so an app that is up to

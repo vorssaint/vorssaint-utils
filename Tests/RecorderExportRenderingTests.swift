@@ -202,6 +202,13 @@ enum RecorderExportRenderingTests {
         let gifFailure = await RecorderExporter().export(take: gifTake,
             document: gifDocument, output: .gif, to: gifURL, progress: { _ in })
         suite.expect(gifFailure == nil, "GIF uses the current trim and retimed composition")
+        let ordinaryURL = folder.appendingPathComponent("ordinary-file")
+        try Data([0]).write(to: ordinaryURL)
+        func mode(_ url: URL) -> Int? {
+            (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber)?.intValue
+        }
+        suite.expect(mode(gifURL) != nil && mode(gifURL) == mode(ordinaryURL),
+                     "a saved GIF gets the same permissions as any other saved file")
         if let source = CGImageSourceCreateWithURL(gifURL as CFURL, nil) {
             suite.expect(CGImageSourceGetCount(source) == 6,
                          "one trimmed source second at 2x produces six GIF frames")

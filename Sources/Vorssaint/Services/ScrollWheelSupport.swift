@@ -21,14 +21,144 @@ enum ScrollHorizontalModifier: String, CaseIterable {
     }
 }
 
+enum ScrollZoomModifier: String, CaseIterable {
+    case none, option, control, command
+
+    init(storageValue: String?) {
+        self = storageValue.flatMap(Self.init(rawValue:)) ?? .none
+    }
+
+    var modifier: ScrollHorizontalModifier? {
+        ScrollHorizontalModifier(rawValue: rawValue)
+    }
+}
+
+enum ScrollWheelAxis {
+    case vertical, horizontal
+}
+
+enum ScrollZoomEffect {
+    case zoom, pinch
+}
+
+struct ScrollZoomAction {
+    let effect: ScrollZoomEffect
+    let axis: ScrollWheelAxis
+    let modifier: ScrollHorizontalModifier
+    let delta: Double
+}
+
+struct ScrollZoomPreferences: Equatable {
+    let verticalZoom: ScrollHorizontalModifier?
+    let pinchZoom: ScrollHorizontalModifier?
+
+    var isEnabled: Bool {
+        verticalZoom != nil || pinchZoom != nil
+    }
+
+    init(isAvailable: Bool, boolFor: (String) -> Bool, stringFor: (String) -> String?) {
+        func modifier(_ enabled: String, _ key: String) -> ScrollHorizontalModifier? {
+            isAvailable && boolFor(enabled) ? ScrollZoomModifier(storageValue: stringFor(key)).modifier : nil
+        }
+        verticalZoom = modifier(DefaultsKey.verticalZoomEnabled, DefaultsKey.verticalZoomModifier)
+        let pinch = modifier(DefaultsKey.pinchZoomEnabled, DefaultsKey.pinchZoomModifier)
+        pinchZoom = pinch == verticalZoom ? nil : pinch
+    }
+
+    func action(for event: CGEvent) -> ScrollZoomAction? {
+        let choices: [(ScrollZoomEffect, ScrollWheelAxis, ScrollHorizontalModifier?)] = [
+            (.zoom, .vertical, verticalZoom),
+            (.pinch, .vertical, pinchZoom), (.pinch, .horizontal, pinchZoom),
+        ]
+        for (effect, axis, modifier) in choices {
+            if let modifier, let delta = ScrollWheelSupport.zoomDelta(event, modifier: modifier, axis: axis) {
+                return ScrollZoomAction(effect: effect, axis: axis, modifier: modifier, delta: delta)
+            }
+        }
+        return nil
+    }
+}
+
+struct ScrollZoomGestureState {
+    private(set) var preferences: ScrollZoomPreferences?
+    private(set) var pinchModifier: ScrollHorizontalModifier?
+    private(set) var pinchLocation: CGPoint?
+    private var acceptsEvents = false
+
+    mutating func update(_ preferences: ScrollZoomPreferences) -> Bool {
+        guard self.preferences != preferences else { return false }
+        self.preferences = preferences
+        acceptsEvents = false
+        return endPinch()
+    }
+
+    mutating func start() { acceptsEvents = preferences?.isEnabled == true }
+
+    mutating func stop() -> Bool {
+        acceptsEvents = false
+        preferences = nil
+        return endPinch()
+    }
+
+    func accepts(_ preferences: ScrollZoomPreferences) -> Bool {
+        acceptsEvents && self.preferences == preferences
+    }
+
+    mutating func beginPinch(_ modifier: ScrollHorizontalModifier, at point: CGPoint) -> (endPrevious: Bool, begin: Bool) {
+        // AppKit latches a gesture to its starting view. A moved pointer may
+        // be over another view even inside the same window.
+        let changed = pinchModifier != modifier || pinchLocation != point
+        let endPrevious = changed && pinchModifier != nil
+        pinchModifier = modifier
+        pinchLocation = point
+        return (endPrevious, changed)
+    }
+
+    mutating func endPinch() -> Bool {
+        guard pinchModifier != nil else { return false }
+        pinchModifier = nil
+        pinchLocation = nil
+        return true
+    }
+}
+
+struct ScrollZoomStepLimiter {
+    private var lastStep: (timestamp: UInt64, positive: Bool)?
+
+    mutating func allows(_ delta: Double, at timestamp: UInt64) -> Bool {
+        let positive = delta > 0
+        if let lastStep, lastStep.positive == positive,
+           timestamp >= lastStep.timestamp,
+           timestamp - lastStep.timestamp < 100_000_000 { return false }
+        lastStep = (timestamp, positive)
+        return true
+    }
+
+    mutating func reset() { lastStep = nil }
+}
+
+struct ScrollZoomTargetSnapshot {
+    let windows: [ScrollWheelTargetCache.Window]
+    let modifier: ScrollHorizontalModifier
+    let resolvedAt: TimeInterval
+
+    func target(at point: CGPoint, modifier: ScrollHorizontalModifier, now: TimeInterval) -> WindowServerWindowCandidate? {
+        guard self.modifier == modifier, now >= resolvedAt, now - resolvedAt < 0.5 else { return nil }
+        return windows.first { $0.frame.contains(point) }?.zoomTarget
+    }
+}
+
 /// Both independently installed direction features share one tap. Resolve their
 /// effective settings once so raw and smoothed wheels honor removal identically.
 struct ScrollDirectionPreferences {
     let invertVertical: Bool
     let invertHorizontal: Bool
     let horizontalModifier: ScrollHorizontalModifier?
+    let zoom: ScrollZoomPreferences
 
-    var isEnabled: Bool { invertVertical || invertHorizontal || horizontalModifier != nil }
+    var isEnabled: Bool {
+        invertVertical || invertHorizontal || horizontalModifier != nil || zoom.isEnabled
+    }
 
     init(isAvailable: (AppFeature) -> Bool,
          boolFor: (String) -> Bool,
@@ -37,6 +167,8 @@ struct ScrollDirectionPreferences {
         invertHorizontal = isAvailable(.scrollInverter) && boolFor(DefaultsKey.scrollInverterHorizontalEnabled)
         horizontalModifier = isAvailable(.scrollHorizontal) && boolFor(DefaultsKey.scrollHorizontalEnabled)
             ? ScrollHorizontalModifier(storageValue: stringFor(DefaultsKey.scrollHorizontalModifier)) : nil
+        zoom = ScrollZoomPreferences(isAvailable: isAvailable(.scrollZoom),
+                                     boolFor: boolFor, stringFor: stringFor)
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -77,6 +209,8 @@ enum ScrollWheelSupport {
     /// Both wheel taps share a stage and retain their head/tail ordering.
     /// At this stage the event has its target process and window, which a
     /// smooth glide must retain when posting directly to the receiving app.
+    /// It also sees remote screens' scroll, which both taps leave alone
+    /// (`ScrollWheelHIDStageLedger`).
     static let tapLocation: CGEventTapLocation = .cgAnnotatedSessionEventTap
 
     /// How long after a gesture-phased event a phaseless continuous event is
@@ -125,6 +259,36 @@ enum ScrollWheelSupport {
             && event.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 0
             && event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2) == 0
             && event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2) == 0
+    }
+
+    /// The signed distance from either wheel axis, but only while the selected
+    /// modifier is the sole shortcut modifier. This keeps ordinary app
+    /// shortcuts and native two-axis scrolling intact.
+    static func zoomDelta(_ event: CGEvent, modifier: ScrollHorizontalModifier,
+                          axis: ScrollWheelAxis) -> Double? {
+        let shortcutFlags: CGEventFlags = [.maskShift, .maskAlternate, .maskControl, .maskCommand]
+        guard event.flags.intersection(shortcutFlags) == modifier.flag else { return nil }
+        let fields: (CGEventField, CGEventField, CGEventField) = axis == .vertical
+            ? (.scrollWheelEventDeltaAxis1, .scrollWheelEventPointDeltaAxis1, .scrollWheelEventFixedPtDeltaAxis1)
+            : (.scrollWheelEventDeltaAxis2, .scrollWheelEventPointDeltaAxis2, .scrollWheelEventFixedPtDeltaAxis2)
+        let line = event.getIntegerValueField(fields.0)
+        let point = event.getDoubleValueField(fields.1)
+        let fixed = event.getDoubleValueField(fields.2)
+        return zoomDelta(point: point, fixed: fixed, line: line)
+    }
+
+    static func zoomDelta(point: Double, fixed: Double, line: Int64) -> Double? {
+        if point != 0 { return point }
+        if fixed != 0 { return fixed }
+        return line == 0 ? nil : Double(line)
+    }
+
+    static func zoomDelta(_ delta: Double, axis: ScrollWheelAxis,
+                          invertVertical: Bool, invertHorizontal: Bool) -> Double {
+        switch axis {
+        case .vertical: return invertVertical ? -delta : delta
+        case .horizontal: return invertHorizontal ? -delta : delta
+        }
     }
 
     /// Moves a vertical-only event to the horizontal axis, keeping its sign
@@ -358,6 +522,64 @@ extension ScrollWheelSupport {
     }
 }
 
+// MARK: - HID stage
+
+/// The wheel events that came in at the HID stage, told apart from those
+/// posted further down the event path.
+///
+/// Both wheel taps sit at the annotated stage, which also sees scroll posted
+/// at the session tap. That is where Screen Sharing, Apple Remote Desktop and
+/// VNC post the controlling computer's scrolling, trackpad included, as
+/// phaseless pixel events that read as a mouse wheel. Taps at the HID stage
+/// never saw them, so they were never turned, capped or smoothed here; the
+/// controlling computer already scrolled them its own way.
+///
+/// A hardware event carries source process id 0 and can only come in at the
+/// HID stage, so it always counts. A posted one counts when the HID tap noted
+/// its timestamp, which it keeps on its way down. Both readings are compared
+/// as nanoseconds: at the HID stage a hardware event reads in mach ticks, a
+/// posted one in nanoseconds (`EventTimestamp`, #1689). Events overtake one
+/// another between the stages, so the last few hundred are kept rather than
+/// only the newest.
+struct ScrollWheelHIDStageLedger {
+    static let capacity = 256
+    /// A posted event reads the same at both stages; the slack only covers
+    /// a rounding the system might do differently, and is far below the
+    /// time between two wheel events.
+    static let tolerance: UInt64 = 1_000
+
+    /// False while no HID tap is noting anything. Every event then counts as
+    /// having come through, so a tap that could not be created leaves the
+    /// wheel features working for local input rather than off.
+    var isWatching = false
+    private var timestamps = [UInt64](repeating: 0, count: capacity)
+    private var next = 0
+
+    /// `raw` is the timestamp as the tap reads it, in either unit.
+    mutating func note(_ raw: UInt64, nowTicks: UInt64 = mach_absolute_time(),
+                       timebase: EventTimestamp.Timebase = EventTimestamp.machTimebase) {
+        timestamps[next] = EventTimestamp.nanoseconds(raw: raw, nowTicks: nowTicks, timebase: timebase)
+        next = (next + 1) % Self.capacity
+    }
+
+    func passed(_ raw: UInt64, sourceProcessID: Int64, nowTicks: UInt64 = mach_absolute_time(),
+                timebase: EventTimestamp.Timebase = EventTimestamp.machTimebase) -> Bool {
+        guard isWatching else { return true }
+        guard sourceProcessID != 0 else { return true }
+        guard raw != 0 else { return false }
+        let nanoseconds = EventTimestamp.nanoseconds(raw: raw, nowTicks: nowTicks, timebase: timebase)
+        return timestamps.contains { noted in
+            noted != 0 && (noted >= nanoseconds ? noted - nanoseconds : nanoseconds - noted) <= Self.tolerance
+        }
+    }
+
+    mutating func reset() {
+        isWatching = false
+        timestamps = [UInt64](repeating: 0, count: Self.capacity)
+        next = 0
+    }
+}
+
 /// One bounded WindowServer snapshot. Re-hit-testing its front-to-back windows
 /// avoids treating an overlapping front window as part of the last target's
 /// rectangle. A stationary pointer still refreshes every half second.
@@ -377,6 +599,7 @@ final class ScrollWheelTargetCache {
     struct Window {
         let frame: CGRect
         let isOwn: Bool
+        let zoomTarget: WindowServerWindowCandidate?
     }
 
     private struct Snapshot {
@@ -404,6 +627,10 @@ final class ScrollWheelTargetCache {
     private var ownWindows: [OwnWindow] = []
     private var orderedWindowIDs: [CGWindowID] = []
     private var snapshot: Snapshot?
+
+    var clickThroughWindowIDs: Set<CGWindowID> {
+        lock.withLock { Set(ownWindows.filter(\.ignoresMouseEvents).map(\.id)) }
+    }
 
     init(ownProcessID: Int32, now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          lookup: @escaping () -> [[String: Any]] = WindowServerSupport.onScreenWindowInfo) {
@@ -471,7 +698,15 @@ final class ScrollWheelTargetCache {
             let isOwn = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownProcessID
             if isOwn, let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                clickThroughWindowIDs.contains(number) { return nil }
-            return Window(frame: frame, isOwn: isOwn)
+            let target: WindowServerWindowCandidate?
+            if !isOwn, (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+               let pid = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pid > 0,
+               let id = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value {
+                target = WindowServerWindowCandidate(pid: pid, windowID: id, frame: frame)
+            } else {
+                target = nil
+            }
+            return Window(frame: frame, isOwn: isOwn, zoomTarget: target)
         }
     }
 }

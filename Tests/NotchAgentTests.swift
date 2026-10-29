@@ -26,6 +26,7 @@ enum NotchAgentTests {
         AgentUsageSummaryCacheTests.run(suite)
         limits(suite)
         strip(suite)
+        NotchAgentLimitReadingTests.run(suite)
         liveTurns(suite)
         reading(suite)
         AgentUsageReadTests.run(suite)
@@ -36,6 +37,7 @@ enum NotchAgentTests {
         claudeApp(suite)
         AgentCodexResetTests.run(suite)
         AgentClaudeServerTests.run(suite)
+        ClaudeAccountProfileTests.run(suite)
         CodexAccountLimitsTests.run(suite)
         preferences(suite)
         limitUse(suite)
@@ -2466,6 +2468,25 @@ enum NotchAgentTests {
         suite.expect(NotchAgentReadout.elapsed.advancesWithClock && NotchAgentReadout.limit.advancesWithClock
                         && !NotchAgentReadout.tokens.advancesWithClock && !NotchAgentReadout.cost.advancesWithClock,
                      "only elapsed and expiring-limit readouts require clock-driven updates")
+        for provider in AgentProvider.allCases {
+            for focus in NotchAgentLimitFocus.allCases {
+                let empty = AgentUsageSnapshot()
+                let sample = NotchAgentSupport.stripSampleSnapshot(empty, provider: provider, focus: focus, now: now)
+                let used = focus == .session ? 0.32 : 0.57
+                suite.expect(NotchAgentSupport.stripReading(sample, readout: .limit, display: .used, focus: focus, now: now)
+                                == AgentFormat.percent(used),
+                             "\(provider.rawValue) settings preview illustrates the selected \(focus.rawValue) limit without account data")
+                suite.expect(NotchAgentSupport.stripReading(sample, readout: .limit, display: .remaining, focus: focus, now: now)
+                                == AgentFormat.percent(1 - used),
+                             "settings limit preview respects remaining versus used")
+                suite.expect(empty.live.isEmpty && empty.limits.isEmpty,
+                             "preview examples never populate the real usage snapshot")
+                suite.expect(NotchAgentSupport.stripReading(sample, readout: .elapsed, display: .remaining, now: now) == "12:34"
+                                && NotchAgentSupport.stripReading(sample, readout: .cost, display: .remaining, now: now) == AgentFormat.cost(4.56)
+                                && NotchAgentSupport.stripReading(sample, readout: .tokens, display: .remaining, now: now) == AgentFormat.tokens(20_000),
+                             "settings preview still illustrates time, cost and written tokens")
+            }
+        }
         let short = snapshot([session(.claude, startedAgo: 754)])
         let long = snapshot([session(.claude, startedAgo: 3723), session(.codex, startedAgo: 60)])
         suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, now: now) == "12:34"
@@ -2492,6 +2513,13 @@ enum NotchAgentTests {
                         && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, now: now) == AgentFormat.percent(0.79)
                         && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, now: now) == "12:34",
                      "a limit reads as left or used, and falls back to the time while none is known")
+        suite.expect(NotchAgentSupport.limitShare(window, display: .remaining, text: .enUS)
+                        == "\(AgentFormat.percent(0.21)) left"
+                        && NotchAgentSupport.limitShare(window, display: .used, text: .enUS)
+                            == "\(AgentFormat.percent(0.79)) used",
+                     "a limit on the card says whether its share is left or used")
+        suite.expect(NotchAgentSupport.stripSampleSnapshot(limited, provider: .codex, focus: .weekly, now: now) == limited,
+                     "settings preview preserves an active provider's real allowance")
         let both = AgentLimits(provider: .claude, windows: [
             AgentLimitWindow(id: "s", kind: .session, minutes: 300, scope: nil, usedPercent: 22,
                              resetsAt: now.addingTimeInterval(3_600)),

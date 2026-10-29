@@ -341,7 +341,7 @@ final class AppUpdatesService: ObservableObject {
         let installedOutput = Self.runCommand(HomebrewCommandBuilder.installed(brewPath: brewPath),
                                               environment: HomebrewEnvironment.forBrew)
         let records = installedOutput.status == 0
-            ? HomebrewParser.parseInstalledCaskRecords(installedOutput.output)
+            ? (try? HomebrewParser.parseInstalledCaskRecords(installedOutput.output)) ?? []
             : []
         let coveredPaths = Set(records.compactMap {
             AppUpdatesSupport.packageBundle(for: $0, apps: apps)?.path
@@ -848,12 +848,17 @@ final class AppUpdatesService: ObservableObject {
                 ? (try? String(contentsOf: configurationURL, encoding: .utf8)) : nil
             updateFeed = AppUpdateFeedSupport.feed(info: plist, configuration: configuration)
         }
+        // Positron keeps its own release beside its code, not in its bundle.
+        let productURL = url.appendingPathComponent("Contents/Resources/app/product.json")
+        let productSize = (try? productURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+        let productFile = productSize.map { $0 <= 256 * 1_024 } == true ? (try? Data(contentsOf: productURL)) : nil
+        let product = AppUpdatesSupport.productRelease(productFile)
         return AppUpdatesSupport.InstalledApp(name: name,
                                               bundleID: bundleID,
                                               path: url.standardizedFileURL.path,
-                                              version: version,
+                                              version: product?.version ?? version,
                                               isFromAppStore: hasReceipt,
-                                              buildVersion: plist["CFBundleVersion"] as? String ?? "",
+                                              buildVersion: product?.build ?? plist["CFBundleVersion"] as? String ?? "",
                                               storeID: storeID,
                                               updateFeed: updateFeed)
     }

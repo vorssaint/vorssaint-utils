@@ -24,13 +24,22 @@ enum SmoothScrollSupport {
 
     /// Only accepted wheel input updates the target. Moving the pointer while
     /// the tail runs leaves it alone; a fresh tick elsewhere starts a new glide.
+    /// A hand on the mouse drifts between ticks, and a pointer still moving
+    /// while the wheel turns covers about 8 pt per tick at 160 pt/s; resetting
+    /// there threw half of every glide away. A tick within the tolerance in
+    /// the same window extends the glide from its own point, so one that has
+    /// already crossed into the next scroll area takes the glide with it.
     struct TargetLatch {
+        static let driftTolerance: CGFloat = 24
+
         private(set) var target: Target?
 
         mutating func update(_ input: Target) -> Bool {
-            let changed = target != input
-            target = input
-            return changed
+            defer { target = input }
+            guard let target else { return true }
+            return target.processID != input.processID
+                || target.windowNumber != input.windowNumber
+                || hypot(input.point.x - target.point.x, input.point.y - target.point.y) > Self.driftTolerance
         }
 
         mutating func reset() {
