@@ -53,6 +53,7 @@ final class ClipboardHistoryService: ObservableObject {
     @Published var quickQuery = "" {
         didSet {
             if quickQuery != oldValue {
+                shortcutCycle.cancel()
                 resetQuickSelection()
             }
         }
@@ -77,7 +78,11 @@ final class ClipboardHistoryService: ObservableObject {
     /// The entry open in the preview editor. Expiring it mid-edit would swap
     /// the preview and throw the unsaved draft away, so the retention window
     /// skips it until the editor lets go; the next trim then applies as usual.
-    var editingEntryID: UUID?
+    var editingEntryID: UUID? {
+        didSet {
+            if editingEntryID != nil { shortcutCycle.cancel() }
+        }
+    }
     private var lastChangeCount = 0
     /// Only an explicitly temporary write can make the previous clipboard's
     /// return silent. Ordinary copies never establish a pending restore.
@@ -96,6 +101,7 @@ final class ClipboardHistoryService: ObservableObject {
     private var panelResizeObserver: NSObjectProtocol?
     private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
+    private var shortcutCycle = ClipboardHistoryShortcutCycle()
     private var localClickMonitor: Any?
     private var outsideClickMonitor: Any?
     private var activationObserver: NSObjectProtocol?
@@ -577,6 +583,19 @@ final class ClipboardHistoryService: ObservableObject {
         let index = quickSelectionIsVisible ? min(max(current + delta, 0), matches.count - 1) : current
         quickSelectionID = matches[index].id
         quickSelectionIsVisible = true
+    }
+
+    /// The opening shortcut already implies the initial entry. Repeating it
+    /// advances immediately, wrapping within the current search results.
+    func cycleQuickSelection() {
+        let matches = filteredQuickEntries
+        guard !matches.isEmpty else {
+            moveQuickSelection(1)
+            return
+        }
+        let current = selectedQuickIndex(in: matches)
+        quickSelectionIsVisible = true
+        moveQuickSelection(current + 1 < matches.count ? 1 : -current)
     }
 
     /// The window leaves the screen at once; the paste waits for the write,
@@ -1200,7 +1219,7 @@ final class ClipboardHistoryService: ObservableObject {
                 guard id.signature == 0x5655_434C, id.id == 3
                 else { return OSStatus(eventNotHandledErr) }
                 let service = Unmanaged<ClipboardHistoryService>.fromOpaque(userData).takeUnretainedValue()
-                DispatchQueue.main.async { service.toggleHistoryWindow() }
+                DispatchQueue.main.async { service.handleHistoryShortcut() }
                 return noErr
             }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &hotKeyHandler)
         }
@@ -1237,6 +1256,38 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     // MARK: - Quick window
+
+    private func handleHistoryShortcut() {
+        guard let panel, panel.isVisible else {
+            toggleHistoryWindow()
+            let modifiers = NSEvent.modifierFlags
+            if self.panel?.isVisible == true, let registeredShortcut,
+               GlobalShortcutModifiers(eventFlags: modifiers) == registeredShortcut.modifiers {
+                shortcutCycle.begin(modifiers: modifiers)
+            }
+            return
+        }
+        guard panel.attachedSheet == nil, editingEntryID == nil else {
+            shortcutCycle.cancel()
+            return
+        }
+        if let textView = panel.firstResponder as? NSTextView,
+           ClipboardHistoryFocus.textViewOwnsKeys(isComposing: textView.hasMarkedText(),
+                                                  isFieldEditor: textView.isFieldEditor,
+                                                  isEditable: textView.isEditable) {
+            shortcutCycle.cancel()
+            return
+        }
+        if shortcutCycle.advance() {
+            guard selectedQuickEntry != nil else {
+                shortcutCycle.cancel()
+                return
+            }
+            cycleQuickSelection()
+        } else {
+            toggleHistoryWindow()
+        }
+    }
 
     func toggleQuickPreview() {
         setQuickPreviewPresented(!quickPreviewPresented)
@@ -1466,9 +1517,13 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func installKeyMonitor(for panel: NSPanel) {
         removeKeyMonitor()
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self, weak panel] event in
             // An open confirmation owns Return and Escape.
-            guard let self, let panel, event.window === panel, panel.attachedSheet == nil else { return event }
+            guard let self, let panel else { return event }
+            guard event.window === panel, panel.attachedSheet == nil, self.editingEntryID == nil else {
+                self.shortcutCycle.cancel()
+                return event
+            }
             // A multiline editor owns its normal editing keys, and any field
             // still composing owns them too. Outside composition the search
             // box keeps the list's shortcuts, as does the read-only preview:
@@ -1478,9 +1533,20 @@ final class ClipboardHistoryService: ObservableObject {
                ClipboardHistoryFocus.textViewOwnsKeys(isComposing: textView.hasMarkedText(),
                                                       isFieldEditor: textView.isFieldEditor,
                                                       isEditable: textView.isEditable) {
+                self.shortcutCycle.cancel()
                 return event
             }
             let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            if event.type == .flagsChanged {
+                if self.shortcutCycle.release(modifiers: modifiers) {
+                    self.copySelectedQuickEntry()
+                }
+                return event
+            }
+            if self.registeredShortcut?.matches(keyCode: Int64(event.keyCode),
+                                                  modifiers: GlobalShortcutModifiers(eventFlags: modifiers)) != true {
+                self.shortcutCycle.cancel()
+            }
             if event.keyCode == UInt16(kVK_Escape) {
                 switch ClipboardHistoryEscape.action(batchCount: self.quickBatchCount) {
                 case .clearBatchSelection: self.clearQuickBatchSelection()
@@ -1557,6 +1623,9 @@ final class ClipboardHistoryService: ObservableObject {
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return event }
+            // A mouse interaction can enter and leave a confirmation without
+            // any intervening key event. It ends the held-shortcut gesture.
+            self.shortcutCycle.cancel()
             if event.window !== panel, !Self.mouseIsInside(panel) {
                 self.hideHistoryWindow()
             }
@@ -1605,6 +1674,7 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     private func removeKeyMonitor() {
+        shortcutCycle.cancel()
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil

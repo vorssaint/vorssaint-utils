@@ -824,6 +824,32 @@ enum ClipboardFeatureTests {
         suite.expect(step(.list, kVK_RightArrow) == nil && step(.list, kVK_LeftArrow) == nil,
                "the list leaves plain side arrows to the search field's caret")
 
+        // Opening alone leaves search available. Only a repeated shortcut in
+        // the same modifier hold commits the selection when the hold ends.
+        var shortcutCycle = ClipboardHistoryShortcutCycle()
+        shortcutCycle.begin(modifiers: [.command, .shift])
+        suite.expect(!shortcutCycle.release(modifiers: [.command])
+                     && !shortcutCycle.release(modifiers: []) && !shortcutCycle.advance(),
+                     "releasing an opening shortcut without cycling leaves normal search mode")
+        shortcutCycle.begin(modifiers: [.command, .shift])
+        suite.expect(shortcutCycle.advance() && shortcutCycle.advance(),
+                     "repeated shortcut presses remain in the same held-modifier cycle")
+        suite.expect(!shortcutCycle.release(modifiers: [.command])
+                     && !shortcutCycle.release(modifiers: [.shift])
+                     && !shortcutCycle.release(modifiers: [.option]),
+                     "a cycling selection waits until every shortcut modifier is released")
+        suite.expect(shortcutCycle.release(modifiers: [.capsLock])
+                     && !shortcutCycle.release(modifiers: []) && !shortcutCycle.advance(),
+                     "the final modifier release commits exactly once and ignores Caps Lock")
+        shortcutCycle.begin(modifiers: [.control, .option])
+        _ = shortcutCycle.advance()
+        shortcutCycle.cancel()
+        suite.expect(!shortcutCycle.release(modifiers: []) && !shortcutCycle.advance(),
+                     "a cancelled cycle cannot leave a pending release paste")
+        shortcutCycle.begin(modifiers: [])
+        suite.expect(!shortcutCycle.advance() && !shortcutCycle.release(modifiers: []),
+                     "a window opened after its modifiers were released cannot start a cycle")
+
         // MARK: Clipboard menu bar preview
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryMenuBarPreview] as? Bool == false,
@@ -1659,6 +1685,7 @@ enum ClipboardPreviewContract {
         var quickSelectionID: UUID?
         var quickSelectionIsVisible = false
         var quickBatchEntryIDs: Set<UUID> = []
+        var shortcutCycle = ClipboardHistoryShortcutCycle()
         var keyboardSelectionPointer: NSPoint?
         enum NSCursor { static func setHiddenUntilMouseMoves(_ hidden: Bool) {} }
         enum NSEvent { static let mouseLocation = NSPoint.zero }
@@ -1967,6 +1994,50 @@ enum ClipboardPreviewContract {
         service.removeSelectedQuickEntries()
         suite.expect(service.entries == [fresh, a, c] && service.selectedQuickEntry == c,
                      "deleting the highlighted entry highlights the one that took its place")
+
+        let cycling = Service()
+        cycling.setEntries([a, b, c])
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == b && cycling.quickSelectionIsVisible,
+                     "repeating the opening shortcut advances from the initial entry to the second")
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == c,
+                     "another shortcut press advances to the next entry")
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == a,
+                     "the history shortcut wraps from the last entry to the first")
+
+        cycling.quickQuery = "B"
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == b && cycling.quickQuery == "B",
+                     "cycling uses the filtered entries and preserves the search")
+        cycling.quickQuery = "no match"
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == nil && !cycling.quickSelectionIsVisible,
+                     "cycling an empty result clears the highlight without selecting an unrelated entry")
+        cycling.quickQuery = ""
+        cycling.setEntries([a])
+        cycling.cycleQuickSelection()
+        suite.expect(cycling.selectedQuickEntry == a && cycling.quickSelectionIsVisible,
+                     "cycling a one-entry history keeps that entry selected")
+
+        let arrows = Service()
+        arrows.setEntries([a, b])
+        arrows.moveQuickSelection(1)
+        suite.expect(arrows.selectedQuickEntry == a,
+                     "the first arrow still reveals the initial highlight without skipping it")
+        arrows.moveQuickSelection(1)
+        arrows.moveQuickSelection(1)
+        suite.expect(arrows.selectedQuickEntry == b,
+                     "arrow navigation still stops at the last entry instead of wrapping")
+
+        let editing = Service()
+        editing.shortcutCycle.begin(modifiers: [.command, .shift])
+        _ = editing.shortcutCycle.advance()
+        editing.editingEntryID = UUID()
+        editing.editingEntryID = nil
+        suite.expect(!editing.shortcutCycle.release(modifiers: []),
+                     "a mouse-only edit and cancel cannot leave a paste pending on modifier release")
     }
 
     /// #1885: typing searches the history once per keystroke, so the folded
