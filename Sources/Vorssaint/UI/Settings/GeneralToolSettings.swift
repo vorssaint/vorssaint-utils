@@ -50,6 +50,9 @@ struct GeneralToolSettings: View {
                 case .musicBlocking:
                     MusicBlockingSettings()
                         .settingsSectionAnchor(.musicBlocking, cornerRadius: 16)
+                case .mailBlocking:
+                    MailBlockingSettings()
+                        .settingsSectionAnchor(.mailBlocking, cornerRadius: 16)
                 default:
                     EmptyView()
                 }
@@ -311,5 +314,96 @@ private struct MusicBlockingSettings: View {
             return
         }
         replacementPath = url.path
+    }
+}
+
+private struct MailBlockingSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var mailBlocker = MailLinkBlocker.shared
+    @State private var appRejected = false
+    @AppStorage(DefaultsKey.mailBlockEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.mailBlockAction) private var action = MailLinkSupport.Action.ignore.rawValue
+    @AppStorage(DefaultsKey.mailBlockAppPath) private var appPath = ""
+
+    private var text: MailBlockStrings { FeatureStrings.mailBlock(l10n.language) }
+
+    var body: some View {
+        SettingsCard(title: text.section) {
+            SettingsRow(symbol: "envelope", title: text.title, caption: text.caption) {
+                Toggle(text.title, isOn: $enabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .onChange(of: enabled) { _, _ in
+                        mailBlocker.syncWithPreferences()
+                    }
+            }
+            if enabled {
+                if !mailBlocker.isHandlingLinks {
+                    Text(text.unavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, settingsRowTextInset)
+                }
+                Picker(text.actionLabel, selection: $action) {
+                    Text(text.actionIgnore).tag(MailLinkSupport.Action.ignore.rawValue)
+                    Text(text.actionOpenApp).tag(MailLinkSupport.Action.openApp.rawValue)
+                    Text(text.actionCopy).tag(MailLinkSupport.Action.copyAddress.rawValue)
+                }
+                .padding(.leading, settingsRowTextInset)
+                if MailLinkSupport.Action.sanitized(action) == .openApp {
+                    HStack(spacing: 8) {
+                        Text(text.appLabel)
+                        Spacer()
+                        Text(appName)
+                            .foregroundStyle(.secondary)
+                        Button(text.chooseApp) { chooseApp() }
+                        if !appPath.isEmpty {
+                            Button {
+                                appPath = ""
+                                appRejected = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.leading, settingsRowTextInset)
+                    if appRejected {
+                        Text(text.appRejected)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.leading, settingsRowTextInset)
+                    }
+                }
+            }
+        }
+    }
+
+    private var appName: String {
+        guard !appPath.isEmpty else { return text.appNone }
+        let name = FileManager.default.displayName(atPath: appPath)
+        return (name as NSString).deletingPathExtension
+    }
+
+    private func chooseApp() {
+        appRejected = false
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        // Mail would reopen the links being kept from it, and this app
+        // would hand each link straight back to itself.
+        guard MailLinkSupport.canOpenLinks(bundleID: Bundle(url: url)?.bundleIdentifier,
+                                           ownBundleID: Bundle.main.bundleIdentifier) else {
+            appRejected = true
+            return
+        }
+        appPath = url.path
     }
 }
