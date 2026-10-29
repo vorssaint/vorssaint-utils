@@ -310,6 +310,7 @@ struct ClipboardQuickPanelView: View {
                 .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
             }
             Spacer()
+            ClipboardSyncStatusView()
             HStack(spacing: 5) {
                 Image(systemName: "doc.on.clipboard")
                 Text("\(history.entries.count)")

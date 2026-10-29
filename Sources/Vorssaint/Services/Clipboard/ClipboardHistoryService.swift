@@ -129,6 +129,7 @@ final class ClipboardHistoryService: ObservableObject {
             stop()
             unregisterHotkey()
         }
+        ClipboardHistorySyncService.shared.syncWithPreferences()
     }
 
     /// Skips capturing pasteboard changes up to the given change count. Quick
@@ -345,10 +346,12 @@ final class ClipboardHistoryService: ObservableObject {
             }
         }
         guard !reverted else { return }
+        syncPinChanged(updated)
         save()
     }
 
     func remove(_ entry: ClipboardHistoryEntry) {
+        syncRemoved(entries.filter { $0.id == entry.id })
         entries.removeAll { $0.id == entry.id }
         var selected = quickBatchEntryIDs
         selected.remove(entry.id)
@@ -374,6 +377,7 @@ final class ClipboardHistoryService: ObservableObject {
             entries = previousEntries
             return false
         }
+        syncRemoved([previousEntries[index]])
         save()
         return true
     }
@@ -383,6 +387,7 @@ final class ClipboardHistoryService: ObservableObject {
     /// that copies a counted entry again, and the count shown is the count
     /// removed.
     func clearRecent(_ confirmed: [UUID: Date]) {
+        syncRemoved(entries.filter { !$0.isPinned && confirmed[$0.id] == $0.copiedAt })
         entries.removeAll { !$0.isPinned && confirmed[$0.id] == $0.copiedAt }
         pruneQuickBatchSelection()
         save()
@@ -548,6 +553,7 @@ final class ClipboardHistoryService: ObservableObject {
         guard !selectedEntries.isEmpty else { return }
         let idsToRemove = Set(selectedEntries.map(\.id))
         let position = selectedQuickIndex(in: filteredQuickEntries)
+        syncRemoved(entries.filter { idsToRemove.contains($0.id) })
         entries.removeAll { idsToRemove.contains($0.id) }
         var selected = quickBatchEntryIDs
         selected.subtract(idsToRemove)
@@ -1110,6 +1116,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     /// Coalesces the saves of one mutation cycle into a single persist.
     private func save() {
+        ClipboardHistorySyncService.shared.historyDidChange()
         persistenceGeneration &+= 1
         guard !persistScheduled else { return }
         persistScheduled = true
@@ -1171,6 +1178,30 @@ final class ClipboardHistoryService: ObservableObject {
             persist()
         }
         Self.persistQueue.sync {}
+        ClipboardHistorySyncService.shared.flushBeforeTermination()
+    }
+
+    // MARK: - Sync
+
+    /// Deletions the user made, which the other Macs follow. What the limits
+    /// trim stays a local decision and never comes through here.
+    private func syncRemoved(_ removed: [ClipboardHistoryEntry]) {
+        ClipboardHistorySyncService.shared.historyDidRemove(removed)
+    }
+
+    private func syncPinChanged(_ entry: ClipboardHistoryEntry) {
+        ClipboardHistorySyncService.shared.historyDidChangePin(entry)
+    }
+
+    /// The history merged with what the other Macs published, already in
+    /// order; the local limits still apply on top.
+    func applySyncedEntries(_ merged: [ClipboardHistoryEntry]) {
+        guard merged != entries else { return }
+        entries = merged
+        normalizeEntryOrder()
+        trimToLimit()
+        pruneQuickBatchSelection()
+        save()
     }
 
     // MARK: - Shortcut

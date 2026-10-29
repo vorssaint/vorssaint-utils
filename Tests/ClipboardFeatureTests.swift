@@ -1655,6 +1655,12 @@ enum ClipboardPreviewContract {
         var encodedHistoryByteLimit = ClipboardHistoryEditing.maxEncodedHistoryBytes
         func trimToLimit() {}
         func save() {}
+        /// What the production mutations hand to iCloud sync as deletions the
+        /// other Macs follow, and as pin changes.
+        var syncedRemovals: [[ClipboardHistoryEntry]] = []
+        var syncedPins: [ClipboardHistoryEntry] = []
+        func syncRemoved(_ removed: [ClipboardHistoryEntry]) { syncedRemovals.append(removed) }
+        func syncPinChanged(_ entry: ClipboardHistoryEntry) { syncedPins.append(entry) }
         var quickQuery = ""
         var quickSelectionID: UUID?
         var quickSelectionIsVisible = false
@@ -1892,6 +1898,54 @@ enum ClipboardPreviewContract {
         quickSelection(suite)
         promotedSource(suite)
         sensitiveText(suite)
+        syncedChanges(suite)
+    }
+
+    /// Only what the user deleted reaches the other Macs as a deletion, as it
+    /// was before the change, and a pin change carries its new state.
+    private static func syncedChanges(_ suite: TestSuite) {
+        let service = Service()
+        let kept = ClipboardHistoryEntry(text: "Copied while the dialog was open")
+        let counted = ClipboardHistoryEntry(text: "Counted by the dialog")
+        var pinned = ClipboardHistoryEntry(text: "Pinned stays")
+        pinned.pinnedAt = Date()
+        service.setEntries([pinned, counted])
+        let confirmed = service.recentEntriesSnapshot
+        service.setEntries([pinned, kept, counted])
+        service.clearRecent(confirmed)
+        suite.expect(service.syncedRemovals == [[counted]],
+                     "clearing reports exactly the counted unpinned entries as deleted, found \(service.syncedRemovals)")
+
+        service.syncedRemovals = []
+        let original = service.entries.first { $0.id == kept.id }!
+        suite.expect(service.updateText(kept, to: "Edited text"), "the edit lands")
+        suite.expect(service.syncedRemovals == [[original]],
+                     "an edit deletes the old text elsewhere, so the other Macs do not keep both versions")
+        service.syncedRemovals = []
+        suite.expect(service.updateText(service.entries.first { $0.id == kept.id }!, to: "Edited text")
+                     && service.syncedRemovals.isEmpty,
+                     "saving unchanged text deletes nothing")
+
+        let first = ClipboardHistoryEntry(text: "First"), second = ClipboardHistoryEntry(text: "Second")
+        service.setEntries([first, second])
+        service.quickQuery = ""
+        service.quickBatchEntryIDs = [first.id, second.id]
+        service.syncedRemovals = []
+        service.removeSelectedQuickEntries()
+        suite.expect(service.syncedRemovals.map { $0.map(\.text) } == [["First", "Second"]],
+                     "deleting a selection reports every selected entry")
+
+        service.setEntries([first])
+        service.syncedPins = []
+        service.syncedRemovals = []
+        service.togglePin(first)
+        suite.expect(service.syncedPins.count == 1 && service.syncedPins[0].isPinned
+                     && service.syncedPins[0].id == first.id,
+                     "pinning reports the entry with its new pin")
+        service.togglePin(service.entries[0])
+        suite.expect(service.syncedPins.count == 2 && !service.syncedPins[1].isPinned,
+                     "unpinning reports the entry unpinned")
+        suite.expect(service.syncedRemovals.isEmpty, "a pin change is never a deletion")
     }
 
     private static func sensitiveText(_ suite: TestSuite) {
