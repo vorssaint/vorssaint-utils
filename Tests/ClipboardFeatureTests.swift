@@ -1036,6 +1036,28 @@ enum ClipboardFeatureTests {
                                                          resultIDs: ["b", "a"]) == 0,
                "Settings search selection follows the same result after reranking")
 
+        // Regression coverage for #3193: the keypad must select the same
+        // entries as the top number row, independent of keyboard layout.
+        let numberKeys = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3,
+                          kVK_ANSI_4, kVK_ANSI_5, kVK_ANSI_6,
+                          kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9]
+        let keypadKeys = [kVK_ANSI_Keypad1, kVK_ANSI_Keypad2, kVK_ANSI_Keypad3,
+                          kVK_ANSI_Keypad4, kVK_ANSI_Keypad5, kVK_ANSI_Keypad6,
+                          kVK_ANSI_Keypad7, kVK_ANSI_Keypad8, kVK_ANSI_Keypad9]
+        for (index, keyCode) in numberKeys.enumerated() {
+            suite.expect(ClipboardHistoryNavigation.digitIndex(for: UInt16(keyCode)) == index,
+                         "clipboard top-row number \(index + 1) selects entry \(index)")
+            suite.expect(ClipboardHistoryNavigation.digitIndex(for: UInt16(keypadKeys[index])) == index,
+                         "clipboard keypad number \(index + 1) selects entry \(index)")
+        }
+        for keyCode in [kVK_ANSI_0, kVK_ANSI_Keypad0, kVK_ANSI_KeypadDecimal,
+                        kVK_ANSI_KeypadPlus, kVK_ANSI_KeypadMinus, kVK_ANSI_KeypadMultiply,
+                        kVK_ANSI_KeypadDivide, kVK_ANSI_KeypadEquals, kVK_ANSI_KeypadClear,
+                        kVK_ANSI_KeypadEnter, kVK_ANSI_A, kVK_Return, kVK_LeftArrow] {
+            suite.expect(ClipboardHistoryNavigation.digitIndex(for: UInt16(keyCode)) == nil,
+                         "clipboard does not treat key code \(keyCode) as a numbered entry")
+        }
+
         suite.expect(!ClipboardHistoryPreview.handlesSpace(selectionIsVisible: false, hasModifiers: false),
                "clipboard preview leaves spaces typed into search alone")
         suite.expect(ClipboardHistoryPreview.handlesSpace(selectionIsVisible: true, hasModifiers: false),
