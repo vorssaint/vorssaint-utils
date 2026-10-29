@@ -100,6 +100,14 @@ enum SettingsSearchSupport {
             feature: .brightness)
     }
 
+    static func qrResultItem(_ strings: Strings) -> SettingsSearchItem {
+        SettingsSearchItem(
+            id: .setting(.qrResult),
+            destination: FeatureSettingsDestination(.screenshot, sectionAnchor: .qrResult),
+            title: strings.qrResultActionLabel, icon: "qrcode",
+            keywords: QRResultAction.allCases.map { $0.label(strings) })
+    }
+
     /// A dedicated page row wins over a generated feature row only when their
     /// IDs, full destinations, and the page's one-to-one feature mapping all
     /// agree. The winning page keeps its stable identity and presentation while
@@ -145,6 +153,10 @@ enum SettingsSearchSupport {
     static func route(for item: SettingsSearchItem,
                        isAvailable: (AppFeature) -> Bool = { $0.isAvailable })
         -> (destination: FeatureSettingsDestination, targetFeature: AppFeature?) {
+        if item.id == .setting(.qrResult),
+           !isAvailable(.screenshot), !isAvailable(.screenOCR) {
+            return (FeatureSettingsDestination(.features), .screenshot)
+        }
         if let feature = item.feature {
             guard isAvailable(feature) || leadsToVisiblePage(item, isAvailable: isAvailable) else {
                 return (FeatureSettingsDestination(.features), feature)
@@ -222,6 +234,8 @@ enum SettingsSearchSupport {
         guard !foldedQuery.isEmpty else { return [] }
 
         let navigableItems = items.compactMap { item -> SettingsSearchItem? in
+            if item.id == .setting(.qrResult),
+               !isAvailable(.screenshot), !isAvailable(.screenOCR) { return nil }
             if let feature = item.feature, !isAvailable(feature),
                !leadsToVisiblePage(item, isAvailable: isAvailable) {
                 // The utility itself remains navigable through its Features
