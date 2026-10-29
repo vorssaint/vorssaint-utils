@@ -16,6 +16,7 @@ struct PowerReading {
     var timeRemainingSeconds: TimeInterval? // system estimate while discharging
     var healthPercent: Double?     // max capacity vs design (battery health)
     var cycleCount: Int?
+    var isFullyCharged = false
     var isCharging = false
     var externalConnected = false
     var hasBattery = false
@@ -102,6 +103,7 @@ final class PowerSampler {
         }
         if Self.hasInternalBattery, let props {
             reading.hasBattery = true
+            reading.isFullyCharged = (props["FullyCharged"] as? Bool) ?? false
             reading.isCharging = (props["IsCharging"] as? Bool) ?? false
             reading.timeRemainingSeconds = BatteryTimeSupport.remainingSeconds(
                 timeToEmptyMinutes: timeToEmptyMinutes(),
