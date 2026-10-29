@@ -884,6 +884,7 @@ enum DefaultsKey {
     static let notchCalendarTimeLeft = "notchCalendarTimeLeft" // the event under way counts down to its end
     static let notchCalendarWeekNumbers = "notchCalendarWeekNumbers" // the month grid numbers its weeks
     static let notchCalendarExcluded = "notchCalendarExcluded" // [EKCalendar.calendarIdentifier] left out of the island
+    static let notchCalendarApp = "notchCalendarApp" // bundle ID of the app events open in
     // [countdown key: event end] chosen from an event's menu; unregistered, so it stays out of backups
     static let notchCalendarChosenCountdowns = "notchCalendarChosenCountdowns"
     // AI agents: what the island reads from Claude Code, Codex, OpenCode and GitHub Copilot, and shows.
@@ -1488,6 +1489,7 @@ enum Defaults {
         DefaultsKey.notchCalendarTimeLeft: false,
         DefaultsKey.notchCalendarWeekNumbers: false,
         DefaultsKey.notchCalendarExcluded: [String](),
+        DefaultsKey.notchCalendarApp: NotchCalendarSupport.appleCalendar,
         DefaultsKey.notchAgentsEnabled: false,
         DefaultsKey.notchAgentsClaude: true,
         DefaultsKey.notchAgentsClaudeProfile: "",

@@ -3635,6 +3635,19 @@ enum NotchTests {
                                                                  DefaultsKey.notchCalendarWeekNumbers,
                                                                  AppFeature.notchCalendar.availabilityKey]),
                "calendar preferences travel in backup")
+        suite.expect(NotchCalendarSupport.app(in: defaults) { _ in true } == NotchCalendarSupport.appleCalendar,
+                     "events open in Calendar until another app is chosen")
+        defaults.set(NotchCalendarSupport.fantastical, forKey: DefaultsKey.notchCalendarApp)
+        suite.expect(NotchCalendarSupport.app(in: defaults) { _ in true } == NotchCalendarSupport.fantastical
+                     && NotchCalendarSupport.app(in: defaults) { $0 != NotchCalendarSupport.fantastical }
+                        == NotchCalendarSupport.appleCalendar,
+                     "a chosen app is used while installed, otherwise Calendar")
+        defaults.set("com.example.unknown", forKey: DefaultsKey.notchCalendarApp)
+        suite.expect(NotchCalendarSupport.app(in: defaults) { _ in true } == NotchCalendarSupport.appleCalendar,
+                     "an unknown app falls back to Calendar")
+        defaults.removeObject(forKey: DefaultsKey.notchCalendarApp)
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCalendarApp),
+                     "the calendar app travels in backup")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCalendarExcluded),
                      "hidden calendars travel in backup")
         suite.expect(NotchCalendarSupport.excludedCalendars(in: defaults).isEmpty,
@@ -4039,6 +4052,9 @@ enum NotchTests {
                "a repeating all-day occurrence keeps its local day")
         suite.expect(link(ended, identifier: "", recurring: false) == nil,
                "an appointment without an identifier falls back to opening Calendar itself")
+        suite.expect(NotchCalendarSupport.eventURL(ended, app: NotchCalendarSupport.fantastical, calendar: calendar)?.absoluteString
+               == "x-fantastical3://show/calendar/2026-03-08",
+               "Fantastical opens on the appointment's local day")
     }
 
 }
