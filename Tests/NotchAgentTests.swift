@@ -453,6 +453,15 @@ enum NotchAgentTests {
         _ = feed(claudeUser(#"<command-name>/model</command-name>"#))
         _ = feed(line(#"{"type":"user","message":{"content":"<local-command-stdout>Set model</local-command-stdout>"}}"#))
         suite.expect(store.live.isEmpty, "a local command never leaves a turn working")
+        // A forked skill run headless: the command line, stamped with its start,
+        // is written together with the system line that reports its output.
+        _ = feed(claudeUser("/research", time: "2026-09-21T23:00:00.000Z"))
+        _ = feed(line(#"{"type":"system","subtype":"local_command","timestamp":"2026-09-21T23:10:00.000Z","content":"<local-command-stdout>done</local-command-stdout>"}"#))
+        suite.expect(store.live.isEmpty, "a finished forked skill never shows as working")
+        _ = feed(claudeUser())
+        _ = feed(line(#"{"type":"system","subtype":"api_error","content":"<local-command-stdout>quoted</local-command-stdout>"}"#))
+        suite.expect(store.live.count == 1, "another system line quoting local command output keeps the turn working")
+        _ = feed(line(#"{"type":"system","subtype":"local_command","content":"<local-command-stdout>x</local-command-stdout>"}"#))
         _ = feed(claudeUser())
         _ = feed(claudeAssistant(id: "msg_5", request: "req_5", stop: "tool_use", time: "2026-09-21T23:40:10.000Z"))
         let structured = feed(line(#"{"type":"user","timestamp":"2026-09-21T23:40:15.000Z","sessionId":"s1","message":{"role":"user","content":[{"type":"tool_result","content":"Structured output provided successfully"}]},"toolUseResult":"Structured output provided successfully","toolEndsTurn":true}"#))
