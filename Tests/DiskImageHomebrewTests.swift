@@ -20,8 +20,12 @@ enum DiskImageHomebrewTests {
     final class Files: Foundation.FileManager, @unchecked Sendable {
         var root: URL!
         override func urls(for directory: SearchPathDirectory, in domainMask: SearchPathDomainMask) -> [URL] {
-            [root.appendingPathComponent(directory == .libraryDirectory ? "Library" : "Applications",
-                                          isDirectory: true)]
+            let name = switch directory {
+            case .libraryDirectory: "Library"
+            case .downloadsDirectory: "Downloads"
+            default: "Applications"
+            }
+            return [root.appendingPathComponent(name, isDirectory: true)]
         }
     }
     enum FileManager { static let `default` = Files() }
@@ -74,7 +78,9 @@ enum DiskImageHomebrewTests {
             let cached = cache.appendingPathComponent("downloads/example.dmg")
             let manual = root.appendingPathComponent("Downloads/manual.dmg")
             let sibling = library.appendingPathComponent("Caches/Homebrew-backup/example.dmg")
-            for url in [cached, manual, sibling] {
+            let built = root.appendingPathComponent("Project/build/release.dmg")
+            let fetched = root.appendingPathComponent("Project/vendor/fetched.dmg")
+            for url in [cached, manual, sibling, built, fetched] {
                 try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data([0]).write(to: url)
             }
@@ -97,6 +103,20 @@ enum DiskImageHomebrewTests {
             try info(manual)
             suite.expect(service.candidate(mountedAt: mount)?.imageURL == manual,
                          "production candidate selection retains a manual app image")
+            // A release script mounting its own build is not asked about (#3592).
+            try info(built)
+            suite.expect(service.candidate(mountedAt: mount) == nil,
+                         "production candidate selection skips an image a script built and mounted")
+            let quarantine = Data("0083;00000000;Safari;".utf8)
+            let tagged = quarantine.withUnsafeBytes { bytes in
+                fetched.path.withCString {
+                    setxattr($0, "com.apple.quarantine", bytes.baseAddress, bytes.count, 0, 0)
+                }
+            }
+            try info(fetched)
+            suite.expect(tagged == 0 && service.candidate(mountedAt: mount)?.imageURL == fetched,
+                         "production candidate selection offers a downloaded image saved outside Downloads")
+            try info(manual)
             service.inspect(mountURL: mount)
             service.inspect(mountURL: mount)
             suite.expect(service.workQueue.work.count == 1,

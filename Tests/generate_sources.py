@@ -673,6 +673,7 @@ def main():
           + "".join(declaration(disk_image, prefix).replace("private ", "", 1)
                     for prefix in ["    private func inspect(", "    private func candidate(",
                                    "    private static func isHomebrewImage(",
+                                   "    private static func isQuarantined(",
                                    "    private static func fileIdentity(", "    private static func validBundle("])
           + "}\n}\n")
     cleaner = "Sources/Vorssaint/Services/URLCleanerService.swift"
