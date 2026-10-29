@@ -99,6 +99,37 @@ enum KeepAwakeDimmingTests {
         nothingToRecover.recoverDimmedDisplayIfNeeded()
         expect(C.LidDisplayDimmer.written.isEmpty, "launch recovery does nothing when no brightness was saved")
 
+        // Continuity and lid dimming share one captured brightness.
+        _ = C.reset()
+        C.BrightnessService.lid = false
+        C.LidDisplayDimmer.reading = 0.6
+        let continuity = C.Service()
+        continuity.isActive = true
+        expect(continuity.dimForContinuity(), "continuity can dim an active session")
+        let original = continuity.savedDisplayBrightness
+        expect(original != nil, "continuity captures brightness before writing zero")
+        expect(continuity.dimForContinuity() && continuity.savedDisplayBrightness == original,
+               "repeated dimming never replaces the original level with zero")
+        continuity.restoreContinuityBrightness()
+        expect(continuity.savedDisplayBrightness == nil, "return restores and clears recovery marker")
+        continuity.isActive = false
+        expect(!continuity.dimForContinuity(), "expired session cannot dim")
+
+        let interruptedRestore = C.reset()
+        C.BrightnessService.lid = false
+        C.LidDisplayDimmer.reading = 0.6
+        interruptedRestore.isActive = true
+        expect(interruptedRestore.dimForContinuity(), "new handoff can dim")
+        C.LidDisplayDimmer.writeSucceeds = false
+        interruptedRestore.restoreContinuityBrightness()
+        C.LidDisplayDimmer.writeSucceeds = true
+        expect(interruptedRestore.dimForContinuity(), "new handoff can reuse owed brightness")
+        let writesBeforeRetry = C.LidDisplayDimmer.written
+        C.DispatchQueue.main.advance()
+        expect(C.LidDisplayDimmer.written == writesBeforeRetry,
+               "an older restore retry cannot brighten a newer handoff")
+        interruptedRestore.restoreContinuityBrightness()
+
         // A restore that briefly finds no panel — right as the lid opens —
         // keeps the saved level instead of clearing it on a merely attempted
         // write, and a queued retry completes it once the panel is back.

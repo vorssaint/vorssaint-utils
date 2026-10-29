@@ -324,7 +324,11 @@ struct MenuPanelView: View {
     @ViewBuilder
     private func section(for id: PanelSectionID, collapsible: Bool = true) -> some View {
         switch id {
-        case .keepAwake: KeepAwakeCard(collapsible: collapsible)
+        case .keepAwake:
+            VStack(alignment: .leading, spacing: 16) {
+                KeepAwakeCard(collapsible: collapsible)
+                ContinuityCard()
+            }
         case .brightness: if showBrightness { BrightnessSection(collapsible: collapsible) }
         case .mixer: if showMixer { mixerOrPrioritySection(collapsible: collapsible) }
         case .system:
