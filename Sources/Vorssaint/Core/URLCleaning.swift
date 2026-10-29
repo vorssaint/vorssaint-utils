@@ -52,7 +52,31 @@ enum URLCleaning {
             "shareredid", "share_id", "exsource", "app_version", "app_platform",
             "apptime", "appuid",
         ],
+        // Search and list pages. Product pages go further, see
+        // `amazonProduct`. Affiliate fields (`tag`, `linkcode`, `camp`,
+        // `creative`, `ascsubtag`) are here too, as in ClearURLs and AdGuard.
+        amazonSite: [
+            "tag", "linkcode", "linkid", "camp", "creative", "creativeasin", "ascsubtag",
+            "ref", "ref_", "qid", "sr", "sprefix", "crid", "dib", "dib_tag", "content-id",
+            "pd_rd_i", "pd_rd_r", "pd_rd_w", "pd_rd_wg",
+            "pf_rd_i", "pf_rd_m", "pf_rd_p", "pf_rd_r", "pf_rd_s", "pf_rd_t", "_encoding",
+        ],
     ]
+
+    /// One key for every Amazon storefront, since `amazon.de` and
+    /// `amazon.co.jp` cannot share a suffix key.
+    static let amazonSite = "amazon.*"
+
+    private static let amazonStorefronts: Set<String> = [
+        "com", "ca", "com.mx", "com.br", "co.uk", "ie", "de", "fr", "it", "es", "nl",
+        "se", "pl", "com.be", "com.tr", "ae", "sa", "eg", "in", "co.jp", "com.au",
+        "sg", "cn", "co.za",
+    ]
+
+    /// What a product page needs besides its ASIN: the variant, the
+    /// condition and the seller. Everything else in its query is decoration
+    /// Amazon keeps adding to, so it is not worth listing name by name.
+    private static let amazonProductParameters: Set<String> = ["th", "psc", "smid"]
 
     /// A cleaned link and the names taken out of it, so every surface that
     /// cleans can say what it removed instead of only that something changed.
@@ -151,6 +175,10 @@ enum URLCleaning {
         // a query delimiter inside a Character.
         let scalars = trimmed.unicodeScalars
         let fragmentStart = scalars.firstIndex(of: "#") ?? scalars.endIndex
+        if let product = amazonProduct(scalars, fragmentStart: fragmentStart,
+                                       components: components, host: host, rules: rules) {
+            return product
+        }
         guard let queryStart = scalars[..<fragmentStart].firstIndex(of: "?") else {
             return Result(url: trimmed, removed: [])
         }
@@ -173,6 +201,79 @@ enum URLCleaning {
             + (kept.isEmpty ? "" : "?" + survivingQuery)
             + String(scalars[fragmentStart...])
         return Result(url: url, removed: removed)
+    }
+
+    /// A product page reduced to `/dp/ASIN`. The title slug and any
+    /// `/ref=…` segment go with the rest of the path, and the query keeps
+    /// only `amazonProductParameters` plus names switched off for Amazon in
+    /// Settings. With every Amazon name switched off the link is left to the
+    /// ordinary rules.
+    private static func amazonProduct(_ scalars: String.UnicodeScalarView,
+                                      fragmentStart: String.UnicodeScalarView.Index,
+                                      components: URLComponents, host: String,
+                                      rules: Rules) -> Result? {
+        guard isAmazonStorefront(host) else { return nil }
+        let disabled = rules.disabled[amazonSite] ?? []
+        guard !(hostParameters[amazonSite] ?? []).isSubset(of: disabled),
+              let asin = amazonASIN(inPath: components.percentEncodedPath),
+              let schemeEnd = scalars.firstIndex(of: ":") else {
+            return nil
+        }
+        let authorityStart = scalars.index(schemeEnd, offsetBy: 3)
+        let pathStart = scalars[authorityStart..<fragmentStart]
+            .firstIndex { $0 == "/" || $0 == "?" } ?? fragmentStart
+        let queryStart = scalars[pathStart..<fragmentStart].firstIndex(of: "?")
+
+        var removed: [String] = []
+        if components.percentEncodedPath.lowercased().contains("/ref=") {
+            removed.append("ref")
+        }
+        let kept = queryStart.map { start in
+            scalars[scalars.index(after: start)..<fragmentStart]
+                .split(separator: "&", omittingEmptySubsequences: true)
+                .filter { pair in
+                    let name = decodedName(ofRawPair: pair).lowercased()
+                    if amazonProductParameters.contains(name) || disabled.contains(name) { return true }
+                    if !removed.contains(name) { removed.append(name) }
+                    return false
+                }
+        } ?? []
+
+        let url = String(scalars[..<pathStart]) + "/dp/" + asin
+            + (kept.isEmpty ? "" : "?" + kept.map { String($0) }.joined(separator: "&"))
+            + String(scalars[fragmentStart...])
+        return Result(url: url, removed: removed)
+    }
+
+    private static func isAmazonStorefront(_ host: String) -> Bool {
+        let normalized = host.lowercased()
+        return amazonStorefronts.contains { suffix in
+            normalized == "amazon." + suffix || normalized.hasSuffix(".amazon." + suffix)
+        }
+    }
+
+    /// The ASIN after `/dp/`, `/gp/product/` or the mobile `/gp/aw/d/`.
+    private static func amazonASIN(inPath path: String) -> String? {
+        let segments = path.split(separator: "/").map { $0.lowercased() }
+        for index in segments.indices {
+            let rest = segments[index...]
+            let width: Int
+            if rest.starts(with: ["dp"]) {
+                width = 1
+            } else if rest.starts(with: ["gp", "product"]) {
+                width = 2
+            } else if rest.starts(with: ["gp", "aw", "d"]) {
+                width = 3
+            } else {
+                continue
+            }
+            guard index + width < segments.count else { continue }
+            let candidate = segments[index + width].uppercased()
+            if candidate.count == 10, candidate.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) {
+                return candidate
+            }
+        }
+        return nil
     }
 
     static func ruleGroups(rules: Rules) -> [RuleGroup] {
@@ -303,8 +404,12 @@ enum URLCleaning {
     /// set, and a host that matches nothing keeps only the global rules.
     private static func siteKeys(matching host: String, rules: Rules) -> [String] {
         let normalized = host.lowercased()
+        let isAmazon = isAmazonStorefront(normalized)
         return Set(hostParameters.keys).union(rules.added.keys).union(rules.disabled.keys)
-            .filter { !$0.isEmpty && (normalized == $0 || normalized.hasSuffix("." + $0)) }
+            .filter {
+                !$0.isEmpty && (normalized == $0 || normalized.hasSuffix("." + $0)
+                    || ($0 == amazonSite && isAmazon))
+            }
             .sorted()
     }
 
