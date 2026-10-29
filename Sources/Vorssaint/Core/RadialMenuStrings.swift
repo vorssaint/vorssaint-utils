@@ -106,6 +106,16 @@ struct RadialMenuFeatureStrings {
     let trackpadTapLabel: String
     let trackpadTapConflict: String
     let profileNoTrigger: String
+    let peekLabel: String
+    let peekCaption: String
+    let peekClipboardHint: String
+    let peekFolderHint: String
+    let peekFolderEmpty: String
+    let peekFolderUnreadable: String
+    let peekBasketEmpty: String
+    let peekBasketFormat: String
+    let peekBasketHint: String
+    let peekClearSelection: String
 }
 
 extension FeatureStrings {
@@ -233,7 +243,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Hide list",
         trackpadTapLabel: "Open with a four-finger tap",
         trackpadTapConflict: "Middle click already uses the four-finger tap, so the tap does not open this wheel.",
-        profileNoTrigger: "Picking a profile here only edits it. Give this one a shortcut, a mouse button or the four-finger tap below to open it."
+        profileNoTrigger: "Picking a profile here only edits it. Give this one a shortcut, a mouse button or the four-finger tap below to open it.",
+        peekLabel: "Show details on hover",
+        peekCaption: "Resting the pointer on an action with more to show, such as Clipboard history or a folder, opens a list beside the wheel. Pick a clipboard entry to paste it, or select files in a folder to drag or copy them.",
+        peekClipboardHint: "Choose an entry to paste it",
+        peekFolderHint: "Click a file to select it, double-click to open it, or drag it out to copy it.",
+        peekFolderEmpty: "This folder is empty.",
+        peekFolderUnreadable: "Vorssaint can’t read this folder. Allow it in System Settings › Privacy & Security › Files and Folders.",
+        peekBasketEmpty: "Selected files gather here.",
+        peekBasketFormat: "Selected: %d",
+        peekBasketHint: "Drag to drop · ⌘C to copy",
+        peekClearSelection: "Clear selection"
     )
 
     static let ptBR = RadialMenuFeatureStrings(
@@ -338,7 +358,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Ocultar lista",
         trackpadTapLabel: "Abrir com um toque de quatro dedos",
         trackpadTapConflict: "O botão do meio já usa o toque de quatro dedos, então o toque não abre esta roda.",
-        profileNoTrigger: "Escolher um perfil aqui serve só para editá-lo. Para abrir este perfil, dê a ele um atalho, um botão do mouse ou o toque de quatro dedos abaixo."
+        profileNoTrigger: "Escolher um perfil aqui serve só para editá-lo. Para abrir este perfil, dê a ele um atalho, um botão do mouse ou o toque de quatro dedos abaixo.",
+        peekLabel: "Mostrar detalhes ao passar o ponteiro",
+        peekCaption: "Deixar o ponteiro sobre uma ação com mais a mostrar, como o Histórico da área de transferência ou uma pasta, abre uma lista ao lado da roda. Escolha um item da área de transferência para colá-lo ou selecione arquivos de uma pasta para arrastá-los ou copiá-los.",
+        peekClipboardHint: "Escolha um item para colá-lo",
+        peekFolderHint: "Clique em um arquivo para selecioná-lo, clique duas vezes para abri-lo ou arraste-o para fora para copiá-lo.",
+        peekFolderEmpty: "Esta pasta está vazia.",
+        peekFolderUnreadable: "O Vorssaint não consegue ler esta pasta. Permita em Ajustes do Sistema › Privacidade e Segurança › Arquivos e Pastas.",
+        peekBasketEmpty: "Os arquivos selecionados ficam aqui.",
+        peekBasketFormat: "Selecionados: %d",
+        peekBasketHint: "Arraste para soltar · ⌘C para copiar",
+        peekClearSelection: "Limpar seleção"
     )
 
     static let tr = RadialMenuFeatureStrings(
@@ -443,7 +473,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Listeyi gizle",
         trackpadTapLabel: "Dört parmakla dokunarak aç",
         trackpadTapConflict: "Dört parmakla dokunma zaten orta tıklamaya ayrılmış, bu yüzden dokunma bu çarkı açmaz.",
-        profileNoTrigger: "Burada bir profil seçmek yalnızca onu düzenlemenizi sağlar. Açmak için bu profile aşağıdan bir kısayol, bir fare düğmesi veya dört parmakla dokunma verin."
+        profileNoTrigger: "Burada bir profil seçmek yalnızca onu düzenlemenizi sağlar. Açmak için bu profile aşağıdan bir kısayol, bir fare düğmesi veya dört parmakla dokunma verin.",
+        peekLabel: "Üzerine gelince ayrıntıları göster",
+        peekCaption: "İşaretçiyi Pano geçmişi veya bir klasör gibi gösterecek daha fazlası olan bir eylemin üzerinde bekletmek, çarkın yanında bir liste açar. Yapıştırmak için bir pano öğesi seçin ya da sürüklemek veya kopyalamak için bir klasördeki dosyaları seçin.",
+        peekClipboardHint: "Yapıştırmak için bir öğe seçin",
+        peekFolderHint: "Seçmek için bir dosyaya tıklayın, açmak için çift tıklayın veya kopyalamak için dışarı sürükleyin.",
+        peekFolderEmpty: "Bu klasör boş.",
+        peekFolderUnreadable: "Vorssaint bu klasörü okuyamıyor. Sistem Ayarları › Gizlilik ve Güvenlik › Dosyalar ve Klasörler bölümünden izin verin.",
+        peekBasketEmpty: "Seçilen dosyalar burada toplanır.",
+        peekBasketFormat: "Seçilen: %d",
+        peekBasketHint: "Bırakmak için sürükleyin · Kopyalamak için ⌘C",
+        peekClearSelection: "Seçimi temizle"
     )
 
     static let ru = RadialMenuFeatureStrings(
@@ -548,7 +588,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Скрыть список",
         trackpadTapLabel: "Открывать касанием четырьмя пальцами",
         trackpadTapConflict: "Касание четырьмя пальцами уже занято средней кнопкой, поэтому оно не открывает это колесо.",
-        profileNoTrigger: "Выбор профиля здесь только открывает его для правки. Чтобы этот профиль открывался, задайте ему ниже сочетание клавиш, кнопку мыши или касание четырьмя пальцами."
+        profileNoTrigger: "Выбор профиля здесь только открывает его для правки. Чтобы этот профиль открывался, задайте ему ниже сочетание клавиш, кнопку мыши или касание четырьмя пальцами.",
+        peekLabel: "Показывать подробности при наведении",
+        peekCaption: "Если задержать указатель на действии, которому есть что показать, например на истории буфера обмена или папке, рядом с колесом откроется список. Выберите запись буфера обмена, чтобы вставить её, или выберите файлы в папке, чтобы перетащить или скопировать их.",
+        peekClipboardHint: "Выберите запись, чтобы вставить её",
+        peekFolderHint: "Нажмите на файл, чтобы выбрать его, дважды нажмите, чтобы открыть, или перетащите его, чтобы скопировать.",
+        peekFolderEmpty: "Эта папка пуста.",
+        peekFolderUnreadable: "Vorssaint не может прочитать эту папку. Разрешите доступ в Системных настройках › Конфиденциальность и безопасность › Файлы и папки.",
+        peekBasketEmpty: "Выбранные файлы собираются здесь.",
+        peekBasketFormat: "Выбрано: %d",
+        peekBasketHint: "Перетащите в нужное место · ⌘C, чтобы скопировать",
+        peekClearSelection: "Снять выбор"
     )
 
     static let es = RadialMenuFeatureStrings(
@@ -653,7 +703,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Ocultar lista",
         trackpadTapLabel: "Abrir con un toque de cuatro dedos",
         trackpadTapConflict: "El clic central ya usa el toque de cuatro dedos, así que el toque no abre esta rueda.",
-        profileNoTrigger: "Elegir un perfil aquí solo sirve para editarlo. Dale a este un atajo, un botón del ratón o el toque de cuatro dedos de abajo para abrirlo."
+        profileNoTrigger: "Elegir un perfil aquí solo sirve para editarlo. Dale a este un atajo, un botón del ratón o el toque de cuatro dedos de abajo para abrirlo.",
+        peekLabel: "Mostrar detalles al pasar el puntero",
+        peekCaption: "Al dejar el puntero sobre una acción con más que mostrar, como el Historial del portapapeles o una carpeta, se abre una lista junto a la rueda. Elige una entrada del portapapeles para pegarla o selecciona archivos de una carpeta para arrastrarlos o copiarlos.",
+        peekClipboardHint: "Elige una entrada para pegarla",
+        peekFolderHint: "Haz clic en un archivo para seleccionarlo, doble clic para abrirlo o arrástralo fuera para copiarlo.",
+        peekFolderEmpty: "Esta carpeta está vacía.",
+        peekFolderUnreadable: "Vorssaint no puede leer esta carpeta. Permítelo en Ajustes del Sistema › Privacidad y seguridad › Archivos y carpetas.",
+        peekBasketEmpty: "Los archivos seleccionados se reúnen aquí.",
+        peekBasketFormat: "Seleccionados: %d",
+        peekBasketHint: "Arrastra para soltar · ⌘C para copiar",
+        peekClearSelection: "Borrar selección"
     )
 
     static let sk = RadialMenuFeatureStrings(
@@ -758,7 +818,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Skryť zoznam",
         trackpadTapLabel: "Otvoriť ťuknutím štyrmi prstami",
         trackpadTapConflict: "Stredné kliknutie už používa ťuknutie štyrmi prstami, takže toto ťuknutie koleso neotvorí.",
-        profileNoTrigger: "Tu iba vyberáte profil, ktorý upravujete. Aby sa tento profil otváral, priraďte mu nižšie skratku, tlačidlo myši alebo ťuknutie štyrmi prstami."
+        profileNoTrigger: "Tu iba vyberáte profil, ktorý upravujete. Aby sa tento profil otváral, priraďte mu nižšie skratku, tlačidlo myši alebo ťuknutie štyrmi prstami.",
+        peekLabel: "Zobraziť podrobnosti pod kurzorom",
+        peekCaption: "Keď necháte kurzor na akcii, ktorá má čo ukázať, napríklad na histórii schránky alebo priečinku, vedľa kolesa sa otvorí zoznam. Vyberte položku schránky, ktorú chcete vložiť, alebo vyberte súbory v priečinku, ktoré chcete presunúť alebo skopírovať.",
+        peekClipboardHint: "Vyberte položku, ktorú chcete vložiť",
+        peekFolderHint: "Kliknutím na súbor ho vyberiete, dvojitým kliknutím otvoríte a presunutím von skopírujete.",
+        peekFolderEmpty: "Tento priečinok je prázdny.",
+        peekFolderUnreadable: "Vorssaint nemôže čítať tento priečinok. Povoľte to v Nastaveniach systému › Súkromie a bezpečnosť › Súbory a priečinky.",
+        peekBasketEmpty: "Vybrané súbory sa zhromaždia tu.",
+        peekBasketFormat: "Vybrané: %d",
+        peekBasketHint: "Presuňte na cieľ · ⌘C skopíruje",
+        peekClearSelection: "Zrušiť výber"
     )
 
     static let de = RadialMenuFeatureStrings(
@@ -863,7 +933,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Liste ausblenden",
         trackpadTapLabel: "Mit Vier-Finger-Tippen öffnen",
         trackpadTapConflict: "Der Mittelklick nutzt bereits das Vier-Finger-Tippen, daher öffnet das Tippen dieses Rad nicht.",
-        profileNoTrigger: "Hier wählst du nur das Profil aus, das du bearbeitest. Damit es sich öffnet, gib ihm unten einen Kurzbefehl, eine Maustaste oder das Vier-Finger-Tippen."
+        profileNoTrigger: "Hier wählst du nur das Profil aus, das du bearbeitest. Damit es sich öffnet, gib ihm unten einen Kurzbefehl, eine Maustaste oder das Vier-Finger-Tippen.",
+        peekLabel: "Details beim Darüberfahren zeigen",
+        peekCaption: "Verweilt der Zeiger auf einer Aktion mit mehr Inhalt, etwa dem Zwischenablageverlauf oder einem Ordner, öffnet sich neben dem Rad eine Liste. Wähle einen Eintrag der Zwischenablage, um ihn einzusetzen, oder wähle Dateien in einem Ordner aus, um sie zu ziehen oder zu kopieren.",
+        peekClipboardHint: "Wähle einen Eintrag zum Einsetzen",
+        peekFolderHint: "Klicke auf eine Datei, um sie auszuwählen, doppelklicke, um sie zu öffnen, oder ziehe sie heraus, um sie zu kopieren.",
+        peekFolderEmpty: "Dieser Ordner ist leer.",
+        peekFolderUnreadable: "Vorssaint kann diesen Ordner nicht lesen. Erlaube den Zugriff in den Systemeinstellungen › Datenschutz & Sicherheit › Dateien und Ordner.",
+        peekBasketEmpty: "Ausgewählte Dateien sammeln sich hier.",
+        peekBasketFormat: "Ausgewählt: %d",
+        peekBasketHint: "Ziehen zum Ablegen · ⌘C zum Kopieren",
+        peekClearSelection: "Auswahl aufheben"
     )
 
     static let fr = RadialMenuFeatureStrings(
@@ -968,7 +1048,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Masquer la liste",
         trackpadTapLabel: "Ouvrir d’un toucher à quatre doigts",
         trackpadTapConflict: "Le clic du milieu utilise déjà le toucher à quatre doigts, donc ce toucher n’ouvre pas cette roue.",
-        profileNoTrigger: "Choisir un profil ici sert seulement à le modifier. Donnez à celui-ci un raccourci, un bouton de la souris ou le toucher à quatre doigts ci-dessous pour l’ouvrir."
+        profileNoTrigger: "Choisir un profil ici sert seulement à le modifier. Donnez à celui-ci un raccourci, un bouton de la souris ou le toucher à quatre doigts ci-dessous pour l’ouvrir.",
+        peekLabel: "Afficher les détails au survol",
+        peekCaption: "Laisser le pointeur sur une action qui a plus à montrer, comme l’historique du presse-papiers ou un dossier, ouvre une liste à côté de la roue. Choisissez un élément du presse-papiers pour le coller, ou sélectionnez des fichiers d’un dossier pour les faire glisser ou les copier.",
+        peekClipboardHint: "Choisissez un élément à coller",
+        peekFolderHint: "Cliquez sur un fichier pour le sélectionner, double-cliquez pour l’ouvrir ou faites-le glisser pour le copier.",
+        peekFolderEmpty: "Ce dossier est vide.",
+        peekFolderUnreadable: "Vorssaint ne peut pas lire ce dossier. Autorisez-le dans Réglages Système › Confidentialité et sécurité › Fichiers et dossiers.",
+        peekBasketEmpty: "Les fichiers sélectionnés se regroupent ici.",
+        peekBasketFormat: "Sélectionnés : %d",
+        peekBasketHint: "Glisser pour déposer · ⌘C pour copier",
+        peekClearSelection: "Effacer la sélection"
     )
 
     static let it = RadialMenuFeatureStrings(
@@ -1073,7 +1163,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Nascondi elenco",
         trackpadTapLabel: "Apri con un tocco a quattro dita",
         trackpadTapConflict: "Il clic centrale usa già il tocco a quattro dita, quindi il tocco non apre questa ruota.",
-        profileNoTrigger: "Scegliere un profilo qui serve solo a modificarlo. Assegna a questo un’abbreviazione, un pulsante del mouse o il tocco a quattro dita qui sotto per aprirlo."
+        profileNoTrigger: "Scegliere un profilo qui serve solo a modificarlo. Assegna a questo un’abbreviazione, un pulsante del mouse o il tocco a quattro dita qui sotto per aprirlo.",
+        peekLabel: "Mostra i dettagli al passaggio del puntatore",
+        peekCaption: "Fermando il puntatore su un’azione con altro da mostrare, come la cronologia degli appunti o una cartella, si apre un elenco accanto alla ruota. Scegli un elemento degli appunti per incollarlo, oppure seleziona file in una cartella per trascinarli o copiarli.",
+        peekClipboardHint: "Scegli un elemento da incollare",
+        peekFolderHint: "Fai clic su un file per selezionarlo, doppio clic per aprirlo o trascinalo fuori per copiarlo.",
+        peekFolderEmpty: "Questa cartella è vuota.",
+        peekFolderUnreadable: "Vorssaint non può leggere questa cartella. Consentilo in Impostazioni di Sistema › Privacy e sicurezza › File e cartelle.",
+        peekBasketEmpty: "I file selezionati si raccolgono qui.",
+        peekBasketFormat: "Selezionati: %d",
+        peekBasketHint: "Trascina per rilasciare · ⌘C per copiare",
+        peekClearSelection: "Annulla selezione"
     )
 
     static let ja = RadialMenuFeatureStrings(
@@ -1178,7 +1278,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "リストを非表示",
         trackpadTapLabel: "4本指のタップで開く",
         trackpadTapConflict: "4本指のタップは中クリックで使用中のため、このホイールは開きません。",
-        profileNoTrigger: "ここでプロファイルを選んでも編集するだけです。このプロファイルを開くには、下でショートカット、マウスボタン、または4本指のタップを設定してください。"
+        profileNoTrigger: "ここでプロファイルを選んでも編集するだけです。このプロファイルを開くには、下でショートカット、マウスボタン、または4本指のタップを設定してください。",
+        peekLabel: "ポインタを置いたときに詳細を表示",
+        peekCaption: "クリップボード履歴やフォルダなど、ほかにも表示できる内容があるアクションにポインタを置いたままにすると、ホイールの横にリストが開きます。クリップボードの項目を選ぶとペーストされ、フォルダ内のファイルを選ぶとドラッグやコピーができます。",
+        peekClipboardHint: "項目を選んでペースト",
+        peekFolderHint: "ファイルをクリックで選択、ダブルクリックで開く、外へドラッグでコピーします。",
+        peekFolderEmpty: "このフォルダは空です。",
+        peekFolderUnreadable: "Vorssaintはこのフォルダを読み取れません。システム設定 › プライバシーとセキュリティ › ファイルとフォルダで許可してください。",
+        peekBasketEmpty: "選択したファイルがここに集まります。",
+        peekBasketFormat: "選択中: %d",
+        peekBasketHint: "ドラッグでドロップ · ⌘Cでコピー",
+        peekClearSelection: "選択を解除"
     )
 
     static let ko = RadialMenuFeatureStrings(
@@ -1283,7 +1393,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "목록 숨기기",
         trackpadTapLabel: "네 손가락 탭으로 열기",
         trackpadTapConflict: "네 손가락 탭은 이미 가운데 클릭에 사용 중이므로 이 휠을 열지 않습니다.",
-        profileNoTrigger: "여기서 프로필을 고르면 편집만 됩니다. 이 프로필을 열려면 아래에서 단축키, 마우스 버튼 또는 네 손가락 탭을 지정하세요."
+        profileNoTrigger: "여기서 프로필을 고르면 편집만 됩니다. 이 프로필을 열려면 아래에서 단축키, 마우스 버튼 또는 네 손가락 탭을 지정하세요.",
+        peekLabel: "포인터를 올리면 세부 정보 표시",
+        peekCaption: "클립보드 기록이나 폴더처럼 더 보여줄 내용이 있는 동작에 포인터를 머무르면 휠 옆에 목록이 열립니다. 클립보드 항목을 고르면 붙여넣고, 폴더의 파일을 선택하면 드래그하거나 복사할 수 있습니다.",
+        peekClipboardHint: "붙여넣을 항목을 고르세요",
+        peekFolderHint: "파일을 클릭하면 선택되고, 두 번 클릭하면 열리며, 밖으로 드래그하면 복사됩니다.",
+        peekFolderEmpty: "이 폴더는 비어 있습니다.",
+        peekFolderUnreadable: "Vorssaint가 이 폴더를 읽을 수 없습니다. 시스템 설정 › 개인정보 보호 및 보안 › 파일 및 폴더에서 허용하세요.",
+        peekBasketEmpty: "선택한 파일이 여기에 모입니다.",
+        peekBasketFormat: "선택됨: %d",
+        peekBasketHint: "드래그하여 놓기 · ⌘C로 복사",
+        peekClearSelection: "선택 해제"
     )
 
     static let zhHans = RadialMenuFeatureStrings(
@@ -1388,7 +1508,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "隐藏列表",
         trackpadTapLabel: "用四指轻点打开",
         trackpadTapConflict: "四指轻点已用于中键点按，因此不会打开这个转盘。",
-        profileNoTrigger: "在这里选择配置只是为了编辑它。要打开这个配置，请在下方为它设置快捷键、鼠标按钮或四指轻点。"
+        profileNoTrigger: "在这里选择配置只是为了编辑它。要打开这个配置，请在下方为它设置快捷键、鼠标按钮或四指轻点。",
+        peekLabel: "悬停时显示详细信息",
+        peekCaption: "将指针停留在有更多内容的动作上（例如剪贴板历史记录或文件夹），会在转盘旁打开一个列表。选择一项剪贴板内容即可粘贴，或在文件夹中选择文件以拖移或拷贝。",
+        peekClipboardHint: "选择一项以粘贴",
+        peekFolderHint: "点按文件以选择，连按以打开，或将其拖出以拷贝。",
+        peekFolderEmpty: "此文件夹为空。",
+        peekFolderUnreadable: "Vorssaint 无法读取此文件夹。请在“系统设置”›“隐私与安全性”›“文件与文件夹”中允许访问。",
+        peekBasketEmpty: "所选文件会汇集在这里。",
+        peekBasketFormat: "已选择：%d",
+        peekBasketHint: "拖移以放下 · ⌘C 拷贝",
+        peekClearSelection: "清除选择"
     )
 
     static let zhTW = RadialMenuFeatureStrings(
@@ -1493,7 +1623,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "隱藏列表",
         trackpadTapLabel: "用四指輕點打開",
         trackpadTapConflict: "四指輕點已用於中鍵點按，因此不會打開這個轉盤。",
-        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快速鍵、滑鼠按鈕或四指輕點。"
+        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快速鍵、滑鼠按鈕或四指輕點。",
+        peekLabel: "懸停時顯示詳細資訊",
+        peekCaption: "將指標停留在有更多內容的動作上（例如剪貼簿歷史記錄或檔案夾），會在轉盤旁打開一個列表。選擇一個剪貼簿項目即可貼上，或在檔案夾中選取檔案以拖移或拷貝。",
+        peekClipboardHint: "選擇一個項目以貼上",
+        peekFolderHint: "按一下檔案以選取，按兩下以打開，或將其拖出以拷貝。",
+        peekFolderEmpty: "此檔案夾是空的。",
+        peekFolderUnreadable: "Vorssaint 無法讀取此檔案夾。請在「系統設定」›「隱私權與安全性」›「檔案與檔案夾」中允許取用。",
+        peekBasketEmpty: "所選檔案會匯集在這裡。",
+        peekBasketFormat: "已選取：%d",
+        peekBasketHint: "拖移以放下 · ⌘C 拷貝",
+        peekClearSelection: "清除選取"
     )
 
     static let zhHK = RadialMenuFeatureStrings(
@@ -1598,7 +1738,17 @@ extension RadialMenuFeatureStrings {
         hideListButton: "隱藏列表",
         trackpadTapLabel: "用四指輕點打開",
         trackpadTapConflict: "四指輕點已用於中鍵點按，因此不會打開這個轉盤。",
-        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快捷鍵、滑鼠按鈕或四指輕點。"
+        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快捷鍵、滑鼠按鈕或四指輕點。",
+        peekLabel: "懸停時顯示詳細資料",
+        peekCaption: "將指標停留在有更多內容的動作上（例如剪貼簿記錄或檔案夾），會在轉盤旁打開一個清單。選擇一個剪貼簿項目即可貼上，或在檔案夾中選取檔案以拖移或拷貝。",
+        peekClipboardHint: "選擇一個項目以貼上",
+        peekFolderHint: "按一下檔案以選取，按兩下以打開，或將其拖出以拷貝。",
+        peekFolderEmpty: "此檔案夾是空的。",
+        peekFolderUnreadable: "Vorssaint 無法讀取此檔案夾。請在「系統設定」›「私隱與安全性」›「檔案與檔案夾」中允許取用。",
+        peekBasketEmpty: "所選檔案會匯集在這裡。",
+        peekBasketFormat: "已選取：%d",
+        peekBasketHint: "拖移以放下 · ⌘C 拷貝",
+        peekClearSelection: "清除選取"
     )
     static let uk = RadialMenuFeatureStrings(
         pageTitle: "Радіальне меню",
@@ -1702,6 +1852,16 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Сховати список",
         trackpadTapLabel: "Відкривати дотиком чотирма пальцями",
         trackpadTapConflict: "Дотик чотирма пальцями вже зайнятий середньою кнопкою, тому він не відкриває це колесо.",
-        profileNoTrigger: "Вибір профілю тут лише відкриває його для редагування. Щоб цей профіль відкривався, задайте йому нижче клавіатурне скорочення, кнопку миші або дотик чотирма пальцями."
+        profileNoTrigger: "Вибір профілю тут лише відкриває його для редагування. Щоб цей профіль відкривався, задайте йому нижче клавіатурне скорочення, кнопку миші або дотик чотирма пальцями.",
+        peekLabel: "Показувати подробиці під час наведення",
+        peekCaption: "Якщо затримати вказівник на дії, якій є що показати, наприклад на історії буфера обміну або папці, поруч із колесом відкриється список. Виберіть запис буфера обміну, щоб вставити його, або виберіть файли в папці, щоб перетягнути чи скопіювати їх.",
+        peekClipboardHint: "Виберіть запис, щоб вставити його",
+        peekFolderHint: "Клацніть файл, щоб вибрати його, двічі клацніть, щоб відкрити, або перетягніть його назовні, щоб скопіювати.",
+        peekFolderEmpty: "Ця папка порожня.",
+        peekFolderUnreadable: "Vorssaint не може прочитати цю папку. Дозвольте доступ у Системних параметрах › Приватність і безпека › Файли й папки.",
+        peekBasketEmpty: "Вибрані файли збираються тут.",
+        peekBasketFormat: "Вибрано: %d",
+        peekBasketHint: "Перетягніть у потрібне місце · ⌘C, щоб скопіювати",
+        peekClearSelection: "Скасувати вибір"
     )
 }
