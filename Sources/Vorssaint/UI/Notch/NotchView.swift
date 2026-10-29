@@ -517,6 +517,10 @@ struct NotchView: View {
         // repeat it. A level key's event shares its name with the level it moves.
         // Brightness moves there only while its slider shows the display the
         // key moved.
+        if service.selected == .displays, !showsDetail, !service.showingSections, !service.modules.isEmpty,
+           [.brightness, .keyboardLight].contains(notice.event) {
+            return nil
+        }
         if service.selected == .controls, !showsDetail, !service.showingSections, !service.modules.isEmpty,
            let level = NotchControlItem(rawValue: notice.event.rawValue),
            NotchSupport.controls().contains(level),
@@ -580,6 +584,7 @@ struct NotchView: View {
             case .calendar: NotchCalendarView(size: pageSize)
             case .controls: NotchControlsView(service: service, size: pageSize)
             case .mixer: NotchMixerView(size: pageSize)
+            case .displays: NotchDisplaysView(size: pageSize)
             case .music: NotchMusicView(size: pageSize, extrasHeight: service.geometry.musicExtrasHeight)
             case .clipboard: NotchClipboardView(service: service, size: pageSize)
             case .captures:
@@ -826,6 +831,7 @@ extension NotchModule: PanelOrderItem {
         case .calendar: return FeatureStrings.notchCalendar(language).title
         case .controls: return FeatureStrings.notch(language).controls
         case .mixer: return Strings.localized(language).mixerSection
+        case .displays: return FeatureStrings.brightness(language).pageTitle
         case .music: return FeatureStrings.radialMenu(language).mediaNowPlaying
         case .clipboard: return FeatureStrings.clipboard(language).title
         case .captures: return FeatureStrings.recentCaptures(language).title

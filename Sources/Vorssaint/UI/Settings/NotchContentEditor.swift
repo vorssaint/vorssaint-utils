@@ -161,6 +161,9 @@ struct NotchPagePreview: View {
         case .calendar: NotchCalendarView(size: size)
         case .controls: NotchControlsView(service: notch, size: size)
         case .mixer: NotchMixerView(size: size)
+        case .displays:
+            NotchEmptyView(symbol: NotchModule.displays.symbol,
+                           message: FeatureStrings.brightness(l10n.language).hubDescription)
         case .music: NotchMusicView(size: size, extrasHeight: notch.geometry.musicExtrasHeight)
         case .clipboard: NotchClipboardView(service: notch, size: size)
         case .captures:
@@ -392,6 +395,7 @@ extension NotchModule {
         switch self {
         case .controls: return .blue
         case .mixer: return .purple
+        case .displays: return .cyan
         case .music: return .pink
         case .clipboard: return .brown
         case .captures: return .indigo

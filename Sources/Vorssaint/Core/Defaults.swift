@@ -219,6 +219,7 @@ enum DefaultsKey {
     static let extraBrightnessEnabled = "extraBrightnessEnabled"
     static let extraBrightnessLevel = "extraBrightnessLevel"   // Int percent 0-100
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
+    static let brightnessShowAllDisplayModes = "brightnessShowAllDisplayModes" // show every resolution instead of 10% steps
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
     static let brightnessKeyStep = "brightnessKeyStep" // BrightnessSupport.KeyStep raw value
@@ -1379,6 +1380,7 @@ enum Defaults {
         DefaultsKey.extraBrightnessEnabled: false,
         DefaultsKey.extraBrightnessLevel: 100,
         DefaultsKey.brightnessControlEnabled: false,
+        DefaultsKey.brightnessShowAllDisplayModes: false,
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
         DefaultsKey.brightnessKeyStep: BrightnessSupport.KeyStep.standard.rawValue,

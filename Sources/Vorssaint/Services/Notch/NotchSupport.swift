@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, displays, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
     var id: String { rawValue }
 
     var symbol: String {
@@ -16,6 +16,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         // A speaker reads as sound at a glance; faders beside the settings
         // gear looked like a second settings button.
         case .mixer: return "speaker.wave.2"
+        case .displays: return AppFeature.brightness.symbolName
         case .music: return "music.note"
         case .timer: return "timer"
         case .camera: return "web.camera"
@@ -39,6 +40,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         switch self {
         case .controls: return "c"
         case .mixer: return "v"
+        case .displays: return "y"
         case .music: return "m"
         case .clipboard: return "b"
         case .captures: return "s"
@@ -65,6 +67,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .notifications: return AppFeature.notchNotifications.isAvailable(in: defaults)
         case .calendar: return AppFeature.notchCalendar.isAvailable(in: defaults)
         case .mixer: return AppFeature.mixer.isAvailable(in: defaults)
+        case .displays: return AppFeature.brightness.isAvailable(in: defaults)
         case .tools: return AppFeature.quickLauncher.isAvailable(in: defaults)
         case .clipboard: return AppFeature.clipboardHistory.isAvailable(in: defaults)
         case .captures:
@@ -1690,6 +1693,21 @@ enum NotchSupport {
         modules.first { $0.shortcutKey == characters.lowercased() }
     }
 
+    static func sectionSearchText(_ module: NotchModule, language: AppLanguage,
+                                  title: (NotchModule) -> String) -> String {
+        let extra: String
+        switch module {
+        case .music:
+            extra = FeatureStrings.notch(language).music
+        case .displays:
+            extra = ([FeatureStrings.notch(language).brightness]
+                + SettingsSearchSupport.brightnessKeywords(language: language)).joined(separator: " ")
+        default:
+            extra = ""
+        }
+        return [title(module), module.rawValue, extra].joined(separator: " ")
+    }
+
     static func filteredModules(_ modules: [NotchModule], query: String,
                                 title: (NotchModule) -> String) -> [NotchModule] {
         let terms = CommandBarSearch.normalized(query).split(separator: " ")
@@ -2791,7 +2809,7 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
+            case .mixer, .displays, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
                 contentHeight = budget
             }
         }

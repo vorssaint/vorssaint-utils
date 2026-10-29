@@ -12,6 +12,7 @@ struct BrightnessSection: View {
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
+    @AppStorage(DefaultsKey.brightnessShowAllDisplayModes) private var showAllDisplayModes = false
     @State private var optionsExpanded = false
     var collapsible = true
 
@@ -104,6 +105,11 @@ struct BrightnessSection: View {
                         }
                         .buttonStyle(.link)
                     }
+                    Toggle(strings.showAllResolutions, isOn: $showAllDisplayModes)
+                    Text(strings.showAllResolutionsCaption)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     DisplayBrightnessShortcutControls()
                 }
                 .font(.system(size: 11.5, weight: .medium))
@@ -143,6 +149,7 @@ struct BrightnessSection: View {
                     .disabled(service.isDisplayPending(display.id))
                     .accessibilityLabel(display.name)
             }
+            DisplayResolutionSlider(display: display, compact: true)
             SoftwareDimmingButton(display: display, compact: true)
         }
     }
@@ -253,6 +260,137 @@ struct SoftwareDimmingButton: View {
             .buttonStyle(.plain)
             .disabled(service.isDisplayPending(display.id))
             .accessibilityLabel("\(display.name): \(usesExtendedDimming ? strings.extendedDimming : strings.softwareDimming)")
+        }
+    }
+}
+
+/// Shared resolution and refresh-rate menu used by Settings and the menu bar
+/// panel. Only shown when an active display exposes more than one usable mode.
+struct DisplayModePicker: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = BrightnessService.shared
+    @AppStorage(DefaultsKey.brightnessShowAllDisplayModes) private var showAllDisplayModes = false
+    let display: BrightnessDisplay
+    var compact = false
+    var showsLabel = true
+
+    private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
+
+    private var modes: [BrightnessSupport.DisplayModeOption] {
+        BrightnessSupport.curatedDisplayModes(
+            from: display.modes,
+            currentModeID: display.selectedModeID,
+            showAll: showAllDisplayModes
+        )
+    }
+
+    private var includeRefreshRate: Bool {
+        BrightnessSupport.showsRefreshRate(in: modes)
+    }
+
+    var body: some View {
+        let offeredModes = modes
+        if display.isActive, offeredModes.count > 1,
+           let selectedID = display.selectedModeID ?? offeredModes.first?.id {
+            HStack(spacing: compact ? 6 : 8) {
+                if compact, showsLabel {
+                    Text(strings.resolutionLabel)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
+                }
+                Picker(strings.resolutionLabel, selection: Binding(
+                    get: { selectedID },
+                    set: { service.setDisplayMode($0, for: display.id) }
+                )) {
+                    ForEach(offeredModes) { mode in
+                        Text(BrightnessSupport.formattedDisplayMode(
+                            mode,
+                            hiDPILabel: strings.hiDPIBadge,
+                            hertzUnit: strings.hertzUnit,
+                            includeRefreshRate: includeRefreshRate
+                        ))
+                        .tag(mode.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .controlSize(compact ? .mini : .small)
+                .frame(maxWidth: compact ? 180 : 210, alignment: .trailing)
+                .disabled(service.isDisplayPending(display.id))
+                .accessibilityLabel("\(display.name): \(strings.resolutionLabel)")
+            }
+        }
+    }
+}
+
+/// Stepped resolution bar alongside the brightness bar: drags smoothly across
+/// the 10% curated scaling steps and commits on release.
+struct DisplayResolutionSlider: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = BrightnessService.shared
+    let display: BrightnessDisplay
+    var compact = false
+    @State private var previewModeID: Int32?
+
+    private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
+
+    private var steps: [BrightnessSupport.DisplayModeOption] {
+        BrightnessSupport.sliderDisplayModes(from: display.modes, currentModeID: display.selectedModeID)
+    }
+
+    var body: some View {
+        let sliderSteps = steps
+        if display.isActive, sliderSteps.count > 1 {
+            let activeID = previewModeID ?? display.selectedModeID ?? sliderSteps.last?.id
+            let activeMode = sliderSteps.first(where: { $0.id == activeID })
+                ?? display.modes.first(where: { $0.id == activeID })
+                ?? sliderSteps.last
+            let scalePercent = activeMode.flatMap {
+                BrightnessSupport.displayModeScalePercent($0, in: display.modes)
+            }
+            let currentIndex = Double(
+                sliderSteps.firstIndex(where: { $0.id == activeID }) ?? (sliderSteps.count - 1)
+            )
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Image(systemName: "aspectratio")
+                        .font(.system(size: compact ? 10 : 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: compact ? 16 : 26)
+                    Text(strings.resolutionLabel)
+                        .font(.system(size: compact ? 10.5 : 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if let scalePercent {
+                        Text("\(scalePercent)%")
+                            .font(.system(size: compact ? 10.5 : 12, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    DisplayModePicker(display: display, compact: compact, showsLabel: false)
+                }
+                Slider(
+                    value: Binding(
+                        get: { currentIndex },
+                        set: { newValue in
+                            let index = min(max(Int(newValue.rounded()), 0), sliderSteps.count - 1)
+                            previewModeID = sliderSteps[index].id
+                        }
+                    ),
+                    in: 0...Double(sliderSteps.count - 1),
+                    step: 1
+                ) { editing in
+                    if !editing, let targetID = previewModeID {
+                        previewModeID = nil
+                        service.setDisplayMode(targetID, for: display.id)
+                    }
+                }
+                .controlSize(.small)
+                .disabled(service.isDisplayPending(display.id))
+                .accessibilityLabel("\(display.name): \(strings.resolutionLabel)")
+                .onChange(of: display.selectedModeID) { _, _ in previewModeID = nil }
+            }
         }
     }
 }

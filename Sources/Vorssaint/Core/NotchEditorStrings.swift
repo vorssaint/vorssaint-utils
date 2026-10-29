@@ -80,6 +80,11 @@ struct NotchEditorStrings {
         switch module {
         case .controls: return controlsSummary
         case .mixer: return mixerSummary
+        case .displays:
+            let language = AppLanguage.allCases.first {
+                FeatureStrings.notchEditor($0).controlsSummary == controlsSummary
+            } ?? .enUS
+            return FeatureStrings.brightness(language).hubDescription
         case .music: return musicSummary
         case .clipboard: return clipboardSummary
         case .captures: return capturesSummary

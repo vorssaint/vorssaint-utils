@@ -9,6 +9,7 @@ import os
 /// CoreGraphics, preferences and a manually drained main queue. No device writes.
 enum DisplayRestorationTests {
     typealias CGDisplayConfigRef = Int
+    typealias CGDisplayMode = Int32
     typealias IONotificationPortRef = Int
     typealias io_object_t = UInt32
     static let kIOMainPortDefault: UInt32 = 0
@@ -46,6 +47,8 @@ enum DisplayRestorationTests {
         static var active: Set<UInt32> = [1, 2]
         static var virtual: Set<UInt32> = []
         static var mirrorSources: [UInt32: UInt32] = [:]
+        static var configuredModes: [(displayID: UInt32, modeID: Int32)] = []
+        static var modeConfigureSucceeds = true
     }
     enum DefaultsKey {
         static let displaysSwitchedOff = "off"
@@ -77,11 +80,15 @@ enum DisplayRestorationTests {
         var brightness: Double
         let readable: Bool
         var restorationFingerprint: String?
+        var modes: [BrightnessSupport.DisplayModeOption]
+        var selectedModeID: Int32?
 
         init(id: UInt32, name: String = "Display", isBuiltIn: Bool? = nil,
              method: Int? = 1, isActive: Bool = false,
              brightness: Double = 1, readable: Bool = false,
-             restorationFingerprint: String? = nil) {
+             restorationFingerprint: String? = nil,
+             modes: [BrightnessSupport.DisplayModeOption] = [],
+             selectedModeID: Int32? = nil) {
             self.id = id
             self.name = name
             self.isBuiltIn = isBuiltIn ?? (id == 1)
@@ -90,6 +97,8 @@ enum DisplayRestorationTests {
             self.brightness = brightness
             self.readable = readable
             self.restorationFingerprint = restorationFingerprint
+            self.modes = modes
+            self.selectedModeID = selectedModeID
         }
     }
     enum DisplayConfigurationBridge {
@@ -105,6 +114,12 @@ enum DisplayRestorationTests {
     static func CGCompleteDisplayConfiguration(_ reference: Int, _ option: CGConfigureOption) -> CGError {
         Hardware.callback?()
         return Hardware.succeeds ? .success : .failure
+    }
+    static func CGConfigureDisplayWithDisplayMode(_ reference: Int, _ id: UInt32, _ mode: Int32,
+                                                  _ options: CFDictionary?) -> CGError {
+        guard Hardware.modeConfigureSucceeds else { return .failure }
+        Hardware.configuredModes.append((id, mode))
+        return .success
     }
     static func IOServiceMatching(_ name: String) -> Int { 1 }
     static func IOServiceGetMatchingService(_ port: UInt32, _ matching: Int) -> UInt32 { 2 }
@@ -165,6 +180,12 @@ enum DisplayRestorationTests {
         static func displayName(_ id: UInt32, info: NSDictionary?, screenNames: [UInt32: String]) -> String {
             "Display"
         }
+        static func matchingDisplayMode(for id: UInt32, modeID: Int32) -> Int32? {
+            modeID > 0 ? modeID : nil
+        }
+        func isDisplayPending(_ id: UInt32) -> Bool {
+            pendingDisplayIDs.contains(id)
+        }
         func refresh(force: Bool = false) { refreshes += 1 }
         func installWakeObservers() { wakeObserversInstalled = true }
         func removeWakeObservers() {
@@ -201,6 +222,8 @@ enum DisplayRestorationTests {
             Hardware.active = [1, 2]
             Hardware.virtual = []
             Hardware.mirrorSources = [:]
+            Hardware.configuredModes = []
+            Hardware.modeConfigureSucceeds = true
             return BrightnessService()
         }
         var service = make()
@@ -805,5 +828,126 @@ enum DisplayRestorationTests {
         service.screensChanged()
         DispatchQueue.main.drain()
         suite.expect(service.refreshes == 2, "a notification with an unchanged layout does not rebuild")
+
+        let rawModes: [BrightnessSupport.DisplayModeOption] = [
+            BrightnessSupport.DisplayModeOption(
+                id: 10, width: 1920, height: 1080, pixelWidth: 1920, pixelHeight: 1080,
+                refreshRate: 60.0, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 11, width: 1920, height: 1080, pixelWidth: 3840, pixelHeight: 2160,
+                refreshRate: 59.94, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 12, width: 1920, height: 1080, pixelWidth: 3840, pixelHeight: 2160,
+                refreshRate: 60.0, isNative: true),
+            BrightnessSupport.DisplayModeOption(
+                id: 13, width: 2560, height: 1440, pixelWidth: 5120, pixelHeight: 2880,
+                refreshRate: 120.0, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 14, width: 2560, height: 1440, pixelWidth: 5120, pixelHeight: 2880,
+                refreshRate: 60.0, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 15, width: 1280, height: 720, pixelWidth: 1280, pixelHeight: 720,
+                refreshRate: 60.0, isNative: false, isInterlaced: true),
+            BrightnessSupport.DisplayModeOption(
+                id: 16, width: 1024, height: 768, pixelWidth: 1024, pixelHeight: 768,
+                refreshRate: 60.0, isNative: false, isStretched: true),
+            BrightnessSupport.DisplayModeOption(
+                id: 17, width: 800, height: 600, pixelWidth: 800, pixelHeight: 600,
+                refreshRate: 60.0, isNative: false, isDesktopUsable: false),
+        ]
+        let filteredModes = BrightnessSupport.availableDisplayModes(from: rawModes, currentModeID: 11)
+        suite.expect(filteredModes.map(\.id) == [13, 14, 11, 10],
+                     "display modes filter non-desktop/interlaced/stretched entries, preserve the active duplicate ID, and sort by resolution, HiDPI, and refresh rate")
+        let nativeChosen = BrightnessSupport.availableDisplayModes(from: rawModes, currentModeID: 13)
+        suite.expect(nativeChosen.map(\.id) == [13, 14, 12, 10],
+                     "when neither duplicate is active, the native-flagged mode wins deduplication")
+        let keepCurrentStretched = BrightnessSupport.availableDisplayModes(from: rawModes, currentModeID: 16)
+        suite.expect(keepCurrentStretched.contains(where: { $0.id == 16 })
+                     && BrightnessSupport.resolvedSelectedModeID(currentModeID: 16, availableModes: keepCurrentStretched) == 16,
+                     "the currently active display mode stays selectable even if flagged stretched")
+        suite.expect(BrightnessSupport.formattedDisplayMode(
+                         filteredModes[0], hiDPILabel: "HiDPI", hertzUnit: "Hz") == "2560 × 1440 (HiDPI) · 120 Hz"
+                     && BrightnessSupport.formattedDisplayMode(
+                         filteredModes[3], hiDPILabel: "HiDPI", hertzUnit: "Hz", includeRefreshRate: false) == "1920 × 1080",
+                     "display mode labels format logical dimensions, HiDPI scaling badge, and rounded refresh rate")
+
+        service = make()
+        service.displays = [
+            BrightnessDisplay(id: 2, isActive: true, modes: filteredModes, selectedModeID: 11)
+        ]
+        service.setDisplayMode(11, for: 2)
+        suite.expect(Hardware.configuredModes.isEmpty && service.refreshes == 0,
+                     "selecting the already-active display mode is a no-op")
+        service.setDisplayMode(999, for: 2)
+        suite.expect(Hardware.configuredModes.isEmpty && service.refreshes == 0,
+                     "selecting an unlisted display mode is ignored")
+        service.pendingDisplayIDs = [2]
+        service.setDisplayMode(13, for: 2)
+        suite.expect(Hardware.configuredModes.isEmpty && service.refreshes == 0,
+                     "a display with a pending transaction ignores mode changes")
+        service.pendingDisplayIDs = []
+        service.setDisplayMode(13, for: 2)
+        suite.expect(Hardware.configuredModes.count == 1
+                     && Hardware.configuredModes.first?.displayID == 2
+                     && Hardware.configuredModes.first?.modeID == 13
+                     && service.displays[0].selectedModeID == 13
+                     && service.displayControlFailure == nil
+                     && service.refreshes == 1,
+                     "switching to a valid display mode reconfigures CoreGraphics on main and refreshes")
+        Hardware.modeConfigureSucceeds = false
+        service.setDisplayMode(14, for: 2)
+        suite.expect(service.displayControlFailure == .failed
+                     && service.displays[0].selectedModeID == 13
+                     && service.refreshes == 1,
+                     "a failed display mode transaction reports displayControlFailure and preserves the previous selection")
+
+        let ultrawideModes: [BrightnessSupport.DisplayModeOption] = [
+            BrightnessSupport.DisplayModeOption(
+                id: 100, width: 3440, height: 1440, pixelWidth: 3440, pixelHeight: 1440,
+                refreshRate: 60.0, isNative: true),
+            BrightnessSupport.DisplayModeOption(
+                id: 101, width: 2821, height: 1181, pixelWidth: 5642, pixelHeight: 2362,
+                refreshRate: 60.0, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 102, width: 2786, height: 1166, pixelWidth: 5572, pixelHeight: 2332,
+                refreshRate: 60.0, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 103, width: 2752, height: 1152, pixelWidth: 5504, pixelHeight: 2304,
+                refreshRate: 60.0, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 104, width: 2752, height: 1152, pixelWidth: 5504, pixelHeight: 2304,
+                refreshRate: 30.0, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 105, width: 2752, height: 1152, pixelWidth: 2752, pixelHeight: 1152,
+                refreshRate: 60.0, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 106, width: 2718, height: 1138, pixelWidth: 5436, pixelHeight: 2276,
+                refreshRate: 60.0, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 107, width: 2408, height: 1008, pixelWidth: 4816, pixelHeight: 2016,
+                refreshRate: 60.0, isNative: false),
+            BrightnessSupport.DisplayModeOption(
+                id: 108, width: 1720, height: 720, pixelWidth: 3440, pixelHeight: 1440,
+                refreshRate: 60.0, isNative: false),
+        ]
+        let curated80 = BrightnessSupport.curatedDisplayModes(
+            from: ultrawideModes, currentModeID: 103, showAll: false)
+        suite.expect(curated80.map(\.id) == [100, 103, 107, 108],
+                     "10% curation collapses 1% ultrawide steps (2821/2786/2752/2718) and secondary refresh rates into exact 10% HiDPI representatives")
+        let curatedCustomActive = BrightnessSupport.curatedDisplayModes(
+            from: ultrawideModes, currentModeID: 102, showAll: false)
+        suite.expect(curatedCustomActive.map(\.id) == [100, 102, 107, 108],
+                     "10% curation preserves a non-multiple active mode ID inside its 10% bucket")
+        let showAllModes = BrightnessSupport.curatedDisplayModes(
+            from: ultrawideModes, currentModeID: 103, showAll: true)
+        suite.expect(showAllModes.count == ultrawideModes.count,
+                     "showAll returns the full desktop-usable mode list without 10% bucketing")
+        let sliderSteps = BrightnessSupport.sliderDisplayModes(
+            from: ultrawideModes, currentModeID: 103)
+        suite.expect(sliderSteps.map(\.id) == [108, 107, 103, 100]
+                     && BrightnessSupport.sliderMode(for: 0.0, in: sliderSteps)?.id == 108
+                     && BrightnessSupport.sliderMode(for: 1.0, in: sliderSteps)?.id == 100
+                     && abs(BrightnessSupport.sliderFraction(for: 103, in: sliderSteps) - (2.0 / 3.0)) < 0.001,
+                     "display resolution slider orders curated steps from smallest to largest width and maps fractions round-trip")
     }
 }

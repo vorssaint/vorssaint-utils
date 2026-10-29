@@ -40,6 +40,11 @@ struct BrightnessFeatureStrings {
     let keyboardBrightnessIncrease: String
     let softwareDimming: String
     let extendedDimming: String
+    let resolutionLabel: String
+    let hiDPIBadge: String
+    let hertzUnit: String
+    let showAllResolutions: String
+    let showAllResolutionsCaption: String
     let islandPromptTitle: String
     let islandPromptMessage: String
     let islandPromptKeepOff: String
@@ -102,6 +107,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "Increase keyboard brightness",
         softwareDimming: "Dim the picture",
         extendedDimming: "Extra dimming",
+        resolutionLabel: "Resolution",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "Show all resolutions",
+        showAllResolutionsCaption: "Lists every resolution and refresh rate instead of steps of 10%.",
         islandPromptTitle: "Show brightness in the Dynamic Island?",
         islandPromptMessage: "The Dynamic Island shows brightness changes only while “Control displays” is on in Displays settings.",
         islandPromptKeepOff: "Keep Off"
@@ -141,6 +151,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "Aumentar brilho do teclado",
         softwareDimming: "Escurecer a imagem",
         extendedDimming: "Escurecimento extra",
+        resolutionLabel: "Resolução",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "Mostrar todas as resoluções",
+        showAllResolutionsCaption: "Lista todas as resoluções e taxas de atualização em vez de passos de 10%.",
         islandPromptTitle: "Mostrar o brilho na Dynamic Island?",
         islandPromptMessage: "A Dynamic Island só mostra mudanças de brilho quando “Controlar telas” está ativado nos ajustes de Telas.",
         islandPromptKeepOff: "Manter desativado"
@@ -180,6 +195,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "Klavye parlaklığını artır",
         softwareDimming: "Görüntüyü karart",
         extendedDimming: "Ek karartma",
+        resolutionLabel: "Çözünürlük",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "Tüm çözünürlükleri göster",
+        showAllResolutionsCaption: "Adım adım ölçekleme yerine tüm çözünürlükleri ve yenileme hızlarını listeler.",
         islandPromptTitle: "Parlaklık Dynamic Island’da gösterilsin mi?",
         islandPromptMessage: "Dynamic Island, parlaklık değişikliklerini yalnızca Ekranlar ayarlarında “Ekranları denetle” açıkken gösterir.",
         islandPromptKeepOff: "Kapalı kalsın"
@@ -219,6 +239,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "Увеличить яркость клавиатуры",
         softwareDimming: "Затемнять изображение",
         extendedDimming: "Дополнительное затемнение",
+        resolutionLabel: "Разрешение",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Гц",
+        showAllResolutions: "Показывать все разрешения",
+        showAllResolutionsCaption: "Показывает все разрешения и частоты обновления вместо шагов масштабирования по 10%.",
         islandPromptTitle: "Показывать яркость в Dynamic Island?",
         islandPromptMessage: "Dynamic Island показывает изменения яркости, только когда в настройках «Экраны» включено «Управлять экранами».",
         islandPromptKeepOff: "Оставить выключенным"
@@ -258,6 +283,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "Aumentar el brillo del teclado",
         softwareDimming: "Oscurecer la imagen",
         extendedDimming: "Atenuación adicional",
+        resolutionLabel: "Resolución",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "Mostrar todas las resoluciones",
+        showAllResolutionsCaption: "Muestra todas las resoluciones y frecuencias de actualización en lugar de pasos del 10%.",
         islandPromptTitle: "¿Mostrar el brillo en el Dynamic Island?",
         islandPromptMessage: "El Dynamic Island solo muestra los cambios de brillo cuando “Controlar las pantallas” está activado en los ajustes de Pantallas.",
         islandPromptKeepOff: "Mantener desactivado"
@@ -297,6 +327,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "Zvýšiť jas klávesnice",
         softwareDimming: "Stmaviť obraz",
         extendedDimming: "Ďalšie stmievanie",
+        resolutionLabel: "Rozlíšenie",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "Zobraziť všetky rozlíšenia",
+        showAllResolutionsCaption: "Zobrazí všetky rozlíšenia a obnovovacie frekvencie namiesto krokov po 10%.",
         islandPromptTitle: "Zobrazovať jas v Dynamic Island?",
         islandPromptMessage: "Dynamic Island zobrazuje zmeny jasu, len keď je v nastaveniach Displeje zapnuté „Ovládať displeje“.",
         islandPromptKeepOff: "Nechať vypnuté"
@@ -336,6 +371,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "Tastaturhelligkeit erhöhen",
         softwareDimming: "Bild abdunkeln",
         extendedDimming: "Zusätzliches Abdunkeln",
+        resolutionLabel: "Auflösung",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "Alle Auflösungen anzeigen",
+        showAllResolutionsCaption: "Zeigt alle Auflösungen und Bildwiederholraten statt gestufter Skalierung an.",
         islandPromptTitle: "Helligkeit in der Dynamic Island anzeigen?",
         islandPromptMessage: "Die Dynamic Island zeigt Helligkeitsänderungen nur, wenn „Displays steuern“ in den Displays-Einstellungen aktiviert ist.",
         islandPromptKeepOff: "Aus lassen"
@@ -375,6 +415,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "Augmenter la luminosité du clavier",
         softwareDimming: "Assombrir l’image",
         extendedDimming: "Assombrissement supplémentaire",
+        resolutionLabel: "Résolution",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "Afficher toutes les résolutions",
+        showAllResolutionsCaption: "Affiche toutes les résolutions et fréquences de rafraîchissement au lieu de paliers de 10 %.",
         islandPromptTitle: "Afficher la luminosité dans la Dynamic Island ?",
         islandPromptMessage: "La Dynamic Island n’affiche les changements de luminosité que lorsque « Contrôler les écrans » est activé dans les réglages Écrans.",
         islandPromptKeepOff: "Laisser désactivé"
@@ -414,6 +459,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "Aumenta luminosità tastiera",
         softwareDimming: "Scurisci l’immagine",
         extendedDimming: "Oscuramento extra",
+        resolutionLabel: "Risoluzione",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "Mostra tutte le risoluzioni",
+        showAllResolutionsCaption: "Elenca tutte le risoluzioni e frequenze di aggiornamento invece di passaggi del 10%.",
         islandPromptTitle: "Mostrare la luminosità nella Dynamic Island?",
         islandPromptMessage: "La Dynamic Island mostra le variazioni di luminosità solo quando “Controlla gli schermi” è attivo nelle impostazioni Schermi.",
         islandPromptKeepOff: "Lascia disattivato"
@@ -453,6 +503,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "キーボードの明るさを上げる",
         softwareDimming: "画面を暗くする",
         extendedDimming: "さらに暗くする",
+        resolutionLabel: "解像度",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "すべての解像度を表示",
+        showAllResolutionsCaption: "10%刻みのスケーリングではなく、すべての解像度とリフレッシュレートを表示します。",
         islandPromptTitle: "Dynamic Islandに明るさを表示しますか？",
         islandPromptMessage: "Dynamic Islandは、「ディスプレイ」設定で「ディスプレイを操作」がオンのときだけ明るさの変化を表示します。",
         islandPromptKeepOff: "オフのままにする"
@@ -492,6 +547,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "키보드 밝기 높이기",
         softwareDimming: "화면을 어둡게",
         extendedDimming: "추가 어둡게",
+        resolutionLabel: "해상도",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "모든 해상도 표시",
+        showAllResolutionsCaption: "10% 배율 단계 대신 모든 해상도와 재생률을 표시합니다.",
         islandPromptTitle: "Dynamic Island에 밝기를 표시할까요?",
         islandPromptMessage: "Dynamic Island는 디스플레이 설정에서 “디스플레이 제어”가 켜져 있을 때만 밝기 변화를 표시합니다.",
         islandPromptKeepOff: "끈 상태로 유지"
@@ -531,6 +591,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "提高键盘亮度",
         softwareDimming: "调暗画面",
         extendedDimming: "进一步调暗",
+        resolutionLabel: "分辨率",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "显示所有分辨率",
+        showAllResolutionsCaption: "列出所有分辨率和刷新率，而不是按 10% 缩放步进显示。",
         islandPromptTitle: "在Dynamic Island中显示亮度？",
         islandPromptMessage: "只有在“显示器”设置中打开“控制显示器”时，Dynamic Island才会显示亮度变化。",
         islandPromptKeepOff: "保持关闭"
@@ -570,6 +635,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "提高鍵盤亮度",
         softwareDimming: "調暗畫面",
         extendedDimming: "進一步調暗",
+        resolutionLabel: "解析度",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "顯示所有解析度",
+        showAllResolutionsCaption: "列出所有解析度和更新率，而不是按 10% 縮放步幅顯示。",
         islandPromptTitle: "要在Dynamic Island中顯示亮度嗎？",
         islandPromptMessage: "只有在「顯示器」設定中開啟「控制顯示器」時，Dynamic Island才會顯示亮度變化。",
         islandPromptKeepOff: "保持關閉"
@@ -609,6 +679,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "提高鍵盤亮度",
         softwareDimming: "調暗畫面",
         extendedDimming: "進一步調暗",
+        resolutionLabel: "解析度",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Hz",
+        showAllResolutions: "顯示所有解像度",
+        showAllResolutionsCaption: "列出所有解像度和更新率，而不是按 10% 縮放步幅顯示。",
         islandPromptTitle: "要在Dynamic Island中顯示亮度嗎？",
         islandPromptMessage: "只有在「顯示器」設定中開啟「控制顯示器」時，Dynamic Island才會顯示亮度變化。",
         islandPromptKeepOff: "保持關閉"
@@ -647,6 +722,11 @@ extension BrightnessFeatureStrings {
         keyboardBrightnessIncrease: "Збільшити яскравість клавіатури",
         softwareDimming: "Затемнити зображення",
         extendedDimming: "Додаткове затемнення",
+        resolutionLabel: "Роздільна здатність",
+        hiDPIBadge: "HiDPI",
+        hertzUnit: "Гц",
+        showAllResolutions: "Показувати всі роздільні здатності",
+        showAllResolutionsCaption: "Показує всі роздільні здатності та частоти оновлення замість кроків масштабування по 10%.",
         islandPromptTitle: "Показувати яскравість у Dynamic Island?",
         islandPromptMessage: "Dynamic Island показує зміни яскравості, лише коли в налаштуваннях «Дисплеї» увімкнено «Керування дисплеями».",
         islandPromptKeepOff: "Залишити вимкненим"

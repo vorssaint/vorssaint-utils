@@ -279,6 +279,7 @@ struct NotchLevelRow<Level: View>: View {
 private struct NotchBrightnessControls: View {
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.brightnessShowAllDisplayModes) private var showAllDisplayModes = false
     private var displays: [BrightnessDisplay] { service.displays.filter { $0.isActive && $0.method != nil } }
     /// The display the brightness keys last moved, or the one picked here,
     /// so a key press moves this slider.
@@ -287,13 +288,14 @@ private struct NotchBrightnessControls: View {
     }
 
     var body: some View {
+        let items = display.map(displayItems(current:)) ?? []
         HStack(spacing: 6) {
             glyph
             slider
-            // A single display leaves nothing to choose.
-            if let display, displays.count > 1 {
+            // Offer the chooser whenever display or resolution items exist.
+            if let display, !items.isEmpty {
                 NotchLevelChooser(title: FeatureStrings.notch(l10n.language).brightness,
-                                  items: displayItems(current: display))
+                                  items: items)
                     .accessibilityValue(display.name)
             }
         }
@@ -309,9 +311,46 @@ private struct NotchBrightnessControls: View {
     }
 
     private func displayItems(current: BrightnessDisplay) -> [NotchMenuItem] {
-        displays.map { item in
-            NotchMenuItem(title: item.name, checked: item.id == current.id) { service.focusedDisplayID = item.id }
+        var items: [NotchMenuItem] = []
+        if displays.count > 1 {
+            items.append(contentsOf: displays.map { item in
+                NotchMenuItem(title: item.name, checked: item.id == current.id) {
+                    service.focusedDisplayID = item.id
+                }
+            })
         }
+        let offeredModes = BrightnessSupport.curatedDisplayModes(
+            from: current.modes,
+            currentModeID: current.selectedModeID,
+            showAll: showAllDisplayModes
+        )
+        if offeredModes.count > 1 {
+            if !items.isEmpty { items.append(.separator) }
+            let strings = FeatureStrings.brightness(l10n.language)
+            let includeRefreshRate = BrightnessSupport.showsRefreshRate(in: offeredModes)
+            let selectedID = current.selectedModeID ?? offeredModes.first?.id
+            for mode in offeredModes {
+                let label = BrightnessSupport.formattedDisplayMode(
+                    mode,
+                    hiDPILabel: strings.hiDPIBadge,
+                    hertzUnit: strings.hertzUnit,
+                    includeRefreshRate: includeRefreshRate
+                )
+                items.append(NotchMenuItem(title: label, checked: mode.id == selectedID) {
+                    service.setDisplayMode(mode.id, for: current.id)
+                })
+            }
+        }
+        if NotchService.shared.modules.contains(.displays) {
+            if !items.isEmpty { items.append(.separator) }
+            items.append(NotchMenuItem(
+                title: FeatureStrings.brightness(l10n.language).pageTitle,
+                symbol: NotchModule.displays.symbol
+            ) {
+                NotchService.shared.select(.displays)
+            })
+        }
+        return items
     }
 
     @ViewBuilder private var slider: some View {
@@ -326,6 +365,234 @@ private struct NotchBrightnessControls: View {
             Text(FeatureStrings.brightness(l10n.language).noDisplays)
                 .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
                 .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
+        }
+    }
+}
+
+/// Dedicated Dynamic Island section for displays: brightness sliders,
+/// resolution/HiDPI/refresh-rate pickers, dimming choices, and power toggles.
+struct NotchDisplaysView: View {
+    let size: CGSize
+    @ObservedObject private var service = BrightnessService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
+    @Environment(\.notchSettingsPreview) private var preview
+
+    private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
+
+    var body: some View {
+        Group {
+            if !brightnessEnabled {
+                NotchEmptyView(symbol: NotchModule.displays.symbol, message: strings.enableCaption) {
+                    NotchPillButton(title: strings.enable, prominent: true) {
+                        guard !preview else { return }
+                        brightnessEnabled = true
+                        service.syncWithPreferences()
+                    }
+                }
+            } else if service.displays.isEmpty {
+                NotchEmptyView(symbol: NotchModule.displays.symbol, message: strings.noDisplays)
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(service.displays) { display in
+                            displayCard(display)
+                        }
+                        if let failure = service.displayControlFailure {
+                            Text(displayControlFailureText(failure, strings: strings))
+                                .font(.system(size: 11))
+                                .foregroundStyle(.red)
+                        }
+                        if service.keyboardLightEnabled != nil {
+                            keyboardLightCard
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .notchScrollEdgeFade()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .notchBand(trailing: {
+            NotchIconButton(symbol: "slider.horizontal.3", title: l10n.s.menuSettings) {
+                guard !preview else { return }
+                NotchService.shared.perform {
+                    SettingsRouter.shared.request(AppFeature.brightness.settingsDestination)
+                    (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+                }
+            }
+        })
+        .onAppear {
+            guard !preview else { return }
+            service.refresh()
+            service.refreshKeyboardLight()
+        }
+    }
+
+    private func displayCard(_ display: BrightnessDisplay) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .frame(width: 18)
+                Text(display.name)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 6)
+                if display.isActive, display.method != nil {
+                    Text("\(Int((display.brightness * 100).rounded()))%")
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                } else if !display.isActive {
+                    Text(strings.displayOff)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                DisplayPowerButton(display: display, compact: true)
+            }
+            if display.isActive, display.method != nil {
+                NotchLevelSlider(
+                    value: Binding(
+                        get: { display.brightness },
+                        set: {
+                            guard !preview else { return }
+                            service.setBrightness($0, for: display.id, announces: false)
+                        }
+                    ),
+                    label: display.name,
+                    trackThickness: 8,
+                    easesChanges: true
+                )
+                .frame(height: 22)
+                .disabled(service.isDisplayPending(display.id))
+            }
+            if display.isActive {
+                NotchDisplayResolutionBar(display: display, preview: preview)
+                SoftwareDimmingButton(display: display, compact: false)
+            }
+        }
+        .padding(10)
+        .modifier(NotchControlSurface(cornerRadius: 14, interactive: false))
+    }
+
+    private var keyboardLightCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "keyboard")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .frame(width: 18)
+                Text(strings.keyboardLight)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                Text("\(Int(((service.keyboardLightLevel ?? 0) * 100).rounded()))%")
+                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            NotchLevelSlider(
+                value: Binding(
+                    get: { Double(service.keyboardLightLevel ?? 0) },
+                    set: {
+                        guard !preview else { return }
+                        NotchService.shared.noteOwnLevelAdjustment(.keyboardLight)
+                        service.setKeyboardLightLevel(Float($0))
+                    }
+                ),
+                label: strings.keyboardLight,
+                trackThickness: 8,
+                easesChanges: true
+            )
+            .frame(height: 22)
+        }
+        .padding(10)
+        .modifier(NotchControlSurface(cornerRadius: 14, interactive: false))
+    }
+}
+
+/// Resolution bar inside Dynamic Island's Displays section: slides smoothly
+/// across 10% curated resolution steps and commits on release.
+private struct NotchDisplayResolutionBar: View {
+    let display: BrightnessDisplay
+    let preview: Bool
+    @ObservedObject private var service = BrightnessService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @State private var previewFraction: Double?
+
+    private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
+
+    private var sliderSteps: [BrightnessSupport.DisplayModeOption] {
+        BrightnessSupport.sliderDisplayModes(from: display.modes, currentModeID: display.selectedModeID)
+    }
+
+    var body: some View {
+        let steps = sliderSteps
+        if steps.count > 1 {
+            let committedFraction = BrightnessSupport.sliderFraction(
+                for: display.selectedModeID,
+                in: steps
+            )
+            let activeFraction = previewFraction ?? committedFraction
+            let activeMode = BrightnessSupport.sliderMode(for: activeFraction, in: steps)
+                ?? display.modes.first(where: { $0.id == display.selectedModeID })
+                ?? steps.last
+            let scalePercent = activeMode.flatMap {
+                BrightnessSupport.displayModeScalePercent($0, in: display.modes)
+            }
+            let modeLabel = activeMode.map {
+                BrightnessSupport.formattedDisplayMode(
+                    $0,
+                    hiDPILabel: strings.hiDPIBadge,
+                    hertzUnit: strings.hertzUnit,
+                    includeRefreshRate: BrightnessSupport.showsRefreshRate(in: steps)
+                )
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Image(systemName: "aspectratio")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .frame(width: 18)
+                    Text(strings.resolutionLabel)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if let scalePercent {
+                        Text("\(scalePercent)%")
+                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    DisplayModePicker(display: display, compact: true, showsLabel: false)
+                }
+                NotchLevelSlider(
+                    value: Binding(
+                        get: { activeFraction },
+                        set: { newValue in
+                            guard !preview else { return }
+                            previewFraction = newValue
+                        }
+                    ),
+                    label: "\(display.name): \(strings.resolutionLabel)",
+                    trackThickness: 8,
+                    valueLabel: modeLabel,
+                    easesChanges: true,
+                    onEditingChanged: { editing in
+                        guard !preview, !editing, let fraction = previewFraction else { return }
+                        previewFraction = nil
+                        if let target = BrightnessSupport.sliderMode(for: fraction, in: steps) {
+                            service.setDisplayMode(target.id, for: display.id)
+                        }
+                    }
+                )
+                .frame(height: 22)
+                .disabled(service.isDisplayPending(display.id))
+                .onChange(of: display.selectedModeID) { _, _ in previewFraction = nil }
+            }
         }
     }
 }

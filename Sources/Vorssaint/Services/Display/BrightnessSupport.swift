@@ -754,4 +754,225 @@ enum BrightnessSupport {
         }
         return assignment
     }
+
+    // MARK: - Display resolution and refresh rate modes
+
+    struct DisplayModeOption: Identifiable, Equatable {
+        let id: Int32
+        let width: Int
+        let height: Int
+        let pixelWidth: Int
+        let pixelHeight: Int
+        let refreshRate: Double
+        let isNative: Bool
+        var isDesktopUsable = true
+        var isInterlaced = false
+        var isStretched = false
+
+        var isHiDPI: Bool {
+            pixelWidth > width && pixelHeight > height
+        }
+
+        var roundedRefreshRate: Int {
+            guard refreshRate.isFinite, refreshRate > 0 else { return 0 }
+            return Int(refreshRate.rounded())
+        }
+    }
+
+    private struct DisplayModeGroupKey: Hashable {
+        let width: Int
+        let height: Int
+        let isHiDPI: Bool
+        let roundedRefreshRate: Int
+    }
+
+    /// Filters raw CoreGraphics display modes down to clean desktop choices,
+    /// collapsing pixel-encoding duplicates while keeping the active mode's ID.
+    static func availableDisplayModes(from candidates: [DisplayModeOption],
+                                      currentModeID: Int32?) -> [DisplayModeOption] {
+        // shortcut: group by logical resolution, HiDPI state, and rounded Hz — collapses raw pixel-format duplicates under ~200 modes per display
+        var bestByGroup: [DisplayModeGroupKey: DisplayModeOption] = [:]
+        for candidate in candidates {
+            guard candidate.width > 0, candidate.height > 0,
+                  candidate.pixelWidth >= candidate.width,
+                  candidate.pixelHeight >= candidate.height else { continue }
+            let isCurrent = candidate.id == currentModeID
+            guard isCurrent
+                    || (candidate.isDesktopUsable && !candidate.isInterlaced && !candidate.isStretched)
+            else { continue }
+            let key = DisplayModeGroupKey(width: candidate.width,
+                                          height: candidate.height,
+                                          isHiDPI: candidate.isHiDPI,
+                                          roundedRefreshRate: candidate.roundedRefreshRate)
+            if let existing = bestByGroup[key] {
+                if prefersDisplayMode(candidate, over: existing, currentModeID: currentModeID) {
+                    bestByGroup[key] = candidate
+                }
+            } else {
+                bestByGroup[key] = candidate
+            }
+        }
+        return bestByGroup.values.sorted { lhs, rhs in
+            let lhsArea = lhs.width * lhs.height
+            let rhsArea = rhs.width * rhs.height
+            if lhsArea != rhsArea { return lhsArea > rhsArea }
+            if lhs.width != rhs.width { return lhs.width > rhs.width }
+            if lhs.height != rhs.height { return lhs.height > rhs.height }
+            if lhs.isHiDPI != rhs.isHiDPI { return lhs.isHiDPI && !rhs.isHiDPI }
+            if lhs.roundedRefreshRate != rhs.roundedRefreshRate {
+                return lhs.roundedRefreshRate > rhs.roundedRefreshRate
+            }
+            return lhs.id < rhs.id
+        }
+    }
+
+    private static func prefersDisplayMode(_ candidate: DisplayModeOption,
+                                           over existing: DisplayModeOption,
+                                           currentModeID: Int32?) -> Bool {
+        let candidateIsCurrent = candidate.id == currentModeID
+        let existingIsCurrent = existing.id == currentModeID
+        if candidateIsCurrent != existingIsCurrent { return candidateIsCurrent }
+        if candidate.isNative != existing.isNative { return candidate.isNative }
+        let candidatePixels = candidate.pixelWidth * candidate.pixelHeight
+        let existingPixels = existing.pixelWidth * existing.pixelHeight
+        if candidatePixels != existingPixels { return candidatePixels > existingPixels }
+        if candidate.refreshRate != existing.refreshRate {
+            return candidate.refreshRate > existing.refreshRate
+        }
+        return candidate.id < existing.id
+    }
+
+    static func resolvedSelectedModeID(currentModeID: Int32?,
+                                       availableModes: [DisplayModeOption]) -> Int32? {
+        guard let currentModeID,
+              availableModes.contains(where: { $0.id == currentModeID }) else { return nil }
+        return currentModeID
+    }
+
+    static func showsRefreshRate(in modes: [DisplayModeOption]) -> Bool {
+        modes.contains { $0.roundedRefreshRate > 0 }
+    }
+
+    static func formattedDisplayMode(_ mode: DisplayModeOption,
+                                     hiDPILabel: String,
+                                     hertzUnit: String,
+                                     includeRefreshRate: Bool = true) -> String {
+        var label = "\(mode.width) × \(mode.height)"
+        if mode.isHiDPI, !hiDPILabel.isEmpty {
+            label += " (\(hiDPILabel))"
+        }
+        if includeRefreshRate, mode.roundedRefreshRate > 0, !hertzUnit.isEmpty {
+            label += " · \(mode.roundedRefreshRate) \(hertzUnit)"
+        }
+        return label
+    }
+
+    static func displayModeScalePercent(_ mode: DisplayModeOption,
+                                        in modes: [DisplayModeOption]) -> Int? {
+        guard let maxWidth = modes.map(\.width).max(), maxWidth > 0 else { return nil }
+        return Int(((Double(mode.width) / Double(maxWidth)) * 100.0).rounded())
+    }
+
+    /// Collapses fractional ~1% scaled resolutions and secondary refresh rates
+    /// into one representative mode per 10% width-scale bucket (unless `showAll`
+    /// is enabled), while always preserving the active mode's ID.
+    static func curatedDisplayModes(from modes: [DisplayModeOption],
+                                    currentModeID: Int32?,
+                                    showAll: Bool) -> [DisplayModeOption] {
+        guard !showAll, modes.count > 1,
+              let maxWidth = modes.map(\.width).max(), maxWidth > 0 else {
+            return modes
+        }
+        // shortcut: 10% width-ratio bucketing against maxWidth — keeps menus to <=10 steps on Apple Silicon virtual scaling
+        let currentMode = modes.first { $0.id == currentModeID }
+        let preferredRefreshRate: Int = {
+            if let current = currentMode, current.roundedRefreshRate > 0 {
+                return current.roundedRefreshRate
+            }
+            return modes.map(\.roundedRefreshRate).max() ?? 0
+        }()
+        let referenceAspect: Double? = {
+            guard let ref = currentMode ?? modes.first(where: \.isNative) ?? modes.first,
+                  ref.height > 0 else { return nil }
+            return Double(ref.width) / Double(ref.height)
+        }()
+        var bestByBucket: [Int: DisplayModeOption] = [:]
+        for candidate in modes {
+            let ratio = (Double(candidate.width) / Double(maxWidth)) * 100.0
+            let bucket = min(max(Int((ratio / 10.0).rounded()) * 10, 10), 100)
+            if let existing = bestByBucket[bucket] {
+                if prefersCuratedMode(candidate, over: existing, bucket: bucket,
+                                      maxWidth: maxWidth, currentModeID: currentModeID,
+                                      preferredRefreshRate: preferredRefreshRate,
+                                      referenceAspect: referenceAspect) {
+                    bestByBucket[bucket] = candidate
+                }
+            } else {
+                bestByBucket[bucket] = candidate
+            }
+        }
+        return bestByBucket.keys.sorted(by: >).compactMap { bestByBucket[$0] }
+    }
+
+    private static func prefersCuratedMode(_ candidate: DisplayModeOption,
+                                           over existing: DisplayModeOption,
+                                           bucket: Int,
+                                           maxWidth: Int,
+                                           currentModeID: Int32?,
+                                           preferredRefreshRate: Int,
+                                           referenceAspect: Double?) -> Bool {
+        let candidateIsCurrent = candidate.id == currentModeID
+        let existingIsCurrent = existing.id == currentModeID
+        if candidateIsCurrent != existingIsCurrent { return candidateIsCurrent }
+        if let referenceAspect, candidate.height > 0, existing.height > 0 {
+            let candidateAspectMatch = abs(Double(candidate.width) / Double(candidate.height) - referenceAspect) < 0.02
+            let existingAspectMatch = abs(Double(existing.width) / Double(existing.height) - referenceAspect) < 0.02
+            if candidateAspectMatch != existingAspectMatch { return candidateAspectMatch }
+        }
+        if bucket < 100, candidate.isHiDPI != existing.isHiDPI {
+            return candidate.isHiDPI
+        }
+        if bucket == 100 {
+            if candidate.isHiDPI != existing.isHiDPI { return candidate.isHiDPI }
+            if candidate.isNative != existing.isNative { return candidate.isNative }
+        }
+        let candidateMatchesRefresh = candidate.roundedRefreshRate == preferredRefreshRate
+        let existingMatchesRefresh = existing.roundedRefreshRate == preferredRefreshRate
+        if candidateMatchesRefresh != existingMatchesRefresh { return candidateMatchesRefresh }
+        if candidate.roundedRefreshRate != existing.roundedRefreshRate {
+            return candidate.roundedRefreshRate > existing.roundedRefreshRate
+        }
+        let target = Double(bucket)
+        let candidateDistance = abs((Double(candidate.width) / Double(maxWidth)) * 100.0 - target)
+        let existingDistance = abs((Double(existing.width) / Double(maxWidth)) * 100.0 - target)
+        if abs(candidateDistance - existingDistance) > 0.001 {
+            return candidateDistance < existingDistance
+        }
+        return prefersDisplayMode(candidate, over: existing, currentModeID: currentModeID)
+    }
+
+    /// Curated 10% resolution steps ordered from smallest width (left) to
+    /// largest/native width (right) for the display resolution slider bar.
+    static func sliderDisplayModes(from modes: [DisplayModeOption],
+                                   currentModeID: Int32?) -> [DisplayModeOption] {
+        curatedDisplayModes(from: modes, currentModeID: currentModeID, showAll: false).reversed()
+    }
+
+    static func sliderFraction(for modeID: Int32?,
+                               in sliderModes: [DisplayModeOption]) -> Double {
+        guard sliderModes.count > 1 else { return 1 }
+        if let modeID, let index = sliderModes.firstIndex(where: { $0.id == modeID }) {
+            return Double(index) / Double(sliderModes.count - 1)
+        }
+        return 1
+    }
+
+    static func sliderMode(for fraction: Double,
+                           in sliderModes: [DisplayModeOption]) -> DisplayModeOption? {
+        guard !sliderModes.isEmpty else { return nil }
+        guard sliderModes.count > 1, fraction.isFinite else { return sliderModes.last }
+        let clamped = min(max(fraction, 0), 1)
+        let index = Int((clamped * Double(sliderModes.count - 1)).rounded())
+        return sliderModes[min(max(index, 0), sliderModes.count - 1)]
+    }
 }

@@ -100,6 +100,13 @@ enum SettingsSearchSupport {
             feature: .brightness)
     }
 
+    static func brightnessKeywords(language: AppLanguage) -> [String] {
+        let brightness = FeatureStrings.brightness(language)
+        return [brightness.pageTitle, brightness.resolutionLabel, brightness.showAllResolutions,
+                brightness.osdToggle, brightness.keyStep, brightness.keyStepHalf,
+                brightness.keyStepQuarter]
+    }
+
     /// A dedicated page row wins over a generated feature row only when their
     /// IDs, full destinations, and the page's one-to-one feature mapping all
     /// agree. The winning page keeps its stable identity and presentation while

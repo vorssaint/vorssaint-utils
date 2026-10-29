@@ -543,6 +543,35 @@ enum LocalizationFeatureContractTests {
         suite.expect(koreanInfoPlistStrings.contains("NSAudioCaptureUsageDescription")
                && koreanInfoPlistStrings.contains("Mac 밖으로 나가지"),
                "Korean InfoPlist.strings localizes the audio permission prompt")
+        for (language, strings) in localizedStrings {
+            let brightness = FeatureStrings.brightness(language)
+            suite.expect(!brightness.resolutionLabel.isEmpty
+                   && !brightness.hiDPIBadge.isEmpty
+                   && !brightness.hertzUnit.isEmpty
+                   && !brightness.showAllResolutions.isEmpty
+                   && !brightness.showAllResolutionsCaption.isEmpty
+                   && !brightness.resolutionLabel.contains("—")
+                   && !brightness.showAllResolutions.contains("—")
+                   && !brightness.showAllResolutionsCaption.contains("—"),
+                   "display resolution strings are present in \(language.rawValue)")
+            let keywords = SettingsSearchSupport.brightnessKeywords(language: language)
+            let energyPageItem = SettingsSearchItem(
+                id: .page(.energy),
+                destination: FeatureSettingsDestination(.energy),
+                title: strings.tabEnergy,
+                icon: "bolt.fill",
+                keywords: keywords,
+                keywordFeatures: Array(repeating: Optional(AppFeature.brightness), count: keywords.count))
+            let groups = SettingsSearchSupport.groupedMatchingItems(
+                query: brightness.resolutionLabel,
+                items: [energyPageItem],
+                isAvailable: { _ in true })
+            let matchesEnergyDisplays = groups.contains { group in
+                group.id == .energy && group.suggestions.contains { $0.item.feature == .brightness }
+            }
+            suite.expect(matchesEnergyDisplays,
+                   "searching for display resolution in \(language.rawValue) routes to Displays in Energy settings")
+        }
 
     }
 }

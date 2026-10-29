@@ -203,11 +203,7 @@ enum SettingsDirectory {
                                                         .pauseWhenLockedToggle,
                                                       FeatureStrings.keepAwakeDisplaySleep(language)
                                                         .allowDisplaySleep]),
-                                        (.brightness, [FeatureStrings.brightness(language).pageTitle,
-                                                       FeatureStrings.brightness(language).osdToggle,
-                                                       FeatureStrings.brightness(language).keyStep,
-                                                       FeatureStrings.brightness(language).keyStepHalf,
-                                                       FeatureStrings.brightness(language).keyStepQuarter]),
+                                        (.brightness, SettingsSearchSupport.brightnessKeywords(language: language)),
                                         (.extraBrightness, [s.extraBrightnessName]),
                                         (.bluetoothSleep, [FeatureStrings.bluetoothSleep(language).pageTitle,
                                                            FeatureStrings.bluetoothSleep(language).enable]),

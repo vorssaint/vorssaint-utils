@@ -38,6 +38,9 @@ struct BrightnessDisplay: Identifiable, Equatable {
     /// Captured before this display is disabled, while its identity is still
     /// available. A reused display number must not transfer recovery ownership.
     var restorationFingerprint: String? = nil
+    /// Desktop-usable resolution and refresh-rate choices for active displays.
+    var modes: [BrightnessSupport.DisplayModeOption] = []
+    var selectedModeID: Int32? = nil
 }
 
 /// Brightness sliders for every display, built-in and external. The built-in
@@ -808,6 +811,8 @@ final class BrightnessService: ObservableObject {
             var disabled = display
             disabled.method = nil
             disabled.isActive = false
+            disabled.modes = []
+            disabled.selectedModeID = nil
             disabled.restorationFingerprint = fingerprint
             managedDisabledDisplays[display.id] = disabled
             knownActiveTopology.remove(display.id)
@@ -836,7 +841,11 @@ final class BrightnessService: ObservableObject {
             self.displayControlFailure = failure
             if failure == nil, let index = self.displays.firstIndex(where: { $0.id == id }) {
                 self.displays[index].isActive = enabled
-                if !enabled { self.displays[index].method = nil }
+                if !enabled {
+                    self.displays[index].method = nil
+                    self.displays[index].modes = []
+                    self.displays[index].selectedModeID = nil
+                }
                 // Ownership changed even if macOS briefly reports the same
                 // topology. Invalidate probes started before this transaction.
                 self.refresh(force: true)
@@ -869,24 +878,91 @@ final class BrightnessService: ObservableObject {
     /// nothing left that can end it (issue #747). A caller on the wrong
     /// thread is refused and logged rather than allowed to hang.
     private static func configureDisplay(
-        _ id: CGDirectDisplayID, enabled: Bool
+        _ id: CGDirectDisplayID, enabled: Bool? = nil, modeID: Int32? = nil
     ) -> BrightnessSupport.DisplayConfigurationResult {
         guard Thread.isMainThread else {
             log.error("refused to reconfigure display \(id) off the main thread")
             return .failed
         }
-        guard let configure = DisplayConfigurationBridge.configureEnabled else { return .failed }
-        guard BrightnessSupport.canConfigureDisplay(
-            enabled: enabled, isBuiltIn: CGDisplayIsBuiltin(id) != 0,
-            lidClosed: enabled ? lidClosed() : nil) else { return .closedLid }
+        if let enabled {
+            guard DisplayConfigurationBridge.configureEnabled != nil else { return .failed }
+            guard BrightnessSupport.canConfigureDisplay(
+                enabled: enabled, isBuiltIn: CGDisplayIsBuiltin(id) != 0,
+                lidClosed: enabled ? lidClosed() : nil) else { return .closedLid }
+        }
+        let resolvedMode: CGDisplayMode?
+        if let modeID {
+            guard let mode = matchingDisplayMode(for: id, modeID: modeID) else { return .failed }
+            resolvedMode = mode
+        } else {
+            resolvedMode = nil
+        }
+        guard enabled != nil || resolvedMode != nil else { return .failed }
         var reference: CGDisplayConfigRef?
         guard CGBeginDisplayConfiguration(&reference) == .success,
               let configuration = reference else { return .failed }
-        guard configure(configuration, id, enabled) == 0 else {
+        if let enabled, let configure = DisplayConfigurationBridge.configureEnabled,
+           configure(configuration, id, enabled) != 0 {
             CGCancelDisplayConfiguration(configuration)
             return .failed
         }
-        return CGCompleteDisplayConfiguration(configuration, .forAppOnly) == .success ? .success : .failed
+        if let resolvedMode,
+           CGConfigureDisplayWithDisplayMode(configuration, id, resolvedMode, nil) != .success {
+            CGCancelDisplayConfiguration(configuration)
+            return .failed
+        }
+        let option: CGConfigureOption = resolvedMode != nil ? .forSession : .forAppOnly
+        return CGCompleteDisplayConfiguration(configuration, option) == .success ? .success : .failed
+    }
+
+    func setDisplayMode(_ modeID: Int32, for id: CGDirectDisplayID) {
+        guard !isDisplayPending(id),
+              let index = displays.firstIndex(where: { $0.id == id }),
+              displays[index].isActive,
+              displays[index].selectedModeID != modeID,
+              displays[index].modes.contains(where: { $0.id == modeID }) else { return }
+        displayControlFailure = nil
+        guard Self.configureDisplay(id, modeID: modeID) == .success else {
+            displayControlFailure = .failed
+            return
+        }
+        displays[index].selectedModeID = modeID
+        refresh(force: true)
+    }
+
+    private static func matchingDisplayMode(for id: CGDirectDisplayID,
+                                            modeID: Int32) -> CGDisplayMode? {
+        let options = [kCGDisplayShowDuplicateLowResolutionModes: kCFBooleanTrue] as CFDictionary
+        let modes = (CGDisplayCopyAllDisplayModes(id, options) as? [CGDisplayMode]) ?? []
+        return modes.first { $0.ioDisplayModeID == modeID }
+    }
+
+    private static func displayModes(
+        for id: CGDirectDisplayID
+    ) -> (modes: [BrightnessSupport.DisplayModeOption], selectedModeID: Int32?) {
+        let currentModeID = CGDisplayCopyDisplayMode(id)?.ioDisplayModeID
+        let options = [kCGDisplayShowDuplicateLowResolutionModes: kCFBooleanTrue] as CFDictionary
+        let rawModes = (CGDisplayCopyAllDisplayModes(id, options) as? [CGDisplayMode]) ?? []
+        let candidates = rawModes.map { mode in
+            let flags = mode.ioFlags
+            return BrightnessSupport.DisplayModeOption(
+                id: mode.ioDisplayModeID,
+                width: mode.width,
+                height: mode.height,
+                pixelWidth: mode.pixelWidth,
+                pixelHeight: mode.pixelHeight,
+                refreshRate: mode.refreshRate,
+                isNative: (flags & UInt32(kDisplayModeNativeFlag)) != 0,
+                isDesktopUsable: mode.isUsableForDesktopGUI(),
+                isInterlaced: (flags & UInt32(kDisplayModeInterlacedFlag)) != 0,
+                isStretched: (flags & UInt32(kDisplayModeStretchedFlag)) != 0
+            )
+        }
+        let modes = BrightnessSupport.availableDisplayModes(
+            from: candidates, currentModeID: currentModeID)
+        let selected = BrightnessSupport.resolvedSelectedModeID(
+            currentModeID: currentModeID, availableModes: modes)
+        return (modes, selected)
     }
 
     static func lidClosed() -> Bool? {
@@ -2043,7 +2119,9 @@ final class BrightnessService: ObservableObject {
                                          method: previous.method, isActive: true,
                                          brightness: previous.brightness,
                                          readable: previous.readable,
-                                         canChooseDimming: previous.canChooseDimming)
+                                         canChooseDimming: previous.canChooseDimming,
+                                         modes: previous.modes,
+                                         selectedModeID: previous.selectedModeID)
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.running, generation == self.rebuildGeneration else { return }
@@ -2230,6 +2308,10 @@ final class BrightnessService: ObservableObject {
             && newRoutes[id]?.extendedDimming != true {
             _ = applySoftwareDim(id, value: 1)
         }
+        let modesByID: [CGDirectDisplayID: (modes: [BrightnessSupport.DisplayModeOption], selectedModeID: Int32?)] =
+            Dictionary(uniqueKeysWithValues: built.filter(\.isActive).map {
+                ($0.id, Self.displayModes(for: $0.id))
+            })
         var resolved: [BrightnessDisplay] = []
         var supportsBrightnessOSD = false
         let stale: Bool
@@ -2237,12 +2319,18 @@ final class BrightnessService: ObservableObject {
         stale = generation != rebuildGeneration
         if !stale {
             resolved = built.compactMap { display -> BrightnessDisplay? in
+                var display = display
+                if display.isActive, let modeState = modesByID[display.id] {
+                    display.modes = modeState.modes
+                    display.selectedModeID = modeState.selectedModeID
+                }
                 if !display.isActive || newRoutes[display.id] != nil { return display }
                 // Even without a brightness route, an active physical display is
                 // useful in the generalized Displays surface when it can be
-                // switched on or off.
-                guard DisplayConfigurationBridge.configureEnabled != nil else { return nil }
-                var display = display
+                // switched on or off, or when its resolution can be changed.
+                guard DisplayConfigurationBridge.configureEnabled != nil || display.modes.count > 1 else {
+                    return nil
+                }
                 display.method = nil
                 return display
             }

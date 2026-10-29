@@ -2459,6 +2459,18 @@ enum NotchTests {
         suite.expect(NotchSupport.filteredModules(allModules, query: "", title: { $0.rawValue }) == allModules
                && NotchSupport.filteredModules(allModules, query: "unmatched", title: { $0.rawValue }).isEmpty,
                "empty queries preserve configured ordering and unmatched queries have no action")
+        suite.expect(NotchModule.displays.symbol == AppFeature.brightness.symbolName
+               && NotchModule.displays.shortcutKey == "y"
+               && NotchModule.displays.title(.enUS) == "Displays",
+               "Displays is a standalone Dynamic Island section with its own symbol, shortcut, and localized title")
+        let diMatches = NotchSupport.filteredModules(allModules, query: "di", title: {
+            NotchSupport.sectionSearchText($0, language: .enUS) { $0.title(.enUS) }
+        })
+        let resMatches = NotchSupport.filteredModules(allModules, query: "resolution", title: {
+            NotchSupport.sectionSearchText($0, language: .enUS) { $0.title(.enUS) }
+        })
+        suite.expect(diMatches.first == .displays && resMatches == [.displays],
+               "searching 'di' or 'resolution' in the Dynamic Island section gallery highlights Displays first")
         suite.expect(!NotchSupport.closesOnPointerExit(expanded: true, peeking: false, openedByHover: false),
                "menu bar and keyboard openings survive a pointer outside the notch")
         suite.expect(NotchSupport.closesOnPointerExit(expanded: true, peeking: false, openedByHover: true)
@@ -2528,7 +2540,7 @@ enum NotchTests {
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
-        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
+        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .displays, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
         suite.expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")
