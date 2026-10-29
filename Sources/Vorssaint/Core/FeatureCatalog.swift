@@ -19,7 +19,7 @@ enum AppFeature: String, CaseIterable {
     case scrollInverter, scrollHorizontal, scrollZoom, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
     // Clipboard and files
-    case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
+    case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner, browserPicker,
          diskImageInstaller
     // Sound
     case mixer, soundOutputSwitcher, audioPriority, micMute, musicBlock
@@ -106,7 +106,7 @@ extension AppFeature {
         case .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
             return .mouseKeyboard
-        case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
+        case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner, .browserPicker,
              .diskImageInstaller:
             return .clipboardFiles
         case .mixer, .soundOutputSwitcher, .audioPriority, .micMute, .musicBlock:
@@ -175,6 +175,7 @@ extension AppFeature {
         case .quitApps: return "xmark.app"
         case .colorPicker: return "eyedropper"
         case .screenOCR: return "text.viewfinder"
+        case .browserPicker: return "globe"
         case .cleaningMode: return "bubbles.and.sparkles"
         case .mediaTools: return "photo.on.rectangle.angled"
         case .cleaner: return "sparkles"
@@ -289,7 +290,7 @@ extension AppFeature {
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]
-        case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
+        case .windowLayout, .diskImageInstaller, .browserPicker, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
@@ -379,6 +380,8 @@ extension AppFeature {
         case .brightness: return [.accessibility]
         case .cleaner: return [.fullDiskAccess, .filesAndFolders, .notifications]
         case .uninstaller: return [.fullDiskAccess, .automationFinder]
+        // Only to list Chromium profiles, whose data folder macOS guards.
+        case .browserPicker: return [.fullDiskAccess]
         case .homebrew: return [.appManagement]
         case .appUpdates: return [.notifications, .appManagement]
         case .diskImageInstaller: return [.appManagement]
@@ -490,7 +493,8 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps, .browserPicker:
+            return false
             return false
         }
     }

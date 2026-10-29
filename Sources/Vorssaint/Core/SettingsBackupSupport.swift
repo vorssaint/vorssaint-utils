@@ -81,6 +81,7 @@ enum SettingsBackupSupport {
         DefaultsKey.radialMenuItems,
         DefaultsKey.radialMenuProfiles,
         DefaultsKey.commandBarLinks,
+        DefaultsKey.browserPickerRules,
         DefaultsKey.commandBarRowShortcuts,
         DefaultsKey.language,
         DefaultsKey.appVolumes,
@@ -129,6 +130,10 @@ enum SettingsBackupSupport {
     /// out by construction (they are not preference keys), listed here only
     /// when they would otherwise slip in through the registered set.
     static let machineStateKeys: Set<String> = [
+        // Which browser had web links before this app is a fact about this
+        // Mac's installed apps, not a preference.
+        DefaultsKey.browserPickerPreviousBrowser,
+        DefaultsKey.browserPickerReadsProfiles,
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
         // Agent profiles are folders on this Mac whose sign-in the cards use,

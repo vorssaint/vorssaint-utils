@@ -1166,6 +1166,7 @@ extension AppFeature {
         case .finderRename: return FeatureStrings.finderRename(language).hubTitle
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName
+        case .browserPicker: return FeatureStrings.browserPicker(L10n.shared.language).featureName
         case .diskImageInstaller:
             return FeatureStrings.diskImageInstaller(language).title
         case .mixer: return s.mixerSection
@@ -1254,6 +1255,7 @@ extension AppFeature {
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubDescription
         case .shelf: return hub.descShelf
         case .urlCleaner: return hub.descURLCleaner
+        case .browserPicker: return FeatureStrings.browserPicker(L10n.shared.language).featureDescription
         case .diskImageInstaller:
             return FeatureStrings.diskImageInstaller(L10n.shared.language).hubDescription
         case .mixer: return hub.descMixer
