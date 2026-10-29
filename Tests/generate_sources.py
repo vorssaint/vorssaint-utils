@@ -199,6 +199,49 @@ def main():
                     for prefix in ["    private var resultsState:", "    private var resultsGroups:",
                                    "    private func section("])
           + "}\n")
+    gesture_handler = "Sources/Vorssaint/App/StatusItemGestureHandler.swift"
+    write("StatusItemGestureAdapter.swift", "import AppKit\nimport Combine\nimport CoreGraphics\n"
+          + "extension StatusItemGestureAdapterTests {\nfinal class Host: Fixture {\n"
+          + "".join(declaration(gesture_handler, prefix).replace("    private ", "    ", 1)
+                    for prefix in [
+                        "    private func watchAccessibility(", "    private func syncMiddleTap(",
+                        "    private func handleMiddleTap(", "    private func tearDownMiddleTap(",
+                        "    private func ownsClick(", "    private var mainButtonWindowNumber:",
+                        "    func sync(", "    func cancel(", "    func tracksPress(",
+                        "    func buttonClick(", "    private func beginLeftPress(", "    private var hitArea:",
+                        "    private func pointer(", "    private func releasePoint(",
+                        "    private func observe(", "    private func emit(",
+                        "    private func schedule(", "    private func observeRelease(",
+                        "    private func held(", "    private func releaseTime(", "    private func eventTime(",
+                        "    private func finishLeftPress(", "    private func newerPress(",
+                        "    private var primaryScreenHeight:", "    private func appKitPoint(",
+                        "    private func onButton(", "    private func finishUnseenRelease(",
+                        "    private func finishIfReleased("])
+          + "}\nfinal class ControllerHost: ControllerFixture {\n"
+          + declaration("Sources/Vorssaint/App/StatusItemController.swift", "    @objc private func clicked(")
+            .replace("@objc private ", "")
+          + declaration("Sources/Vorssaint/App/StatusItemController.swift", "    private func isFresh(")
+          + "}\n"
+          + "final class SettingsHost: SettingsFixture {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/GeneralSettings.swift",
+                        "    private func setMiddleAction(").replace("    private ", "    ", 1)
+            .replace(".runnable(value)", ".runnable(value, in: defaults)")
+          + "}\nfinal class UsageHost: UsageFixture {\n"
+          + "".join(declaration("Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift", prefix)
+                    .replace("    private ", "    ", 1) for prefix in [
+                        "    private var activeUsageNames:", "    private var usedByLine:"])
+            .replace(".runnable(middleAction)", ".runnable(middleAction, in: defaults)")
+          + "}\nfinal class DispatchHost: DispatchFixture {\n"
+          + declaration("Sources/Vorssaint/App/AppDelegate+StatusItemQuickActions.swift",
+                        "    func performStatusItemAction(")
+            .replace(".feature.isAvailable", ".feature.isAvailable(in: DispatchFixture.defaults)")
+          + "}\nfinal class PollingHost: PollingFixture {\n"
+          + declaration("Sources/Vorssaint/Core/Permissions.swift", "    private var desiredPollInterval:")
+            .replace("    private ", "    ", 1)
+            .replace(".saved()", ".saved(defaults: defaults)")
+            .replace("using: .accessibility)", "using: .accessibility, defaults: defaults)")
+            .replace("using: .screenRecording)", "using: .screenRecording, defaults: defaults)")
+          + "}\n}\n")
     write("NotchActivityPicker.swift", "import SwiftUI\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchShape: Shape {")
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchActivityPicker: View {"))

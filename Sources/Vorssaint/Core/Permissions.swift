@@ -93,6 +93,7 @@ final class Permissions: ObservableObject {
     private var desiredPollInterval: TimeInterval? {
         let accessibilityIsNeeded = AppFeature.activeFeatures(using: .accessibility)
             .contains { $0.monitorsPermissionChanges }
+            || StatusItemGesture.Settings.saved().needsAccessibility
         let screenRecordingIsNeeded = AppFeature.activeFeatures(using: .screenRecording)
             .contains { $0.monitorsPermissionChanges }
         return PermissionPollingSupport.interval(
