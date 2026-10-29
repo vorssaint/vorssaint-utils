@@ -261,6 +261,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "預覽開啟時暫停自動隱藏，離開時恢復。可能調整視窗大小。如果 App 意外中斷，請重新開啟以恢復 Dock 設定。",
         dockPreviewOrderByCreation: "依建立時間排序視窗",
         dockPreviewOrderByCreationCaption: "先顯示較早建立的視窗，而非最近使用的視窗。",
+        dockPreviewMultipleWindowsOnly: "僅在 App 有多個視窗時顯示",
+        dockPreviewMultipleWindowsOnlyCaption: "只有一個視窗可顯示時不會打開面板。最小化的視窗也會計算在內；除非僅顯示目前的桌面，否則其他桌面上的視窗也會計算在內。",
         dockClickMinimize: "點按 Dock 圖示最小化",
         dockClickMinimizeCaption: "點按最前方 App 的 Dock 圖示可將其視窗最小化。再點按一次即可還原。",
         dockClickCycleWindows: "點按 Dock 圖示切換視窗",

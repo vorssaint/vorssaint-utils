@@ -131,6 +131,7 @@ enum DefaultsKey {
     static let dockPreviewKeepDockVisible = "dockPreviewKeepDockVisible"
     static let dockPreviewRestoreAutohide = "dockPreviewRestoreAutohide" // local crash recovery; never backed up
     static let dockPreviewCurrentSpaceOnly = "dockPreviewCurrentSpaceOnly"
+    static let dockPreviewMultipleWindowsOnly = "dockPreviewMultipleWindowsOnly" // open the panel only for an app with at least two windows to list (DockPreviewSupport.opensPanel)
     static let dockPreviewBackgroundOpacity = "dockPreviewBackgroundOpacity" // how solid the preview panel's material is drawn (DockPreviewSupport.backgroundOpacityRange)
     static let dockPreviewOpenDelay = "dockPreviewOpenDelay" // milliseconds the cursor must rest on a Dock icon before its panel opens (DockPreviewSupport.openDelayMillisecondsRange)
     static let dockPreviewQuitAppOnClose = "dockPreviewQuitAppOnClose" // the preview card's close button quits the owning app instead of closing one window
@@ -1302,6 +1303,7 @@ enum Defaults {
         DefaultsKey.minimalWindowPreviews: false,
         DefaultsKey.dockPreviewEnabled: false,
         DefaultsKey.dockPreviewCurrentSpaceOnly: false,
+        DefaultsKey.dockPreviewMultipleWindowsOnly: false,
         DefaultsKey.dockPreviewKeepDockVisible: false,
         DefaultsKey.dockPreviewBackgroundOpacity: 1.0,
         DefaultsKey.dockPreviewOpenDelay: DockPreviewSupport.defaultOpenDelayMilliseconds,

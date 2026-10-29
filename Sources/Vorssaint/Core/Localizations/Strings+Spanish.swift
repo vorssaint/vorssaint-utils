@@ -260,6 +260,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "Pausa la ocultación automática mientras la vista previa está abierta y la restaura al salir. Puede redimensionar ventanas. Si la app se interrumpe, vuelve a abrirla para restaurar el Dock.",
         dockPreviewOrderByCreation: "Ordenar ventanas por creación",
         dockPreviewOrderByCreationCaption: "Muestra primero las ventanas más antiguas en lugar de las usadas más recientemente.",
+        dockPreviewMultipleWindowsOnly: "Solo para apps con más de una ventana",
+        dockPreviewMultipleWindowsOnlyCaption: "El panel no se abre cuando solo hay una ventana que mostrar. Cuentan las ventanas minimizadas y también las de otros escritorios, salvo que solo se muestre el escritorio actual.",
         dockClickMinimize: "Clic en el Dock para minimizar",
         dockClickMinimizeCaption: "Las ventanas de la app activa se minimizan al hacer clic en su icono del Dock. Vuelve a hacer clic para recuperarlas.",
         dockClickCycleWindows: "Clic en el Dock para alternar ventanas",

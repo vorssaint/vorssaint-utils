@@ -264,6 +264,7 @@ enum SettingsDirectory {
                                        icon: "dock.rectangle",
                                        featureKeywords: [
                                         (.dockPreview, [s.dockPreviewName, s.dockPreviewEnable,
+                                                        s.dockPreviewMultipleWindowsOnly,
                                                         s.dockPreviewOpenDelay,
                                                         s.dockPreviewBackgroundOpacity,
                                                         s.dockPreviewQuitAppOnClose,

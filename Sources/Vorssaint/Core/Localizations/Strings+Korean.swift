@@ -261,6 +261,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "미리보기가 열려 있는 동안 자동 숨기기를 일시 중지하고 벗어나면 복원합니다. 윈도우 크기가 바뀔 수 있습니다. 앱이 중단되면 다시 열어 Dock 설정을 복원하세요.",
         dockPreviewOrderByCreation: "생성 시간순으로 윈도우 정렬",
         dockPreviewOrderByCreationCaption: "최근에 사용한 윈도우 대신 오래된 윈도우를 먼저 표시합니다.",
+        dockPreviewMultipleWindowsOnly: "윈도우가 2개 이상인 앱에서만",
+        dockPreviewMultipleWindowsOnlyCaption: "표시할 윈도우가 하나뿐이면 패널을 열지 않습니다. 최소화된 윈도우도 포함되며, 현재 데스크탑만 표시하는 경우가 아니면 다른 데스크탑의 윈도우도 포함됩니다.",
         dockClickMinimize: "Dock 클릭으로 최소화",
         dockClickMinimizeCaption: "앞에 있는 앱의 Dock 아이콘을 클릭하면 윈도우를 최소화합니다. 다시 클릭하면 복원됩니다.",
         dockClickCycleWindows: "Dock 클릭으로 윈도우 전환",

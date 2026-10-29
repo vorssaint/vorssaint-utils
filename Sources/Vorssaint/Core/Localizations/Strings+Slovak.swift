@@ -260,6 +260,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "Pozastaví automatické skrývanie, kým je náhľad otvorený, a po odchode ho obnoví. Môže zmeniť veľkosť okien. Ak sa aplikácia preruší, otvorte ju znova a Dock sa obnoví.",
         dockPreviewOrderByCreation: "Zoradiť okná podľa času vytvorenia",
         dockPreviewOrderByCreationCaption: "Zobrazí staršie okná ako prvé namiesto tých naposledy použitých.",
+        dockPreviewMultipleWindowsOnly: "Len pre aplikácie s viac ako jedným oknom",
+        dockPreviewMultipleWindowsOnlyCaption: "Panel sa neotvorí, keď je na zobrazenie len jedno okno. Počítajú sa aj minimalizované okná a okná na iných plochách, pokiaľ sa nezobrazuje len aktuálna plocha.",
         dockClickMinimize: "Kliknutím na ikonu v Docku minimalizovať",
         dockClickMinimizeCaption: "Okná aktívnej aplikácie sa minimalizujú, keď kliknete na jej ikonu v Docku. Ďalším kliknutím ich vrátite späť.",
         dockClickCycleWindows: "Kliknutím na ikonu v Docku prechádzať okná",

@@ -260,6 +260,8 @@ extension Strings {
         dockPreviewKeepDockVisibleCaption: "Pausiert das automatische Ausblenden bei geöffneter Vorschau und stellt es beim Verlassen wieder her. Fenstergrößen können sich ändern. Wird die App unterbrochen, öffne sie erneut, um das Dock wiederherzustellen.",
         dockPreviewOrderByCreation: "Fenster nach Erstellungszeit sortieren",
         dockPreviewOrderByCreationCaption: "Ältere Fenster zuerst anzeigen statt der zuletzt genutzten.",
+        dockPreviewMultipleWindowsOnly: "Nur für Apps mit mehr als einem Fenster",
+        dockPreviewMultipleWindowsOnlyCaption: "Das Panel bleibt geschlossen, wenn nur ein Fenster anzuzeigen ist. Minimierte Fenster zählen mit, ebenso Fenster auf anderen Schreibtischen, außer es wird nur der aktuelle Schreibtisch angezeigt.",
         dockClickMinimize: "Klick aufs Dock-Symbol minimiert",
         dockClickMinimizeCaption: "Die Fenster der aktiven App werden beim Klick auf ihr Dock-Symbol im Dock abgelegt. Ein weiterer Klick holt sie zurück.",
         dockClickCycleWindows: "Klick aufs Dock-Symbol wechselt Fenster",
