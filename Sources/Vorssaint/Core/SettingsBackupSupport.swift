@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CryptoKit
 import Foundation
 
 /// The portable part of the app's settings: what a backup file carries and
@@ -221,6 +222,10 @@ enum SettingsBackupSupport {
         // A fit measured against one Mac's camera housing would misfit another's.
         DefaultsKey.notchCameraFitWidth,
         DefaultsKey.notchCameraFitHeight,
+        // Each Mac chooses whether it writes the settings file; the digest
+        // describes this Mac's copy of it.
+        DefaultsKey.settingsFileSaveOnQuit,
+        DefaultsKey.settingsFileLastSeenDigest,
     ]
 
     /// The file's content: an envelope with the format version, the app
@@ -282,6 +287,69 @@ enum SettingsBackupSupport {
         var result = settings
         if let mode = result[DefaultsKey.notchDisplay] as? String, NotchDisplay(rawValue: mode) == nil {
             result[DefaultsKey.notchDisplay] = NotchDisplay.automatic.rawValue
+        }
+        return result
+    }
+
+    /// An optional settings file the app applies at launch, and writes on quit
+    /// only when asked to (issue #497): `$XDG_CONFIG_HOME/vorssaint/settings.plist`, or
+    /// `~/.config` in its place when the variable is unset, empty or relative,
+    /// as the XDG spec asks. The Developer build reads its own folder.
+    static func configFileURL(environment: [String: String],
+                              home: URL,
+                              isDeveloperBuild: Bool) -> URL {
+        var base = home.appendingPathComponent(".config", isDirectory: true)
+        if let xdg = environment["XDG_CONFIG_HOME"], xdg.hasPrefix("/") {
+            base = URL(fileURLWithPath: xdg, isDirectory: true)
+        }
+        var folder = "vorssaint"
+        if isDeveloperBuild {
+            folder += "-dev"
+        }
+        return base
+            .appendingPathComponent(folder, isDirectory: true)
+            .appendingPathComponent("settings.plist")
+    }
+
+    /// Identifies one version of the settings file, so the app can tell
+    /// whether anything else changed it since the app last read or wrote it.
+    static func digest(of data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Launch applies the file only when it changed since the app last saw it.
+    /// A quit whose write failed leaves the file as it was seen, so the newer
+    /// preferences are kept instead of being replaced by the stale file.
+    static func appliesConfigFile(digest: String, lastSeen: String?) -> Bool {
+        digest != lastSeen
+    }
+
+    /// Quit writes only over the version the app last saw (or where there is
+    /// none yet). A file edited or merged while the app ran is left for the
+    /// next launch to apply, never overwritten.
+    static func overwritesConfigFile(digest: String?, lastSeen: String?) -> Bool {
+        guard let digest else { return true }
+        return digest == lastSeen
+    }
+
+    /// Every cleanup, diagnostic and backup mode is a `--` flag, and none of
+    /// them should take on the file's settings; only a plain launch does.
+    static func appliesConfigFile(arguments: [String]) -> Bool {
+        !arguments.dropFirst().contains { $0.hasPrefix("--") }
+    }
+
+    /// The portable form leaves out media logos, which name files on one Mac.
+    /// Where the file holds exactly that form of this Mac's value, this Mac's
+    /// value stays, so applying the file where it was exported keeps the logo.
+    static func keepingLocalMediaLogos(_ settings: [String: Any],
+                                       local: [String: Any]) -> [String: Any] {
+        let portableLocal = portableMediaSettings(local)
+        var result = settings
+        for key in [DefaultsKey.mediaImageWatermarkKind, DefaultsKey.mediaImageProfiles] {
+            // Both may be absent: profiles that are all logos have no portable form.
+            guard let localValue = local[key],
+                  settings[key] as? NSObject == portableLocal[key] as? NSObject else { continue }
+            result[key] = localValue
         }
         return result
     }
