@@ -858,6 +858,7 @@ enum DefaultsKey {
     static let notchTimerEnabled = "notchTimerEnabled"
     static let notchTimerMode = "notchTimerMode"
     static let notchTimerMinutes = "notchTimerMinutes"
+    static let notchSleepTimerMinutes = "notchSleepTimerMinutes"
     static let notchTimerSoundEnabled = "notchTimerSoundEnabled"
     static let notchHideTimerCountdown = "notchHideTimerCountdown"
     static let notchPomodoroFocusMinutes = "notchPomodoroFocusMinutes"
@@ -1473,6 +1474,7 @@ enum Defaults {
         DefaultsKey.notchTimerEnabled: true,
         DefaultsKey.notchTimerMode: NotchTimerMode.timer.rawValue,
         DefaultsKey.notchTimerMinutes: 15,
+        DefaultsKey.notchSleepTimerMinutes: 30,
         DefaultsKey.notchTimerSoundEnabled: true,
         DefaultsKey.notchHideTimerCountdown: false,
         DefaultsKey.notchPomodoroFocusMinutes: 25,

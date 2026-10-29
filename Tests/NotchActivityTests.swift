@@ -459,6 +459,16 @@ enum NotchActivityTests {
         session.resume(at: 10_000)
         suite.expect(session.isRunning && session.reading(at: 10_040.5) == 100.5,
                "resuming continues from the held reading, never from the wall clock gap")
+
+        var sleep = NotchTimerSession()
+        sleep.start(mode: .sleep, minutes: 45, now: 0)
+        suite.expect(sleep.phase == .sleep && !sleep.countsUp && sleep.deadline == 2700 && sleep.reading(at: 700) == 2000,
+               "a sleep timer counts down its own minutes to a deadline")
+        suite.expect(sleep.finishIfDue(at: 2700) && sleep.completed && !sleep.canStartNext && sleep.completedFocuses == 0,
+               "a sleep timer completes at its deadline with nothing to start next")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchSleepTimerMinutes] as? Int == 30
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchSleepTimerMinutes),
+               "the sleep timer's minutes are saved apart from the timer's and travel with a backup")
         session.resume(at: 20_000)
         suite.expect(session.reading(at: 20_000) == 10_060, "resuming a running stopwatch changes nothing")
         session.pause(at: .nan)
@@ -552,8 +562,8 @@ enum NotchActivityTests {
         }
         defaults.set("countdown", forKey: DefaultsKey.notchTimerMode)
         suite.expect(NotchTimerSupport.savedMode(in: defaults) == .timer, "an unknown saved mode falls back to the countdown")
-        suite.expect(NotchTimerMode.allCases.last == .stopwatch && NotchTimerMode.allCases.first == .timer,
-               "the stopwatch joins the mode row after the existing modes, keeping their positions")
+        suite.expect(NotchTimerMode.allCases == [.timer, .pomodoro, .stopwatch, .sleep],
+               "each new mode joins the mode row after the existing ones, keeping their positions")
 
         for width: CGFloat in [360, 480, 560] {
             let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,
@@ -582,7 +592,7 @@ enum NotchActivityTests {
         let button = NotchBand.sectionsButtonRoom
         let chevron = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
             .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold))?.size.width ?? 0
-        let glyph = ["timer", "stopwatch"].compactMap {
+        let glyph = NotchTimerMode.allCases.map(NotchTimerSupport.ModePicker.symbol(for:)).compactMap {
             NSImage(systemSymbolName: $0, accessibilityDescription: nil)?
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: layout.labelSize, weight: .medium))?.size.width
         }.max() ?? 0
@@ -611,8 +621,8 @@ enum NotchActivityTests {
         let cameras: [CGFloat] = [0, 156, 170, 180, 185, 190, 200, 208, 210, 224]
         for language in AppLanguage.allCases {
             let text = FeatureStrings.notchActivities(language)
-            let labels = [text.timer, text.pomodoro, text.stopwatch]
-            suite.expect(Set(labels).count == 3 && labels.allSatisfy { !$0.isEmpty },
+            let labels = [text.timer, text.pomodoro, text.stopwatch, text.sleep]
+            suite.expect(Set(labels).count == labels.count && labels.allSatisfy { !$0.isEmpty },
                    "each mode has its own name: \(language)")
             let widths = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
             let named = (widths.max() ?? 0) + layout.menuSpacing + chevron + layout.labelPadding * 2

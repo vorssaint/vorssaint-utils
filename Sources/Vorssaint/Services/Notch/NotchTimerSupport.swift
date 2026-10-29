@@ -5,8 +5,8 @@ import AppKit
 import CoreGraphics
 import Foundation
 
-enum NotchTimerMode: String, CaseIterable { case timer, pomodoro, stopwatch }
-enum NotchTimerPhase: String { case timer, focus, shortBreak, longBreak, stopwatch }
+enum NotchTimerMode: String, CaseIterable { case timer, pomodoro, stopwatch, sleep }
+enum NotchTimerPhase: String { case timer, focus, shortBreak, longBreak, stopwatch, sleep }
 
 enum NotchTimerRulerScale {
     static let spacing = 14.0
@@ -128,6 +128,10 @@ struct NotchTimerSession: Equatable {
             phase = .stopwatch
             duration = 0
             anchor = now
+        case .sleep:
+            phase = .sleep
+            duration = Double(NotchTimerSupport.timerMinutes(minutes)) * 60
+            anchor = now + duration
         }
     }
 
@@ -219,8 +223,14 @@ enum NotchTimerSupport {
         }
 
         /// The glyph a menu with no room for the name shows: the closed
-        /// island's own, a countdown's timer or the stopwatch.
-        static func symbol(for mode: NotchTimerMode) -> String { mode == .stopwatch ? "stopwatch" : "timer" }
+        /// island's own, a countdown's timer, the stopwatch or the sleep timer's moon.
+        static func symbol(for mode: NotchTimerMode) -> String {
+            switch mode {
+            case .timer, .pomodoro: return "timer"
+            case .stopwatch: return "stopwatch"
+            case .sleep: return "moon.zzz"
+            }
+        }
     }
 
     /// The start capsule in the top row; the test measures it against a side
@@ -231,6 +241,9 @@ enum NotchTimerSupport {
     }
 
     static let timerLimit: TimeInterval = 180 * 60
+    /// How late a sleep timer may still sleep the Mac. Past this the Mac
+    /// slept through the deadline and has just woken.
+    static let sleepGrace: TimeInterval = 60
     /// A stopwatch keeps counting; its clock saturates at the widest reading
     /// the surface fits, two hour digits.
     static let stopwatchLimit: TimeInterval = 100 * 3600 - 1

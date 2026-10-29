@@ -518,7 +518,7 @@ private struct NotchTimerTile: View {
     private func symbol(_ session: NotchTimerSession) -> String {
         if session.completed { return "checkmark" }
         if session.isPaused { return "pause.fill" }
-        return session.countsUp ? "stopwatch" : "timer"
+        return NotchTimerSupport.ModePicker.symbol(for: session.mode)
     }
 }
 
