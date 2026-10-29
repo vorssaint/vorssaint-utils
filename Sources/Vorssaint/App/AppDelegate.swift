@@ -1123,9 +1123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             self.closePopover(reason: .outsideClick)
         }
 
-        // Local events cover our own Settings window. Keep Settings + panel open
-        // when they sit side by side for live reordering, but close the panel if it
-        // overlaps Settings and the user clicks Settings to get it out of the way.
+        // Local events cover our own Settings window: a click there closes the
+        // panel like a click in any other app would.
         popoverLocalDismissMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
@@ -1239,12 +1238,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func shouldDismissPopover(forLocalEvent event: NSEvent) -> Bool {
         guard !PanelInteractionState.shared.preventsPopoverDismissal else { return false }
-        guard let settingsWindow,
-              event.windowNumber == settingsWindow.windowNumber && event.windowNumber > 0,
-              let popoverFrame = popover.contentViewController?.view.window?.frame else {
-            return false
-        }
-        return settingsWindow.frame.intersects(popoverFrame)
+        guard let settingsWindow else { return false }
+        return event.windowNumber == settingsWindow.windowNumber && event.windowNumber > 0
     }
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
@@ -1493,6 +1488,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey]
                         as? NSRunningApplication else { return }
                 self?.updatePanelActivationSource(.appActivated(app))
+                // ⌘Tab, the Dock or Spotlight switch apps without a click the
+                // dismissal monitors can see.
+                guard let self, app.processIdentifier != ownPID, self.popoverIsOpen,
+                      !PanelInteractionState.shared.preventsPopoverDismissal else { return }
+                self.closePopover(reason: .outsideClick)
             },
         ]
     }
@@ -1835,12 +1835,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     // MARK: - Windows
 
     func openSettingsWindow() {
-        // Intentionally does NOT close the panel: the panel uses applicationDefined
-        // dismissal, so it stays open beside Settings for a live preview.
         // Capture the destination before activation changes the key window.
         let targetScreen = (popover.isShown
             ? popoverAnchor?.screen ?? popover.contentViewController?.view.window?.screen
             : nil) ?? NSScreen.withMouse
+        // Settings takes over from the panel. A modal presented from the panel
+        // keeps it, since closing under it orphans AppKit's modal state.
+        if popover.isShown, !PanelInteractionState.shared.isPresentingPopoverModal {
+            closePopover(reason: .action)
+        }
         let createdWindow = settingsWindow == nil
         if settingsWindow == nil {
             let host = NSHostingController(rootView: SettingsView())
