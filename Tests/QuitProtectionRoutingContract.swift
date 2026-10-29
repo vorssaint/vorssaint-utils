@@ -10,8 +10,12 @@ enum QuitProtectionRoutingContract {
         static let standard = Foundation.UserDefaults(suiteName: "vorss.tests.quit-routing")!
     }
     enum AppFeature {
-        case quitWindowProtection
+        case quitWindowProtection, keyboardRemap
         var isAvailable: Bool { true }
+    }
+    final class KeyboardRemapService {
+        static let shared = KeyboardRemapService()
+        var ownsNativeQuit = false
     }
     final class SessionActivity {
         static let shared = SessionActivity()

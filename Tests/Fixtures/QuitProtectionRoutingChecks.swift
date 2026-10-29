@@ -41,6 +41,25 @@ extension QuitProtectionRoutingContract.QuitProtectionService {
             return service.handle(type: type, event: event) != nil
         }
 
+        // A remap enabled during a pending confirmation takes ownership before
+        // quit protection can terminate the foreground app.
+        defaults.set("hold", forKey: DefaultsKey.quitProtectionQuitMode)
+        send(12)
+        let pendingTimer = service.holdTimer
+        Contract.KeyboardRemapService.shared.ownsNativeQuit = true
+        suite.expect(send(12) && service.pending == nil,
+                     "an active keyboard remap receives Command-Q and cancels pending protection")
+        pendingTimer?.fire()
+        suite.expect(Contract.NSRunningApplication.terminated.isEmpty,
+                     "a cancelled quit confirmation cannot fire after remap ownership changes")
+        send(12, .keyUp)
+        send(48)
+        suite.expect(send(12) && service.nativeSwitcherSessionActive && service.pending == nil,
+                     "keyboard remap ownership preserves native switcher chord tracking")
+        send(12, .keyUp)
+        send(55, .flagsChanged, flags: [])
+        Contract.KeyboardRemapService.shared.ownsNativeQuit = false
+
         // Chrome stays frontmost while the native switcher selects another app.
         // A held Q must reach the switcher, with no termination of Chrome.
         for mode in QuitProtectionMode.allCases {

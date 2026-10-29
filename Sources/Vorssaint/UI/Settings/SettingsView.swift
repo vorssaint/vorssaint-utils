@@ -584,6 +584,7 @@ struct SettingsView: View {
         case .mouse: MouseSettings()
         case .switcher: SwitcherSettings()
         case .dock: DockSettings()
+        case .keyboardRemap: KeyboardRemapSettings()
         case .keyDebounce: KeyboardDebounceSettings()
         case .superKey: SuperKeySettings()
         case .cutPaste: CutPasteSettings()

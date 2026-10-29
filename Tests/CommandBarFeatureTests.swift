@@ -177,6 +177,7 @@ enum CommandBarFeatureTests {
             let hub = FeatureStrings.hub(language)
             for (feature, expected) in [
                 (AppFeature.mouseButtonShortcuts, FeatureStrings.mouseButtons(language).pageTitle),
+                (.keyboardRemap, KeyboardRemapStrings.text("pageTitle", language: language)),
                 (.textSnippets, FeatureStrings.snippets(language).pageTitle),
                 (.windowLayout, FeatureStrings.windowLayout(language).title),
                 (.notch, FeatureStrings.notch(language).title),
