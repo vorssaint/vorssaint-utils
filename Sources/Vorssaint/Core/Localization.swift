@@ -422,6 +422,8 @@ struct Strings {
     let dockPreviewOpenDelayCaption: String
     let dockPreviewQuitAppOnClose: String
     let dockPreviewQuitAppOnCloseCaption: String
+    let dockPreviewQuitOnLastWindowOnly: String
+    let dockPreviewQuitOnLastWindowOnlyCaption: String
     let dockPreviewKeepDockVisible: String
     let dockPreviewKeepDockVisibleCaption: String
     let dockPreviewOrderByCreation: String
@@ -1580,6 +1582,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Quanto tempo o ponteiro precisa ficar sobre um ícone antes de o painel abrir.",
         dockPreviewQuitAppOnClose: "Encerrar o app com o botão ×",
         dockPreviewQuitAppOnCloseCaption: "No Dock Preview, × encerra o app inteiro em vez de fechar apenas aquela janela.",
+        dockPreviewQuitOnLastWindowOnly: "Encerrar só com a última janela",
+        dockPreviewQuitOnLastWindowOnlyCaption: "Enquanto o app tiver outras janelas abertas, × fecha apenas aquela janela. Fechar a última janela encerra o app.",
         dockPreviewKeepDockVisible: "Manter Dock visível (experimental)",
         dockPreviewKeepDockVisibleCaption: "Suspende o ocultamento automático enquanto o preview está aberto e restaura ao sair. Pode reajustar janelas. Se o app for interrompido, reabra-o para restaurar o Dock.",
         dockPreviewOrderByCreation: "Ordenar janelas por criação",
@@ -2699,6 +2703,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "How long the pointer has to rest on an icon before its panel opens.",
         dockPreviewQuitAppOnClose: "Quit the app with the × button",
         dockPreviewQuitAppOnCloseCaption: "In Dock Preview, × quits the whole app instead of closing only that window.",
+        dockPreviewQuitOnLastWindowOnly: "Quit only with the last window",
+        dockPreviewQuitOnLastWindowOnlyCaption: "While the app has other windows open, × closes only that window. Closing its last window quits the app.",
         dockPreviewKeepDockVisible: "Keep Dock visible (experimental)",
         dockPreviewKeepDockVisibleCaption: "Pauses auto-hide while the preview is open and restores it when you leave. May resize windows. If the app is interrupted, reopen it to restore the Dock.",
         dockPreviewOrderByCreation: "Order windows by creation time",

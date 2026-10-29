@@ -246,6 +246,11 @@ enum LocalizationFeatureContractTests {
                    && !strings.dockPreviewQuitAppOnCloseCaption.isEmpty
                    && !strings.dockPreviewQuitAppOnCloseCaption.contains("—"),
                    "\(prefix) Dock Preview quit-on-close labels are present without em dash")
+            suite.expect(!strings.dockPreviewQuitOnLastWindowOnly.isEmpty
+                   && !strings.dockPreviewQuitOnLastWindowOnly.contains("—")
+                   && !strings.dockPreviewQuitOnLastWindowOnlyCaption.isEmpty
+                   && !strings.dockPreviewQuitOnLastWindowOnlyCaption.contains("—"),
+                   "\(prefix) Dock Preview last-window quit labels are present without em dash")
             suite.expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
             suite.expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
             suite.expect(GlobalShortcutRole.switcher.title(strings) != strings.switcherSection,

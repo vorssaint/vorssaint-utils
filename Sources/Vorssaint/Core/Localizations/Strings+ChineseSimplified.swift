@@ -256,6 +256,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "指针停在图标上多久之后才打开面板。",
         dockPreviewQuitAppOnClose: "使用 × 按钮退出 App",
         dockPreviewQuitAppOnCloseCaption: "在程序坞预览中，× 会退出整个 App，而不只是关闭该窗口。",
+        dockPreviewQuitOnLastWindowOnly: "仅在关闭最后一个窗口时退出",
+        dockPreviewQuitOnLastWindowOnlyCaption: "App 还有其他窗口打开时，× 只关闭该窗口。关闭最后一个窗口时才退出 App。",
         dockPreviewKeepDockVisible: "保持程序坞显示（实验性）",
         dockPreviewKeepDockVisibleCaption: "预览打开时暂停自动隐藏，离开时恢复。可能调整窗口大小。如果 App 意外中断，请重新打开以恢复程序坞设置。",
         dockPreviewOrderByCreation: "按创建时间排序窗口",

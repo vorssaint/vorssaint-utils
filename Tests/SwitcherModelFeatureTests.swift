@@ -1878,6 +1878,43 @@ enum SwitcherModelFeatureTests {
         )
         suite.expect(dockPreviewQuitRequests == 2 && dockPreviewWindowCloseRequests == 2,
                "Dock Preview closes a window normally, waits after an accepted quit, and falls back after refusal")
+        suite.expect(registeredDefaults[DefaultsKey.dockPreviewQuitOnLastWindowOnly] as? Bool == false,
+               "quitting only with the last window is opt-in")
+        suite.expect(DockPreviewSupport.closeAction(quitAppOnClose: true, quitOnLastWindowOnly: true,
+                                                    appWindowCount: 3) == .closeWindow
+                && DockPreviewSupport.closeAction(quitAppOnClose: true, quitOnLastWindowOnly: true,
+                                                  appWindowCount: 1) == .quitApp
+                && DockPreviewSupport.closeAction(quitAppOnClose: true, quitOnLastWindowOnly: false,
+                                                  appWindowCount: 3) == .quitApp
+                && DockPreviewSupport.closeAction(quitAppOnClose: false, quitOnLastWindowOnly: true,
+                                                  appWindowCount: 1) == .closeWindow,
+               "last-window mode closes one of several windows and quits only with the last")
+        var lastWindowQuitRequests = 0
+        var lastWindowCloseRequests = 0
+        var lastWindowCounts = 0
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: true,
+            quitOnLastWindowOnly: true,
+            appWindowCount: { lastWindowCounts += 1; return 2 },
+            requestQuit: { lastWindowQuitRequests += 1; return true },
+            closeWindow: { lastWindowCloseRequests += 1 }
+        )
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: true,
+            quitOnLastWindowOnly: true,
+            appWindowCount: { lastWindowCounts += 1; return 1 },
+            requestQuit: { lastWindowQuitRequests += 1; return true },
+            closeWindow: { lastWindowCloseRequests += 1 }
+        )
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: false,
+            quitOnLastWindowOnly: true,
+            appWindowCount: { lastWindowCounts += 1; return 1 },
+            requestQuit: { lastWindowQuitRequests += 1; return true },
+            closeWindow: { lastWindowCloseRequests += 1 }
+        )
+        suite.expect(lastWindowQuitRequests == 1 && lastWindowCloseRequests == 2 && lastWindowCounts == 2,
+               "last-window mode closes while other windows remain, quits on the last, and counts only when it matters")
         suite.expect(registeredDefaults[DefaultsKey.dockClickHide] as? Bool == false,
                "hiding the active app from its Dock icon is opt-in")
         suite.expect(DockPreviewSupport.sanitizedBackgroundOpacity(0.7) == 0.7,
