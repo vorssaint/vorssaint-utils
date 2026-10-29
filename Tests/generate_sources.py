@@ -2490,7 +2490,7 @@ def main():
           + "extension AgentClaudeServerTests {\nfinal class Host: Fixture {\n"
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
                     .replace("private func", "func", 1)
-                    for prefix in ["    private func readClaudePlan(", "    private func readClaudeApp(", "    private func checkLimits(",
+                    for prefix in ["    private func readClaudeApp(", "    private func checkLimits(",
                                    "    private func reportRenewals(", "    private func claudeLimitsDue(",
                                    "    private func noteClaudeCheck(", "    private func networkChanged("])
           + "}\n}\n")

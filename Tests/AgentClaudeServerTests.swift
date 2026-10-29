@@ -25,10 +25,6 @@ enum AgentClaudeServerTests {
         var home = FileManager.default.temporaryDirectory
         var enabled: Set<AgentProvider> = [.claude]
         var claudeOrganization: String? = "account"
-        var claudeIdentity: ClaudeAccountProfile.Identity?
-        var claudePlan: AgentPlan?
-        var claudeProfileModified: Date?
-        var readerClaudeProfile = ClaudeAccountProfile()
         var claudeAppModified: Date?
         var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
         var claudeAccountLimits: AgentLimits?

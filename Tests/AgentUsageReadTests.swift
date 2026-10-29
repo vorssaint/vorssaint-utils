@@ -69,7 +69,6 @@ enum AgentUsageReadTests {
         var cursors: [String: AgentLogCursor] = [:]
         var store = AgentUsageStore()
         var enabled: Set<AgentProvider> = []
-        var readerClaudeProfile = ClaudeAccountProfile()
         var previousLimits: [AgentProvider: AgentLimits] = [:]
         var budgetDay: Date?
         var snapshot = AgentUsageSnapshot()

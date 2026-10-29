@@ -882,15 +882,11 @@ final class NotchService: ObservableObject {
         let enabled = NotchAgentSupport.providers()
         // Added Codex accounts have cards before, or without, any log.
         let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states.map(\.id) : []
-        let claudeProfile = AgentUsageService.shared.claudeProfile
-        let claudeAccount = claudeProfile.isDefault ? nil : claudeProfile.id
         guard usage.loaded || !accounts.isEmpty else { return nil }
-        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty)
-            || ($0 == .claude && claudeAccount != nil) }
+        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty) }
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
-            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
-                                    claudeAccount: claudeAccount),
+            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts),
             width: width))
     }
     var expandedGeometry: NotchGeometry {
