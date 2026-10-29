@@ -53,6 +53,7 @@ struct NotchLyricsView: View {
                         Text(lyrics.plain.isEmpty ? lyrics.lines.map(\.text).joined(separator: "\n") : lyrics.plain)
                             .font(.system(size: 15, weight: .medium)).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .environment(\.layoutDirection, verseDirection(lyrics))
                     }
                     .notchScrollEdgeFade()
                     Button { service.importLyrics() } label: { Label(text.importLyrics, systemImage: "doc.badge.plus") }
@@ -113,8 +114,14 @@ struct NotchLyricsView: View {
             .accessibilityLabel(text.importLyrics)
     }
 
+    /// The verses follow their own script; the island's labels stay as they are.
+    private func verseDirection(_ lyrics: NotchLyrics) -> LayoutDirection {
+        lyrics.readsRightToLeft ? .rightToLeft : .leftToRight
+    }
+
     private func synced(_ lyrics: NotchLyrics) -> some View {
-        TimelineView(.explicit(lyrics.changeDates(for: playback, offset: service.offset, from: .now))) { context in
+        let direction = verseDirection(lyrics)
+        return TimelineView(.explicit(lyrics.changeDates(for: playback, offset: service.offset, from: .now))) { context in
             let active = lyrics.activeIndex(at: playback.position(at: context.date), offset: service.offset)
             ScrollViewReader { proxy in
                 ScrollView {
@@ -130,6 +137,7 @@ struct NotchLyricsView: View {
                                 .foregroundStyle(.white.opacity(index == active ? 1 : 0.35))
                                 .animation(reduceMotion ? nil : .smooth(duration: 0.28), value: index == active)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .environment(\.layoutDirection, direction)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .id(index)
                         }
