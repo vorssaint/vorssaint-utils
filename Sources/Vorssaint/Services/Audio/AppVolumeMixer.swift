@@ -48,6 +48,9 @@ struct MixerApp: Identifiable, Equatable {
     var effectiveOutputDeviceUID: String?
     var outputDeviceUnavailable: Bool
     var volume: Double
+    /// The user muted this row. Its level stays in `volume`, so unmuting
+    /// plays it at that level again. Never true for a bypassed row.
+    var isMuted: Bool
 
     var identity: MixerRowIdentity {
         MixerRowIdentity(rowID: id, persistenceID: persistenceID)
@@ -119,6 +122,9 @@ final class AppVolumeMixer: ObservableObject {
     /// process runs, never written to disk.
     private var sessionVolumes: [String: Double] = [:]
     private var sessionRoutes: [String: String] = [:]
+    /// Mutes of those same rows, by row id: kept while the process runs,
+    /// never written to disk.
+    private var sessionMutes: Set<String> = []
     /// A manual "all apps" choice only changes the system default. Kept as a
     /// request, it moved apps still on another output to the default, which
     /// also caught apps playing through an output of their own, such as a
@@ -128,7 +134,6 @@ final class AppVolumeMixer: ObservableObject {
     private var universalOutputDeviceUID: String? {
         nil
     }
-    private var lastAudibleVolume: [String: Double] = [:]
     private var listenerInstalled = false
     /// Device priority needs the output/default substrate without per-app
     /// process discovery. A feature transition restarts the listener set when
@@ -305,6 +310,7 @@ final class AppVolumeMixer: ObservableObject {
     func stop() {
         stopAll()
         sessionVolumes.removeAll()
+        sessionMutes.removeAll()
         sessionRoutes.removeAll()
         // A refresh already reading the HAL must not publish into a mixer that
         // is no longer watching, nor re-register the listeners just removed.
@@ -1053,7 +1059,6 @@ final class AppVolumeMixer: ObservableObject {
         engineRecovery.clear(app.id)
         let clamped = Defaults.sanitizedAppVolume(volume)
         persistVolume(clamped, for: app)
-        if clamped > 0.001 { lastAudibleVolume[app.id] = clamped }
         if let index = apps.firstIndex(where: { $0.id == app.id }) {
             apps[index].volume = clamped
             let updated = apps[index]
@@ -1234,13 +1239,34 @@ final class AppVolumeMixer: ObservableObject {
         return setUniversalOutputDeviceUID(nextUID)
     }
 
+    /// Mutes or unmutes a row as a console channel does: the level stays
+    /// where it is, so unmuting plays the app at it again, also after a
+    /// relaunch.
     func toggleMute(_ app: MixerApp) {
-        if app.volume > 0.001 {
-            lastAudibleVolume[app.id] = app.volume
-            setVolume(0, for: app)
+        guard !app.isBypassed else { return }
+        // A row whose engine was given up would stay untapped and keep
+        // playing behind a red speaker.
+        engineRecovery.clear(app.id)
+        let index = apps.firstIndex(where: { $0.id == app.id })
+        // The live row decides: the view's copy can be a refresh behind.
+        let isMuted = !(index.map { apps[$0].isMuted } ?? app.isMuted)
+        // Saved before routing, because whether a row may be tapped reads it.
+        persistMute(isMuted, for: app)
+        if let index {
+            apps[index].isMuted = isMuted
+            applyRouting(for: apps[index])
         } else {
-            setVolume(lastAudibleVolume[app.id] ?? 1, for: app)
+            var copy = app
+            copy.isMuted = isMuted
+            applyRouting(for: copy)
         }
+        reconcileEngines(with: apps)
+    }
+
+    /// What a tap plays the row at: nothing while muted, its level otherwise.
+    /// What is saved and shown stays `app.volume`.
+    func effectiveVolume(of app: MixerApp) -> Double {
+        MixerRoutingSupport.effectiveVolume(app.volume, isMuted: app.isMuted)
     }
 
     /// Main-thread only. Engine creation happens off-main (CoreAudio object
@@ -1267,7 +1293,7 @@ final class AppVolumeMixer: ObservableObject {
            engine.tappedObjects == app.audioObjects,
            engine.outputDeviceUID == targetOutputDeviceUID,
            !engine.requiresRebuild {
-            engine.gain = MixerRoutingSupport.gain(forVolume: app.volume)
+            engine.gain = MixerRoutingSupport.gain(forVolume: effectiveVolume(of: app))
             return
         }
         if let delay = configurationRepairDelay(for: app.id) {
@@ -1285,6 +1311,8 @@ final class AppVolumeMixer: ObservableObject {
             outputDeviceUID: targetOutputDeviceUID)
         guard engineRecovery.allowsBuild(app.id, configuration: configuration) else { return }
         guard #available(macOS 14.4, *), let token = builds.begin(app.id) else { return }
+        // Read here: the build closures below run off the main thread.
+        let initialGain = MixerRoutingSupport.gain(forVolume: effectiveVolume(of: app))
 
         if MixerRoutingSupport.isAirPlaySentinel(targetOutputDeviceUID) {
             // Without a listed Mac output to clock it, the engine would count
@@ -1306,7 +1334,7 @@ final class AppVolumeMixer: ObservableObject {
                 }
                 let engine = AirPlayGainEngine(appID: app.id,
                                                objects: app.audioObjects,
-                                               gain: MixerRoutingSupport.gain(forVolume: app.volume),
+                                               gain: initialGain,
                                                clockDeviceUID: clockUID)
                 if engine == nil {
                     AirPlayRouteManager.shared.stopIfIdle()
@@ -1324,7 +1352,7 @@ final class AppVolumeMixer: ObservableObject {
 
         buildQueue.async { [weak self] in
             let engine = TapGainEngine(objects: app.audioObjects,
-                                       gain: MixerRoutingSupport.gain(forVolume: app.volume),
+                                       gain: initialGain,
                                        outputDeviceUID: targetOutputDeviceUID)
             DispatchQueue.main.async {
                 guard let self else {
@@ -1403,7 +1431,7 @@ final class AppVolumeMixer: ObservableObject {
             applyRouting(for: latestApp)
             return
         }
-        engine.gain = MixerRoutingSupport.gain(forVolume: latestApp.volume)
+        engine.gain = MixerRoutingSupport.gain(forVolume: effectiveVolume(of: latestApp))
         configurationRepairs.removeValue(forKey: id)
         let previous = engines.updateValue(engine, forKey: id)
         engineChangeAt[id] = CFAbsoluteTimeGetCurrent()
@@ -1461,6 +1489,7 @@ final class AppVolumeMixer: ObservableObject {
         guard !app.isBypassed else { return false }
         return MixerRoutingSupport.rowMayBeTapped(
             savedVolume: storedVolume(for: app.identity, saved: savedVolumes()),
+            savedMute: storedMute(for: app.identity, saved: savedMutes()),
             savedRouteUID: storedRoute(for: app.identity, saved: savedOutputDeviceUIDs()),
             defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
             universalOutputRouteUID: app.universalOutputRouteUID)
@@ -1472,7 +1501,7 @@ final class AppVolumeMixer: ObservableObject {
         // The picker may already show the next successful choice, but that
         // must not dismantle this route before its replacement is ready.
         return MixerRoutingSupport.requiresEngine(hasAudioObjects: !app.audioObjects.isEmpty,
-                                           volume: app.volume,
+                                           volume: effectiveVolume(of: app),
                                            selectedOutputDeviceUID: app.selectedOutputDeviceUID,
                                            targetOutputDeviceUID: app.effectiveOutputDeviceUID,
                                            defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
@@ -1506,9 +1535,11 @@ final class AppVolumeMixer: ObservableObject {
         let lowerOnHeadphonesDisconnect: Bool
         let lowerToPercent: Int
         let savedVolumes: [String: Double]
+        let savedMutes: Set<String>
         let savedOutputs: [String: String]
         let callAppVolumeEnabled: Set<String>
         let sessionVolumes: [String: Double]
+        let sessionMutes: Set<String>
         let sessionRoutes: [String: String]
         let universalOutputDeviceUID: String?
         let previouslyRoutedObjects: [String: [AudioObjectID]]
@@ -1557,9 +1588,11 @@ final class AppVolumeMixer: ObservableObject {
             lowerToPercent: Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(
                 UserDefaults.standard.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)),
             savedVolumes: savedVolumes(),
+            savedMutes: savedMutes(),
             savedOutputs: savedOutputDeviceUIDs(),
             callAppVolumeEnabled: savedCallAppVolumeEnabled(),
             sessionVolumes: sessionVolumes,
+            sessionMutes: sessionMutes,
             sessionRoutes: sessionRoutes,
             universalOutputDeviceUID: universalUID,
             previouslyRoutedObjects: Dictionary(uniqueKeysWithValues: apps.compactMap { app in
@@ -1658,8 +1691,8 @@ final class AppVolumeMixer: ObservableObject {
             subscribeToRunningChanges(of: object)
         }
 
-        // The pass resolved volumes from a copy captured when it was requested,
-        // and a write made while it read the HAL is newer than that copy.
+        // The pass resolved volumes and mutes from a copy captured when it was
+        // requested, and a write made while it read the HAL is newer than that copy.
         let next = applyingCurrentVolumes(to: readApps)
         guard audioEnvironmentChanged || next != apps else { return }
         if apps != next {
@@ -1795,7 +1828,12 @@ final class AppVolumeMixer: ObservableObject {
                                     availableUIDs: availableUIDs),
                                  volume: isBypassed ? 1 : (storedVolume(for: identity,
                                                                        saved: saved,
-                                                                       session: request.sessionVolumes) ?? 1)))
+                                                                       session: request.sessionVolumes) ?? 1),
+                                 isMuted: MixerRoutingSupport.rowIsMuted(
+                                    savedMute: storedMute(for: identity,
+                                                          saved: request.savedMutes,
+                                                          session: request.sessionMutes),
+                                    isBypassed: isBypassed)))
         }
         if MixerRoutingSupport.needsPersistentFinderRow(
             showFinder: showFinder,
@@ -1818,7 +1856,8 @@ final class AppVolumeMixer: ObservableObject {
                                  outputDeviceUnavailable: MixerRoutingSupport.selectedDeviceUnavailable(
                                     selectedUID: savedOutputs[id],
                                     availableUIDs: availableUIDs),
-                                 volume: saved[id] ?? 1))
+                                 volume: saved[id] ?? 1,
+                                 isMuted: request.savedMutes.contains(id)))
         }
         next.sort {
             MixerRoutingSupport.displayOrderedBefore(name: $0.name, id: $0.id,
@@ -1885,19 +1924,22 @@ final class AppVolumeMixer: ObservableObject {
 
             let existing = merged[index]
             let audioObjects = Array(Set(existing.audioObjects).union(app.audioObjects)).sorted()
+            let isBypassed = existing.isBypassed || app.isBypassed
+            let isMuted = MixerRoutingSupport.rowIsMuted(savedMute: existing.isMuted || app.isMuted, isBypassed: isBypassed)
             merged[index] = MixerApp(id: existing.id,
                                      persistenceID: existing.persistenceID,
                                      ownerPid: existing.ownerPid,
                                      name: existing.name,
                                      audioObjects: audioObjects,
                                      isPlaying: existing.isPlaying || app.isPlaying,
-                                     isBypassed: existing.isBypassed || app.isBypassed,
+                                     isBypassed: isBypassed,
                                      supportsVolumeOverride: existing.supportsVolumeOverride || app.supportsVolumeOverride,
                                      universalOutputRouteUID: existing.universalOutputRouteUID ?? app.universalOutputRouteUID,
                                      selectedOutputDeviceUID: existing.selectedOutputDeviceUID,
                                      effectiveOutputDeviceUID: existing.effectiveOutputDeviceUID,
                                      outputDeviceUnavailable: existing.outputDeviceUnavailable,
-                                     volume: existing.volume)
+                                     volume: existing.volume,
+                                     isMuted: isMuted)
         }
 
         return merged
@@ -2194,6 +2236,10 @@ final class AppVolumeMixer: ObservableObject {
         return sanitized
     }
 
+    private func savedMutes() -> Set<String> {
+        MixerRoutingSupport.sanitizedMutedApps(UserDefaults.standard.array(forKey: DefaultsKey.appMutes) ?? [])
+    }
+
     private func savedOutputDeviceUIDs() -> [String: String] {
         let raw = UserDefaults.standard.dictionary(forKey: DefaultsKey.appOutputDevices) ?? [:]
         return Defaults.sanitizedAppOutputDevices(raw)
@@ -2319,6 +2365,16 @@ final class AppVolumeMixer: ObservableObject {
         return saved[key]
     }
 
+    /// Whether a row is saved as muted: on disk when it has a key, otherwise
+    /// for this session only, by row id. Static for the same reason as
+    /// storedVolume.
+    private static func storedMute(for identity: MixerRowIdentity,
+                                   saved: Set<String>,
+                                   session: Set<String>) -> Bool {
+        guard let key = identity.persistenceID else { return session.contains(identity.rowID) }
+        return saved.contains(key)
+    }
+
     private func storedVolume(for identity: MixerRowIdentity, saved: [String: Double]) -> Double? {
         Self.storedVolume(for: identity, saved: saved, session: sessionVolumes)
     }
@@ -2327,15 +2383,23 @@ final class AppVolumeMixer: ObservableObject {
         Self.storedRoute(for: identity, saved: saved, session: sessionRoutes)
     }
 
-    /// Main thread. A refresh pass resolves volumes from the copy it captured
-    /// when it was requested, and `setVolume` can write while the pass is still
-    /// reading the HAL. Resolving them again at publish time keeps that newer
-    /// write from being reverted; everything else in a row stays as read.
+    private func storedMute(for identity: MixerRowIdentity, saved: Set<String>) -> Bool {
+        Self.storedMute(for: identity, saved: saved, session: sessionMutes)
+    }
+
+    /// Main thread. A refresh pass resolves volumes and mutes from the copy it
+    /// captured when it was requested, and `setVolume` or `toggleMute` can write
+    /// while the pass is still reading the HAL. Resolving them again at publish
+    /// time keeps that newer write from being reverted; everything else in a row
+    /// stays as read.
     private func applyingCurrentVolumes(to rows: [MixerApp]) -> [MixerApp] {
         let saved = savedVolumes()
+        let mutes = savedMutes()
         return rows.map { row in
             var row = row
             row.volume = row.isBypassed ? 1 : (storedVolume(for: row.identity, saved: saved) ?? 1)
+            row.isMuted = MixerRoutingSupport.rowIsMuted(savedMute: storedMute(for: row.identity, saved: mutes),
+                                                         isBypassed: row.isBypassed)
             return row
         }
     }
@@ -2358,6 +2422,31 @@ final class AppVolumeMixer: ObservableObject {
             volumes[id] = volume
         }
         UserDefaults.standard.set(volumes, forKey: DefaultsKey.appVolumes)
+    }
+
+    /// Saves a row's mute like its volume: under its persistence id on disk,
+    /// otherwise for this session only. The list is kept sorted and the key
+    /// goes away when no app is muted.
+    private func persistMute(_ isMuted: Bool, for app: MixerApp) {
+        guard let id = app.persistenceID else {
+            if isMuted {
+                sessionMutes.insert(app.id)
+            } else {
+                sessionMutes.remove(app.id)
+            }
+            return
+        }
+        var mutes = savedMutes()
+        if isMuted {
+            mutes.insert(id)
+        } else {
+            mutes.remove(id)
+        }
+        if mutes.isEmpty {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.appMutes)
+        } else {
+            UserDefaults.standard.set(mutes.sorted(), forKey: DefaultsKey.appMutes)
+        }
     }
 
     private func persistOutputDeviceUID(_ uid: String?, for app: MixerApp) {

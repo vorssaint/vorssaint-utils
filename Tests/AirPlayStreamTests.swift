@@ -710,7 +710,7 @@ enum AirPlayIdleContract {
             MixerUniversalRoutingContract.MixerApp(
                 id: "com.example.Player", persistenceID: "com.example.Player", ownerPid: 77, name: "Player",
                 audioObjects: [], isPlaying: playing, selectedOutputDeviceUID: selected,
-                effectiveOutputDeviceUID: effective, outputDeviceUnavailable: selected != effective, volume: 1)
+                effectiveOutputDeviceUID: effective, outputDeviceUnavailable: selected != effective, volume: 1, isMuted: false)
         }
         func keepsStreamGoing(_ app: MixerUniversalRoutingContract.MixerApp) -> Bool {
             MixerRoutingSupport.playsOnAirPlay(isPlaying: app.isPlaying,
