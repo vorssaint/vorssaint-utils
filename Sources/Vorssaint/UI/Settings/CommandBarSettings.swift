@@ -186,6 +186,9 @@ struct CommandBarSettings: View {
                 } label: {
                     Label(text.filesAddFolder, systemImage: "plus")
                 }
+                Text(text.filesSyntaxCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 DisclosureHeaderRow(isExpanded: $showsFileOptions) {
                     Text(FeatureStrings.recorder(l10n.language).moreOptions)
                     Spacer()
