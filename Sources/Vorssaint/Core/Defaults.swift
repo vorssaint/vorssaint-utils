@@ -709,6 +709,11 @@ enum DefaultsKey {
     static let screenshotSpotlightDim = "screenshotSpotlightDim"
     static let screenshotLastArrowStyle = "screenshotLastArrowStyle"
     static let screenshotLastSticker = "screenshotLastSticker"
+    static let screenshotLastShapeFill = "screenshotLastShapeFill"
+    static let screenshotLastTextStyle = "screenshotLastTextStyle"
+    static let screenshotLastSloppy = "screenshotLastSloppy"
+    static let screenshotCustomColor = "screenshotCustomColor" // "#RRGGBB" or empty before the first pick
+    static let screenshotUsesCustomColor = "screenshotUsesCustomColor"
     static let screenshotAnnotationShadows = "screenshotAnnotationShadows"
     static let screenshotToolOrder = "screenshotToolOrder"
     static let screenshotToolShortcuts = "screenshotToolShortcuts"
@@ -1933,6 +1938,11 @@ enum Defaults {
         DefaultsKey.screenshotSpotlightDim: Double(ScreenshotSupport.defaultSpotlightDim),
         DefaultsKey.screenshotLastArrowStyle: "filled",
         DefaultsKey.screenshotLastSticker: "check",
+        DefaultsKey.screenshotLastShapeFill: "outline",
+        DefaultsKey.screenshotLastTextStyle: "plain",
+        DefaultsKey.screenshotLastSloppy: false,
+        DefaultsKey.screenshotCustomColor: "",
+        DefaultsKey.screenshotUsesCustomColor: false,
         DefaultsKey.screenshotAnnotationShadows: false,
         DefaultsKey.screenshotToolOrder: ScreenshotSupport.Tool.defaultOrderStorage,
         DefaultsKey.screenshotToolShortcutsEnabled: true,
