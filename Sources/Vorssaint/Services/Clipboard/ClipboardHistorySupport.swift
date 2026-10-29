@@ -302,6 +302,66 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     }
 }
 
+/// The case transforms the Clipboard History menus offer for a text entry.
+/// The first three match the Command Bar's selection rows.
+enum ClipboardTextCaseTransform: CaseIterable {
+    case uppercase
+    case lowercase
+    case titleCase
+    case sentenceCase
+
+    func apply(_ text: String) -> String {
+        switch self {
+        case .uppercase: return text.localizedUppercase
+        case .lowercase: return text.localizedLowercase
+        case .titleCase: return text.localizedCapitalized
+        case .sentenceCase: return Self.sentenceCase(text)
+        }
+    }
+
+    func menuTitle(_ text: ClipboardFeatureStrings) -> String {
+        switch self {
+        case .uppercase: return text.uppercase
+        case .lowercase: return text.lowercase
+        case .titleCase: return text.titleCase
+        case .sentenceCase: return text.sentenceCase
+        }
+    }
+
+    /// Lowercases the text, then capitalizes the letter that starts it, starts
+    /// a line, or follows sentence punctuation and a space. Letters right
+    /// after punctuation keep the sentence running, so the dot in 1.2 does
+    /// not start one.
+    static func sentenceCase(_ text: String) -> String {
+        let lowered = text.localizedLowercase
+        var result = ""
+        result.reserveCapacity(lowered.count)
+        var afterSentenceEnd = false
+        var capitalizeNext = true
+        for character in lowered {
+            if capitalizeNext, character.isLetter {
+                result += String(character).localizedUppercase
+                capitalizeNext = false
+                afterSentenceEnd = false
+            } else {
+                result.append(character)
+                if character.isNewline {
+                    capitalizeNext = true
+                    afterSentenceEnd = false
+                } else if ".!?。！？".contains(character) {
+                    afterSentenceEnd = true
+                } else if character.isWhitespace, afterSentenceEnd {
+                    capitalizeNext = true
+                    afterSentenceEnd = false
+                } else {
+                    afterSentenceEnd = false
+                }
+            }
+        }
+        return result
+    }
+}
+
 enum ClipboardHistoryEditing {
     /// A copied document should stay available, while a pathological
     /// pasteboard payload still has a firm in-memory and on-disk bound.
