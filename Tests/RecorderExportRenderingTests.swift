@@ -62,6 +62,30 @@ enum RecorderExportRenderingTests {
         input.markAsFinished()
         await writer.finishWriting()
         suite.expect(writer.status == .completed, "the synthetic 60 fps master is written")
+        // AVFoundation's Core Image handler kept compiling GPU programs for
+        // frame after frame of an export with a moving pointer (#3578), so an
+        // edited recording is drawn by a compositor of its own.
+        var edited = RecorderEditDocument()
+        edited.blurs = [RecorderBlurRegion(start: 0, end: 1, rect: CGRect(x: 0, y: 0, width: 0.5, height: 0.5))]
+        let master = AVURLAsset(url: take.videoURL)
+        if let masterTrack = try await master.loadTracks(withMediaType: .video).first,
+           let plan = RecorderComposer.makePlan(document: edited, track: RecorderPointerTrack(),
+                                                sourceSize: CGSize(width: 128, height: 128),
+                                                frameRate: 60, duration: 2) {
+            let composer = RecorderComposer(plan: plan)
+            let composition = await RecorderComposer.videoComposition(
+                track: masterTrack, asset: master, duration: CMTime(value: 2, timescale: 1), frameRate: 60,
+                composer: composer, sourceSize: CGSize(width: 128, height: 128), outputSize: composer.canvasSize)
+            let masterDuration = try await master.load(.duration)
+            // The handler's compositions name a compositor too, AVFoundation's own.
+            let compositor = composition?.customVideoCompositorClass.map { NSStringFromClass($0) } ?? "none"
+            suite.expect(compositor != "none" && !compositor.hasPrefix("AV")
+                    && composition?.instructions.count == 1
+                    && composition?.instructions.first?.timeRange.duration == masterDuration,
+                   "an edited recording is drawn by its own compositor over the whole timeline: \(compositor)")
+        } else {
+            suite.expect(false, "the edited fixture builds a plan")
+        }
         // 120 frames, each appended far sooner than the editor should redraw.
         var plainDocument = RecorderEditDocument()
         plainDocument.showsPointer = false
@@ -73,6 +97,7 @@ enum RecorderExportRenderingTests {
         suite.expect(plainFailure == nil, "the progress fixture exports")
         expectThrottledProgress(suite, videoProgress.entries, frameReportsUpTo: 0.9, "video export")
         try await audioAndGIF(suite, take: take)
+        try await composedEdges(suite, take: take)
         // The last case ends protection in the removed interval. The frame
         // held immediately before the splice must retain the pre-cut blur.
         let cases: [(cuts: Bool, blurStart: Double, blurEnd: Double, protectedTime: Double, clearTime: Double)] = [
@@ -119,6 +144,131 @@ enum RecorderExportRenderingTests {
                 }
             }
         }
+    }
+
+    /// What the recorder's own compositor has to get right that AVFoundation's
+    /// Core Image handler did for it: audio that outlasts the video, and
+    /// frames that leave nothing of an earlier one behind.
+    private static func composedEdges(_ suite: TestSuite, take: RecorderTakeStore.Take) async throws {
+        let folder = take.folder.appendingPathComponent("edges")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let edgeTake = RecorderTakeStore.Take(id: UUID(), folder: folder)
+        let raw = folder.appendingPathComponent("raw.mov")
+        let (width, height) = (640, 360)
+        let writer = try AVAssetWriter(outputURL: raw, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
+        ])
+        let adapter = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height,
+        ])
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+        let rows = [0, 1].map { phase in
+            (0..<width).flatMap { x -> [UInt8] in
+                let value: UInt8 = (x / 4 + phase) % 2 == 0 ? 30 : 220
+                return [value, value, value, 255]
+            }
+        }
+        for frame in 0..<120 {
+            while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 1_000_000) }
+            var maybe: CVPixelBuffer?
+            CVPixelBufferPoolCreatePixelBuffer(nil, adapter.pixelBufferPool!, &maybe)
+            let pixel = maybe!
+            CVPixelBufferLockBaseAddress(pixel, [])
+            let base = CVPixelBufferGetBaseAddress(pixel)!
+            let stride = CVPixelBufferGetBytesPerRow(pixel)
+            for y in 0..<height {
+                rows[(y / 4) % 2].withUnsafeBytes { base.advanced(by: y * stride).copyMemory(from: $0.baseAddress!, byteCount: width * 4) }
+            }
+            CVPixelBufferUnlockBaseAddress(pixel, [])
+            guard adapter.append(pixel, withPresentationTime: CMTime(value: Int64(frame), timescale: 60))
+            else { throw FixtureFailure.writeFailed }
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        // Audio half a second longer than the video, as a recording can end.
+        let composition = AVMutableComposition()
+        let master = AVURLAsset(url: raw)
+        let video = try await master.loadTracks(withMediaType: .video)[0]
+        let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)!
+        try videoTrack.insertTimeRange(try await video.load(.timeRange), of: video, at: .zero)
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+        let count = AVAudioFrameCount(2.5 * 48_000)
+        let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: count)!
+        silence.frameLength = count
+        let wav = folder.appendingPathComponent("system.wav")
+        do {
+            let file = try AVAudioFile(forWriting: wav, settings: [
+                AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 48_000,
+                AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsFloatKey: false, AVLinearPCMIsNonInterleaved: false,
+            ])
+            try file.write(from: silence)
+        }
+        let audio = AVURLAsset(url: wav)
+        let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)!
+        try audioTrack.insertTimeRange(CMTimeRange(start: .zero, duration: try await audio.load(.duration)),
+                                       of: try await audio.loadTracks(withMediaType: .audio)[0], at: .zero)
+        let mux = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetPassthrough)!
+        mux.outputURL = edgeTake.videoURL
+        mux.outputFileType = .mov
+        await mux.export()
+        guard mux.status == .completed else {
+            suite.expect(false, "the fixture whose audio outlasts its video is written")
+            return
+        }
+        // The right half kept unreadable: one sharp half and one blurred half.
+        var document = RecorderEditDocument()
+        document.showsPointer = false
+        document.zoomEnabled = false
+        document.gifSize = RecorderSupport.GIFSize.small.rawValue
+        document.blurs = [RecorderBlurRegion(start: 0, end: 2.5, rect: CGRect(x: 0.5, y: 0, width: 0.5, height: 1))]
+        let movie = folder.appendingPathComponent("edges.mp4")
+        let failure = await RecorderExporter().export(take: edgeTake, document: document, output: .video,
+                                                      to: movie, progress: { _ in })
+        suite.expect(failure == nil, "an edited recording whose audio outlasts its video still exports")
+        if failure == nil {
+            let duration = try await AVURLAsset(url: movie).load(.duration).seconds
+            suite.expect(duration > 2.4, "that export keeps the audio's length, \(duration)")
+        }
+        var gifs: [Data] = []
+        for run in 0..<2 {
+            let url = folder.appendingPathComponent("edges-\(run).gif")
+            let gifFailure = await RecorderExporter().export(take: edgeTake, document: document, output: .gif,
+                                                             to: url, progress: { _ in })
+            if gifFailure == nil, let data = try? Data(contentsOf: url) { gifs.append(data) }
+        }
+        suite.expect(gifs.count == 2 && gifs[0] == gifs[1],
+                     "an edited GIF comes out the same every time, with nothing left from earlier frames")
+        if let data = gifs.first, let source = CGImageSourceCreateWithData(data as CFData, nil),
+           let frame = CGImageSourceCreateImageAtIndex(source, CGImageSourceGetCount(source) / 2, nil) {
+            let sharp = spread(of: frame, x: 0.15...0.35)
+            let blurred = spread(of: frame, x: 0.65...0.85)
+            suite.expect(frame.width < width && sharp > 50 && blurred < 25,
+                         "the edited GIF shows the recording and its blur, \(frame.width) wide, sharp \(sharp), blurred \(blurred)")
+        } else {
+            suite.expect(false, "the edited GIF decodes")
+        }
+    }
+
+    /// The spread of brightness across a vertical band of an image.
+    private static func spread(of image: CGImage, x band: ClosedRange<Double>) -> Double {
+        let width = image.width, height = image.height
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(data: &bytes, width: width, height: height, bitsPerComponent: 8,
+                                      bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return 0 }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let samples = (Int(Double(height) * 0.3)..<Int(Double(height) * 0.7)).flatMap { y in
+            (Int(Double(width) * band.lowerBound)..<Int(Double(width) * band.upperBound)).map { x in
+                Double(bytes[(y * width + x) * 4])
+            }
+        }
+        let mean = samples.reduce(0, +) / Double(max(1, samples.count))
+        return (samples.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(max(1, samples.count))).squareRoot()
     }
 
     private static func audioAndGIF(_ suite: TestSuite, take: RecorderTakeStore.Take) async throws {

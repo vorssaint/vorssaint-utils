@@ -339,21 +339,20 @@ final class RecorderComposer {
                                  outputSize: CGSize,
                                  playbackSpeed: Double = 1) async -> AVMutableVideoComposition? {
         if let composer {
-            // The handler may run concurrently; this composer only reads
-            // immutable state while rendering each frame.
-            nonisolated(unsafe) let threadSafeComposer = composer
-            let timing = RecorderExportTiming(speed: playbackSpeed)
-            let composition = try? await AVMutableVideoComposition.videoComposition(
-                with: asset) { request in
-                    // Plans are built on the edited, unscaled clock. Map back
-                    // before looking up zooms, cursor shapes, captions and
-                    // privacy blurs, including frames on either side of a cut.
-                    let rendered = threadSafeComposer.render(
-                        request.sourceImage,
-                        at: timing.sourceTime(forOutputTime: CMTimeGetSeconds(request.compositionTime)))
-                    request.finish(with: rendered, context: nil)
-                }
-            guard let composition else { return nil }
+            // Not AVFoundation's Core Image handler: with a moving pointer it
+            // compiled new GPU programs frame after frame and kept them for as
+            // long as the composition lived, which took a long export on an M1
+            // to gigabytes (#3578). The same frames drawn by a compositor of
+            // our own, through one context, reuse a handful.
+            let timeline = (try? await asset.load(.duration)) ?? duration
+            guard timeline.isValid, timeline > .zero else { return nil }
+            let composition = AVMutableVideoComposition()
+            composition.customVideoCompositorClass = RecorderVideoCompositor.self
+            composition.instructions = [RecorderCompositionInstruction(
+                timeRange: CMTimeRange(start: .zero, duration: timeline),
+                trackID: track.trackID,
+                composer: composer,
+                timing: RecorderExportTiming(speed: playbackSpeed))]
             composition.frameDuration = CMTime(value: 1,
                                                timescale: CMTimeScale(max(1, frameRate)))
             composition.renderSize = composer.canvasSize
@@ -395,5 +394,81 @@ final class RecorderComposer {
         instruction.layerInstructions = [layer]
         composition.instructions = [instruction]
         return composition
+    }
+}
+
+/// The whole timeline as one instruction, carrying what every frame is drawn
+/// with.
+private final class RecorderCompositionInstruction: NSObject, AVVideoCompositionInstructionProtocol,
+                                                    @unchecked Sendable {
+    let timeRange: CMTimeRange
+    let enablePostProcessing = false
+    /// Every frame is drawn anew, so none may stand in for its neighbour.
+    let containsTweening = true
+    let requiredSourceTrackIDs: [NSValue]?
+    let passthroughTrackID = kCMPersistentTrackID_Invalid
+    let trackID: CMPersistentTrackID
+    /// Only read while rendering, from whichever thread asks for a frame.
+    let composer: RecorderComposer
+    let timing: RecorderExportTiming
+
+    init(timeRange: CMTimeRange, trackID: CMPersistentTrackID, composer: RecorderComposer,
+         timing: RecorderExportTiming) {
+        self.timeRange = timeRange
+        self.trackID = trackID
+        self.composer = composer
+        self.timing = timing
+        requiredSourceTrackIDs = [NSNumber(value: trackID)]
+    }
+}
+
+/// Draws each frame through `RecorderComposer.render` with one context shared
+/// by every preview and export.
+private final class RecorderVideoCompositor: NSObject, AVVideoCompositing, @unchecked Sendable {
+    private static let context = CIContext()
+
+    /// Frames as the decoder made them, so Core Image does the one colour
+    /// conversion.
+    let sourcePixelBufferAttributes: [String: any Sendable]? = [
+        kCVPixelBufferPixelFormatTypeKey as String: [kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+                                                     kCVPixelFormatType_32BGRA],
+    ]
+    let requiredPixelBufferAttributesForRenderContext: [String: any Sendable] = [
+        kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+    ]
+
+    func renderContextChanged(_ newRenderContext: AVVideoCompositionRenderContext) {}
+
+    func startRequest(_ request: AVAsynchronousVideoCompositionRequest) {
+        guard let instruction = request.videoCompositionInstruction as? RecorderCompositionInstruction,
+              let output = request.renderContext.newPixelBuffer() else {
+            request.finish(with: NSError(domain: AVFoundationErrorDomain,
+                                         code: AVError.Code.unknown.rawValue))
+            return
+        }
+        // Audio can run a little past the last video frame. There the frame
+        // is drawn on nothing, as the Core Image handler drew it, rather than
+        // failing the whole export.
+        let source = request.sourceFrame(byTrackID: instruction.trackID)
+            .map { CIImage(cvPixelBuffer: $0) } ?? CIImage.empty()
+        // Plans are built on the edited, unscaled clock. Map back before
+        // looking up zooms, cursor shapes, captions and privacy blurs,
+        // including frames on either side of a cut.
+        let seconds = instruction.timing.sourceTime(
+            forOutputTime: CMTimeGetSeconds(request.compositionTime))
+        // Over black, as the Core Image handler drew it: a buffer from the
+        // pool still holds an earlier frame wherever this one draws nothing.
+        let frame = instruction.composer.render(source, at: seconds)
+            .composited(over: CIImage(color: .black)
+                .cropped(to: CGRect(origin: .zero, size: instruction.composer.canvasSize)))
+        // Handed on only once the GPU has drawn it.
+        do {
+            try Self.context.startTask(toRender: frame, to: CIRenderDestination(pixelBuffer: output))
+                .waitUntilCompleted()
+        } catch {
+            request.finish(with: error)
+            return
+        }
+        request.finish(withComposedVideoFrame: output)
     }
 }
