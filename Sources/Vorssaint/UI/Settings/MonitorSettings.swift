@@ -15,6 +15,7 @@ struct MonitorSettings: View {
 
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMetrics = false
+    @AppStorage(DefaultsKey.menuBarReadingClicks) private var readingClicks = false
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
@@ -156,6 +157,13 @@ struct MonitorSettings: View {
                         caption: appearance.allowsCombinedTemperatures
                             ? l10n.s.monitorSeparateMenuBarMetricsCaption : nil) {
                 Toggle(l10n.s.monitorSeparateMenuBarMetrics, isOn: $separateMetrics).labelsHidden()
+            }
+            // Separate items already open their own details.
+            if !separateMetrics {
+                SettingsRow(symbol: "cursorarrow.click", title: l10n.s.monitorMenuBarReadingClicks,
+                            caption: l10n.s.monitorMenuBarReadingClicksCaption) {
+                    Toggle(l10n.s.monitorMenuBarReadingClicks, isOn: $readingClicks).labelsHidden()
+                }
             }
         }
     }

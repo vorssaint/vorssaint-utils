@@ -736,6 +736,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "同一項目的使用率和溫度都啟用時，在一個區塊中顯示。",
         monitorSeparateMenuBarMetrics: "將指標分開顯示",
         monitorSeparateMenuBarMetricsCaption: "將已啟用的區塊拆成獨立的選單列項目；合併開啟時，使用率和溫度仍會放在一起。",
+        monitorMenuBarReadingClicks: "按一下指標即可打開詳細資料",
+        monitorMenuBarReadingClicksCaption: "選單列中的每個區塊會打開自己的詳細資料，與獨立項目相同。圖示仍會打開面板。",
         monitorNetworkUploadFirst: "上傳顯示在下載上方",
         monitorShowCPU: "CPU",
         monitorShowMemory: "記憶體",

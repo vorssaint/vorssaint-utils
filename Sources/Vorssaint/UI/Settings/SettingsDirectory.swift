@@ -213,7 +213,8 @@ enum SettingsDirectory {
                                                            FeatureStrings.bluetoothSleep(language).enable]),
                                        ]),
                 SettingsDirectoryItem(page: .monitor, title: s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
-                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle],
+                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle,
+                                                  s.monitorMenuBarReadingClicks],
                                        featureKeywords: [
                                         (.monitorMemory, [s.monitorMemoryPressureDot]),
                                         (.monitorNetwork, [FeatureStrings.monitorLayout(language).networkSpeedUnit]),

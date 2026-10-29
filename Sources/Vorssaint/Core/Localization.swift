@@ -926,6 +926,8 @@ struct Strings {
     let monitorCombineTemperaturesCaption: String
     let monitorSeparateMenuBarMetrics: String
     let monitorSeparateMenuBarMetricsCaption: String
+    let monitorMenuBarReadingClicks: String
+    let monitorMenuBarReadingClicksCaption: String
     let monitorNetworkUploadFirst: String
     let monitorShowCPU: String
     let monitorShowMemory: String
@@ -2059,6 +2061,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "Quando uso e temperatura do mesmo item estiverem ativos, mostra tudo em um bloco só.",
         monitorSeparateMenuBarMetrics: "Separar métricas em itens próprios",
         monitorSeparateMenuBarMetricsCaption: "Separa os blocos ativos na barra de menus e mantém uso e temperatura juntos quando combinar estiver ativo.",
+        monitorMenuBarReadingClicks: "Clicar numa métrica abre os detalhes",
+        monitorMenuBarReadingClicksCaption: "Cada bloco na barra de menus abre os próprios detalhes, como os itens separados. O ícone continua abrindo o painel.",
         monitorNetworkUploadFirst: "Upload acima do download",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Memória",
@@ -3178,6 +3182,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "When usage and temperature for the same item are enabled, show them in one block.",
         monitorSeparateMenuBarMetrics: "Separate metrics into their own items",
         monitorSeparateMenuBarMetricsCaption: "Separates active blocks in the menu bar and keeps usage and temperature together when combine is on.",
+        monitorMenuBarReadingClicks: "Click a metric to open its details",
+        monitorMenuBarReadingClicksCaption: "Each block in the menu bar opens its own details, as separate items do. The icon still opens the panel.",
         monitorNetworkUploadFirst: "Upload above download",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Memory",

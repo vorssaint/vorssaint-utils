@@ -736,6 +736,8 @@ extension Strings {
         monitorCombineTemperaturesCaption: "같은 항목의 사용량과 온도가 모두 활성화되면 하나의 블록으로 묶어 표시합니다.",
         monitorSeparateMenuBarMetrics: "지표를 개별 메뉴 막대 항목으로 분리",
         monitorSeparateMenuBarMetricsCaption: "활성화된 블록을 메뉴 막대에서 분리하고, 결합이 켜져 있으면 사용량과 온도를 함께 표시합니다.",
+        monitorMenuBarReadingClicks: "지표를 클릭하여 세부 정보 열기",
+        monitorMenuBarReadingClicksCaption: "메뉴 막대의 각 블록이 개별 항목처럼 자체 세부 정보를 엽니다. 아이콘은 계속 패널을 엽니다.",
         monitorNetworkUploadFirst: "업로드를 다운로드 위에 표시",
         monitorShowCPU: "CPU",
         monitorShowMemory: "메모리",

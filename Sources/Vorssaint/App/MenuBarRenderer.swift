@@ -249,10 +249,13 @@ enum MenuBarRenderer {
         var width: Int
     }
 
+    /// The block style the status item and its previews draw in.
+    private static let statusBlockStyle = MenuBarBlockStyle.dense
+
     static func lines(for snapshot: SystemSnapshot,
                       metrics: [MenuBarMetric],
                       allowStacked: Bool = true) -> [[MenuBarSegment]] {
-        let denseSegments = blockSegments(for: snapshot, metrics: metrics, style: .dense)
+        let denseSegments = blockSegments(for: snapshot, metrics: metrics, style: statusBlockStyle)
         return denseSegments.isEmpty ? [] : [denseSegments]
     }
 
@@ -757,6 +760,29 @@ enum MenuBarRenderer {
                 result.append(NSAttributedString(string: " │ ",
                                                  attributes: [.foregroundColor: NSColor.tertiaryLabelColor]))
             }
+        }
+        return result
+    }
+
+    /// The status item title built from reading groups, the split separate
+    /// items use, with each group's run marked with the metric a click on it
+    /// opens. Readings only depend on others in their own group, and groups
+    /// are joined with the glue `blockSegments` puts between them, so for the
+    /// same metrics this draws like `attributed(for:metrics:)`.
+    static func attributedReadings(for snapshot: SystemSnapshot,
+                                   groups: [(metrics: [MenuBarMetric], reading: MenuBarMetric)]) -> NSAttributedString {
+        let glue = NSAttributedString(string: MenuBarSpacingSupport.blockGlue(
+            readableStyle: statusBlockStyle == .readable, spacing: MenuBarMetricSpacing.current))
+        let result = NSMutableAttributedString()
+        for group in groups {
+            let run = NSMutableAttributedString(attributedString: attributed(for: snapshot,
+                                                                             metrics: group.metrics,
+                                                                             allowStacked: false))
+            guard run.length > 0 else { continue }
+            run.addAttribute(MenuBarReadingHitTest.attribute, value: group.reading.rawValue,
+                             range: NSRange(location: 0, length: run.length))
+            if result.length > 0 { result.append(glue) }
+            result.append(run)
         }
         return result
     }
