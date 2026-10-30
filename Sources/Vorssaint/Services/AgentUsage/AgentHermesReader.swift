@@ -8,12 +8,21 @@ import SQLite3
 /// Reads Hermes Agent's usage counters from its session database. Hermes is
 /// a harness: the tokens it spends belong to the account each model runs on,
 /// so Anthropic usage counts toward Claude and ChatGPT usage toward Codex.
-/// Hermes keeps one database per profile; the default home and every profile
-/// under `profiles/` are read. Only counters, model names, session ids and
-/// folders are handed over; prompts, replies and tool output never leave the
-/// database.
+/// Its turns show on that card too, while Hermes works. Hermes keeps one
+/// database per profile; the default home and every profile under
+/// `profiles/` are read. Only counters, model names, message roles and times,
+/// session ids, titles and folders are handed over; prompts, replies and tool
+/// output never leave the database.
 enum AgentHermesReader {
     static let database = "state.db"
+    /// A first read looks this far back for messages: only a turn already
+    /// open has to be found again, since usage comes from the totals.
+    static let window: TimeInterval = 6 * 3600
+
+    /// Whether a turn, kept by database and session, is one of Hermes'.
+    static func ownsTurn(_ file: String) -> Bool {
+        file.contains("/" + database + "#")
+    }
 
     /// The card a Hermes billing route's usage belongs to. Routes on other
     /// accounts, like OpenRouter or Nous, have no card of their own.
@@ -25,8 +34,9 @@ enum AgentHermesReader {
         }
     }
 
-    /// Reads every counter row again: Hermes keeps running totals, which the
-    /// store compares with what it already counted.
+    /// Reads every counter row again, since Hermes keeps running totals the
+    /// store compares with what it already counted, then the messages saved
+    /// since the last read. Messages are saved in order under growing ids.
     static func readAppended(_ cursor: AgentLogCursor, since horizon: Date = .distantPast,
                              shouldContinue: () -> Bool = { true }, line: (Data) -> Void) {
         guard shouldContinue() else { return }
@@ -51,6 +61,58 @@ enum AgentHermesReader {
         }
         sqlite3_busy_timeout(db, 2000)
         readUsage(db, since: horizon, shouldContinue: shouldContinue, line: line)
+        readMessages(cursor, db, since: horizon, shouldContinue: shouldContinue, line: line)
+    }
+
+    /// Hands over each message's role, time and whether it calls a tool, with
+    /// its session's account, model, title and folder.
+    private static func readMessages(_ cursor: AgentLogCursor, _ db: OpaquePointer?, since horizon: Date,
+                                     shouldContinue: () -> Bool, line: (Data) -> Void) {
+        let messageColumns = columns(db, table: "messages")
+        let sessionColumns = columns(db, table: "sessions")
+        guard messageColumns.isSuperset(of: ["id", "session_id", "role", "timestamp"]),
+              sessionColumns.isSuperset(of: ["id", "billing_provider"]) else { return }
+        func field(_ alias: String, _ name: String, _ available: Set<String>) -> String {
+            available.contains(name) ? "\(alias).\(name)" : "NULL"
+        }
+        if cursor.offset == 0 {
+            let floor = max(horizon.timeIntervalSince1970, Date().addingTimeInterval(-window).timeIntervalSince1970)
+            cursor.offset = UInt64(max(0, firstRow(db, since: floor)))
+        }
+        let calls = messageColumns.contains("tool_calls") ? "m.tool_calls IS NOT NULL" : "0"
+        let select = "SELECT m.id, m.session_id, m.role, m.timestamp, \(field("m", "finish_reason", messageColumns)), "
+            + "\(calls), s.billing_provider, \(field("s", "model", sessionColumns)), \(field("s", "title", sessionColumns)), "
+            + "\(field("s", "cwd", sessionColumns)), \(field("s", "parent_session_id", sessionColumns)) "
+            + "FROM messages m JOIN sessions s ON s.id = m.session_id "
+            + "WHERE m.id > ? AND m.role IN ('user', 'assistant', 'tool') ORDER BY m.id"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, select, -1, &stmt, nil) == SQLITE_OK else { sqlite3_finalize(stmt); return }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_int64(stmt, 1, Int64(cursor.offset))
+        while shouldContinue() && sqlite3_step(stmt) == SQLITE_ROW {
+            cursor.offset = UInt64(max(0, sqlite3_column_int64(stmt, 0)))
+            guard let session = text(stmt, 1), let role = text(stmt, 2), sqlite3_column_type(stmt, 3) != SQLITE_NULL,
+                  let provider = provider(billing: text(stmt, 6) ?? "") else { continue }
+            var json: [String: Any] = ["type": "message", "session_id": session, "role": role,
+                                       "time_created": sqlite3_column_double(stmt, 3), "provider": provider.rawValue,
+                                       "calls_tool": sqlite3_column_int(stmt, 5) != 0]
+            if let finish = text(stmt, 4) { json["finish"] = finish }
+            if let model = text(stmt, 7), !model.isEmpty { json["model"] = model }
+            if let title = text(stmt, 8), !title.isEmpty { json["title"] = title }
+            if let cwd = text(stmt, 9), !cwd.isEmpty { json["directory"] = cwd }
+            if let parent = text(stmt, 10), !parent.isEmpty { json["parent_session_id"] = parent }
+            if let data = try? JSONSerialization.data(withJSONObject: json) { line(data) }
+        }
+    }
+
+    /// The last message id before the window starts.
+    private static func firstRow(_ db: OpaquePointer?, since floor: Double) -> Int64 {
+        var stmt: OpaquePointer?
+        defer { sqlite3_finalize(stmt) }
+        guard floor > 0, sqlite3_prepare_v2(db, "SELECT max(id) FROM messages WHERE timestamp < ?", -1, &stmt, nil) == SQLITE_OK,
+              sqlite3_bind_double(stmt, 1, floor) == SQLITE_OK, sqlite3_step(stmt) == SQLITE_ROW,
+              sqlite3_column_type(stmt, 0) != SQLITE_NULL else { return 0 }
+        return sqlite3_column_int64(stmt, 0)
     }
 
     /// Every model/route/task row once, under the key Hermes itself uses for

@@ -9,9 +9,70 @@ import SQLite3
 enum HermesAgentTests {
     static func run(_ suite: TestSuite) {
         parsing(suite)
+        turns(suite)
         readsUsage(suite)
         keepsDroppedHistory(suite)
         if ProcessInfo.processInfo.environment["VORSSAINT_HERMES_LIVE_CHECK"] == "1" { liveUsage(suite) }
+    }
+
+    /// What Hermes is working on shows as the turn of the agent whose account
+    /// the session runs on.
+    private static func turns(_ suite: TestSuite) {
+        let reader = AgentProvider.hermes.reader
+        let began = Date(timeIntervalSince1970: 1_790_088_000)
+        func message(_ fields: String) -> Data {
+            line(#"{"type":"message","session_id":"s","provider":"claude","model":"claude-opus-5-5","title":"Fix the build","# + fields + "}")
+        }
+        var state = AgentLogState()
+        let context = AgentLogEntry.turnContext(model: "claude-opus-5-5", project: "Fix the build")
+        suite.expect(reader.parse(message(#""role":"user","time_created":1790088000"#), state: &state, now: began)
+                        == [.turnProvider(.claude), .turnBegan(began), context] && state.session == "s",
+                     "a Hermes prompt opens a Claude turn, kept by session")
+        suite.expect(reader.parse(message(#""role":"assistant","time_created":1790088010,"calls_tool":true,"finish":"tool_calls""#),
+                                  state: &state, now: began).dropLast().last == .turnActive(Date(timeIntervalSince1970: 1_790_088_010)),
+                     "a reply that calls a tool keeps the turn going")
+        suite.expect(reader.parse(message(#""role":"tool","time_created":1790088020"#), state: &state, now: began).dropLast().last
+                        == .turnActive(Date(timeIntervalSince1970: 1_790_088_020)),
+                     "a tool result keeps the turn going")
+        suite.expect(reader.parse(message(#""role":"assistant","time_created":1790088100,"calls_tool":false"#),
+                                  state: &state, now: began).last
+                        == .turnEnded(Date(timeIntervalSince1970: 1_790_088_100), completed: true, duration: 100),
+                     "a reply that calls no tool ends the turn, even saved without a finish reason")
+        suite.expect(reader.parse(message(#""role":"tool","time_created":1790088110"#), state: &state, now: began).isEmpty,
+                     "a tool result outside a turn is nothing")
+        suite.expect(reader.parse(message(#""role":"assistant","time_created":1790088200,"calls_tool":true"#),
+                                  state: &state, now: began).dropLast().last == .turnBegan(Date(timeIntervalSince1970: 1_790_088_200)),
+                     "a tool call found when the reading began mid-turn opens it")
+        let other = line(#"{"type":"message","session_id":"t","provider":"hermes","role":"user","time_created":1790088300}"#)
+        suite.expect(reader.parse(other, state: &state, now: began).isEmpty,
+                     "a session on another account shows no turn")
+        _ = reader.parse(line(#"{"type":"usage_snapshot","records":[]}"#), state: &state, now: began)
+        suite.expect(state.session.isEmpty, "the totals belong to the database, not the session read last")
+        suite.expect(reader.parse(line(#"{"type":"reset"}"#), state: &state, now: began) == [.reset(began)]
+                        && state.hermesSessions.isEmpty,
+                     "a replaced database forgets its sessions")
+
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        let file = "/Users/me/.hermes/state.db#s"
+        store.apply([.turnProvider(.codex), .turnBegan(began), context], file: file, provider: .hermes,
+                    tracksTurns: true, modified: began, now: began)
+        suite.expect(store.live.map(\.provider) == [.codex] && store.live.first?.project == "Fix the build",
+                     "a Hermes turn on ChatGPT shows as Codex working")
+        store.apply([.turnProvider(.claude), .turnActive(began.addingTimeInterval(5))], file: file, provider: .hermes,
+                    tracksTurns: true, modified: began, now: began)
+        suite.expect(store.live.map(\.provider) == [.claude], "a session switched to Claude takes its turn along")
+        suite.expect(store.saved.turns.isEmpty, "Hermes turns are found again from the database, never restored")
+        let registry = AgentSessionRegistry(running: [], ended: ["state"], complete: true, listed: true)
+        store.closeEndedTurns(registry, atLaunch: true)
+        suite.expect(store.live.count == 1, "Claude Code's process records never end a Hermes turn")
+        let events = store.apply([.turnProvider(.claude), .turnEnded(began.addingTimeInterval(30), completed: true, duration: 30)],
+                                 file: file, provider: .hermes, tracksTurns: true, modified: began,
+                                 now: began.addingTimeInterval(30))
+        suite.expect(store.live.isEmpty && events.first.map { if case .finished(.claude, _, _, _, _) = $0 { true } else { false } } == true,
+                     "a finished Hermes turn is reported as Claude's")
+        suite.expect(AgentHermesReader.ownsTurn(file) && !AgentHermesReader.ownsTurn("/Users/me/.claude/projects/a/b.jsonl"),
+                     "Hermes turns are told apart by their database")
     }
 
     private static func parsing(_ suite: TestSuite) {
@@ -88,8 +149,10 @@ enum HermesAgentTests {
                      "Anthropic usage counts on Claude, ChatGPT usage on Codex, and other routes nowhere")
         suite.expect(tokens(.claude) == 130 && tokens(.codex) == 42,
                      "cache is separate from input and reasoning is not added to output again")
-        suite.expect(store.records.allSatisfy { !$0.reportedCost } && store.live.isEmpty,
-                     "Hermes usage is valued like the agents' own and opens no turn")
+        suite.expect(store.records.allSatisfy { !$0.reportedCost },
+                     "Hermes usage is valued like the agents' own")
+        suite.expect(store.live.map(\.provider) == [.claude] && store.live.first?.project == "Usage task",
+                     "an unanswered prompt shows Claude working, without its text being read")
         suite.expect(store.takeCounterGrowth() == [.claude, .codex] && store.takeCounterGrowth().isEmpty,
                      "the accounts spent on are told once")
         read()
@@ -175,7 +238,12 @@ enum HermesAgentTests {
         let store = AgentUsageStore()
         AgentHermesReader.readAppended(cursor) { data in
             let entries = AgentProvider.hermes.reader.parse(data, state: &cursor.state, now: Date())
-            store.apply(entries, file: path, provider: .hermes, tracksTurns: true, modified: Date())
+            let file = cursor.state.session.isEmpty ? path : path + "#" + cursor.state.session
+            store.apply(entries, file: file, provider: .hermes, tracksTurns: cursor.state.parentSession.isEmpty,
+                        modified: Date())
+        }
+        for turn in store.live {
+            print("LIVE HERMES TURN: \(turn.provider.rawValue) since=\(turn.started) model=\(turn.model) project=\(turn.project)")
         }
         var db: OpaquePointer?
         sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil)

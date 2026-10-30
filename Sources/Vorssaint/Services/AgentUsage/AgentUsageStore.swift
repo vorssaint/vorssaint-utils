@@ -67,8 +67,20 @@ final class AgentUsageStore {
     func apply(_ entries: [AgentLogEntry], file: String, provider: AgentProvider,
                tracksTurns: Bool, parent: String? = nil, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
         var events: [AgentUsageEvent] = []
+        // A harness's turns belong to the agent whose account they run on.
+        var owner = provider
         for entry in entries {
             switch entry {
+            case .turnProvider(let agent):
+                owner = agent
+                // A session that moved to another account takes its turn along.
+                guard tracksTurns else { continue }
+                for kept in [turns[file], waiting[file]].compactMap({ $0 }) where kept.provider != agent {
+                    let moved = AgentLiveSession(id: kept.id, provider: agent, started: kept.started,
+                        lastActivity: kept.lastActivity, model: kept.model, project: kept.project,
+                        tokens: kept.tokens, cost: kept.cost)
+                    if turns[file] != nil { turns[file] = moved } else { waiting[file] = moved }
+                }
             case .usageCounters(let counters):
                 countGrowth(counters, source: file)
             case .usage(let key, let record, let billable):
@@ -101,7 +113,7 @@ final class AgentUsageStore {
                 // the second reading skips as repeats.
                 if let turn = turns[file] ?? waiting[file], abs(turn.started.timeIntervalSince(date)) < 1 { continue }
                 waiting[file] = nil
-                turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
+                turns[file] = AgentLiveSession(id: file, provider: owner, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
                                                model: "", project: "", tokens: AgentTokens(), cost: 0)
             case .turnContext(let model, let project):
@@ -123,7 +135,7 @@ final class AgentUsageStore {
                     turn.lastActivity = max(turn.lastActivity, moment)
                     turns[file] = turn
                 } else {
-                    turns[file] = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
+                    turns[file] = AgentLiveSession(id: file, provider: owner, started: moment, lastActivity: moment,
                                                    model: "", project: "", tokens: AgentTokens(), cost: 0)
                 }
             case .turnSettled(let date):
@@ -139,7 +151,7 @@ final class AgentUsageStore {
                 guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
                 let end = date ?? modified
                 guard now.timeIntervalSince(end) <= Self.lateEnd else { continue }
-                events.append(.finished(provider: provider,
+                events.append(.finished(provider: owner,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
             case .reset:
@@ -398,7 +410,8 @@ final class AgentUsageStore {
     func closeEndedTurns(_ processes: AgentSessionRegistry, atLaunch: Bool = false) -> Bool {
         registered.formIntersection(turns.keys)
         var closed = false
-        for (file, turn) in turns where turn.provider == .claude {
+        // Hermes' Claude turns keep no Claude Code process record.
+        for (file, turn) in turns where turn.provider == .claude && !AgentHermesReader.ownsTurn(file) {
             let session = ((file as NSString).lastPathComponent as NSString).deletingPathExtension
             if processes.running.contains(session) {
                 registered.insert(file)
@@ -467,8 +480,10 @@ final class AgentUsageStore {
         return Saved(records: kept,
                      limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
                      codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
-                     turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
-                     waiting: waiting.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id })
+                     turns: turns.values.filter { $0.provider != .opencode && !AgentHermesReader.ownsTurn($0.id) }
+                        .sorted { $0.id < $1.id },
+                     waiting: waiting.values.filter { $0.provider != .opencode && !AgentHermesReader.ownsTurn($0.id) }
+                        .sorted { $0.id < $1.id })
     }
 
     convenience init(saved: Saved) {
