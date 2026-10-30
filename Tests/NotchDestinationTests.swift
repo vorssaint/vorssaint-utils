@@ -376,6 +376,15 @@ enum NotchDestinationContract {
         suite.expect(waited && camera.selected == .camera && !camera.showingSections
                      && CameraPreviewService.shared.starts == 1,
                      "going back from the gallery starts the camera only when it opens directly")
+        ReviewDefaults.current.set(true, forKey: DefaultsKey.notchCameraOpensDirectly)
+        camera.collapse()
+        camera.open(takeFocus: false)
+        let hoverWaited = camera.expanded && CameraPreviewService.shared.starts == 1
+        camera.collapse()
+        camera.open()
+        ReviewDefaults.current.set(false, forKey: DefaultsKey.notchCameraOpensDirectly)
+        suite.expect(hoverWaited && camera.selected == .camera && CameraPreviewService.shared.starts == 2,
+                     "reopening the island by a click starts the camera page's mirror, opening under the pointer waits")
 
         let reopened = Service()
         reopened.open(.system)

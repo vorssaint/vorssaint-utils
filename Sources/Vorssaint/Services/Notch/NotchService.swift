@@ -1478,6 +1478,10 @@ final class NotchService: ObservableObject {
         if takeFocus { panel.makeKey() }
         if feedback, changesPresentation { provideHapticFeedback() }
         if closesCommandBar { commandBarDidClose() }
+        // Arriving on the camera page on purpose, from a click, a key or the
+        // sections, starts its mirror when it opens directly; under the pointer it waits.
+        if changesPresentation, takeFocus, !appPanel, !sections, metric == nil,
+           NotchCameraSupport.opensDirectly(choosing: destination) { CameraPreviewService.shared.showEmbedded() }
     }
 
     func collapse() {
@@ -1767,8 +1771,6 @@ final class NotchService: ObservableObject {
         guard captureControls == nil, !heldDrag else { return }
         if showingSections {
             open(appPanel: showingAppPanel, metric: selectedMetric)
-            // The gallery stopped the mirror; going back to its page chooses it again.
-            if NotchCameraSupport.opensDirectly(choosing: selected) { CameraPreviewService.shared.showEmbedded() }
         } else {
             sectionQuery = ""
             // The gallery opens from its top, stepping only as far as the
@@ -1914,7 +1916,6 @@ final class NotchService: ObservableObject {
     func select(_ module: NotchModule) {
         guard modules.contains(module) else { return }
         open(module)
-        if NotchCameraSupport.opensDirectly(choosing: module) { CameraPreviewService.shared.showEmbedded() }
     }
 
     /// The pad lives in the island when its page is on; otherwise the

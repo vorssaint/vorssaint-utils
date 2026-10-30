@@ -1559,6 +1559,8 @@ def main():
               .replace("NotchSupport.modules()", "NotchSupport.modules(in: ReviewDefaults.current)")
           + declaration(notch, "    func open(_ module:")
               .replace("NotchSupport.isEnabled()", "NotchSupport.isEnabled(in: ReviewDefaults.current)")
+              .replace("NotchCameraSupport.opensDirectly(choosing: destination)",
+                       "NotchCameraSupport.opensDirectly(choosing: destination, in: ReviewDefaults.current)")
           + "func removeHoverExitMonitors() {}\n"
           + declaration(notch, "    func showScratchpad(")
               .replace("NotchSupport.routesScratchpad()", "NotchSupport.routesScratchpad(in: ReviewDefaults.current)")
@@ -1570,8 +1572,6 @@ def main():
               .replace("NotchSupport.routesShelf()", "NotchSupport.routesShelf(in: ReviewDefaults.current)")
           + declaration(notch, "    func resignPanelKey()")
           + declaration(notch, "    func toggleSections()")
-              .replace("NotchCameraSupport.opensDirectly(choosing: selected)",
-                       "NotchCameraSupport.opensDirectly(choosing: selected, in: ReviewDefaults.current)")
           + declaration(notch, "    func goBack()")
           + declaration(notch, "    private func stepBack()").replace("private func", "func", 1)
           + declaration(notch, "    func setPageLayer(")
