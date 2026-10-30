@@ -20,6 +20,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -80,6 +81,14 @@ extension AutoQuitDockAppsStrings {
         addButton: "Pridať aplikáciu…",
         removeButton: "Odstrániť",
         emptyNote: "Nie sú k dispozícii žiadne aplikácie v lište s ponukami na pridanie."
+    )
+
+    static let cs = AutoQuitDockAppsStrings(
+        listTitle: "Ukončovat aplikace na řádku nabídek",
+        caption: "Aplikace na řádku nabídek ve výchozím stavu zůstávají otevřené. Vybrané aplikace se mohou ukončit po zavření posledního okna, pokud se zobrazují v Docku. Aplikace v seznamu výjimek zůstávají otevřené.",
+        addButton: "Přidat aplikaci…",
+        removeButton: "Odstranit",
+        emptyNote: "Nejsou k dispozici žádné aplikace na řádku nabídek k přidání."
     )
 
     static let de = AutoQuitDockAppsStrings(

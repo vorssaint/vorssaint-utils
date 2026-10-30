@@ -54,6 +54,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "Polica je plná",
                 fullBody: "Príloha sa uložila, no na polici už nie je miesto.",
                 okButton: "OK")
+        case .cs:
+            return .init(
+                failedTitle: "Nepodařilo se přidat přílohu",
+                failedBody: "Ukládání souboru na polici se nedokončilo.",
+                fullTitle: "Police je plná",
+                fullBody: "Příloha se uložila, ale na polici už není místo.",
+                okButton: "OK")
         case .de:
             return .init(
                 failedTitle: "Anhang konnte nicht hinzugefügt werden",

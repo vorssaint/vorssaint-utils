@@ -45,6 +45,13 @@ extension FeatureStrings {
             sounds: "Zvuky pri zamknutí a odomknutí",
             soundsHint: "Prehrá zvuk zámky z macOS, keď sa Mac zamkne a odomkne.",
             working: "Pracuje")
+        case .cs: return NotchLockScreenStrings(
+            title: "Zamčená obrazovka",
+            show: "Zobrazit na zamčené obrazovce",
+            showHint: "Hudba a aktivity Dynamic Island, jako časovač, AI agenti, stahování a vaše nejbližší schůzka, se zobrazí nad polem pro heslo. Přečte si je každý, kdo vidí vaši obrazovku.",
+            sounds: "Zvuky při zamčení a odemčení",
+            soundsHint: "Přehraje zvuk zámku z macOS, když se Mac zamkne a odemkne.",
+            working: "Pracuje")
         case .de: return NotchLockScreenStrings(
             title: "Sperrbildschirm",
             show: "Auf dem Sperrbildschirm zeigen",

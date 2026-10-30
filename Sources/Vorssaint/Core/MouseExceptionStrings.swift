@@ -40,6 +40,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -142,6 +143,21 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Prejdenie kurzorom nad oknom v týchto aplikáciách nemení fokus ani ho nezobrazí navrchu.",
         captionSuperKey: "Kým je otvorená ktorákoľvek z týchto aplikácií, aj na pozadí, Super kláves sa pozastaví a vybraný kláves funguje normálne.",
         pausedSuperKey: "Pozastavené, kým je otvorená vybraná aplikácia"
+    )
+
+    static let cs = MouseExceptionStrings(
+        listTitle: "Aplikace, do kterých nezasahovat",
+        addButton: "Přidat aplikaci…",
+        removeButton: "Odstranit",
+        captionSmoothScroll: "V těchto aplikacích si kolečko zachová své běžné kroky, pro aplikace, které ho zpracovávají po svém, například nástroje pro 3D a design.",
+        captionLinearScroll: "V těchto aplikacích si kolečko zachová tempo, které mu dává macOS, pro hry a 3D nástroje, které si kroky počítají samy.",
+        captionScrollDirection: "V těchto aplikacích si kolečko zachová směr, který mu dává macOS.",
+        captionNavigation: "Boční tlačítka v těchto aplikacích nadále dělají to, co s nimi aplikace už dělá.",
+        captionButtonShortcuts: "Vaše další tlačítka myši v těchto aplikacích mlčí a stisknutí místo toho dostane aplikace.",
+        captionMiddleClick: "Kliknutí třemi prsty zůstává v těchto aplikacích běžným kliknutím.",
+        captionFocusFollowsMouse: "Najetí kurzorem na okno v těchto aplikacích nemění fokus ani ho nezobrazí navrchu.",
+        captionSuperKey: "Dokud je otevřená kterákoli z těchto aplikací, i na pozadí, Super klávesa se pozastaví a vybraná klávesa funguje normálně.",
+        pausedSuperKey: "Pozastaveno, dokud je otevřená vybraná aplikace"
     )
 
     static let de = MouseExceptionStrings(

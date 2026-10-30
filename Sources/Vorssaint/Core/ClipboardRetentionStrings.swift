@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -88,6 +89,14 @@ extension ClipboardRetentionStrings {
         oneDay: "1 deň",
         daysFormat: "%d dní",
         caption: "Staršie položky sa odstránia, aj keď limit nie je dosiahnutý. Pripnuté položky sa uchovajú vždy."
+    )
+
+    static let cs = ClipboardRetentionStrings(
+        title: "Uchovávat položky",
+        forever: "Navždy",
+        oneDay: "1 den",
+        daysFormat: "%d dní",
+        caption: "Starší položky se odstraní, i když limit není dosažen. Připnuté položky se uchovají vždy."
     )
 
     static let de = ClipboardRetentionStrings(

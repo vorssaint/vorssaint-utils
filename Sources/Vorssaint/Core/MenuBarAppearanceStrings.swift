@@ -25,6 +25,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -114,6 +115,19 @@ extension MenuBarAppearanceStrings {
         mediumColor: "Stredná farba",
         highColor: "Vysoká farba",
         mediumFrom: "Stredná od",
+        highFrom: "Vysoká od"
+    )
+
+    static let cs = MenuBarAppearanceStrings(
+        label: "Zobrazení vytížení",
+        values: "Hodnoty",
+        bars: "Pruhy",
+        caption: "Pruhy platí pro vytížení CPU, GPU, paměti a disku. Ostatní hodnoty zůstávají číselné.",
+        customize: "Barvy a limity pruhů",
+        normalColor: "Běžná barva",
+        mediumColor: "Střední barva",
+        highColor: "Vysoká barva",
+        mediumFrom: "Střední od",
         highFrom: "Vysoká od"
     )
 

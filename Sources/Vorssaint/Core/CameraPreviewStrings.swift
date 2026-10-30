@@ -25,6 +25,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -109,6 +110,18 @@ extension CameraPreviewFeatureStrings {
         noCameraMessage: "Kamera nebola zistená",
         permName: "Kamera",
         permExplain: "Zobrazuje vašu kameru iba v okne náhľadu, aby ste si pred hovorom mohli skontrolovať, ako vyzeráte. Nič sa nenahráva ani neopúšťa váš Mac."
+    )
+
+    static let cs = CameraPreviewFeatureStrings(
+        pageTitle: "Náhled kamery",
+        hubDescription: "Otevře plovoucí zrcadlo s vaší kamerou",
+        panelCaption: "Před hovorem si zkontrolujte, jak vypadáte",
+        openButton: "Otevřít náhled",
+        cameraMenuLabel: "Kamera",
+        deniedMessage: "Přístup ke kameře pro Vorssaint je v Nastavení systému vypnutý.",
+        noCameraMessage: "Kamera nebyla zjištěna",
+        permName: "Kamera",
+        permExplain: "Zobrazuje vaši kameru pouze v okně náhledu, abyste si před hovorem mohli zkontrolovat, jak vypadáte. Nic se nenahrává ani neopouští váš Mac."
     )
 
     static let de = CameraPreviewFeatureStrings(

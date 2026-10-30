@@ -51,6 +51,7 @@ struct WhatsAppDownloadStrings {
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .tr: return .tr
         case .ru: return .ru
         case .de: return .de
@@ -194,6 +195,49 @@ extension WhatsAppDownloadStrings {
         notificationFormat: "Do Koša presunuté súbory: %1$d (%2$@). Zlyhalo: %3$d.",
         scanFailed: "Stiahnuté sa nepodarilo skenovať. Skontrolujte Súbory a priečinky v Systémových nastaveniach.",
         manageButton: "Spravovať…"
+    )
+
+    static let cs = WhatsAppDownloadStrings(
+        title: "Stahování z WhatsAppu",
+        hubDescription: "Udržuje soubory z WhatsAppu ve Stažených souborech pod kontrolou",
+        intro: "Najde soubory, o kterých macOS potvrdí, že pocházejí z WhatsAppu. Obsah souborů ani konverzace se nikdy nečtou.",
+        automatic: "Čistit automaticky",
+        automaticCaption: "Jednou denně zkontroluje a soubory starší než váš limit přesune do Koše.",
+        folder: "Sledovaná složka",
+        accessReady: "Stažené soubory jsou dostupné",
+        accessDenied: "Vorssaint nemá přístup ke složce Stažené soubory. Povolte ho v Souborech a složkách.",
+        fileTypes: "Typy souborů",
+        allTypes: "Všechny",
+        image: "Obrázky",
+        video: "Videa",
+        audio: "Zvuk a hlasové zprávy",
+        document: "Dokumenty",
+        archive: "Archivy",
+        other: "Ostatní",
+        retention: "Uchovávat",
+        retentionCaption: "Nedávno upravené soubory čekají celou lhůtu znovu.",
+        daysFormat: "Počet dní: %d",
+        manualIntro: "Skenujte kdykoli. Počáteční výběr vychází z vašich typů a věkového limitu, ale můžete zkontrolovat každý potvrzený soubor.",
+        noFiles: "Ve Stažených souborech nebyly nalezeny žádné potvrzené soubory z WhatsAppu.",
+        resultsFormat: "Potvrzené soubory: %1$d · %2$@",
+        selectRules: "Vybrat podle mých pravidel",
+        cleanSelectedFormat: "Přesunout %1$d do Koše · %2$@",
+        keep: "Ponechat",
+        manageAgain: "Spravovat znovu",
+        activity: "Aktivita",
+        neverRun: "Zatím neproběhlo žádné čištění.",
+        lastRunFormat: "Poslední čištění %@ · soubory: %d · %@ · selhalo: %d",
+        nextRunFormat: "Další automatická kontrola %@.",
+        firstTitle: "Co s existujícími soubory?",
+        firstMessageFormat: "Vašim pravidlům už odpovídá existujících souborů: %d. Vyberte, zda je může automatizace spravovat, nebo jen budoucí stahování.",
+        futureOnly: "Pouze budoucí stahování",
+        includeExisting: "Zahrnout existující soubory",
+        trashNote: "Soubory se přesunou do Koše a zůstanou obnovitelné, dokud ho nevysypete.",
+        localNote: "Kontrolují se pouze místní metadata souborů. Vorssaint nikdy nečte konverzace ani obsah souborů.",
+        notificationTitle: "Čištění WhatsAppu",
+        notificationFormat: "Do Koše přesunuté soubory: %1$d (%2$@). Selhalo: %3$d.",
+        scanFailed: "Stažené soubory se nepodařilo prohledat. Zkontrolujte Soubory a složky v Nastavení systému.",
+        manageButton: "Spravovat…"
     )
 
     static let ptBR = WhatsAppDownloadStrings(
@@ -524,6 +568,13 @@ extension WhatsAppDownloadStrings {
             firstMessageFormat: es.firstMessageFormat, localNote: es.localNote,
             notificationFormat: es.notificationFormat, scanFailed: es.scanFailed, manageButton: es.manageButton)
         case .sk: return OperationalStrings(
+            automaticCaption: sk.automaticCaption, retentionCaption: sk.retentionCaption,
+            manualIntro: sk.manualIntro, resultsFormat: sk.resultsFormat,
+            selectRules: sk.selectRules, cleanSelectedFormat: sk.cleanSelectedFormat,
+            lastRunFormat: sk.lastRunFormat, nextRunFormat: sk.nextRunFormat,
+            firstMessageFormat: sk.firstMessageFormat, localNote: sk.localNote,
+            notificationFormat: sk.notificationFormat, scanFailed: sk.scanFailed, manageButton: sk.manageButton)
+        case .cs: return OperationalStrings(
             automaticCaption: sk.automaticCaption, retentionCaption: sk.retentionCaption,
             manualIntro: sk.manualIntro, resultsFormat: sk.resultsFormat,
             selectRules: sk.selectRules, cleanSelectedFormat: sk.cleanSelectedFormat,
