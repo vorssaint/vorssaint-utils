@@ -47,6 +47,8 @@ struct BrightnessDisplay: Identifiable, Equatable {
     let readable: Bool
     /// Manual dimming choices need a stable display-and-connection key.
     var canChooseDimming = false
+    /// A DisplayLink monitor or dummy screen. It cannot be switched off here.
+    var isVirtual = false
     /// Captured before this display is disabled, while its identity is still
     /// available. A reused display number must not transfer recovery ownership.
     var restorationFingerprint: String? = nil
@@ -2287,7 +2289,8 @@ final class BrightnessService: ObservableObject {
                 // Placeholder; the software pass below fills brightness.
                 built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: false,
                                                method: .software, isActive: true,
-                                               brightness: 1, readable: false))
+                                               brightness: 1, readable: false,
+                                               isVirtual: true))
                 continue
             }
             ddcCandidates.append((built.count, Self.displayIdentity(id, info: info)))
@@ -2343,7 +2346,8 @@ final class BrightnessService: ObservableObject {
                                          method: previous.method, isActive: true,
                                          brightness: previous.brightness,
                                          readable: previous.readable,
-                                         canChooseDimming: previous.canChooseDimming)
+                                         canChooseDimming: previous.canChooseDimming,
+                                         isVirtual: display.isVirtual)
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.running, generation == self.rebuildGeneration else { return }
@@ -2539,7 +2543,7 @@ final class BrightnessService: ObservableObject {
             built[index] = BrightnessDisplay(
                 id: id, name: built[index].name, isBuiltIn: false,
                 method: .software, isActive: true, brightness: value, readable: true,
-                canChooseDimming: softwarePathKeys[id] != nil)
+                canChooseDimming: softwarePathKeys[id] != nil, isVirtual: built[index].isVirtual)
             newRoutes[id] = Route(method: .software, service: nil, maximum: 100,
                                   ddcPathKey: softwarePathKeys[id])
             if value < 0.999 || dimmedDisplays.contains(id) {
