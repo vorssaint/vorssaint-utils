@@ -185,6 +185,9 @@ enum SettingsBackupSupport {
         DefaultsKey.recorderSaveFolder,
         DefaultsKey.screenshotSaveFolder,
         DefaultsKey.musicBlockReplacementPath,
+        DefaultsKey.mailBlockAppPath,
+        // Which app had email links before is a fact about this Mac.
+        DefaultsKey.mailBlockPreviousHandlerPath,
         // A local watermark file is authority on this Mac, not portable data.
         DefaultsKey.mediaImageWatermarkLogoPath,
         DefaultsKey.simulateUpdate,

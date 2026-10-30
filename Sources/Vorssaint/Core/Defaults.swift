@@ -260,6 +260,11 @@ enum DefaultsKey {
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let musicBlockPlayReplacement = "musicBlockPlayReplacement" // play after Play/Pause opens the replacement
+    static let mailBlockEnabled = "mailBlockEnabled"
+    static let mailBlockAction = "mailBlockAction"        // ignore | openApp | copyAddress
+    static let mailBlockAppPath = "mailBlockAppPath"      // app bundle path ("" = none)
+    // The mailto handler to give back when the option turns off ("" = Mail).
+    static let mailBlockPreviousHandlerPath = "mailBlockPreviousHandlerPath"
     static let cleanerScheduleFrequency = "cleanerScheduleFrequency"    // off | daily | weekly
     static let cleanerScheduleHour = "cleanerScheduleHour"
     static let cleanerScheduleMinute = "cleanerScheduleMinute"
@@ -1390,6 +1395,10 @@ enum Defaults {
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.musicBlockPlayReplacement: true,
+        DefaultsKey.mailBlockEnabled: false,
+        DefaultsKey.mailBlockAction: MailLinkSupport.Action.ignore.rawValue,
+        DefaultsKey.mailBlockAppPath: "",
+        DefaultsKey.mailBlockPreviousHandlerPath: "",
         DefaultsKey.cleanerScheduleFrequency: "off",
         DefaultsKey.cleanerScheduleHour: 9,
         DefaultsKey.cleanerScheduleMinute: 0,

@@ -364,6 +364,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         KeepAwakeManager.shared.deactivate(reason: .quit)
     }
 
+    /// Email links arrive here while the Mail link option holds `mailto:`.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where MailLinkSupport.isMailLink(url) {
+            MailLinkBlocker.shared.handle(url)
+        }
+    }
+
     /// The lifeline when the menu bar icon goes missing. Opening the app again
     /// from Finder, Spotlight or Launchpad while it's already running lands here:
     /// force the icon back and pop the panel so there's immediate proof the app is
