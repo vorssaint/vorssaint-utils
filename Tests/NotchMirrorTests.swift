@@ -41,15 +41,18 @@ enum NotchMirrorContract {
         let panel = Panel()
         var presented: [(size: CGSize, geometry: NotchGeometry, animated: Bool, transition: NotchContentTransition)] = []
         var hides = 0, closes = 0
+        var hideAnimations: [Bool] = [], reveals: [Bool] = []
         var outline: (enabled: Bool, color: NSColor)?
         var activationRect = CGRect.zero
         var activate: (() -> Void)?
         var settling = false
         var settled: [() -> Void] = []
-        func present(size: CGSize, geometry: NotchGeometry, animated: Bool, transitionContent: NotchContentTransition) {
+        func present(size: CGSize, geometry: NotchGeometry, animated: Bool, transitionContent: NotchContentTransition,
+                     revealFromHidden: Bool = false) {
             presented.append((size, geometry, animated, transitionContent))
+            reveals.append(revealFromHidden)
         }
-        func hide(animated: Bool) { hides += 1; panel.isVisible = false }
+        func hide(animated: Bool) { hides += 1; hideAnimations.append(animated); panel.isVisible = false }
         func close() { closes += 1; panel.isVisible = false }
         func setOutline(enabled: Bool, color: NSColor) { outline = (enabled, color) }
         func setActivationArea(_ rect: CGRect, title: String, willPress: @escaping () -> Void, activate: @escaping () -> Void) {
@@ -83,6 +86,8 @@ enum NotchMirrorContract {
         var displayID: CGDirectDisplayID? = 1
         var mirrors: [CGDirectDisplayID: NotchMirror] = [:]
         var fullscreenDisplays: Set<CGDirectDisplayID> = []
+        var fullscreenSpaceDisplays: Set<CGDirectDisplayID> = []
+        var mirrorsHiddenByApp: Set<CGDirectDisplayID> = []
         var compactActivity: NotchCompactActivity?
         var compactCompanion: NotchCompactActivity?
         var idleContent = NotchIdleContent.none
@@ -213,8 +218,42 @@ enum NotchMirrorContract {
         service.updateFullscreenDisplays()
         suite.expect(service.fullscreenDisplays.isEmpty, "only the choice to hide in full screen reads Spaces")
         service.syncMirrors()
-        suite.expect(notch?.model.shown == true && notch?.host.presented.last?.animated == false,
-                     "leaving full screen shows the copy again at once")
+        suite.expect(notch?.model.shown == true && notch?.host.presented.last?.animated == false
+                     && notch?.host.hideAnimations.last == false && notch?.host.reveals.last == false,
+                     "a full-screen Space hides and shows the copy at once")
+
+        // An app's own full screen eases the copy away and back.
+        service.hidesInFullscreen = true
+        SpaceWindowBridge.fullscreen = []
+        NotchAppFullscreen.covered = [1]
+        service.updateFullscreenDisplays()
+        service.syncMirrors()
+        suite.expect(service.fullscreenDisplays == [1] && service.fullscreenSpaceDisplays.isEmpty
+                     && notch?.model.shown == false && notch?.host.hideAnimations.last == true,
+                     "an app's own full screen hides the copy with the usual animation")
+        NotchAppFullscreen.covered = []
+        service.updateFullscreenDisplays()
+        service.syncMirrors()
+        suite.expect(notch?.model.shown == true && notch?.host.presented.last?.animated == true
+                     && notch?.host.reveals.last == true && service.mirrorsHiddenByApp.isEmpty,
+                     "leaving an app's own full screen reveals the copy with the usual animation")
+        NotchAppFullscreen.covered = [1]
+        service.updateFullscreenDisplays()
+        service.syncMirrors()
+        SpaceWindowBridge.fullscreen = [1]
+        NotchAppFullscreen.covered = []
+        service.updateFullscreenDisplays()
+        service.syncMirrors()
+        suite.expect(notch?.model.shown == false && !service.mirrorsHiddenByApp.contains(1),
+                     "a Space taking over an app's full screen leaves the copy hidden")
+        SpaceWindowBridge.fullscreen = []
+        service.updateFullscreenDisplays()
+        service.syncMirrors()
+        suite.expect(notch?.model.shown == true && notch?.host.presented.last?.animated == false
+                     && notch?.host.reveals.last == false,
+                     "full screen last held by a Space ends at once")
+        service.hidesInFullscreen = false
+        service.updateFullscreenDisplays()
 
         // Set to show activity, a hidden island's copies draw the activity it
         // shows, and go with it once nothing runs.
