@@ -335,6 +335,7 @@ extension Strings {
         uninstallerRemoving: "正在移到垃圾桶…",
         uninstallerFoundTitle: "已找到",
         uninstallerSelectedFormat: "已選取 %d 項，共 %d 項",
+        uninstallerSelectAll: "全選",
         uninstallerRemove: "移到垃圾桶",
         uninstallerCancel: "取消",
         uninstallerConfirmationExpired: "此確認已失效。請檢查目前的項目並重新確認。",

@@ -334,6 +334,7 @@ extension Strings {
         uninstallerRemoving: "Çöp Sepeti’ne taşınıyor…",
         uninstallerFoundTitle: "bulundu",
         uninstallerSelectedFormat: "%d / %d seçili",
+        uninstallerSelectAll: "Tümünü seç",
         uninstallerRemove: "Çöp Sepeti’ne Taşı",
         uninstallerCancel: "İptal",
         uninstallerConfirmationExpired: "Bu onay artık geçerli değil. Güncel öğeleri gözden geçirip yeniden onaylayın.",

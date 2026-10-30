@@ -334,6 +334,7 @@ extension Strings {
         uninstallerRemoving: "正在移到废纸篓…",
         uninstallerFoundTitle: "已找到",
         uninstallerSelectedFormat: "已选择 %d 项，共 %d 项",
+        uninstallerSelectAll: "全选",
         uninstallerRemove: "移到废纸篓",
         uninstallerCancel: "取消",
         uninstallerConfirmationExpired: "此次确认已失效。请检查当前项目并重新确认。",

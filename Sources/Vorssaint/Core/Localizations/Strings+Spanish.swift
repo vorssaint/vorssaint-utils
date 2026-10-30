@@ -334,6 +334,7 @@ extension Strings {
         uninstallerRemoving: "Moviendo a la Papelera…",
         uninstallerFoundTitle: "encontrado",
         uninstallerSelectedFormat: "%d de %d seleccionados",
+        uninstallerSelectAll: "Seleccionar todo",
         uninstallerRemove: "Mover a la Papelera",
         uninstallerCancel: "Cancelar",
         uninstallerConfirmationExpired: "Esta confirmación ya no es válida. Revisa los elementos actuales y confirma de nuevo.",

@@ -334,6 +334,7 @@ extension Strings {
         uninstallerRemoving: "Déplacement vers la corbeille…",
         uninstallerFoundTitle: "trouvé",
         uninstallerSelectedFormat: "%d sur %d sélectionnés",
+        uninstallerSelectAll: "Tout sélectionner",
         uninstallerRemove: "Placer dans la corbeille",
         uninstallerCancel: "Annuler",
         uninstallerConfirmationExpired: "Cette confirmation n’est plus valable. Vérifiez les éléments actuels et confirmez à nouveau.",

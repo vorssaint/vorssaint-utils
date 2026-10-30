@@ -269,7 +269,19 @@ enum UninstallerFlowTests {
                          "other surfaces cannot reset an active plain removal")
             uninstaller.setInclude(false, for: originalItems[0].id)
             suite.expect(uninstaller.items == originalItems, "an active removal keeps its captured selection")
+            uninstaller.setAllIncluded(true)
+            suite.expect(uninstaller.items == originalItems,
+                         "an active removal refuses bulk selection too")
             uninstaller.phase = .results
+            uninstaller.setInclude(false, for: originalItems[0].id)
+            suite.expect(uninstaller.bulkSelection == .none,
+                         "a list with nothing checked shows an empty select-all box")
+            uninstaller.setAllIncluded(true)
+            suite.expect(uninstaller.bulkSelection == .all && uninstaller.items.allSatisfy(\.include),
+                         "select all checks every row again")
+            uninstaller.setAllIncluded(false)
+            suite.expect(uninstaller.bulkSelection == .none && uninstaller.items.allSatisfy { !$0.include },
+                         "unchecking the select-all box clears every row")
             uninstaller.isRemovingWithHomebrew = true
             uninstaller.homebrewPackage = Package(id: "first")
             let observation = Observation()
