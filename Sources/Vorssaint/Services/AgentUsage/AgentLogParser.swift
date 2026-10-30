@@ -12,8 +12,9 @@ import Foundation
 enum AgentLogEntry: Equatable {
     /// `key` identifies the response across duplicate lines and files.
     case usage(key: String, record: AgentUsageRecord, billable: AgentBillable)
-    /// Cumulative database counters replace the previous reading, not add to it.
-    case usageSnapshot([AgentUsageRecord])
+    /// Every running total a harness database holds, read at once: the store
+    /// counts what each grew by since it was last read.
+    case usageCounters([AgentUsageCounter])
     /// A later chunk can identify the model of an already-counted request.
     case usageModel(key: String, model: String)
     case limits(AgentLimits)
@@ -67,8 +68,6 @@ struct AgentLogState: Equatable {
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
     var openCodeSessions: [String: OpenCodeSessionState] = [:]
-    /// Hermes keeps one database per profile, tracking per-session turns.
-    var hermesSessions: [String: HermesSessionState] = [:]
     /// Claude's shell commands still waiting for their result, by tool call.
     /// They run on the Mac, so the turn goes on without the network.
     var runningCommands: Set<String> = []
@@ -94,13 +93,11 @@ struct OpenCodeSessionState: Equatable {
     var completedUserMessageIDs: Set<String> = []
 }
 
-/// Per-session turn tracking for the Hermes databases.
-struct HermesSessionState: Equatable {
-    var project = ""
-    var model = ""
-    var turnOpen = false
-    var turnStarted: Date?
-    var lastActivity: Date?
+/// A running total a harness keeps for one session, model and route, as
+/// read now. `record` carries the whole total, dated by its last growth.
+struct AgentUsageCounter: Equatable {
+    let key: String
+    let record: AgentUsageRecord
 }
 
 enum AgentLogParser {

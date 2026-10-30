@@ -30,12 +30,10 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAccountIdentity: ClaudeAccountProfile.Identity?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
-    @Published private(set) var hermesAccount: AgentHermesLimits.Reading?
-    @Published private(set) var hermesAccountChecking = false
-    @Published private(set) var hermesAccountFailure: AgentHermesLimits.Failure?
-    private let hermesAccountQueue = DispatchQueue(label: "com.vorssaint.hermes-limits", qos: .utility)
-    private var hermesAccountRequest: BoundedProcessCancellation?
-    private var hermesAccountAttempted = Date.distantPast
+    private let hermesLimitsQueue = DispatchQueue(label: "com.vorssaint.hermes-limits", qos: .utility)
+    private var hermesLimitsRequest: BoundedProcessCancellation?
+    private var hermesLimitsAttempted = Date.distantPast
+    private var hermesLimitsFailed = false
     let events = PassthroughSubject<AgentUsageEvent, Never>()
 
     /// The history the island can show: thirteen weeks for the activity map.
@@ -182,7 +180,6 @@ final class AgentUsageService: ObservableObject {
     private func resume() {
         paused = false
         startTimer()
-        refreshHermesLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             watch(AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile).filter { enabled.contains($0.provider) })
@@ -204,9 +201,8 @@ final class AgentUsageService: ObservableObject {
         running = false
         cancelClaudeLimits()
         cancelHermesLimits()
-        hermesAccount = nil
-        hermesAccountFailure = nil
-        hermesAccountAttempted = .distantPast
+        hermesLimitsAttempted = .distantPast
+        hermesLimitsFailed = false
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
@@ -287,55 +283,41 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused, claudeAccountRequest == nil else { return }
         claudeAccountAttempted = .distantPast
         refreshClaudeLimits(pageShows: true)
-    /// Account quota is fetched by Hermes itself for the configured profile.
-    /// No auth files are read here. Disabled/locked islands do no network work.
-    func refreshHermesLimits(force: Bool = false) {
-        guard running, !paused, providers.contains(.hermes), hermesAccountRequest == nil else { return }
-        let now = Date()
-        if hermesAccount?.current(at: now) == nil {
-            let expected = session
-            queue.async { [self] in
-                guard readerSession == expected else { return }
-                store.clearLimits(.hermes)
-                schedulePublish()
-            }
-        }
-        guard force || now.timeIntervalSince(hermesAccountAttempted) >= 120 else { return }
-        hermesAccountAttempted = now
-        hermesAccountChecking = true
+    }
+
+    /// The ChatGPT limits Hermes reads for its own Codex sign-in. Codex copies
+    /// its limits into its logs only while it works, so usage that runs
+    /// through Hermes would leave the Codex card behind until Codex runs
+    /// again. Asked soon after Hermes spends on that account, and now and then
+    /// while the limits show; Hermes resolves the sign-in, and no credential
+    /// is read here. Main thread.
+    func refreshHermesLimits(used: Bool = false, now: Date = Date()) {
+        guard running, !paused, online, providers.contains(.hermes), providers.contains(.codex),
+              hermesLimitsRequest == nil, NotchAgentSupport.limitsInUse(pageShown: pageVisible) else { return }
+        let wait = hermesLimitsFailed ? AgentHermesLimits.retry
+            : used || pageVisible ? AgentHermesLimits.freshness : AgentHermesLimits.backgroundFreshness
+        guard now.timeIntervalSince(hermesLimitsAttempted) >= wait else { return }
+        hermesLimitsAttempted = now
         let request = BoundedProcessCancellation()
-        hermesAccountRequest = request
+        hermesLimitsRequest = request
         let expected = session
-        let profileHome = AgentLogRoot.hermesHome(home: home)
-        hermesAccountQueue.async { [weak self] in
-            let result = AgentHermesLimits.fetch(home: profileHome, cancellation: request)
+        let hermesHome = AgentLogRoot.hermesHome(home: home)
+        hermesLimitsQueue.async { [weak self] in
+            let result = AgentHermesLimits.fetch(home: hermesHome, provider: AgentHermesLimits.codexProvider,
+                                                 cancellation: request)
             DispatchQueue.main.async {
-                guard let self, self.running, !self.paused, self.session == expected,
-                      self.hermesAccountRequest === request else { return }
-                self.hermesAccountRequest = nil
-                self.hermesAccountChecking = false
-                switch result {
-                case .success(let reading):
-                    self.hermesAccount = reading
-                    self.hermesAccountFailure = reading.current(at: Date()) == nil ? .unavailable : nil
-                case .failure(let failure):
-                    self.hermesAccountFailure = failure
-                }
-                let limits = self.hermesAccount?.current(at: Date())?.limits
-                self.queue.async { [self] in
-                    guard self.readerSession == expected, self.enabled.contains(.hermes) else { return }
-                    if let limits { self.store.updateLimits(limits) } else { self.store.clearLimits(.hermes) }
-                    self.checkLimits()
-                    self.schedulePublish()
-                }
+                guard let self, self.running, self.session == expected, self.hermesLimitsRequest === request else { return }
+                self.hermesLimitsRequest = nil
+                let limits = (try? result.get()).flatMap(AgentHermesLimits.codexLimits)
+                self.hermesLimitsFailed = limits == nil
+                if let limits { self.noteLimits(limits) }
             }
         }
     }
 
     private func cancelHermesLimits() {
-        hermesAccountRequest?.cancel()
-        hermesAccountRequest = nil
-        hermesAccountChecking = false
+        hermesLimitsRequest?.cancel()
+        hermesLimitsRequest = nil
     }
 
     // MARK: Reading
@@ -388,7 +370,7 @@ final class AgentUsageService: ObservableObject {
             // A budget already passed before launch is history, not news.
             let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
             if let budget = NotchAgentSupport.dailyBudget(),
-               store.records.lazy.filter({ $0.provider != .hermes && $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
+               store.records.lazy.filter({ $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
                 budgetDay = today
             }
             watch(roots)
@@ -428,7 +410,7 @@ final class AgentUsageService: ObservableObject {
     /// Changes whenever a log is read further, replaced or let go. OpenCode,
     /// which is never saved, leaves it alone.
     private var progressMark: Int {
-        let records = store.records.reduce(0) { $1.provider.readsDatabase ? $0 : $0 + 1 }
+        let records = store.savedRecordCount
         return cursors.values.reduce(records) { mark, cursor in
             guard !cursor.provider.readsDatabase else { return mark }
             var hasher = Hasher()
@@ -565,6 +547,7 @@ final class AgentUsageService: ObservableObject {
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
             let changed = store.forget(file: path)
+            // A harness database held totals, not turns: what they gave goes with it.
             if provider == .hermes { store.forget(files: [path]) }
             return changed || provider == .hermes
         }
@@ -594,6 +577,19 @@ final class AgentUsageService: ObservableObject {
                                         shouldContinue: { !cancellation.isCancelled }, line: consume)
         }
         return changed
+    }
+
+    /// Usage that ran through Hermes moved the limits of the accounts it
+    /// spent on: those are asked again soon instead of on their usual wait.
+    /// Runs on `queue`.
+    private func checkAccounts(after grown: Set<AgentProvider>) {
+        guard !grown.isEmpty else { return }
+        let expected = readerSession
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.running, self.session == expected else { return }
+            if grown.contains(.claude) { self.refreshClaudeLimits(used: true) }
+            if grown.contains(.codex) { self.refreshHermesLimits(used: true) }
+        }
     }
 
     private func watch(_ roots: [AgentLogRoot]) {
@@ -702,6 +698,7 @@ final class AgentUsageService: ObservableObject {
     private func publish() {
         let session = readerSession
         guard session >= 0 else { return }
+        checkAccounts(after: store.takeCounterGrowth())
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
@@ -770,7 +767,7 @@ final class AgentUsageService: ObservableObject {
     /// A warned window that renews brings its agent back: worth a word.
     private func reportRenewals(now: Date) {
         for (id, entry) in warned {
-            guard entry.provider != .hermes, let resets = entry.window.resetsAt, resets <= now else { continue }
+            guard let resets = entry.window.resetsAt, resets <= now else { continue }
             warned[id] = nil
             report(.limitReset(provider: entry.provider, window: entry.window))
         }
@@ -779,7 +776,7 @@ final class AgentUsageService: ObservableObject {
     private func checkBudget(_ snapshot: AgentUsageSnapshot) {
         guard store.reportsTransitions, let budget = NotchAgentSupport.dailyBudget() else { return }
         let today = Calendar.autoupdatingCurrent.startOfDay(for: snapshot.now)
-        let spent = snapshot.dailyBudgetCost
+        let spent = snapshot.usage(.today).total.cost
         guard spent >= budget, budgetDay != today else { return }
         budgetDay = today
         report(.budgetReached(spent: spent, budget: budget))
@@ -866,8 +863,8 @@ final class AgentUsageService: ObservableObject {
 
     // Main thread. Every minute only while the page shows; failures back
     // off, and looking at the page does not bypass that.
-    func refreshClaudeLimits(now: Date = Date(), pageShows: Bool = false) {
-        guard claudeLimitsDue(at: now, pageShows: pageShows) else { return }
+    func refreshClaudeLimits(now: Date = Date(), pageShows: Bool = false, used: Bool = false) {
+        guard claudeLimitsDue(at: now, pageShows: pageShows, used: used) else { return }
         claudeAccountAttempted = now
         claudeAccountChecking = true
         let request = AgentClaudeServer.Request()
@@ -917,11 +914,13 @@ final class AgentUsageService: ObservableObject {
 
     /// Never while the feature is off, asleep, offline or already checking,
     /// nor while nothing shows or alerts on the limits. Main thread.
-    private func claudeLimitsDue(at now: Date, pageShows: Bool) -> Bool {
+    /// `used`: the account just spent through a harness, so a reading that
+    /// worked is renewed as if the page showed.
+    private func claudeLimitsDue(at now: Date, pageShows: Bool, used: Bool = false) -> Bool {
         guard running, !paused, online, providers.contains(.claude), claudeAccountRequest == nil,
               NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
         return now.timeIntervalSince(claudeAccountAttempted) >= AgentClaudeServer.interval(
-            after: claudeAccountFailure, repeated: claudeAccountUnreachable, pageVisible: pageVisible)
+            after: claudeAccountFailure, repeated: claudeAccountUnreachable, pageVisible: pageVisible || used)
     }
 
     /// Main thread.

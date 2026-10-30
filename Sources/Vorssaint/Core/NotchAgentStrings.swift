@@ -171,21 +171,21 @@ extension FeatureStrings {
     static func hermesUsageNote(_ language: AppLanguage) -> HermesUsageStrings {
         HermesUsageStrings(note: {
         switch language {
-        case .enUS: return "Hermes: cumulative session totals grouped by last activity, not daily billing. Account limits are checked through your local Hermes CLI for its configured profile; credentials stay with Hermes."
-        case .ptBR: return "Hermes: totais acumulados por sessão, agrupados pela última atividade, não cobrança diária. Os limites da conta são consultados pela CLI local do Hermes no perfil configurado; as credenciais ficam no Hermes."
-        case .es: return "Hermes: totales acumulados por sesión agrupados por la última actividad, no facturación diaria. Los límites se consultan con la CLI local de Hermes para su perfil configurado; las credenciales permanecen en Hermes."
-        case .sk: return "Hermes: súhrny relácií podľa poslednej aktivity, nie denná fakturácia. Limity účtu zisťuje miestne CLI Hermes pre nastavený profil; prihlasovacie údaje zostávajú v Hermes."
-        case .de: return "Hermes: kumulierte Sitzungssummen nach letzter Aktivität, keine Tagesabrechnung. Kontolimits werden über die lokale Hermes-CLI für das konfigurierte Profil abgefragt; Zugangsdaten bleiben bei Hermes."
-        case .fr: return "Hermes : totaux cumulés des sessions regroupés par dernière activité, pas une facturation quotidienne. Les limites du compte sont vérifiées par la CLI locale Hermes pour le profil configuré ; les identifiants restent dans Hermes."
-        case .it: return "Hermes: totali cumulativi delle sessioni per ultima attività, non fatturazione giornaliera. I limiti dell’account vengono verificati dalla CLI locale Hermes per il profilo configurato; le credenziali restano in Hermes."
-        case .ru: return "Hermes: накопленные итоги сеансов по последней активности, а не расходы за день. Лимиты аккаунта проверяет локальная CLI Hermes для настроенного профиля; учётные данные остаются в Hermes."
-        case .tr: return "Hermes: günlük fatura değil, son etkinliğe göre gruplanan birikimli oturum toplamları. Hesap limitleri yapılandırılan profil için yerel Hermes CLI ile sorgulanır; kimlik bilgileri Hermes’te kalır."
-        case .ja: return "Hermes：最終アクティビティ別の累積セッション合計であり、日別の請求額ではありません。アカウント制限はローカルの Hermes CLI で設定済みプロファイルについて確認します。認証情報は Hermes に保持されます。"
-        case .ko: return "Hermes: 일별 청구가 아닌 마지막 활동 기준 누적 세션 합계입니다. 계정 한도는 로컬 Hermes CLI의 설정된 프로필로 확인하며 인증 정보는 Hermes에 남습니다."
-        case .uk: return "Hermes: накопичені підсумки сеансів за останньою активністю, а не витрати за день. Ліміти облікового запису перевіряє локальна CLI Hermes для налаштованого профілю; облікові дані залишаються в Hermes."
-        case .zhHans: return "Hermes：按最后活动分组的会话累计用量，并非每日账单。账户限额由本地 Hermes CLI 查询已配置的配置文件；凭据保留在 Hermes 中。"
-        case .zhTW: return "Hermes：依最後活動分組的工作階段累計用量，並非每日帳單。帳戶限額由本機 Hermes CLI 查詢已設定的設定檔；憑證保留在 Hermes 中。"
-        case .zhHK: return "Hermes：按最後活動分組的工作階段累計用量，並非每日帳單。帳戶限額由本機 Hermes CLI 查詢已設定的設定檔；憑證保留在 Hermes 中。"
+        case .enUS: return "Hermes adds no card of its own: the tokens it spends count on the Claude or Codex card of the account each model runs on. Its totals are read again at each launch and grouped by their last activity. Codex limits are also checked through your local Hermes CLI; credentials stay with Hermes."
+        case .ptBR: return "O Hermes não ganha um cartão próprio: os tokens que ele gasta contam no cartão do Claude ou do Codex da conta em que cada modelo roda. Os totais são lidos de novo a cada abertura e agrupados pela última atividade. Os limites do Codex também são consultados pela CLI local do Hermes; as credenciais ficam no Hermes."
+        case .es: return "Hermes no tiene tarjeta propia: los tokens que gasta cuentan en la tarjeta de Claude o de Codex de la cuenta en la que se ejecuta cada modelo. Sus totales se leen de nuevo en cada inicio y se agrupan por la última actividad. Los límites de Codex también se consultan con la CLI local de Hermes; las credenciales permanecen en Hermes."
+        case .sk: return "Hermes nemá vlastnú kartu: tokeny, ktoré spotrebuje, sa započítajú na kartu Claude alebo Codex účtu, na ktorom daný model beží. Súhrny sa načítajú znova pri každom spustení a zoskupia podľa poslednej aktivity. Limity Codexu sa zisťujú aj cez miestne CLI Hermes; prihlasovacie údaje zostávajú v Hermes."
+        case .de: return "Hermes bekommt keine eigene Karte: Die verbrauchten Tokens zählen auf der Claude- oder Codex-Karte des Kontos, auf dem das jeweilige Modell läuft. Die Summen werden bei jedem Start neu gelesen und nach letzter Aktivität gruppiert. Codex-Limits werden zusätzlich über die lokale Hermes-CLI abgefragt; Zugangsdaten bleiben bei Hermes."
+        case .fr: return "Hermes n’a pas de carte à lui : les tokens qu’il consomme comptent sur la carte Claude ou Codex du compte sur lequel tourne chaque modèle. Ses totaux sont relus à chaque lancement et regroupés par dernière activité. Les limites Codex sont aussi vérifiées par la CLI locale Hermes ; les identifiants restent dans Hermes."
+        case .it: return "Hermes non ha una scheda propria: i token che consuma contano sulla scheda Claude o Codex dell’account su cui gira ciascun modello. I totali vengono riletti a ogni avvio e raggruppati per ultima attività. I limiti di Codex vengono verificati anche tramite la CLI locale di Hermes; le credenziali restano in Hermes."
+        case .ru: return "У Hermes нет своей карточки: потраченные им токены учитываются на карточке Claude или Codex того аккаунта, на котором работает модель. Итоги перечитываются при каждом запуске и группируются по последней активности. Лимиты Codex также проверяются через локальную CLI Hermes; учётные данные остаются в Hermes."
+        case .tr: return "Hermes’in kendi kartı yoktur: harcadığı token’lar, her modelin çalıştığı hesabın Claude veya Codex kartında sayılır. Toplamlar her açılışta yeniden okunur ve son etkinliğe göre gruplanır. Codex limitleri ayrıca yerel Hermes CLI ile sorgulanır; kimlik bilgileri Hermes’te kalır."
+        case .ja: return "Hermes には専用のカードはありません。消費したトークンは、各モデルが動作するアカウントの Claude または Codex のカードに加算されます。合計は起動のたびに読み直され、最終アクティビティ別にまとめられます。Codex の制限はローカルの Hermes CLI でも確認します。認証情報は Hermes に保持されます。"
+        case .ko: return "Hermes에는 별도 카드가 없습니다. 사용한 토큰은 각 모델이 실행되는 계정의 Claude 또는 Codex 카드에 집계됩니다. 합계는 실행할 때마다 다시 읽고 마지막 활동 기준으로 묶습니다. Codex 한도는 로컬 Hermes CLI로도 확인하며 인증 정보는 Hermes에 남습니다."
+        case .uk: return "Hermes не має власної картки: витрачені ним токени враховуються на картці Claude або Codex того облікового запису, на якому працює модель. Підсумки перечитуються під час кожного запуску й групуються за останньою активністю. Ліміти Codex також перевіряються через локальну CLI Hermes; облікові дані залишаються в Hermes."
+        case .zhHans: return "Hermes 没有自己的卡片：它消耗的令牌计入各模型所用账户的 Claude 或 Codex 卡片。累计用量在每次启动时重新读取，并按最后活动分组。Codex 限额也会通过本地 Hermes CLI 查询；凭据保留在 Hermes 中。"
+        case .zhTW: return "Hermes 沒有自己的卡片：它消耗的權杖計入各模型所用帳戶的 Claude 或 Codex 卡片。累計用量在每次啟動時重新讀取，並依最後活動分組。Codex 限額也會透過本機 Hermes CLI 查詢；憑證保留在 Hermes 中。"
+        case .zhHK: return "Hermes 沒有自己的卡片：它消耗的權杖計入各模型所用帳戶的 Claude 或 Codex 卡片。累計用量在每次啟動時重新讀取，並按最後活動分組。Codex 限額亦會透過本機 Hermes CLI 查詢；憑證保留在 Hermes 中。"
         }
         }())
     }

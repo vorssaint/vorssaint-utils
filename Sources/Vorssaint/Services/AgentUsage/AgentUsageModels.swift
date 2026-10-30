@@ -102,6 +102,39 @@ struct AgentUsageRecord: Equatable {
     }
 }
 
+/// Tokens and requests a harness total holds, or what part of it is counted.
+struct AgentCounterAmount: Equatable {
+    var tokens = AgentTokens()
+    var requests = 0
+
+    var isEmpty: Bool { tokens == AgentTokens() && requests == 0 }
+
+    mutating func add(_ record: AgentUsageRecord) {
+        tokens += record.tokens
+        requests += record.requests
+    }
+
+    mutating func add(_ other: AgentCounterAmount) {
+        tokens += other.tokens
+        requests += other.requests
+    }
+
+    /// What this holds beyond `base`; nil when any count is below it, as a
+    /// total that went down holds less than what was counted.
+    func subtracting(_ base: AgentCounterAmount) -> AgentCounterAmount? {
+        let parts = [(tokens.input, base.tokens.input), (tokens.cacheWrite, base.tokens.cacheWrite),
+                     (tokens.cacheRead, base.tokens.cacheRead), (tokens.output, base.tokens.output),
+                     (tokens.reasoning, base.tokens.reasoning), (requests, base.requests)]
+        guard parts.allSatisfy({ $0.0 >= $0.1 }) else { return nil }
+        return AgentCounterAmount(tokens: AgentTokens(input: tokens.input - base.tokens.input,
+                                                      cacheWrite: tokens.cacheWrite - base.tokens.cacheWrite,
+                                                      cacheRead: tokens.cacheRead - base.tokens.cacheRead,
+                                                      output: tokens.output - base.tokens.output,
+                                                      reasoning: tokens.reasoning - base.tokens.reasoning),
+                                  requests: requests - base.requests)
+    }
+}
+
 /// A usage allowance and how much of it is spent, as the provider reports it.
 struct AgentLimitWindow: Equatable, Identifiable {
     enum Kind: String {

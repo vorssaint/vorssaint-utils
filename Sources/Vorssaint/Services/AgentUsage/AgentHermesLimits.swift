@@ -7,6 +7,15 @@ import Foundation
 enum AgentHermesLimits {
     enum Failure: Error { case missingCLI, unavailable, timedOut, cancelled }
 
+    /// The Hermes route of the ChatGPT sign-in Codex uses too.
+    static let codexProvider = "openai-codex"
+    /// How old a reading may grow while the page shows or the account was
+    /// just spent on, while only the closed island shows it, and after a
+    /// check that failed.
+    static let freshness: TimeInterval = 60
+    static let backgroundFreshness: TimeInterval = 5 * 60
+    static let retry: TimeInterval = 30 * 60
+
     /// Finder's PATH is sparse; the standard Hermes installer uses ~/.local/bin.
     static func executable(home: URL = FileManager.default.homeDirectoryForCurrentUser,
                            environment: [String: String] = ProcessInfo.processInfo.environment) -> URL? {
@@ -19,13 +28,14 @@ enum AgentHermesLimits {
     /// Invoke only Hermes's public account-usage command. Credentials never
     /// enter Vorssaint, and no prompt/session/model request is made here.
     /// The caller owns throttling; work runs off the main and log-reader queues.
-    static func fetch(home: URL, executable supplied: URL? = nil, timeout: TimeInterval = 25,
+    static func fetch(home: URL, provider: String? = nil, executable supplied: URL? = nil, timeout: TimeInterval = 25,
                       cancellation: BoundedProcessCancellation? = nil) -> Result<Reading, Failure> {
         guard cancellation?.isCancelled != true else { return .failure(.cancelled) }
         guard let cli = supplied ?? executable() else { return .failure(.missingCLI) }
         var environment = ProcessInfo.processInfo.environment
         environment["HERMES_HOME"] = home.path
-        let result = BoundedProcessRunner.run(cli.path, ["usage", "--json"], timeout: timeout,
+        let arguments = ["usage", "--json"] + (provider.map { ["--provider", $0] } ?? [])
+        let result = BoundedProcessRunner.run(cli.path, arguments, timeout: timeout,
                                              maxOutputBytes: 128 << 10, environment: environment,
                                              cancellation: cancellation)
         guard cancellation?.isCancelled != true else { return .failure(.cancelled) }
@@ -50,6 +60,26 @@ enum AgentHermesLimits {
             guard !current.windows.isEmpty || !details.isEmpty else { return nil }
             return Reading(provider: provider, plan: plan, limits: current, details: details, unavailableReason: nil)
         }
+    }
+
+    /// A ChatGPT reading as the Codex card keeps it: the five-hour and weekly
+    /// windows under the names Codex's own logs give them, so either source
+    /// can follow the other. Nil for another account or a reading without them.
+    static func codexLimits(_ reading: Reading) -> AgentLimits? {
+        guard reading.provider == codexProvider, reading.unavailableReason == nil else { return nil }
+        let windows = reading.limits.windows.compactMap { window -> AgentLimitWindow? in
+            let minutes: Int
+            switch window.kind {
+            case .session: minutes = 300
+            case .weekly: minutes = 10_080
+            case .other: return nil
+            }
+            return AgentLimitWindow(id: "codex.\(minutes)", kind: window.kind, minutes: minutes, scope: nil,
+                                    usedPercent: window.usedPercent, resetsAt: window.resetsAt)
+        }
+        guard !windows.isEmpty else { return nil }
+        return AgentLimits(provider: .codex, windows: windows.sorted { ($0.minutes ?? .max) < ($1.minutes ?? .max) },
+                           observedAt: reading.limits.observedAt, source: .account)
     }
 
     static func parse(_ data: Data) -> Reading? {

@@ -18,6 +18,14 @@ final class AgentUsageStore {
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
     private var codexPlanObserved = Date.distantPast
+    /// What history no longer kept had counted of each harness total, by
+    /// total: a total read again counts only what it grew by since.
+    private var counterFloors: [String: AgentCounterAmount] = [:]
+    /// The accounts whose harness totals grew since `takeCounterGrowth`.
+    private var counterGrowth: Set<AgentProvider> = []
+    /// Keys of what harness totals gave start with this; a harness database
+    /// is read again at each launch, so none of it is saved.
+    static let counterPrefix = "counter\u{1E}"
     /// Open turns by log file.
     private(set) var turns: [String: AgentLiveSession] = [:]
     /// Turns gone quiet, by log file: not shown as working, but work that
@@ -61,9 +69,8 @@ final class AgentUsageStore {
         var events: [AgentUsageEvent] = []
         for entry in entries {
             switch entry {
-            case .usageSnapshot(let snapshot):
-                guard provider == .hermes else { continue }
-                replaceUsage(snapshot, source: file)
+            case .usageCounters(let counters):
+                countGrowth(counters, source: file)
             case .usage(let key, let record, let billable):
                 // Copilot exposes response activity and session-wide token
                 // totals, neither of which measures the current root task.
@@ -160,22 +167,64 @@ final class AgentUsageStore {
         return removed
     }
 
-    /// Replaces a database's cumulative session/model counters in one transaction.
-    /// They are not per-turn usage: charging them to the live turn would count its
-    /// entire session again. Rewinds, deletions and updated request counts replace
-    /// the old snapshot too. Profiles own independent sources, even with equal IDs.
-    private func replaceUsage(_ snapshot: [AgentUsageRecord], source: String) {
-        let positions = records.indices.filter { records[$0].provider == .hermes && sources[$0] == [source] }
-        guard positions.map({ records[$0] }) != snapshot else { return }
-        let removed = Set(positions)
-        keepRecords { !removed.contains($0) }
-        summary.invalidate()
-        for (offset, record) in snapshot.enumerated() {
-            index["hermes-snapshot:\(source):\(offset)"] = records.count
-            records.append(record)
-            billables.append(AgentBillable(tokens: record.tokens, isAggregate: true))
-            sources.append([source])
+    /// Counts what each running total a harness database holds grew by since
+    /// it was last read, dated by the total's last growth and given to the
+    /// account it was billed to. A total that went down, as when a session is
+    /// rewound, replaces what it had given; one gone from the database, as
+    /// when a session is deleted, takes it back. A first reading, at each
+    /// launch, counts each total whole at its last growth.
+    private func countGrowth(_ counters: [AgentUsageCounter], source: String) {
+        let prefix = Self.counterPrefix + source + "\u{1E}"
+        var counted: [String: (amount: AgentCounterAmount, positions: [Int], next: Int)] = [:]
+        for (key, position) in index where key.hasPrefix(prefix) {
+            guard let mark = key.lastIndex(of: "#") else { continue }
+            let total = String(key[..<mark])
+            var entry = counted[total] ?? (AgentCounterAmount(), [], 0)
+            entry.amount.add(records[position])
+            entry.positions.append(position)
+            entry.next = max(entry.next, (Int(key[key.index(after: mark)...]) ?? 0) + 1)
+            counted[total] = entry
         }
+        var read = Set<String>()
+        var stale = Set<Int>()
+        var grown: [(key: String, record: AgentUsageRecord, billable: AgentBillable)] = []
+        for counter in counters {
+            let total = prefix + counter.key
+            guard read.insert(total).inserted else { continue }
+            var base = counted[total]?.amount ?? AgentCounterAmount()
+            base.add(counterFloors[total] ?? AgentCounterAmount())
+            let whole = AgentCounterAmount(tokens: counter.record.tokens, requests: counter.record.requests)
+            var growth = whole.subtracting(base)
+            if growth == nil {
+                stale.formUnion(counted[total]?.positions ?? [])
+                counterFloors[total] = nil
+                growth = whole
+            }
+            guard let growth, !growth.isEmpty else { continue }
+            let billable = AgentBillable(tokens: growth.tokens, isAggregate: true)
+            let priced = AgentPricing.cost(billable, model: counter.record.model)
+            let record = AgentUsageRecord(provider: counter.record.provider, date: counter.record.date,
+                model: counter.record.model, project: counter.record.project, session: counter.record.session,
+                requests: growth.requests, tokens: growth.tokens, cost: priced.cost, savings: priced.savings)
+            grown.append(("\(total)#\(counted[total]?.next ?? 0)", record, billable))
+        }
+        for (total, entry) in counted where !read.contains(total) { stale.formUnion(entry.positions) }
+        counterFloors = counterFloors.filter { !$0.key.hasPrefix(prefix) || read.contains($0.key) }
+        if !stale.isEmpty { keepRecords { !stale.contains($0) } }
+        for item in grown {
+            summary.recordChanged(at: records.count, previous: nil)
+            index[item.key] = records.count
+            records.append(item.record)
+            billables.append(item.billable)
+            sources.append([source])
+            counterGrowth.insert(item.record.provider)
+        }
+    }
+
+    /// The accounts harness totals spent on since this was last asked.
+    func takeCounterGrowth() -> Set<AgentProvider> {
+        defer { counterGrowth = [] }
+        return counterGrowth
     }
 
     /// `source` is the log the response was read from; `file` names the log
@@ -284,7 +333,7 @@ final class AgentUsageStore {
     func reprice() {
         summary.invalidate()
         for position in records.indices {
-            guard !records[position].reportedCost, records[position].provider != .hermes else { continue }
+            guard !records[position].reportedCost else { continue }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
             // A zero OpenCode recorded for a model the list still does not
             // know stays that reply's cost.
@@ -412,7 +461,7 @@ final class AgentUsageStore {
     var saved: Saved {
         var keys = [String](repeating: "", count: records.count)
         for (key, position) in index { keys[position] = key }
-        let kept = records.indices.filter { !records[$0].provider.readsDatabase }.map {
+        let kept = records.indices.filter { !records[$0].provider.readsDatabase && !keys[$0].hasPrefix(Self.counterPrefix) }.map {
             Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
         }
         return Saved(records: kept,
@@ -435,9 +484,20 @@ final class AgentUsageStore {
         waiting = Dictionary(saved.waiting.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
     }
 
-    /// Keeps memory bounded to the history the island can show.
+    /// What `saved` keeps of the records.
+    var savedRecordCount: Int {
+        let counters = index.keys.reduce(0) { $1.hasPrefix(Self.counterPrefix) ? $0 + 1 : $0 }
+        return records.reduce(0) { $1.provider.readsDatabase ? $0 : $0 + 1 } - counters
+    }
+
+    /// Keeps memory bounded to the history the island can show. What harness
+    /// totals gave before then still counts as given.
     func dropRecords(before date: Date) {
         guard records.contains(where: { $0.date < date }) else { return }
+        for (key, position) in index where key.hasPrefix(Self.counterPrefix) && records[position].date < date {
+            guard let mark = key.lastIndex(of: "#") else { continue }
+            counterFloors[String(key[..<mark]), default: AgentCounterAmount()].add(records[position])
+        }
         keepRecords { records[$0].date >= date }
     }
 
@@ -447,6 +507,9 @@ final class AgentUsageStore {
     /// notice.
     func forget(files: Set<String>) {
         for file in files { forget(file: file) }
+        counterFloors = counterFloors.filter { entry in
+            !files.contains { entry.key.hasPrefix(Self.counterPrefix + $0 + "\u{1E}") }
+        }
         var emptied = false
         for position in sources.indices where sources[position].contains(where: files.contains) {
             sources[position].removeAll(where: files.contains)
