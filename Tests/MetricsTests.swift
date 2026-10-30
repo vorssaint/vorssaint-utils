@@ -36,6 +36,7 @@ struct MetricsTests {
                 PointerDisplayLookupContract.run(suite)
                 SuperKeyTapContract.run(suite)
                 PointerScreenContract.run(suite)
+                PointerHideTests.run(suite)
             }),
             ("scroll-modifier", {
                 ScrollHorizontalModifierTests.run(suite)
