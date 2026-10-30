@@ -115,6 +115,16 @@ final class AppSwitcher: ObservableObject {
     }
     private var wakeObserver: NSObjectProtocol?
     private var wakeRetry: DispatchWorkItem?
+    private var secureInputHotKeys: [UInt32: (ref: EventHotKeyRef, shortcut: GlobalShortcut)] = [:] {
+        didSet {
+            if coversSecureInput == secureInputHotKeys.isEmpty {
+                coversSecureInput = !secureInputHotKeys.isEmpty
+            }
+        }
+    }
+    @Published private(set) var coversSecureInput = false
+    private var secureInputHotKeyHandler: EventHandlerRef?
+    private static let secureInputHotKeySignature: OSType = 0x5655_5357
 
     /// The little state the tap thread needs to route an event without
     /// touching the main thread; mutated only under `routeLock`.
@@ -474,7 +484,7 @@ final class AppSwitcher: ObservableObject {
         SystemShortcutTakeover.setWanted(
             SwitcherSupport.nativeHotkeyIDs(
                 takeOverSystemShortcuts: takeOver,
-                secureInputEnabled: IsSecureEventInputEnabled(),
+                secureInputEnabled: IsSecureEventInputEnabled() && secureInputHotKeys.isEmpty,
                 appsShortcut: apps,
                 windowShortcut: windows,
                 allWindowsShortcut: allWindows,
@@ -517,16 +527,19 @@ final class AppSwitcher: ObservableObject {
     private func applyNativeHotkeySuppressionIfTapLive() {
         let canStart = routeLock.withLock { routeCanStartSession }
         guard isTapLive, canStart else { return }
+        updateSecureInputHotKeys()
         applyNativeHotkeySuppression()
     }
 
     private func restoreNativeHotkeys() {
+        unregisterSecureInputHotKeys()
         SystemShortcutTakeover.setWanted([], for: SystemShortcutTakeover.switcherSource)
     }
 
-    /// Secure Event Input stops every key from reaching the tap, so macOS gets
-    /// its keys back for as long as it lasts, and a session already open is
-    /// dropped: the release that would commit it can no longer arrive.
+    /// Secure Event Input stops every key press from reaching the tap, though
+    /// modifier changes still arrive. Carbon hotkeys stand in for the shortcut
+    /// keys while it lasts; if they cannot register, macOS gets its keys back
+    /// instead. A session already open is dropped either way.
     private func secureInputChanged(_ enabled: Bool) {
         guard enabled else {
             applyNativeHotkeySuppressionIfTapLive()
@@ -534,7 +547,78 @@ final class AppSwitcher: ObservableObject {
         }
         routeLock.withLock { routePendingSessionStart = nil }
         if sessionActive { cancelSession() }
-        restoreNativeHotkeys()
+        applyNativeHotkeySuppressionIfTapLive()
+        if secureInputHotKeys.isEmpty { restoreNativeHotkeys() }
+    }
+
+    private func updateSecureInputHotKeys() {
+        let wanted = routeLock.withLock { routeCanStartSession }
+            && UserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
+            && IsSecureEventInputEnabled()
+        guard wanted else {
+            unregisterSecureInputHotKeys()
+            return
+        }
+        let (apps, windows) = routeLock.withLock { (routeShortcut, routeWindowShortcut) }
+        let shortcuts = SwitcherSupport.secureInputHotKeyShortcuts(appsShortcut: apps,
+                                                                   windowShortcut: windows)
+        if !secureInputHotKeys.isEmpty,
+           Set(secureInputHotKeys.values.map(\.shortcut)) == Set(shortcuts) { return }
+        unregisterSecureInputHotKeys()
+        installSecureInputHotKeyHandler()
+        for (index, shortcut) in shortcuts.enumerated() {
+            let id = EventHotKeyID(signature: Self.secureInputHotKeySignature, id: UInt32(index + 1))
+            var ref: EventHotKeyRef?
+            guard RegisterEventHotKey(shortcut.carbonKeyCode, shortcut.carbonModifiers, id,
+                                      GetEventDispatcherTarget(), 0, &ref) == noErr,
+                  let ref
+            else {
+                unregisterSecureInputHotKeys()
+                return
+            }
+            secureInputHotKeys[id.id] = (ref, shortcut)
+        }
+    }
+
+    private func unregisterSecureInputHotKeys() {
+        for (ref, _) in secureInputHotKeys.values {
+            UnregisterEventHotKey(ref)
+        }
+        secureInputHotKeys.removeAll()
+    }
+
+    private func installSecureInputHotKeyHandler() {
+        guard secureInputHotKeyHandler == nil else { return }
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                                 eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetEventDispatcherTarget(), { _, event, userData -> OSStatus in
+            guard let userData, let event else { return OSStatus(eventNotHandledErr) }
+            var id = EventHotKeyID()
+            GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                              EventParamType(typeEventHotKeyID), nil,
+                              MemoryLayout<EventHotKeyID>.size, nil, &id)
+            guard id.signature == AppSwitcher.secureInputHotKeySignature else {
+                return OSStatus(eventNotHandledErr)
+            }
+            Unmanaged<AppSwitcher>.fromOpaque(userData).takeUnretainedValue()
+                .routeSecureInputHotKey(id: id.id)
+            return noErr
+        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &secureInputHotKeyHandler)
+    }
+
+    private func routeSecureInputHotKey(id: UInt32) {
+        guard let shortcut = secureInputHotKeys[id]?.shortcut,
+              IsSecureEventInputEnabled(),
+              let runLoop = lifecycleLock.withLock({ shouldStopTapThread ? nil : tapRunLoop }),
+              let event = CGEvent(keyboardEventSource: nil,
+                                  virtualKey: CGKeyCode(shortcut.keyCode),
+                                  keyDown: true)
+        else { return }
+        event.flags = shortcut.syntheticEventFlags
+        CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) { [weak self] in
+            _ = self?.route(type: .keyDown, event: event)
+        }
+        CFRunLoopWakeUp(runLoop)
     }
 
     private func clearEventTapThread() -> Bool {
