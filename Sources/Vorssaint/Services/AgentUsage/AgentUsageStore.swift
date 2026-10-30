@@ -476,7 +476,8 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.cursor, ".cursor/projects"),
+         (.copilot, ".copilot/session-state")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -500,6 +501,9 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
+        // A Cursor transcript lives under the project folder's
+        // `agent-transcripts`, never elsewhere inside `projects`.
+        if provider == .cursor { return path.contains("/agent-transcripts/") }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
@@ -555,7 +559,7 @@ final class AgentLogCursor {
     let provider: AgentProvider
     /// Subagents report to a turn another file tracks.
     var tracksTurns: Bool {
-        provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
+        provider == .claude || provider == .cursor ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
     }
     /// The session log a Claude subagent works for.
     let parent: String?
@@ -579,7 +583,13 @@ final class AgentLogCursor {
     init(path: String, provider: AgentProvider) {
         self.path = path
         self.provider = provider
-        let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
+        // A Cursor transcript names its session in the file, and the project
+        // it ran in in the folder it sits under: no line says either.
+        if provider == .cursor {
+            state.session = AgentLogParser.native(((path as NSString).lastPathComponent as NSString).deletingPathExtension)
+            state.project = AgentLogParser.cursorProject(from: path)
+        }
+        let parent = provider == .claude || provider == .cursor ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
     }
 
