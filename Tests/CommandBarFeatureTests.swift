@@ -2853,6 +2853,9 @@ enum CommandBarInputSourceContract {
         static func currentReading() -> ProductionInputSourceSelection.Reading? {
             .init(id: current, code: current.uppercased(), name: current)
         }
+        static func allReadings() -> [ProductionInputSourceSelection.Reading] {
+            [.init(id: "original", code: "ORIGINAL", name: "original"), .init(id: "ascii", code: "ASCII", name: "ascii")]
+        }
         static func snapshots() -> [ProductionInputSourceSelection.Snapshot] {
             [.init(id: "original", isLayout: true, isASCIICapable: false),
              .init(id: "ascii", isLayout: true, isASCIICapable: true)]

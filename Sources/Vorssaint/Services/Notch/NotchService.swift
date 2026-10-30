@@ -22,6 +22,18 @@ struct NotchNotice: Equatable {
     /// A banner that replaces one still on screen keeps at least its wings,
     /// so a burst of messages does not resize the island with each one.
     var minimumWings = NotchNoticeWings.zero
+    /// A selector's options, as short codes, with the one in use marked. Set
+    /// only when there is more than one to choose from.
+    var choices: [String] = []
+    var selectedChoice = 0
+
+    static let choiceFont = NSFont.systemFont(ofSize: 10, weight: .semibold)
+    static let choicePadding: CGFloat = 5
+    static let choiceSpacing: CGFloat = 2
+
+    static func choiceWidth(_ code: String) -> CGFloat {
+        ceil((code as NSString).size(withAttributes: [.font: choiceFont]).width) + choicePadding * 2
+    }
 
     /// Each side as wide as what it shows, so neither ends in a band of
     /// empty black: the island reaches further toward its wider side.
@@ -55,6 +67,10 @@ struct NotchNotice: Equatable {
         // An empty title leaves the mark alone, without the space after it.
         let mark = fitted(leading > 0 ? leading + 18 + 8 : 18)
         guard level == nil else { return NotchNoticeWings(leading: mark, trailing: mark) }
+        if !choices.isEmpty {
+            let row = choices.map(Self.choiceWidth).reduce(0, +) + Self.choiceSpacing * CGFloat(choices.count - 1)
+            return NotchNoticeWings(leading: mark, trailing: fitted(row))
+        }
         return NotchNoticeWings(leading: mark, trailing: fitted((detail as NSString).size(withAttributes: [.font: font]).width))
     }
 
@@ -4386,7 +4402,13 @@ final class NotchService: ObservableObject {
         guard !isOwnSwitch else { return }
         // Like the volume reading, the code takes the value's place and the
         // source's own name stands where the meter would.
-        show(NotchNotice(event: .inputSource, title: reading.code, detail: reading.name, symbol: "keyboard"))
+        var notice = NotchNotice(event: .inputSource, title: reading.code, detail: reading.name, symbol: "keyboard")
+        let all = InputSourceSelection.allReadings()
+        if all.count > 1, let index = all.firstIndex(where: { $0.id == reading.id }) {
+            notice.choices = all.map(\.code)
+            notice.selectedChoice = index
+        }
+        show(notice)
     }
 
     private func startPower() {
