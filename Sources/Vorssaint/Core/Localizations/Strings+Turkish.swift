@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "“Kapak kapalıyken devam et”, “Uyanık tut” etkinken uykuyu tamamen kapatır ve oturum bittiğinde veya uygulama kapandığında otomatik geri alınır. Güce bağlıyken kullanman önerilir.",
         dimScreenOnLidCloseTitle: "Ekranı tamamen karart",
         dimScreenOnLidCloseCaption: "Kapak kapandığında ekranı karartır, açıldığında parlaklığı geri getirir.",
+        clamshellBatteryLimitTitle: "Pilde şu süreden sonra uyu",
+        clamshellBatteryLimitCaption: "Kapak kapalıyken ve güç yokken, Mac’in uyuyabilmesi için oturumu bu süreden sonra sonlandırır.",
 
         scrollSection: "Kaydırma",
         invertMouseScroll: "Fare kaydırmasını ters çevir",

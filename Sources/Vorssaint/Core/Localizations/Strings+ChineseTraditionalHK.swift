@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "「合上機蓋後繼續運作」會在「保持喚醒」啟用期間完全停用睡眠，並在時段結束或 App 結束時自動恢復。建議在連接電源時使用。",
         dimScreenOnLidCloseTitle: "將螢幕完全調暗",
         dimScreenOnLidCloseCaption: "合上機蓋時調暗畫面，打開時恢復亮度。",
+        clamshellBatteryLimitTitle: "使用電池時睡眠前等待",
+        clamshellBatteryLimitCaption: "合上機蓋且未接電源時，在此時間後結束工作階段，讓 Mac 進入睡眠。",
 
         scrollSection: "捲動",
         invertMouseScroll: "反轉滑鼠捲動",

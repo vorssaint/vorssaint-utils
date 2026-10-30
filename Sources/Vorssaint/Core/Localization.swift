@@ -326,6 +326,8 @@ struct Strings {
     let clamshellExplanation: String
     let dimScreenOnLidCloseTitle: String
     let dimScreenOnLidCloseCaption: String
+    let clamshellBatteryLimitTitle: String
+    let clamshellBatteryLimitCaption: String
 
     // MARK: Settings — mouse
     let scrollSection: String
@@ -1485,6 +1487,8 @@ extension Strings {
         clamshellExplanation: "“Continuar com a tampa fechada” desativa completamente a suspensão enquanto “Manter acordado” estiver ativo e é revertido automaticamente quando a sessão termina ou o app é encerrado. Prefira usá-lo conectado à energia.",
         dimScreenOnLidCloseTitle: "Escurecer a tela completamente",
         dimScreenOnLidCloseCaption: "Escurece a tela quando a tampa fecha e restaura o brilho quando ela abre.",
+        clamshellBatteryLimitTitle: "Suspender na bateria após",
+        clamshellBatteryLimitCaption: "Com a tampa fechada e sem energia, encerra a sessão após esse tempo para que o Mac possa suspender.",
 
         scrollSection: "Rolagem",
         invertMouseScroll: "Inverter rolagem do mouse",
@@ -2603,6 +2607,8 @@ extension Strings {
         clamshellExplanation: "“Keep going with the lid closed” fully disables sleep while “Keep awake” is active and is reverted automatically when the session ends or the app quits. Prefer using it plugged in.",
         dimScreenOnLidCloseTitle: "Dim the display to zero",
         dimScreenOnLidCloseCaption: "Dims the display when the lid closes and brings the brightness back when it opens.",
+        clamshellBatteryLimitTitle: "Sleep on battery after",
+        clamshellBatteryLimitCaption: "With the lid closed and no power, ends the session after this long so the Mac can sleep.",
 
         scrollSection: "Scrolling",
         invertMouseScroll: "Invert mouse scrolling",
