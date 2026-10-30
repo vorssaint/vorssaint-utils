@@ -2675,6 +2675,34 @@ enum NotchTests {
                 }
             }
         }
+        let overfull = NotchQuickAccessSide.allCases.flatMap { side in
+            (0..<8).map { _ in NotchQuickButton(action: .settings, side: side) }
+        }
+        let trimmed = NotchQuickAccessConfiguration(buttons: overfull).sanitized()
+        suite.expect(trimmed.buttons.filter { $0.side == .bottom }.count == 6
+                     && trimmed.buttons.filter { $0.side == .left }.count == 3
+                     && trimmed.buttons.filter { $0.side == .right }.count == 3,
+                     "the row below holds six buttons while each side column keeps three")
+        suite.expect(!trimmed.hasRoom(on: .bottom)
+                     && NotchQuickAccessConfiguration(buttons: Array(trimmed.buttons.filter { $0.side == .bottom }.prefix(5))).hasRoom(on: .bottom),
+                     "the row below has room until its sixth button")
+        var filling = NotchQuickAccessConfiguration(buttons: (0..<3).map { _ in NotchQuickButton(action: .settings, side: .bottom) })
+        let fourth = NotchQuickButton(action: .control(.panel), side: .left)
+        filling.buttons.append(fourth)
+        filling.move(fourth.id, to: .bottom)
+        suite.expect(filling.buttons.first(where: { $0.id == fourth.id })?.side == .bottom,
+                     "a button can move into a row below that already holds three")
+        // The narrowest page: its natural width, before the island's insets.
+        let narrowest = CGRect(x: 72, y: 0, width: NotchLayout.musicContentWidth, height: 190)
+        let row = NotchQuickAccessLayout.placements(trimmed, body: narrowest, headerTop: 61).filter { $0.side == .bottom }
+        let centers = row.map { $0.center(progress: 1) }
+        suite.expect(centers.first!.x - NotchQuickAccessLayout.diameter / 2 >= narrowest.minX
+                     && centers.last!.x + NotchQuickAccessLayout.diameter / 2 <= narrowest.maxX,
+                     "a full row below stays within the narrowest island")
+        let rowHover = NotchQuickAccessLayout.hoverRect(count: row.count, edge: row[0].edge, top: row[0].top, side: .bottom)
+        suite.expect(centers.allSatisfy { rowHover.contains($0) }
+                     && centers.allSatisfy { NotchQuickAccessLayout.hitTest($0, count: row.count, edge: row[0].edge, top: row[0].top, side: .bottom) },
+                     "hover and clicks reach every button of a full row below")
         // Two on the left and three on the right, beside a short page.
         let uneven = NotchQuickAccessConfiguration(buttons:
             [NotchQuickAccessSide.left, .left, .right, .right, .right].map { NotchQuickButton(action: .settings, side: $0) })
@@ -2697,7 +2725,7 @@ enum NotchTests {
                "moving a button preserves its identity and inserts it in the chosen order")
         let crowded = NotchQuickAccessConfiguration(buttons: (0..<12).map { _ in NotchQuickButton(action: .settings, side: .bottom) })
         defaults.set(crowded.encoded, forKey: DefaultsKey.notchQuickAccessLayout)
-        suite.expect(crowded.sanitized().buttons.count == 3 && NotchQuickAccessConfiguration.current(in: defaults).buttons.count == 3,
+        suite.expect(crowded.sanitized().buttons.count == 6 && NotchQuickAccessConfiguration.current(in: defaults).buttons.count == 6,
                "restored layouts cannot overfill an edge")
         var invalidButton = NotchQuickButton(action: .settings, side: .left, label: "  Name\nwith line  ")
         invalidButton.actionID = "unrecognized-action"
