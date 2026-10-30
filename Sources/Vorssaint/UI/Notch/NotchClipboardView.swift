@@ -29,6 +29,9 @@ struct NotchClipboardView: View {
     @AppStorage(DefaultsKey.notchClipboardCardSize) private var cardSize = NotchClipboardCardSize.comfortable.rawValue
     /// The entry under the pointer, and the one it has rested on long enough to open.
     @State private var hoveredID: UUID?
+    /// Filtering may move a new row under a stationary pointer. Typing keeps
+    /// Space until the pointer actually moves again.
+    @State private var searchPointerLocation: CGPoint?
     @State private var expandedID: UUID?
     /// The entry the pointer rests on until it opens, and the open entry the
     /// pointer left until it closes.
@@ -144,7 +147,11 @@ struct NotchClipboardView: View {
         .onDisappear {
             dwell?.task.cancel()
             closing?.task.cancel()
-            if !preview { service.setPageLayer(.clipboard, close: nil) }
+            hoveredID = nil
+            if !preview {
+                service.setClipboardPagePointerInside(false)
+                service.setPageLayer(.clipboard, close: nil)
+            }
         }
         // A row that leaves the list hands the highlight on, as a new search does.
         .onChange(of: entries.map(\.id)) { _, _ in highlightedID = searchHighlight(keeping: highlightedID) }
@@ -202,6 +209,9 @@ struct NotchClipboardView: View {
     /// that reaches the hidden field, pasted into it too, shows it.
     private func queryChanged(_ query: String) {
         keysMoved = false
+        // Typing takes ownership back from a pointer left over the list.
+        hoveredID = nil
+        searchPointerLocation = NSEvent.mouseLocation
         highlightedID = searchHighlight(keeping: nil)
         if !query.isEmpty { searchOpen = true }
     }
@@ -231,7 +241,12 @@ struct NotchClipboardView: View {
             if open { openCard(entry, place: place) }
         }
         // One region for the row and the entry open over it, drawn above the rows it covers.
-        .onHover { hover(entry, $0) }
+        .onContinuousHover { phase in
+            switch phase {
+            case .active: hover(entry, true)
+            case .ended: hover(entry, false)
+            }
+        }
         .zIndex(open ? 1 : 0)
     }
 
@@ -297,8 +312,17 @@ struct NotchClipboardView: View {
     /// A compact entry opens once the pointer has rested on it and closes a
     /// moment after the pointer leaves it. Only coming back to that entry
     /// keeps it open; resting on another one or leaving the list closes it.
-    private func hover(_ entry: ClipboardHistoryEntry, _ inside: Bool) {
-        guard !preview, !comfortable else { return }
+    private func hover(_ entry: ClipboardHistoryEntry, _ inside: Bool, at point: CGPoint = NSEvent.mouseLocation) {
+        guard !preview else { return }
+        if inside {
+            guard searchPointerLocation != point else { return }
+            searchPointerLocation = nil
+            guard hoveredID != entry.id else { return }
+            hoveredID = entry.id
+        }
+        else if hoveredID == entry.id { hoveredID = nil }
+        // Both card sizes track the preview target; only compact cards expand.
+        guard !comfortable else { return }
         if inside {
             if closing?.id == entry.id {
                 closing?.task.cancel()
@@ -306,7 +330,6 @@ struct NotchClipboardView: View {
             }
             dwell?.task.cancel()
             dwell = nil
-            hoveredID = entry.id
             guard expandedID != entry.id else { return }
             dwell = (entry.id, Task { @MainActor in
                 try? await Task.sleep(for: .seconds(NotchClipboardCardSize.dwell))
@@ -318,7 +341,6 @@ struct NotchClipboardView: View {
                 dwell?.task.cancel()
                 dwell = nil
             }
-            if hoveredID == entry.id { hoveredID = nil }
             guard expandedID == entry.id else { return }
             closing?.task.cancel()
             closing = (entry.id, Task { @MainActor in
@@ -371,6 +393,7 @@ struct NotchClipboardView: View {
             }
             .clipped()
             .contextMenu { actions(entry) }
+            .accessibilityAction(named: Text(text.previewLabel)) { history.previewEntry(entry) }
             .accessibilityAction(named: Text(text.moveUp)) { move(entry, .up) }
             .accessibilityAction(named: Text(text.moveDown)) { move(entry, .down) }
     }
@@ -470,13 +493,14 @@ struct NotchClipboardView: View {
         .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 4)
     }
 
-    /// The quick panel's row menu: paste when the app may type, copy, pin,
+    /// The quick panel's row menu: paste when the app may type, copy, preview, pin,
     /// move within the list and delete.
     @ViewBuilder private func actions(_ entry: ClipboardHistoryEntry) -> some View {
         if permissions.accessibility {
             Button(l10n.s.menuPaste) { paste(entry) }
         }
         Button(text.copy) { copy(entry) }
+        Button(text.previewLabel) { history.previewEntry(entry) }
         Divider()
         Button(entry.isPinned ? text.unpin : text.pin) { history.togglePin(entry) }
         Button(text.moveUp) { move(entry, .up) }
@@ -533,15 +557,19 @@ struct NotchClipboardView: View {
         searching = true
     }
 
-    /// Up/Control-P and Down/Control-N move the highlight. Return pastes or
-    /// copies it like a click. A typed letter shows the search field and goes on to it.
+    /// Up/Control-P and Down/Control-N move the highlight, Return pastes or
+    /// copies it, and Space previews the hovered entry or keyboard highlight.
+    /// A visible search keeps its spaces until the pointer or navigation moves
+    /// into the list. A typed letter shows the field and goes on to it.
     private func handleKey(_ event: NSEvent, composing: Bool, editing: Bool) -> Bool {
         // Control produces control characters; match its shortcuts by the
         // layout's letter, while ordinary typing keeps the original text.
         let characters = event.modifierFlags.contains(.control) ? event.charactersIgnoringModifiers : event.characters
-        guard let key = NotchSupport.clipboardKey(keyCode: event.keyCode, characters: characters ?? "",
-                                                  modifiers: event.modifierFlags, composing: composing) else { return false }
         let ids = entries.map(\.id)
+        let hovered = hoveredID.flatMap { ids.contains($0) ? $0 : nil }
+        guard let key = NotchSupport.clipboardKey(keyCode: event.keyCode, characters: characters ?? "",
+                                                  modifiers: event.modifierFlags, composing: composing,
+                                                  previewOnSpace: !searchOpen || keysMoved || hovered != nil) else { return false }
         switch key {
         case .move(let backwards):
             guard !ids.isEmpty else { return false }
@@ -552,6 +580,12 @@ struct NotchClipboardView: View {
             guard let id = NotchSupport.clipboardPasteTarget(highlighted: highlightedID, in: ids),
                   let entry = entries.first(where: { $0.id == id }) else { return false }
             activate(entry)
+            return true
+        case .preview:
+            guard !event.isARepeat else { return true }
+            guard let id = hovered ?? NotchSupport.clipboardPasteTarget(highlighted: highlightedID, in: ids),
+                  let entry = entries.first(where: { $0.id == id }) else { return false }
+            history.previewEntry(entry)
             return true
         case .reveal:
             searchOpen = true
@@ -663,7 +697,7 @@ struct NotchClipboardView: View {
     }
 }
 
-/// Reads the arrows, Control-P/N and Return before the search field's editor,
+/// Reads arrows, Control-P/N, Return and preview Space before the search field's editor,
 /// which would otherwise spend them moving the caret, and shows the hidden
 /// field as typing reaches it. It lives as long as the page does.
 private struct ClipboardKeyMonitor: NSViewRepresentable {

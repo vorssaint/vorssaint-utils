@@ -1174,6 +1174,11 @@ enum ClipboardHistorySensitiveText {
 
 enum ClipboardHistoryImageSupport {
     static func editorImage(for entry: ClipboardHistoryEntry, directory: URL) -> NSImage? {
+        if entry.kind == .files, entry.filePaths.count == 1,
+           let path = entry.filePaths.first, (path as NSString).isAbsolutePath,
+           isImageFilePath(path) {
+            return NSImage(contentsOfFile: path)
+        }
         guard entry.kind == .image, let name = entry.imageFile,
               !name.isEmpty, (name as NSString).lastPathComponent == name
         else { return nil }

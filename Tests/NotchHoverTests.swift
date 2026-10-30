@@ -88,6 +88,7 @@ enum NotchHoverTests {
         }
     }
     class State {
+        func setClipboardPagePointerInside(_ inside: Bool) {}
         var noticeFitsInPlace = false
         func schedulePointerFollow() {}
         var hiddenInFullscreen = false

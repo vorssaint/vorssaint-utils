@@ -13,6 +13,7 @@ struct ClipboardEntryPreviewSidebar: View {
     var entry: ClipboardHistoryEntry?
     @Binding var isEditing: Bool
     var onClose: () -> Void
+    var allowsEditing = true
     @State private var draft = ""
     @State private var editingEntryID: UUID?
     /// Laid out off the main thread for the entry it was made from.
@@ -286,7 +287,7 @@ struct ClipboardEntryPreviewSidebar: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!ClipboardHistoryEditing.canSave(original: entry.text, draft: draft))
             } else {
-                if entry.kind == .text {
+                if entry.kind == .text, allowsEditing {
                     Button(text.edit) {
                         beginEditing(entry)
                     }

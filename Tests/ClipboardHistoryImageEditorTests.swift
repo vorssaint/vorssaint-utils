@@ -35,9 +35,11 @@ struct ClipboardHistoryImageEditorTests {
         typealias ScreenshotSelectionController = ClipboardHistoryImageEditorTests.ScreenshotSelectionController
         static let shared = ScreenshotService()
         var capture: ScreenshotSelectionController.Capture?
+        var clipboardImage = false
         var openedOnMain = false
-        func openEditor(with capture: ScreenshotSelectionController.Capture) {
+        func openEditor(with capture: ScreenshotSelectionController.Capture, clipboardImage: Bool = false) {
             self.capture = capture
+            self.clipboardImage = clipboardImage
             openedOnMain = Thread.isMainThread
         }
     }
@@ -77,6 +79,12 @@ struct ClipboardHistoryImageEditorTests {
                          "stored image uses the shared editor conversion and no screen anchor")
             suite.expect(host.hidden && ScreenshotService.shared.openedOnMain,
                          "history dismisses and presents the editor on the main thread")
+            suite.expect(ScreenshotService.shared.clipboardImage,
+                         "clipboard editing uses width fit and preserves the original image quality")
+            let imageFile = ClipboardHistoryEntry(text: "", kind: .files,
+                                                  filePaths: [directory.appendingPathComponent("older.png").path])
+            suite.expect(ClipboardHistoryImageSupport.editorImage(for: imageFile, directory: directory) != nil,
+                         "a single copied image file opens its original pixels in the preview")
             let image = ClipboardHistoryImageSupport.editorImage(for: entry, directory: directory)
             var rect = CGRect(origin: .zero, size: image?.size ?? .zero)
             let original = image?.cgImage(forProposedRect: &rect, context: nil, hints: nil)

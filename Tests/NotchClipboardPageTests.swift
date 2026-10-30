@@ -126,10 +126,10 @@ enum NotchClipboardPageTests {
                      "a highlight that moves brings its clipboard entry into view the least the list can")
 
         func key(_ code: UInt16, _ characters: String, _ modifiers: NSEvent.ModifierFlags = [],
-                 unmodified: String? = nil) -> NSEvent {
+                 unmodified: String? = nil, repeating: Bool = false) -> NSEvent {
             NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
                              windowNumber: 0, context: nil, characters: characters,
-                             charactersIgnoringModifiers: unmodified ?? characters, isARepeat: false, keyCode: code)!
+                             charactersIgnoringModifiers: unmodified ?? characters, isARepeat: repeating, keyCode: code)!
         }
         let keys = Page()
         keys.entries = [first, second]
@@ -196,6 +196,10 @@ enum NotchClipboardPageTests {
                                               composing: false, editing: true)
                          && navigation.query == query && navigation.searchOpen == searchOpen,
                          "unrelated Control shortcuts keep editing the search without changing its visibility")
+            suite.expect(navigation.handleKey(next, composing: false, editing: true)
+                         && navigation.handleKey(key(49, " "), composing: false, editing: true)
+                         && navigation.history.previewed == [second.id] && navigation.query == query,
+                         "Space previews the entry selected by Control navigation without changing the search")
             suite.expect(navigation.handleKey(key(36, "\r"), composing: false, editing: true)
                          && navigation.activated == [second.id],
                          "Return pastes the entry selected by Control navigation")
@@ -213,6 +217,212 @@ enum NotchClipboardPageTests {
         unfocused.searchOpen = false
         unfocused.openSearch()
         suite.expect(unfocused.searchOpen && unfocused.searching, "the magnifier shows the clipboard search with the focus in it")
+
+        let quickLook = Page()
+        quickLook.entries = [first, second]
+        quickLook.appeared()
+        suite.expect(quickLook.handleKey(key(49, " ", []), composing: false, editing: true)
+                     && quickLook.history.previewed == [first.id] && quickLook.activated.isEmpty && !quickLook.searchOpen,
+                     "Space on the newly opened clipboard page previews its current entry without pasting or starting search")
+        suite.expect(quickLook.handleKey(key(49, " ", [], repeating: true), composing: false, editing: true)
+                     && quickLook.history.previewed == [first.id] && quickLook.highlightedID == first.id,
+                     "holding preview Space does not decode or open another popup or move the clipboard selection")
+        quickLook.openSearch()
+        suite.expect(!quickLook.handleKey(key(49, " ", []), composing: false, editing: true)
+                     && quickLook.history.previewed == [first.id],
+                     "an opened clipboard search keeps its typed spaces")
+        suite.expect(!quickLook.handleKey(key(49, " ", [], repeating: true), composing: false, editing: true),
+                     "holding Space while typing in the clipboard search still inserts its spaces")
+        _ = quickLook.handleKey(key(125, "\u{F701}", []), composing: false, editing: true)
+        suite.expect(quickLook.handleKey(key(49, " ", []), composing: false, editing: true)
+                     && quickLook.history.previewed == [first.id, second.id],
+                     "Space after arrow navigation previews the highlighted clipboard search result")
+        quickLook.query = "two words"
+        quickLook.queryChanged(quickLook.query)
+        suite.expect(!quickLook.handleKey(key(49, " ", []), composing: false, editing: true)
+                     && quickLook.history.previewed == [first.id, second.id],
+                     "typing after clipboard navigation returns Space to the search field")
+        quickLook.closeSearch()
+        for modifiers in [NSEvent.ModifierFlags.command, .control, .option, .shift, .function] {
+            suite.expect(!quickLook.handleKey(key(49, " ", modifiers), composing: false, editing: true),
+                         "modified Space keeps its system or text editing shortcut on the clipboard page")
+        }
+        suite.expect(!quickLook.handleKey(key(49, " ", []), composing: true, editing: true)
+                     && quickLook.history.previewed == [first.id, second.id],
+                     "Space while an input method composes stays with the clipboard search")
+        quickLook.closeSearch()
+        quickLook.highlightedID = UUID()
+        suite.expect(quickLook.handleKey(key(49, " ", []), composing: false, editing: true)
+                     && quickLook.history.previewed.last == first.id,
+                     "clipboard preview recovers a removed highlight with the first visible entry, as paste does")
+        quickLook.entries = []
+        suite.expect(!quickLook.handleKey(key(49, " ", []), composing: false, editing: true),
+                     "Space leaves an empty clipboard list without opening a stale preview")
+
+        for cardSize in [NotchClipboardCardSize.compact, .comfortable] {
+            let pointerPreview = Page()
+            pointerPreview.cardSize = cardSize.rawValue
+            pointerPreview.entries = [first, second]
+            pointerPreview.appeared()
+            pointerPreview.hover(second, true)
+            suite.expect(pointerPreview.hoveredID == second.id
+                         && pointerPreview.handleKey(key(49, " ", []), composing: false, editing: true)
+                         && pointerPreview.history.previewed == [second.id]
+                         && pointerPreview.highlightedID == first.id,
+                         "Space previews the hovered \(cardSize.rawValue) card ahead of the keyboard highlight")
+            pointerPreview.hover(first, true)
+            pointerPreview.hover(second, false)
+            suite.expect(pointerPreview.hoveredID == first.id,
+                         "a late exit from the previous card preserves the new hover preview target")
+            pointerPreview.hover(first, false)
+            suite.expect(pointerPreview.handleKey(key(49, " ", []), composing: false, editing: true)
+                         && pointerPreview.history.previewed == [second.id, first.id],
+                         "Space falls back to the keyboard selection after leaving the clipboard cards")
+            pointerPreview.openSearch()
+            pointerPreview.hover(second, true)
+            suite.expect(pointerPreview.handleKey(key(49, " ", []), composing: false, editing: true)
+                         && pointerPreview.history.previewed.last == second.id,
+                         "hovering a visible search result gives Space to that result without requiring arrow navigation")
+            pointerPreview.queryChanged("two words")
+            pointerPreview.hover(second, true, at: pointerPreview.searchPointerLocation!)
+            suite.expect(pointerPreview.hoveredID == nil
+                         && !pointerPreview.handleKey(key(49, " ", []), composing: false, editing: true),
+                         "typing keeps search spaces when filtering moves a result under the stationary pointer")
+            let stationary = pointerPreview.searchPointerLocation!
+            pointerPreview.hover(second, true, at: CGPoint(x: stationary.x + 1, y: stationary.y))
+            suite.expect(pointerPreview.handleKey(key(49, " ", []), composing: false, editing: true)
+                         && pointerPreview.history.previewed.last == second.id,
+                         "moving the pointer over a filtered result restores its preview without requiring a row exit")
+            pointerPreview.closeSearch()
+            pointerPreview.highlightedID = second.id
+            pointerPreview.hoveredID = UUID()
+            suite.expect(pointerPreview.handleKey(key(49, " ", []), composing: false, editing: true)
+                         && pointerPreview.history.previewed.last == second.id,
+                         "a removed hover target falls back to the valid keyboard highlight instead of another row")
+            if cardSize == .comfortable {
+                suite.expect(pointerPreview.dwell == nil && pointerPreview.expandedID == nil,
+                             "comfortable hover targeting does not start compact-card expansion")
+            }
+            finish(pointerPreview)
+        }
+        let settingsHover = Page()
+        settingsHover.preview = true
+        settingsHover.hover(first, true)
+        suite.expect(settingsHover.hoveredID == nil && settingsHover.dwell == nil,
+                     "the Settings clipboard mockup does not acquire a hover preview target")
+
+        let focus = HoverFocus()
+        focus.setClipboardPagePointerInside(false)
+        suite.expect(focus.panel?.claims == 0 && focus.resignations == 0,
+                     "an unopened clipboard hover region leaves the active application's keyboard alone")
+        focus.setClipboardPagePointerInside(true)
+        focus.setClipboardPagePointerInside(true)
+        suite.expect(focus.panel?.claims == 1 && focus.panel?.isKeyWindow == true && focus.clipboardHoverHasKey,
+                     "entering the hover-opened clipboard page gives real keys to its local monitor once")
+        focus.setClipboardPagePointerInside(false)
+        suite.expect(focus.resignations == 1 && focus.panel?.isKeyWindow == false && !focus.clipboardHoverHasKey,
+                     "leaving the clipboard cards immediately returns borrowed keyboard focus before delayed collapse")
+        focus.setClipboardPagePointerInside(true)
+        focus.panel?.isKeyWindow = false
+        focus.setClipboardPagePointerInside(false)
+        suite.expect(focus.resignations == 1 && !focus.clipboardHoverHasKey,
+                     "a clipboard page disappearing behind its popup leaves the popup's keyboard focus alone")
+        let clickedFocus = HoverFocus()
+        clickedFocus.setClipboardPagePointerInside(true)
+        clickedFocus.clickedSinceOpening = true
+        clickedFocus.setClipboardPagePointerInside(false)
+        suite.expect(clickedFocus.panel?.isKeyWindow == true && clickedFocus.resignations == 0,
+                     "a click makes the clipboard's focus explicit, so pointer movement does not interrupt typing")
+        let alreadyFocused = HoverFocus()
+        alreadyFocused.panel?.isKeyWindow = true
+        alreadyFocused.setClipboardPagePointerInside(true)
+        alreadyFocused.setClipboardPagePointerInside(false)
+        suite.expect(alreadyFocused.panel?.claims == 0 && alreadyFocused.resignations == 0,
+                     "clipboard hover does not borrow or release focus the island already owns")
+        let excluded: [(HoverFocus) -> Void] = [
+            { $0.openedByHover = false }, { $0.expanded = false }, { $0.selected = .controls },
+            { $0.showingAppPanel = true }, { $0.showingSections = true }, { $0.showingCommandBar = true },
+            { $0.selectedMetric = 1 }, { $0.captureControls = 1 }, { $0.panel = nil }
+        ]
+        for change in excluded {
+            let other = HoverFocus()
+            change(other)
+            other.setClipboardPagePointerInside(true)
+            suite.expect(!other.clipboardHoverHasKey && (other.panel?.claims ?? 0) == 0,
+                         "hover focus is limited to the clipboard page, outside details, capture controls and explicit openings")
+        }
+
+        let attached = HoverFocus()
+        let popup = HoverFocus.Panel()
+        var closed = 0
+        let scheduledClose = DispatchWorkItem {}
+        attached.hoverWork = scheduledClose
+        suite.expect(attached.attachClipboardPreview(popup, close: {
+            closed += 1
+            attached.detachClipboardPreview(popup)
+        }) && popup.parent === attached.panel && attached.panel?.children.count == 1
+                     && attached.clipboardPreviewWindow === popup && scheduledClose.isCancelled,
+                     "the enlarged clipboard preview attaches above its island and cancels a pending hover dismissal")
+        attached.setClipboardPagePointerInside(true)
+        suite.expect(attached.panel?.claims == 0,
+                     "moving back over the island leaves keyboard focus with its attached preview")
+        suite.expect(attached.attachClipboardPreview(popup, close: {
+            closed += 1
+            attached.detachClipboardPreview(popup)
+        }) && attached.panel?.children.count == 1 && closed == 0,
+                     "showing the same clipboard preview again keeps a single child window")
+        attached.windowHost?.pointerInside = true
+        attached.detachClipboardPreview(popup)
+        suite.expect(popup.parent == nil && attached.panel?.children.isEmpty == true
+                     && attached.clipboardPreviewClose == nil && attached.panel?.claims == 1 && closed == 0,
+                     "closing an attached preview returns focus to the expanded clipboard page and clears its ownership")
+        suite.expect(attached.clipboardHoverHasKey,
+                     "returning preview focus to a hover-opened island rearms its pointer-limited keyboard ownership")
+        attached.setClipboardPagePointerInside(false)
+        suite.expect(attached.resignations == 1 && attached.panel?.isKeyWindow == false && !attached.clipboardHoverHasKey,
+                     "leaving the island after closing its preview immediately returns borrowed keyboard focus")
+        _ = attached.attachClipboardPreview(popup) {
+            closed += 1
+            attached.detachClipboardPreview(popup)
+        }
+        attached.closeClipboardPreview()
+        suite.expect(closed == 1 && popup.parent == nil && attached.clipboardPreviewWindow == nil
+                     && attached.panel?.claims == 1,
+                     "dismissing the island closes its child once without reentrant detach restoring the keyboard")
+        let replacement = HoverFocus.Panel()
+        _ = attached.attachClipboardPreview(popup) {
+            closed += 1
+            attached.detachClipboardPreview(popup)
+        }
+        _ = attached.attachClipboardPreview(replacement) {}
+        suite.expect(closed == 2 && popup.parent == nil && replacement.parent === attached.panel
+                     && attached.panel?.children.count == 1,
+                     "another clipboard preview replaces the previous child without leaving an orphan")
+        attached.closeClipboardPreview()
+        let departed = HoverFocus()
+        let departedPopup = HoverFocus.Panel()
+        _ = departed.attachClipboardPreview(departedPopup, close: {})
+        departed.detachClipboardPreview(departedPopup)
+        suite.expect(departed.panel?.claims == 0 && departed.resignations == 1 && departed.hoverExits == 1,
+                     "closing a hover preview below the island returns keys to the previous app and resumes hover dismissal")
+        let explicit = HoverFocus()
+        explicit.openedByHover = false
+        explicit.resumeClipboardAfterPreview(pointerInside: false)
+        suite.expect(explicit.panel?.claims == 1 && explicit.resignations == 0 && explicit.hoverExits == 0,
+                     "closing a keyboard-opened preview returns navigation to the island even with the pointer elsewhere")
+        let clicked = HoverFocus()
+        clicked.clickedSinceOpening = true
+        clicked.resumeClipboardAfterPreview(pointerInside: false)
+        suite.expect(clicked.panel?.claims == 1 && clicked.resignations == 0,
+                     "a clipboard page explicitly clicked keeps its keyboard after preview dismissal")
+        for change in excluded {
+            let other = HoverFocus()
+            change(other)
+            // An explicitly opened clipboard page can own a preview too.
+            if !other.openedByHover { continue }
+            suite.expect(!other.attachClipboardPreview(HoverFocus.Panel(), close: {}),
+                         "a closed island or another surface cannot adopt a clipboard popup")
+        }
 
         // A copy often starts or ends with blank lines; the open entry shows
         // its text from the first line, tabs as spaces, as the panel's cards do.
@@ -242,8 +452,8 @@ enum NotchClipboardPageTests {
             let page = Page()
             page.cardSize = stored
             page.hover(first, true)
-            suite.expect(page.dwell == nil && page.hoveredID == nil,
-                         "the clipboard page reads \"\(stored)\" as comfortable entries, which never open on hover")
+            suite.expect(page.dwell == nil && page.hoveredID == first.id && page.expandedID == nil,
+                         "the clipboard page reads \"\(stored)\" as comfortable entries, tracking previews without hover expansion")
         }
     }
 

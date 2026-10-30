@@ -93,6 +93,7 @@ final class ClipboardHistoryService: ObservableObject {
     private var copyInFlight = false
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
+    private var entryPreview: ClipboardEntryPreviewController?
     private var panelResizeObserver: NSObjectProtocol?
     private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
@@ -609,8 +610,24 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
+    func previewEntry(_ entry: ClipboardHistoryEntry) {
+        if let entryPreview {
+            if entryPreview.entryID == entry.id {
+                entryPreview.show()
+                return
+            }
+            entryPreview.close(animated: false)
+        }
+        let controller = ClipboardEntryPreviewController(entry: entry) { [weak self] closed in
+            guard self?.entryPreview === closed else { return }
+            self?.entryPreview = nil
+        }
+        self.entryPreview = controller
+        controller.show()
+    }
+
     func editImage(_ entry: ClipboardHistoryEntry) {
-        guard entry.kind == .image, AppFeature.screenshot.isAvailable,
+        guard AppFeature.screenshot.isAvailable,
               let directory = ClipboardImageStore.directory else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             let capture = autoreleasepool {
@@ -626,7 +643,7 @@ final class ClipboardHistoryService: ObservableObject {
                 self.hideHistoryWindow()
                 (NSApp.delegate as? AppDelegate)?.closePopover()
                 NotchService.shared.perform {
-                    ScreenshotService.shared.openEditor(with: capture)
+                    ScreenshotService.shared.openEditor(with: capture, clipboardImage: true)
                 }
             }
         }

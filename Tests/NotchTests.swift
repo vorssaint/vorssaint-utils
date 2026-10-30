@@ -2372,8 +2372,9 @@ enum NotchTests {
                 && NotchSupport.restingClipboardHighlight([(Int, Bool)]()) == nil,
                "the clipboard opens on the entry copied last, not on a pinned one, and on the top pinned one when only those exist")
         func key(_ code: UInt16, _ characters: String = "", _ modifiers: NSEvent.ModifierFlags = [],
-                 composing: Bool = false) -> NotchClipboardKey? {
-            NotchSupport.clipboardKey(keyCode: code, characters: characters, modifiers: modifiers, composing: composing)
+                 composing: Bool = false, previewOnSpace: Bool = false) -> NotchClipboardKey? {
+            NotchSupport.clipboardKey(keyCode: code, characters: characters, modifiers: modifiers,
+                                      composing: composing, previewOnSpace: previewOnSpace)
         }
         suite.expect(key(126) == .move(backwards: true) && key(125) == .move(backwards: false)
                 && key(36) == .paste && key(76) == .paste,
@@ -2394,6 +2395,14 @@ enum NotchTests {
                 && key(49, " ") == nil && key(48, "\t") == nil && key(51, "\u{7f}") == nil
                 && key(125, "\u{F701}") == .move(backwards: false),
                "a typed letter shows the search field and goes on to it, while a space and control keys stay as they are")
+        suite.expect(key(49, " ", previewOnSpace: true) == .preview
+                && key(49, " ", .shift, previewOnSpace: true) == nil
+                && key(49, " ", .command, previewOnSpace: true) == nil
+                && key(49, " ", .control, previewOnSpace: true) == nil
+                && key(49, " ", .option, previewOnSpace: true) == nil
+                && key(49, " ", .function, previewOnSpace: true) == nil
+                && key(49, " ", composing: true, previewOnSpace: true) == .reveal,
+               "only an unmodified Space owned by the clipboard list previews, while composition keeps its key")
         // Japanese, Chinese and Korean input and the accent keys compose in
         // the field: its keys, Return and the arrows included, are the input method's.
         suite.expect(key(36, composing: true) == .reveal && key(125, composing: true) == .reveal

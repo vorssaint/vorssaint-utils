@@ -1717,8 +1717,10 @@ def main():
     write("NotchClipboardPage.swift", "import SwiftUI\nextension NotchClipboardPageTests {\n"
           + "@MainActor final class Page {\nstruct ClipboardHistoryEntry {\nlet id: UUID\nvar text = \"\"\nvar isPinned = false\n"
           + "var cardPreview: String { HistoryEntry(text: text).cardPreview }\n}\n"
+          + "final class History {\nvar previewed: [UUID] = []\n"
+          + "func previewEntry(_ entry: ClipboardHistoryEntry) { previewed.append(entry.id) }\n}\nlet history = History()\n"
           + "var preview = false\nvar reduceMotion = true\nvar cardSize = NotchClipboardCardSize.compact.rawValue\n"
-          + "var hoveredID: UUID?\nvar expandedID: UUID?\n"
+          + "var hoveredID: UUID?\nvar searchPointerLocation: CGPoint?\nvar expandedID: UUID?\n"
           + "var dwell: (id: UUID, task: Task<Void, Never>)?\nvar closing: (id: UUID, task: Task<Void, Never>)?\n"
           + "var entries: [ClipboardHistoryEntry] = []\nvar highlightedID: UUID?\nvar keysMoved = false\n"
           + "var query = \"\"\nvar searchOpen = false\nvar searching = false\nvar activated: [UUID] = []\n"
@@ -1733,6 +1735,28 @@ def main():
               "    private func openSearch()", "    private func closeSearch()", "    private func handleKey(",
               "    private func openText(", "    private func searchHighlight(", "    private func follow(",
               "    private func thumbnail<"])
+          + "}\n"
+          + "@MainActor final class HoverFocus {\n"
+          + "final class Panel {\nenum Ordering { case above }\n"
+          + "weak var parent: Panel?\nvar children: [Panel] = []\nvar isKeyWindow = false\nvar claims = 0\n"
+          + "func makeKey() { claims += 1; isKeyWindow = true }\n"
+          + "func addChildWindow(_ child: Panel, ordered: Ordering) { children.append(child); child.parent = self }\n"
+          + "func removeChildWindow(_ child: Panel) { children.removeAll { $0 === child }; child.parent = nil }\n}\n"
+          + "typealias NSWindow = Panel\nvar clipboardPreviewWindow: NSWindow?\nvar clipboardPreviewClose: (() -> Void)?\n"
+          + "enum NSEvent { static let mouseLocation = CGPoint.zero }\n"
+          + "final class Host { var pointerInside = false; func containsHover(_ point: CGPoint) -> Bool { pointerInside } }\n"
+          + "var windowHost: Host? = Host()\nvar hoverExits = 0\nfunc hover(_ entered: Bool) { if !entered { hoverExits += 1 } }\n"
+          + "var hoverWork: DispatchWorkItem?\n"
+          + "var panel: Panel? = Panel()\nvar clipboardHoverHasKey = false\n"
+          + "var openedByHover = true\nvar expanded = true\nvar selected = NotchModule.clipboard\n"
+          + "var showingAppPanel = false\nvar showingSections = false\nvar showingCommandBar = false\n"
+          + "var selectedMetric: Int?\nvar captureControls: Int?\nvar clickedSinceOpening = false\nvar resignations = 0\n"
+          + "func resignPanelKey() { resignations += 1; panel?.isKeyWindow = false }\n"
+          + declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", "    func setClipboardPagePointerInside(")
+          + declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", "    func attachClipboardPreview(")
+          + declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", "    func detachClipboardPreview(")
+          + declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", "    private func resumeClipboardAfterPreview(").replace("    private ", "    ", 1)
+          + declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", "    private func closeClipboardPreview(").replace("    private ", "    ", 1)
           + "}\n}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"

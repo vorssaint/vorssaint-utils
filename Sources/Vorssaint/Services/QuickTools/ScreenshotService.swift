@@ -632,13 +632,14 @@ final class ScreenshotService: ObservableObject {
         }
     }
 
-    func openEditor(with capture: ScreenshotSelectionController.Capture) {
+    func openEditor(with capture: ScreenshotSelectionController.Capture,
+                    clipboardImage: Bool = false) {
         WindowActivationPolicy.retain()
         // Any editor may be showing the latest capture, and what it exports
         // is no longer the stored original, so the shortcut keeps that
         // original back until a newer capture arrives.
-        withholdLatestCapture()
-        let editor = ScreenshotEditorController(capture: capture)
+        if !clipboardImage { withholdLatestCapture() }
+        let editor = ScreenshotEditorController(capture: capture, clipboardImage: clipboardImage)
         editors.append(editor)
         editor.show()
     }

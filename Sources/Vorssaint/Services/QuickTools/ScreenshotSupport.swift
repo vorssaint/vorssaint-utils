@@ -1062,6 +1062,14 @@ enum ScreenshotSupport {
 
     // MARK: - Editor layout
 
+    static func editorFitZoom(imageSize: CGSize, availableSize: CGSize,
+                              fitWidth: Bool, margin: CGFloat = 14) -> CGFloat {
+        let width = max(availableSize.width - margin * 2, 80)
+        let height = max(availableSize.height - margin * 2, 80)
+        let widthZoom = width / max(imageSize.width, 1)
+        return min(fitWidth ? widthZoom : min(widthZoom, height / max(imageSize.height, 1)), 1)
+    }
+
     /// A fresh editor should be large enough for its controls and canvas,
     /// while still fitting compact or rotated displays.
     static func editorMinimumContentSize(visibleSize: CGSize) -> CGSize {

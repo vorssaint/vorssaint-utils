@@ -689,6 +689,7 @@ enum NotchLayout {
 enum NotchClipboardKey: Equatable {
     case move(backwards: Bool)
     case paste
+    case preview
     /// The key goes on to the search field, which shows to take it.
     case reveal
 }
@@ -1738,13 +1739,14 @@ enum NotchSupport {
     }
 
     /// What a key does on the clipboard page, whose search field keeps the
-    /// focus while hidden. Up/Down, Control-P/N and Return drive the list.
-    /// A typed letter shows the field and goes on to it, so its editor and any input method
+    /// focus while hidden. Up/Down, Control-P/N and Return drive the list;
+    /// Space previews its entry when the list owns Space. A typed letter
+    /// shows the field and goes on to it, so its editor and any input method
     /// get every key, and so does every key while an input method composes.
     /// Other Command, Control or Option keys belong to their own shortcuts;
     /// Shift with the arrows or Return stays with the field, which selects with them.
     static func clipboardKey(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags,
-                             composing: Bool) -> NotchClipboardKey? {
+                             composing: Bool, previewOnSpace: Bool = false) -> NotchClipboardKey? {
         let shortcutModifiers = modifiers.intersection([.command, .control, .option, .shift])
         if !composing, shortcutModifiers == .control {
             switch characters.lowercased() {
@@ -1758,6 +1760,7 @@ enum NotchSupport {
         switch keyCode {
         case 125, 126: return modifiers.contains(.shift) ? nil : .move(backwards: keyCode == 126)
         case 36, 76: return modifiers.contains(.shift) ? nil : .paste
+        case 49: return previewOnSpace && modifiers.intersection([.shift, .function, .numericPad, .help]).isEmpty ? .preview : nil
         default: break
         }
         // Function and arrow keys report private-use characters.
