@@ -1506,7 +1506,7 @@ enum ScreenshotFeatureTests {
         // "1960x1274" beside a screenshot editor that already read
         // "2940 \u{00D7} 1912 px", and the letter x is the tell.
         let recorderEditorSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/UI/Recorder/RecorderEditorView.swift",
+            contentsOfFile: "Sources/Vorssaint/UI/Recorder/RecorderCompressionControl.swift",
             encoding: .utf8)) ?? ""
         suite.expect(!recorderEditorSource.isEmpty, "the recorder editor source reads back for its shape check")
         suite.expect(recorderEditorSource.contains("\\(Int(size.width)) \u{00D7} \\(Int(size.height))"),

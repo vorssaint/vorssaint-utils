@@ -72,6 +72,26 @@ enum RecorderExportRenderingTests {
             progress: videoProgress.record)
         suite.expect(plainFailure == nil, "the progress fixture exports")
         expectThrottledProgress(suite, videoProgress.entries, frameReportsUpTo: 0.9, "video export")
+        for megabytes in [0, 1] {
+            var compressed = plainDocument
+            compressed.exportMaxDimension = 64
+            compressed.exportTargetMegabytes = megabytes
+            let output = folder.appendingPathComponent("compressed-\(megabytes).mp4")
+            let failure = await RecorderExporter().export(take: take, document: compressed,
+                output: .video, to: output, progress: { _ in })
+            suite.expect(failure == nil, "direct editor compression succeeds with target \(megabytes)")
+            guard failure == nil else { continue }
+            let asset = AVURLAsset(url: output)
+            let track = try await asset.loadTracks(withMediaType: .video)[0]
+            let size = try await track.load(.naturalSize)
+            suite.expect(size == CGSize(width: 64, height: 64),
+                         "the exported video has the resolution selected in the editor")
+            if megabytes > 0 {
+                let bytes = try output.resourceValues(forKeys: [.fileSizeKey]).fileSize!
+                suite.expect(Int64(bytes) <= compressed.exportTargetBytes,
+                             "the saved video stays within its selected file-size ceiling")
+            }
+        }
         try await audioAndGIF(suite, take: take)
         // The last case ends protection in the removed interval. The frame
         // held immediately before the splice must retain the pre-cut blur.
@@ -167,6 +187,10 @@ enum RecorderExportRenderingTests {
             doc.zoomEnabled = false
             doc.trimStart = 0.05
             doc.cuts = [.init(start: 0.2, end: 0.25)]
+            if speed == 1.37 {
+                doc.exportMaxDimension = 64
+                doc.exportTargetMegabytes = 1
+            }
             let output = folder.appendingPathComponent("audio-\(speed).mp4")
             let failure = await RecorderExporter().export(take: audioTake, document: doc, output: .video, to: output, progress: { _ in })
             suite.expect(failure == nil, "audio export succeeds at \(speed)x")

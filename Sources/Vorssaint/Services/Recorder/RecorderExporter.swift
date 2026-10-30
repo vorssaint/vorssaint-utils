@@ -34,6 +34,7 @@ final class RecorderExporter {
         case readFailed
         case writeFailed
         case tooLargeForSharing
+        case targetSizeTooSmall
         case invalidShareArtifact
         case cancelled
     }
@@ -75,18 +76,35 @@ final class RecorderExporter {
         // recording where it is instead of taking it down with the attempt.
         let staged = RecorderSupport.stagingURL(for: destination)
         defer { try? FileManager.default.removeItem(at: staged) }
-        let failure: Failure?
+        var failure: Failure?
         switch output {
         case .video:
-            failure = await exportVideo(asset: asset,
+            let targetBytes = document.exportTargetBytes
+            let passes = targetBytes > 0 ? 3 : 1
+            var scale = 1.0
+            for pass in 0..<passes {
+                guard !cancelled.isCancelled else { return .cancelled }
+                try? FileManager.default.removeItem(at: staged)
+                failure = await exportVideo(asset: asset,
                                         videoTrack: videoTrack,
                                         pointerURL: take.pointerURL,
                                         document: document,
                                         trim: trim,
                                         sourceSize: sourceSize,
                                         frameRate: RecorderSupport.sanitizedFrameRate(frameRate),
+                                        targetBitRateScale: scale,
                                         to: staged,
-                                        progress: progress)
+                                        progress: { progress((Double(pass) + $0) / Double(passes)) })
+                if failure != nil || targetBytes == 0 { break }
+                guard let bytes = try? staged.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                      bytes > 0 else { return .writeFailed }
+                if Int64(bytes) <= targetBytes { break }
+                failure = .targetSizeTooSmall
+                guard pass + 1 < passes,
+                      let next = MediaSupport.targetRetryScale(current: scale,
+                          actualBytes: Int64(bytes), targetBytes: targetBytes) else { break }
+                scale = next
+            }
         case .gif:
             failure = await exportGIF(asset: asset,
                                       videoTrack: videoTrack,
@@ -103,6 +121,7 @@ final class RecorderExporter {
         guard RecorderSupport.commitExport(from: staged, to: destination) else {
             return .writeFailed
         }
+        progress(1)
         return nil
     }
 
@@ -185,6 +204,7 @@ final class RecorderExporter {
                              sourceSize: CGSize,
                              frameRate: Int,
                              sharingBitRateScale: Double? = nil,
+                             targetBitRateScale: Double = 1,
                              to destination: URL,
                              progress: @escaping (Double) -> Void) async -> Failure? {
         let duration = CMTimeGetSeconds((try? await asset.load(.duration)) ?? .zero)
@@ -203,15 +223,11 @@ final class RecorderExporter {
         let timelineDuration = (try? await timeline.load(.duration)) ?? .zero
         let audioTracks = (try? await timeline.loadTracks(withMediaType: .audio)) ?? []
 
-        let style = document.resolvedBackdrop
-        let padding = style.kind == .none ? 0 : style.padding * 0.18
-        let fullCanvas = RecorderSupport.canvasSize(source: sourceSize,
-                                                    padding: padding,
-                                                    aspect: document.resolvedAspect,
-                                                    cropsToAspect: style.kind == .none)
-        let regularSize = RecorderSupport.evenSize(CGSize(
-            width: fullCanvas.width * document.resolvedQuality.outputScale,
-            height: fullCanvas.height * document.resolvedQuality.outputScale))
+        let fullCanvas = document.exportCanvasSize(source: sourceSize)
+        let regularSize = document.exportResolution(source: sourceSize)
+        let localPlan = document.videoExportPlan(source: sourceSize, frameRate: frameRate,
+            duration: duration, hasAudio: keepsAnyAudio && !audioTracks.isEmpty,
+            bitRateScale: targetBitRateScale)
         let sharingPlan = sharingBitRateScale.flatMap {
             RecordingSharingSupport.encodingPlan(
                 duration: timelineDuration.seconds,
@@ -221,14 +237,11 @@ final class RecorderExporter {
                 bitRateScale: $0)
         }
         if sharingBitRateScale != nil, sharingPlan == nil { return .tooLargeForSharing }
-        let outputFrameRate = sharingPlan?.frameRate ?? frameRate
-        let outputScale: CGFloat
-        if let sharingPlan {
-            outputScale = min(1, min(sharingPlan.size.width / max(1, fullCanvas.width),
-                                     sharingPlan.size.height / max(1, fullCanvas.height)))
-        } else {
-            outputScale = document.resolvedQuality.outputScale
-        }
+        if sharingBitRateScale == nil, localPlan == nil { return .targetSizeTooSmall }
+        let outputFrameRate = sharingPlan?.frameRate ?? localPlan?.frameRate ?? frameRate
+        let plannedSize = sharingPlan?.size ?? localPlan?.size ?? regularSize
+        let outputScale = min(1, min(plannedSize.width / max(1, fullCanvas.width),
+                                     plannedSize.height / max(1, fullCanvas.height)))
 
         // The export preset is folded into the canvas the composer draws, so
         // the background is rendered at the size it ships at instead of being
@@ -238,12 +251,10 @@ final class RecorderExporter {
                                              sourceSize: sourceSize,
                                              frameRate: outputFrameRate,
                                              duration: duration,
-                                             outputScale: outputScale)
+                                             outputScale: outputScale,
+                                             outputSize: plannedSize)
         let composer = plan.map { RecorderComposer(plan: $0) }
-        let outputSize = composer?.canvasSize
-            ?? sharingPlan?.size
-            ?? RecorderSupport.outputSize(source: RecorderSupport.evenSize(sourceSize),
-                                          quality: document.resolvedQuality)
+        let outputSize = composer?.canvasSize ?? plannedSize
         guard let composition = await RecorderComposer.videoComposition(
             track: timelineVideo,
             asset: timeline,
@@ -298,6 +309,10 @@ final class RecorderExporter {
             resolved = Self.sharingVideoSettings(size: outputSize,
                                                  frameRate: outputFrameRate,
                                                  bitRate: sharingPlan.videoBitRate)
+        } else if document.exportTargetBytes > 0, let localPlan {
+            resolved = Self.sharingVideoSettings(size: outputSize,
+                                                 frameRate: outputFrameRate,
+                                                 bitRate: localPlan.videoBitRate)
         } else {
             let preferred = Self.videoSettings(size: outputSize,
                                                frameRate: outputFrameRate,
@@ -325,7 +340,7 @@ final class RecorderExporter {
                 AVFormatIDKey: kAudioFormatMPEG4AAC,
                 AVSampleRateKey: 48_000,
                 AVNumberOfChannelsKey: 2,
-                AVEncoderBitRateKey: sharingPlan?.audioBitRate ?? 160_000,
+                AVEncoderBitRateKey: sharingPlan?.audioBitRate ?? localPlan?.audioBitRate ?? 160_000,
             ])
             input.expectsMediaDataInRealTime = false
             if writer.canAdd(input) {
