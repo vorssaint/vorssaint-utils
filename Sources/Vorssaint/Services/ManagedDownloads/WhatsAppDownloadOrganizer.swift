@@ -10,6 +10,12 @@ import Foundation
 /// the top level of Downloads, waits until a file is stable, then moves it to
 /// the configured folder. File bytes are read only to calculate a local SHA-256
 /// digest used for exact duplicate detection.
+///
+/// One pass, two retention policies: it routes a confirmed download to the
+/// chosen folder, and it files away screenshots of the configured folder that
+/// nobody has touched in a chosen number of days. Both stages share this
+/// type's single timer, single busy guard and single undo transaction, so
+/// one "Undo last organization" puts back both.
 final class WhatsAppDownloadOrganizer: ObservableObject {
     static let shared = WhatsAppDownloadOrganizer()
 
@@ -24,31 +30,9 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         }
     }
 
-    struct Record: Codable, Equatable {
-        let digest: String
-        let destinationPath: String
-        let originalName: String
-        let size: Int64
-        let organizedAt: Date
-    }
-
-    private struct UndoTransaction: Codable {
-        enum ActionKind: String, Codable { case move, trash }
-        struct Action: Codable {
-            let kind: ActionKind
-            let currentPath: String
-            let restorePath: String?
-        }
-
-        let id: UUID
-        let actions: [Action]
-        let recordsBefore: [Record]
-        let recordsAfter: [Record]
-        let createdAt: Date
-    }
-
     private struct SourceFile {
         let url: URL
+        let agent: String?
         let fingerprint: String
         let size: Int64
         let downloadedAt: Date
@@ -57,7 +41,9 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
     }
 
     private struct Settings {
-        let destination: URL
+        let destination: URL?
+        let sources: [String]
+        let extensionWhitelist: Set<String>?
         let delayMinutes: Int
         let categories: Set<WhatsAppDownloadCategory>
         let layout: WhatsAppOrganizerLayout
@@ -68,8 +54,8 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         let moved: Int
         let duplicates: Int
         let failed: Int
-        let records: [Record]
-        let undo: UndoTransaction?
+        let records: [WhatsAppDownloadSupport.Record]
+        let undo: WhatsAppDownloadSupport.UndoTransaction?
         let nextEligible: Date?
     }
 
@@ -95,10 +81,17 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             ?? FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
         guard let root else { return nil }
         let configured = defaults.string(forKey: DefaultsKey.whatsAppOrganizerDestinationPath) ?? ""
+        // An unset path keeps the folder the settings page already shows, so
+        // the page and the routing agree. Inventing a different folder here
+        // would leave the page claiming one place and the files going
+        // somewhere else.
         let destination = configured.isEmpty
             ? root.appendingPathComponent("WhatsApp", isDirectory: true)
             : URL(fileURLWithPath: configured, isDirectory: true)
         let standardized = destination.standardizedFileURL
+        // The Downloads root itself is a redirect, not a refusal: sorting a
+        // folder into itself is the shape of a mistake, and answering with a
+        // different folder hides it.
         guard standardized.path != root.standardizedFileURL.path else {
             return root.appendingPathComponent("WhatsApp", isDirectory: true)
         }
@@ -109,17 +102,40 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         Set(loadRecords().map { URL(fileURLWithPath: $0.destinationPath).standardizedFileURL.path })
     }
 
+    /// Whether the routing policy may run: the app it routes for, the routing
+    /// switches, and a confirmed Downloads folder to route out of.
+    private func routingPolicyIsLive(manual: Bool = false) -> Bool {
+        AppFeature.cleaner.isAvailable
+            && WhatsAppDownloadSupport.isEnabled
+            && UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled)
+            // The access confirmation is what a background pass needs, because
+            // that pass reaches into the Downloads folder on its own. A manual
+            // one is the person asking for it, and asking for it twice is a
+            // way of making a button do nothing.
+            && (manual || UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed))
+            && downloadsURL != nil
+            && Self.destinationURL(downloadsURL: downloadsURL) != nil
+    }
+
+    /// Whether any retention policy is live. Both the timer and the pass read
+    /// it through this one answer so they cannot drift into disagreeing about
+    /// whether there is work to do.
+    private func anyPolicyIsLive(manual: Bool = false) -> Bool {
+        routingPolicyIsLive(manual: manual)
+    }
+
     func syncWithPreferences() {
         stopMonitoring()
-        guard AppFeature.cleaner.isAvailable,
-              WhatsAppDownloadSupport.isEnabled,
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed),
-              let root = downloadsURL else {
+        guard anyPolicyIsLive() else {
             phase = .idle
             return
         }
-        startMonitoring(root: root)
+        // The Downloads watcher belongs to routing alone. With routing off,
+        // starting it would be a directory source opened on every write to a
+        // folder this pass no longer reads.
+        if routingPolicyIsLive(), let root = downloadsURL {
+            startMonitoring(root: root)
+        }
         schedule(after: 2)
     }
 
@@ -158,7 +174,8 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             transactions.first { $0.id == id }
         } ?? (transactionID == nil ? transactions.last : nil)
         guard let transaction,
-              Self.recordsAllowUndo(transaction, current: Self.loadRecords()) else { return }
+              WhatsAppDownloadSupport.recordsAllowUndo(
+                transaction, current: Self.loadRecords()) else { return }
         let token = UUID()
         operationToken = token
         phase = .undoing
@@ -167,7 +184,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.operationToken == token else { return }
                 if failed == 0 {
-                    Self.saveRecords(Self.recordsAfterUndo(
+                    Self.saveRecords(WhatsAppDownloadSupport.recordsAfterUndo(
                         transaction, current: Self.loadRecords()))
                     Self.saveUndoTransactions(
                         transactions.filter { $0.id != transaction.id })
@@ -210,8 +227,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
     }
 
     private func schedule(after delay: TimeInterval) {
-        guard WhatsAppDownloadSupport.isEnabled,
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled) else { return }
+        guard anyPolicyIsLive() else { return }
         let date = Date().addingTimeInterval(max(1, delay))
         if let nextCheck, nextCheck <= date { return }
         timer?.invalidate()
@@ -247,11 +263,11 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             schedule(after: 60)
             return
         }
-        guard AppFeature.cleaner.isAvailable,
-              WhatsAppDownloadSupport.isEnabled,
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
-              let root = downloadsURL,
-              let settings = settings(root: root) else {
+        // Read once here: the pass takes the Downloads folder as it is, and
+        // asks for it again only where a file is moved.
+        let root = downloadsURL
+        guard anyPolicyIsLive(manual: manual),
+              let settings = settings(root: root, manual: manual) else {
             phase = .idle
             return
         }
@@ -304,11 +320,21 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         }
     }
 
-    private func settings(root: URL) -> Settings? {
-        guard let destination = Self.destinationURL(downloadsURL: root) else { return nil }
+    private func settings(root: URL?, manual: Bool = false) -> Settings? {
         let defaults = UserDefaults.standard
+        // A stored destination path is not a live routing policy: the switches
+        // above it can be off while a path from an earlier session is still
+        // remembered, and this pass must not route a single file in that
+        // state.
+        let destination = routingPolicyIsLive(manual: manual)
+            ? Self.destinationURL(downloadsURL: root) : nil
+        guard destination != nil else { return nil }
         return Settings(
             destination: destination,
+            sources: WhatsAppDownloadSupport.decodedSources(
+                defaults.string(forKey: DefaultsKey.downloadOrganizerSources)),
+            extensionWhitelist: WhatsAppDownloadSupport.decodedExtensionWhitelist(
+                defaults.string(forKey: DefaultsKey.downloadOrganizerExtensions)),
             delayMinutes: WhatsAppDownloadSupport.sanitizedOrganizerDelayMinutes(
                 defaults.integer(forKey: DefaultsKey.whatsAppOrganizerDelayMinutes)),
             categories: WhatsAppDownloadSupport.decodedCategories(
@@ -320,113 +346,125 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
                     forKey: DefaultsKey.whatsAppOrganizerDuplicateAction) ?? "") ?? .trashNew)
     }
 
-    private static func organize(root: URL, settings: Settings) -> RunResult {
-        let fm = FileManager.default
-        do {
-            try fm.createDirectory(at: settings.destination,
-                                   withIntermediateDirectories: true)
-        } catch {
-            return RunResult(moved: 0, duplicates: 0, failed: 1,
+    private static func organize(root: URL?, settings: Settings) -> RunResult {
+        // No routing configured is not a failure; it is the feature being off,
+        // and there is nothing this pass could have done.
+        guard settings.destination != nil else {
+            return RunResult(moved: 0, duplicates: 0, failed: 0,
                              records: loadRecords(), undo: nil, nextEligible: nil)
         }
+        let fm = FileManager.default
 
         let now = Date()
-        let files: [SourceFile]
-        do {
-            files = try sourceFiles(in: root)
-        } catch {
-            return RunResult(moved: 0, duplicates: 0, failed: 1,
-                             records: loadRecords(), undo: nil, nextEligible: nil)
-        }
-
         let recordsBefore = loadRecords()
-        var records = recordsBefore.filter {
-            fm.fileExists(atPath: $0.destinationPath)
-        }
-        var undoActions: [UndoTransaction.Action] = []
+        var records = recordsBefore
+        var undoActions: [WhatsAppDownloadSupport.UndoTransaction.Action] = []
         var moved = 0
         var duplicates = 0
         var failed = 0
         var nextEligible: Date?
 
-        for source in files where settings.categories.contains(source.category) {
-            guard WhatsAppDownloadSupport.isStableForOrganization(
-                downloadedAt: source.downloadedAt, modifiedAt: source.modifiedAt,
-                now: now, delayMinutes: settings.delayMinutes) else {
-                let base = max(source.downloadedAt, source.modifiedAt)
-                let eligible = base.addingTimeInterval(
-                    TimeInterval(settings.delayMinutes * 60 + 1))
-                nextEligible = min(nextEligible ?? eligible, eligible)
-                continue
+        if let destination = settings.destination, let root {
+            records = recordsBefore.filter {
+                fm.fileExists(atPath: $0.destinationPath)
+            }
+            let files: [SourceFile]
+            do {
+                files = try sourceFiles(in: root)
+            } catch {
+                return RunResult(moved: 0, duplicates: 0, failed: 1,
+                                 records: loadRecords(), undo: nil, nextEligible: nil)
             }
 
-            do {
-                guard fingerprint(for: source.url) == source.fingerprint else {
-                    failed += 1
-                    continue
-                }
-                let digest = try sha256(of: source.url)
-                let validDuplicateIndex = try firstValidRecordIndex(
-                    digest: digest, records: &records)
-                guard sourceStillMatches(source) else {
-                    failed += 1
+            for source in files {
+                guard settings.categories.contains(source.category),
+                      let folderBase = WhatsAppDownloadSupport.destination(
+                        for: DownloadCandidate(url: source.url, agent: source.agent,
+                                               destination: destination),
+                        configured: settings.sources,
+                        extensionWhitelist: settings.extensionWhitelist) else { continue }
+                guard WhatsAppDownloadSupport.isStableForOrganization(
+                    downloadedAt: source.downloadedAt, modifiedAt: source.modifiedAt,
+                    now: now, delayMinutes: settings.delayMinutes) else {
+                    let base = max(source.downloadedAt, source.modifiedAt)
+                    let eligible = base.addingTimeInterval(
+                        TimeInterval(settings.delayMinutes * 60 + 1))
+                    nextEligible = min(nextEligible ?? eligible, eligible)
                     continue
                 }
 
-                if let duplicateIndex = validDuplicateIndex {
-                    let existing = URL(fileURLWithPath: records[duplicateIndex].destinationPath)
-                    switch settings.duplicateAction {
-                    case .trashNew:
-                        let trashed = try trash(source.url)
-                        if let trashed {
-                            undoActions.insert(.init(kind: .move,
-                                                     currentPath: trashed.path,
-                                                     restorePath: source.url.path), at: 0)
-                        }
-                        duplicates += 1
+                do {
+                    guard fingerprint(for: source.url) == source.fingerprint else {
+                        failed += 1
                         continue
-                    case .replaceExisting:
-                        let actions = try replaceVerified(source: source.url,
-                                                          existing: existing,
-                                                          digest: digest)
-                        records[duplicateIndex] = Record(
-                            digest: digest, destinationPath: existing.path,
-                            originalName: source.url.lastPathComponent,
-                            size: source.size, organizedAt: now)
-                        undoActions.insert(contentsOf: actions, at: 0)
-                        moved += 1
-                        duplicates += 1
-                        continue
-                    case .keepBoth:
-                        break
                     }
-                }
+                    let digest = try sha256(of: source.url)
+                    let validDuplicateIndex = WhatsAppDownloadSupport.firstValidRecordIndex(
+                        digest: digest, records: &records) { record in
+                        let url = URL(fileURLWithPath: record.destinationPath)
+                        return FileManager.default.fileExists(atPath: url.path)
+                            && (try? Self.sha256(of: url)) == digest
+                    }
+                    guard sourceStillMatches(source) else {
+                        failed += 1
+                        continue
+                    }
 
-                let components = WhatsAppDownloadSupport.organizerRelativeComponents(
-                    layout: settings.layout, category: source.category,
-                    date: source.downloadedAt)
-                let folder = components.reduce(settings.destination) {
-                    $0.appendingPathComponent($1, isDirectory: true)
+                    if let duplicateIndex = validDuplicateIndex {
+                        let existing = URL(fileURLWithPath: records[duplicateIndex].destinationPath)
+                        switch settings.duplicateAction {
+                        case .trashNew:
+                            let trashed = try trash(source.url)
+                            if let trashed {
+                                undoActions.insert(.init(kind: .move,
+                                                         currentPath: trashed.path,
+                                                         restorePath: source.url.path), at: 0)
+                            }
+                            duplicates += 1
+                            continue
+                        case .replaceExisting:
+                            let actions = try replaceVerified(source: source.url,
+                                                              existing: existing,
+                                                              digest: digest)
+                            records[duplicateIndex] = WhatsAppDownloadSupport.Record(
+                                digest: digest, destinationPath: existing.path,
+                                originalName: source.url.lastPathComponent,
+                                size: source.size, organizedAt: now)
+                            undoActions.insert(contentsOf: actions, at: 0)
+                            moved += 1
+                            duplicates += 1
+                            continue
+                        case .keepBoth:
+                            break
+                        }
+                    }
+
+                    let components = WhatsAppDownloadSupport.organizerRelativeComponents(
+                        layout: settings.layout, category: source.category,
+                        date: source.downloadedAt)
+                    let folder = components.reduce(folderBase) {
+                        $0.appendingPathComponent($1, isDirectory: true)
+                    }
+                    try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+                    let destination = uniqueDestination(
+                        in: folder, preferredName: source.url.lastPathComponent)
+                    let actions = try moveVerified(source: source.url,
+                                                   destination: destination,
+                                                   digest: digest)
+                    undoActions.insert(contentsOf: actions, at: 0)
+                    records.append(WhatsAppDownloadSupport.Record(digest: digest,
+                                          destinationPath: destination.path,
+                                          originalName: source.url.lastPathComponent,
+                                          size: source.size, organizedAt: now))
+                    moved += 1
+                } catch {
+                    failed += 1
                 }
-                try fm.createDirectory(at: folder, withIntermediateDirectories: true)
-                let destination = uniqueDestination(
-                    in: folder, preferredName: source.url.lastPathComponent)
-                let actions = try moveVerified(source: source.url,
-                                               destination: destination,
-                                               digest: digest)
-                undoActions.insert(contentsOf: actions, at: 0)
-                records.append(Record(digest: digest,
-                                      destinationPath: destination.path,
-                                      originalName: source.url.lastPathComponent,
-                                      size: source.size, organizedAt: now))
-                moved += 1
-            } catch {
-                failed += 1
             }
         }
 
         records = Array(records.sorted { $0.organizedAt < $1.organizedAt }.suffix(5_000))
-        let undo = undoActions.isEmpty ? nil : UndoTransaction(
+        let undo = undoActions.isEmpty ? nil : WhatsAppDownloadSupport.UndoTransaction(
             id: UUID(), actions: undoActions, recordsBefore: recordsBefore,
             recordsAfter: records, createdAt: now)
         return RunResult(moved: moved, duplicates: duplicates, failed: failed,
@@ -457,8 +495,6 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
                   values.isAliasFile != true,
                   values.isHidden != true,
                   let quarantine = values.quarantineProperties,
-                  WhatsAppDownloadSupport.isWhatsAppAgent(
-                    quarantine["LSQuarantineAgentName"] as? String),
                   let downloadedAt = (quarantine["LSQuarantineTimeStamp"] as? Date)
                     ?? values.addedToDirectoryDate ?? values.creationDate,
                   let fingerprint = fingerprint(for: standardized)
@@ -467,30 +503,13 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             let category = WhatsAppDownloadSupport.category(
                 contentTypeIdentifier: values.contentType?.identifier,
                 extension: standardized.pathExtension)
-            return SourceFile(url: standardized, fingerprint: fingerprint,
+            return SourceFile(url: standardized,
+                              agent: quarantine["LSQuarantineAgentName"] as? String,
+                              fingerprint: fingerprint,
                               size: Int64(values.fileSize ?? 0),
                               downloadedAt: downloadedAt, modifiedAt: modified,
                               category: category)
         }
-    }
-
-    private static func firstValidRecordIndex(digest: String,
-                                              records: inout [Record]) throws -> Int? {
-        var index = 0
-        while index < records.count {
-            guard records[index].digest == digest else {
-                index += 1
-                continue
-            }
-            let url = URL(fileURLWithPath: records[index].destinationPath)
-            guard FileManager.default.fileExists(atPath: url.path),
-                  (try? sha256(of: url)) == digest else {
-                records.remove(at: index)
-                continue
-            }
-            return index
-        }
-        return nil
     }
 
     private static func uniqueDestination(in folder: URL, preferredName: String) -> URL {
@@ -511,7 +530,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
 
     private static func moveVerified(source: URL,
                                      destination: URL,
-                                     digest: String) throws -> [UndoTransaction.Action] {
+                                     digest: String) throws -> [WhatsAppDownloadSupport.UndoTransaction.Action] {
         let fm = FileManager.default
         let sourceVolume = (try? source.resourceValues(forKeys: [.volumeIdentifierKey]))?
             .volumeIdentifier as? NSObject
@@ -553,7 +572,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
 
     private static func replaceVerified(source: URL,
                                         existing: URL,
-                                        digest: String) throws -> [UndoTransaction.Action] {
+                                        digest: String) throws -> [WhatsAppDownloadSupport.UndoTransaction.Action] {
         let fm = FileManager.default
         let staging = existing.deletingLastPathComponent().appendingPathComponent(
             ".vorssaint-replaced-\(UUID().uuidString).partial")
@@ -612,66 +631,38 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             && abs(modified.timeIntervalSince(source.modifiedAt)) < 0.001
     }
 
-    private static func loadRecords() -> [Record] {
+    private static func loadRecords() -> [WhatsAppDownloadSupport.Record] {
         guard let data = UserDefaults.standard.data(forKey: DefaultsKey.whatsAppOrganizerRecords),
               !data.isEmpty else { return [] }
-        return (try? JSONDecoder().decode([Record].self, from: data)) ?? []
+        return (try? JSONDecoder().decode([WhatsAppDownloadSupport.Record].self, from: data)) ?? []
     }
 
-    private static func saveRecords(_ records: [Record]) {
+    private static func saveRecords(_ records: [WhatsAppDownloadSupport.Record]) {
         let data = (try? JSONEncoder().encode(records)) ?? Data()
         UserDefaults.standard.set(data, forKey: DefaultsKey.whatsAppOrganizerRecords)
     }
 
-    private static func loadUndoTransactions() -> [UndoTransaction] {
+    private static func loadUndoTransactions() -> [WhatsAppDownloadSupport.UndoTransaction] {
         guard let data = UserDefaults.standard.data(
             forKey: DefaultsKey.whatsAppOrganizerUndoTransaction),
               !data.isEmpty else { return [] }
-        return (try? JSONDecoder().decode([UndoTransaction].self, from: data)) ?? []
+        return (try? JSONDecoder().decode([WhatsAppDownloadSupport.UndoTransaction].self, from: data)) ?? []
     }
 
-    private static func validUndoTransactions(now: Date = Date()) -> [UndoTransaction] {
+    private static func validUndoTransactions(now: Date = Date()) -> [WhatsAppDownloadSupport.UndoTransaction] {
         loadUndoTransactions()
             .filter { WhatsAppDownloadSupport.organizerUndoIsValid(
                 createdAt: $0.createdAt, now: now) }
             .sorted { $0.createdAt < $1.createdAt }
     }
 
-    private static func saveUndoTransactions(_ transactions: [UndoTransaction]) {
+    private static func saveUndoTransactions(_ transactions: [WhatsAppDownloadSupport.UndoTransaction]) {
         let data = (try? JSONEncoder().encode(transactions)) ?? Data()
         UserDefaults.standard.set(data,
                                   forKey: DefaultsKey.whatsAppOrganizerUndoTransaction)
     }
 
-    private static func recordMap(_ records: [Record]) -> [String: Record] {
-        Dictionary(records.map { ($0.destinationPath, $0) },
-                   uniquingKeysWith: { _, latest in latest })
-    }
-
-    private static func affectedRecordPaths(_ transaction: UndoTransaction) -> Set<String> {
-        let before = recordMap(transaction.recordsBefore)
-        let after = recordMap(transaction.recordsAfter)
-        return Set(before.keys).union(after.keys).filter { before[$0] != after[$0] }
-    }
-
-    private static func recordsAllowUndo(_ transaction: UndoTransaction,
-                                         current: [Record]) -> Bool {
-        let expected = recordMap(transaction.recordsAfter)
-        let current = recordMap(current)
-        return affectedRecordPaths(transaction).allSatisfy { current[$0] == expected[$0] }
-    }
-
-    private static func recordsAfterUndo(_ transaction: UndoTransaction,
-                                         current: [Record]) -> [Record] {
-        let before = recordMap(transaction.recordsBefore)
-        var result = recordMap(current)
-        for path in affectedRecordPaths(transaction) {
-            result[path] = before[path]
-        }
-        return result.values.sorted { $0.organizedAt < $1.organizedAt }
-    }
-
-    private static func performUndo(_ transaction: UndoTransaction) -> Int {
+    private static func performUndo(_ transaction: WhatsAppDownloadSupport.UndoTransaction) -> Int {
         let fm = FileManager.default
         var failed = 0
         for action in transaction.actions {

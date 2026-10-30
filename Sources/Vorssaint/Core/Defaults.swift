@@ -290,6 +290,8 @@ enum DefaultsKey {
     static let whatsAppOrganizerDestinationPath = "whatsAppOrganizerDestinationPath"
     static let whatsAppOrganizerDelayMinutes = "whatsAppOrganizerDelayMinutes"
     static let whatsAppOrganizerCategories = "whatsAppOrganizerCategories"
+    static let downloadOrganizerSources = "downloadOrganizerSources"
+    static let downloadOrganizerExtensions = "downloadOrganizerExtensions"
     static let whatsAppOrganizerLayout = "whatsAppOrganizerLayout"
     static let whatsAppOrganizerDuplicateAction = "whatsAppOrganizerDuplicateAction"
     static let whatsAppOrganizerRecords = "whatsAppOrganizerRecords"
@@ -682,6 +684,8 @@ enum DefaultsKey {
     static let screenshotFreeze = "screenshotFreeze"
     static let screenshotHideVorssaintWindows = "screenshotHideVorssaintWindows"
     static let screenshotSaveFolder = "screenshotSaveFolder"
+    // An unattended pass that relocates a person's screenshots must never
+    // start doing so merely because the app was updated.
     static let screenshotSaveSubfolder = "screenshotSaveSubfolder"
     static let screenshotFileNamePattern = "screenshotFileNamePattern"
     static let screenshotFileNumberStart = "screenshotFileNumberStart"
@@ -1418,6 +1422,8 @@ enum Defaults {
         DefaultsKey.whatsAppOrganizerDestinationPath: "",
         DefaultsKey.whatsAppOrganizerDelayMinutes: 5,
         DefaultsKey.whatsAppOrganizerCategories: "image,video,audio,document,archive,other",
+        DefaultsKey.downloadOrganizerSources: "WhatsApp",
+        DefaultsKey.downloadOrganizerExtensions: "",
         DefaultsKey.whatsAppOrganizerLayout: "flat",
         DefaultsKey.whatsAppOrganizerDuplicateAction: "trashNew",
         DefaultsKey.whatsAppOrganizerRecords: Data(),
