@@ -964,9 +964,11 @@ final class NotchService: ObservableObject {
         if compactActivity != nil {
             var resting = compactActivityGeometry.compactActivitySize
             // A strip naming its song reaches further on its cover's side,
-            // where the emphasis has the least room.
+            // where the emphasis has the least room, or on both sides when
+            // the island is kept symmetric.
             let named = namedMusicWings
-            if let named { resting.width += named.leading - named.trailing }
+            let wing = compactActivityGeometry.compactActivityWingWidth
+            if let named { resting.width += named.leading - wing + named.trailing - wing }
             return hoverEmphasized
                 ? NotchHoverEmphasis.size(from: resting, geometry: geometry,
                                           reach: named.map { ($0.leading - $0.trailing) / 2 } ?? 0)
@@ -3602,7 +3604,7 @@ final class NotchService: ObservableObject {
         if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
             cameraWidth = max(0, right.minX - left.maxX)
         } else { cameraWidth = 0 }
-        return NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
+        var geometry = NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
                              cameraWidth: cameraWidth,
                              layout: NotchSize(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchSize) ?? "") ?? .spacious,
                              menuBarHeight: menuBarMeasurements.height(
@@ -3616,6 +3618,8 @@ final class NotchService: ObservableObject {
                              hideMenuBarGap: UserDefaults.standard.bool(forKey: DefaultsKey.notchHideMenuBarGap),
                              outline: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
                              barEdge: 1 / max(1, screen.backingScaleFactor))
+        geometry.symmetric = UserDefaults.standard.bool(forKey: DefaultsKey.notchSymmetrical)
+        return geometry
     }
 
     private func updateFullscreenVisibility(displayID: CGDirectDisplayID) {

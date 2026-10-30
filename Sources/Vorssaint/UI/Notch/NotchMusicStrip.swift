@@ -103,6 +103,9 @@ struct NotchMusicStrip: View {
                 .padding(.leading, innerInset)
                 .padding(.trailing, barsInset)
                 .frame(width: wing, height: geometry.compactActivityContentHeight, alignment: .trailing)
+                // Kept symmetric, the bars hold their place beside the camera
+                // and answer the pointer across the side the words widened.
+                .frame(width: Layout.barsWing(named: named, geometry: geometry), alignment: .leading)
                 .contentShape(Rectangle())
                 .onHover { if live { service.hoverMusicStrip(.bars, entered: $0) } }
             }
