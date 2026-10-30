@@ -20,7 +20,9 @@ enum NotchAgentTests {
         codexParsing(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
+        antigravityParsing(suite)
         HarnessReaderContractTests.run(suite)
+        AgentAgyConversationReaderTests.run(suite)
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
@@ -103,7 +105,8 @@ enum NotchAgentTests {
                         && AgentPricing.price(for: "claude-opus-4-5-20251101")?.input == 5
                         && AgentPricing.price(for: "us.anthropic.claude-sonnet-4-5-20250929-v1:0")?.input == 3
                         && AgentPricing.price(for: "claude-haiku-4-5@20251001")?.output == 5
-                        && AgentPricing.price(for: "claude-sonnet-4-5[1m]")?.input == 3,
+                        && AgentPricing.price(for: "claude-sonnet-4-5[1m]")?.input == 3
+                        && AgentPricing.price(for: "Claude Sonnet 5.5 (Medium)")?.input == 2,
                      "snapshot dates, cloud prefixes and context tags keep the family's price")
         suite.expect(AgentPricing.price(for: "gpt-5.2-codex")?.input == 1.75 && AgentPricing.price(for: "gpt-5")?.input == 1.25
                         && AgentPricing.price(for: "gpt-6-astra")?.output == 50,
@@ -162,6 +165,7 @@ enum NotchAgentTests {
         suite.expect(AgentPricing.displayName("claude-opus-5-5") == "Opus 5.5"
                         && AgentPricing.displayName("claude-3-5-sonnet-20241022") == "Sonnet 3.5"
                         && AgentPricing.displayName("claude-sonnet-4-5-20250929") == "Sonnet 4.5"
+                        && AgentPricing.displayName("Claude Sonnet 5.5 (Medium)") == "Sonnet 5.5"
                         && AgentPricing.displayName("gpt-6-astra") == "GPT-6 Astra"
                         && AgentPricing.displayName("gpt-5.1-codex-max") == "GPT-5.1 Codex Max"
                         && AgentPricing.displayName("gpt-6-astra-2026-10-01") == "GPT-6 Astra"
@@ -227,7 +231,8 @@ enum NotchAgentTests {
         let early = AgentPriceList.decode(priceJSON(updated: "2026-09-22"))
         let late = AgentPriceList.decode(priceJSON(updated: "2026-10-01"))
         suite.expect(AgentPriceList.newer(early, late) == late && AgentPriceList.newer(late, early) == late
-                        && AgentPriceList.newer(nil, early) == early && AgentPriceList.newer(early, nil) == early,
+                        && AgentPriceList.newer(nil, early) == early && AgentPriceList.newer(early, nil) == early
+                        && AgentPriceList.newer(early, early) == early,
                      "the newer of the shipped and downloaded lists wins")
         suite.expect(!AgentPricing.install(shipped), "installing the list in use changes nothing")
 
@@ -631,6 +636,266 @@ enum NotchAgentTests {
                                                      state: &quiet, now: now).isEmpty
                         && quiet == AgentLogState(turnOpen: true),
                      "records quoted inside another line's payload are not read as the line's own")
+    }
+
+    // MARK: Antigravity logs
+
+    private static func antigravityParsing(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        var state = AgentLogState()
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        func feed(_ lines: [Data], _ state: inout AgentLogState, into store: AgentUsageStore,
+                  file: String = "brain/conv-1/transcript.jsonl") -> [AgentUsageEvent] {
+            var events: [AgentUsageEvent] = []
+            for data in lines {
+                events += store.apply(AgentLogParser.parseAntigravity(data, state: &state, now: now),
+                                      file: file, provider: .antigravity, tracksTurns: true, modified: now,
+                                      now: Date(timeIntervalSince1970: 1_790_500_000))
+            }
+            return events
+        }
+
+        let userPrompt = line(#"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"2026-09-28T00:00:00.000Z","content":"Please check the codebase\n<USER_INFORMATION>\n[URI] -> [CorpusName]:\n/Users/me/projects/cool-app -> me/cool-app\n</USER_INFORMATION>"}"#)
+        let toolCall = line(#"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-09-28T00:00:02.000Z","thinking":"Let me inspect the files","tool_calls":[{"tool_name":"view_file","args":{"AbsolutePath":"/Users/me/projects/cool-app/src/views/main.swift"}},{"tool_name":"run_command","args":{"Cwd":"/Users/me/projects/cool-app/src"}}]}"#)
+        let toolResult = line(#"{"step_index":3,"type":"GENERIC","status":"DONE","created_at":"2026-09-28T00:00:03.000Z","content":"<USER_SETTINGS_CHANGE>The user changed setting `Model Selection` from A to Leaked Model.</USER_SETTINGS_CHANGE> {\"modelName\":\"leaked-model\"}"}"#)
+        let done = line(#"{"step_index":4,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-09-28T00:00:05.000Z","content":"All checks completed successfully."}"#)
+
+        let events = feed([userPrompt, toolCall, toolResult, done], &state, into: store)
+        suite.expect(events == [.finished(provider: .antigravity, duration: 5.0, cost: 0.0, tokens: 0, project: "cool-app")],
+                     "a completed Antigravity turn emits a finished event with duration, cost, tokens, and project")
+        suite.expect(store.live.isEmpty, "the live turn is closed after completion")
+        suite.expect(store.records.allSatisfy { $0.cost == nil && $0.tokens == AgentTokens() } && !store.records.isEmpty,
+                     "unmeasured usage preserves cost and tokens as unavailable")
+        suite.expect(store.records.allSatisfy { $0.project == "cool-app" },
+                     "the workspace named in the message outranks the folders of files and commands")
+        suite.expect(state.model == "gemini-3.8-flash", "model falls back to gemini-3.8-flash and tool output never sets the model")
+        suite.expect(AgentLogParser.parseAntigravity(toolResult, state: &state, now: now).isEmpty,
+                     "a generic step outside a turn says nothing")
+
+        // Without a named workspace, a command's folder stands in; a file's never does.
+        var folderState = AgentLogState()
+        let bare = line(#"{"step_index":1,"type":"USER_INPUT","created_at":"2026-09-28T00:00:00.000Z","content":"fix it"}"#)
+        let fileOnly = line(#"{"step_index":2,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-09-28T00:00:01.000Z","tool_calls":[{"tool_name":"view_file","args":{"AbsolutePath":"/Users/me/app/src/views/main.swift"}}]}"#)
+        let command = line(#"{"step_index":3,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-09-28T00:00:02.000Z","tool_calls":[{"tool_name":"run_command","args":{"Cwd":"/Users/me/app"}}]}"#)
+        _ = AgentLogParser.parseAntigravity(bare, state: &folderState, now: now)
+        _ = AgentLogParser.parseAntigravity(fileOnly, state: &folderState, now: now)
+        suite.expect(folderState.project == "app", "a file's folder infers the project when no workspace is known")
+        _ = AgentLogParser.parseAntigravity(command, state: &folderState, now: now)
+        suite.expect(folderState.project == "app", "a command's working folder names the project while no workspace is known")
+        _ = AgentLogParser.parseAntigravity(userPrompt, state: &folderState, now: now)
+        _ = AgentLogParser.parseAntigravity(command, state: &folderState, now: now)
+        suite.expect(folderState.project == "cool-app", "once the workspace is named, commands no longer move the project")
+
+        // Model name extraction
+        var modelState = AgentLogState()
+        let settingsLine = line(#"{"step_index":0,"type":"USER_INPUT","status":"DONE","created_at":"2026-09-28T00:00:00.000Z","content":"<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to Gemini 3.8 Flash (High). No need to comment on this change if the user doesn't ask about it.\n</USER_SETTINGS_CHANGE>"}"#)
+        _ = AgentLogParser.parseAntigravity(settingsLine, state: &modelState, now: now)
+        suite.expect(modelState.model == "Gemini 3.8 Flash (High)", "model extraction captures full model name without decimal truncation")
+        let quoted = line(#"{"step_index":1,"type":"USER_INPUT","created_at":"2026-09-28T00:00:01.000Z","content":"why does {\"modelName\":\"other\"} mention `Model Selection` to Other?"}"#)
+        _ = AgentLogParser.parseAntigravity(quoted, state: &modelState, now: now)
+        suite.expect(modelState.model == "Gemini 3.8 Flash (High)", "only a settings change in the message names the model")
+        let replyModel = line(#"{"step_index":2,"type":"PLANNER_RESPONSE","model":"gemini-3.8-pro","status":"DONE","created_at":"2026-09-28T00:00:02.000Z"}"#)
+        _ = AgentLogParser.parseAntigravity(replyModel, state: &modelState, now: now)
+        suite.expect(modelState.model == "gemini-3.8-pro", "a planner response names its model")
+        suite.expect(AgentPricing.displayName(modelState.model) == "Gemini 3.8 Pro"
+                        && AgentPricing.displayName("Gemini 3.8 Flash (High)") == "Gemini 3.8 Flash"
+                        && AgentPricing.displayName("gemini-3.8-flash-high") == "Gemini 3.8 Flash",
+                     "model display name formats Gemini models cleanly")
+        suite.expect(["gemini-3.8-flash", "gemini-2.5-pro", "gemini-2.5-flash", "Gemini 3.8 Flash (High)"]
+                        .allSatisfy { AgentPricing.price(for: $0) != nil }
+                        && AgentPricing.price(for: "gemini-unknown") == nil,
+                     "Gemini models resolve list pricing while unknown Gemini variants return nil")
+
+        // Canonical root relative filtering and session extraction
+        let symlinkedRoot = AgentLogRoot(provider: .antigravity, url: URL(fileURLWithPath: "/tmp/agent-data", isDirectory: true))
+        let transcriptPath = "/tmp/agent-data/conv-uuid-1234/.system_generated/logs/transcript.jsonl"
+        let chunkPath = "/tmp/agent-data/conv-uuid-1234/.system_generated/logs/chunks/0.jsonl"
+        suite.expect(AgentLogReader.isLog(transcriptPath, in: symlinkedRoot), "transcript under symlinked root is accepted as log")
+        suite.expect(!AgentLogReader.isLog(chunkPath, in: symlinkedRoot), "chunk logs under symlinked root are rejected")
+        for stray in ["/tmp/agent-data/transcript.jsonl",
+                      "/tmp/agent-data/conv-uuid-1234/transcript.jsonl",
+                      "/tmp/agent-data/conv-uuid-1234/other/logs/transcript.jsonl",
+                      "/tmp/agent-data/conv-uuid-1234/.system_generated/logs/chunks/transcript.jsonl",
+                      "/tmp/agent-data/conv-uuid-1234/.system_generated/logs/notes.jsonl"] {
+            suite.expect(!AgentLogReader.isLog(stray, in: symlinkedRoot), "only a conversation's own transcript is read: \(stray)")
+        }
+        suite.expect(AgentLogCursor.session(of: transcriptPath, provider: .antigravity, roots: [symlinkedRoot]) == "conv-uuid-1234",
+                     "session ID extracted correctly relative to canonical root")
+        suite.expect(AgentLogCursor(path: transcriptPath, provider: .antigravity, roots: [symlinkedRoot]).state.session == "conv-uuid-1234"
+                        && AgentLogCursor(path: "/tmp/agent-data/x.jsonl", provider: .claude).state.session.isEmpty,
+                     "a cursor takes its conversation from the roots it is given")
+
+        let claudeUnderBrain = AgentLogRoot(provider: .claude, url: URL(fileURLWithPath: "/Users/user/brain/.claude/projects", isDirectory: true))
+        let claudeLogPath = "/Users/user/brain/.claude/projects/proj-1/session-abc.jsonl"
+        suite.expect(AgentLogReader.isLog(claudeLogPath, in: claudeUnderBrain), "claude log below a path containing brain is not discarded")
+
+        // Root discovery includes CLI, desktop, IDE, and ACP Antigravity roots
+        let antigravityRoots = AgentLogRoot.all().filter { $0.provider == .antigravity }
+        suite.expect(antigravityRoots.count == 4, "discovers all four Antigravity brain roots (desktop, IDE, CLI, and ACP)")
+
+        // Mid-turn response opens turn if closed
+        var midState = AgentLogState()
+        let midStore = AgentUsageStore()
+        midStore.reportsTransitions = true
+        let midToolCall = line(#"{"step_index":1,"type":"PLANNER_RESPONSE","status":"RUNNING","created_at":"2026-09-28T00:00:01.000Z","tool_calls":[{"tool_name":"run_command","args":{"CommandLine":"ls"}}]}"#)
+        _ = feed([midToolCall], &midState, into: midStore, file: "brain/conv-3/transcript.jsonl")
+        suite.expect(midStore.live.count == 1, "PLANNER_RESPONSE without prior USER_INPUT begins a live turn")
+
+        // A response that failed ends the turn without finishing it, even with tool calls
+        do {
+            var stopState = AgentLogState()
+            let stopStore = AgentUsageStore()
+            stopStore.reportsTransitions = true
+            _ = feed([userPrompt], &stopState, into: stopStore, file: "brain/conv-2/transcript.jsonl")
+            suite.expect(stopStore.live.count == 1, "user input opens a live turn in Antigravity")
+            let stopLine = line(#"{"step_index":2,"type":"PLANNER_RESPONSE","status":"ERROR","created_at":"2026-09-28T00:00:04.000Z","tool_calls":[{"tool_name":"run_command","args":{"Cwd":"/tmp"}}]}"#)
+            let stopEvents = feed([stopLine], &stopState, into: stopStore, file: "brain/conv-2/transcript.jsonl")
+            suite.expect(stopEvents.isEmpty && stopStore.live.isEmpty && !stopState.turnOpen,
+                         "an ERROR response ends the turn without a finished event")
+        }
+
+        // A new message while a turn is open: the old turn never finished
+        var openState = AgentLogState()
+        let openStore = AgentUsageStore()
+        openStore.reportsTransitions = true
+        let unanswered = feed([userPrompt, toolCall], &openState, into: openStore, file: "brain/conv-4/transcript.jsonl")
+        let next = line(#"{"step_index":5,"type":"USER_INPUT","created_at":"2026-09-28T00:10:00.000Z","content":"never mind"}"#)
+        let nextEvents = feed([next], &openState, into: openStore, file: "brain/conv-4/transcript.jsonl")
+        suite.expect(unanswered.isEmpty && nextEvents.isEmpty && openStore.live.count == 1 && openState.turnOpen,
+                     "a new message ends the unanswered turn without announcing it finished, and opens the next")
+
+        // Startup budget baseline: Antigravity records do not mark today's budget alert as handled
+        let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
+        let antigravityRecord = AgentUsageRecord(provider: .antigravity, date: today.addingTimeInterval(100),
+                                                 model: "gemini-2.5-pro", project: "app", session: "s1",
+                                                 tokens: AgentTokens(), cost: 10.0, savings: 0)
+        let claudeRecord = AgentUsageRecord(provider: .claude, date: today.addingTimeInterval(200),
+                                            model: "claude-opus-5", project: "app", session: "s2",
+                                            tokens: AgentTokens(), cost: 1.0, savings: 0)
+        let startupRecords = [antigravityRecord, claudeRecord]
+        let budget = 5.0
+        let eligibleSpent = startupRecords.lazy.filter({ $0.provider != .antigravity && $0.date >= today })
+            .reduce(0.0, { $0 + ($1.cost ?? 0) })
+        suite.expect(eligibleSpent < budget,
+                     "startup budget baseline ignores Antigravity and does not suppress later Claude/Codex crossings")
+
+        // Responses without tokens keep their cost unavailable through repricing, without counting as unpriced
+        let repriceStore = AgentUsageStore()
+        var knownModelState = AgentLogState()
+        let knownModelPrompt = line(#"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"2026-09-28T00:00:00.000Z","content":"Explain quantum computing"}"#)
+        let knownModelReply = line(#"{"step_index":2,"type":"PLANNER_RESPONSE","model":"gemini-2.5-pro","status":"DONE","created_at":"2026-09-28T00:00:05.000Z","content":"Quantum computing uses qubits."}"#)
+        _ = feed([knownModelPrompt, knownModelReply], &knownModelState, into: repriceStore, file: "brain/conv-known/transcript.jsonl")
+        let claudePriced = AgentUsageRecord(provider: .claude, date: Date(timeIntervalSince1970: 1_790_553_605),
+                                            model: "claude-opus-5-5", project: "app", session: "c",
+                                            tokens: AgentTokens(input: 1000, cacheWrite: 0, cacheRead: 0, output: 100),
+                                            cost: 0.5, savings: 0)
+
+        let testNow = Date(timeIntervalSince1970: 1_790_553_610)
+        // The records fall on one UTC day, whatever zone the tests run in.
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        func check(_ label: String) {
+            let record = repriceStore.records.first
+            let usage = repriceStore.snapshot(plans: [:], providers: [.antigravity], now: testNow,
+                                              calendar: utc).usage(.today)
+            let mixed = AgentUsageSummary.snapshot(records: repriceStore.records + [claudePriced], limits: [:], live: [],
+                                                   plans: [:], providers: [.claude, .antigravity], now: testNow,
+                                                   calendar: utc).usage(.today)
+            suite.expect(record?.model == "gemini-2.5-pro" && record?.cost == nil && record?.savings == 0
+                            && usage.total.unpriced == 0 && usage.fullyPriced
+                            && mixed.fullyPriced && mixed.total.cost == 0.5,
+                         "\(label): a response without tokens keeps its cost unavailable and leaves Claude's dollar views intact")
+        }
+        check("before a price update")
+
+        let shippedPrices = AgentPricing.list
+        let gemini = AgentPriceList.Model(id: "gemini-2.5-pro", price: AgentPrice(
+            input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 1.25, cacheWriteLong: 1.25))
+        let updatedPrices = AgentPriceList(updated: shippedPrices.updated.addingTimeInterval(86_400),
+                                           claude: shippedPrices.claude, codex: shippedPrices.codex + [gemini],
+                                           claudePlans: shippedPrices.claudePlans, codexPlans: shippedPrices.codexPlans,
+                                           webSearch: shippedPrices.webSearch, usOnlyMultiplier: shippedPrices.usOnlyMultiplier)
+        AgentPricing.install(updatedPrices)
+        repriceStore.reprice()
+        suite.expect(AgentPricing.price(for: "gemini-2.5-pro") != nil, "the updated list prices the model")
+        check("after a price update")
+
+        AgentPricing.install(shippedPrices)
+        repriceStore.reprice()
+
+        // 1. Live turn: Active Workspaces and Command Working Directory extraction + USER_SETTINGS_CHANGE model extraction
+        do {
+            let liveStore = AgentUsageStore()
+            var liveState = AgentLogState()
+            let promptData = line(#"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"2026-09-28T00:00:00.000Z","content":"<user_information>\nActive Workspaces:\n- /Users/me/Developer/Repositories/vorssaint-utils\nCommand Working Directory: /Users/me/Developer/Repositories/vorssaint-utils\n</user_information>\n<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to Gemini 4 Argon (Low).\n</USER_SETTINGS_CHANGE>"}"#)
+            _ = feed([promptData], &liveState, into: liveStore, file: "brain/conv-live-1/.system_generated/logs/transcript.jsonl")
+            suite.expect(liveStore.live.count == 1, "active turn is present in live store")
+            suite.expect(liveStore.live.first?.project == "vorssaint-utils", "workspace extracted from Active Workspaces")
+            suite.expect(liveStore.live.first?.model == "Gemini 4 Argon (Low)", "model extracted from USER_SETTINGS_CHANGE")
+            suite.expect(AgentPricing.displayName(liveStore.live.first?.model ?? "") == "Gemini 4 Argon", "model display name matches Gemini 4 Argon")
+        }
+
+        // 2. AgentAgyConversationReader bridging measured tokens, cost, model, and project onto an open turn
+        do {
+            let bridgeStore = AgentUsageStore()
+            var bridgeState = AgentLogState()
+            let bareInput = line(#"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"2026-09-28T00:00:00.000Z","content":"hello"}"#)
+            _ = feed([bareInput], &bridgeState, into: bridgeStore, file: "brain/conv-live-2/.system_generated/logs/transcript.jsonl")
+            let tokens = AgentTokens(input: 2000, cacheWrite: 0, cacheRead: 8000, output: 500, reasoning: 100)
+            let billable = AgentBillable(tokens: tokens)
+            let priced = AgentPricing.cost(billable, model: "gemini-3.8-flash-high")
+            let record = AgentUsageRecord(provider: .agy, date: Date(timeIntervalSince1970: 1_790_500_000),
+                                          model: "gemini-3.8-flash-high", project: "vorssaint-utils",
+                                          session: "conv-live-2", tokens: tokens, cost: priced.cost, savings: priced.savings)
+            bridgeStore.addUsageRecord(record, billable: billable, key: "agyconv:conv-live-2:0", source: "agy-db")
+
+            let live = bridgeStore.live.first
+            suite.expect(live?.project == "vorssaint-utils", "open turn takes project from addUsageRecord")
+            suite.expect(live?.model == "gemini-3.8-flash-high", "open turn takes model from addUsageRecord")
+            suite.expect(live?.tokens.output == 500, "open turn takes output tokens from addUsageRecord")
+            suite.expect(live?.tokens.total == 10_500, "open turn calculates total tokens from addUsageRecord")
+            suite.expect((live?.cost ?? 0) > 0, "open turn takes positive cost from priced addUsageRecord")
+        }
+
+        // 2b. Reverse order: addUsageRecord before transcript turn opens
+        do {
+            let revStore = AgentUsageStore()
+            var revState = AgentLogState()
+            let tokens = AgentTokens(input: 2000, cacheWrite: 0, cacheRead: 8000, output: 500, reasoning: 100)
+            let billable = AgentBillable(tokens: tokens)
+            let priced = AgentPricing.cost(billable, model: "gemini-3.8-flash-high")
+            let record = AgentUsageRecord(provider: .agy, date: Date(timeIntervalSince1970: 1_790_500_000),
+                                          model: "gemini-3.8-flash-high", project: "vorssaint-utils",
+                                          session: "conv-live-3", tokens: tokens, cost: priced.cost, savings: priced.savings)
+            revStore.addUsageRecord(record, billable: billable, key: "agyconv:conv-live-3:0", source: "agy-db")
+
+            let bareInput = line(#"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"2026-09-28T00:00:00.000Z","content":"hello"}"#)
+            _ = feed([bareInput], &revState, into: revStore, file: "brain/conv-live-3/.system_generated/logs/transcript.jsonl")
+
+            let live = revStore.live.first
+            suite.expect(live?.project == "vorssaint-utils", "turn opened after addUsageRecord populates project immediately")
+            suite.expect(live?.model == "gemini-3.8-flash-high", "turn opened after addUsageRecord populates model immediately")
+            suite.expect(live?.tokens.output == 500, "turn opened after addUsageRecord populates output tokens immediately")
+            suite.expect(live?.tokens.total == 10_500, "turn opened after addUsageRecord populates total tokens immediately")
+            suite.expect((live?.cost ?? 0) > 0, "turn opened after addUsageRecord populates positive cost immediately")
+        }
+
+        // 3. Inline PLANNER_RESPONSE token counts (such as subagent transcripts)
+        do {
+            let inlineStore = AgentUsageStore()
+            var inlineState = AgentLogState()
+            let userInput = line(#"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"2026-09-28T00:00:00.000Z","content":"subagent task"}"#)
+            let plannerResponse = line(#"{"step_index":2,"type":"PLANNER_RESPONSE","status":"RUNNING","model":"gemini-3.8-flash","created_at":"2026-09-28T00:00:02.000Z","input_tokens":1000,"cache_read_tokens":4000,"output_tokens":300,"tool_calls":[{"name":"read_file","args":{"Cwd":"/Users/me/sub-proj"}}]}"#)
+            _ = feed([userInput, plannerResponse], &inlineState, into: inlineStore, file: "brain/conv-sub-1/.system_generated/logs/transcript.jsonl")
+
+            let live = inlineStore.live.first
+            suite.expect(live?.project == "sub-proj", "inline subagent response sets project from tool call Cwd")
+            suite.expect(live?.model == "gemini-3.8-flash", "inline subagent response sets model")
+            suite.expect(live?.tokens.total == 5300, "inline subagent response accumulates total tokens")
+            suite.expect(live?.tokens.output == 300, "inline subagent response accumulates output tokens")
+            suite.expect((live?.cost ?? 0) > 0, "inline subagent response calculates positive cost")
+        }
     }
 
     // MARK: OpenCode logs
@@ -2505,6 +2770,16 @@ enum NotchAgentTests {
                             != NotchAgentSupport.stripReading(long, readout: readout, display: .remaining, now: now),
                          "a new usage snapshot still changes the \(readout.rawValue) reading")
         }
+        var tokenless = session(.codex, startedAgo: 754)
+        tokenless.tokens = AgentTokens()
+        tokenless.cost = 0
+        let unmeasured = snapshot([tokenless])
+        for readout in [NotchAgentReadout.tokens, .cost] {
+            suite.expect(NotchAgentSupport.shownReadout(readout, unmeasured) == .elapsed
+                            && NotchAgentSupport.stripReading(unmeasured, readout: readout, display: .remaining, now: now) == "12:34"
+                            && NotchAgentSupport.shownReadout(readout, short) == readout,
+                         "the \(readout.rawValue) reading shows the time while no working turn has tokens")
+        }
         let window = AgentLimitWindow(id: "w", kind: .weekly, minutes: 10_080, scope: nil, usedPercent: 79,
                                       resetsAt: now.addingTimeInterval(86_400))
         let limited = snapshot([session(.claude, startedAgo: 754)],
@@ -3151,7 +3426,9 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .antigravity], "an agent can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsAgy)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "another agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)

@@ -1323,7 +1323,7 @@ def main():
         if line not in prefix:
             raise ValueError("Expected the non-music activity readings in capsuleStripSize")
         prefix = prefix.replace(line, "")
-    capsule_music = (prefix + "        switch activity {\n" + music_case
+    capsule_music = (prefix + "        switch activity {\n" + music_case.replace("workingAgents: working", "workingAgents: 0")
                      + '        default: preconditionFailure("Only music is measured by this fixture")\n'
                      + "        }\n    }\n#sourceLocation()\n")
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"

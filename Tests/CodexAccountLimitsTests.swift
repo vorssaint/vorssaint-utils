@@ -60,7 +60,11 @@ enum CodexAccountLimitsTests {
         suite.expect(NotchAgentSupport.limitsAreStale(reading(.codex, age: 11 * 60, source: .account),
                                                       provider: .codex, account: true, now: now)
                         && !NotchAgentSupport.limitsAreStale(reading(.codex, age: 9 * 60, source: .account),
-                                                             provider: .codex, account: true, now: now),
+                                                             provider: .codex, account: true, now: now)
+                        && NotchAgentSupport.limitsAreStale(reading(.agy, age: 11 * 60, source: .account),
+                                                            provider: .agy, account: false, now: now)
+                        && !NotchAgentSupport.limitsAreStale(reading(.agy, age: 9 * 60, source: .account),
+                                                             provider: .agy, account: false, now: now),
                      "an account card dims a reading that missed its checks")
 
         let ids = [UUID().uuidString, UUID().uuidString]

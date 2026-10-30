@@ -21,6 +21,8 @@ enum AgentLogEntry: Equatable {
     case turnContext(model: String, project: String)
     /// Work continues; nil when the line was not worth decoding for its time.
     case turnActive(Date?)
+    /// The agent paused to ask the user a question or awaits tool approval.
+    case turnNeedsApproval(Date?)
     /// A step ended expecting the agent to go on; unless work follows soon,
     /// the agent stopped there and its turn is over.
     case turnSettled(Date)
@@ -61,6 +63,9 @@ struct AgentLogState: Equatable {
     var copilotReportedRequests: [String: Int] = [:]
     var copilotTurnID: String?
     var copilotFinalResponse = false
+    /// Antigravity named the workspace in the person's message, which
+    /// outranks the folder a command runs in.
+    var namedWorkspace = false
     /// The parent session when a database row belongs to a subagent.
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
@@ -179,6 +184,390 @@ enum AgentLogParser {
     static func copilotEvent(_ type: String) -> Bool {
         ["user.message", "assistant.turn_start", "assistant.message", "assistant.turn_end",
          "session.start", "session.context_changed", "session.model_change", "session.shutdown", "abort"].contains(type)
+    }
+
+    // MARK: Antigravity
+
+    static func parseAntigravity(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        if contains(line, "background task with task id:") || contains(line, #""status":"RUNNING""#) {
+            updateRunningTasks(from: line, state: &state, started: true)
+        }
+        if contains(line, "finished with result:") || contains(line, "finished with exit code") || contains(line, "Task id ") {
+            updateRunningTasks(from: line, state: &state, started: false)
+        }
+        let response = contains(line, #""type":"PLANNER_RESPONSE""#)
+        guard response || contains(line, #""type":"USER_INPUT""#) else {
+            return state.turnOpen && contains(line, #""type":""#) ? [.turnActive(nil)] : []
+        }
+        guard let json = object(line), let type = json["type"] as? String else { return [] }
+        let date = timestamp(json["created_at"]) ?? now
+
+        switch type {
+        case "USER_INPUT":
+            var entries: [AgentLogEntry] = []
+            if state.turnOpen {
+                entries.append(.turnEnded(date, completed: false, duration: nil))
+            }
+            state.turnOpen = true
+            state.runningCommands.removeAll()
+            if let content = json["content"] as? String {
+                if let model = antigravityModel(content) { state.model = model }
+                if let workspace = antigravityWorkspace(content) {
+                    state.project = workspace
+                    state.namedWorkspace = true
+                }
+                if state.session.isEmpty, let session = antigravitySession(content) { state.session = session }
+                if content.contains("antigravity-cli") { state.parentSession = "antigravity-cli" }
+            }
+            if state.project.isEmpty && (state.session.contains("antigravity-cli") || state.parentSession.contains("antigravity-cli")) {
+                state.project = "agy"
+            }
+            entries.append(.turnBegan(date))
+            if !state.model.isEmpty || !state.project.isEmpty {
+                entries.append(.turnContext(model: state.model, project: state.project))
+            }
+            return entries
+
+        case "PLANNER_RESPONSE":
+            if let model = json["model"] as? String, !model.isEmpty {
+                state.model = native(model)
+            } else if state.model.isEmpty {
+                state.model = "gemini-3.8-flash"
+            }
+            let toolCalls = json["tool_calls"] as? [[String: Any]] ?? []
+            if !state.namedWorkspace {
+                for tool in toolCalls {
+                    guard let cwd = (tool["args"] as? [String: Any])?["Cwd"] as? String else { continue }
+                    let folder = cwd.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                    if !folder.isEmpty {
+                        if let inferred = inferProject(fromPath: folder) {
+                            state.project = inferred
+                        } else if !folder.contains("/.ai/") && !folder.hasPrefix("~/.ai") && !folder.contains("/.gemini/") {
+                            state.project = projectName(folder)
+                        }
+                    }
+                }
+                if state.project.isEmpty {
+                    for tool in toolCalls {
+                        let args = (tool["args"] as? [String: Any]) ?? [:]
+                        for key in ["Path", "AbsolutePath", "FilePath", "path", "filePath", "absolutePath", "file_path", "target_path", "source_path", "file"] {
+                            if let val = args[key] as? String, let inferred = inferProject(fromPath: val) {
+                                state.project = inferred
+                                break
+                            }
+                        }
+                        if !state.project.isEmpty { break }
+                        for key in ["CommandLine", "command", "cmd"] {
+                            if let val = args[key] as? String, let inferred = inferProject(fromCommand: val) {
+                                state.project = inferred
+                                break
+                            }
+                        }
+                        if !state.project.isEmpty { break }
+                    }
+                }
+            }
+            if state.project.isEmpty && (state.session.contains("antigravity-cli") || state.parentSession.contains("antigravity-cli")) {
+                state.project = "agy"
+            }
+
+            let input = int(json["input_tokens"])
+            let cacheWrite = int(json["cache_write_input_tokens"]) + int(json["cache_creation_input_tokens"])
+            let cacheRead = int(json["cache_read_tokens"]) + int(json["cache_read_input_tokens"])
+            let output = int(json["output_tokens"])
+            let reasoning = int(json["thinking_tokens"]) + int(json["reasoning_tokens"])
+            let tokens = AgentTokens(input: input, cacheWrite: cacheWrite, cacheRead: cacheRead, output: output, reasoning: reasoning)
+            let billable = AgentBillable(tokens: tokens)
+            let priced: (cost: Double?, savings: Double) = tokens.total > 0
+                ? AgentPricing.cost(billable, model: state.model)
+                : (nil, 0)
+
+            let step = json["step_index"] as? Int ?? 0
+            let record = AgentUsageRecord(
+                provider: .agy, date: date, model: state.model, project: state.project,
+                session: state.session, tokens: tokens, cost: priced.cost, savings: priced.savings
+            )
+            var entries: [AgentLogEntry] = []
+            if !state.turnOpen {
+                state.turnOpen = true
+                entries.append(.turnBegan(date))
+            }
+            if !state.model.isEmpty || !state.project.isEmpty {
+                entries.append(.turnContext(model: state.model, project: state.project))
+            }
+            entries.append(.usage(key: "antigravity:\(state.session):\(step)", record: record, billable: billable))
+
+            let status = json["status"] as? String
+            let needsApproval = status == "WAITING_FOR_USER" || toolCalls.contains { tool in
+                let name = ((tool["name"] as? String) ?? (tool["tool_name"] as? String) ?? "").lowercased()
+                return name == "ask_question" || name == "confirm" || name.contains("ask_user")
+            }
+
+            if status == "ERROR" {
+                state.turnOpen = false
+                state.runningCommands.removeAll()
+                entries.append(.turnEnded(date, completed: false, duration: nil))
+            } else if toolCalls.isEmpty && (status == "DONE" || status == nil) {
+                if !state.runningCommands.isEmpty {
+                    entries.append(.turnActive(date))
+                } else {
+                    state.turnOpen = false
+                    entries.append(.turnEnded(date, completed: true, duration: nil))
+                }
+            } else if needsApproval {
+                entries.append(.turnNeedsApproval(date))
+            } else {
+                entries.append(.turnActive(date))
+            }
+            return entries
+
+        default:
+            return []
+        }
+    }
+
+    private static func updateRunningTasks(from line: Data, state: inout AgentLogState, started: Bool) {
+        guard let text = String(data: line, encoding: .utf8) else { return }
+        if started {
+            guard contains(line, #""type":"GENERIC""#) || contains(line, "background task with task id:") else { return }
+            if let startRange = text.range(of: "background task with task id:") {
+                let tail = text[startRange.upperBound...].trimmingCharacters(in: .whitespaces)
+                let id = tail.prefix(while: { !$0.isWhitespace && $0 != "\\" && $0 != "\"" })
+                if !id.isEmpty {
+                    state.runningCommands.insert(String(id))
+                }
+            } else if text.contains(#""status":"RUNNING""#) {
+                if let stepRange = text.range(of: #""step_index":"#) {
+                    let tail = text[stepRange.upperBound...]
+                    let step = tail.prefix(while: { $0.isNumber })
+                    state.runningCommands.insert("step-\(step)")
+                } else {
+                    state.runningCommands.insert("running-task")
+                }
+            }
+        } else {
+            if let finishRange = text.range(of: "Task id \"") {
+                let tail = text[finishRange.upperBound...]
+                let id = tail.prefix(while: { $0 != "\"" })
+                if !id.isEmpty {
+                    let idStr = String(id)
+                    state.runningCommands = state.runningCommands.filter {
+                        $0 != idStr && !$0.hasSuffix("/" + idStr) && !idStr.hasSuffix("/" + $0)
+                    }
+                }
+            } else if text.contains("finished with result:") || text.contains("finished with exit code") {
+                if let idRange = text.range(of: "task-") {
+                    let sub = text[idRange.lowerBound...]
+                    let id = sub.prefix(while: { $0.isLetter || $0.isNumber || $0 == "-" })
+                    let idStr = String(id)
+                    state.runningCommands = state.runningCommands.filter {
+                        $0 != idStr && !$0.hasSuffix("/" + idStr) && !idStr.hasSuffix("/" + $0)
+                    }
+                }
+                state.runningCommands.remove("running-task")
+            }
+        }
+    }
+
+    static func isIgnoredPath(_ rawPath: String) -> Bool {
+        var path = rawPath.trimmingCharacters(in: CharacterSet(charactersIn: "\"' \t\r\n"))
+        if path.hasPrefix("file://") { path = String(path.dropFirst(7)) }
+        guard !path.isEmpty && path != "/" else { return true }
+        if let range = path.range(of: "/.claude/worktrees/") { path = String(path[..<range.lowerBound]) }
+
+        let expanded = (path as NSString).expandingTildeInPath
+        let ignoredSubstrings = ["/.ai/", "/.gemini/", "/.config/", "/Library/", "/.claude/", "/tmp/", "/private/"]
+        if ignoredSubstrings.contains(where: { path.contains($0) || expanded.contains($0) }) {
+            return true
+        }
+        let ignoredPrefixes = ["~/.ai/", ".ai/", "~/.gemini/", ".gemini/", "~/.config/", ".config/",
+                               "~/.claude/", ".claude/", "/Library/", "Library/", "/tmp/", "tmp/",
+                               "/private/", "private/"]
+        if ignoredPrefixes.contains(where: { path.hasPrefix($0) || expanded.hasPrefix($0) }) {
+            return true
+        }
+        let exactMatches = ["~/.ai", ".ai", "~/.gemini", ".gemini", "~/.config", ".config",
+                            "~/.claude", ".claude", "/Library", "Library", "/tmp", "tmp",
+                            "/private", "private"]
+        if exactMatches.contains(where: { path == $0 || expanded == $0 }) {
+            return true
+        }
+        return false
+    }
+
+    static func inferProject(fromPath rawPath: String) -> String? {
+        if isIgnoredPath(rawPath) { return nil }
+
+        var path = rawPath.trimmingCharacters(in: CharacterSet(charactersIn: "\"' \t\r\n"))
+        if path.hasPrefix("file://") { path = String(path.dropFirst(7)) }
+        guard !path.isEmpty && path != "/" else { return nil }
+        if let range = path.range(of: "/.claude/worktrees/") { path = String(path[..<range.lowerBound]) }
+
+        let expandedPath = (path as NSString).expandingTildeInPath
+        let expanded = (expandedPath as NSString).isAbsolutePath
+            ? expandedPath
+            : (FileManager.default.currentDirectoryPath as NSString).appendingPathComponent(expandedPath)
+
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        var dir = fm.fileExists(atPath: expanded, isDirectory: &isDir) && isDir.boolValue
+            ? expanded : (expanded as NSString).deletingLastPathComponent
+
+        while !dir.isEmpty && dir != "/" {
+            if isIgnoredPath(dir) { break }
+            if fm.fileExists(atPath: (dir as NSString).appendingPathComponent(".git"))
+                || fm.fileExists(atPath: (dir as NSString).appendingPathComponent("_ai"))
+                || fm.fileExists(atPath: (dir as NSString).appendingPathComponent("Package.swift")) {
+                return native((dir as NSString).lastPathComponent)
+            }
+            let parent = (dir as NSString).deletingLastPathComponent
+            if parent == dir { break }
+            dir = parent
+        }
+
+        let parts = path.split(separator: "/").map(String.init)
+        let rootFolders: Set<String> = [
+            "projects", "Projects", "Repositories", "repositories", "workspace", "Workspace",
+            "Developer", "developer", "Development", "development"
+        ]
+        for (i, part) in parts.enumerated().reversed() {
+            if rootFolders.contains(part), i + 1 < parts.count {
+                let name = parts[i + 1]
+                if !name.isEmpty && !name.hasPrefix(".") && !rootFolders.contains(name) {
+                    return native(name)
+                }
+            }
+        }
+
+        let subdirs: Set<String> = ["src", "Sources", "lib", "_ai"]
+        for (i, part) in parts.enumerated() {
+            if subdirs.contains(part), i > 0 {
+                let name = parts[i - 1]
+                if !name.isEmpty && !name.hasPrefix(".") && name != "Users" && !rootFolders.contains(name) {
+                    return native(name)
+                }
+            }
+        }
+
+        return nil
+    }
+
+    static func inferProject(fromCommand cmd: String) -> String? {
+        let clean = cmd.replacingOccurrences(of: "\\n", with: "\n")
+        for line in clean.split(whereSeparator: \.isNewline) {
+            let str = String(line)
+            for marker in ["cd ", "-C ", "--package-path "] {
+                if let range = str.range(of: marker) {
+                    let tail = str[range.upperBound...].trimmingCharacters(in: .whitespaces)
+                    let token = tail.prefix(while: { !$0.isWhitespace && $0 != "&" && $0 != ";" && $0 != "|" && $0 != "\"" && $0 != "'" })
+                    if !token.isEmpty, let project = inferProject(fromPath: String(token)) {
+                        return project
+                    }
+                }
+            }
+            for prefix in ["/Users/", "/home/", "~/"] {
+                if let pRange = str.range(of: prefix) {
+                    let sub = str[pRange.lowerBound...]
+                    let token = sub.prefix(while: { !$0.isWhitespace && $0 != "&" && $0 != ";" && $0 != "|" && $0 != "\"" && $0 != "'" })
+                    if !token.isEmpty, let project = inferProject(fromPath: String(token)) {
+                        return project
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    /// The model the person picked, from the settings change Antigravity
+    /// adds to their message, or explicit model identifiers in their prompt.
+    private static func antigravityModel(_ content: String) -> String? {
+        if let change = content.range(of: "<USER_SETTINGS_CHANGE>"),
+           let range = content[change.upperBound...].range(of: "Model Selection`") {
+            let tail = content[range.upperBound...]
+            if let toRange = tail.range(of: " to ") {
+                let afterTo = tail[toRange.upperBound...]
+                var endIndex = afterTo.endIndex
+                for candidate in [". No need", ".</USER_SETTINGS_CHANGE>", "</USER_SETTINGS_CHANGE>", ".\n", "\n"] {
+                    if let found = afterTo.range(of: candidate), found.lowerBound < endIndex { endIndex = found.lowerBound }
+                }
+                let model = String(afterTo[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !model.isEmpty { return model }
+            }
+        }
+        if content.contains("Gemini 4 Argon") || content.contains("gemini-4-argon") {
+            return "gemini-4-argon"
+        }
+        if content.contains("Claude Sonnet 5.5") || content.contains("claude-sonnet-5") {
+            return "claude-sonnet-5-5"
+        }
+        if content.contains("Claude Opus 5.5") || content.contains("claude-opus-5") {
+            return "claude-opus-5-5"
+        }
+        if content.contains("Claude Haiku 5.5") || content.contains("claude-haiku-5") {
+            return "claude-haiku-5-5"
+        }
+        if content.contains("Gemini 3.8 Flash") || content.contains("gemini-3.8-flash") {
+            return "gemini-3.8-flash"
+        }
+        if content.contains("Gemini 3.7 Flash") || content.contains("gemini-3.7-flash") {
+            return "gemini-3.7-flash"
+        }
+        if content.contains("Gemini 2.5 Pro") || content.contains("gemini-2.5-pro") {
+            return "gemini-2.5-pro"
+        }
+        if content.contains("Gemini 1.5 Pro") || content.contains("gemini-1.5-pro") {
+            return "gemini-1.5-pro"
+        }
+        return nil
+    }
+
+    private static func antigravityWorkspace(_ content: String) -> String? {
+        if let range = content.range(of: "[URI] -> [CorpusName]:\n") {
+            let tail = content[range.upperBound...]
+            if let lineEnd = tail.firstIndex(of: "\n"),
+               let arrow = tail[..<lineEnd].range(of: " -> ") {
+                let name = projectName(String(tail[..<arrow.lowerBound]))
+                if !name.isEmpty { return name }
+            }
+        }
+        if let range = content.range(of: "Active Workspaces:") {
+            let tail = content[range.upperBound...]
+            if let dashRange = tail.range(of: "- ") {
+                let sub = tail[dashRange.upperBound...]
+                let line = sub.firstIndex(of: "\n").map { sub[..<$0] } ?? sub
+                let path = line.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                let name = projectName(path)
+                if !name.isEmpty { return name }
+            }
+        }
+        if let range = content.range(of: "Command Working Directory: ") {
+            let tail = content[range.upperBound...]
+            let line = tail.firstIndex(of: "\n").map { tail[..<$0] } ?? tail
+            let path = line.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            let name = projectName(path)
+            if !name.isEmpty { return name }
+        }
+        if let range = content.range(of: "CWD: ") {
+            let tail = content[range.upperBound...]
+            let line = tail.firstIndex(of: "\n").map { tail[..<$0] } ?? tail
+            let path = line.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            let name = projectName(path)
+            if !name.isEmpty { return name }
+        }
+        if let range = content.range(of: "Active Document: ") {
+            let tail = content[range.upperBound...]
+            let line = tail.firstIndex(of: "\n").map { tail[..<$0] } ?? tail
+            let path = line.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            let name = projectName(path)
+            if !name.isEmpty { return name }
+        }
+        return nil
+    }
+
+    private static func antigravitySession(_ content: String) -> String? {
+        guard let range = content.range(of: "Conversation ID: ") else { return nil }
+        let session = content[range.upperBound...].prefix(while: { $0.isLetter || $0.isNumber || $0 == "-" })
+        return session.isEmpty ? nil : String(session)
     }
 
     /// Codex logs a reading for each allowance: the main one under "codex",

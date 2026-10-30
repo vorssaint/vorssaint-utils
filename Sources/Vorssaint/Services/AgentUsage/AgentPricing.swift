@@ -196,14 +196,16 @@ enum AgentPricing {
     /// model runs; the family name in the middle does not.
     static func normalized(_ model: String) -> String {
         var id = model.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        for marker in ["@", "[", "("] {
+            if let index = id.firstIndex(of: Character(marker)) { id = String(id[..<index]) }
+        }
+        id = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        if id.contains(" ") { id = id.replacingOccurrences(of: " ", with: "-") }
         if let range = id.range(of: "claude-") { id = String(id[range.lowerBound...]) }
+        if let slash = id.lastIndex(of: "/") { id = String(id[id.index(after: slash)...]) }
         // Copilot names Claude point releases with a dot where Anthropic's
         // own logs and the public price list use a dash.
         if id.hasPrefix("claude-") { id = id.replacingOccurrences(of: ".", with: "-") }
-        if let slash = id.lastIndex(of: "/") { id = String(id[id.index(after: slash)...]) }
-        for marker in ["@", "["] {
-            if let index = id.firstIndex(of: Character(marker)) { id = String(id[..<index]) }
-        }
         return id
     }
 
@@ -216,14 +218,29 @@ enum AgentPricing {
     static func price(for model: String, in list: AgentPriceList = AgentPricing.list) -> AgentPrice? {
         let id = normalized(model)
         let table = id.hasPrefix("claude-") ? list.claude : list.codex
-        guard let match = table.filter({ matches(id, family: $0.id) })
-            .max(by: { $0.id.count < $1.id.count }) else { return nil }
-        // A smaller, larger or specialized sibling the list does not name is
-        // priced very differently from its family; better no figure than a
-        // wrong one.
-        let rest = id.dropFirst(match.id.count)
-        if siblings.contains(where: { rest.contains($0) }) { return nil }
-        return match.price
+        if let match = table.filter({ matches(id, family: $0.id) })
+            .max(by: { $0.id.count < $1.id.count }) {
+            // A smaller, larger or specialized sibling the list does not name is
+            // priced very differently from its family; better no figure than a
+            // wrong one.
+            let rest = id.dropFirst(match.id.count)
+            if !siblings.contains(where: { rest.contains($0) }) {
+                return match.price
+            }
+        }
+        if id.hasPrefix("gemini-") || id.hasPrefix("agy") || id.contains("antigravity") {
+            if id.contains("unknown") { return nil }
+            if id.contains("pro") && !id.contains("flash") {
+                return AgentPrice(input: 1.25, output: 5.0, cacheRead: 0.3125, cacheWrite: 1.25, cacheWriteLong: 1.25)
+            }
+            // Google's list prices after the introductory tier (ai.google.dev, read 2026-10-26): Argon
+            // from Dec 1 2026, Flash from Jan 1 2027. 3.7 Flash is unlisted and priced as 3.8.
+            if id.contains("argon") {
+                return AgentPrice(input: 4.0, output: 20.0, cacheRead: 0.20, cacheWrite: 4.0, cacheWriteLong: 4.0)
+            }
+            return AgentPrice(input: 1.5, output: 7.5, cacheRead: 0.15, cacheWrite: 1.5, cacheWriteLong: 1.5)
+        }
+        return nil
     }
 
     /// A family matches at a word boundary: "gpt-5" is not "gpt-5.1", and a
@@ -281,6 +298,17 @@ enum AgentPricing {
             let versions = parts.filter { $0.allSatisfy({ $0.isNumber || $0 == "." }) }
             let version = versions.joined(separator: ".")
             let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
+            return name.filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        if id.hasPrefix("gemini-") {
+            var parts = id.dropFirst(7).split(separator: "-").map(String.init)
+            parts.removeAll { $0 == "latest" }
+            parts.removeAll { $0.count >= 6 && $0.allSatisfy(\.isNumber) }
+            parts.removeAll { $0 == "high" || $0 == "low" || $0 == "medium" }
+            let words = parts.filter { !$0.allSatisfy({ $0.isNumber || $0 == "." }) }
+            let versions = parts.filter { $0.allSatisfy({ $0.isNumber || $0 == "." }) }
+            let version = versions.joined(separator: ".")
+            let name = ["Gemini", version] + words.map(\.capitalized)
             return name.filter { !$0.isEmpty }.joined(separator: " ")
         }
         guard id.hasPrefix("gpt-") else { return id }

@@ -24,3 +24,5 @@ CLAUDE.md
 *.xcodeproj
 xcuserdata/
 .swiftpm/
+/.index-build/
+/.idea/
