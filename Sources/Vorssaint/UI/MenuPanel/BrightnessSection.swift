@@ -135,6 +135,7 @@ struct BrightnessSection: View {
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
+                DisplayInputButton(display: display, compact: true)
                 DisplayPowerButton(display: display, compact: true)
             }
             if display.isActive, display.method != nil {
@@ -253,6 +254,60 @@ struct SoftwareDimmingButton: View {
             .buttonStyle(.plain)
             .disabled(service.isDisplayPending(display.id))
             .accessibilityLabel("\(display.name): \(usesExtendedDimming ? strings.extendedDimming : strings.softwareDimming)")
+        }
+    }
+}
+
+/// Input source menu for a DDC monitor, beside the power button on every
+/// surface that shows the display rows. The monitor is read the first time
+/// the button shows, not on every panel opening (issue #885).
+struct DisplayInputButton: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = BrightnessService.shared
+    let display: BrightnessDisplay
+    var compact = false
+
+    private var strings: DisplayInputStrings { DisplayInputStrings.localized(l10n.language) }
+    private var state: DisplayInputState? { service.inputStates[display.id] }
+    private var switchable: Bool { display.isActive && !display.isBuiltIn && display.method == .ddc }
+
+    var body: some View {
+        if switchable {
+            Menu {
+                if let state {
+                    Section(strings.title) {
+                        ForEach(state.inputs) { input in
+                            Button {
+                                service.switchInput(input, for: display.id)
+                            } label: {
+                                if input == state.current {
+                                    Label(DisplayInputSupport.label(of: input), systemImage: "checkmark")
+                                } else {
+                                    Text(DisplayInputSupport.label(of: input))
+                                }
+                            }
+                        }
+                    }
+                    if !state.detected {
+                        Text(strings.commonCaption)
+                    }
+                } else {
+                    Text(strings.title)
+                }
+            } label: {
+                Image(systemName: "arrow.right.square")
+                    .font(.system(size: compact ? 10.5 : 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: compact ? 16 : 20, height: 18)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(state == nil || service.inputSwitchPending.contains(display.id)
+                      || service.isDisplayPending(display.id))
+            .help(strings.title)
+            .accessibilityLabel("\(display.name): \(strings.title)")
+            .onAppear { service.detectInputSources(for: display.id) }
         }
     }
 }

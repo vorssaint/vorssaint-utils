@@ -469,6 +469,7 @@ enum LocalizationFeatureContractTests {
             ("clipboardDefault", GlobalShortcut.clipboardDefault),
             ("colorPickerDefault", GlobalShortcut.colorPickerDefault),
             ("commandBarDefault", GlobalShortcut.commandBarDefault),
+            ("displayInputNextDefault", GlobalShortcut.displayInputNextDefault),
             ("finderRenameDefault", GlobalShortcut.finderRenameDefault),
             ("keepAwakeDefault", GlobalShortcut.keepAwakeDefault),
             ("micMuteDefault", GlobalShortcut.micMuteDefault),
@@ -508,7 +509,7 @@ enum LocalizationFeatureContractTests {
             ("windowLayoutTopLeftDefault", GlobalShortcut.windowLayoutTopLeftDefault),
             ("windowLayoutTopRightDefault", GlobalShortcut.windowLayoutTopRightDefault),
         ]
-        suite.expect(defaultShortcuts.count == 42, "every default shortcut is in the round trip")
+        suite.expect(defaultShortcuts.count == 43, "every default shortcut is in the round trip")
         var brokenShortcuts: [String] = []
         for (name, shortcut) in defaultShortcuts {
             guard let restored = GlobalShortcut(storageValue: shortcut.storageValue),

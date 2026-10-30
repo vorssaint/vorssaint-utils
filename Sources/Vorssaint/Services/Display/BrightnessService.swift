@@ -82,10 +82,15 @@ final class BrightnessService: ObservableObject {
     /// the panel (issue #1589).
     @Published private(set) var softwareDimmingPreferred = Set<CGDirectDisplayID>()
     @Published private(set) var extendedDimmingPreferred = Set<CGDirectDisplayID>()
+    /// Input menus of DDC monitors, read once per connection when a menu
+    /// first shows (issue #885).
+    @Published private(set) var inputStates: [CGDirectDisplayID: DisplayInputState] = [:]
+    @Published private(set) var inputSwitchPending = Set<CGDirectDisplayID>()
     @Published private(set) var displayControlFailure: DisplayControlFailure?
     @Published private(set) var brightnessOSDSupported = false
     @Published private(set) var keyboardLightEnabled: Bool?
     @Published private(set) var displayBrightnessShortcutRegistrationFailed = false
+    @Published private(set) var displayInputShortcutRegistrationFailed = false
     @Published private(set) var keyboardBrightnessShortcutRegistrationFailed = false
     /// The display the island's brightness level shows: the one the
     /// brightness keys last moved, or the one picked there. Nil shows the
@@ -219,6 +224,8 @@ final class BrightnessService: ObservableObject {
     /// When the previous DDC command to each display finished, so the next
     /// one keeps the standard's spacing. Touched only on the work queue.
     private var ddcCommandEnds: [CGDirectDisplayID: UInt64] = [:]
+    /// Displays whose input menu is being read. Main thread only.
+    private var inputDetections = Set<CGDirectDisplayID>()
     /// The unmodified gamma curve of each software-dimmed display, captured
     /// before the first change so restoring is exact. Touched only on the
     /// work queue.
@@ -303,6 +310,7 @@ final class BrightnessService: ObservableObject {
     private var keyboardLightBridge: KeyboardLightBridge? { Self.sharedKeyboardLightBridge }
     private let displayBrightnessDecreaseHotkey = QuickToolHotkey(id: 59)
     private let displayBrightnessIncreaseHotkey = QuickToolHotkey(id: 60)
+    private let displayInputHotkey = QuickToolHotkey(id: 64)
     private let keyboardBrightnessDecreaseHotkey = QuickToolHotkey(id: 57)
     private let keyboardBrightnessIncreaseHotkey = QuickToolHotkey(id: 58)
     /// Stale rebuilds (an unplug mid-scan) must not overwrite fresh state.
@@ -318,6 +326,9 @@ final class BrightnessService: ObservableObject {
         }
         displayBrightnessIncreaseHotkey.onPress = { [weak self] in
             self?.stepDisplayBrightness(delta: BrightnessSupport.brightnessKeyStep)
+        }
+        displayInputHotkey.onPress = { [weak self] in
+            self?.cycleInputUnderPointer()
         }
         keyboardBrightnessDecreaseHotkey.onPress = { [weak self] in
             self?.stepKeyboardLight(direction: -1)
@@ -481,6 +492,7 @@ final class BrightnessService: ObservableObject {
         syncKeyTap()
         syncKeyboardBrightnessHotkeys()
         syncDisplayBrightnessHotkeys()
+        syncDisplayInputHotkey()
     }
 
     private func syncDisplayBrightnessHotkeys() {
@@ -522,6 +534,131 @@ final class BrightnessService: ObservableObject {
     /// Read at each press, like the other key options.
     private var keyStep: BrightnessSupport.KeyStep {
         .sanitized(UserDefaults.standard.string(forKey: DefaultsKey.brightnessKeyStep))
+    }
+
+    // MARK: - Input source
+
+    /// Reads which inputs a DDC monitor offers and which one shows this Mac,
+    /// once per connection. Write-only channels get the common list. Tried
+    /// even where luminance reads failed: these requests carry the checksum
+    /// stricter monitors need.
+    func detectInputSources(for id: CGDirectDisplayID) {
+        guard running, inputStates[id] == nil, !inputDetections.contains(id),
+              displays.contains(where: { $0.id == id && $0.isActive && $0.method == .ddc })
+        else { return }
+        inputDetections.insert(id)
+        let vendorID = Self.vendorID(id)
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            let state = self.readInputState(for: id, vendorID: vendorID)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.inputDetections.remove(id)
+                self.storeInputState(state, for: id)
+            }
+        }
+    }
+
+    /// Switches a monitor to another input. A monitor that leaves this Mac
+    /// usually disconnects, and the display rebuild drops its state then.
+    func switchInput(_ input: DisplayInput, for id: CGDirectDisplayID) {
+        guard running, !inputSwitchPending.contains(id) else { return }
+        inputSwitchPending.insert(id)
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            let accepted = self.writeInput(input, to: id)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.inputSwitchPending.remove(id)
+                if accepted, self.inputStates[id] != nil { self.inputStates[id]?.current = input }
+            }
+        }
+    }
+
+    /// The shortcut: moves the DDC monitor under the pointer, or the only one
+    /// when the pointer is elsewhere, to its next ticked input. The monitor's
+    /// own input is read at each press, so a switch made with its buttons or
+    /// from another computer does not throw the order off.
+    private func cycleInputUnderPointer() {
+        guard running, AppFeature.brightness.isAvailable, SessionActivity.shared.isActive,
+              UserDefaults.standard.bool(forKey: DefaultsKey.displayInputShortcutEnabled)
+        else { return }
+        let pointer = NSEvent.mouseLocation
+        let pointerDisplay = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+            .flatMap { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value }
+        let eligible = displays.filter { $0.isActive && !$0.isBuiltIn && $0.method == .ddc
+            && !pendingDisplayIDs.contains($0.id) }.map(\.id)
+        guard let id = DisplayInputSupport.shortcutDisplay(pointerDisplay: pointerDisplay, eligible: eligible),
+              !inputSwitchPending.contains(id) else { return }
+        inputSwitchPending.insert(id)
+        let known = inputStates[id]
+        let excluded = inputCycleExclusions(for: id)
+        let vendorID = Self.vendorID(id)
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            var state = known ?? self.readInputState(for: id, vendorID: vendorID)
+            var accepted = false
+            var switched: DisplayInput?
+            if let inputs = state?.inputs, let route = self.ddcRoute(id) {
+                let current = self.ddcReadValue(code: DisplayInputSupport.inputCode, for: id, service: route)
+                let cycle = DisplayInputSupport.cycledInputs(inputs, excluded: excluded)
+                if let next = DisplayInputSupport.nextInput(after: current.map { UInt8($0 & 0xFF) }, in: cycle) {
+                    accepted = self.writeInput(next, to: id)
+                    if accepted { state?.current = next; switched = next }
+                }
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.inputSwitchPending.remove(id)
+                self.storeInputState(state, for: id)
+                if let switched, self.running {
+                    DisplayInputOSD.show(displayID: id, name: DisplayInputSupport.label(of: switched))
+                }
+            }
+        }
+    }
+
+    /// Inputs a person unticked for the shortcut, kept per monitor so a
+    /// reconnected monitor keeps its choice.
+    func inputCycleExclusions(for id: CGDirectDisplayID) -> Set<String> {
+        let stored = UserDefaults.standard.dictionary(forKey: DefaultsKey.displayInputCycleExclusions)
+        return Set(stored?[Self.displayFingerprint(id)] as? [String] ?? [])
+    }
+
+    func setInput(_ input: DisplayInput, cycled: Bool, for id: CGDirectDisplayID) {
+        var stored = UserDefaults.standard.dictionary(forKey: DefaultsKey.displayInputCycleExclusions)
+            as? [String: [String]] ?? [:]
+        let key = Self.displayFingerprint(id)
+        var excluded = Set(stored[key] ?? [])
+        if cycled { excluded.remove(input.id) } else { excluded.insert(input.id) }
+        stored[key] = excluded.isEmpty ? nil : excluded.sorted()
+        objectWillChange.send()
+        UserDefaults.standard.set(stored, forKey: DefaultsKey.displayInputCycleExclusions)
+    }
+
+    private func syncDisplayInputHotkey() {
+        let enabled = running && AppFeature.brightness.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.displayInputShortcutEnabled)
+        let shortcut = GlobalShortcutRole.displayInputNext.savedShortcut
+        let conflicts = enabled && shortcut.conflictsWithSystemShortcut
+            && !SystemShortcutTakeover.isTakenOver(GlobalShortcutRole.displayInputNext.storageKey)
+        let registered = displayInputHotkey.sync(
+            enabled: enabled && !conflicts, shortcut: shortcut,
+            storageKey: GlobalShortcutRole.displayInputNext.storageKey)
+        displayInputShortcutRegistrationFailed = conflicts || !registered
+    }
+
+    private func storeInputState(_ state: DisplayInputState?, for id: CGDirectDisplayID) {
+        guard running, let state,
+              displays.contains(where: { $0.id == id && $0.method == .ddc }) else { return }
+        inputStates[id] = state
+    }
+
+    private func forgetInputStates(keeping displays: [BrightnessDisplay]) {
+        let kept = Set(displays.filter { $0.isActive && $0.method == .ddc }.map(\.id))
+        if inputStates.keys.contains(where: { !kept.contains($0) }) {
+            inputStates = inputStates.filter { kept.contains($0.key) }
+        }
     }
 
     private func syncKeyboardBrightnessHotkeys() {
@@ -567,8 +704,13 @@ final class BrightnessService: ObservableObject {
         displayBrightnessDecreaseHotkey.unregister()
         displayBrightnessIncreaseHotkey.unregister()
         displayBrightnessShortcutRegistrationFailed = false
+        displayInputHotkey.unregister()
+        displayInputShortcutRegistrationFailed = false
         guard running else { return }
         running = false
+        inputStates = [:]
+        inputDetections = []
+        inputSwitchPending = []
         removeFunctionKeyTap()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
@@ -592,6 +734,7 @@ final class BrightnessService: ObservableObject {
         displayControlFailure = nil
         brightnessOSDSupported = false
         BrightnessOSD.teardown()
+        DisplayInputOSD.teardown()
         if !displays.isEmpty { displays = [] }
         if !drawableDisplays.isEmpty { drawableDisplays = [] }
         // Queue on the work queue first so this lands AFTER any operation
@@ -2152,6 +2295,7 @@ final class BrightnessService: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.running, generation == self.rebuildGeneration else { return }
                 if self.displays != discovered { self.displays = discovered }
+                self.forgetInputStates(keeping: discovered)
                 if self.drawableDisplays != drawableIDs { self.drawableDisplays = drawableIDs }
             }
         }
@@ -2387,6 +2531,7 @@ final class BrightnessService: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.running, generation == self.rebuildGeneration else { return }
             if self.displays != resolved { self.displays = resolved }
+            self.forgetInputStates(keeping: resolved)
             if self.softwareDimmingPreferred != forcedSoftwareIDs {
                 self.softwareDimmingPreferred = forcedSoftwareIDs
             }
@@ -2590,7 +2735,8 @@ final class BrightnessService: ObservableObject {
         ddcCommandEnds[id] = DispatchTime.now().uptimeNanoseconds / 1_000
     }
 
-    private func ddcSend(to id: CGDirectDisplayID, service: CFTypeRef, packet: [UInt8]) -> Bool {
+    private func ddcSend(to id: CGDirectDisplayID, service: CFTypeRef, packet: [UInt8],
+                         hostAddress: UInt32 = BrightnessSupport.dataAddress) -> Bool {
         guard let write = BrightnessBridge.writeI2C else { return false }
         paceDDCCommand(for: id)
         defer { recordDDCCommandEnd(for: id) }
@@ -2600,7 +2746,7 @@ final class BrightnessService: ObservableObject {
             for _ in 0..<BrightnessSupport.writeCycles {
                 usleep(BrightnessSupport.writePauseMicroseconds)
                 let accepted = write(service, BrightnessSupport.chipAddress,
-                                     BrightnessSupport.dataAddress,
+                                     hostAddress,
                                      &bytes, UInt32(bytes.count)) == KERN_SUCCESS
                 success = accepted || success
             }
@@ -2610,6 +2756,103 @@ final class BrightnessService: ObservableObject {
             }
         }
         return success
+    }
+
+    // MARK: - Input source (work queue)
+
+    private static func vendorID(_ id: CGDirectDisplayID) -> Int64? {
+        (displayInfoDictionary(id)?[kDisplayVendorID] as? NSNumber)?.int64Value
+    }
+
+    private func ddcRoute(_ id: CGDirectDisplayID) -> CFTypeRef? {
+        stateLock.lock()
+        let route = routes[id]
+        stateLock.unlock()
+        guard let route, route.method == .ddc else { return nil }
+        return route.service
+    }
+
+    /// Work queue only.
+    private func readInputState(for id: CGDirectDisplayID, vendorID: Int64?) -> DisplayInputState? {
+        guard let service = ddcRoute(id) else { return nil }
+        let capabilities = ddcReadCapabilities(for: id, service: service)
+        let reported = capabilities.flatMap(DisplayInputSupport.inputValues(fromCapabilities:))
+        let list = DisplayInputSupport.inputs(capabilities: reported, vendorID: vendorID)
+        let current = ddcReadValue(code: DisplayInputSupport.inputCode, for: id, service: service)
+        Self.log.log("input sources display \(id) detected \(list.detected) count \(list.inputs.count) current \(current.map { String($0) } ?? "none", privacy: .public)")
+        return DisplayInputState(
+            inputs: list.inputs,
+            current: current.flatMap { DisplayInputSupport.currentInput(fromReply: $0, among: list.inputs) },
+            detected: list.detected)
+    }
+
+    /// Work queue only.
+    private func writeInput(_ input: DisplayInput, to id: CGDirectDisplayID) -> Bool {
+        guard let service = ddcRoute(id) else { return false }
+        let write = DisplayInputSupport.writePacket(for: input)
+        let accepted = ddcSend(to: id, service: service, packet: write.packet, hostAddress: write.hostAddress)
+        Self.log.log("switched display \(id) input \(input.id, privacy: .public) ok \(accepted)")
+        return accepted
+    }
+
+    /// One Get VCP Feature read, retried like a luminance read.
+    private func ddcReadValue(code: UInt8, for id: CGDirectDisplayID, service: CFTypeRef) -> UInt16? {
+        guard let write = BrightnessBridge.writeI2C,
+              let read = BrightnessBridge.readI2C else { return nil }
+        paceDDCCommand(for: id)
+        defer { recordDDCCommandEnd(for: id) }
+        var request = DisplayInputSupport.readRequestPacket(code: code)
+        for attempt in 0...BrightnessSupport.retryAttempts {
+            usleep(BrightnessSupport.writePauseMicroseconds)
+            _ = write(service, BrightnessSupport.chipAddress, BrightnessSupport.dataAddress,
+                      &request, UInt32(request.count))
+            usleep(BrightnessSupport.readPauseMicroseconds)
+            var reply = [UInt8](repeating: 0, count: BrightnessSupport.replyLength)
+            if read(service, BrightnessSupport.chipAddress, 0, &reply, UInt32(reply.count)) == KERN_SUCCESS,
+               let parsed = BrightnessSupport.parseReply(reply, code: code) {
+                return parsed.current
+            }
+            if attempt < BrightnessSupport.retryAttempts {
+                usleep(BrightnessSupport.retryPauseMicroseconds)
+            }
+        }
+        return nil
+    }
+
+    /// Reads the capabilities string fragment by fragment, each at the offset
+    /// the previous ones reached, until the monitor sends an empty fragment.
+    private func ddcReadCapabilities(for id: CGDirectDisplayID, service: CFTypeRef) -> String? {
+        guard let write = BrightnessBridge.writeI2C,
+              let read = BrightnessBridge.readI2C else { return nil }
+        var text: [UInt8] = []
+        while text.count < DisplayInputSupport.capabilitiesMaximumLength {
+            let offset = UInt16(text.count)
+            var fragment: [UInt8]?
+            paceDDCCommand(for: id)
+            for attempt in 0...BrightnessSupport.retryAttempts where fragment == nil {
+                var request = DisplayInputSupport.capabilitiesRequestPacket(offset: offset)
+                usleep(BrightnessSupport.writePauseMicroseconds)
+                _ = write(service, BrightnessSupport.chipAddress, BrightnessSupport.dataAddress,
+                          &request, UInt32(request.count))
+                usleep(BrightnessSupport.readPauseMicroseconds)
+                var reply = [UInt8](repeating: 0, count: DisplayInputSupport.capabilitiesReplyLength)
+                if read(service, BrightnessSupport.chipAddress, 0, &reply, UInt32(reply.count)) == KERN_SUCCESS {
+                    fragment = DisplayInputSupport.capabilitiesFragment(reply, offset: offset)
+                }
+                if fragment == nil, attempt < BrightnessSupport.retryAttempts {
+                    usleep(BrightnessSupport.retryPauseMicroseconds)
+                }
+            }
+            recordDDCCommandEnd(for: id)
+            guard let fragment else { break }
+            if fragment.isEmpty { break }
+            text += fragment
+        }
+        let trimmed = text.prefix { $0 != 0 }
+        guard !trimmed.isEmpty else { return nil }
+        let string = String(decoding: trimmed, as: UTF8.self)
+        Self.log.log("capabilities display \(id): \(string, privacy: .public)")
+        return string
     }
 
     private enum DDCProbe {
