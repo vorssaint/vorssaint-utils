@@ -87,6 +87,7 @@ enum AgentUsageReadTests {
         func startPolling() {}
         func syncPolling() {}
         func watchNetwork() {}
+        func refreshAntigravityLimits(now: Date, soon: Bool = false) {}
         func publish() {
             snapshot = store.snapshot(plans: [:], providers: enabled, now: Date())
             publications.append(snapshot)
@@ -141,12 +142,7 @@ enum AgentUsageReadTests {
             let cursor = AgentLogCursor(path: file.path, provider: provider)
             var entries: [AgentLogEntry] = []
             let consume: (Data) -> Void = { line in
-                switch provider {
-                case .claude: entries += AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
-                case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
-                case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
-                case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
-                }
+                entries += provider.reader.parse(line, state: &cursor.state, now: now)
             }
             if provider == .copilot {
                 AgentUsageProductionLogReader.readCopilotHistory(cursor, line: consume)

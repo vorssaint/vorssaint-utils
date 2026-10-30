@@ -233,6 +233,11 @@ enum AgentLogParser {
 
     // MARK: Shared values
 
+    /// Antigravity steps use the same reader as the service.
+    static func parseAntigravity(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        AntigravityReader().parse(line, state: &state, now: now)
+    }
+
     /// The folder an agent ran in names the project. A worktree kept inside
     /// the repository still belongs to that repository.
     static func projectName(_ path: String) -> String {

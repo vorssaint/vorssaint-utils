@@ -7,7 +7,8 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity, resets
+    // Now sits beside the last limits card, so spending gets a row of its own.
+    case limits, live, spend, trend, models, projects, activity, resets
 
     var id: String { rawValue }
 
@@ -24,8 +25,9 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Charts need the island's width; everything else pairs up.
-    var fullWidth: Bool { self == .trend || self == .activity }
+    /// Charts, and spending with its breakdown per agent, need the island's
+    /// width; everything else pairs up.
+    var fullWidth: Bool { self == .trend || self == .activity || self == .spend }
 
     /// Cards that cover the period chosen in the island's top row.
     var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
@@ -95,6 +97,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .antigravity: return DefaultsKey.notchAgentsAntigravity
         }
     }
 
