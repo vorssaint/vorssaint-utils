@@ -589,14 +589,29 @@ enum TextSnippetSupport {
         let snippets: [TextSnippet]
     }
 
+    /// Snippets in the order lists show them: alphabetical by the title rows
+    /// display, the trigger standing in for an unnamed snippet, with the stored
+    /// order breaking ties. Storage keeps creation order.
+    static func sortedForDisplay(_ snippets: [TextSnippet]) -> [TextSnippet] {
+        snippets.enumerated().sorted { lhs, rhs in
+            let left = lhs.element.name.isEmpty ? lhs.element.trigger : lhs.element.name
+            let right = rhs.element.name.isEmpty ? rhs.element.trigger : rhs.element.name
+            switch left.localizedStandardCompare(right) {
+            case .orderedAscending: return true
+            case .orderedDescending: return false
+            case .orderedSame: return lhs.offset < rhs.offset
+            }
+        }.map(\.element)
+    }
+
     /// The library's content for a search text: enabled snippets marked to
     /// show, matched against name, trigger, text and folder (case and
     /// diacritic insensitive), grouped by folder. Folders come first in
-    /// alphabetical order; snippets without one close the list, both keeping
-    /// the stored order inside. An empty search shows everything.
+    /// alphabetical order; snippets without one close the list, both sorted
+    /// for display inside. An empty search shows everything.
     static func librarySections(_ snippets: [TextSnippet], query: String) -> [LibrarySection] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let visible = snippets.filter { snippet in
+        let visible = sortedForDisplay(snippets).filter { snippet in
             guard snippet.enabled, snippet.showsInLibrary else { return false }
             guard !trimmed.isEmpty else { return true }
             return snippet.name.localizedStandardContains(trimmed)

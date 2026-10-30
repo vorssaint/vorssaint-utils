@@ -17,7 +17,7 @@ struct TrafficLightCandidate {
     let frame: CGRect
 }
 
-struct WindowServerWindowCandidate {
+struct WindowServerWindowCandidate: Equatable {
     let pid: pid_t
     let windowID: CGWindowID
     let frame: CGRect
@@ -149,6 +149,7 @@ enum WindowServerSupport {
         }
         return nil
     }
+
 
     /// The traffic light a click landed on, if any. `CGRect.contains` decides
     /// what the point is over, so the far edge belongs to the window next to

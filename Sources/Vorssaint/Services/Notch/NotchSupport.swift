@@ -1108,19 +1108,22 @@ enum NotchCapsuleLayout {
     /// or an event: a download's arrow and percentage, the working agents,
     /// the cover or the event's dot and countdown.
     static func timerMarkWidth(companion: NotchCompactActivity?, workingAgents: Int, downloadPercent: Bool,
-                               geometry: NotchGeometry, language: AppLanguage) -> CGFloat {
+                               geometry: NotchGeometry, language: AppLanguage,
+                               calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGFloat {
         switch companion {
         case .downloads:
             return symbolWidth + (downloadPercent ? markSpacing + downloadPercentWidth(language) : 0)
         case .agents: return agentMarksWidth(working: workingAgents)
         case .music: return artworkSide(geometry)
-        case .calendar: return calendarClockWidth
+        case .calendar: return calendarClockWidth(leadTime: calendarLeadTime)
         default: return symbolWidth
         }
     }
 
     /// An event's dot and its countdown at its widest, as a pair shows it.
-    static var calendarClockWidth: CGFloat { calendarDotSide + markSpacing + width("00:00", font: readingFont) }
+    static func calendarClockWidth(leadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGFloat {
+        calendarDotSide + markSpacing + width(NotchCalendarSupport.countdownShape(leadTime: leadTime), font: readingFont)
+    }
 
     /// Between a mark and the reading beside it; an event's countdown is a
     /// group of its own, so a pair with one keeps two clocks apart.
@@ -1129,9 +1132,10 @@ enum NotchCapsuleLayout {
     /// A timer's reading beside its mark, measured by its shape, so the
     /// capsule only moves when a character comes or goes.
     static func timerSurface(reading: String, companion: NotchCompactActivity?, workingAgents: Int,
-                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage,
+                             calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
-                                  geometry: geometry, language: language)
+                                  geometry: geometry, language: language, calendarLeadTime: calendarLeadTime)
         let content = mark + markGap(companion) + width(NotchAgentSupport.readingShape(reading), font: readingFont)
         return surface(content: content, leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
@@ -1141,10 +1145,11 @@ enum NotchCapsuleLayout {
     /// mark, then the event's dot and countdown. Its title moves to the
     /// tooltip and VoiceOver.
     static func calendarPairSurface(companion: NotchCompactActivity, workingAgents: Int, downloadPercent: Bool,
-                                    geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+                                    geometry: NotchGeometry, language: AppLanguage,
+                                    calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
                                   geometry: geometry, language: language)
-        return surface(content: mark + markGap(.calendar) + calendarClockWidth,
+        return surface(content: mark + markGap(.calendar) + calendarClockWidth(leadTime: calendarLeadTime),
                        leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
     }
@@ -1177,9 +1182,11 @@ enum NotchCapsuleLayout {
 
     /// An event's color and title, then its countdown at its widest and the
     /// time it starts or ends.
-    static func calendarSurface(title: String, time: String, geometry: NotchGeometry) -> CGSize {
+    static func calendarSurface(title: String, time: String, geometry: NotchGeometry,
+                                calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let content = calendarDotSide + spacing + width(title, font: titleFont) + groupSpacing
-            + width("00:00", font: readingFont) + markSpacing + width(time, font: smallFont)
+            + width(NotchCalendarSupport.countdownShape(leadTime: calendarLeadTime), font: readingFont)
+            + markSpacing + width(time, font: smallFont)
         return surface(content: content, maximum: Maximum.calendar, geometry: geometry)
     }
 
@@ -1731,13 +1738,21 @@ enum NotchSupport {
     }
 
     /// What a key does on the clipboard page, whose search field keeps the
-    /// focus while hidden. Up, Down and Return drive the list. A typed letter
-    /// shows the field and goes on to it, so its editor and any input method
+    /// focus while hidden. Up/Down, Control-P/N and Return drive the list.
+    /// A typed letter shows the field and goes on to it, so its editor and any input method
     /// get every key, and so does every key while an input method composes.
-    /// Keys held with Command, Control or Option belong to their own shortcuts,
-    /// and Shift with the arrows or Return to the field, which selects with them.
+    /// Other Command, Control or Option keys belong to their own shortcuts;
+    /// Shift with the arrows or Return stays with the field, which selects with them.
     static func clipboardKey(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags,
                              composing: Bool) -> NotchClipboardKey? {
+        let shortcutModifiers = modifiers.intersection([.command, .control, .option, .shift])
+        if !composing, shortcutModifiers == .control {
+            switch characters.lowercased() {
+            case "n": return .move(backwards: false)
+            case "p": return .move(backwards: true)
+            default: break
+            }
+        }
         guard modifiers.isDisjoint(with: [.command, .control, .option]) else { return nil }
         guard !composing else { return .reveal }
         switch keyCode {

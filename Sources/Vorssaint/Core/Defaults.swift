@@ -54,6 +54,8 @@ enum DefaultsKey {
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
     static let scrollHorizontalEnabled = "scrollHorizontalEnabled"
     static let scrollHorizontalModifier = "scrollHorizontalModifier"
+    static let pinchZoomEnabled = "pinchZoomEnabled"
+    static let pinchZoomModifier = "pinchZoomModifier"
     static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
     static let focusFollowsMouseDelay = "focusFollowsMouseDelayMilliseconds"
     static let focusFollowsMouseRaise = "focusFollowsMouseRaise"
@@ -103,6 +105,8 @@ enum DefaultsKey {
     static let systemShortcutTakeOverKeys = "systemShortcutTakeOverKeys"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
     static let switcherWindowShortcut = "switcherWindowShortcut" // GlobalShortcut storage value
+    static let switcherAllWindowsShortcut = "switcherAllWindowsShortcut"
+    static let switcherAllWindowsShortcutEnabled = "switcherAllWindowsShortcutEnabled"
     static let switcherIconRowMode = "switcherIconRowMode"
     static let switcherSimpleMode = "switcherSimpleMode"  // app-only row without window captures
     static let switcherMergeTabs = "switcherMergeTabs"     // show one switcher entry per app (collapse all of an app's windows)
@@ -372,6 +376,7 @@ enum DefaultsKey {
     // Keep the existing storage key so moving the row preserves its visibility choice.
     static let panelToggleMicMute = "panelUtilityMicMute"
     static let panelToggleEmptyTrash = "panelToggleEmptyTrash"
+    static let panelToggleQuitAllApps = "panelToggleQuitAllApps"
     static let panelToggleEjectDisks = "panelToggleEjectDisks"
     static let panelToggleHiddenFiles = "panelToggleHiddenFiles"
     static let panelToggleDesktopIcons = "panelToggleDesktopIcons"
@@ -563,6 +568,7 @@ enum DefaultsKey {
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
     static let clipboardHistoryQuickPreview = "clipboardHistoryQuickPreview"
+    static let clipboardHistoryShowSourceAppIcons = "clipboardHistoryShowSourceAppIcons" // source app icons beside list entries
     static let clipboardHistoryLayout = "clipboardHistoryLayout" // cards | list, how the history window shows entries
     static let clipboardHistoryWindowWidth = "clipboardHistoryWindowWidth" // the list window's chosen size
     static let clipboardHistoryWindowHeight = "clipboardHistoryWindowHeight"
@@ -594,6 +600,12 @@ enum DefaultsKey {
     static let screenOCRDetectQRCodes = "screenOCRDetectQRCodes" // QR content wins over OCR text
     static let micMuteShortcutEnabled = "micMuteShortcutEnabled"
     static let micMuteShortcut = "micMuteShortcut"
+    static let quitAppsShortcutEnabled = "quitAppsShortcutEnabled"
+    static let quitAppsShortcut = "quitAppsShortcut"
+    static let quitAppsExceptFrontShortcutEnabled = "quitAppsExceptFrontShortcutEnabled"
+    static let quitAppsExceptFrontShortcut = "quitAppsExceptFrontShortcut"
+    /// Bundle ids "Quit all apps" leaves running, on top of the mandatory set.
+    static let quitAppsKeptApps = "quitAppsKeptApps"
     static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
     static let cameraPreviewShortcut = "cameraPreviewShortcut"
     static let wallpaperApplyAllDisplays = "wallpaperApplyAllDisplays"
@@ -867,6 +879,7 @@ enum DefaultsKey {
     static let notchWatchCondition = "notchWatchCondition"
     static let notchCalendarEnabled = "notchCalendarEnabled"
     static let notchCalendarCountdown = "notchCalendarCountdown"
+    static let notchCalendarCountdownLead = "notchCalendarCountdownLead" // minutes before a start, chosen events included
     static let notchCalendarTimeLeft = "notchCalendarTimeLeft" // the event under way counts down to its end
     static let notchCalendarWeekNumbers = "notchCalendarWeekNumbers" // the month grid numbers its weeks
     static let notchCalendarExcluded = "notchCalendarExcluded" // [EKCalendar.calendarIdentifier] left out of the island
@@ -875,6 +888,7 @@ enum DefaultsKey {
     // AI agents: what the island reads from Claude Code, Codex, OpenCode and GitHub Copilot, and shows.
     static let notchAgentsEnabled = "notchAgentsEnabled"
     static let notchAgentsClaude = "notchAgentsClaude"
+    static let notchAgentsClaudeProfile = "notchAgentsClaudeProfile"
     static let notchAgentsCodex = "notchAgentsCodex"
     /// The Codex homes, `CODEX_HOME` folders, that get limits cards of their own.
     static let notchAgentsCodexProfiles = "notchAgentsCodexProfiles"
@@ -1037,13 +1051,13 @@ enum BrightnessUpdatePromptInfo {
 
 enum SupportUpdateIntroInfo {
     /// The stable release that gets this invitation, and the patches after it,
-    /// which share one completion marker. 3.4.2 introduces the revised message
-    /// even to people who completed the earlier invitation.
-    static let releaseVersion = "3.4.2"
+    /// which share one completion marker. The next stable update also includes
+    /// people who completed the previous invitation.
+    static let releaseVersion = "3.4.3"
 
     // Older beta onboarding wrote the release version before this screen was
     // available. A distinct completion marker keeps those upgraders eligible.
-    static let seenVersion = "3.4.2-support"
+    static let seenVersion = "3.4.3-support"
 
     static func matchesRelease(_ appVersion: String) -> Bool {
         guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
@@ -1226,6 +1240,8 @@ enum Defaults {
         DefaultsKey.scrollInverterHorizontalEnabled: false,
         DefaultsKey.scrollHorizontalEnabled: false,
         DefaultsKey.scrollHorizontalModifier: ScrollHorizontalModifier.shift.rawValue,
+        DefaultsKey.pinchZoomEnabled: false,
+        DefaultsKey.pinchZoomModifier: ScrollZoomModifier.control.rawValue,
         DefaultsKey.focusFollowsMouseEnabled: false,
         DefaultsKey.focusFollowsMouseDelay: FocusFollowsMouseSupport.defaultDelayMilliseconds,
         DefaultsKey.focusFollowsMouseRaise: true,
@@ -1261,6 +1277,8 @@ enum Defaults {
         DefaultsKey.switcherTakeOverSystemShortcuts: false,
         DefaultsKey.switcherShortcut: "command:48",
         DefaultsKey.switcherWindowShortcut: GlobalShortcut.switcherWindowDefault.storageValue,
+        DefaultsKey.switcherAllWindowsShortcut: GlobalShortcut.switcherAllWindowsDefault.storageValue,
+        DefaultsKey.switcherAllWindowsShortcutEnabled: false,
         DefaultsKey.switcherIconRowMode: false,
         DefaultsKey.switcherSimpleMode: false,
         DefaultsKey.switcherMergeTabs: false,
@@ -1464,11 +1482,13 @@ enum Defaults {
         DefaultsKey.notchAccessoriesEnabled: true,
         DefaultsKey.notchCalendarEnabled: true,
         DefaultsKey.notchCalendarCountdown: false,
+        DefaultsKey.notchCalendarCountdownLead: NotchCalendarSupport.defaultCountdownLeadMinutes,
         DefaultsKey.notchCalendarTimeLeft: false,
         DefaultsKey.notchCalendarWeekNumbers: false,
         DefaultsKey.notchCalendarExcluded: [String](),
         DefaultsKey.notchAgentsEnabled: false,
         DefaultsKey.notchAgentsClaude: true,
+        DefaultsKey.notchAgentsClaudeProfile: "",
         DefaultsKey.notchAgentsCodex: true,
         DefaultsKey.notchAgentsCodexProfiles: "",
         DefaultsKey.notchAgentsOpenCode: true,
@@ -1621,6 +1641,7 @@ enum Defaults {
         DefaultsKey.panelToggleKeyboardLight: true,
         DefaultsKey.panelToggleMicMute: true,
         DefaultsKey.panelToggleEmptyTrash: true,
+        DefaultsKey.panelToggleQuitAllApps: true,
         DefaultsKey.panelToggleEjectDisks: true,
         DefaultsKey.panelToggleHiddenFiles: true,
         DefaultsKey.panelToggleDesktopIcons: true,
@@ -1776,6 +1797,7 @@ enum Defaults {
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
         DefaultsKey.windowLayoutIgnoredApps: [String](),
         DefaultsKey.clipboardHistoryQuickPreview: false,
+        DefaultsKey.clipboardHistoryShowSourceAppIcons: false,
         DefaultsKey.clipboardHistoryLayout: ClipboardHistoryLayout.list.rawValue,
         DefaultsKey.clipboardHistoryWindowWidth: 0.0,
         DefaultsKey.clipboardHistoryWindowHeight: 0.0,
@@ -1808,6 +1830,11 @@ enum Defaults {
         DefaultsKey.screenOCRDetectQRCodes: true,
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
+        DefaultsKey.quitAppsShortcutEnabled: false,
+        DefaultsKey.quitAppsShortcut: GlobalShortcut.quitAllDefault.storageValue,
+        DefaultsKey.quitAppsExceptFrontShortcutEnabled: false,
+        DefaultsKey.quitAppsExceptFrontShortcut: GlobalShortcut.quitAllExceptFrontDefault.storageValue,
+        DefaultsKey.quitAppsKeptApps: mandatoryAutoQuitExceptionBundleIDs,
         DefaultsKey.cameraPreviewShortcutEnabled: false,
         DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
         DefaultsKey.wallpaperApplyAllDisplays: true,
@@ -2260,6 +2287,7 @@ enum Defaults {
         else { return }
         defaults.set(true, forKey: AppFeature.linearScroll.availabilityKey)
     }
+
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {
         if let oldValue = defaults.object(forKey: DefaultsKey.monitorShowFanControlBeta) as? Bool {

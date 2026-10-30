@@ -447,5 +447,53 @@ enum SwitcherFullscreenScopeTests {
         Bridge.getWindowTags = { _, _, _, _ in .success }
         suite.expect(listed().compactMap(\.windowID) == [40, 41],
                      "a per-window read of zeros, as macOS 27 gives for other apps, hides nothing")
+        windowlessCapChecks(suite)
+    }
+
+    private static func windowlessCapChecks(_ suite: TestSuite) {
+        let frame = CGRect(x: 0, y: 0, width: 600, height: 400)
+        let apps = (1...40).map { id in
+            Enumerator.AppSnapshot(pid: pid_t(id), bundleIdentifier: "test.app.\(id)",
+                                   localizedName: "App \(id)", isRegular: true, isHidden: false,
+                                   bundlePath: nil, executablePath: nil)
+        }
+        let snapshot = Enumerator.Snapshot(accessibilityGranted: true, runningApps: apps,
+                                            ownWindowTitles: [:], screenFrames: [frame], displayIDsByUUID: [:])
+        Bridge.memberships = [:]
+        Bridge.orderedOut = []
+        Bridge.windowServerTags = [:]
+        Bridge.windowQuery = Bridge.windowServer
+        Bridge.getWindowTags = nil
+        Enumerator.raw = (1...40).map { id in
+            [kCGWindowNumber as String: NSNumber(value: id),
+             kCGWindowOwnerPID as String: NSNumber(value: 1),
+             kCGWindowLayer as String: NSNumber(value: 0),
+             kCGWindowBounds as String: ["X": 0, "Y": 0, "Width": 600, "Height": 400],
+             kCGWindowIsOnscreen as String: NSNumber(value: true),
+             kCGWindowAlpha as String: NSNumber(value: 1),
+             kCGWindowName as String: "Window \(id)"] as [String: Any]
+        }
+        let windows = (1...40).map { id in
+            (id: CGWindowID(id), snapshot: Enumerator.AccessibilityWindowSnapshot(
+                title: "Window \(id)", frame: frame, isMinimized: false,
+                isFullscreen: false, isNativeFullscreen: false))
+        }
+        Enumerator.answers = Dictionary(uniqueKeysWithValues: apps.map {
+            ($0.pid, Enumerator.AccessibilityWindowSnapshotList(ordered: [], byID: [:]))
+        })
+        Enumerator.answers[1] = .init(ordered: windows,
+                                      byID: Dictionary(uniqueKeysWithValues: windows.map { ($0.id, $0.snapshot) }))
+        Preferences.standard.values = [DefaultsKey.switcherWindowlessApps: "all"]
+        let regular = Enumerator.enumerateSwitcherWindows(groupByApp: false,
+                                                           preservingGroupedWindows: false, snapshot: snapshot)
+        suite.expect(regular.items.count == 48 && regular.items.contains(where: \.isAppEntry),
+                     "the existing shortcut still reserves slots for eligible windowless apps")
+        let allWindows = Enumerator.enumerateSwitcherWindows(groupByApp: false,
+                                                              preservingGroupedWindows: false,
+                                                              snapshot: snapshot, windowsOnly: true)
+        suite.expect(allWindows.items.compactMap(\.windowID) == (1...40).map(CGWindowID.init),
+                     "all windows excludes windowless apps before capping so they cannot displace real windows")
+        suite.expect(allWindows.sourceItems.allSatisfy { !$0.isAppEntry },
+                     "an all-windows session resolves its source from real windows too")
     }
 }

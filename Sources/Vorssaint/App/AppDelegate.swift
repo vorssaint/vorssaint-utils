@@ -36,6 +36,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// Vorssaint does not stay in front. Captured when a click opens the panel
     /// and kept current by the observers below while the panel is shown.
     private var panelActivationSource: NSRunningApplication?
+
+    /// Actions opened from our panel keep the app that was actually active,
+    /// even when it has no ordinary window in the current Space.
+    var panelActivationSourcePID: pid_t? {
+        guard let source = panelActivationSource, !source.isTerminated else { return nil }
+        return source.processIdentifier
+    }
     private var panelActivationObservers: [NSObjectProtocol] = []
     private var popoverCloseReason: PanelCloseReason?
     private var metricAnchorSwitchSerial = 0
@@ -181,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .receive(on: DispatchQueue.main)
             .sink { _ in
                 FeatureRuntime.shared.sync([
-                    .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .switcher,
+                    .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .switcher,
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
@@ -2763,12 +2770,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             }
             markWhatsNewSeen()
             // Done, Escape and the window's close button all arrive here.
-            // The stable invitation follows the changelog before older tours.
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                if !AppInfo.isBeta, self.showSupportUpdateIntroIfNeeded() { return }
-                self.presentUpdateIntros()
-            }
+            // Finish any pending feature tour before the stable invitation.
+            DispatchQueue.main.async { [weak self] in self?.presentUpdateIntros() }
             return
         }
         if window === updatePreviewWindow {

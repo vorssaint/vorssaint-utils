@@ -266,7 +266,10 @@ struct SwitcherView: View {
         let windowShortcut = GlobalShortcut(storageValue: switcherWindowShortcutStorage) ?? .switcherWindowDefault
         let hints = SwitcherSupport.shortcutHints(for: shortcut, windowShortcut: windowShortcut)
         return HStack(spacing: 12) {
-            if usesWindowRow {
+            if switcher.sessionScope == .allWindows {
+                shortcutHint(label: FeatureStrings.switcherShortcuts(l10n.language).allWindows,
+                             value: (switcher.sessionShortcut ?? GlobalShortcutRole.switcherAllWindows.savedShortcut).displayString)
+            } else if usesWindowRow {
                 shortcutHint(label: l10n.s.switcherShortcutHintWindows, value: hints.apps)
             } else {
                 shortcutHint(label: l10n.s.switcherShortcutHintApps, value: hints.apps)

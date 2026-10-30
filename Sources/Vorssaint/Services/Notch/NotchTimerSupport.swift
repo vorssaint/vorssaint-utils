@@ -24,6 +24,20 @@ enum NotchTimerRulerScale {
         (Double(minute) - Double(selected)) * spacing
     }
 
+    /// Keep the ruler filled near either end instead of centering a short
+    /// duration over an empty half. The inset fits the hour labels as well.
+    static func selectionX(selected: Int, width: Double) -> Double {
+        guard width.isFinite, width > 0 else { return 0 }
+        let inset = min(24, width / 2)
+        let selected = min(180, max(1, selected))
+        let leading = Double(selected - 1) * spacing
+        let trailing = Double(180 - selected) * spacing
+        if leading + trailing <= width - 2 * inset {
+            return (width - leading - trailing) / 2 + leading
+        }
+        return min(inset + leading, max(width / 2, width - inset - trailing))
+    }
+
     static func label(for minute: Int) -> String {
         minute >= 60 ? NotchTimerSupport.hoursText(hours: minute / 60, minutes: minute % 60) : String(minute)
     }
