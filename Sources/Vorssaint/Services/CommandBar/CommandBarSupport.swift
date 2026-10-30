@@ -259,15 +259,51 @@ enum CommandBarSearch {
         guard !verb.isEmpty else { return false }
         let normalizedQuery = normalized(query)
         guard !normalizedQuery.isEmpty else { return false }
+        // The quotes a language puts around the name are not part of the verb,
+        // and neither is a little word like the "de" of "Salir de", which would
+        // otherwise take every search that starts with it.
+        let words = verb.split(separator: " ")
+            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+            .filter { $0.count >= 3 || spellsWordsInTwoCharacters($0) }
         for token in normalizedQuery.split(separator: " ").map(String.init) where token.count >= 2 {
-            for word in verb.split(separator: " ").map(String.init) {
+            for word in words {
                 if word.hasPrefix(token) || token.hasPrefix(word) { return true }
+                // Chinese and Japanese write the verb against the name, before it
+                // or after it: "safariを終了". Japanese often leaves out the を that
+                // ties the two, so the verb also counts without it: "safari終了".
+                guard isTypedWithoutSpaces(word) else { continue }
+                let withoutParticle = word.drop { $0 >= "\u{3041}" && $0 <= "\u{309F}" }
+                if token.contains(word) || word.contains(token)
+                    || (!withoutParticle.isEmpty && token.contains(withoutParticle)) { return true }
             }
-            // Japanese, Chinese and Korean write the verb against the name
-            // with no space to split on.
-            if verb.contains(token) { return true }
         }
         return false
+    }
+
+    /// Han, kana and Hangul make a whole word of two characters, like 退出 or
+    /// 종료, which the three-letter rule would otherwise drop.
+    private static func spellsWordsInTwoCharacters(_ text: String) -> Bool {
+        isTypedWithoutSpaces(text) || text.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x1100...0x11FF, 0x3130...0x318F, 0xAC00...0xD7AF:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
+    /// Han and kana, because Chinese and Japanese put no space between words,
+    /// while Korean keeps its word spaces.
+    private static func isTypedWithoutSpaces(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x3040...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF:
+                return true
+            default:
+                return false
+            }
+        }
     }
 
     /// Where a color typed on its own goes in the list. It leads, unless a row
