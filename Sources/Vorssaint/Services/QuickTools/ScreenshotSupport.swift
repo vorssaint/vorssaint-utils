@@ -3049,7 +3049,11 @@ enum ScreenshotSupport {
         }
 
         func encoded() -> String {
-            guard let data = try? JSONEncoder().encode(self) else { return "" }
+            // Settings backups carry this text. Sorted keys keep it the same
+            // from launch to launch, so a backup changes only with a setting.
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .sortedKeys
+            guard let data = try? encoder.encode(self) else { return "" }
             return String(data: data, encoding: .utf8) ?? ""
         }
 
@@ -3075,7 +3079,9 @@ enum ScreenshotSupport {
     }
 
     static func encodedWatermarkPresets(_ presets: [WatermarkStyle]) -> String {
-        guard let data = try? JSONEncoder().encode(Array(presets.suffix(backdropPresetLimit)))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys // backups carry these too, see WatermarkStyle.encoded()
+        guard let data = try? encoder.encode(Array(presets.suffix(backdropPresetLimit)))
         else { return "[]" }
         return String(data: data, encoding: .utf8) ?? "[]"
     }
