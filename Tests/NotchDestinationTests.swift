@@ -8,7 +8,7 @@ import Carbon.HIToolbox
 /// doubles. Feature choices live only in a disposable test preferences domain.
 enum NotchDestinationContract {
     enum ReviewDefaults { static var current: UserDefaults! }
-    enum NotchContentTransition { case none, reveal, replace }
+    enum NotchContentTransition { case none, reveal, replace, slideNext, slidePrevious }
     /// Like AppKit while Vorssaint stays active, makeKey and resignKey leave
     /// the app's key window as it was; tests set that record by hand.
     final class Panel {
@@ -127,7 +127,11 @@ enum NotchDestinationContract {
         var presentationTearDowns = 0
         var captureControlsCancel: (() -> Void)?
         var captureClose: (() -> Void)?
-        func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change() }
+        var transitions: [NotchContentTransition] = []
+        func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) {
+            transitions.append(transitionContent)
+            change()
+        }
         func installEventMonitors() {}
         func syncVisibleConsumers() { requestedDetail = selectedMetric }
         func provideHapticFeedback() {}
@@ -183,6 +187,22 @@ enum NotchDestinationContract {
                      "opening a page in place of the Command Bar closes the bar once")
         barHost.open(.controls)
         suite.expect(barHost.commandBarClosings == 1, "opening a page without the bar leaves the bar alone")
+        let pages = Service()
+        pages.modules = NotchSupport.modules(in: defaults)
+        if let first = pages.modules.first, let last = pages.modules.last, first != last {
+            pages.open(first)
+            pages.open(last)
+            pages.open(first)
+            suite.expect(pages.transitions == [.reveal, .slideNext, .slidePrevious],
+                         "an open page slides to the page after it from the right and to one before it from the left")
+            pages.open(last, sections: true)
+            pages.open(first)
+            pages.open(.system, metric: .cpu)
+            suite.expect(pages.transitions.suffix(3) == [.replace, .replace, .replace],
+                         "the gallery and details fade in and out instead of sliding")
+        } else {
+            suite.expect(false, "the default island offers more than one page to slide between")
+        }
         for resting in [NotchIdleContent.none, .music] {
             defaults.set(resting.rawValue, forKey: DefaultsKey.notchIdleContent)
             defaults.set(false, forKey: DefaultsKey.notchShowPlayingMusic)

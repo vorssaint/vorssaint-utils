@@ -1458,7 +1458,8 @@ final class NotchService: ObservableObject {
         // or a capture preview under the pointer can be told the pointer left.
         // An open page is followed again only from an exit report.
         if !expanded { removeHoverExitMonitors() }
-        mutatePresentation(transitionContent: changesPresentation ? (expanded ? .replace : .reveal) : .none) {
+        mutatePresentation(transitionContent: !changesPresentation ? .none : !expanded ? .reveal
+                               : pageSlide(to: destination, appPanel: appPanel, metric: metric, sections: sections)) {
             showingCommandBar = false
             showingAppPanel = appPanel
             showingSections = sections
@@ -4004,7 +4005,12 @@ final class NotchService: ObservableObject {
         let vertical = NotchGestureSupport.allowsVertical(expanded: expanded, inHeader: inHeader,
                                                           musicSurface: musicSurface,
                                                           control: interaction.control, scroll: interaction.scroll)
-        let horizontal = !interaction.control && !interaction.scroll && !inHeader && musicSurface
+        // An open page with neighbours swipes sideways to them, as Spaces do,
+        // from its top row or anywhere on a page that is not the player.
+        let panelSurface = expanded && !peeking && modules.count > 1 && !showingAppPanel && selectedMetric == nil
+            && !showingSections && !showingCommandBar
+        let panels = panelSurface && (inHeader || !musicSurface)
+        let horizontal = !interaction.control && !interaction.scroll && (panels || (!inHeader && musicSurface))
         let x = NotchGestureSupport.movement(Double(event.scrollingDeltaX), precise: event.hasPreciseScrollingDeltas,
                                              inverted: event.isDirectionInvertedFromDevice)
         let y = NotchGestureSupport.movement(Double(event.scrollingDeltaY), precise: event.hasPreciseScrollingDeltas,
@@ -4015,15 +4021,42 @@ final class NotchService: ObservableObject {
                                           momentum: !event.momentumPhase.isEmpty,
                                           precise: event.hasPreciseScrollingDeltas,
                                           hasPhase: !event.phase.isEmpty,
-                                          allowVertical: vertical, allowHorizontal: horizontal, expanded: expanded) else { return false }
+                                          allowVertical: vertical, allowHorizontal: horizontal, panels: panels,
+                                          expanded: expanded) else { return false }
         switch action {
         case .open: open()
         case .close: collapse()
         case .nextTrack, .previousTrack:
             guard musicSurface else { gesture = NotchGestureSupport(); return false }
             NotchMusicService.shared.skipFromGesture(forward: action == .nextTrack)
+        case .nextPanel, .previousPanel:
+            guard panelSurface else { gesture = NotchGestureSupport(); return false }
+            stepPanel(backwards: action == .previousPanel)
         }
         return true
+    }
+
+    /// Spaces stop at the first and last desktop; the swipe does too, and the
+    /// keyboard's Control-Tab keeps the wrapping cycle.
+    private func stepPanel(backwards: Bool) {
+        guard let next = NotchSupport.steppedItem(from: selected, in: modules, backwards: backwards),
+              next != selected else {
+            windowHost?.bumpContent(forward: !backwards)
+            return
+        }
+        select(next)
+    }
+
+    /// One open page giving way to another slides along the page order;
+    /// anything else entering or leaving, such as a detail or the gallery, fades.
+    private func pageSlide(to destination: NotchModule, appPanel: Bool, metric: MetricDetailKind?,
+                           sections: Bool) -> NotchContentTransition {
+        guard destination != selected, !showingCommandBar, !showingAppPanel, !appPanel, selectedMetric == nil,
+              metric == nil, !showingSections, !sections,
+              let from = modules.firstIndex(of: selected), let to = modules.firstIndex(of: destination) else {
+            return .replace
+        }
+        return to > from ? .slideNext : .slidePrevious
     }
 
     private func removeEventMonitors() {
