@@ -108,7 +108,7 @@ enum CommandBarUnits {
                         decimalSeparator: String = Locale.current.decimalSeparator ?? ".",
                         groupingSeparator: String = Locale.current.groupingSeparator ?? ",",
                         locale: Locale = .current) -> Result? {
-        let tokens = tokenize(input)
+        let tokens = joiningGroups(tokenize(input), groupingSeparator: groupingSeparator)
         guard tokens.count >= 3, tokens.count <= 8 else { return nil }
 
         // Try each candidate keyword from the right: in "5 in to cm" the last
@@ -134,7 +134,8 @@ enum CommandBarUnits {
     }
 
     /// Splits the input into folded tokens, pulling "100km" apart into a
-    /// number and a unit so both spellings work.
+    /// number and a unit so both spellings work. An apostrophe stays in the
+    /// number, since a Swiss Mac groups thousands with one: "1'234'567km".
     static func tokenize(_ input: String) -> [String] {
         let folded = CommandBarSearch.normalized(input)
         var tokens: [String] = []
@@ -143,7 +144,7 @@ enum CommandBarUnits {
                 tokens.append(raw)
                 continue
             }
-            let digits = raw.prefix { $0.isNumber || $0 == "." || $0 == "," || $0 == "-" }
+            let digits = raw.prefix { $0.isNumber || $0 == "." || $0 == "," || $0 == "-" || $0 == "'" || $0 == "\u{2019}" }
             let rest = raw.dropFirst(digits.count)
             tokens.append(String(digits))
             if !rest.isEmpty { tokens.append(String(rest)) }
@@ -177,9 +178,59 @@ enum CommandBarUnits {
         return (value, unit)
     }
 
+    /// A Mac that groups thousands with an apostrophe writes "1'234'567.5",
+    /// which the tokenizer keeps whole; the apostrophes go when the calculator
+    /// would read them as grouping too. One that groups with a space writes
+    /// "1 234 567,5", and every space splits the input, so the pieces go back
+    /// together when they look the part: one to three digits that don't start
+    /// with 0, then groups of exactly three.
+    static func joiningGroups(_ tokens: [String], groupingSeparator: String) -> [String] {
+        if groupingSeparator == "'" || groupingSeparator == "\u{2019}" {
+            // Either apostrophe counts, as the Mac may write one and the
+            // keyboard type the other. Words such as "aujourd'hui" keep theirs.
+            let apostrophes: Set<Character> = ["'", "\u{2019}"]
+            return tokens.map { token in
+                let unsigned = token.hasPrefix("-") ? token.dropFirst() : Substring(token)
+                let integerPart = unsigned.prefix { $0 != "." && $0 != "," }
+                guard unsigned.first?.isNumber == true, token.contains(where: apostrophes.contains),
+                      CommandBarMath.looksLikeGrouping(integerPart.replacingOccurrences(of: "\u{2019}", with: "'"),
+                                                       separator: "'"),
+                      !unsigned.dropFirst(integerPart.count).contains(where: apostrophes.contains)
+                else { return token }
+                return token.filter { !apostrophes.contains($0) }
+            }
+        }
+        guard groupingSeparator.allSatisfy(\.isWhitespace) else { return tokens }
+        func isLead(_ token: String) -> Bool {
+            let digits = token.hasPrefix("-") ? token.dropFirst() : Substring(token)
+            return (1...3).contains(digits.count) && digits.first != "0"
+                && digits.allSatisfy(\.isASCII) && digits.allSatisfy(\.isNumber)
+        }
+        func isGroup(_ token: String) -> Bool {
+            let digits = token.prefix { $0.isASCII && $0.isNumber }
+            let tail = token.dropFirst(digits.count)
+            return digits.count == 3 && (tail.isEmpty || tail.first == "." || tail.first == ",")
+        }
+        var joined: [String] = []
+        var index = 0
+        while index < tokens.count {
+            var number = tokens[index]
+            if isLead(number) {
+                while index + 1 < tokens.count, isGroup(tokens[index + 1]),
+                      !number.contains(where: { $0 == "." || $0 == "," }) {
+                    number += tokens[index + 1]
+                    index += 1
+                }
+            }
+            joined.append(number)
+            index += 1
+        }
+        return joined
+    }
+
     /// Like the calculator, accepts an alternate decimal separator unless it
     /// forms grouped thousands. When both separators occur, the last is decimal.
-    /// The tokenizer never keeps a space or an apostrophe inside a number, so
+    /// Grouping spaces and apostrophes are gone before a number gets here, so
     /// where thousands are grouped with one of those the alternate is whichever
     /// of "." and "," is not the decimal, as in the calculator.
     private static func number(_ token: String,
