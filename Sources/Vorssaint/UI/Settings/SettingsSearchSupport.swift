@@ -330,6 +330,7 @@ enum SettingsSearchSupport {
         -> [(feature: AppFeature, titles: [String])] {
         let screenshot = FeatureStrings.screenshot(language)
         let recorder = FeatureStrings.recorder(language)
+        let upload = FeatureStrings.captureUpload(language)
         return [
             (.screenshot, [screenshot.pageTitle, screenshot.freezeToggle,
                            screenshot.highlightWindowsToggle, screenshot.highlightWindowsCaption,
@@ -339,10 +340,12 @@ enum SettingsSearchSupport {
                            screenshot.confirmationPreviewDurationLabel,
                            screenshot.copyImageOnlyToggle,
                            screenshot.pinButton, screenshot.toolPixelate, screenshot.toolBlur,
-                           screenshot.toolArrow, screenshot.addToShelfToggle]),
+                           screenshot.toolArrow, screenshot.addToShelfToggle,
+                           upload.sectionTitle, upload.enabledToggle]),
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,
                                recorder.systemAudioToggle, recorder.microphoneToggle,
-                               recorder.qualityLabel, recorder.frameRateLabel]),
+                               recorder.qualityLabel, recorder.frameRateLabel,
+                               upload.sectionTitle, upload.enabledToggle]),
             (.screenOCR, [strings.ocrName, strings.ocrRemoveLineBreaksToggle, strings.ocrQRToggle]),
             (.colorPicker, [strings.colorPickerName, strings.colorPickerFormatLabel]),
         ]

@@ -16,6 +16,8 @@ struct RecorderEditorView: View {
     /// mouse is down.
     @State private var blurDraft: CGRect?
     @AppStorage(DefaultsKey.recorderSharingEnabled) private var sharingEnabled = true
+    @AppStorage(DefaultsKey.captureUploadEnabled) private var uploadEnabled = false
+    @AppStorage(DefaultsKey.captureUploadDestination) private var uploadDestinationRaw = ""
 
     private var strings: RecorderFeatureStrings {
         FeatureStrings.recorder(l10n.language)
@@ -27,6 +29,14 @@ struct RecorderEditorView: View {
 
     private var screenshotStrings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
+    }
+
+    private var uploadStrings: CaptureUploadStrings {
+        FeatureStrings.captureUpload(l10n.language)
+    }
+
+    private var uploadHost: String? {
+        CaptureUploadSupport.host(raw: uploadDestinationRaw, enabled: uploadEnabled)
     }
 
     private var recentCapturesTitle: String {
@@ -141,6 +151,10 @@ struct RecorderEditorView: View {
                 shareMenu
             }
 
+            if let uploadHost {
+                uploadButton(host: uploadHost)
+            }
+
             Menu {
                 Button(strings.saveVideoButton, action: controller.saveVideo)
                     .keyboardShortcut("s", modifiers: .command)
@@ -184,6 +198,19 @@ struct RecorderEditorView: View {
         .disabled(model.isExporting)
         .screenshotSafeHelp(screenshotStrings.shareButton)
         .accessibilityLabel(screenshotStrings.shareButton)
+    }
+
+    private func uploadButton(host: String) -> some View {
+        Button {
+            controller.upload()
+        } label: {
+            Image(systemName: "icloud.and.arrow.up")
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.borderless)
+        .disabled(model.isExporting)
+        .screenshotSafeHelp(String(format: uploadStrings.menuItemFormat, host))
+        .accessibilityLabel(String(format: uploadStrings.menuItemFormat, host))
     }
 
     private var presetsMenu: some View {
