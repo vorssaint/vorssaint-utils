@@ -26,6 +26,11 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
     @AppStorage(DefaultsKey.windowReserveStageManagerSpace) private var reserveStageManagerSpace = false
     @AppStorage(DefaultsKey.windowLayoutMarginPercent) private var marginPercent = WindowLayoutMargin.defaultPercent
+    @AppStorage(DefaultsKey.windowLayoutMarginUniform) private var marginUniform = true
+    @AppStorage(DefaultsKey.windowLayoutMarginTopPercent) private var marginTop = WindowLayoutMargin.defaultPercent
+    @AppStorage(DefaultsKey.windowLayoutMarginBottomPercent) private var marginBottom = WindowLayoutMargin.defaultPercent
+    @AppStorage(DefaultsKey.windowLayoutMarginLeftPercent) private var marginLeft = WindowLayoutMargin.defaultPercent
+    @AppStorage(DefaultsKey.windowLayoutMarginRightPercent) private var marginRight = WindowLayoutMargin.defaultPercent
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
     @State private var directionalError: String?
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
@@ -227,7 +232,15 @@ struct WindowLayoutSettings: View {
                 Section(text.other) {
                     actionRow(.maximize)
                     actionRow(.marginMaximize)
-                    marginSlider
+                    Toggle(text.marginSameOnAllEdges, isOn: $marginUniform)
+                    if marginUniform {
+                        marginSlider(text.marginPerEdge, value: $marginPercent)
+                    } else {
+                        marginSlider(text.marginTop, value: $marginTop)
+                        marginSlider(text.marginBottom, value: $marginBottom)
+                        marginSlider(text.marginLeft, value: $marginLeft)
+                        marginSlider(text.marginRight, value: $marginRight)
+                    }
                     actionRow(.fullScreen)
                     actionRow(.center)
                     actionRow(.previousDisplay)
@@ -316,15 +329,15 @@ struct WindowLayoutSettings: View {
         return "\(name) (\(value) px)"
     }
 
-    private var marginSlider: some View {
+    private func marginSlider(_ title: String, value: Binding<Double>) -> some View {
         HStack(spacing: 12) {
             Slider(value: Binding(
-                get: { WindowLayoutMargin.sanitizedPercent(marginPercent) },
-                set: { marginPercent = WindowLayoutMargin.sanitizedPercent($0) }
+                get: { WindowLayoutMargin.sanitizedPercent(value.wrappedValue) },
+                set: { value.wrappedValue = WindowLayoutMargin.sanitizedPercent($0) }
             ), in: WindowLayoutMargin.percentRange, step: 1) {
-                Text(text.marginPerEdge)
+                Text(title)
             }
-            Text(WindowLayoutMargin.sanitizedPercent(marginPercent) / 100,
+            Text(WindowLayoutMargin.sanitizedPercent(value.wrappedValue) / 100,
                  format: .percent.precision(.fractionLength(0)))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)

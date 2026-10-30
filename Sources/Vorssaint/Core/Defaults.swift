@@ -509,7 +509,12 @@ enum DefaultsKey {
     static let windowLayoutWindowGap = "windowLayoutWindowGap" // px between adjacent snapped windows
     static let windowLayoutScreenGap = "windowLayoutScreenGap" // px between a snapped window and the visible frame edge
     static let windowReserveStageManagerSpace = "windowReserveStageManagerSpace"
-    static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // per-edge percentage for margin maximize
+    static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // percentage on every edge for margin maximize when the edges share one margin
+    static let windowLayoutMarginUniform = "windowLayoutMarginUniform" // margin maximize uses windowLayoutMarginPercent on every edge
+    static let windowLayoutMarginTopPercent = "windowLayoutMarginTopPercent" // margin maximize top edge percentage when not uniform
+    static let windowLayoutMarginBottomPercent = "windowLayoutMarginBottomPercent"
+    static let windowLayoutMarginLeftPercent = "windowLayoutMarginLeftPercent"
+    static let windowLayoutMarginRightPercent = "windowLayoutMarginRightPercent"
     static let windowLayoutSideRepeatCyclesThirds = "windowLayoutSideRepeatCyclesThirds" // repeated Left/Right cycles half, 2/3, 1/3 on the same display
     static let windowLayoutIgnoredApps = "windowLayoutIgnoredApps" // apps that temporarily disable window layout while focused
     static let panelCollapsedSections = "panelCollapsedSections"
@@ -1675,6 +1680,11 @@ enum Defaults {
         DefaultsKey.windowLayoutScreenGap: 0,
         DefaultsKey.windowReserveStageManagerSpace: false,
         DefaultsKey.windowLayoutMarginPercent: 5.0,
+        DefaultsKey.windowLayoutMarginUniform: true,
+        DefaultsKey.windowLayoutMarginTopPercent: 5.0,
+        DefaultsKey.windowLayoutMarginBottomPercent: 5.0,
+        DefaultsKey.windowLayoutMarginLeftPercent: 5.0,
+        DefaultsKey.windowLayoutMarginRightPercent: 5.0,
         DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
