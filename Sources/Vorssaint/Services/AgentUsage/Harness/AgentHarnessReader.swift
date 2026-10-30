@@ -13,10 +13,14 @@ protocol AgentHarnessReader {
     /// True when a log's first reading goes through `readCopilotHistory`,
     /// which passes on only Copilot's event lines; only Copilot sets it.
     var readsFullHistoryFirst: Bool { get }
+    /// What a log's lines cannot tell about it, known before its first line.
+    func initialState(forLog path: String) -> AgentLogState
 }
 
 extension AgentHarnessReader {
     var readsFullHistoryFirst: Bool { false }
+
+    func initialState(forLog path: String) -> AgentLogState { AgentLogState() }
 }
 
 extension AgentProvider {
@@ -27,6 +31,7 @@ extension AgentProvider {
         case .codex: CodexReader()
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
+        case .gemini: GeminiReader()
         }
     }
 }
