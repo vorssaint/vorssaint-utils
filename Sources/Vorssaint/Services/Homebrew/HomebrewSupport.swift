@@ -339,6 +339,45 @@ enum HomebrewTerminalScript {
     }
 }
 
+/// Which app opens the terminal script (issue #598): the one the person
+/// picked in Settings, with the system default handler as the fallback. The
+/// choice only names an app, it never scripts one: the handoff script is
+/// opened the same way whatever terminal it lands in, so no terminal's
+/// scripting has to live here.
+enum HomebrewTerminalChoice {
+    struct Option: Identifiable, Hashable {
+        let bundleID: String
+        let name: String
+        var id: String { bundleID }
+    }
+
+    static let systemDefaultBundleID = ""
+
+    private static let candidates: [Option] = [
+        Option(bundleID: "com.apple.Terminal", name: "Terminal"),
+        Option(bundleID: "com.googlecode.iterm2", name: "iTerm2"),
+        Option(bundleID: "com.mitchellh.ghostty", name: "Ghostty"),
+        Option(bundleID: "dev.warp.Warp-Stable", name: "Warp"),
+        Option(bundleID: "org.alacritty", name: "Alacritty"),
+        Option(bundleID: "net.kovidgoyal.kitty", name: "kitty"),
+    ]
+
+    /// The candidates that are actually installed, so the Settings list never
+    /// offers an app this Mac does not have.
+    static func installedOptions(appURL: (String) -> URL?) -> [Option] {
+        candidates.filter { appURL($0.bundleID) != nil }
+    }
+
+    /// The app to hand the terminal script to: the one the person chose, and
+    /// the system default handler (nil) when the choice is the default itself
+    /// or the chosen app is no longer installed.
+    static func applicationURL(selectedBundleID bundleID: String?,
+                               appURL: (String) -> URL?) -> URL? {
+        guard let appID = bundleID, !appID.isEmpty else { return nil }
+        return appURL(appID)
+    }
+}
+
 enum HomebrewCommandBuilder {
     static let candidatePaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
     static let installerCommand = #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#

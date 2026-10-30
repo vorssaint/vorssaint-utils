@@ -472,6 +472,9 @@ extension Strings {
         homebrewOperationHideDetails: "Скрыть детали",
         homebrewOperationTechnicalLog: "Технические детали",
         homebrewOperationProgressUnknown: "Homebrew ещё не сообщил процент выполнения.",
+        homebrewTerminalSetting: "Терминал для команд sudo",
+        homebrewTerminalSettingDescription: "Выберите терминал, который открывает команды Homebrew, запрашивающие пароль. Если приложение не установлено, используется системный по умолчанию.",
+        homebrewTerminalDefault: "Системный по умолчанию",
 
         mediaName: "Медиа",
         mediaEnableCaption: "Сжимайте видео, преобразуйте и обрабатывайте изображения, создавайте GIF и извлекайте текст локально.",

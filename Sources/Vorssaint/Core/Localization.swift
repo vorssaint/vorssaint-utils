@@ -642,6 +642,9 @@ struct Strings {
     let homebrewOperationHideDetails: String
     let homebrewOperationTechnicalLog: String
     let homebrewOperationProgressUnknown: String
+    let homebrewTerminalSetting: String
+    let homebrewTerminalSettingDescription: String
+    let homebrewTerminalDefault: String
 
     // MARK: Feature — local media tools
     let mediaName: String
@@ -1794,6 +1797,9 @@ extension Strings {
         homebrewOperationHideDetails: "Ocultar detalhes",
         homebrewOperationTechnicalLog: "Detalhes técnicos",
         homebrewOperationProgressUnknown: "O Homebrew ainda não informou uma porcentagem.",
+        homebrewTerminalSetting: "Terminal para comandos sudo",
+        homebrewTerminalSettingDescription: "Escolha o terminal que abre os comandos do Homebrew que pedem senha. Quando ele não está instalado, é usado o padrão do sistema.",
+        homebrewTerminalDefault: "Padrão do sistema",
 
         mediaName: "Media",
         mediaEnableCaption: "Comprima vídeos, converta e processe imagens, crie GIFs e extraia texto localmente.",
@@ -2912,6 +2918,9 @@ extension Strings {
         homebrewOperationHideDetails: "Hide details",
         homebrewOperationTechnicalLog: "Technical details",
         homebrewOperationProgressUnknown: "Homebrew has not reported a percentage yet.",
+        homebrewTerminalSetting: "Terminal for sudo commands",
+        homebrewTerminalSettingDescription: "Pick the terminal app that opens Homebrew commands needing a password. When it is not installed, the system default is used.",
+        homebrewTerminalDefault: "System default",
 
         mediaName: "Media",
         mediaEnableCaption: "Compress videos, convert and process images, make GIFs and extract text locally.",

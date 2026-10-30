@@ -472,6 +472,9 @@ extension Strings {
         homebrewOperationHideDetails: "隱藏詳情",
         homebrewOperationTechnicalLog: "技術詳情",
         homebrewOperationProgressUnknown: "Homebrew 尚未回報百分比。",
+        homebrewTerminalSetting: "sudo 指令使用的終端機",
+        homebrewTerminalSettingDescription: "選擇開啟需要密碼的 Homebrew 指令的終端機應用程式。未安裝時使用系統預設值。",
+        homebrewTerminalDefault: "系統預設",
 
         mediaName: "媒體",
         mediaEnableCaption: "在本機壓縮影片、轉換和處理圖片、製作 GIF，並從圖片中擷取文字。",

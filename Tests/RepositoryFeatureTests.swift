@@ -962,6 +962,27 @@ enum RepositoryFeatureTests {
                                                             directory: folder.appendingPathComponent("missing"))) == nil,
                    "a terminal script that cannot be written reports an error instead of opening nothing")
         }
+        // The terminal the person chose in Settings (issue #598): the script
+        // is handed to that app by bundle id, falling back to the system
+        // default handler when nothing is chosen or the choice is gone.
+        do {
+            let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
+            let iterm = URL(fileURLWithPath: "/Applications/iTerm.app")
+            let apps = ["com.apple.Terminal": terminal, "com.googlecode.iterm2": iterm]
+            let lookup: (String) -> URL? = { apps[$0] }
+            suite.expect(HomebrewTerminalChoice.applicationURL(
+                    selectedBundleID: HomebrewTerminalChoice.systemDefaultBundleID, appURL: lookup) == nil,
+                   "the system default choice lets macOS pick the app for the terminal script")
+            suite.expect(HomebrewTerminalChoice.applicationURL(selectedBundleID: nil, appURL: lookup) == nil,
+                   "an empty choice does the same as the system default")
+            suite.expect(HomebrewTerminalChoice.applicationURL(selectedBundleID: "com.googlecode.iterm2", appURL: lookup) == iterm,
+                   "the chosen terminal is the app the script is handed to")
+            suite.expect(HomebrewTerminalChoice.applicationURL(selectedBundleID: "net.kovidgoyal.kitty", appURL: lookup) == nil,
+                   "a chosen terminal that is not installed falls back to the system default")
+            suite.expect(HomebrewTerminalChoice.installedOptions(appURL: lookup).map(\.bundleID)
+                   == ["com.apple.Terminal", "com.googlecode.iterm2"],
+                   "the Settings list offers only the terminals installed on this Mac, in a stable order")
+        }
         expectEqual(HomebrewCommandBuilder.shellProfilePath(homeDirectory: "/Users/test", shellPath: "/bin/zsh"),
                     "/Users/test/.zprofile",
                     "Homebrew shell setup uses zprofile for zsh")

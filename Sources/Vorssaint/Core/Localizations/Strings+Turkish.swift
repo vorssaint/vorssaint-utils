@@ -471,6 +471,9 @@ extension Strings {
         homebrewOperationHideDetails: "Ayrıntıları gizle",
         homebrewOperationTechnicalLog: "Teknik ayrıntılar",
         homebrewOperationProgressUnknown: "Homebrew henüz yüzde bildirmedi.",
+        homebrewTerminalSetting: "sudo komutları için terminal",
+        homebrewTerminalSettingDescription: "Şifre isteyen Homebrew komutlarını açan terminal uygulamasını seçin. Yüklü olmadığında sistem varsayılanı kullanılır.",
+        homebrewTerminalDefault: "Sistem varsayılanı",
 
         mediaName: "Medya",
         mediaEnableCaption: "Videoları sıkıştır, görselleri dönüştür ve işle, GIF oluştur ve metni yerel olarak çıkar.",

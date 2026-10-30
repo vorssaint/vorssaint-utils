@@ -471,6 +471,9 @@ extension Strings {
         homebrewOperationHideDetails: "Masquer les détails",
         homebrewOperationTechnicalLog: "Détails techniques",
         homebrewOperationProgressUnknown: "Homebrew n’a pas encore indiqué de pourcentage.",
+        homebrewTerminalSetting: "Terminal pour les commandes sudo",
+        homebrewTerminalSettingDescription: "Choisissez le terminal qui ouvre les commandes Homebrew nécessitant un mot de passe. S’il n’est pas installé, le réglage par défaut du système prend le relais.",
+        homebrewTerminalDefault: "Réglage par défaut du système",
 
         mediaName: "Médias",
         mediaEnableCaption: "Compressez les vidéos, convertissez et traitez les images, créez des GIFs et extrayez du texte localement.",

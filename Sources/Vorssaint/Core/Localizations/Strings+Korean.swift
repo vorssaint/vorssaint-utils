@@ -472,6 +472,9 @@ extension Strings {
         homebrewOperationHideDetails: "세부 정보 가리기",
         homebrewOperationTechnicalLog: "기술 세부 정보",
         homebrewOperationProgressUnknown: "Homebrew가 아직 진행률을 보고하지 않았습니다.",
+        homebrewTerminalSetting: "sudo 명령용 터미널",
+        homebrewTerminalSettingDescription: "암호를 요구하는 Homebrew 명령을 여는 터미널 앱을 선택합니다. 설치되어 있지 않으면 시스템 기본값이 사용됩니다.",
+        homebrewTerminalDefault: "시스템 기본값",
 
         mediaName: "미디어",
         mediaEnableCaption: "동영상을 압축하고 이미지를 변환 및 처리하며, GIF를 만들고 텍스트를 로컬에서 추출합니다.",

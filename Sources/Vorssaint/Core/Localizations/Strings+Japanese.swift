@@ -471,6 +471,9 @@ extension Strings {
         homebrewOperationHideDetails: "詳細を隠す",
         homebrewOperationTechnicalLog: "技術的な詳細",
         homebrewOperationProgressUnknown: "Homebrew はまだ割合を報告していません。",
+        homebrewTerminalSetting: "sudo コマンド用のターミナル",
+        homebrewTerminalSettingDescription: "パスワードを求める Homebrew コマンドを開くターミナルアプリを選択します。未インストールの場合はシステムのデフォルトが使われます。",
+        homebrewTerminalDefault: "システムのデフォルト",
 
         mediaName: "メディア",
         mediaEnableCaption: "動画を圧縮し、画像の変換と加工、GIF の作成、テキストの抽出をローカルで行います。",

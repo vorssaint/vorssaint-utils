@@ -471,6 +471,9 @@ extension Strings {
         homebrewOperationHideDetails: "Skryť detaily",
         homebrewOperationTechnicalLog: "Technické detaily",
         homebrewOperationProgressUnknown: "Homebrew zatiaľ neoznámil percentá.",
+        homebrewTerminalSetting: "Terminál pre príkazy sudo",
+        homebrewTerminalSettingDescription: "Vyberte terminál, ktorý otvára príkazy Homebrew vyžadujúce heslo. Ak nie je nainštalovaný, použije sa predvolený v systéme.",
+        homebrewTerminalDefault: "Predvolený v systéme",
 
         mediaName: "Médiá",
         mediaEnableCaption: "Komprimujte videá, konvertujte a upravujte obrázky, vytvárajte GIF a extrahujte text lokálne.",
