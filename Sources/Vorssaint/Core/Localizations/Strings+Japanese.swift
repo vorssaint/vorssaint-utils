@@ -980,6 +980,8 @@ extension Strings {
         cleanerTrashNote: "ゴミ箱を空にすると元に戻せません。",
         cleanerCatDeviceBackups: "iPhoneのバックアップ",
         cleanerDeviceBackupsCaption: "古いiPhoneやiPadのバックアップは、macOSが「その他」と呼ぶ領域の大部分を占めます。不要なものだけを削除してください。次に接続すると新しいバックアップが作られます。",
+        cleanerCatLaunchCopies: "ブラウザの起動時コピー",
+        cleanerLaunchCopiesCaption: "Chrome などの Chromium 系ブラウザが起動時に自身をコピーし、クラッシュや強制終了の後に残したものです。実行中のブラウザが使っているコピーは表示されません。コピーは領域を共有するため、サイズは推定値です。",
         cleanerCatScreenshots: "忘れられたスクリーンショット",
         cleanerScreenshotsCaptionFormat: "%d日間開いておらず、macOSが付けた名前とフォルダのままのスクリーンショットです。名前を変えたり移動したりしたものは表示されません。",
         cleanerScreenshotsSettingCaption: "スキャンでは、この期間開いていないスクリーンショットをチェックなしで合計サイズとともに表示します。",

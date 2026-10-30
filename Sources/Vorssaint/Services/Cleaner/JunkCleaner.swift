@@ -145,7 +145,9 @@ final class JunkCleaner: ObservableObject {
                 (.deviceBackups, { Self.scanDeviceBackups() }),
             ] + (screenshots.map { search in
                 [(.screenshots, { Self.scanScreenshots(in: search.folders, days: search.days) })]
-            } ?? [])
+            } ?? []) + [
+                (.launchCopies, { Self.scanLaunchCopies() }),
+            ]
             for (category, run) in categories {
                 guard !cancellation.isCancelled else { return }
                 DispatchQueue.main.async { [weak self] in
@@ -278,6 +280,15 @@ final class JunkCleaner: ObservableObject {
         }
         if item.category == .screenshots {
             guard isScreenshotFolderChild(url), isScreenCapture(url) else { return false }
+        }
+        // A browser launched since the scan may run from this copy now.
+        if item.category == .launchCopies {
+            guard let root = launchCopyRoot(), CleanerSupport.isLaunchCopy(path, root: root),
+                  !CleanerSupport.launchCopyInUse(path, executablePaths: runningExecutablePaths()),
+                  !CleanerSupport.launchCopyMayBelongToRunningBrowser(
+                    created: (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate,
+                    browserLaunches: launchDates(of: CleanerSupport.launchCopyOwner(path)))
+            else { return false }
         }
         // Depth guard: anything this shallow is a root of some kind, never junk.
         return url.pathComponents.count >= 4
@@ -616,6 +627,113 @@ final class JunkCleaner: ObservableObject {
                               recommended: CleanerPolicy.precheckDeviceBackups))
         }
         return sorted(found)
+    }
+
+    /// Copies Chromium browsers leave in the per-user `X` folder. The copy a
+    /// running browser executes from is never listed, and the rest start
+    /// checked: they are leftovers by construction, and the browser makes a
+    /// new one on its next launch.
+    private static func scanLaunchCopies() -> [Item] {
+        guard let root = launchCopyRoot() else { return [] }
+        let fm = FileManager.default
+        let running = runningExecutablePaths()
+        var found: [(url: URL, name: String, copy: CleanerSupport.LaunchCopy)] = []
+        for folder in (try? fm.contentsOfDirectory(atPath: root)) ?? []
+        where folder.hasSuffix(CleanerSupport.launchCopyFolderSuffix) {
+            let folderURL = URL(fileURLWithPath: root).appendingPathComponent(folder)
+            guard !UninstallerSupport.isSymbolicLink(folderURL) else { continue }
+            for entry in (try? fm.contentsOfDirectory(atPath: folderURL.path)) ?? [] {
+                let url = folderURL.appendingPathComponent(entry)
+                var isDirectory: ObjCBool = false
+                guard CleanerSupport.isLaunchCopy(url.path, root: root),
+                      !UninstallerSupport.isSymbolicLink(url),
+                      fm.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
+                      !CleanerSupport.launchCopyInUse(url.path, executablePaths: running),
+                      !CleanerSupport.launchCopyMayBelongToRunningBrowser(
+                        created: (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate,
+                        browserLaunches: launchDates(of: CleanerSupport.launchCopyOwner(url.path)))
+                else { continue }
+                let bundle = ((try? fm.contentsOfDirectory(atPath: url.path)) ?? [])
+                    .first { $0.contains(".app") }
+                    .flatMap { Bundle(url: url.appendingPathComponent($0)) }
+                let version = bundle?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+                let name = bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
+                found.append((url, [name, version].compactMap { $0 }.joined(separator: " "),
+                              CleanerSupport.LaunchCopy(owner: CleanerSupport.launchCopyOwner(url.path),
+                                                        version: version,
+                                                        allocated: directorySize(of: url, fm: fm),
+                                                        exclusive: exclusiveSize(of: url, fm: fm))))
+            }
+        }
+        // Oldest first, so a version's shared blocks are counted on the copy
+        // that has been sitting there longest.
+        found.sort {
+            let lhs = (try? $0.url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+            let rhs = (try? $1.url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+            return lhs < rhs
+        }
+        var installed: [String: String] = [:]
+        for owner in Set(found.map(\.copy.owner)) {
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: owner),
+               let version = Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
+                installed[owner] = version
+            }
+        }
+        let sizes = CleanerSupport.launchCopySizes(found.map(\.copy), installedVersions: installed)
+        return zip(found, sizes).map { copy, size in
+            Item(url: copy.url, category: .launchCopies, size: size,
+                 detail: copy.name.isEmpty ? copy.copy.owner : copy.name, recommended: true)
+        }
+    }
+
+    /// `X` beside the per-user temporary folder, where the copies live.
+    private static func launchCopyRoot() -> String? {
+        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+        guard confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, buffer.count) > 0 else { return nil }
+        let temporary = String(cString: buffer)
+        guard !temporary.isEmpty else { return nil }
+        return URL(fileURLWithPath: temporary).deletingLastPathComponent().appendingPathComponent("X").path
+    }
+
+    /// When each running instance of the browser `owner` names started.
+    private static func launchDates(of owner: String) -> [Date?] {
+        NSRunningApplication.runningApplications(withBundleIdentifier: owner).map(\.launchDate)
+    }
+
+    /// The executable of every process this user can read.
+    private static func runningExecutablePaths() -> [String] {
+        let count = proc_listallpids(nil, 0)
+        guard count > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(count) + 32)
+        let filled = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        guard filled > 0 else { return [] }
+        var path = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        return pids.prefix(Int(filled)).compactMap { pid in
+            guard pid > 0, proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { return nil }
+            return String(cString: path)
+        }
+    }
+
+    /// The blocks under `url` that no other file shares, which is what
+    /// removing an APFS clone actually frees.
+    private static func exclusiveSize(of url: URL, fm: FileManager) -> Int64 {
+        guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey],
+                                             options: [], errorHandler: nil) else { return 0 }
+        var total: Int64 = 0
+        for case let item as URL in enumerator {
+            guard (try? item.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+            var request = attrlist(bitmapcount: u_short(ATTR_BIT_MAP_COUNT), reserved: 0, commonattr: 0,
+                                   volattr: 0, dirattr: 0, fileattr: 0,
+                                   forkattr: attrgroup_t(ATTR_CMNEXT_PRIVATESIZE))
+            // The reply is packed: a 4-byte length, then the size right after
+            // it, not at the 8-byte offset a Swift tuple would read.
+            var reply = [UInt8](repeating: 0, count: 16)
+            if getattrlist(item.path, &request, &reply, reply.count,
+                           UInt32(FSOPT_ATTR_CMN_EXTENDED | FSOPT_NOFOLLOW)) == 0 {
+                total += reply.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int64.self) }
+            }
+        }
+        return total
     }
 
     /// The folders and age of the forgotten screenshot search, or nil when

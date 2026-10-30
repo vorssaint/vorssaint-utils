@@ -980,6 +980,8 @@ extension Strings {
         cleanerTrashNote: "清倒废纸篓是永久操作。",
         cleanerCatDeviceBackups: "iPhone 备份",
         cleanerDeviceBackupsCaption: "旧的 iPhone 和 iPad 备份占据了 macOS 所称“其他”存储的很大一部分。只删除不再需要的备份；下次连接设备时会生成新的备份。",
+        cleanerCatLaunchCopies: "浏览器启动副本",
+        cleanerLaunchCopiesCaption: "Chrome 和其他 Chromium 浏览器启动时为自身制作、在崩溃或强制退出后遗留的副本。正在运行的浏览器所用的副本不会列出。副本共享存储空间，因此大小为估算值。",
         cleanerCatScreenshots: "被遗忘的截图",
         cleanerScreenshotsCaptionFormat: "%d 天内没有打开过、仍保留 macOS 给的名称和文件夹的截图。你重命名或移动过的截图不会出现在这里。",
         cleanerScreenshotsSettingCaption: "扫描会列出这段时间内没有打开的截图，默认不勾选，并显示总大小。",

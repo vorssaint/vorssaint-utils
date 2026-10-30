@@ -1193,8 +1193,9 @@ enum AppManagementFeatureTests {
                "ordinary and downloadable sensitive caches remain available for review")
         suite.expect(CleanerSupport.Category.deviceBackups.rawValue == 6
                && CleanerSupport.Category.screenshots.rawValue == 7
-               && CleanerSupport.Category.allCases.count == 8,
-               "device backups and screenshots joined the cleaner with stable category ids")
+               && CleanerSupport.Category.launchCopies.rawValue == 8
+               && CleanerSupport.Category.allCases.count == 9,
+               "device backups, screenshots and launch copies joined the cleaner with stable category ids")
         suite.expect(!CleanerPolicy.precheckDeviceBackups,
                "device backups never start checked, they are the user's safety net")
         suite.expect(!CleanerPolicy.precheckScreenshots

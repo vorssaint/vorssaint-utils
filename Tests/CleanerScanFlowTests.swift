@@ -43,6 +43,7 @@ enum CleanerScanFlowTests {
         static func scanDeviceBackups() -> [Item] { record(.deviceBackups) }
         static func screenshotSearch() -> (folders: [URL], days: Int)? { ([], 30) }
         static func scanScreenshots(in folders: [URL], days: Int) -> [Item] { record(.screenshots) }
+        static func scanLaunchCopies() -> [Item] { record(.launchCopies) }
     }
 
     static func run(_ suite: TestSuite) {

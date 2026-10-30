@@ -980,6 +980,8 @@ extension Strings {
         cleanerTrashNote: "Svuotare il Cestino è definitivo.",
         cleanerCatDeviceBackups: "Backup di iPhone",
         cleanerDeviceBackupsCaption: "I vecchi backup di iPhone e iPad occupano gran parte dello spazio che macOS chiama Altro. Rimuovi solo quelli che non servono più; al prossimo collegamento ne viene creato uno nuovo.",
+        cleanerCatLaunchCopies: "Copie di avvio dei browser",
+        cleanerLaunchCopiesCaption: "Copie che Chrome e gli altri browser Chromium fanno di sé all’avvio e lasciano dopo un crash o un’uscita forzata. La copia di un browser aperto non viene mai elencata. Le copie condividono lo spazio, quindi le dimensioni sono stime.",
         cleanerCatScreenshots: "Screenshot dimenticati",
         cleanerScreenshotsCaptionFormat: "Screenshot che non apri da %d giorni e che hanno ancora il nome e la cartella dati da macOS. Quelli rinominati o spostati non compaiono mai qui.",
         cleanerScreenshotsSettingCaption: "La scansione elenca, non selezionati e con la dimensione totale, gli screenshot che non apri da questo tempo.",

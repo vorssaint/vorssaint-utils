@@ -980,6 +980,8 @@ extension Strings {
         cleanerTrashNote: "Vaciar la Papelera es permanente.",
         cleanerCatDeviceBackups: "Copias de iPhone",
         cleanerDeviceBackupsCaption: "Las copias antiguas de iPhone y iPad ocupan gran parte de lo que macOS llama Otros. Elimina solo las que ya no necesites; al conectar el aparato se crea una nueva.",
+        cleanerCatLaunchCopies: "Copias de arranque de navegadores",
+        cleanerLaunchCopiesCaption: "Copias que Chrome y otros navegadores Chromium hacen de sí mismos al abrirse y dejan tras un cierre inesperado o forzado. La copia de un navegador abierto nunca aparece. Las copias comparten espacio, así que los tamaños son estimaciones.",
         cleanerCatScreenshots: "Capturas olvidadas",
         cleanerScreenshotsCaptionFormat: "Capturas de pantalla que no abres desde hace %d días y que aún tienen el nombre y la carpeta que les dio macOS. Las que renombraste o moviste nunca aparecen aquí.",
         cleanerScreenshotsSettingCaption: "El análisis muestra, sin marcar y con su tamaño total, las capturas que no abres desde hace ese tiempo.",
