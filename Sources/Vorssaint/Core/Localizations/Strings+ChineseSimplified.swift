@@ -422,6 +422,8 @@ extension Strings {
         homebrewOpenTerminal: "打开终端",
         homebrewCancelOperation: "取消",
         homebrewClearLog: "清空日志",
+        homebrewLastLogView: "查看上次日志",
+        homebrewLastLogHide: "隐藏上次日志",
         homebrewLogTitle: "日志",
         homebrewVersion: "版本",
         homebrewDescription: "类型",

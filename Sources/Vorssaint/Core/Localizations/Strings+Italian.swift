@@ -422,6 +422,8 @@ extension Strings {
         homebrewOpenTerminal: "Apri terminale",
         homebrewCancelOperation: "Annulla",
         homebrewClearLog: "Svuota registro",
+        homebrewLastLogView: "Mostra ultimo registro",
+        homebrewLastLogHide: "Nascondi ultimo registro",
         homebrewLogTitle: "Registro",
         homebrewVersion: "Versione",
         homebrewDescription: "Tipo",

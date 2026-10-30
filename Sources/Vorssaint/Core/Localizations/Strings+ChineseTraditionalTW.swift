@@ -423,6 +423,8 @@ extension Strings {
         homebrewOpenTerminal: "開啟終端機",
         homebrewCancelOperation: "取消",
         homebrewClearLog: "清空日誌",
+        homebrewLastLogView: "查看上次日誌",
+        homebrewLastLogHide: "隱藏上次日誌",
         homebrewLogTitle: "日誌",
         homebrewVersion: "版本",
         homebrewDescription: "類型",

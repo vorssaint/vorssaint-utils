@@ -422,6 +422,8 @@ extension Strings {
         homebrewOpenTerminal: "Otvoriť terminál",
         homebrewCancelOperation: "Zrušiť",
         homebrewClearLog: "Vymazať protokol",
+        homebrewLastLogView: "Zobraziť posledný protokol",
+        homebrewLastLogHide: "Skryť posledný protokol",
         homebrewLogTitle: "Protokol",
         homebrewVersion: "Verzia",
         homebrewDescription: "Typ",

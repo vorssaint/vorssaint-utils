@@ -423,6 +423,8 @@ extension Strings {
         homebrewOpenTerminal: "Открыть терминал",
         homebrewCancelOperation: "Отмена",
         homebrewClearLog: "Очистить лог",
+        homebrewLastLogView: "Показать последний лог",
+        homebrewLastLogHide: "Скрыть последний лог",
         homebrewLogTitle: "Лог",
         homebrewVersion: "Версия",
         homebrewDescription: "Тип",

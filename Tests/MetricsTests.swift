@@ -200,6 +200,7 @@ struct MetricsTests {
             }),
             ("uninstaller", {
                 HomebrewOwnershipTests.run(suite)
+                HomebrewOperationLogRetentionTests.run(suite)
                 UninstallerFlowTests.run(suite)
                 UninstallerCommandBarCleanupTests.run(suite)
                 SelfUninstallContract.run(suite)

@@ -422,6 +422,8 @@ extension Strings {
         homebrewOpenTerminal: "ターミナルを開く",
         homebrewCancelOperation: "キャンセル",
         homebrewClearLog: "ログをクリア",
+        homebrewLastLogView: "前回のログを表示",
+        homebrewLastLogHide: "前回のログを隠す",
         homebrewLogTitle: "ログ",
         homebrewVersion: "バージョン",
         homebrewDescription: "種類",

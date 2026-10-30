@@ -14,6 +14,7 @@ struct HomebrewSettings: View {
     @State private var installedFilter = HomebrewInstalledFilter.all
     @State private var pendingAction: HomebrewPendingAction?
     @State private var showOperationDetails = false
+    @State private var isShowingLastLog = false
     @State private var expandedPackageIDs: Set<String> = []
 
     var body: some View {
@@ -42,6 +43,7 @@ struct HomebrewSettings: View {
         .onChange(of: installedFilter) { _, _ in clearSelectionIfHidden() }
         .onChange(of: homebrew.operationStatus?.targetID) { _, _ in
             showOperationDetails = false
+            isShowingLastLog = false
         }
         .confirmationDialog(confirmationTitle,
                             isPresented: confirmationPresented,
@@ -534,6 +536,10 @@ struct HomebrewSettings: View {
                 Divider()
                 operationLog
                     .padding(12)
+            } else if !homebrew.log.isEmpty {
+                Divider()
+                lastLogFooter
+                    .padding(12)
             }
         }
     }
@@ -618,6 +624,42 @@ struct HomebrewSettings: View {
                                         onCancel: homebrew.cancelOperation,
                                         onClear: homebrew.clearLog,
                                         onOpenTerminal: homebrew.openTerminalFallback)
+        }
+    }
+
+    /// The technical log of the last finished run outlives the status card
+    /// (issue #566): this footer brings it back up instead of leaving the
+    /// output dangling unseen after the card hides itself.
+    @ViewBuilder
+    private var lastLogFooter: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                isShowingLastLog.toggle()
+            } label: {
+                Label(isShowingLastLog ? l10n.s.homebrewLastLogHide : l10n.s.homebrewLastLogView,
+                      systemImage: "doc.text")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            if isShowingLastLog {
+                ScrollView {
+                    Text(homebrew.log)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 140)
+                HStack(spacing: 8) {
+                    Button(l10n.s.homebrewClearLog) {
+                        isShowingLastLog = false
+                        homebrew.clearLog()
+                    }
+                    .controlSize(.small)
+                    Spacer(minLength: 0)
+                }
+            }
         }
     }
 

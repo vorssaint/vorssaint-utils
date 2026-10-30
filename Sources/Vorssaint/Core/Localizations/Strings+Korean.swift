@@ -423,6 +423,8 @@ extension Strings {
         homebrewOpenTerminal: "터미널 열기",
         homebrewCancelOperation: "취소",
         homebrewClearLog: "로그 지우기",
+        homebrewLastLogView: "마지막 로그 보기",
+        homebrewLastLogHide: "마지막 로그 숨기기",
         homebrewLogTitle: "로그",
         homebrewVersion: "버전",
         homebrewDescription: "설명",
