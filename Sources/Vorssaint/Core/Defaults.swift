@@ -870,6 +870,7 @@ enum DefaultsKey {
     static let notchBrowserCovers = "notchBrowserCovers"
     static let notchLiveEqualizer = "notchLiveEqualizer"
     static let notchQueueEnabled = "notchQueueEnabled"
+    static let notchArtworkAccentEnabled = "notchArtworkAccentEnabled"
     static let notchDownloadsEnabled = "notchDownloadsEnabled"
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
     // Watch: any part of any window read live in the island.
@@ -1509,6 +1510,7 @@ enum Defaults {
         DefaultsKey.notchBrowserCovers: false,
         DefaultsKey.notchLiveEqualizer: false,
         DefaultsKey.notchQueueEnabled: true,
+        DefaultsKey.notchArtworkAccentEnabled: true,
         DefaultsKey.notchDownloadsEnabled: true,
         DefaultsKey.notchWatchEnabled: true,
         DefaultsKey.notchWatchSound: true,
