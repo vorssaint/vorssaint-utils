@@ -122,12 +122,14 @@ enum BrightnessSupport {
     }
 
     /// Wraps a DDC payload: length-tagged header, payload, XOR checksum. The
-    /// checksum seed covers the destination address, and the sub-address only
-    /// participates for multi-byte payloads (single-byte requests omit it).
+    /// checksum seed covers the destination and source addresses for every
+    /// packet, as DDC/CI specifies. Monitors that check it ignore a read
+    /// request without the source address and replay their previous reply,
+    /// so the luminance read never lands and the range is never learned.
     static func packet(payload: [UInt8]) -> [UInt8] {
         var bytes: [UInt8] = [UInt8(0x80 | (payload.count + 1)), UInt8(payload.count)]
         bytes.append(contentsOf: payload)
-        let seed = UInt8(chipAddress << 1) ^ (payload.count == 1 ? 0 : UInt8(dataAddress))
+        let seed = UInt8(chipAddress << 1) ^ UInt8(dataAddress)
         bytes.append(bytes.reduce(seed) { $0 ^ $1 })
         return bytes
     }

@@ -2505,9 +2505,11 @@ enum FeatureCatalogTests {
         suite.expect(ddcWrite == expectedDDCWrite,
                "DDC write packet carries the set opcode, big-endian value and checksum")
         let ddcRead = BrightnessSupport.readRequestPacket(code: 0x10)
-        let expectedDDCRead: [UInt8] = [0x82, 0x01, 0x10, 0xFD]
+        // 0x6E ^ 0x51 ^ 0x82 ^ 0x01 ^ 0x10, the bytes m1ddc sends. A Samsung
+        // Odyssey G5 ignored the request without 0x51 in its checksum.
+        let expectedDDCRead: [UInt8] = [0x82, 0x01, 0x10, 0xAC]
         suite.expect(ddcRead == expectedDDCRead,
-               "DDC read request omits the sub-address from its checksum seed")
+               "DDC read request's checksum covers the source address")
         suite.expect(Array(BrightnessSupport.writePacket(code: 0x10, value: 100)[3...4]) == [0x00, 0x64],
                "DDC values split into high and low bytes")
 
