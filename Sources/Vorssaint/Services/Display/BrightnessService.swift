@@ -2213,30 +2213,34 @@ final class BrightnessService: ObservableObject {
         var speakerCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
         var newAudioRoutes: [CGDirectDisplayID: AudioRoute] = [:]
         var externalNames: [(id: UInt32, name: String)] = []
+        var virtualIndices = Set<Int>()
         var virtualIDs = Set<CGDirectDisplayID>()
 
         for id in onlineIDs {
             let info = Self.displayInfoDictionary(id)
+            let isVirtual = info?["kCGDisplayIsVirtualDevice"] as? Bool ?? false
             // Read before the guard below, so the snapshot the panel decides
             // from covers every online display, exactly like the live reading
             // it replaces.
-            if (info?["kCGDisplayIsVirtualDevice"] as? Bool ?? false) { virtualIDs.insert(id) }
-            // A display mirroring another keeps its own row, unlike virtual
-            // and AirPlay ones: the picture is shared, the backlight is not.
-            // Skipping mirrors took a MacBook panel mirroring a monitor off
-            // every Displays surface.
-            if let info,
-               (info["kCGDisplayIsVirtualDevice"] as? Bool ?? false)
-                || (info["kCGDisplayIsAirPlay"] as? Bool ?? false) {
-                continue
-            }
+            if isVirtual { virtualIDs.insert(id) }
+            let isActive = activeTopology.contains(id)
+            // A display mirroring another keeps its own row, unlike AirPlay
+            // ones: the picture is shared, the backlight is not. Skipping
+            // mirrors took a MacBook panel mirroring a monitor off every
+            // Displays surface.
+            let routeSearch = BrightnessSupport.routeSearch(
+                isVirtual: isVirtual,
+                isAirPlay: info?["kCGDisplayIsAirPlay"] as? Bool ?? false,
+                isActive: isActive)
+            if routeSearch == .unlisted { continue }
             let isBuiltIn = CGDisplayIsBuiltin(id) != 0
             let name = Self.displayName(id, info: info, screenNames: screenNames)
-            if probesAudio, !isBuiltIn {
+            // A virtual display has no I2C channel, and matching it by EDID
+            // could take a real monitor's speaker service.
+            if probesAudio, !isBuiltIn, !isVirtual {
                 externalNames.append((id, name))
                 speakerCandidates.append((built.count, Self.displayIdentity(id, info: info)))
             }
-            let isActive = activeTopology.contains(id)
 
             if !isActive {
                 stateLock.lock()
@@ -2278,6 +2282,14 @@ final class BrightnessService: ObservableObject {
                 continue
             }
             guard !isBuiltIn else { continue }
+            if routeSearch == .systemThenSoftware {
+                virtualIndices.insert(built.count)
+                // Placeholder; the software pass below fills brightness.
+                built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: false,
+                                               method: .software, isActive: true,
+                                               brightness: 1, readable: false))
+                continue
+            }
             ddcCandidates.append((built.count, Self.displayIdentity(id, info: info)))
             // Placeholder; the DDC pass below fills brightness and route.
             built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: false,
@@ -2346,7 +2358,7 @@ final class BrightnessService: ObservableObject {
         // dimming, so every real display keeps a working slider.
         let services = BrightnessBridge.ddcAvailable && (!ddcCandidates.isEmpty || !speakerCandidates.isEmpty)
             ? Self.externalServices() : []
-        var softwareIndices = Set(ddcCandidates.map(\.index))
+        var softwareIndices = Set(ddcCandidates.map(\.index)).union(virtualIndices)
         var forcedSoftwareIDs = Set<CGDirectDisplayID>()
         var extendedDimmingIDs = Set<CGDirectDisplayID>()
         var softwarePathKeys: [CGDirectDisplayID: String] = [:]
@@ -2585,7 +2597,8 @@ final class BrightnessService: ObservableObject {
                 // Even without a brightness route, an active physical display is
                 // useful in the generalized Displays surface when it can be
                 // switched on or off.
-                guard display.audio != nil || DisplayConfigurationBridge.configureEnabled != nil else { return nil }
+                guard display.audio != nil || DisplayConfigurationBridge.configureEnabled != nil,
+                      !virtualIDs.contains(display.id) else { return nil }
                 var display = display
                 display.method = nil
                 return display
