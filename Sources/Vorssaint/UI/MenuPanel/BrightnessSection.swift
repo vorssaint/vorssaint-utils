@@ -277,7 +277,10 @@ struct DisplayPowerButton: View {
 
     var body: some View {
         Group {
-            if pending {
+            if display.isVirtual {
+                // Keeps the row aligned with rows that have the button.
+                Color.clear.frame(width: compact ? 16 : 20, height: 18)
+            } else if pending {
                 ProgressView()
                     .controlSize(.small)
                     .frame(width: compact ? 16 : 20, height: 18)

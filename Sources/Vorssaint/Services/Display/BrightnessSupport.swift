@@ -296,6 +296,23 @@ enum BrightnessSupport {
         onlineDisplayIDs.intersection(activeDisplayIDs).subtracting(virtualDisplayIDs)
     }
 
+    enum RouteSearch: Equatable {
+        case unlisted
+        case systemThenDDC
+        case systemThenSoftware
+    }
+
+    /// Where a display's brightness route is looked for. A virtual display
+    /// (a DisplayLink monitor, a dummy screen) has no I2C channel, and scoring
+    /// it against the IORegistry could hand it a real monitor's DDC service,
+    /// so it falls back to its gamma curve. It is listed only while active:
+    /// an inactive row offers a power button, which virtual displays never get.
+    static func routeSearch(isVirtual: Bool, isAirPlay: Bool, isActive: Bool) -> RouteSearch {
+        if isAirPlay { return .unlisted }
+        if isVirtual { return isActive ? .systemThenSoftware : .unlisted }
+        return .systemThenDDC
+    }
+
     /// If a cable removal leaves the Mac with no drawable display, bring back
     /// one display this app switched off. Prefer the built-in panel so the
     /// portable Mac recovers without changing any other disabled display.

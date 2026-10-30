@@ -2721,6 +2721,25 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.drawableDisplayIDs(
             onlineDisplayIDs: [1, 2], activeDisplayIDs: [1, 2, 9], virtualDisplayIDs: [2]) == [1],
                "only online active displays with a visible picture prevent recovery")
+        // Measured on a MacBook with two monitors behind a DisplayLink dock:
+        // both report kCGDisplayIsVirtualDevice, have no I2C channel and
+        // dim through their gamma curve.
+        suite.expect(BrightnessSupport.routeSearch(isVirtual: true, isAirPlay: false, isActive: true)
+                        == .systemThenSoftware,
+               "an active virtual display is listed and never matched to a DDC service")
+        suite.expect(BrightnessSupport.routeSearch(isVirtual: true, isAirPlay: false, isActive: false)
+                        == .unlisted,
+               "an inactive virtual display is not listed, so it offers no power button")
+        for isVirtual in [true, false] {
+            suite.expect(BrightnessSupport.routeSearch(isVirtual: isVirtual, isAirPlay: true,
+                                                       isActive: true) == .unlisted,
+                   "an AirPlay display is never listed")
+        }
+        for isActive in [true, false] {
+            suite.expect(BrightnessSupport.routeSearch(isVirtual: false, isAirPlay: false,
+                                                       isActive: isActive) == .systemThenDDC,
+                   "a physical display keeps its row and its DDC route")
+        }
         // Measured on a MacBook whose panel (1) mirrors an HDMI monitor (2)
         // beside an extended one (3): the active list was [2, 3].
         let mirrored = BrightnessSupport.participatingDisplayIDs(
