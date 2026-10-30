@@ -335,6 +335,7 @@ extension Strings {
         uninstallerRemoving: "Перемещение в Корзину…",
         uninstallerFoundTitle: "найдено",
         uninstallerSelectedFormat: "Выбрано %d из %d",
+        uninstallerSelectAll: "Выбрать все",
         uninstallerRemove: "Переместить в Корзину",
         uninstallerCancel: "Отмена",
         uninstallerConfirmationExpired: "Это подтверждение больше не действует. Проверьте текущие элементы и подтвердите снова.",

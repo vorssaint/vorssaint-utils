@@ -740,7 +740,8 @@ def main():
           + "".join(declaration(uninstall, prefix) for prefix in [
               "    var isRemoving: Bool", "    var canRemoveSelected: Bool", "    func select(appURL:",
               "    func retryHomebrewCheck()",
-              "    func reset()", "    func setInclude(", "    struct HomebrewRemovalConfirmation",
+              "    func reset()", "    func setInclude(", "    func setAllIncluded(",
+              "    var bulkSelection:", "    struct HomebrewRemovalConfirmation",
               "    var homebrewRemovalConfirmation:", "    func removeSelectedWithHomebrew("])
           + "}\nfinal class Service: ServiceState {\n"
           + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [

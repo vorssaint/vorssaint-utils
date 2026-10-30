@@ -322,6 +322,7 @@ extension Strings {
         uninstallerRemoving: "Переміщення в Смітник…",
         uninstallerFoundTitle: "знайдено",
         uninstallerSelectedFormat: "Вибрано %d з %d",
+        uninstallerSelectAll: "Вибрати все",
         uninstallerRemove: "Перемістити в Смітник",
         uninstallerCancel: "Скасувати",
         uninstallerConfirmationExpired: "Це підтвердження вже недійсне. Перегляньте поточні елементи й підтвердьте знову.",

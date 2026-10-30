@@ -334,6 +334,7 @@ extension Strings {
         uninstallerRemoving: "Presúva sa do Koša…",
         uninstallerFoundTitle: "nájdené",
         uninstallerSelectedFormat: "Vybrané: %d z %d",
+        uninstallerSelectAll: "Vybrať všetko",
         uninstallerRemove: "Presunúť do Koša",
         uninstallerCancel: "Zrušiť",
         uninstallerConfirmationExpired: "Toto potvrdenie už neplatí. Skontrolujte aktuálne položky a potvrďte znova.",

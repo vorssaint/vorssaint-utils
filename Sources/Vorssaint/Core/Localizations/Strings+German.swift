@@ -334,6 +334,7 @@ extension Strings {
         uninstallerRemoving: "Wird in den Papierkorb bewegt…",
         uninstallerFoundTitle: "gefunden",
         uninstallerSelectedFormat: "%d von %d ausgewählt",
+        uninstallerSelectAll: "Alle auswählen",
         uninstallerRemove: "In den Papierkorb legen",
         uninstallerCancel: "Abbrechen",
         uninstallerConfirmationExpired: "Diese Bestätigung ist nicht mehr gültig. Prüfe die aktuellen Einträge und bestätige erneut.",
