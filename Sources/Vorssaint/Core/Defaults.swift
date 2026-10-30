@@ -929,6 +929,7 @@ enum DefaultsKey {
     static let notchLowBatteryMenuBar = "notchLowBatteryMenuBar"
     static let notchHoverDelay = "notchHoverDelay"
     static let notchCloseDelay = "notchCloseDelay"
+    static let notchCloseOnPointerExit = "notchCloseOnPointerExit"
     static let notchReturnHome = "notchReturnHome"
     static let notchHomeModule = "notchHomeModule"
     static let notchOpensActivity = "notchOpensActivity"
@@ -1534,6 +1535,7 @@ enum Defaults {
         DefaultsKey.notchLowBatteryMenuBar: true,
         DefaultsKey.notchHoverDelay: NotchSupport.defaultHoverDelay,
         DefaultsKey.notchCloseDelay: NotchSupport.defaultCloseDelay,
+        DefaultsKey.notchCloseOnPointerExit: false,
         DefaultsKey.notchReturnHome: false,
         DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,
         DefaultsKey.notchOpensActivity: true,

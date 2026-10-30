@@ -49,6 +49,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCoversMenus) private var coversMenus = true
     @AppStorage(DefaultsKey.notchHoverDelay) private var hoverDelay = NotchSupport.defaultHoverDelay
     @AppStorage(DefaultsKey.notchCloseDelay) private var closeDelay = NotchSupport.defaultCloseDelay
+    @AppStorage(DefaultsKey.notchCloseOnPointerExit) private var closeOnPointerExit = false
     @AppStorage(DefaultsKey.notchReturnHome) private var returnHome = false
     @AppStorage(DefaultsKey.notchHomeModule) private var homeModule = NotchModule.controls.rawValue
     @AppStorage(DefaultsKey.notchOpensActivity) private var opensActivity = true
@@ -128,7 +129,7 @@ struct NotchSettings: View {
          String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel),
          String(hoverExpand), String(hideUntilHover), String(hiddenShowsActivity), String(hideInFullscreen),
          String(hoverInFullscreen), String(coversMenus),
-         display, silhouette, String(hover), hidden, order, String(volume), String(inputSource),
+         display, silhouette, String(hover), String(closeOnPointerExit), hidden, order, String(volume), String(inputSource),
          String(brightness), String(keyboardLight),
          String(microphone), String(battery), String(clipboard), String(clipboardWindow), clipboardCardSize,
          String(capture), String(trackChange), captureAction, String(showInCaptures),
@@ -666,7 +667,12 @@ struct NotchSettings: View {
                 }
                 if hover || (hideInFullscreen && hoverInFullscreen) {
                     hoverDelayControl
-                    if hoverExpand { closeDelayControl }
+                }
+                if !hover {
+                    switchRow("cursorarrow", editor.closeOnPointerExit, isOn: $closeOnPointerExit)
+                }
+                if (hover || (hideInFullscreen && hoverInFullscreen)) && hoverExpand || !hover && closeOnPointerExit {
+                    closeDelayControl
                 }
                 switchRow("keyboard", l10n.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
                 if shortcutEnabled {

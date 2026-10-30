@@ -2072,6 +2072,7 @@ enum NotchTests {
                && !defaults.bool(forKey: DefaultsKey.notchOpenOnHover),
                "a new island starts spacious and opens by click")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchHideUntilHover), "hidden hover is opt-in")
+        suite.expect(!defaults.bool(forKey: DefaultsKey.notchCloseOnPointerExit), "pointer-exit closing after a click is opt-in")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchOutlineEnabled), "the island outline is opt-in")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchHideMenuBarGap),
                      "the island matches the physical notch's height unless covering the gap below it is chosen")
@@ -2559,13 +2560,21 @@ enum NotchTests {
                                 DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHidesMenuBarIcon, DefaultsKey.notchScratchpad,
                                 DefaultsKey.notchHoverExpands, DefaultsKey.notchEnabled, DefaultsKey.notchDisplay,
-                                DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchCloseDelay, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
+                                DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchCloseDelay, DefaultsKey.notchCloseOnPointerExit, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,
                                 DefaultsKey.notchMicrophone, DefaultsKey.notchBrightness, DefaultsKey.notchBattery,
                                 DefaultsKey.notchClipboard, DefaultsKey.notchClipboardWindow, DefaultsKey.notchCapture,
                                 DefaultsKey.notchTrackChange, DefaultsKey.notchMusicActivity, DefaultsKey.notchHideInCaptures, DefaultsKey.panelControlNotch,
                                 AppFeature.notch.availabilityKey]
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: keys), "every portable notch preference travels in backup")
+        for enabled in [false, true] {
+            let backup = SettingsBackupSupport.sanitizedSettings(from: [
+                SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+                SettingsBackupSupport.settingsKey: [DefaultsKey.notchCloseOnPointerExit: enabled],
+            ])
+            suite.expect(backup?[DefaultsKey.notchCloseOnPointerExit] as? Bool == enabled,
+                         "backup preserves either pointer-exit closing choice")
+        }
         let restored = SettingsBackupSupport.sanitizedSettings(from: [
             SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
             SettingsBackupSupport.settingsKey: [DefaultsKey.notchEnabled: true,
@@ -2721,6 +2730,8 @@ enum NotchTests {
                "notch settings disappear when uninstalled")
 
         for language in AppLanguage.allCases {
+            suite.expect(!FeatureStrings.notchEditor(language).closeOnPointerExit.isEmpty,
+                         "pointer-exit closing has a label in every app language")
             for child in Mirror(reflecting: FeatureStrings.notch(language)).children {
                 let value = child.value as? String ?? ""
                 suite.expect(!value.isEmpty && !value.contains("—"),
