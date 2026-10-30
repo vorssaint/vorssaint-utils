@@ -37,6 +37,16 @@ enum NotchLockScreenTests {
         var saver = NotchSessionState()
         saver.screenSaverRunning = true
         suite.expect(saver.canPresent && saver.canRunTimer, "a screen saver alone leaves the island as it was")
+        suite.expect(saver.showsScreenSaver, "an active screen saver shows the screen saver island")
+        var saverAsleep = saver
+        saverAsleep.sleeping = true
+        suite.expect(!saverAsleep.showsScreenSaver, "sleeping Mac hides screen saver island")
+        var saverDark = saver
+        saverDark.displaysSleeping = true
+        suite.expect(!saverDark.showsScreenSaver, "dark display hides screen saver island")
+        var saverSwitched = saver
+        saverSwitched.onConsole = false
+        suite.expect(!saverSwitched.showsScreenSaver, "inactive console hides screen saver island")
         suite.expect(NotchSessionState().hearsLockChange && locked.hearsLockChange,
                      "a lock or unlock at the keyboard is heard")
         var closing = NotchSessionState()

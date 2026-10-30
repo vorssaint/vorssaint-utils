@@ -1172,6 +1172,7 @@ extension AppFeature {
         case .soundOutputSwitcher: return s.soundOutputSwitcherTitle
         case .audioPriority: return hub.titleAudioPriority
         case .micMute: return s.micMuteName
+        case .dictation: return DictationStrings.localized(language).title
         case .musicBlock: return hub.titleMusicBlock
         case .keepAwake: return s.keepAwakeTitle
         case .brightness: return FeatureStrings.brightness(language).pageTitle
@@ -1270,6 +1271,7 @@ extension AppFeature {
         case .screenOCR: return hub.descScreenOCR
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).hubDescription
+        case .dictation: return "Offline speech to text with a live Dynamic Island and searchable speech history."
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
         case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).hubDescription
         case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).description

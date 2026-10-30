@@ -574,6 +574,7 @@ struct SettingsView: View {
                 GeneralSettings()
             }
         case .features: FeatureHubSettings()
+        case .dictation: DictationSettings()
         case .textSnippets: TextSnippetsSettings()
         case .notch: NotchSettings()
         case .notchMascot: NotchMascotSettings()

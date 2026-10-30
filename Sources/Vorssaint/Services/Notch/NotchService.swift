@@ -111,6 +111,8 @@ final class NotchService: ObservableObject {
     @Published private(set) var geometry = NotchGeometry(
         screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 0, cameraWidth: 0)
     @Published private(set) var expanded = false
+    @Published private(set) var dictationPhase: DictationPhase = .idle
+    var showsDictation: Bool { dictationPhase.presentsIsland && AppFeature.dictation.isAvailable }
     @Published private(set) var showsKeyboardFocus = false
     /// True when macOS refused the island's own shortcut, so Settings can say so.
     @Published private(set) var shortcutRegistrationFailed = false
@@ -431,7 +433,7 @@ final class NotchService: ObservableObject {
     private var hiddenUntilHover: Bool {
         !hiddenInFullscreen && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
             && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover)
-            && !expanded && !peeking && !dragPlaceholder && captureControls == nil
+            && !expanded && !peeking && !dragPlaceholder && captureControls == nil && !showsDictation
             // Set to show activity, it comes into sight while one runs or a
             // notice shows. Closed beside a simulated cutout with no room
             // from the menus, it draws no activity, so it keeps waiting for
@@ -442,7 +444,7 @@ final class NotchService: ObservableObject {
 
     /// Full screen keeps a clickable black cutout until the user opens it.
     var fullscreenCompact: Bool {
-        hiddenInFullscreen && !expanded && !peeking
+        hiddenInFullscreen && !expanded && !peeking && !showsDictation
     }
 
     /// A simulated cutout covers no camera, so in full screen it stays out
@@ -4039,6 +4041,21 @@ final class NotchService: ObservableObject {
 
     private func bindEvents() {
         subscriptions.removeAll()
+        if AppFeature.dictation.isAvailable {
+            DictationService.shared.$phase.removeDuplicates().receive(on: DispatchQueue.main)
+                .sink { [weak self] phase in
+                    guard let self else { return }
+                    if phase.presentsIsland {
+                        self.noticeWork?.cancel()
+                        self.notice = nil
+                        self.departingNotice = nil
+                        if self.expanded { self.collapse() }
+                        self.peeking = false
+                    }
+                    self.dictationPhase = phase
+                    self.refreshPresentation()
+                }.store(in: &subscriptions)
+        } else { dictationPhase = .idle }
         if modules.contains(.timer) {
             NotchTimerService.shared.$session.removeDuplicates().receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in

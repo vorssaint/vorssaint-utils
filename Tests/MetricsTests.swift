@@ -116,6 +116,7 @@ struct MetricsTests {
                 CommandBarFeatureTests.run(suite)
                 CommandBarSelectionTests.run(suite)
             }),
+            ("dictation", { DictationTests.run { passed, message in suite.expect(passed, message) } }),
             ("transient-paste", { TransientPasteTests.run(suite) }),
             ("notch-music", { NotchMusicExtrasTests.run(suite) }),
             ("notch", {

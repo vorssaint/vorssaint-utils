@@ -89,9 +89,10 @@ enum NotchHoverTests {
     }
     class State {
         var noticeFitsInPlace = false
+        var showsDictation = false
         func schedulePointerFollow() {}
         var hiddenInFullscreen = false
-        var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
+        var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking && !showsDictation }
         var showsSystemFeedback = true, routesNotices = true
         /// Hidden until hover and set to show activity, as Settings has it.
         var hiddenShowsActivity = false

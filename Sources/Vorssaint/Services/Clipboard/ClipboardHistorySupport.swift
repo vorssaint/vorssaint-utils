@@ -985,6 +985,11 @@ enum ClipboardHistoryBatch {
 }
 
 enum ClipboardHistoryCapturePolicy {
+    /// Origin metadata travels with the exact pasteboard write, so a delayed
+    /// poll cannot mistake dictation delivery for a fresh external copy.
+    static let dictationOriginType = "com.vorssaint.dictation-origin"
+    static func shouldAnnounce(types: [String]) -> Bool { !types.contains(dictationOriginType) }
+
     static func isCopiedScreenshot(_ paths: [String], in directory: URL?) -> Bool {
         guard paths.count == 1,
               let directory else { return false }

@@ -79,7 +79,9 @@ struct NotchView: View {
     }
 
     @ViewBuilder private var surface: some View {
-        if service.fullscreenCompact {
+        if service.showsDictation {
+            NotchDictationView(topInset: service.geometry.safeContentTop)
+        } else if service.fullscreenCompact {
             Color.clear.accessibilityHidden(true)
         } else if let options = service.captureControls {
             if service.captureControlsCollapsed, floats {
@@ -582,6 +584,7 @@ struct NotchView: View {
             case .mixer: NotchMixerView(size: pageSize)
             case .music: NotchMusicView(size: pageSize, extrasHeight: service.geometry.musicExtrasHeight)
             case .clipboard: NotchClipboardView(service: service, size: pageSize)
+            case .dictation: DictationHistoryView(compact: true)
             case .captures:
                 if let capture = service.captureContent {
                     // The capture's own toolbar takes a full row, below a camera.
@@ -828,6 +831,7 @@ extension NotchModule: PanelOrderItem {
         case .mixer: return Strings.localized(language).mixerSection
         case .music: return FeatureStrings.radialMenu(language).mediaNowPlaying
         case .clipboard: return FeatureStrings.clipboard(language).title
+        case .dictation: return DictationStrings.localized(language).title
         case .captures: return FeatureStrings.recentCaptures(language).title
         case .files: return FeatureStrings.notch(language).files
         case .system: return FeatureStrings.notch(language).system

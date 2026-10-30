@@ -158,6 +158,7 @@ enum NotchPresentationRefreshContract {
     }
     class State: ObservableObject {
         var noticeFitsInPlace = false
+        var showsDictation = false
         var activitySelection = NotchActivitySelection()
         var compactActivities: [NotchCompactActivity] = []
         func compactCompanions(of primary: NotchCompactActivity) -> [NotchCompactActivity] { [] }
