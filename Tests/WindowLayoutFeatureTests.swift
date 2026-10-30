@@ -261,6 +261,17 @@ enum WindowLayoutFeatureTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterTwoThirds] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "center two thirds starts with no combination of its own")
+        for (action, id, key) in [(WindowLayoutAction.makeLarger, UInt32(71), DefaultsKey.windowLayoutShortcutMakeLarger),
+                                  (.makeSmaller, 72, DefaultsKey.windowLayoutShortcutMakeSmaller)] {
+            suite.expect(WindowLayoutAction.allCases.contains(action)
+                    && action.shortcutID == id
+                    && WindowLayoutAction(shortcutID: id) == action,
+                   "\(action.rawValue) exists and answers to its own shortcut id")
+            suite.expect(action.defaultShortcut == nil
+                    && Defaults.registeredDefaults[key] as? String
+                        == WindowLayoutAction.clearedShortcutStorageValue,
+                   "\(action.rawValue) starts with no combination of its own")
+        }
         let verticalLayouts: [(WindowLayoutAction, UInt32, String)] = [
             (.topQuarter, 66, DefaultsKey.windowLayoutShortcutTopQuarter),
             (.upperMiddleQuarter, 58, DefaultsKey.windowLayoutShortcutUpperMiddleQuarter),
@@ -300,6 +311,8 @@ enum WindowLayoutFeatureTests {
             suite.expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
                     && !layoutStrings.marginMaximize.isEmpty
                     && !layoutStrings.marginPerEdge.isEmpty
+                    && !layoutStrings.makeLarger.isEmpty
+                    && !layoutStrings.makeSmaller.isEmpty
                     && !layoutStrings.centerHalf.isEmpty
                     && !layoutStrings.centerTwoThirds.isEmpty
                     && !layoutStrings.quarterRows.isEmpty
@@ -905,6 +918,109 @@ enum WindowLayoutFeatureTests {
                                          windowGap: 16, screenGap: 32)
                == WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame),
                "margin maximize keeps its plain percentage margin under a screen gap instead of compounding")
+        let steppedWindow = CGRect(x: 400, y: 300, width: 600, height: 400)
+        suite.expect(WindowLayoutGeometry.rect(for: .makeLarger, current: steppedWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 390, y: 290, width: 620, height: 420),
+               "make larger moves every edge out one step around the same center")
+        suite.expect(WindowLayoutGeometry.rect(for: .makeSmaller, current: steppedWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 410, y: 310, width: 580, height: 380),
+               "make smaller moves every edge in one step around the same center")
+        suite.expect(WindowLayoutGeometry.rect(for: .makeLarger, current: steppedWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16, screenGap: 32)
+               == WindowLayoutGeometry.rect(for: .makeLarger, current: steppedWindow, visibleFrame: visibleFrame),
+               "a step resize follows the window, not the gaps")
+        let edgeWindow = CGRect(x: visibleFrame.minX, y: visibleFrame.minY, width: 600, height: 400)
+        let grownAtEdge = WindowLayoutGeometry.rect(for: .makeLarger, current: edgeWindow, visibleFrame: visibleFrame)
+        suite.expect(grownAtEdge.minX == visibleFrame.minX && grownAtEdge.minY == visibleFrame.minY
+                && grownAtEdge.width == 620 && grownAtEdge.height == 420,
+               "a window against the screen edge grows away from it instead of off screen")
+        let filled = visibleFrame.integral
+        suite.expect(WindowLayoutGeometry.rect(for: .makeLarger, current: filled, visibleFrame: visibleFrame) == filled,
+               "make larger stops at the visible frame")
+        let tiny = CGRect(x: 400, y: 300, width: 150, height: WindowLayoutGeometry.resizeMinimumLength + 4)
+        let shrunkTiny = WindowLayoutGeometry.rect(for: .makeSmaller, current: tiny, visibleFrame: visibleFrame)
+        suite.expect(shrunkTiny.width == 150 && shrunkTiny.height == WindowLayoutGeometry.resizeMinimumLength,
+               "make smaller stops at the minimum length and never enlarges a smaller window")
+        // The delayed readback path: an app that commits the size late is read
+        // back at the old frame first, then at the new size where the window
+        // was positioned for the old one, and only lands once re-anchored.
+        let stepOriginal = steppedWindow
+        let stepTarget = CGRect(x: 390, y: 290, width: 620, height: 420)
+        suite.expect(!WindowLayoutGeometry.stepResizeAccepts(actualRect: stepOriginal,
+                                                            targetRect: stepTarget,
+                                                            originalRect: stepOriginal)
+                && !WindowLayoutGeometry.accepts(actualRect: stepOriginal,
+                                                 targetRect: stepTarget,
+                                                 action: .makeLarger,
+                                                 anchorTolerance: 36),
+               "a step resize read back at the old frame is still pending, not landed")
+        let lateCommit = CGRect(origin: stepOriginal.origin, size: stepTarget.size)
+        suite.expect(!WindowLayoutGeometry.stepResizeAccepts(actualRect: lateCommit,
+                                                            targetRect: stepTarget,
+                                                            originalRect: stepOriginal),
+               "a size committed after the window was placed for the old size is not accepted off center")
+        let reanchored = WindowLayoutGeometry.anchoredRect(for: .makeLarger,
+                                                           targetRect: stepTarget,
+                                                           actualSize: lateCommit.size,
+                                                           visibleFrame: visibleFrame)
+        suite.expect(reanchored == stepTarget
+                && WindowLayoutGeometry.stepResizeAccepts(actualRect: reanchored,
+                                                         targetRect: stepTarget,
+                                                         originalRect: stepOriginal),
+               "re-anchoring the late size puts the window back on its center, where it lands")
+        let gridRounded = WindowLayoutGeometry.anchoredRect(for: .makeLarger,
+                                                            targetRect: stepTarget,
+                                                            actualSize: CGSize(width: 616, height: 400),
+                                                            visibleFrame: visibleFrame)
+        suite.expect(WindowLayoutGeometry.stepResizeAccepts(actualRect: gridRounded,
+                                                           targetRect: stepTarget,
+                                                           originalRect: stepOriginal),
+               "a character grid that rounds the width and keeps the height still lands")
+        suite.expect(WindowLayoutGeometry.stepResizeRefused(actualRect: stepOriginal,
+                                                           originalRect: stepOriginal,
+                                                           tolerance: 8)
+                && !WindowLayoutGeometry.stepResizeRefused(actualRect: reanchored,
+                                                           originalRect: stepOriginal,
+                                                           tolerance: 8),
+               "a window that never changed size refused the step, one that resized did not")
+        // A window that hangs past the visible frame keeps hanging: no side of
+        // a step is pulled inward, and a hung-over refused size still reads
+        // back as the quiet no-op the settle puts back.
+        let hangingWindow = CGRect(x: 600, y: 300, width: 1030, height: 400)
+        let grownHanging = WindowLayoutGeometry.rect(for: .makeLarger, current: hangingWindow, visibleFrame: visibleFrame)
+        suite.expect(grownHanging.maxX == hangingWindow.maxX && grownHanging.width == 1050
+                && grownHanging.minX == 580,
+               "make larger grows a hanging window away from the visible frame instead of pulling its hanging side in")
+        let wideWindow = CGRect(x: 0, y: 300, width: 1500, height: 400)
+        let grownWide = WindowLayoutGeometry.rect(for: .makeLarger, current: wideWindow, visibleFrame: visibleFrame)
+        suite.expect(grownWide.width == 1500 && grownWide.height == 420,
+               "make larger leaves a side that already spans the visible frame at its own size")
+        let shrunkHangingTarget = WindowLayoutGeometry.rect(for: .makeSmaller, current: hangingWindow, visibleFrame: visibleFrame)
+        let shrunkHanging = WindowLayoutGeometry.anchoredRect(for: .makeSmaller,
+                                                             targetRect: shrunkHangingTarget,
+                                                             actualSize: shrunkHangingTarget.size,
+                                                             visibleFrame: visibleFrame)
+        suite.expect(shrunkHanging == shrunkHangingTarget
+                && WindowLayoutGeometry.stepResizeAccepts(actualRect: shrunkHanging,
+                                                         targetRect: shrunkHangingTarget,
+                                                         originalRect: hangingWindow),
+               "make smaller of a window hanging past the visible frame keeps its center instead of clamping inside the frame")
+        let tallWindow = CGRect(x: 400, y: 100, width: 600, height: 1000)
+        let shrunkTallTarget = WindowLayoutGeometry.rect(for: .makeSmaller, current: tallWindow, visibleFrame: visibleFrame)
+        suite.expect(WindowLayoutGeometry.anchoredRect(for: .makeSmaller,
+                                                       targetRect: shrunkTallTarget,
+                                                       actualSize: shrunkTallTarget.size,
+                                                       visibleFrame: visibleFrame)
+               == shrunkTallTarget,
+               "make smaller of a window taller than the visible frame keeps its center instead of pinning its top edge")
+        let refusedHanging = WindowLayoutGeometry.anchoredRect(for: .makeSmaller,
+                                                               targetRect: shrunkHangingTarget,
+                                                               actualSize: hangingWindow.size,
+                                                               visibleFrame: visibleFrame)
+        suite.expect(WindowLayoutGeometry.stepResizeRefused(actualRect: refusedHanging,
+                                                            originalRect: hangingWindow,
+                                                            tolerance: 8),
+               "a refused step of a hanging window still reads back as the quiet no-op the settle puts back")
         suite.expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame,
                                          screenGap: 32)
                == WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame),

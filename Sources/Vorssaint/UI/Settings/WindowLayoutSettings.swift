@@ -230,6 +230,8 @@ struct WindowLayoutSettings: View {
                     marginSlider
                     actionRow(.fullScreen)
                     actionRow(.center)
+                    actionRow(.makeLarger)
+                    actionRow(.makeSmaller)
                     actionRow(.previousDisplay)
                     actionRow(.nextDisplay)
                     actionRow(.restore)
