@@ -25,6 +25,16 @@ enum ShelfDropRoutingContract {
             func bool(forKey key: String) -> Bool { enabled }
         }
     }
+    /// AirDrop is the system's; the tests decide whether it is offered and record what is sent.
+    enum NotchAirDrop {
+        static let shared = Sender()
+        static var available = false
+        static var sent = 0
+        struct Sender {
+            func canSend(_ pasteboard: NSPasteboard) -> Bool { NotchAirDrop.available }
+            func send(_ pasteboard: NSPasteboard) -> Bool { NotchAirDrop.sent += 1; return true }
+        }
+    }
     final class Window {}
     struct NSDraggingInfo {
         let draggingPasteboard: NSPasteboard
@@ -60,7 +70,9 @@ enum ShelfDropRoutingContract {
         var heldDrag = true
         var dragPlaceholder = true
         var choosingFileDropDestination = false
-        var targetsMediaDrop = false
+        var fileDropZones: [NotchFileToolsSupport.DropZone] = [.shelf]
+        var fileDropZone = NotchFileToolsSupport.DropZone.shelf
+        var targetsMediaDrop: Bool { fileDropZone == .media }
         var pinned = false
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 32, cameraWidth: 180)
         var expandedGeometry: NotchGeometry { geometry }
@@ -68,6 +80,7 @@ enum ShelfDropRoutingContract {
         var opened: [NotchModule] = []
         var reactions: [NotchMascotReaction] = []
         func refreshPresentation() {}
+        func collapse() {}
         func reactMascot(_ reaction: NotchMascotReaction, patience: TimeInterval = 8) { reactions.append(reaction) }
         func open(_ module: NotchModule, pinned: Bool = false, takeFocus: Bool = true) {
             opened.append(module)
@@ -190,6 +203,8 @@ enum ShelfDropRoutingTests {
             Context.NotchSupport.visibleModules = [.files]
             Context.ShelfService.shared = Context.ShelfService()
             Context.NotchFileToolsService.shared = Context.NotchFileToolsService()
+            Context.NotchAirDrop.available = false
+            Context.NotchAirDrop.sent = 0
         }
         defer {
             board.releaseGlobally()
@@ -219,7 +234,7 @@ enum ShelfDropRoutingTests {
                     notch.beginFileDrop(board)
                     suite.expect(notch.choosingFileDropDestination == (tool != nil),
                            "only complete compatible file batches offer optimization: \(urls.map(\.lastPathComponent))")
-                    let area = NotchFileToolsSupport.mediaDropArea(in: notch.geometry, size: notch.surfaceSize)
+                    let area = NotchFileToolsSupport.dropArea(index: 1, count: 2, in: notch.geometry, size: notch.surfaceSize)
                     _ = notch.updateFileDrop(at: optimize ? CGPoint(x: area.midX, y: area.midY) : CGPoint(x: 40, y: area.midY))
                     let accepted = notch.accept(board)
                     let files = Context.NotchFileToolsService.shared
@@ -250,7 +265,7 @@ enum ShelfDropRoutingTests {
                 board.writeObjects([image as NSURL])
                 let notch = Context.Notch()
                 notch.beginFileDrop(board)
-                let area = NotchFileToolsSupport.mediaDropArea(in: notch.geometry, size: notch.surfaceSize)
+                let area = NotchFileToolsSupport.dropArea(index: 1, count: 2, in: notch.geometry, size: notch.surfaceSize)
                 _ = notch.updateFileDrop(at: CGPoint(x: area.midX, y: area.midY))
                 let files = Context.NotchFileToolsService.shared
                 switch revoked {
@@ -276,6 +291,40 @@ enum ShelfDropRoutingTests {
             suite.expect(!notch.choosingFileDropDestination && Context.NotchFileToolsService.shared.mediaSession == nil,
                    "leaving a drag never creates a media workspace")
 
+            // AirDrop joins the destinations only when the system offers it, as the last column.
+            for (urls, columns) in [([note], 2), ([image], 3)] {
+                for column in 0..<columns {
+                    reset()
+                    Context.NotchAirDrop.available = true
+                    board.clearContents()
+                    board.writeObjects(urls as [NSURL])
+                    let notch = Context.Notch()
+                    notch.beginFileDrop(board)
+                    suite.expect(notch.choosingFileDropDestination && notch.fileDropZones.count == columns
+                           && notch.fileDropZones.last == .airDrop,
+                           "an available AirDrop is offered after the shelf and any media target")
+                    let area = NotchFileToolsSupport.dropArea(index: column, count: columns,
+                                                              in: notch.geometry, size: notch.surfaceSize)
+                    _ = notch.updateFileDrop(at: CGPoint(x: area.midX, y: area.midY))
+                    suite.expect(notch.accept(board), "a drop on any column is accepted")
+                    let toAirDrop = column == columns - 1
+                    suite.expect(Context.NotchAirDrop.sent == (toAirDrop ? 1 : 0)
+                           && Context.ShelfService.shared.ordinaryAccepts == (column == 0 ? 1 : 0)
+                           && (Context.NotchFileToolsService.shared.mediaSession != nil) == (columns == 3 && column == 1),
+                           "each column delivers to its own destination and to no other")
+                    suite.expect(!notch.pinned && !notch.choosingFileDropDestination,
+                           "an AirDrop or media drop leaves the pin alone and clears the chooser")
+                }
+            }
+            reset()
+            board.clearContents()
+            board.writeObjects([note as NSURL])
+            let unoffered = Context.Notch()
+            unoffered.beginFileDrop(board)
+            suite.expect(!unoffered.choosingFileDropDestination && unoffered.fileDropZones == [.shelf]
+                   && unoffered.accept(board) && Context.NotchAirDrop.sent == 0,
+                   "without AirDrop a plain file drag still goes straight to the shelf")
+
             for initiallyPinned in [false, true] {
                 reset()
                 let repeatDrop = Context.Notch()
@@ -287,7 +336,7 @@ enum ShelfDropRoutingTests {
                     repeatDrop.beginFileDrop(board)
                     suite.expect(repeatDrop.choosingFileDropDestination,
                            "every new compatible drag offers both destinations even with an existing media workspace")
-                    let area = NotchFileToolsSupport.mediaDropArea(in: repeatDrop.geometry, size: repeatDrop.surfaceSize)
+                    let area = NotchFileToolsSupport.dropArea(index: 1, count: 2, in: repeatDrop.geometry, size: repeatDrop.surfaceSize)
                     _ = repeatDrop.updateFileDrop(at: CGPoint(x: optimize ? area.midX : 40, y: area.midY))
                     suite.expect(repeatDrop.accept(board) && files.mediaPresented == optimize && repeatDrop.pinned == initiallyPinned,
                            "each drop follows its new destination and leaves the user's pin choice untouched")
@@ -304,7 +353,7 @@ enum ShelfDropRoutingTests {
                 suite.expect(files.mediaContentHeight == 240, "hiding extra media controls shrinks the recorded content height")
                 files.media.state = .running
                 repeatDrop.beginFileDrop(board)
-                let area = NotchFileToolsSupport.mediaDropArea(in: repeatDrop.geometry, size: repeatDrop.surfaceSize)
+                let area = NotchFileToolsSupport.dropArea(index: 1, count: 2, in: repeatDrop.geometry, size: repeatDrop.surfaceSize)
                 suite.expect(repeatDrop.choosingFileDropDestination
                        && !repeatDrop.updateFileDrop(at: CGPoint(x: area.midX, y: area.midY)),
                        "running media keeps the chooser available but cannot be overwritten by another drop")
@@ -333,7 +382,7 @@ enum ShelfDropRoutingTests {
                     accept: { destination.accept($0) },
                     exit: { destination.endFileDrop() },
                     update: { destination.updateFileDrop(at: $0) })
-                let area = NotchFileToolsSupport.mediaDropArea(in: destination.geometry, size: destination.surfaceSize)
+                let area = NotchFileToolsSupport.dropArea(index: 1, count: 2, in: destination.geometry, size: destination.surfaceSize)
                 var drag = Context.NSDraggingInfo(draggingPasteboard: board, draggingDestinationWindow: nil,
                                                   draggingLocation: CGPoint(x: 40, y: area.midY))
                 suite.expect(canvas.draggingUpdated(drag) == .copy && !destination.targetsMediaDrop,

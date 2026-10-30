@@ -118,7 +118,9 @@ final class NotchService: ObservableObject {
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
     @Published private(set) var choosingFileDropDestination = false
-    @Published private(set) var targetsMediaDrop = false
+    @Published private(set) var fileDropZones: [NotchFileToolsSupport.DropZone] = [.shelf]
+    @Published private(set) var fileDropZone: NotchFileToolsSupport.DropZone = .shelf
+    var targetsMediaDrop: Bool { fileDropZone == .media }
     @Published private(set) var selectedMetric: MetricDetailKind?
     @Published private(set) var captureControls: ScreenCaptureSelectionOptions?
     @Published private(set) var captureControlsCollapsed = false
@@ -2272,23 +2274,32 @@ final class NotchService: ObservableObject {
 
     func beginFileDrop(_ pasteboard: NSPasteboard) {
         guard canAcceptFileDrop else { return }
-        choosingFileDropDestination = NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil
-        targetsMediaDrop = false
+        var zones: [NotchFileToolsSupport.DropZone] = [.shelf]
+        if NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil { zones.append(.media) }
+        if NotchAirDrop.shared.canSend(pasteboard) { zones.append(.airDrop) }
+        fileDropZones = zones
+        choosingFileDropDestination = zones.count > 1
+        fileDropZone = .shelf
         open(.files, takeFocus: false)
     }
 
     @discardableResult
     func updateFileDrop(at point: CGPoint) -> Bool {
-        let targeted = choosingFileDropDestination
-            && NotchFileToolsSupport.mediaDropArea(in: expandedGeometry, size: surfaceSize).contains(point)
-        if targetsMediaDrop != targeted { targetsMediaDrop = targeted }
-        return !targeted || NotchFileToolsService.shared.canAcceptMediaDrop
+        let zones = fileDropZones
+        let zone = choosingFileDropDestination
+            ? zones.enumerated().first { index, _ in
+                NotchFileToolsSupport.dropArea(index: index, count: zones.count,
+                                               in: expandedGeometry, size: surfaceSize).contains(point)
+            }?.element ?? .shelf
+            : .shelf
+        if fileDropZone != zone { fileDropZone = zone }
+        return zone != .media || NotchFileToolsService.shared.canAcceptMediaDrop
     }
 
     func endFileDrop() {
         let changed = choosingFileDropDestination
         if changed { choosingFileDropDestination = false }
-        if targetsMediaDrop { targetsMediaDrop = false }
+        if fileDropZone != .shelf { fileDropZone = .shelf }
         if changed, acceptsUserInteraction { refreshPresentation() }
     }
 
@@ -2298,9 +2309,17 @@ final class NotchService: ObservableObject {
     }
 
     func accept(_ pasteboard: NSPasteboard) -> Bool {
+        let zone = choosingFileDropDestination ? fileDropZone : .shelf
         defer { endFileDrop() }
         guard canAcceptFileDrop else { return false }
-        let optimize = choosingFileDropDestination && targetsMediaDrop
+        if zone == .airDrop {
+            guard NotchAirDrop.shared.send(pasteboard) else { return false }
+            heldDrag = false
+            dragPlaceholder = false
+            collapse()
+            return true
+        }
+        let optimize = zone == .media
         let accepted = optimize
             ? NotchFileToolsService.shared.openMediaDrop(pasteboard)
             : ShelfService.shared.acceptDrop(pasteboard: pasteboard)
