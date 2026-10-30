@@ -72,6 +72,17 @@ enum NotchNotificationSupport {
     /// A brief grace avoids cutting off short alert tones when closing the
     /// original banner. This does not observe playback; longer sounds may stop.
     static let nativeCloseGrace: TimeInterval = 1.2
+    /// Opening the center makes a window, and the center takes the keyboard
+    /// a moment later. A read in between finds its list without the focus that
+    /// marks it as the open center.
+    static let centerOpeningGrace: TimeInterval = 0.3
+
+    /// How long messages that just appeared wait before reaching the island,
+    /// or nil to deliver them now: only right after the center made a window.
+    static func arrivalHold(windowCreatedAt created: TimeInterval?, now: TimeInterval) -> TimeInterval? {
+        guard let created, now >= created, now - created < centerOpeningGrace else { return nil }
+        return created + centerOpeningGrace - now
+    }
     /// Moving the window that holds a banner was measured on macOS 27, where
     /// the center keeps its banners in one window it places again each time
     /// it shows one. Earlier versions close the original after the grace.

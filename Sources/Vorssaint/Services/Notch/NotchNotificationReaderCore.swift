@@ -72,12 +72,15 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     }
 
     var hidesWindows: Bool { !hiddenWindows.isEmpty }
+    /// Whether the last read found the center open, holding the keyboard.
+    private(set) var centerFocused = false
 
     /// A focused center is not a passive banner surface. Its existing
     /// notifications must not be imported as newly received messages.
     func read() -> Snapshot? {
         beginRead()
         guard let focused = fetch({ try access.hasFocusedWindow() }) else { return nil }
+        centerFocused = focused
         // Someone opened the center. Nothing it lays out may stay off screen.
         guard !focused else { showNative(); return nil }
         guard let windows = fetch({ try access.windows() }), windows.count <= 32 else { return nil }

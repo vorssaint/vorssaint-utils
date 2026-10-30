@@ -109,6 +109,38 @@ enum NotchNotificationReaderTests {
         busyClosing(suite)
         nativeHiding(suite)
         hiddenWindowReturns(suite)
+        centerOpening(suite)
+    }
+
+    /// Opening the center makes a window before the center takes the
+    /// keyboard: messages read in between wait, and the reader tells whether
+    /// the center then holds the focus.
+    private static func centerOpening(_ suite: TestSuite) {
+        let grace = NotchNotificationSupport.centerOpeningGrace
+        suite.expect(NotchNotificationSupport.arrivalHold(windowCreatedAt: nil, now: 10) == nil,
+                     "with no new window, messages reach the island at once")
+        suite.expect(NotchNotificationSupport.arrivalHold(windowCreatedAt: 10, now: 10).map { abs($0 - grace) < 0.0001 } == true,
+                     "a message read as the center makes a window waits out the whole grace")
+        if let left = NotchNotificationSupport.arrivalHold(windowCreatedAt: 10, now: 10 + grace / 3) {
+            suite.expect(abs(left - grace * 2 / 3) < 0.0001, "a later read waits only for what is left of it")
+        } else {
+            suite.expect(false, "a read inside the grace still waits")
+        }
+        suite.expect(NotchNotificationSupport.arrivalHold(windowCreatedAt: 10, now: 10 + grace) == nil
+                     && NotchNotificationSupport.arrivalHold(windowCreatedAt: 10, now: 9) == nil,
+                     "once the grace is over, or for a window from a clock that went back, nothing waits")
+
+        let access = Access(), banner = card()
+        banner.strings["AXSubrole"] = "AXNotificationCenterBanner"
+        access.roots = [Node("AXWindow", subrole: "AXSystemDialog", children: [banner])]
+        let reader = access.reader()
+        suite.expect(reader.read() != nil && !reader.centerFocused,
+                     "a banner read with nothing focused is not the open center")
+        access.focused = true
+        suite.expect(reader.read() == nil && reader.centerFocused,
+                     "the center taking the keyboard is reported, so its list is not mirrored")
+        access.focused = false
+        suite.expect(reader.read() != nil && !reader.centerFocused, "closing the center is reported too")
     }
 
     /// The center's window with one transient banner, read once.
