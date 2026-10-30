@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import ApplicationServices
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
@@ -51,6 +52,7 @@ enum ShortcutRecordingTap {
             observingSession = true
             SessionActivity.shared.onChange { if !$0 { tearDown(); ShortcutCapture.end() } }
         }
+        drainGeneration += 1  // a re-begin owns the drain's next generation
         // A tap the system disabled behind our back reads as dead; rebuild.
         if let tap, !CGEvent.tapIsEnabled(tap: tap) {
             tearDown()
@@ -84,23 +86,89 @@ enum ShortcutRecordingTap {
     static func end() {
         handler = nil
         guard tap != nil else { return }
-        if let heldKeyCode {
-            drainingKeyCode = heldKeyCode
+        if let heldKeyCode { drainingKeyCode = heldKeyCode }
+        drainGeneration += 1
+        if !drainIsSettled {
             armDrainWatchdog()
         } else {
             tearDown()
         }
     }
 
+    /// True once the recorded key's held-key drain is over.
+    private static var drainIsSettled: Bool {
+        drainingKeyCode == nil
+    }
+
     /// The drain must outlive the key, not the clock: each swallowed
     /// autorepeat pushes the deadline back, so the tap dies after a second of
     /// silence instead of mid-hold, where the key's remaining repeats would
     /// reach the frontmost app as fresh presses of the recorded combination.
+    /// A given battery keyboard's autorepeat pauses for up to that second
+    /// when momentum restarts, so the deadline itself re-asks first: it
+    /// stands the tap down only when nothing is still held, keeping the one
+    /// true failure mode covered — a release or repeat lost to a switched
+    /// session — without dropping a held key mid-hold.
     private static func armDrainWatchdog() {
         drainWatchdog?.cancel()
-        let watchdog = DispatchWorkItem { tearDown() }
+        let watchdog = DispatchWorkItem { watchdogPass() }
         drainWatchdog = watchdog
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: watchdog)
+    }
+
+    /// A lost release must not leave a held key held forever, and a long
+    /// pause between autorepeats must not drop it mid-hold: the deadline asks
+    /// the keyboard itself. A key no longer held has a lost keyUp; a key still
+    /// down keeps the tap up.
+    /// `keyState` waits on a lock the main run loop itself has to service,
+    /// so the read hops off main — a main-thread call here would deadlock
+    /// the app, the same trap `SuperKeyService` documents — and its answer
+    /// comes back to `applyKeyboardSnapshot` under the generation it was
+    /// asked under.
+    private static func watchdogPass() {
+        guard tap != nil else { return }
+        guard !drainIsSettled else { return tearDown() }
+        guard let draining = drainingKeyCode else { return tearDown() }
+        let generation = drainGeneration
+        DispatchQueue.global(qos: .userInitiated).async {
+            let keyIsDown = [draining: CGEventSource.keyState(.hidSystemState, key: CGKeyCode(draining))]
+            DispatchQueue.main.async {
+                ShortcutRecordingTap.applyKeyboardSnapshot(
+                    keyIsDown: keyIsDown, draining: draining, generation: generation)
+            }
+        }
+    }
+
+    /// Generations name a snapshot: a read that took longer than the events
+    /// it was asked about re-checks against the drain it returns to, so a
+    /// late answer never drops a debt the drain has since changed. Every
+    /// held-key event bumps the generation; an answer that lands stale
+    /// re-arms the check instead of applying.
+    private static var drainGeneration = 0
+
+    /// Applies the keyboard's answer. Runs on main: the key codes it drops
+    /// were checked against this exact generation of the drain, and events
+    /// that arrived while the background read ran get to change the answer.
+    private static func applyKeyboardSnapshot(keyIsDown: [Int64: Bool],
+                                              draining: Int64,
+                                              generation: Int) {
+        guard tap != nil else { return }
+        guard generation == drainGeneration else {
+            // The answer names a drain that has since changed. The events
+            // that changed it re-arm the watchdog themselves, but an answer
+            // can also arrive stale across a re-begin; while anything is
+            // still owed, the re-check must keep coming.
+            if !drainIsSettled { armDrainWatchdog() }
+            return
+        }
+        if keyIsDown[draining] == false, drainingKeyCode == draining {
+            drainingKeyCode = nil
+        }
+        if drainIsSettled {
+            tearDown()
+        } else {
+            armDrainWatchdog()
+        }
     }
 
     private static func tearDown() {
@@ -110,6 +178,7 @@ enum ShortcutRecordingTap {
         heldKeyCode = nil
         handler = nil
         superState.reset()
+        drainGeneration += 1
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFMachPortInvalidate(tap)
@@ -171,8 +240,16 @@ enum ShortcutRecordingTap {
         }
         if let drainingKeyCode, keyCode == drainingKeyCode {
             if type == .keyUp {
-                tearDown()
+                // The release clears this key's drain; the tap stands down
+                // only once no other key still owes its release.
+                self.drainingKeyCode = nil
+                drainGeneration += 1
+                if drainIsSettled { tearDown() } else { armDrainWatchdog() }
             } else {
+                // A re-press of the draining key re-earns its debt: a
+                // snapshot already reading the keyboard as "up" must not
+                // stand the drain down mid-hold.
+                drainGeneration += 1
                 armDrainWatchdog()
             }
             return nil
