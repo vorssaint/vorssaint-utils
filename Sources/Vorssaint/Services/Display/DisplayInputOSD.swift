@@ -34,7 +34,7 @@ enum DisplayInputOSD {
         dismissWork?.cancel()
         let work = DispatchWorkItem { dismiss() }
         dismissWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: work)
     }
 
     /// Releases the window entirely when display control turns off.

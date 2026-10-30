@@ -612,7 +612,14 @@ final class BrightnessService: ObservableObject {
                 self.inputSwitchPending.remove(id)
                 self.storeInputState(state, for: id)
                 if let switched, self.running {
-                    DisplayInputOSD.show(displayID: id, name: DisplayInputSupport.label(of: switched))
+                    let name = DisplayInputSupport.label(of: switched)
+                    let monitor = self.displays.first { $0.id == id }?.name ?? ""
+                    // The island usually sits on another screen, so it stays
+                    // in sight when the monitor leaves this Mac.
+                    if !(NotchSupport.routes(.brightness)
+                         && NotchService.shared.showDisplayInput(name, monitor: monitor)) {
+                        DisplayInputOSD.show(displayID: id, name: name)
+                    }
                 }
             }
         }
