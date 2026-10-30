@@ -183,6 +183,13 @@ struct MetricsTests {
                 SpeedTestTests.run(suite)
                 NetworkAddressTests.run { suite.expect($0, $1) }
             }),
+            ("tmobile", {
+                TMobileGatewayTests.run(suite)
+                TMobileGatewayIntegrationTests.run(suite)
+                TMobileGatewayConnectedRadioTests.run(suite)
+                TMobileGatewayIndicatorTests.run(suite)
+                TMobileGatewayRadioPresentationTests.run(suite)
+            }),
             ("app-updates", {
                 AppUpdateHandoffTests.run(suite)
                 AppUpdatesContract.run(suite)

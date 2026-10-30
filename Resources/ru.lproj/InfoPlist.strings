@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaint упорядочивает подтверждённые загрузки WhatsApp в папке назначения, которую вы явно выбираете. Очистка также ищет забытые снимки экрана, если вы сохраняете их сюда.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint упорядочивает подтверждённые загрузки WhatsApp в папке назначения, которую вы явно выбираете. Очистка также ищет забытые снимки экрана, если вы сохраняете их сюда.";
 "NSCalendarsFullAccessUsageDescription" = "Показывает предстоящие встречи в верхней части экрана. События календаря остаются на этом Mac.";
+
+/* macOS Local Network permission prompt. */
+"NSLocalNetworkUsageDescription" = "Vorssaint считывает сигнал и состояние подключения вашего шлюза T-Mobile, только когда вы включаете эту функцию. Показания шлюза остаются на этом Mac.";

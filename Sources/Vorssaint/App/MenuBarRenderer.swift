@@ -5,7 +5,7 @@ import AppKit
 
 /// A live reading the user can pin next to the menu bar icon.
 enum MenuBarMetric: String, CaseIterable, Identifiable {
-    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed, connectedDevices
+    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed, connectedDevices, tMobile
 
     var id: String { rawValue }
 
@@ -26,6 +26,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .power: return DefaultsKey.menuBarPower
         case .connectedDevices: return DefaultsKey.menuBarConnectedDevices
         case .fanSpeed: return DefaultsKey.menuBarFanSpeed
+        case .tMobile: return DefaultsKey.menuBarTMobile
         }
     }
 
@@ -46,6 +47,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .connectedDevices: return "cable.connector"
         case .power: return "powerplug.fill"
         case .fanSpeed: return "fanblades"
+        case .tMobile: return "antenna.radiowaves.left.and.right"
         }
     }
 
@@ -66,6 +68,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).title
         case .power: return strings.monitorShowPowerLabel
         case .fanSpeed: return FeatureStrings.fanControl(L10n.shared.language).menuBarTitle
+        case .tMobile: return TMobileGatewayStrings.localized(L10n.shared.language).connectionTitle
         }
     }
 
@@ -74,7 +77,8 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         .gpu, .gpuTemperature,
         .memory,
         .battery, .batteryTime, .batteryTemperature, .peripheralBattery,
-        .network, .diskUsage, .diskActivity, .connectedDevices, .power, .fanSpeed,
+        .network, .tMobile,
+        .diskUsage, .diskActivity, .connectedDevices, .power, .fanSpeed,
     ]
 
     static func order(in defaults: UserDefaults) -> [MenuBarMetric] {
@@ -95,13 +99,16 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .cpu, .cpuTemperature: return .monitorCPU
         case .gpu, .gpuTemperature: return .monitorGPU
         case .memory: return .monitorMemory
-        case .network: return .monitorNetwork
+        case .network, .tMobile: return .monitorNetwork
         case .diskUsage, .diskActivity: return .monitorDisk
         case .connectedDevices: return .connectedDevices
         case .battery, .batteryTime, .batteryTemperature, .peripheralBattery, .power: return .monitorPower
         case .fanSpeed: return .fanControl
         }
     }
+
+    /// The gateway indicator reads the LAN, not the system sampler.
+    var isTMobileGateway: Bool { self == .tMobile }
 
     var isAvailableOnCurrentHardware: Bool {
         switch self {
@@ -194,6 +201,7 @@ enum MenuBarLabelStyle: String, CaseIterable {
 /// One drawable piece of the menu bar text: plain (adaptive) text, or the memory
 /// pressure dot, which carries a green/yellow/red color.
 enum MenuBarSegment {
+    case cellularBlock(TMobileGatewayMenuBarSupport.ConnectionDisplay, style: MenuBarBlockStyle)
     case text(String)
     case symbol(String)
     case largeSymbol(String)
@@ -251,16 +259,18 @@ enum MenuBarRenderer {
 
     static func lines(for snapshot: SystemSnapshot,
                       metrics: [MenuBarMetric],
-                      allowStacked: Bool = true) -> [[MenuBarSegment]] {
-        let denseSegments = blockSegments(for: snapshot, metrics: metrics, style: .dense)
+                      allowStacked: Bool = true,
+                      gatewaySnapshot: TMobileGatewaySnapshot? = nil) -> [[MenuBarSegment]] {
+        let denseSegments = blockSegments(for: snapshot, metrics: metrics, style: .dense, gatewaySnapshot: gatewaySnapshot)
         return denseSegments.isEmpty ? [] : [denseSegments]
     }
 
     static func segments(for snapshot: SystemSnapshot,
                          metrics: [MenuBarMetric],
-                         allowStacked: Bool = true) -> [MenuBarSegment] {
+                         allowStacked: Bool = true,
+                         gatewaySnapshot: TMobileGatewaySnapshot? = nil) -> [MenuBarSegment] {
         var segments: [MenuBarSegment] = []
-        for (index, line) in lines(for: snapshot, metrics: metrics, allowStacked: allowStacked).enumerated() {
+        for (index, line) in lines(for: snapshot, metrics: metrics, allowStacked: allowStacked, gatewaySnapshot: gatewaySnapshot).enumerated() {
             if index > 0 { segments.append(.text("\n")) }
             segments.append(contentsOf: line)
         }
@@ -340,7 +350,8 @@ enum MenuBarRenderer {
 
     private static func blockSegments(for snapshot: SystemSnapshot,
                                       metrics: [MenuBarMetric],
-                                      style: MenuBarBlockStyle) -> [MenuBarSegment] {
+                                      style: MenuBarBlockStyle,
+                                      gatewaySnapshot: TMobileGatewaySnapshot? = nil) -> [MenuBarSegment] {
         var groups: [[MenuBarSegment]] = []
         let appearance = MenuBarMetricAppearance.current
         let usesBars = appearance == .bars
@@ -470,6 +481,9 @@ enum MenuBarRenderer {
                                                 style: style,
                                                 pressure: memoryStyle.showsDot ? snapshot.memoryPressure : nil)])
                 }
+            case .tMobile:
+                groups.append([.cellularBlock(TMobileGatewayMenuBarSupport.connection(
+                    snapshot: gatewaySnapshot, strings: .localized(L10n.shared.language)), style: style)])
             case .network:
                 if let down = snapshot.netDownBytesPerSec, let up = snapshot.netUpBytesPerSec {
                     groups.append([.networkBlock(down: MetricFormat.networkRateCompact(down),
@@ -665,7 +679,7 @@ enum MenuBarRenderer {
             return 11      // symbol + " CPU 999°" / " GPU 999°" / " BAT 999°"
         case (_, .peripheralBattery):
             return 12      // symbol + " KBD 100%+9"
-        case (_, .network):
+        case (_, .tMobile), (_, .network):
             return 15      // down symbol + 999Kb/1023K + up symbol + 999Kb/1023K
         case (_, .diskUsage):
             return DiskMenuBarStyle.current.showsPercentage ? 11 : 14
@@ -717,11 +731,14 @@ enum MenuBarRenderer {
     static func attributed(for snapshot: SystemSnapshot,
                            metrics: [MenuBarMetric],
                            allowStacked: Bool = true,
-                           linePrefix: String = "") -> NSAttributedString {
+                           linePrefix: String = "",
+                           gatewaySnapshot: TMobileGatewaySnapshot? = nil) -> NSAttributedString {
         let result = NSMutableAttributedString()
         let stacked = usesStackedLayout(for: snapshot, metrics: metrics, allowStacked: allowStacked)
-        for segment in segments(for: snapshot, metrics: metrics, allowStacked: allowStacked) {
+        for segment in segments(for: snapshot, metrics: metrics, allowStacked: allowStacked, gatewaySnapshot: gatewaySnapshot) {
             switch segment {
+            case let .cellularBlock(display, style):
+                result.append(cellularBlockAttachment(display: display, style: style))
             case let .text(string):
                 let rendered = string == "\n" && !linePrefix.isEmpty ? "\n" + linePrefix : string
                 result.append(NSAttributedString(string: rendered))
@@ -785,6 +802,16 @@ enum MenuBarRenderer {
         attachment.image = image
         let side: CGFloat = enlarged ? 14.2 : (stacked ? 9.2 : 11.4)
         attachment.bounds = NSRect(x: 0, y: enlarged ? -3.0 : (stacked ? -1.0 : -1.8), width: side, height: side)
+        return NSAttributedString(attachment: attachment)
+    }
+
+    private static func cellularBlockAttachment(display: TMobileGatewayMenuBarSupport.ConnectionDisplay,
+                                               style: MenuBarBlockStyle) -> NSAttributedString {
+        let image = TMobileGatewayIndicatorDrawing.image(display, style: style)
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0, y: (style == .readable ? -5.9 : -5.7) + legacyBlockAttachmentNudge,
+                                   width: image.size.width, height: image.size.height)
         return NSAttributedString(attachment: attachment)
     }
 

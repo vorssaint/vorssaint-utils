@@ -13,6 +13,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
 | Calendars | Yes | Upcoming appointments in the notch |
 | Bluetooth | Yes | Accessory battery levels in Monitor, optional accessory alerts in the notch and Bluetooth on sleep |
+| Local Network | Yes | Reading signal status from a T-Mobile home internet gateway in Monitor |
 | Files and Folders | Yes | Monitoring downloads in a folder you choose |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
@@ -103,6 +104,14 @@ The optional notch calendar asks for access when you press its permission button
 **If you say no.** Accessories that report their battery to macOS directly, as many keyboards, mice and trackpads do, still show it. Others can be missing from the list and from accessory alerts. Bluetooth on sleep may be unable to switch Bluetooth off and back on.
 
 **Optional.** Yes. Battery levels and the Bluetooth state are read on your Mac and never leave it.
+
+## Local Network
+
+**Why it comes up.** macOS asks before an app can reach devices on your local network. The optional T-Mobile gateway reading in Monitor requests the gateway's status page at the private address you set.
+
+**If you say no.** The T-Mobile block and menu bar indicator show the gateway as unavailable. Everything else keeps working.
+
+**Optional.** Yes. Nothing is requested until you turn the reading on, and readings stay on this Mac.
 
 ## Files and Folders
 

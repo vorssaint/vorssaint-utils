@@ -550,6 +550,13 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift
         Sources/Vorssaint/Services/Metrics/NetworkAddressService.swift
+        Sources/Vorssaint/Services/Metrics/TMobileGatewaySupport.swift
+        Sources/Vorssaint/Services/Metrics/TMobileGatewayConnectedRadioSupport.swift
+        Sources/Vorssaint/Services/Metrics/TMobileGatewayDiagnostics.swift
+        Sources/Vorssaint/Services/Metrics/TMobileGatewayRadioPresentation.swift
+        Sources/Vorssaint/Services/Metrics/TMobileGatewayMenuBarSupport.swift
+        Sources/Vorssaint/Services/Metrics/TMobileGatewayService.swift
+        Sources/Vorssaint/Core/TMobileGatewayStrings.swift
         Sources/Vorssaint/Services/Metrics/SpeedTest.swift
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySampler.swift
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift
@@ -595,6 +602,8 @@ if (( TEST )); then
         ./Tests/PreferenceCleanupTests.sh || test_status=1
         ./Tests/UninstallSpacesTests.sh || test_status=1
         ./Tests/DeveloperInstallIsolationTests.sh || test_status=1
+        zsh ./Tests/TMobileGatewayMonitorTests.sh || test_status=1
+        zsh ./Tests/TMobileGatewayAppearanceTests.sh || test_status=1
     fi
     discard_test_preferences || test_status=1
     exit $test_status
