@@ -1,0 +1,26 @@
+{
+  "numStartups": 412,
+  "installMethod": "native",
+  "tipsHistory": { "new-user-warmup": 3, "note": "a \"}\" { \"oauthAccount\": {} } \\" },
+  "lastCost": 0.1,
+  "bigNumber": 4.35,
+  "projects": {
+    "/Users/someone/code": {
+      "allowedTools": [],
+      "oauthAccount": { "accountUuid": "not-the-login" },
+      "lastTotalInputTokens": 123456789012
+    }
+  },
+  "oauthAccount": {
+    "accountUuid": "acct-a",
+    "emailAddress": "a@example.com",
+    "organizationUuid": "org-a",
+    "organizationName": "A’s Organization",
+    "displayName": "A",
+    "organizationRole": "admin",
+    "billingType": "stripe_subscription"
+  },
+  "hasCompletedOnboarding": true,
+  "cachedChangelog": "## 2.1.296\n- {fixes}\n",
+  "userID": "0f3a"
+}

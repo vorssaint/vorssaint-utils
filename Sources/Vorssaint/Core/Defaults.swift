@@ -906,6 +906,11 @@ enum DefaultsKey {
     static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
     static let notchAgentsDailyBudget = "notchAgentsDailyBudget"
     static let notchAgentsPriceUpdates = "notchAgentsPriceUpdates"
+    // AI accounts: the saved logins themselves live outside preferences, in the Keychain and the app's private folder.
+    static let notchAccountsEnabled = "notchAccountsEnabled"
+    static let notchAccountsAutoSwapClaude = "notchAccountsAutoSwapClaude"
+    static let notchAccountsAutoSwapCodex = "notchAccountsAutoSwapCodex"
+    static let notchAccountsAutoSwapThreshold = "notchAccountsAutoSwapThreshold" // percent of a limit used
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     // How the island looks on a display without a camera housing.
@@ -1504,6 +1509,10 @@ enum Defaults {
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,
         DefaultsKey.notchAgentsDailyBudget: 0.0,
         DefaultsKey.notchAgentsPriceUpdates: true,
+        DefaultsKey.notchAccountsEnabled: false,
+        DefaultsKey.notchAccountsAutoSwapClaude: false,
+        DefaultsKey.notchAccountsAutoSwapCodex: false,
+        DefaultsKey.notchAccountsAutoSwapThreshold: 90.0,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,

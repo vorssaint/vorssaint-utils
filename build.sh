@@ -309,6 +309,19 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/CodexAccountLimits.swift
         Sources/Vorssaint/Services/AgentUsage/CodexProfileLimitsService.swift
         Sources/Vorssaint/Services/AgentUsage/AgentOpenCodeReader.swift
+        Sources/Vorssaint/Services/AgentAccounts/AgentAccountModels.swift
+        Sources/Vorssaint/Services/AgentAccounts/AgentCredentialCopies.swift
+        Sources/Vorssaint/Services/AgentAccounts/AgentLoginAdapter.swift
+        Sources/Vorssaint/Services/AgentAccounts/ClaudeKeychain.swift
+        Sources/Vorssaint/Services/AgentAccounts/ClaudeCodeLogin.swift
+        Sources/Vorssaint/Services/AgentAccounts/CodexLogin.swift
+        Sources/Vorssaint/Services/AgentAccounts/AgentAccountStore.swift
+        Sources/Vorssaint/Services/AgentAccounts/AgentAccountSwitcher.swift
+        Sources/Vorssaint/Services/AgentAccounts/AgentAutoSwap.swift
+        Sources/Vorssaint/Services/AgentAccounts/AgentAccountPolling.swift
+        Sources/Vorssaint/Services/AgentAccounts/AgentLoginFlow.swift
+        # The section's strings arrive with its UI; (N) skips the file until then.
+        Sources/Vorssaint/Core/NotchAccountStrings.swift(N)
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
         Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift

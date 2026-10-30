@@ -1,0 +1,11 @@
+{
+  "five_hour": { "utilization": 42.5, "resets_at": "2026-10-12T15:00:00.000Z" },
+  "seven_day": { "utilization": 91, "resets_at": "2026-10-16T08:00:00Z" },
+  "seven_day_opus": null,
+  "limits": [
+    { "scope": { "model": { "display_name": "Opus" } }, "percent": 130, "resets_at": "2026-10-16T08:00:00Z" },
+    { "scope": { "model": { "display_name": "Sonnet" } }, "percent": 12.25, "resets_at": null },
+    { "scope": { "organization": {} }, "percent": 55 }
+  ],
+  "extra_usage": { "is_enabled": true, "utilization": 77, "used_credits": 12.5 }
+}
