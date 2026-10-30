@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude, codex, opencode, copilot, hermes
 
     var id: String { rawValue }
 
@@ -16,6 +16,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .hermes: return "Hermes"
         }
     }
 
@@ -25,10 +26,15 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .hermes: return "bolt"
         }
     }
 
-    /// Whether the provider records a plan allowance in its local logs.
+    /// Whether the provider keeps its sessions in one database instead of
+    /// log files, so reading follows rows rather than lines.
+    var readsDatabase: Bool { self == .opencode || self == .hermes }
+
+    /// Whether limits can be read from logs or the agent's public account command.
     var reportsLimits: Bool { self != .copilot }
 }
 
@@ -93,6 +99,39 @@ struct AgentUsageRecord: Equatable {
         self.cost = cost
         self.savings = savings
         self.reportedCost = reportedCost
+    }
+}
+
+/// Tokens and requests a harness total holds, or what part of it is counted.
+struct AgentCounterAmount: Equatable {
+    var tokens = AgentTokens()
+    var requests = 0
+
+    var isEmpty: Bool { tokens == AgentTokens() && requests == 0 }
+
+    mutating func add(_ record: AgentUsageRecord) {
+        tokens += record.tokens
+        requests += record.requests
+    }
+
+    mutating func add(_ other: AgentCounterAmount) {
+        tokens += other.tokens
+        requests += other.requests
+    }
+
+    /// What this holds beyond `base`; nil when any count is below it, as a
+    /// total that went down holds less than what was counted.
+    func subtracting(_ base: AgentCounterAmount) -> AgentCounterAmount? {
+        let parts = [(tokens.input, base.tokens.input), (tokens.cacheWrite, base.tokens.cacheWrite),
+                     (tokens.cacheRead, base.tokens.cacheRead), (tokens.output, base.tokens.output),
+                     (tokens.reasoning, base.tokens.reasoning), (requests, base.requests)]
+        guard parts.allSatisfy({ $0.0 >= $0.1 }) else { return nil }
+        return AgentCounterAmount(tokens: AgentTokens(input: tokens.input - base.tokens.input,
+                                                      cacheWrite: tokens.cacheWrite - base.tokens.cacheWrite,
+                                                      cacheRead: tokens.cacheRead - base.tokens.cacheRead,
+                                                      output: tokens.output - base.tokens.output,
+                                                      reasoning: tokens.reasoning - base.tokens.reasoning),
+                                  requests: requests - base.requests)
     }
 }
 
