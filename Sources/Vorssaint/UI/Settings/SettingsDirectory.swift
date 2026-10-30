@@ -392,7 +392,10 @@ enum SettingsDirectory {
                                       keywords: [FeatureStrings.commandBar(language).openButton,
                                                  FeatureStrings.commandBar(language).searchPlaceholder,
                                                  FeatureStrings.commandBar(language).appCenterTitle,
-                                                 FeatureStrings.commandBar(language).appAliasLabel]),
+                                                 FeatureStrings.commandBar(language).appAliasLabel,
+                                                 FeatureStrings.commandBar(language).returnKeysTitle,
+                                                 FeatureStrings.commandBar(language).returnBringHereToggle,
+                                                 FeatureStrings.commandBar(language).returnNewInstanceToggle]),
                 SettingsDirectoryItem(page: .quickTools, title: s.quickToolsTab, icon: "wand.and.rays",
                                        featureKeywords: [
                                         (.quickLauncher, [s.launcherName]),

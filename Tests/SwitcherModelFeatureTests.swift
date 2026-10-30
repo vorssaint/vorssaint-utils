@@ -165,11 +165,109 @@ enum SwitcherModelFeatureTests {
                      "the open switcher leaves a remote screen's scroll as it came")
     }
 
+    private static func appWindowTravelChecks(_ suite: TestSuite) {
+        typealias Support = AppWindowTravelSupport
+        func window(_ id: CGWindowID, spaces: [UInt64], width: CGFloat = 800, height: CGFloat = 600,
+                    alpha: Double = 1, minimized: Bool = false, excluded: Bool = false,
+                    child: Bool = false, orderedIn: Bool? = true,
+                    hiddenWithApp: Bool? = true) -> Support.Candidate {
+            Support.Candidate(windowID: id, spaces: spaces, size: CGSize(width: width, height: height),
+                              alpha: alpha, isOrderedIn: orderedIn, isHiddenWithApp: hiddenWithApp,
+                              isMinimized: minimized, isExcludedFromWindowCycle: excluded,
+                              hasParent: child)
+        }
+        func target(_ candidates: [Support.Candidate], hidden: Bool = false,
+                    visible: Set<UInt64> = [1]) -> CGWindowID? {
+            Support.travelTarget(candidates: candidates, appIsHidden: hidden, visibleSpaces: visible)
+        }
+
+        suite.expect(target([window(10, spaces: [2]), window(11, spaces: [3])]) == 10,
+                     "an app open only on other desktops is reached at its most recent window")
+        suite.expect(target([window(10, spaces: [2]), window(11, spaces: [1])]) == nil,
+                     "an app with a window on this desktop is just activated")
+        suite.expect(target([window(10, spaces: [2]), window(11, spaces: [5])], visible: [1, 5]) == nil,
+                     "a window showing on another display counts as already in view")
+        suite.expect(target([window(10, spaces: [1, 2, 3])]) == nil,
+                     "a window on every desktop is already here")
+        suite.expect(target([window(10, spaces: [7])]) == 10,
+                     "a fullscreen window elsewhere is travelled to like any other")
+        suite.expect(target([window(10, spaces: [2])], visible: []) == nil,
+                     "unanswerable Space queries keep plain activation")
+        suite.expect(target([]) == nil, "an app with no windows is just opened")
+        suite.expect(target([window(10, spaces: [])]) == nil,
+                     "a leftover surface on no desktop is never travelled to")
+        suite.expect(target([window(10, spaces: [2], minimized: true)]) == nil,
+                     "a minimized window stays in the Dock")
+        suite.expect(target([window(9, spaces: [2], width: 20, height: 20), window(10, spaces: [3])]) == 10,
+                     "a tiny helper surface is skipped for the app's real window")
+        suite.expect(target([window(9, spaces: [2], excluded: true), window(8, spaces: [2], child: true),
+                             window(10, spaces: [3])]) == 10,
+                     "auxiliary and child surfaces are skipped for the app's real window")
+        suite.expect(target([window(9, spaces: [1], alpha: 0), window(10, spaces: [3])]) == 10,
+                     "a transparent surface here does not count as a window in view")
+        suite.expect(target([window(10, spaces: [3], alpha: 0)], hidden: true) == 10,
+                     "a hidden app's windows read transparent and are still reached")
+        suite.expect(target([window(9, spaces: [2], orderedIn: false), window(10, spaces: [3])]) == 10,
+                     "an ordered-out surface retaining its desktop is skipped for a live window")
+        suite.expect(target([window(9, spaces: [1], orderedIn: false), window(10, spaces: [3])]) == 10,
+                     "a closed surface on a visible desktop does not prevent bringing a live window here")
+        suite.expect(target([window(9, spaces: [2], orderedIn: false)]) == nil,
+                     "an app with only closed retained surfaces has no travel target")
+        suite.expect(target([window(9, spaces: [2], alpha: 0, orderedIn: false, hiddenWithApp: false),
+                             window(10, spaces: [3], alpha: 0, orderedIn: false)], hidden: true) == 10,
+                     "hiding an app does not revive a window closed before the hide")
+        suite.expect(target([window(9, spaces: [1], orderedIn: false, hiddenWithApp: false),
+                             window(10, spaces: [3], alpha: 0, orderedIn: false)], hidden: true) == 10,
+                     "a hidden app's closed surface here does not veto its real window elsewhere")
+        suite.expect(target([window(10, spaces: [3], alpha: 0, orderedIn: false)], hidden: true) == 10,
+                     "a window ordered out by hiding its app remains a legitimate target")
+        suite.expect(target([window(10, spaces: [3], orderedIn: nil)]) == 10
+                        && target([window(10, spaces: [3], alpha: 0, orderedIn: nil, hiddenWithApp: nil)],
+                                  hidden: true) == 10,
+                     "unavailable ordering and hidden-app queries preserve the existing fallback")
+
+        suite.expect(Support.recencyOrder([1, 2, 3, 4], history: [3, 9, 1]) == [3, 1, 2, 4],
+                     "used windows come first by use, the rest keep the window server's order")
+        suite.expect(Support.recencyOrder([1, 2], history: []) == [1, 2],
+                     "without history the window server's front-to-back order decides")
+
+        suite.expect(Support.moveDestination(windowSpaces: [4], destination: 1,
+                                               visibleSpaces: [1], fullscreenSpaces: [], isMinimized: false) == 1,
+                     "a window on a hidden desktop is brought to the one in view")
+        suite.expect(Support.moveDestination(windowSpaces: [1], destination: 1,
+                                               visibleSpaces: [1], fullscreenSpaces: [], isMinimized: false) == nil
+                        && Support.moveDestination(windowSpaces: [1, 4], destination: 1,
+                                               visibleSpaces: [1], fullscreenSpaces: [], isMinimized: false) == nil,
+                     "a window already on the desktop in view, or on every desktop, stays put")
+        suite.expect(Support.moveDestination(windowSpaces: [9], destination: 1,
+                                               visibleSpaces: [1], fullscreenSpaces: [9], isMinimized: false) == nil
+                        && Support.moveDestination(windowSpaces: [4], destination: 9,
+                                               visibleSpaces: [1], fullscreenSpaces: [9], isMinimized: false) == nil,
+                     "nothing is moved out of or into a fullscreen Space")
+        suite.expect(Support.moveDestination(windowSpaces: [], destination: 1,
+                                               visibleSpaces: [1], fullscreenSpaces: [], isMinimized: false) == nil
+                        && Support.moveDestination(windowSpaces: [4], destination: nil,
+                                               visibleSpaces: [1], fullscreenSpaces: [], isMinimized: false) == nil,
+                     "a leftover surface or an unreadable desktop moves nothing")
+        let screen = CGRect(x: 1440, y: 0, width: 1920, height: 1080)
+        suite.expect(Support.placement(windowFrame: CGRect(x: 1500, y: 100, width: 800, height: 600),
+                                       destination: screen) == nil,
+                     "a window already on the destination display keeps its place")
+        suite.expect(Support.placement(windowFrame: CGRect(x: 100, y: 100, width: 800, height: 600),
+                                       destination: screen) == CGPoint(x: 2000, y: 240),
+                     "a window from another display is centered on the destination")
+        suite.expect(Support.placement(windowFrame: CGRect(x: -3000, y: 0, width: 2400, height: 1400),
+                                       destination: screen) == CGPoint(x: 1440, y: 0),
+                     "an oversized window keeps its top-left corner on the destination")
+
+    }
+
     static func run(_ suite: TestSuite) {
         SwitcherAccessibilitySnapshotTests.run(suite)
         SwitcherFullscreenScopeTests.run(suite)
         ScrollingTitleMotionTests.run(suite)
         scrollNavigationChecks(suite)
+        appWindowTravelChecks(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",

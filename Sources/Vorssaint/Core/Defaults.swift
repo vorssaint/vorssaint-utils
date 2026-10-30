@@ -637,6 +637,9 @@ enum DefaultsKey {
     // the bar looks for no files at all, which is the setting out of the box.
     static let commandBarFileScopes = "commandBarFileScopes"
     static let commandBarFileIgnores = "commandBarFileIgnores" // names a file search never shows
+    static let commandBarBringWindowHere = "commandBarBringWindowHere"
+    static let commandBarNewInstanceEnabled = "commandBarNewInstanceEnabled"
+    static let commandBarNewInstanceModifier = "commandBarNewInstanceModifier"
     static let panelUtilityCommandBar = "panelUtilityCommandBar"
     static let scratchpadRetention = "scratchpadRetention"   // never | day | week | month
     static let scratchpadCloseOnClickOutside = "scratchpadCloseOnClickOutside"
@@ -1851,6 +1854,9 @@ enum Defaults {
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
         DefaultsKey.commandBarPositionOffset: "",
         DefaultsKey.commandBarEmojiSkinTone: "",
+        DefaultsKey.commandBarBringWindowHere: false,
+        DefaultsKey.commandBarNewInstanceEnabled: false,
+        DefaultsKey.commandBarNewInstanceModifier: CommandBarReturnModifier.shift.rawValue,
         DefaultsKey.panelUtilityCommandBar: true,
         DefaultsKey.scratchpadRetention: ScratchpadRetention.never.rawValue,
         DefaultsKey.scratchpadCloseOnClickOutside: true,

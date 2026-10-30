@@ -2431,6 +2431,31 @@ def main():
 
     screens = "Sources/Vorssaint/Core/AppKitExtensions.swift"
     bridge = "Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift"
+    write("AppWindowTravelEligibility.swift", "import AppKit\n"
+          + "extension AppWindowTravelEligibilityTests.Travel {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Switcher/AppWindowTravel.swift", prefix)
+                    for prefix in ["    static func canBringHere(", "    private static func destination(",
+                                   "    private static func candidate("])
+          + "}\n")
+    write("CommandBarWindowHistory.swift", "import Foundation\n"
+          + "extension CommandBarWindowHistoryTests.Tracker {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift", "    func syncWithFeatures()")
+          + "}\n")
+    write("AppWindowMoveBridge.swift", "import AppKit\n"
+          + "extension AppWindowMoveBridgeTests.Bridge {\n"
+          + "".join(declaration(bridge, prefix) for prefix in [
+              "    private static var moveOperationClass:", "    static var canRequestMoves:",
+              "    static func requestMove("])
+          + "}\n")
+    write("AppWindowTravelLifecycle.swift", "import AppKit\n"
+          + "extension AppWindowTravelLifecycleTests.Activator {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Switcher/WindowActivator.swift", prefix)
+                    for prefix in ["    static func supersedePendingActivations(",
+                                   "    private static func beginActivation(", "    static func isCurrentActivation("])
+          + "}\nextension AppWindowTravelLifecycleTests.Travel {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Switcher/AppWindowTravel.swift", prefix)
+                    for prefix in ["    static func bringHere("])
+          + "}\n")
     write("PointerDisplayLookups.swift", "import AppKit\nimport Carbon.HIToolbox\nimport QuartzCore\n"
           + "extension PointerDisplayLookupContract.Screen {\n"
           + declaration(screens, "    static var withMouse:")
@@ -2441,6 +2466,7 @@ def main():
           + "}\nextension PointerDisplayLookupContract.Bridge {\n"
           + declaration(bridge, "    struct Topology {")
           + declaration(bridge, "    static func visibleSpace(near")
+          + declaration(bridge, "    static func visibleSpace(on")
           + "}\nextension PointerDisplayLookupContract.Layout {\n"
           + declaration("Sources/Vorssaint/Services/WindowLayout/WindowLayoutService.swift",
                         "    private func showDirectionalIndicator(").replace("private func", "func", 1)

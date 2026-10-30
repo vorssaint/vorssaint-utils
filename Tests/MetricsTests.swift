@@ -127,7 +127,13 @@ struct MetricsTests {
                 NotchSettingsTabRowTests.run(suite)
                 NotchPresentationProbeArgumentTests.run(suite)
             }),
-            ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
+            ("switcher-model", {
+                AppWindowMoveBridgeTests.run(suite)
+                AppWindowTravelLifecycleTests.run(suite)
+                AppWindowTravelEligibilityTests.run(suite)
+                CommandBarWindowHistoryTests.run(suite)
+                SwitcherModelFeatureTests.run(suite)
+            }),
             ("agents", { NotchAgentTests.run(suite) }),
             ("features", {
                 FeatureCatalogTests.run(suite)
