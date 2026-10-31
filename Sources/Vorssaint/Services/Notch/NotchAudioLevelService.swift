@@ -219,7 +219,8 @@ private final class NotchAudioLevelReader {
     private let onSilence: () -> Void
     private let onUnavailable: () -> Void
     private let onProcessesLeft: () -> Void
-    private let ring = NotchAudioRing(capacity: 8192)
+    /// Room for one analysis block behind the longest playback delay at 48 kHz.
+    private let ring = NotchAudioRing(capacity: 65_536)
     private var startedAt: TimeInterval = 0
     private var tapID = AudioObjectID(0)
     private var tapUID = ""
@@ -232,6 +233,9 @@ private final class NotchAudioLevelReader {
     private var samples: [Float] = []
     private var hostDeviceUID: String?
     private var sampleRate: Double = 0
+    /// How far behind the newest sample the output is playing, in frames.
+    /// See `NotchAudioLevelSupport.playbackDelayFrames`.
+    private var playbackDelay = 0
     private var tapped: [AudioObjectID] = []
     /// What the tap's mixdown took from the player's sound, given back before
     /// the analysis. See `followLevel`.
@@ -329,7 +333,8 @@ private final class NotchAudioLevelReader {
     }
 
     private func buildPipeline() -> Bool {
-        guard aggregateID == 0, tapID != 0, let hostUID = Self.hostDeviceUID() else { return false }
+        guard aggregateID == 0, tapID != 0, let host = Self.defaultOutputDevice(),
+              let hostUID = Self.deviceUID(of: host) else { return false }
         let aggregate: [String: Any] = [
             kAudioAggregateDeviceNameKey: "Vorssaint Island Levels",
             kAudioAggregateDeviceUIDKey: UUID().uuidString,
@@ -372,6 +377,7 @@ private final class NotchAudioLevelReader {
         self.analyzer = analyzer
         self.hostDeviceUID = hostUID
         self.sampleRate = sampleRate
+        playbackDelay = Self.playbackDelayFrames(of: host, sampleRate: sampleRate)
         samples = [Float](repeating: 0, count: analyzer.size)
         watchSampleRate(of: aggregateID)
         return true
@@ -553,7 +559,7 @@ private final class NotchAudioLevelReader {
             }
             return
         }
-        guard ring.latest(into: &samples) else { return }
+        guard ring.latest(into: &samples, delay: playbackDelay) else { return }
         if levelCompensation > 1 {
             var gain = levelCompensation
             samples.withUnsafeMutableBufferPointer { buffer in
@@ -585,8 +591,9 @@ private final class NotchAudioLevelReader {
         AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: kAudioObjectPropertyElementMain)
     }
 
-    private static func read<T>(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ value: inout T) -> Bool {
-        var address = address(selector)
+    private static func read<T>(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ value: inout T,
+                                scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal) -> Bool {
+        var address = address(selector, scope: scope)
         var size = UInt32(MemoryLayout<T>.size)
         return withUnsafeMutablePointer(to: &value) { pointer in
             AudioObjectGetPropertyData(object, &address, 0, nil, &size, UnsafeMutableRawPointer(pointer)) == noErr
@@ -632,12 +639,40 @@ private final class NotchAudioLevelReader {
     }
 
     private static func hostDeviceUID() -> String? {
+        defaultOutputDevice().flatMap(deviceUID(of:))
+    }
+
+    private static func defaultOutputDevice() -> AudioObjectID? {
         var defaultDevice = AudioObjectID(0)
         guard read(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyDefaultOutputDevice, &defaultDevice),
               defaultDevice != 0 else { return nil }
+        return defaultDevice
+    }
+
+    private static func deviceUID(of device: AudioObjectID) -> String? {
         var uid: CFString = "" as CFString
-        guard read(defaultDevice, kAudioDevicePropertyDeviceUID, &uid) else { return nil }
+        guard read(device, kAudioDevicePropertyDeviceUID, &uid) else { return nil }
         return uid as String
+    }
+
+    /// How long the output takes to play what it is handed. A figure the
+    /// device does not report counts as none, as it did before.
+    private static func playbackDelayFrames(of device: AudioObjectID, sampleRate: Double) -> Int {
+        let output = kAudioDevicePropertyScopeOutput
+        var deviceLatency: UInt32 = 0
+        var safetyOffset: UInt32 = 0
+        var bufferFrames: UInt32 = 0
+        var streamLatency: UInt32 = 0
+        _ = read(device, kAudioDevicePropertyLatency, &deviceLatency, scope: output)
+        _ = read(device, kAudioDevicePropertySafetyOffset, &safetyOffset, scope: output)
+        _ = read(device, kAudioDevicePropertyBufferFrameSize, &bufferFrames, scope: output)
+        var stream = AudioStreamID(0)
+        if read(device, kAudioDevicePropertyStreams, &stream, scope: output), stream != 0 {
+            _ = read(stream, kAudioStreamPropertyLatency, &streamLatency)
+        }
+        return NotchAudioLevelSupport.playbackDelayFrames(deviceLatency: deviceLatency, safetyOffset: safetyOffset,
+                                                          bufferFrames: bufferFrames, streamLatency: streamLatency,
+                                                          sampleRate: sampleRate)
     }
 }
 
@@ -688,14 +723,18 @@ private final class NotchAudioRing {
         peak = max(peak, loudest)
     }
 
-    /// The most recent `output.count` samples, oldest first. False until
-    /// that many have arrived.
-    func latest(into output: inout [Float]) -> Bool {
+    /// The `output.count` samples that end `delay` frames before the most
+    /// recent, oldest first: what the output is playing now rather than what
+    /// the player just handed it. A delay longer than the ring holds reads as
+    /// far back as it can. False until that many have arrived.
+    func latest(into output: inout [Float], delay: Int = 0) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         let count = output.count
-        guard count > 0, count <= capacity, filled >= count else { return false }
-        var index = (head - count + capacity) % capacity
+        guard count > 0, count <= capacity else { return false }
+        let skip = min(max(0, delay), capacity - count)
+        guard filled >= count + skip else { return false }
+        var index = (head - count - skip + capacity) % capacity
         for position in 0..<count {
             output[position] = samples[index]
             index = (index + 1) % capacity

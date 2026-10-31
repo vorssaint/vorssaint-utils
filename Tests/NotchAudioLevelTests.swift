@@ -37,6 +37,15 @@ enum NotchAudioLevelTests {
         expect(!NotchAudioLevelSupport.fallsBack(heard: false, elapsed: 1) && !NotchAudioLevelSupport.fallsBack(heard: true, elapsed: 10)
                && NotchAudioLevelSupport.fallsBack(heard: false, elapsed: NotchAudioLevelSupport.silenceGrace),
                "a tap that only ever delivers silence hands the bars back to their synthetic motion")
+        expect(NotchAudioLevelSupport.playbackDelayFrames(deviceLatency: 0, safetyOffset: 0, bufferFrames: 0,
+                                                          streamLatency: 0, sampleRate: 48_000) == 0,
+               "an output that reports no latency keeps the bars on the newest sound")
+        expect(NotchAudioLevelSupport.playbackDelayFrames(deviceLatency: 9_600, safetyOffset: 144, bufferFrames: 512,
+                                                          streamLatency: 0, sampleRate: 48_000) == 10_256,
+               "Bluetooth headphones hold the bars back by what the output takes to play")
+        expect(NotchAudioLevelSupport.playbackDelayFrames(deviceLatency: .max, safetyOffset: .max, bufferFrames: .max,
+                                                          streamLatency: .max, sampleRate: 48_000) == 36_000,
+               "an output misreporting its latency cannot hold the bars back without end")
         let domain = "com.vorssaint.tests.audio-levels"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
@@ -123,6 +132,32 @@ enum NotchAudioRingContract {
         expect(ring.hasHeard(gain: 1), "later silence does not revoke the ring's proof of sound")
         expect(!NotchAudioRing(capacity: 2).hasHeard(gain: 4),
                "a new ring still has to prove its own sound")
+        delayContracts(expect: expect)
+    }
+
+    /// The bars read what the output is playing, not what was just handed to it.
+    private static func delayContracts(expect: (Bool, String) -> Void) {
+        let ring = NotchAudioRing(capacity: 8)
+        var ramp: [Float] = (1...6).map(Float.init)
+        ramp.withUnsafeMutableBufferPointer { buffer in
+            ring.write(AudioBuffer(mNumberChannels: 1,
+                                   mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                   mData: buffer.baseAddress))
+        }
+        var block = [Float](repeating: 0, count: 2)
+        expect(ring.latest(into: &block) && block == [5, 6], "without a delay the newest samples are read")
+        expect(ring.latest(into: &block, delay: 3) && block == [2, 3],
+               "a delay reads the samples the output is playing now")
+        expect(!ring.latest(into: &block, delay: 5), "a delay waits until the output has that much to play")
+        ramp = (7...12).map(Float.init)
+        ramp.withUnsafeMutableBufferPointer { buffer in
+            ring.write(AudioBuffer(mNumberChannels: 1,
+                                   mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                   mData: buffer.baseAddress))
+        }
+        expect(ring.latest(into: &block, delay: 3) && block == [8, 9], "a delayed read follows the ring around")
+        expect(ring.latest(into: &block, delay: 100) && block == [5, 6],
+               "a delay past what the ring holds reads as far back as it can")
     }
 }
 
