@@ -68,6 +68,15 @@ enum LocalizationTests {
         suite.expect(diskEnglish == ["Disk display", "Used percentage", "Available space", "Used space"],
                      "disk picker uses a dedicated label and complete option names")
         for (language, strings) in languages {
+            let driverUpdate = VirtualOutputStrings.localized(language)
+            suite.expect(!driverUpdate.update.isEmpty && !driverUpdate.updateTitle.isEmpty && !driverUpdate.updateBody.isEmpty,
+                         "driver update actions and explanation are present in \(language.rawValue)")
+            if language != .enUS {
+                let englishUpdate = VirtualOutputStrings.localized(.enUS)
+                suite.expect(driverUpdate.update != englishUpdate.update && driverUpdate.updateTitle != englishUpdate.updateTitle
+                             && driverUpdate.updateBody != englishUpdate.updateBody,
+                             "driver update action, title and explanation are translated in \(language.rawValue)")
+            }
             suite.expect(!strings.zoomControlNote.isEmpty,
                          "Pinch Zoom explains screen-zoom overlap in \(language.rawValue)")
             if language != .enUS {

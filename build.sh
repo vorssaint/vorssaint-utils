@@ -43,12 +43,17 @@ for arg in "$@"; do
 done
 
 if (( DEV )); then
-    APP_NAME="Vorssaint (Developer)"
+    APP_NAME="${VORSSAINT_DEV_APP_NAME:-Vorssaint (Developer)}"
     EXECUTABLE="VorssaintDeveloper"
     APP_BUNDLE_ID="com.vorssaint.utils.dev"
     BUILD_VARIANT_FLAGS=(-D VORSSAINT_DEVELOPMENT)
     APP_OPTIMIZATION_FLAGS=(-Onone)
     BUILD_CONFIGURATION="debug"
+    # Profile/run the local identity with production optimization when requested.
+    if [[ "${VORSSAINT_DEV_OPTIMIZED:-0}" == "1" ]]; then
+        APP_OPTIMIZATION_FLAGS=(-O)
+        BUILD_CONFIGURATION="optimized development"
+    fi
 else
     APP_NAME="Vorssaint"
     EXECUTABLE="Vorssaint"
@@ -194,10 +199,12 @@ if (( INSTALL && ! TEST )) && [[ "${VORSSAINT_INSTALL_CHILD:-0}" != "1" ]]; then
     exit 0
 fi
 
-# Prefer the macOS 26 SDK when present: the 27 SDK turns SwiftUI property wrappers
-# into macros (SwiftUIMacros plugin) that the Command Line Tools cannot load yet.
+# Prefer the macOS 26 SDK by default for older toolchains. Explicit SDKROOT or
+# DEVELOPER_DIR requests take precedence, including SDK 27.2 verification.
 PINNED_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk"
-if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+if [[ -n "${SDKROOT:-}" ]]; then
+    SDK="$(xcrun --sdk "$SDKROOT" --show-sdk-path)"
+elif [[ -n "${DEVELOPER_DIR:-}" ]]; then
     SDK="$(xcrun --show-sdk-path)"
 elif [[ -d "$PINNED_SDK" ]]; then
     SDK="$PINNED_SDK"
@@ -205,12 +212,36 @@ else
     SDK="$(xcrun --show-sdk-path)"
 fi
 SDK_COMPAT_FLAGS=()
-VM_STATISTICS_COMPAT_FLAGS=(-I Sources/VMStatisticsCompat)
+VM_STATISTICS_COMPAT_FLAGS=(-I Sources/VMStatisticsCompat -I Sources/SoftwareVolumePCM)
 HID_EVENT_SYSTEM_FLAGS=(-I Sources/HIDEventSystem)
-if [[ "$SDK" == "$PINNED_SDK" ]]; then
+if [[ "$SDK" -ef "$PINNED_SDK" ]]; then
     # Swift 6.4 can read the SDK 26 interfaces when given their compiler version.
     SDK_COMPAT_FLAGS=(-Xfrontend -interface-compiler-version -Xfrontend 6.3.2)
 fi
+SDK_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :Version' "$SDK/SDKSettings.plist")"
+if (( ${SDK_VERSION%%.*} >= 27 )); then
+    # The SDK's SwiftUI wrappers use compiler macros. CLT has no SwiftUI
+    # plugin, even when it ships this SDK; use the selected Xcode's host
+    # plugin and its matching server without changing xcode-select globally.
+    swiftui_macro_root=""
+    for developer_root in "${DEVELOPER_DIR:-}" "$(env -u DEVELOPER_DIR xcode-select -p)"; do
+        [[ -n "$developer_root" ]] || continue
+        for plugin_root in "$developer_root/Platforms/MacOSX.platform/Developer" "$developer_root"; do
+            if [[ -f "$plugin_root/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib" \
+                && -x "$plugin_root/usr/bin/swift-plugin-server" ]]; then
+                swiftui_macro_root="$plugin_root"
+                break 2
+            fi
+        done
+    done
+    if [[ -z "$swiftui_macro_root" ]]; then
+        print -u2 "error: macOS SDK $SDK_VERSION needs Xcode's SwiftUI macro plugin. Select a full Xcode with DEVELOPER_DIR, or use the compatible macOS 26 SDK."
+        exit 1
+    fi
+    SDK_COMPAT_FLAGS+=(-external-plugin-path "$swiftui_macro_root/usr/lib/swift/host/plugins#$swiftui_macro_root/usr/bin/swift-plugin-server")
+fi
+echo "  SDK: macOS $SDK_VERSION ($SDK)"
+echo "  Compiler: $(swiftc --version 2>&1 | head -1)"
 
 # The defaults migrations under test need a real UserDefaults suite, and every
 # suite leaves an empty plist in ~/Library/Preferences. The tests already clear
@@ -410,6 +441,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SystemShortcutTakeoverSupport.swift
         Sources/Vorssaint/Core/Localization.swift
         Sources/Vorssaint/Core/Localizations/Strings+*.swift
+        Sources/Vorssaint/Core/VirtualOutputStrings.swift
         Sources/Vorssaint/Core/FeatureStrings.swift
         Sources/Vorssaint/Core/KillProcessStrings.swift
         Sources/Vorssaint/Core/PortManagerStrings.swift
@@ -424,6 +456,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardHistoryWrite.swift
         Sources/Vorssaint/Services/Audio/AirPlayRouteManager.swift
+        Sources/Vorssaint/Services/Audio/VirtualOutputSupport.swift
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift
         Sources/Vorssaint/Services/Bluetooth/BluetoothSleepSupport.swift
@@ -595,6 +628,10 @@ if (( TEST )); then
         ./Tests/PreferenceCleanupTests.sh || test_status=1
         ./Tests/UninstallSpacesTests.sh || test_status=1
         ./Tests/DeveloperInstallIsolationTests.sh || test_status=1
+        ./Tests/SDKBuildTests.sh || test_status=1
+    fi
+    if (( ${#TEST_ARGS} == 0 )) || [[ " ${TEST_ARGS[*]} " == *" --suite=mixer "* ]]; then
+        ./Tools/test-software-volume.sh || test_status=1
     fi
     discard_test_preferences || test_status=1
     exit $test_status
@@ -691,6 +728,14 @@ cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
+# Bundle the optional installer; opening the mixer never executes it.
+./Tools/build-software-volume-driver.sh
+./Tools/package-software-volume-driver.sh
+cp build/VorssaintAudio.pkg "$STAGE/Contents/Resources/"
+SOFTWARE_VOLUME_DRIVER_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Sources/SoftwareVolumeDriver/Info.plist)"
+[[ "$SOFTWARE_VOLUME_DRIVER_BUILD" == <-> ]] || { echo "Invalid audio driver build" >&2; exit 1; }
+/usr/libexec/PlistBuddy -c "Add :VorssaintAudioDriverBuild integer $SOFTWARE_VOLUME_DRIVER_BUILD" "$STAGE/Contents/Info.plist"
+cp Tools/uninstall-software-volume-driver.sh "$STAGE/Contents/Resources/"
 for lproj in Resources/*.lproj(N); do
     cp -R "$lproj" "$STAGE/Contents/Resources/"
 done

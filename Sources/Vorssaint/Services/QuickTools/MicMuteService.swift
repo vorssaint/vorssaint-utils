@@ -441,6 +441,7 @@ final class MicMuteService: ObservableObject {
             var uidRef: CFString = "" as CFString
             guard read(deviceID, kAudioDevicePropertyDeviceUID, &uidRef) else { continue }
             let uid = uidRef as String
+            guard !VirtualOutputSupport.isSoftwareDevice(uid) else { continue }
             guard !uid.isEmpty else { continue }
 
             var nameRef: CFString = "" as CFString

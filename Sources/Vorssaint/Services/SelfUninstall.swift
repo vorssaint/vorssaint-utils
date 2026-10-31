@@ -81,6 +81,15 @@ enum SelfUninstall {
             }
         }
         DispatchQueue.main.async {
+            // The optional HAL component lives outside the app bundle. Remove
+            // it before deleting the only in-app removal entry point.
+            if VirtualOutputHAL.installedComponentExists() {
+                VirtualOutputService.shared.removeComponent { removed in
+                    if removed { uninstallCompletely(onFailure: onFailure) }
+                    else { onFailure(VirtualOutputStrings.localized(L10n.shared.language).message(.removalFailed)) }
+                }
+                return
+            }
             guard suspendInputInterceptors() else {
                 stop(L10n.shared.s.advancedUninstallFailedBody)
                 return

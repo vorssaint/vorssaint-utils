@@ -176,6 +176,9 @@ final class BoostLookaheadLimiter {
 final class BoostLookaheadBufferListLimiter {
     private let channelCapacity: Int
     private var delay: ContiguousArray<Float>
+    /// The output decision follows the delayed source frame, not the current
+    /// slider position. Boosted samples queued before reset remain protected.
+    private var limitedFrames: ContiguousArray<Bool>
     private var position = 0
     private var filledFrames = 0
     private var activeChannels = 0
@@ -187,6 +190,7 @@ final class BoostLookaheadBufferListLimiter {
 
     init(channelCapacity: Int) {
         self.channelCapacity = max(1, channelCapacity)
+        limitedFrames = ContiguousArray(repeating: false, count: BoostLookaheadLimiter.lookaheadFrames)
         delay = ContiguousArray(repeating: 0,
                                 count: BoostLookaheadLimiter.lookaheadFrames
                                     * self.channelCapacity)
@@ -201,7 +205,7 @@ final class BoostLookaheadBufferListLimiter {
     @discardableResult
     func process(_ buffers: UnsafeMutableAudioBufferListPointer,
                  frames: Int,
-                 release: Float) -> Bool {
+                 release: Float, limiting: Bool = true) -> Bool {
         let channels = buffers.reduce(0) { partial, buffer in
             partial + (buffer.mData == nil ? 0 : Int(buffer.mNumberChannels))
         }
@@ -209,6 +213,9 @@ final class BoostLookaheadBufferListLimiter {
         if channels != activeChannels {
             delay.withUnsafeMutableBufferPointer {
                 $0.baseAddress?.update(repeating: 0, count: $0.count)
+            }
+            limitedFrames.withUnsafeMutableBufferPointer {
+                $0.baseAddress?.update(repeating: false, count: $0.count)
             }
             position = 0
             filledFrames = 0
@@ -233,7 +240,7 @@ final class BoostLookaheadBufferListLimiter {
                 }
             }
 
-            let requiredGain = peak > ceiling ? ceiling / peak : 1
+            let requiredGain = limiting && peak > ceiling ? ceiling / peak : 1
             let isOverCeiling = requiredGain < 1
             if requiredGain < targetGain {
                 targetGain = requiredGain
@@ -259,6 +266,8 @@ final class BoostLookaheadBufferListLimiter {
             }
 
             let delayedBase = position * channelCapacity
+            let limitDelayedFrame = limitedFrames[position]
+            limitedFrames[position] = limiting
             var channelIndex = 0
             for buffer in buffers {
                 let count = Int(buffer.mNumberChannels)
@@ -269,7 +278,7 @@ final class BoostLookaheadBufferListLimiter {
                     let delayed = filledFrames >= BoostLookaheadLimiter.lookaheadFrames
                         ? delay[delayedBase + channelIndex] : 0
                     delay[delayedBase + channelIndex] = samples[base + channel]
-                    samples[base + channel] = delayed * gain
+                    samples[base + channel] = limitDelayedFrame ? delayed * gain : delayed
                     channelIndex += 1
                 }
             }

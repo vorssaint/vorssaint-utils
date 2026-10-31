@@ -188,6 +188,7 @@ enum MixerTapConfigurationTests {
         notifications(suite, format: format)
         changes(suite, format: format)
         fallbackOutputFormat(suite, format: format)
+        pollDuringValidation(suite, format: format)
         notificationDuringRead(suite, format: format)
         for status in [noErr, kAudioHardwareBadObjectError, kAudioHardwareUnspecifiedError] {
             removal(suite, format: format, status: status)
@@ -354,6 +355,34 @@ enum MixerTapConfigurationTests {
             watch.queue.run()
             suite.expect(!watch.canRender && counter.value == 1,
                          "an invalid \(name) cannot resume or request duplicate replacements")
+            finish(watch, suite)
+        }
+    }
+
+    private static func pollDuringValidation(_ suite: TestSuite, format: MixerTapFormat) {
+        for initial in [true, false] {
+            HAL.reset()
+            let counter = Counter()
+            let watch = makeWatch(format: format, counter: counter)
+            watch.start()
+            if !initial {
+                watch.queue.run()
+                watch.refresh(immediately: true, suspend: true)
+            }
+            HAL.duringRead = { key in
+                guard key.object == tap else { return }
+                HAL.duringRead = nil
+                // Installation's reconcile polls while the first format read
+                // is still in flight. It is not a format-change notification.
+                watch.refresh(immediately: false)
+            }
+            watch.queue.runNext()
+            suite.expect(watch.canRender && !watch.requiresRebuild && counter.value == 0,
+                         "a routine poll during unchanged validation cannot strand rendering suspended (initial=\(initial))")
+            let reads = HAL.readCount
+            watch.queue.run()
+            suite.expect(watch.canRender && HAL.readCount == reads && !watch.requiresRebuild,
+                         "the throttled trailing poll preserves the validated render contract (initial=\(initial))")
             finish(watch, suite)
         }
     }

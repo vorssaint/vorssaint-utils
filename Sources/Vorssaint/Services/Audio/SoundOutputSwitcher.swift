@@ -19,6 +19,7 @@ final class SoundOutputSwitcher: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
+        migrateSoftwareOutputSelection()
         AppFeature.soundOutputSwitcher.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.soundOutputSwitcherEnabled)
             ? registerHotkey()
@@ -32,17 +33,27 @@ final class SoundOutputSwitcher: ObservableObject {
     func selectedDeviceUIDs() -> [String] {
         Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(
             UserDefaults.standard.array(forKey: DefaultsKey.soundOutputSwitcherDeviceUIDs) ?? []
-        )
+        ).filter { !VirtualOutputSupport.isSoftwareDevice($0) }
     }
 
     func setSelectedDeviceUIDs(_ uids: [String]) {
         let sanitized = Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(uids)
+            .filter { !VirtualOutputSupport.isSoftwareDevice($0) }
         if sanitized.isEmpty {
             UserDefaults.standard.removeObject(forKey: DefaultsKey.soundOutputSwitcherDeviceUIDs)
         } else {
             UserDefaults.standard.set(sanitized, forKey: DefaultsKey.soundOutputSwitcherDeviceUIDs)
         }
         lastSwitchFailed = false
+    }
+
+    private func migrateSoftwareOutputSelection() {
+        let saved = Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(
+            UserDefaults.standard.array(forKey: DefaultsKey.soundOutputSwitcherDeviceUIDs) ?? [])
+        guard saved.contains(where: { VirtualOutputSupport.isSoftwareDevice($0) }) else { return }
+        let physical = VirtualOutputService.shared.physicalOutputUID
+            ?? UserDefaults.standard.string(forKey: DefaultsKey.softwareVolumePhysicalOutputUID)
+        setSelectedDeviceUIDs(VirtualOutputSupport.migratedOutputSelection(saved, physical: physical))
     }
 
     @discardableResult

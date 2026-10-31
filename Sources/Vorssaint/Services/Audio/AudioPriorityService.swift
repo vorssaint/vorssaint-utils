@@ -109,10 +109,20 @@ final class AudioPriorityService: ObservableObject {
         let defaults = UserDefaults.standard
         outputPriorityEnabled = defaults.bool(forKey: DefaultsKey.audioPriorityOutputEnabled)
         inputPriorityEnabled = defaults.bool(forKey: DefaultsKey.audioPriorityInputEnabled)
-        outputPriorityUIDs = Defaults.sanitizedAudioPriorityUIDs(
+        let savedOutputs = Defaults.sanitizedAudioPriorityUIDs(
             defaults.array(forKey: DefaultsKey.audioPriorityOutputUIDs) ?? [])
-        inputPriorityUIDs = Defaults.sanitizedAudioPriorityUIDs(
+        let savedInputs = Defaults.sanitizedAudioPriorityUIDs(
             defaults.array(forKey: DefaultsKey.audioPriorityInputUIDs) ?? [])
+        outputPriorityUIDs = savedOutputs.filter { !VirtualOutputSupport.isSoftwareDevice($0) }
+        inputPriorityUIDs = savedInputs.filter { !VirtualOutputSupport.isSoftwareDevice($0) }
+        // Persist retirement of our old private bridge identities. Offline
+        // hardware keeps its saved position for a later reconnect.
+        if outputPriorityUIDs != savedOutputs {
+            defaults.set(outputPriorityUIDs, forKey: DefaultsKey.audioPriorityOutputUIDs)
+        }
+        if inputPriorityUIDs != savedInputs {
+            defaults.set(inputPriorityUIDs, forKey: DefaultsKey.audioPriorityInputUIDs)
+        }
         deviceNames = Defaults.sanitizedAudioPriorityDeviceNames(
             defaults.dictionary(forKey: DefaultsKey.audioPriorityDeviceNames) ?? [:])
     }
@@ -147,7 +157,7 @@ final class AudioPriorityService: ObservableObject {
     }
 
     func setOutputPriorityUIDs(_ uids: [String]) {
-        let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
+        let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids).filter { !VirtualOutputSupport.isSoftwareDevice($0) }
         guard sanitized != outputPriorityUIDs else { return }
         let defaults = UserDefaults.standard
         if sanitized.isEmpty {
@@ -164,7 +174,7 @@ final class AudioPriorityService: ObservableObject {
     }
 
     func setInputPriorityUIDs(_ uids: [String]) {
-        let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
+        let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids).filter { !VirtualOutputSupport.isSoftwareDevice($0) }
         guard sanitized != inputPriorityUIDs else { return }
         let defaults = UserDefaults.standard
         if sanitized.isEmpty {
@@ -216,11 +226,11 @@ final class AudioPriorityService: ObservableObject {
     /// headphones macOS just switched to are not taken back while unranked.
     private func mergeAvailableDevicesIntoPriorityLists() {
         let mixer = AppVolumeMixer.shared
-        let outputs = mixer.outputDevices.filter(\.canBeDefaultOutput)
+        let outputs = mixer.outputDevices.filter { MixerRoutingSupport.isSelectableSystemOutput($0.uid, canBeDefault: $0.canBeDefaultOutput) }
         if outputPriorityUIDs.isEmpty {
             storeOutputPriorityUIDs(MixerRoutingSupport.initialPriorityList(
                 availableUIDs: outputs.map(\.uid),
-                currentUID: mixer.currentOutputDeviceUID,
+                currentUID: mixer.currentSoundOutputDeviceUID,
                 tier: outputTier))
         } else {
             let unseen = outputs.map(\.uid).filter { !outputPriorityUIDs.contains($0) }
@@ -258,11 +268,11 @@ final class AudioPriorityService: ObservableObject {
         placementWork = nil
         guard started else { return }
         let mixer = AppVolumeMixer.shared
-        let outputs = Set(mixer.outputDevices.filter(\.canBeDefaultOutput).map(\.uid))
+        let outputs = Set(mixer.outputDevices.filter { MixerRoutingSupport.isSelectableSystemOutput($0.uid, canBeDefault: $0.canBeDefaultOutput) }.map(\.uid))
         var outputList = outputPriorityUIDs
         for uid in unplacedOutputUIDs.sorted() where outputs.contains(uid) {
             outputList = MixerRoutingSupport.placingNewPriorityDevice(
-                uid, in: outputList, isCurrent: uid == mixer.currentOutputDeviceUID, tier: outputTier)
+                uid, in: outputList, isCurrent: uid == mixer.currentSoundOutputDeviceUID, tier: outputTier)
         }
         unplacedOutputUIDs.removeAll()
         storeOutputPriorityUIDs(outputList)
@@ -280,14 +290,14 @@ final class AudioPriorityService: ObservableObject {
     }
 
     private func storeOutputPriorityUIDs(_ uids: [String]) {
-        let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
+        let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids).filter { !VirtualOutputSupport.isSoftwareDevice($0) }
         guard sanitized != outputPriorityUIDs else { return }
         outputPriorityUIDs = sanitized
         UserDefaults.standard.set(sanitized, forKey: DefaultsKey.audioPriorityOutputUIDs)
     }
 
     private func storeInputPriorityUIDs(_ uids: [String]) {
-        let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids)
+        let sanitized = Defaults.sanitizedAudioPriorityUIDs(uids).filter { !VirtualOutputSupport.isSoftwareDevice($0) }
         guard sanitized != inputPriorityUIDs else { return }
         inputPriorityUIDs = sanitized
         UserDefaults.standard.set(sanitized, forKey: DefaultsKey.audioPriorityInputUIDs)
@@ -316,7 +326,7 @@ final class AudioPriorityService: ObservableObject {
 
     /// Whether a UID is currently connected and eligible as an output.
     func isOutputAvailable(_ uid: String) -> Bool {
-        AppVolumeMixer.shared.outputDevices.contains { $0.uid == uid && $0.canBeDefaultOutput }
+        AppVolumeMixer.shared.outputDevices.contains { $0.uid == uid && MixerRoutingSupport.isSelectableSystemOutput($0.uid, canBeDefault: $0.canBeDefaultOutput) }
     }
 
     /// Whether a UID is currently connected and eligible as an input.
@@ -333,7 +343,7 @@ final class AudioPriorityService: ObservableObject {
     private static let eventEnforcementDelay: TimeInterval = 0.25
 
     private func observeOutputDevices(_ devices: [MixerOutputDevice]) {
-        let availableUIDs = Set(devices.filter(\.canBeDefaultOutput).map(\.uid))
+        let availableUIDs = Set(devices.filter { MixerRoutingSupport.isSelectableSystemOutput($0.uid, canBeDefault: $0.canBeDefaultOutput) }.map(\.uid))
         // An empty initial publication precedes the first HAL snapshot. It is
         // initialization, not every built-in device connecting at app launch.
         guard settledOutputUIDs != nil || !availableUIDs.isEmpty else { return }
@@ -406,9 +416,9 @@ final class AudioPriorityService: ObservableObject {
 
     private func enforceOutputPriority() {
         let availableUIDs = Set(AppVolumeMixer.shared.outputDevices
-            .filter(\.canBeDefaultOutput)
+            .filter { MixerRoutingSupport.isSelectableSystemOutput($0.uid, canBeDefault: $0.canBeDefaultOutput) }
             .map(\.uid))
-        let currentUID = AppVolumeMixer.shared.currentOutputDeviceUID
+        let currentUID = AppVolumeMixer.shared.currentSoundOutputDeviceUID
         // macOS just moved to a device the list has not ranked yet; leave that
         // choice alone until the device has its place.
         if let currentUID, unplacedOutputUIDs.contains(currentUID) { return }

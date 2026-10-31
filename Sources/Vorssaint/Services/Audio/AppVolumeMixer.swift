@@ -66,8 +66,8 @@ struct MixerHiddenApp: Identifiable, Equatable {
 /// For every app the user turns down or routes to a specific output, a muted
 /// CoreAudio process tap removes the app's sound from the original output, and
 /// an aggregate device re-renders the tapped stream with the chosen gain. Apps
-/// already following the system default at 100% are left untouched unless the
-/// user explicitly chooses a per-app output.
+/// following the system default with no saved volume choice stay untouched.
+/// Explicit volume choices, including 100%, are prepared while output IO runs.
 final class AppVolumeMixer: ObservableObject {
     static let shared = AppVolumeMixer()
 
@@ -95,6 +95,7 @@ final class AppVolumeMixer: ObservableObject {
     @Published private(set) var hiddenApps: [MixerHiddenApp] = []
 
     private var engines: [String: any GainEngine] = [:]
+    private var volumeEdits: Set<String> = []
     /// Arbitrates the engine builds running off-main: it suppresses duplicate
     /// builds while a slider keeps dragging, and discards a build that lands
     /// after the mixer moved on (which would leave two live taps on one app).
@@ -288,10 +289,12 @@ final class AppVolumeMixer: ObservableObject {
     /// Tears every tap down so all apps return to untouched system output, and
     /// hands back the one system setting the mixer changes on its own.
     func stopAll() {
+        VirtualOutputService.shared.stop()
         stopped = true
         builds.invalidateAll()
         for engine in engines.values { engine.stop() }
         engines.removeAll()
+        volumeEdits.removeAll()
         configurationRepairs.removeAll()
         engineChangeAt.removeAll()
         objectsLostAt.removeAll()
@@ -700,6 +703,12 @@ final class AppVolumeMixer: ObservableObject {
         }
     }
 
+    /// Keep hardware volume native and use the virtual path only for fixed outputs.
+    func syncSoftwareOutputWithPreferences() {
+        VirtualOutputService.shared.sync(enabled: AppFeature.mixer.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.mixerSoftwareVolumeEnabled))
+    }
+
     private func drainOutputAdjustment() {
         guard outputWriteInFlight == nil, let adjustment = pendingOutputAdjustment else { return }
         pendingOutputAdjustment = nil
@@ -1043,10 +1052,15 @@ final class AppVolumeMixer: ObservableObject {
         return AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &value) == noErr
     }
 
-    /// A value the UI would round to 100% counts as unity. Without an output
-    /// route to enforce, that restores untouched passthrough; otherwise the
-    /// route keeps running at unity gain.
-    private func isUnity(_ volume: Double) -> Bool { MixerRoutingSupport.isUnity(volume) }
+    /// Keep an existing tap through a drag, including paused output. After
+    /// end/cancellation, a remembered volume choice keeps playing unity ready;
+    /// an unused route-only tap can be released.
+    func volumeEditingChanged(_ editing: Bool, for app: MixerApp) {
+        if editing { volumeEdits.insert(app.id); return }
+        guard volumeEdits.remove(app.id) != nil,
+              let current = apps.first(where: { $0.id == app.id }) else { return }
+        applyRouting(for: current)
+    }
 
     func setVolume(_ volume: Double, for app: MixerApp) {
         guard !app.isBypassed else { return }
@@ -1117,6 +1131,9 @@ final class AppVolumeMixer: ObservableObject {
     /// universal picker, this must not erase explicit per-app routes or
     /// block the main thread while a device is being reconfigured.
     func setPriorityOutputDeviceUID(_ uid: String) {
+        if VirtualOutputService.shared.selectOutput(uid) {
+            return
+        }
         guard let sanitized = Defaults.sanitizedAppOutputDeviceUID(uid),
               let device = outputDevices.first(where: {
                   $0.uid == sanitized && $0.canBeDefaultOutput
@@ -1156,7 +1173,8 @@ final class AppVolumeMixer: ObservableObject {
             return false
         }
 
-        let status = Self.setDefaultDevice(device.audioObjectID,
+        let redirected = VirtualOutputService.shared.selectOutput(sanitized)
+        let status = redirected ? noErr : Self.setDefaultDevice(device.audioObjectID,
                                            selector: kAudioHardwarePropertyDefaultOutputDevice)
         guard status == noErr else {
             outputSwitchError = "OSStatus \(status)"
@@ -1178,6 +1196,7 @@ final class AppVolumeMixer: ObservableObject {
         sessionRoutes.removeAll()
         // A second shortcut press can precede the HAL snapshot. Cycle from
         // the successful choice, while the per-app routes await that read.
+        PreciseVolumeRollerService.shared.syncWithPreferences()
         currentOutputDeviceUID = device.uid
 
         // Builds started for the previous device can no longer be installed;
@@ -1221,9 +1240,11 @@ final class AppVolumeMixer: ObservableObject {
 
     @discardableResult
     func switchToNextSoundOutput(in selectedUIDs: [String]) -> Bool {
-        let availableUIDs = Set(outputDevices.filter(\.canBeDefaultOutput).map(\.uid))
+        let availableUIDs = Set(outputDevices.filter {
+            MixerRoutingSupport.isSelectableSystemOutput($0.uid, canBeDefault: $0.canBeDefaultOutput)
+        }.map(\.uid))
         guard let nextUID = MixerRoutingSupport.nextSelectedOutputDeviceUID(
-            currentUID: currentOutputDeviceUID,
+            currentUID: currentSoundOutputDeviceUID,
             selectedUIDs: selectedUIDs,
             availableUIDs: availableUIDs) else {
             // With an available selection, no next output means the only one is already playing.
@@ -1232,6 +1253,12 @@ final class AppVolumeMixer: ObservableObject {
             }
         }
         return setUniversalOutputDeviceUID(nextUID)
+    }
+
+    var currentSoundOutputDeviceUID: String? {
+        VirtualOutputSupport.logicalOutputUID(current: currentOutputDeviceUID,
+            physical: VirtualOutputService.shared.physicalOutputUID,
+            requested: VirtualOutputService.shared.requestedOutputUID)
     }
 
     func toggleMute(_ app: MixerApp) {
@@ -1476,7 +1503,11 @@ final class AppVolumeMixer: ObservableObject {
                                            selectedOutputDeviceUID: app.selectedOutputDeviceUID,
                                            targetOutputDeviceUID: app.effectiveOutputDeviceUID,
                                            defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
-                                           universalOutputRouteUID: app.universalOutputRouteUID)
+                                           universalOutputRouteUID: app.universalOutputRouteUID,
+                                           volumeIsBeingEdited: volumeEdits.contains(app.id),
+                                           hasRunningEngine: engines[app.id] != nil,
+                                           hasSavedVolume: storedVolume(for: app.identity, saved: savedVolumes()) != nil,
+                                           isPlaying: app.isPlaying)
     }
 
     private func applyOutputRoute(to app: inout MixerApp,
@@ -1643,6 +1674,7 @@ final class AppVolumeMixer: ObservableObject {
         }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
         applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
+        syncSoftwareOutputWithPreferences()
 
         guard let readApps = snapshot.apps else {
             if !apps.isEmpty {
@@ -2342,21 +2374,13 @@ final class AppVolumeMixer: ObservableObject {
 
     private func persistVolume(_ volume: Double, for app: MixerApp) {
         guard let id = app.persistenceID else {
-            // Neither a bundle id nor a display name: nothing stable to write
-            // down. The slider still works while the app runs.
-            if isUnity(volume) {
-                sessionVolumes.removeValue(forKey: app.id)
-            } else {
-                sessionVolumes[app.id] = volume
-            }
+            sessionVolumes[app.id] = volume
             return
         }
         var volumes = savedVolumes()
-        if isUnity(volume) {
-            volumes.removeValue(forKey: id)
-        } else {
-            volumes[id] = volume
-        }
+        // An explicit 100% choice remembers that this app uses the mixer.
+        // A missing entry remains untouched; do not infer history from listing.
+        volumes[id] = volume
         UserDefaults.standard.set(volumes, forKey: DefaultsKey.appVolumes)
     }
 
@@ -2483,10 +2507,11 @@ final class AppVolumeMixer: ObservableObject {
             guard !uid.isEmpty else { continue }
 
             var nameRef: CFString = "" as CFString
-            let name = read(deviceID, kAudioObjectPropertyName, &nameRef)
+            var name = read(deviceID, kAudioObjectPropertyName, &nameRef)
                 ? nameRef as String
                 : uid
-            guard !MicMuteSupport.isOwnDevice(name: name) else { continue }
+            if VirtualOutputSupport.isSoftwareOutput(uid) { name = "Vorssaint Audio" }
+            guard !MicMuteSupport.isOwnDevice(name: name) || VirtualOutputSupport.isSoftwareOutput(uid) else { continue }
             let dataSourceName = outputDataSourceName(for: deviceID)
             let terminalTypes: [UInt32] = streams.compactMap { stream in
                 var terminal: UInt32 = kAudioStreamTerminalTypeUnknown
@@ -3156,6 +3181,7 @@ private final class MixerTapConfiguration {
     private let queue = DispatchQueue(label: "com.vorssaint.utils.mixer.format", qos: .userInitiated)
     private let lock = NSLock()
     private var pending = false
+    private var suspensionGeneration: UInt64 = 0
     private var immediatePending = false
     private var stopped = false
     private var lastReadAt: CFAbsoluteTime = 0
@@ -3219,22 +3245,26 @@ private final class MixerTapConfiguration {
     func refresh(immediately: Bool, suspend: Bool = false) {
         let enqueue = lock.withLock {
             guard !stopped, !requiresRebuild else { return false }
-            if suspend { rendering.value = 0 }
-            immediatePending = immediatePending || immediately
+            if suspend {
+                rendering.value = 0
+                suspensionGeneration &+= 1
+            }
+            immediatePending = immediatePending || immediately || suspend
             guard !pending else { return false }
             pending = true
             return true
         }
         guard enqueue else { return }
         queue.async { [self] in
-            let shouldRead = lock.withLock {
+            let readGeneration: UInt64? = lock.withLock {
                 let immediately = immediatePending
                 pending = false
                 immediatePending = false
-                return !stopped && MixerRoutingSupport.tapLevelReadIsDue(
-                    immediately: immediately, sinceLastRead: CFAbsoluteTimeGetCurrent() - lastReadAt)
+                guard !stopped, MixerRoutingSupport.tapLevelReadIsDue(
+                    immediately: immediately, sinceLastRead: CFAbsoluteTimeGetCurrent() - lastReadAt) else { return nil }
+                return suspensionGeneration
             }
-            guard shouldRead else { return }
+            guard let readGeneration else { return }
             lastReadAt = CFAbsoluteTimeGetCurrent()
             let unchanged = isCurrent()
             let notify = lock.withLock {
@@ -3242,9 +3272,10 @@ private final class MixerTapConfiguration {
                 if !unchanged {
                     rendering.value = 0
                     invalidated.value = 1
-                } else if !stopped, !pending, !requiresRebuild {
-                    // A notification arriving during a read owns another
-                    // pass and must not be cleared by this older result.
+                } else if !stopped, !requiresRebuild, readGeneration == suspensionGeneration {
+                    // Only a newer suspension invalidates this validation.
+                    // A routine poll queued during the read may be throttled;
+                    // it must not strand a valid callback in silence.
                     rendering.value = 1
                 }
                 return notify
@@ -3340,15 +3371,16 @@ private final class TapGainEngine: GainEngine {
             fallback = BoostBufferListLimiter()
         }
 
-        func process(_ output: UnsafeMutableAudioBufferListPointer, release: Float) {
+        func process(_ output: UnsafeMutableAudioBufferListPointer, release: Float, limiting: Bool) {
             var frames = Int.max
             for buffer in output where buffer.mData != nil && buffer.mNumberChannels > 0 {
                 frames = min(frames, MixerRender.frames(bytes: buffer.mDataByteSize,
                                                         channels: buffer.mNumberChannels))
             }
             guard frames > 0, frames < Int.max else { return }
-            if !lookahead.process(output, frames: frames, release: release) {
-                fallback.process(output, frames: frames, release: release)
+            if !lookahead.process(output, frames: frames, release: release, limiting: limiting) {
+                if limiting { fallback.process(output, frames: frames, release: release) }
+                else { fallback = BoostBufferListLimiter() }
             }
         }
     }
@@ -3446,7 +3478,10 @@ private final class TapGainEngine: GainEngine {
             // The output clock keeps moving through a short or missing tap
             // buffer. Advance the delay over its silence too, or buffered
             // audio is cut off and then replayed late on the next callback.
-            defer { limiterBox.process(outputBuffers, release: release.value) }
+            // Read once: sample scaling and delayed protection must describe
+            // the same user gain even if the slider moves during this callback.
+            let requestedGain = box.value
+            defer { limiterBox.process(outputBuffers, release: release.value, limiting: requestedGain > 1) }
             guard let tapIndex = MixerRender.tapBufferIndex(in: inputBuffers,
                                                             tapChannels: tapChannels) else {
                 // No samples to put in the buffer is not a reason to leave it:
@@ -3454,7 +3489,7 @@ private final class TapGainEngine: GainEngine {
                 MixerRender.silence(outputBuffers)
                 return
             }
-            let gain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)
+            let gain = requestedGain * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)
             // `render` silences whatever it does not fill, so every path from
             // here on leaves the output written.
             let frames = MixerRender.render(source: inputBuffers[tapIndex],
@@ -3470,7 +3505,8 @@ private final class TapGainEngine: GainEngine {
             return nil
         }
 
-        guard configuration.start() else {
+        guard VirtualOutputHAL.isolateProcessTapInput(aggregateID, ioProc: ioProc, physicalUID: outputDeviceUID),
+              configuration.start() else {
             stop()
             return nil
         }
@@ -3748,7 +3784,8 @@ private final class AirPlayGainEngine: GainEngine {
         startWatchingSampleRate()
         levelWatch?.waitForFirstRead()
 
-        guard AudioDeviceStart(aggregateID, ioProc) == noErr,
+        guard VirtualOutputHAL.isolateProcessTapInput(aggregateID, ioProc: ioProc, physicalUID: clockDeviceUID),
+              AudioDeviceStart(aggregateID, ioProc) == noErr,
               let registration = AirPlayRouteManager.shared.addAudioStream(appID: appID, buffer: ringBuffer) else {
             stop()
             return nil

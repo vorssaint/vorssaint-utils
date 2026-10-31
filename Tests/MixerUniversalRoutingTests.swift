@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreAudio
 import Foundation
 
@@ -28,21 +29,172 @@ enum MixerUniversalRoutingContract {
         func presentPicker() {}
     }
 
+    enum VolumeDefaults {
+        static var current: Foundation.UserDefaults!
+        static var standard: Foundation.UserDefaults { current }
+    }
+    final class VolumeHost {
+        typealias MixerApp = MixerUniversalRoutingContract.MixerApp
+        typealias UserDefaults = VolumeDefaults
+        var sessionVolumes: [String: Double] = [:]
+    }
+
     final class Preferences {
         static let standard = Preferences()
         var values: [String: String] = [:]
         var arrays: [String: [String]] = [:]
         func string(forKey key: String) -> String? { values[key] }
+        func bool(forKey key: String) -> Bool { values[key] == "1" }
+        func set(_ value: Bool, forKey key: String) { values[key] = value ? "1" : "0" }
         func set(_ value: String?, forKey key: String) { values[key] = value }
         func stringArray(forKey key: String) -> [String]? { arrays[key] }
+        func array(forKey key: String) -> [Any]? { arrays[key] }
+        func removeObject(forKey key: String) { arrays[key] = nil; values[key] = nil }
         func set(_ value: [String], forKey key: String) { arrays[key] = value }
     }
 
+    final class VirtualOutputService {
+        static let shared = VirtualOutputService()
+        var isActive = false
+        var isStarting = false
+        var selectedUIDs: [String] = []
+        var physicalOutputUID: String?
+        var requestedOutputUID: String?
+        var rejectedUIDs: Set<String> = []
+        func selectOutput(_ uid: String) -> Bool {
+            guard isActive || isStarting || requestedOutputUID != nil, !rejectedUIDs.contains(uid) else { return false }
+            selectedUIDs.append(uid); requestedOutputUID = uid; return true
+        }
+    }
+    final class Switcher {
+        typealias UserDefaults = Preferences
+        typealias VirtualOutputService = MixerUniversalRoutingContract.VirtualOutputService
+        var lastSwitchFailed = false
+    }
+    final class DeferredQueue {
+        var pending: [() -> Void] = []
+        func async(execute: @escaping () -> Void) { pending.append(execute) }
+        func flush() { while !pending.isEmpty { pending.removeFirst()() } }
+        func sync(execute: () -> Void) { flush(); execute() }
+    }
+    enum SelectionQueues { static let main = DeferredQueue() }
+    enum SelectionHAL {
+        static var current = VirtualOutputSupport.deviceUID
+        static var nativeSelections: [String] = []
+        static var systemCurrent = "alerts"
+        static func physicalDevices() -> [(uid: String, id: AudioObjectID)] { [("fixed",1),("nativeA",2),("nativeB",3)] }
+        static func hasHardwareVolume(_ uid: String) -> Bool { uid.hasPrefix("native") }
+        static func restorableOutputs(systemSounds: Bool) -> [String] { ["fixed", "nativeA", "nativeB", "externalVirtual"] }
+        static func componentDevice() -> AudioObjectID? { 99 }
+        static func uid(_ device: AudioObjectID) -> String? { VirtualOutputSupport.deviceUID }
+        static func defaultUID(_ selector: AudioObjectPropertySelector = kAudioHardwarePropertyDefaultOutputDevice) -> String? { selector == kAudioHardwarePropertyDefaultSystemOutputDevice ? systemCurrent : current }
+        static func select(_ uid: String, selector: AudioObjectPropertySelector = kAudioHardwarePropertyDefaultOutputDevice) -> Bool {
+            if selector == kAudioHardwarePropertyDefaultOutputDevice { current = uid; nativeSelections.append(uid) }
+            else if selector == kAudioHardwarePropertyDefaultSystemOutputDevice { systemCurrent = uid }
+            return true
+        }
+    }
+    final class UpdateAlert {
+        static var shown: [UpdateAlert] = []
+        let alert: NSAlert
+        var completion: ((NSApplication.ModalResponse) -> Void)?
+        init(_ alert: NSAlert, completion: @escaping (NSApplication.ModalResponse) -> Void) {
+            self.alert = alert; self.completion = completion
+        }
+        static func present(_ alert: NSAlert, completion: @escaping (NSApplication.ModalResponse) -> Void) -> UpdateAlert {
+            let presentation = UpdateAlert(alert, completion: completion)
+            shown.append(presentation); return presentation
+        }
+        func dismiss(with response: NSApplication.ModalResponse) {
+            let callback = completion; completion = nil; callback?(response)
+        }
+    }
+    enum UpdateHAL {
+        static var installedComponentBuild: Int? = 4
+        static var requiredComponentBuild = 5
+        static var ready = false
+    }
+    struct UpdateBundle {
+        static let main = UpdateBundle()
+        static var available = true
+        func url(forResource: String, withExtension: String) -> URL? {
+            Self.available ? URL(fileURLWithPath: "/bundled/VorssaintAudio.pkg") : nil
+        }
+    }
+    final class UpdateLauncher {
+        static let shared = UpdateLauncher()
+        var opened: [URL] = []
+        var succeeds = true
+        func open(_ url: URL) -> Bool { opened.append(url); return succeeds }
+    }
+    final class UpdateMixer {
+        static let shared = UpdateMixer()
+        var syncs = 0
+        func syncSoftwareOutputWithPreferences() { syncs += 1 }
+    }
+    struct UpdateL10n {
+        static let shared = UpdateL10n()
+        let language = AppLanguage.enUS
+        var s: UpdateL10n { self }
+        let uninstallerCancel = "Cancel"
+    }
+    final class UpdateHost {
+        typealias VirtualOutputHAL = UpdateHAL
+        typealias NonModalAlert = UpdateAlert
+        typealias NSWorkspace = UpdateLauncher
+        typealias Bundle = UpdateBundle
+        typealias UserDefaults = Preferences
+        typealias AppVolumeMixer = UpdateMixer
+        typealias L10n = UpdateL10n
+        var isRemoving = false, installerOpened = false, updateOffered = false
+        var acceptsOutputSelections = true
+        var updateAlert: UpdateAlert?
+        var error: String?
+        var isInstalled: Bool { UpdateHAL.ready }
+    }
+    final class SelectionSession {
+        typealias VirtualOutputHAL = SelectionHAL
+        typealias DispatchQueue = SelectionQueues
+        struct Bridge { let physicalUID: String }
+        var queue = DeferredQueue()
+        var isActive = true, isStarting = false, isRemoving = false, suspended = false
+        var acceptsOutputSelections = true
+        var installerOpened = false
+        var updateAlert: UpdateAlert?
+        var physicalOutputUID: String? = "fixed"
+        var requestedOutputUID: String?
+        let outputRequests = VirtualOutputSupport.OutputRequests()
+        var previousOutput: String?, previousSystemOutput: String?
+        var virtual: AudioObjectID? = 99
+        var virtualUID = VirtualOutputSupport.deviceUID
+        var bridge: Bridge? = Bridge(physicalUID: "fixed")
+        var errors: [VirtualOutputSupport.Issue] = []
+        func deactivate() {
+            if virtual != nil, SelectionHAL.current == virtualUID { SelectionHAL.current = previousOutput ?? "nativeA" }
+            virtual = nil; bridge = nil; physicalOutputUID = nil; isActive = false
+        }
+        func replaceBridge(physicalUID: String) {
+            guard virtual != nil else { return }
+            self.physicalOutputUID = physicalUID; bridge = Bridge(physicalUID: physicalUID)
+            SelectionHAL.current = virtualUID; isActive = true
+        }
+        func publish(error: VirtualOutputSupport.Issue) { errors.append(error) }
+    }
+    final class PriorityHost {
+        typealias AppVolumeMixer = Mixer
+        var unplacedOutputUIDs: Set<String> = []
+        var outputPriorityUIDs: [String] = []
+    }
     final class Mixer {
+        static let shared = Mixer()
+        var prioritySelections: [String] = []
+        func setPriorityOutputDeviceUID(_ uid: String) { prioritySelections.append(uid) }
+        typealias VirtualOutputService = MixerUniversalRoutingContract.VirtualOutputService
         typealias MixerApp = MixerUniversalRoutingContract.MixerApp
         typealias L10n = MixerUniversalRoutingContract.L10n
         typealias AirPlayRouteManager = AirPlay
         typealias UserDefaults = Preferences
+        typealias PreciseVolumeRollerService = MixerUniversalRoutingContract.PreciseVolumeRollerService
         static var deviceLists: [AudioObjectID: [AudioObjectID]] = [:]
         static var reads: [(AudioObjectID, AudioObjectPropertySelector, AudioObjectPropertyScope)] = []
         static var writes: [(AudioObjectID, AudioObjectPropertySelector)] = []
@@ -62,6 +214,8 @@ enum MixerUniversalRoutingContract {
         var currentOutputDeviceUID: String? = "speakers"
         var outputSwitchError: String?
         var apps: [MixerApp] = []
+        var volumeEdits: Set<String> = []
+        var engines: [String: Bool] = [:]
         var savedRoutes: [String: String] = [:]
         var volumes: [String: Double] = [:]
         var sessionRoutes: [String: String] = [:]
@@ -84,11 +238,16 @@ enum MixerUniversalRoutingContract {
         func clearPermissionIfNoActiveAdjustments() {}
     }
 
+    final class PreciseVolumeRollerService {
+        static let shared = PreciseVolumeRollerService()
+        func syncWithPreferences() {}
+    }
+
     static func row(_ id: String = "process:77", objects: [AudioObjectID] = [100],
                     persistenceID: String? = "Wine Game", selectedUID: String? = nil,
-                    bypassed: Bool = false) -> MixerApp {
+                    bypassed: Bool = false, playing: Bool = true) -> MixerApp {
         MixerApp(id: id, persistenceID: persistenceID, ownerPid: 77, name: "Game",
-                 audioObjects: objects, isPlaying: true, isBypassed: bypassed,
+                 audioObjects: objects, isPlaying: playing, isBypassed: bypassed,
                  selectedOutputDeviceUID: selectedUID, effectiveOutputDeviceUID: "airpods",
                  outputDeviceUnavailable: false, volume: 1)
     }
@@ -175,7 +334,165 @@ enum MixerUniversalRoutingContract {
         Preferences.standard.arrays = [:]
     }
 
+    static func driverUpdates(_ suite: TestSuite) {
+        UpdateHAL.installedComponentBuild = 4; UpdateHAL.requiredComponentBuild = 5; UpdateHAL.ready = false
+        UpdateBundle.available = true; UpdateLauncher.shared.succeeds = true
+        UpdateLauncher.shared.opened = []; UpdateAlert.shown = []; UpdateMixer.shared.syncs = 0
+        Preferences.standard.set(true, forKey: DefaultsKey.mixerSoftwareVolumeEnabled)
+        let cancelled = UpdateHost()
+        cancelled.offerComponentUpdateIfNeeded(enabled: true, needsUpdate: true)
+        suite.expect(UpdateAlert.shown.count == 1 && cancelled.updateAlert != nil,
+                     "an already-enabled fallback offers the required bundled driver update")
+        cancelled.updateAlert?.dismiss(with: .alertSecondButtonReturn)
+        cancelled.offerComponentUpdateIfNeeded(enabled: true, needsUpdate: true)
+        suite.expect(UpdateAlert.shown.count == 1 && UpdateLauncher.shared.opened.isEmpty
+                     && Preferences.standard.bool(forKey: DefaultsKey.mixerSoftwareVolumeEnabled),
+                     "declining an update neither launches Installer nor repeats the offer on refresh")
+        let stale = UpdateHost()
+        stale.offerComponentUpdateIfNeeded(enabled: true, needsUpdate: true)
+        UpdateHAL.installedComponentBuild = 6; UpdateHAL.ready = true
+        stale.updateAlert?.dismiss(with: .alertFirstButtonReturn)
+        suite.expect(UpdateLauncher.shared.opened.isEmpty,
+                     "accepting a stale alert rechecks the installed version and never launches a downgrade")
+        UpdateHAL.installedComponentBuild = 4; UpdateHAL.ready = false
+        let disabled = UpdateHost()
+        disabled.offerComponentUpdateIfNeeded(enabled: true, needsUpdate: true)
+        disabled.acceptsOutputSelections = false
+        Preferences.standard.set(false, forKey: DefaultsKey.mixerSoftwareVolumeEnabled)
+        disabled.updateAlert?.dismiss(with: .alertFirstButtonReturn)
+        suite.expect(UpdateLauncher.shared.opened.isEmpty && !Preferences.standard.bool(forKey: DefaultsKey.mixerSoftwareVolumeEnabled),
+                     "an old automatic alert cannot re-enable fallback after the user turned it off")
+        let installing = UpdateHost()
+        installing.installForFallback()
+        suite.expect(UpdateLauncher.shared.opened == [URL(fileURLWithPath: "/bundled/VorssaintAudio.pkg")]
+                     && installing.installerOpened && Preferences.standard.bool(forKey: DefaultsKey.mixerSoftwareVolumeEnabled),
+                     "confirmed installation opens only the bundled package and exposes the pending desired setting")
+        Preferences.standard.set(false, forKey: DefaultsKey.mixerSoftwareVolumeEnabled)
+        UpdateBundle.available = false
+        let missing = UpdateHost()
+        missing.installForFallback()
+        suite.expect(!missing.installerOpened && !Preferences.standard.bool(forKey: DefaultsKey.mixerSoftwareVolumeEnabled)
+                     && missing.error != nil,
+                     "a missing installer reports failure without enabling fallback")
+        UpdateBundle.available = true; UpdateHAL.requiredComponentBuild = 4; UpdateHAL.installedComponentBuild = 4
+        Preferences.standard.values = [:]
+    }
+
+    private static func rememberedControl(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.remembered-mixer-volume"
+        let defaults = Foundation.UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        VolumeDefaults.current = defaults
+        defer {
+            defaults.removePersistentDomain(forName: domain)
+            VolumeDefaults.current = nil
+        }
+        let app = row("controlled", persistenceID: "com.example.Controlled")
+        let writer = VolumeHost()
+        writer.persistVolume(0.5, for: app)
+        writer.persistVolume(1, for: app)
+        suite.expect(writer.savedVolumes()[app.persistenceID!] == 1,
+                     "reset to100 retains the explicit control choice in real preferences")
+        // A different defaults object and a fresh routing host represent a
+        // relaunch: no engine/editing/session state is carried across.
+        VolumeDefaults.current = Foundation.UserDefaults(suiteName: domain)!
+        let relaunched = Mixer()
+        relaunched.volumes = VolumeHost().savedVolumes()
+        suite.expect(relaunched.appNeedsEngine(app) && relaunched.rowMayBeTapped(app)
+                     && relaunched.engines.isEmpty && relaunched.volumeEdits.isEmpty,
+                     "a relaunch prepares previously controlled playing unity before its first slider change")
+        let paused = row("controlled", persistenceID: app.persistenceID, playing: false)
+        suite.expect(!relaunched.appNeedsEngine(paused) && relaunched.volumes[app.persistenceID!] == 1,
+                     "stopped unity IO releases its engine without forgetting control history")
+        suite.expect(relaunched.appNeedsEngine(app),
+                     "resuming a remembered unity app prepares control again")
+        let untouched = row("untouched", persistenceID: "com.example.Untouched")
+        suite.expect(!relaunched.appNeedsEngine(untouched) && !relaunched.rowMayBeTapped(untouched),
+                     "remembered apps never opt untouched playing apps into capture")
+        let bypassed = row("controlled", persistenceID: app.persistenceID, bypassed: true)
+        suite.expect(!relaunched.appNeedsEngine(bypassed) && !relaunched.rowMayBeTapped(bypassed),
+                     "call bypass remains authoritative over remembered unity control")
+        let noObjects = row("controlled", objects: [], persistenceID: app.persistenceID)
+        suite.expect(!relaunched.appNeedsEngine(noObjects),
+                     "remembered control waits for an actual audio connection")
+        let anonymous = row("process:889", persistenceID: nil)
+        let before = writer.savedVolumes()
+        writer.persistVolume(0.5, for: anonymous)
+        writer.persistVolume(1, for: anonymous)
+        suite.expect(writer.sessionVolumes[anonymous.id] == 1 && writer.savedVolumes() == before,
+                     "anonymous unity control stays in its session and never invents a persistent identity")
+        relaunched.sessionVolumes = writer.sessionVolumes
+        suite.expect(relaunched.appNeedsEngine(anonymous) && relaunched.rowMayBeTapped(anonymous),
+                     "anonymous control prepares unity within this session")
+        let fresh = Mixer()
+        fresh.volumes = writer.savedVolumes()
+        suite.expect(!fresh.appNeedsEngine(anonymous) && !fresh.rowMayBeTapped(anonymous),
+                     "anonymous process control is not restored for a reused PID on another launch")
+        defaults.set(["invalid": Double.nan, "legacy": 0.4], forKey: DefaultsKey.appVolumes)
+        suite.expect(writer.savedVolumes() == ["legacy": 0.4],
+                     "old volume adjustments remain valid and invalid entries never become control history")
+    }
+
+    private static func routeOnlyUnityCleanup(_ suite: TestSuite) {
+        let mixer = Mixer()
+        mixer.currentOutputDeviceUID = "airpods"
+        let app = row("route-only", persistenceID: "com.example.RouteOnly")
+        mixer.apps = [app]
+        mixer.setOutputDeviceUID("airpods", for: app)
+        mixer.engines[app.id] = true
+        suite.expect(mixer.appNeedsEngine(mixer.apps[0]) && mixer.volumes.isEmpty,
+                     "an explicit same-device route requires processing without inventing a saved volume")
+        mixer.setOutputDeviceUID(nil, for: mixer.apps[0])
+        let cleared = mixer.apps[0]
+        suite.expect(cleared.selectedOutputDeviceUID == nil && cleared.effectiveOutputDeviceUID == "airpods"
+                     && mixer.savedRoutes.isEmpty && !mixer.rowMayBeTapped(cleared),
+                     "System Default clears route-only control while keeping the same physical destination")
+        suite.expect(!mixer.appNeedsEngine(cleared),
+                     "clearing a same-device route releases an unsaved unity engine even while playing")
+        var universal = cleared
+        universal.universalOutputRouteUID = "airpods"
+        suite.expect(mixer.appNeedsEngine(universal), "a remaining universal route still requires its unity engine")
+        universal.universalOutputRouteUID = nil
+        suite.expect(!mixer.appNeedsEngine(universal),
+                     "clearing the last universal route also releases unsaved unity processing")
+        mixer.volumes[app.persistenceID!] = 1
+        suite.expect(mixer.appNeedsEngine(cleared) && mixer.rowMayBeTapped(cleared),
+                     "removing a route preserves separately remembered volume control at unity")
+    }
+
     static func run(_ suite: TestSuite) {
+        rememberedControl(suite)
+        driverUpdates(suite)
+        routeOnlyUnityCleanup(suite)
+        let editingMixer = Mixer()
+        let editingApp = row("editing")
+        editingMixer.apps = [editingApp]
+        editingMixer.engines[editingApp.id] = true
+        editingMixer.volumes[editingApp.persistenceID!] = 1
+        editingMixer.volumeEditingChanged(true, for: editingApp)
+        suite.expect(editingMixer.appNeedsEngine(editingApp) && editingMixer.applied.isEmpty,
+                     "beginning a drag keeps the existing unity engine without starting a new route")
+        editingMixer.volumeEditingChanged(false, for: editingApp)
+        suite.expect(editingMixer.appNeedsEngine(editingApp) && editingMixer.volumeEdits.isEmpty && editingMixer.applied.count == 1,
+                     "ending or cancelling at unity retains the running tap while playback continues")
+        editingMixer.volumeEditingChanged(false, for: editingApp)
+        suite.expect(editingMixer.applied.count == 1, "duplicate cancellation is inert")
+        suite.expect(editingMixer.appNeedsEngine(editingApp),
+                     "reset to unity during playback keeps the running tap ready for the next adjustment")
+        let pausedEditingApp = row("editing", playing: false)
+        suite.expect(!editingMixer.appNeedsEngine(pausedEditingApp),
+                     "a unity tap can be released after output playback stops")
+        editingMixer.engines.removeAll()
+        editingMixer.volumes.removeAll()
+        suite.expect(!editingMixer.appNeedsEngine(editingApp),
+                     "playing at untouched unity never creates a tap")
+        editingMixer.engines[editingApp.id] = true
+        editingMixer.volumeEditingChanged(true, for: editingApp)
+        editingMixer.apps = []
+        editingMixer.volumeEditingChanged(false, for: editingApp)
+        suite.expect(editingMixer.volumeEdits.isEmpty && editingMixer.applied.count == 1,
+                     "disappearing rows clear editing without recreating an audio route")
+
         Preferences.standard.values = [:]
         Preferences.standard.arrays = [:]
         callAudioCompatibility(suite)
@@ -213,6 +530,133 @@ enum MixerUniversalRoutingContract {
         suite.expect(Mixer.writes.count == 1 && Mixer.writes[0].0 == 20
                      && Mixer.writes[0].1 == kAudioHardwarePropertyDefaultOutputDevice,
                      "universal selection writes only the requested default output")
+
+        SelectionHAL.current = VirtualOutputSupport.deviceUID
+        let queued = SelectionSession()
+        let acceptedNative = queued.selectOutput("nativeA")
+        queued.queue.pending.removeFirst()()
+        suite.expect(acceptedNative && queued.selectOutput("fixed"),
+                     "rapid native/fixed choices are both accepted")
+        suite.expect(queued.requestedOutputUID == "fixed", "latest accepted output remains the logical cycling target")
+        SelectionQueues.main.flush()
+        suite.expect(queued.requestedOutputUID == "fixed", "completion of an older selection cannot clear the newer pending choice")
+        queued.queue.flush(); SelectionQueues.main.flush()
+        suite.expect(queued.requestedOutputUID == nil, "completed latest selection clears its pending logical target")
+        suite.expect(SelectionHAL.current == VirtualOutputSupport.deviceUID && queued.bridge?.physicalUID == "fixed",
+                     "queued fixed selection reacquires a bridge after an earlier native choice released it")
+        SelectionHAL.current = VirtualOutputSupport.deviceUID
+        let queuedNative = SelectionSession()
+        _ = queuedNative.selectOutput("nativeA"); _ = queuedNative.selectOutput("nativeB")
+        queuedNative.queue.flush(); SelectionQueues.main.flush()
+        suite.expect(SelectionHAL.current == "nativeB", "successive queued native choices select the final actual hardware output")
+
+        SelectionHAL.current = VirtualOutputSupport.deviceUID
+        SelectionHAL.nativeSelections = []
+        let coalesced = SelectionSession()
+        _ = coalesced.selectOutput("nativeA"); _ = coalesced.selectOutput("nativeB"); _ = coalesced.selectOutput("fixed")
+        coalesced.queue.flush(); SelectionQueues.main.flush()
+        suite.expect(SelectionHAL.nativeSelections.isEmpty && SelectionHAL.current == VirtualOutputSupport.deviceUID,
+                     "superseded queued output choices do not reconfigure hardware or interrupt audio")
+
+        SelectionHAL.current = VirtualOutputSupport.deviceUID
+        SelectionHAL.nativeSelections = []
+        let stoppedSelection = SelectionSession()
+        stoppedSelection.installerOpened = true
+        let stoppingAlert = UpdateAlert(NSAlert(), completion: { _ in })
+        stoppedSelection.updateAlert = stoppingAlert
+        _ = stoppedSelection.selectOutput("nativeA")
+        stoppedSelection.stop(); SelectionQueues.main.flush()
+        suite.expect(stoppedSelection.requestedOutputUID == nil && SelectionHAL.nativeSelections.isEmpty
+                     && !stoppedSelection.selectOutput("nativeB"),
+                     "stopping cancels queued selections and cannot recreate a disabled bridge")
+        suite.expect(!stoppedSelection.installerOpened && stoppedSelection.updateAlert == nil && stoppingAlert.completion == nil,
+                     "stopping also cancels outstanding driver-update UI and pending install state")
+
+        SelectionHAL.current = "nativeA"; SelectionHAL.systemCurrent = "alerts"
+        let coldNative = SelectionSession()
+        coldNative.isActive = false; coldNative.virtual = nil; coldNative.bridge = nil
+        suite.expect(coldNative.selectOutput("nativeB"), "enabled fallback serializes native selections even before a bridge is active")
+        coldNative.queue.flush(); SelectionQueues.main.flush()
+        suite.expect(SelectionHAL.current == "nativeB" && SelectionHAL.systemCurrent == "alerts",
+                     "a native-only selection leaves an independently chosen alert output unchanged")
+        SelectionHAL.current = "nativeA"; SelectionHAL.systemCurrent = "alerts"
+        let coldFixed = SelectionSession()
+        coldFixed.isActive = false; coldFixed.virtual = nil; coldFixed.bridge = nil
+        suite.expect(coldFixed.selectOutput("fixed"), "fixed output is prepared before switching the default from native playback")
+        coldFixed.queue.flush(); SelectionQueues.main.flush()
+        suite.expect(coldFixed.bridge?.physicalUID == "fixed" && coldFixed.previousSystemOutput == "alerts",
+                     "starting fallback from native output preserves the previous alert destination for restoration")
+
+        SelectionHAL.current = VirtualOutputSupport.deviceUID
+        let queuedForeign = SelectionSession()
+        _ = queuedForeign.selectOutput("nativeA"); _ = queuedForeign.selectOutput("externalVirtual")
+        queuedForeign.queue.flush(); SelectionQueues.main.flush()
+        suite.expect(SelectionHAL.current == "externalVirtual" && queuedForeign.bridge == nil,
+                     "an external output chosen after a queued physical choice remains the final native output")
+
+        VirtualOutputService.shared.physicalOutputUID = "speakers"
+        VirtualOutputService.shared.requestedOutputUID = nil
+        Mixer.shared.outputDevices = [Device(uid: "speakers", canBeDefaultOutput: true, audioObjectID: 10), Device(uid: "airpods", canBeDefaultOutput: true, audioObjectID: 20), Device(uid: VirtualOutputSupport.deviceUID, canBeDefaultOutput: true, audioObjectID: 99)]
+        Mixer.shared.currentOutputDeviceUID = VirtualOutputSupport.deviceUID
+        Mixer.shared.prioritySelections = []
+        let priorityHost = PriorityHost()
+        priorityHost.outputPriorityUIDs = [VirtualOutputSupport.deviceUID, "airpods", "speakers"]
+        priorityHost.enforceOutputPriority()
+        suite.expect(Mixer.shared.prioritySelections == ["airpods"], "automatic output priority also excludes the implementation driver")
+        Mixer.shared.prioritySelections = []
+        priorityHost.outputPriorityUIDs = ["speakers", "airpods"]
+        priorityHost.enforceOutputPriority()
+        suite.expect(Mixer.shared.prioritySelections.isEmpty, "priority compares the physical fallback target rather than repeatedly choosing its virtual wrapper")
+        VirtualOutputService.shared.physicalOutputUID = nil
+
+        let softwareUID = VirtualOutputSupport.deviceUID
+        Preferences.standard.arrays[DefaultsKey.soundOutputSwitcherDeviceUIDs] = [softwareUID, VirtualOutputSupport.legacyDeviceUID, VirtualOutputSupport.loopbackUID, "airpods"]
+        suite.expect(Switcher().selectedDeviceUIDs() == ["airpods"],
+                     "saved implementation devices never become output-switcher targets")
+        Preferences.standard.values[DefaultsKey.softwareVolumePhysicalOutputUID] = "speakers"
+        let selection = Switcher()
+        selection.migrateSoftwareOutputSelection()
+        suite.expect(Preferences.standard.arrays[DefaultsKey.soundOutputSwitcherDeviceUIDs] == ["speakers", "airpods"],
+                     "stored current/legacy driver choices migrate once to the physical speaker without duplicates")
+        selection.setSelectedDeviceUIDs(["airpods", softwareUID, VirtualOutputSupport.loopbackUID])
+        suite.expect(selection.selectedDeviceUIDs() == ["airpods"], "new saved choices cannot reintroduce an internal device")
+        Preferences.standard.arrays = [:]
+        Preferences.standard.values = [:]
+        let fallbackCycle = Mixer()
+        fallbackCycle.outputDevices.append(Device(uid: softwareUID, canBeDefaultOutput: true, audioObjectID: 99))
+        fallbackCycle.currentOutputDeviceUID = softwareUID
+        VirtualOutputService.shared.isActive = true
+        VirtualOutputService.shared.physicalOutputUID = "speakers"
+        VirtualOutputService.shared.selectedUIDs = []
+        suite.expect(fallbackCycle.switchToNextSoundOutput(in: ["speakers", "airpods", softwareUID])
+                     && VirtualOutputService.shared.selectedUIDs == ["airpods"],
+                     "shortcut advances from the actual speaker behind the software output and skips the driver")
+        suite.expect(fallbackCycle.switchToNextSoundOutput(in: ["speakers", "airpods", softwareUID])
+                     && VirtualOutputService.shared.selectedUIDs.suffix(2) == ["airpods", "speakers"],
+                     "rapid shortcut presses advance from the accepted target before HAL refresh")
+        suite.expect(!fallbackCycle.switchToNextSoundOutput(in: [softwareUID, VirtualOutputSupport.legacyDeviceUID]),
+                     "implementation-only saved selection is not a playable cycle")
+        VirtualOutputService.shared.isActive = false
+        VirtualOutputService.shared.physicalOutputUID = nil
+        VirtualOutputService.shared.requestedOutputUID = nil
+        VirtualOutputService.shared.selectedUIDs = []
+
+        let nativeMixer = Mixer()
+        VirtualOutputService.shared.isActive = true
+        let oldWrites = Mixer.writes.count
+        suite.expect(nativeMixer.setDefaultOutputDeviceUID("airpods")
+                     && VirtualOutputService.shared.selectedUIDs.last == "airpods"
+                     && Mixer.writes.count == oldWrites,
+                     "native fallback switches the bridge target without replacing the virtual default behind its owner")
+        suite.expect(nativeMixer.currentOutputDeviceUID == "airpods", "accepted bridge switch publishes the logical choice for rapid shortcuts")
+        nativeMixer.outputDevices.append(Device(uid: "externalVirtual", canBeDefaultOutput: true, audioObjectID: 30))
+        VirtualOutputService.shared.rejectedUIDs = ["externalVirtual"]
+        suite.expect(nativeMixer.setDefaultOutputDeviceUID("externalVirtual") && Mixer.writes.last?.0 == 30,
+                     "an external virtual device still uses native selection when it is not a physical bridge target")
+        VirtualOutputService.shared.rejectedUIDs = []
+        VirtualOutputService.shared.isActive = false
+        VirtualOutputService.shared.requestedOutputUID = nil
+        VirtualOutputService.shared.selectedUIDs = []
 
         mixer.volumes = [:]
         mixer.currentOutputDeviceUID = "airpods"

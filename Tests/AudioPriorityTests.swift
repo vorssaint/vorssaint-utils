@@ -5,7 +5,46 @@ import CoreAudio
 import Foundation
 
 enum AudioPriorityTests {
+    enum PreferenceDefaults {
+        static var current: Foundation.UserDefaults!
+        static var standard: Foundation.UserDefaults { current }
+    }
+    final class PreferencesHost {
+        typealias UserDefaults = PreferenceDefaults
+        var outputPriorityEnabled = false, inputPriorityEnabled = false
+        var outputPriorityUIDs: [String] = [], inputPriorityUIDs: [String] = []
+        var deviceNames: [String: String] = [:]
+    }
+
     static func run(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.audio-priority-migration"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        PreferenceDefaults.current = defaults
+        defer {
+            defaults.removePersistentDomain(forName: domain)
+            PreferenceDefaults.current = nil
+        }
+        let staleBridge = "com.vorssaint.utils.software-volume.bridge.00000000-0000-4000-8000-000000000001"
+        let hardware = "offline-bluetooth:input"
+        let externalVirtual = "MSLoopbackDriverDevice_UID"
+        let oldUIDs = [hardware, staleBridge, VirtualOutputSupport.loopbackUID,
+                       VirtualOutputSupport.legacyDeviceUID, externalVirtual]
+        defaults.set(oldUIDs, forKey: DefaultsKey.audioPriorityOutputUIDs)
+        defaults.set(oldUIDs, forKey: DefaultsKey.audioPriorityInputUIDs)
+        let host = PreferencesHost()
+        host.loadPreferences()
+        suite.expect(host.outputPriorityUIDs == [hardware, externalVirtual]
+            && host.inputPriorityUIDs == [hardware, externalVirtual],
+            "upgrading removes retired internal bridge/input identities from both priorities without deleting offline hardware or third-party virtual devices")
+        suite.expect(defaults.stringArray(forKey: DefaultsKey.audioPriorityOutputUIDs) == [hardware, externalVirtual]
+            && defaults.stringArray(forKey: DefaultsKey.audioPriorityInputUIDs) == [hardware, externalVirtual],
+            "priority migration persists the cleanup so a subsequent launch cannot restore internal devices")
+        host.loadPreferences()
+        suite.expect(host.outputPriorityUIDs == [hardware, externalVirtual]
+            && host.inputPriorityUIDs == [hardware, externalVirtual],
+            "priority cleanup preserves device order and is idempotent")
+
         let available: Set<String> = ["speakers", "display"]
         suite.expect(MixerRoutingSupport.firstAvailablePriorityDeviceUID(
             orderedUIDs: ["offline", "display", "speakers"],
