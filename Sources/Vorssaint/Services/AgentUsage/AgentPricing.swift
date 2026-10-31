@@ -243,7 +243,7 @@ enum AgentPricing {
 
     /// Words that make a variant a model of its own, with its own price.
     static let siblings = ["mini", "nano", "pro", "lite", "research", "search", "audio", "realtime",
-                           "transcribe", "tts", "cyber", "image", "live"]
+                           "transcribe", "tts", "cyber", "image", "live", "preview"]
 
     /// The longest matching family wins, so a point release the list names
     /// never inherits the price of the version it extends.
