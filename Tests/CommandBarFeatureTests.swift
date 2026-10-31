@@ -160,6 +160,27 @@ enum CommandBarFeatureTests {
         CommandBarAppSortContract.run(suite)
         CommandBarKillProcessOrderContract.run(suite)
         CommandBarDropletContract.run(suite)
+        let shortcut = GlobalShortcut(keyCode: 40, modifiers: [.control, .option, .shift, .command])
+        suite.expect(CommandBarShortcutDisplay.visible(shortcut, superKeyRunning: true,
+                                                       superKeyModifiers: [.control, .option, .shift, .command]) == "◇K",
+                     "a running Hyper Super key uses the compact mark and key label")
+        suite.expect(CommandBarShortcutDisplay.visible(shortcut, superKeyRunning: true,
+                                                       superKeyModifiers: [.control, .option, .shift]) == shortcut.displayString,
+                     "a nonmatching Super key keeps every shortcut modifier visible")
+        let mehShortcut = GlobalShortcut(keyCode: 40, modifiers: [.control, .option, .shift])
+        suite.expect(CommandBarShortcutDisplay.visible(mehShortcut, superKeyRunning: true,
+                                                       superKeyModifiers: [.control, .option, .shift]) == "◇K",
+                     "a running Meh Super key uses the compact mark and key label")
+        suite.expect(CommandBarShortcutDisplay.visible(mehShortcut, superKeyRunning: true,
+                                                       superKeyModifiers: [.control, .option, .shift, .command]) == mehShortcut.displayString,
+                     "a nonmatching Hyper Super key leaves a Meh shortcut's modifiers visible")
+        suite.expect(CommandBarShortcutDisplay.visible(mehShortcut, superKeyRunning: false,
+                                                       superKeyModifiers: [.control, .option, .shift]) == mehShortcut.displayString,
+                     "a stopped Super key keeps its actual modifiers visible")
+        let functionShortcut = GlobalShortcut(keyCode: Int64(kVK_F5), modifiers: shortcut.modifiers)
+        suite.expect(CommandBarShortcutDisplay.visible(functionShortcut, superKeyRunning: true,
+                                                       superKeyModifiers: shortcut.modifiers) == "◇F5",
+                     "the compact mark preserves a function key's full label")
         let isCodeLine: (String) -> Bool = {
             !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
         }

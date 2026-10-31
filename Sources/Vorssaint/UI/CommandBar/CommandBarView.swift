@@ -42,6 +42,7 @@ struct CommandBarView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var uninstaller = AppUninstaller.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
+    @ObservedObject private var superKey = SuperKeyService.shared
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var searchFocused: Bool
     @State private var showHomebrewDetails = false
@@ -117,6 +118,12 @@ struct CommandBarView: View {
     }
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
+
+    private func visibleShortcut(_ shortcut: GlobalShortcut) -> String {
+        CommandBarShortcutDisplay.visible(shortcut,
+                                          superKeyRunning: superKey.isRunning,
+                                          superKeyModifiers: superKey.modifiers)
+    }
 
     private var shownAs: CommandBarPresentation { presentation ?? service.presentation }
 
@@ -384,7 +391,8 @@ struct CommandBarView: View {
                         .font(.system(size: 13, weight: .medium))
                     Spacer()
                     if let existing = service.rowShortcut(for: entry) {
-                        Text(existing.displayString)
+                        Text(visibleShortcut(existing))
+                            .accessibilityLabel(existing.displayString)
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                             .foregroundStyle(Color.accentColor)
                             .padding(.horizontal, 7)
@@ -583,8 +591,8 @@ struct CommandBarView: View {
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color.accentColor)
                         .monospacedDigit()
-                } else if let shortcut = service.rowShortcut(for: entry)?.displayString
-                            ?? entry.shortcut?.displayString ?? entry.menuShortcut {
+                } else if let shortcut = service.rowShortcut(for: entry).map(visibleShortcut)
+                            ?? entry.shortcut.map(visibleShortcut) ?? entry.menuShortcut {
                     Text(shortcut)
                         .font(.system(size: 10, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
@@ -1174,8 +1182,10 @@ struct CommandBarView: View {
             Image(systemName: "keyboard")
                 .font(.system(size: 8.5))
                 .foregroundStyle(.tertiary)
-            Text(GlobalShortcut.saved(for: DefaultsKey.commandBarShortcut,
-                                      fallback: .commandBarDefault).displayString)
+            let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarShortcut,
+                                                fallback: .commandBarDefault)
+            Text(visibleShortcut(shortcut))
+                .accessibilityLabel(shortcut.displayString)
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .foregroundStyle(.tertiary)
             Spacer()
