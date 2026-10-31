@@ -8,9 +8,6 @@ import SwiftUI
 struct ScreenshotConfirmToolbar: View {
     @ObservedObject var model: ScreenshotEditorModel
     let strings: ScreenshotFeatureStrings
-    /// When true, crop handles are locked because annotations exist.
-    let selectionLocked: Bool
-    let showsSelectionLock: Bool
     let onComplete: () -> Void
     let onCancel: () -> Void
     let onRetake: () -> Void
@@ -18,7 +15,6 @@ struct ScreenshotConfirmToolbar: View {
     let onOCR: () -> Void
     let onUndo: () -> Void
     let onRedo: () -> Void
-    let onToggleSelectionLock: () -> Void
 
     private var tools: [ScreenshotSupport.Tool] {
         ScreenshotSupport.Tool.confirmAnnotateTools
@@ -38,17 +34,6 @@ struct ScreenshotConfirmToolbar: View {
                 }
                 actionIcon("arrow.uturn.forward", enabled: model.canRedo, help: "Redo (⇧⌘Z)") {
                     onRedo()
-                }
-
-                if showsSelectionLock {
-                    chromeDivider
-                    actionIcon(selectionLocked ? "lock.fill" : "lock.open",
-                               enabled: true,
-                               help: selectionLocked
-                                   ? "Unlock selection size"
-                                   : "Lock selection size") {
-                        onToggleSelectionLock()
-                    }
                 }
 
                 chromeDivider
@@ -125,12 +110,6 @@ struct ScreenshotConfirmToolbar: View {
                 case .pixelate:
                     // Mosaic only needs strength — no color chips (CleanShot / WeChat).
                     blurLevelStrip
-                case .spotlight:
-                    // Dim strength only — spotlight has no pen color.
-                    spotlightDimStrip
-                case .highlight:
-                    // Highlighter is a translucent color wash (no stroke).
-                    colorStrip
                 case .arrow:
                     colorStrip
                     chromeDivider
@@ -250,27 +229,6 @@ struct ScreenshotConfirmToolbar: View {
             Image(systemName: "aqi.high")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    private var spotlightDimStrip: some View {
-        let presets: [CGFloat] = [0.25, 0.5, 0.75, 1.0]
-        return HStack(spacing: 4) {
-            Image(systemName: "circle.lefthalf.filled")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-            ForEach(presets, id: \.self) { strength in
-                let selected = abs(model.spotlightDimStrength - strength) < 0.05
-                Button {
-                    model.spotlightDimStrength = strength
-                } label: {
-                    Capsule()
-                        .fill(Color.primary.opacity(selected ? 0.9 : 0.28))
-                        .frame(width: 8 + strength * 16, height: 8 + strength * 6)
-                }
-                .buttonStyle(.plain)
-                .help(strings.spotlightDimStrengthLabel)
-            }
         }
     }
 

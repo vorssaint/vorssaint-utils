@@ -199,7 +199,45 @@ final class ScreenshotConfirmInlineSession {
                 }
             }
         }
+        drawSelectionChrome(in: context)
         context.restoreGState()
+    }
+
+    /// Light dashed outline / endpoint dots so Delete has a visible target
+    /// (same language as the full editor chrome, without crop grips).
+    private func drawSelectionChrome(in context: CGContext) {
+        guard let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID }),
+              selected.id != model.editingTextID
+        else { return }
+        let scale = model.scale
+        context.setStrokeColor(CGColor(srgbRed: 0.04, green: 0.52, blue: 1, alpha: 0.9))
+        context.setLineWidth(1.5 * scale)
+        context.setLineDash(phase: 0, lengths: [4 * scale, 3 * scale])
+        if selected.points.count >= 2, selected.tool != .freehand {
+            for point in selected.points.prefix(2) {
+                context.setFillColor(CGColor(gray: 1, alpha: 1))
+                let handle = CGRect(x: point.x - 4 * scale, y: point.y - 4 * scale,
+                                    width: 8 * scale, height: 8 * scale)
+                context.fillEllipse(in: handle)
+                context.strokeEllipse(in: handle)
+            }
+            context.setLineDash(phase: 0, lengths: [])
+            return
+        }
+        let box = selected.rect.insetBy(dx: -3 * scale, dy: -3 * scale)
+        context.stroke(box)
+        context.setLineDash(phase: 0, lengths: [])
+        if selected.tool.resizesWithHandles {
+            for handle in ScreenshotSupport.Handle.allCases {
+                let position = handle.position(in: selected.rect)
+                let dot = CGRect(x: position.x - 3.5 * scale, y: position.y - 3.5 * scale,
+                                 width: 7 * scale, height: 7 * scale)
+                context.setFillColor(CGColor(gray: 1, alpha: 1))
+                context.fillEllipse(in: dot)
+                context.strokeEllipse(in: dot)
+            }
+        }
     }
 
     /// OCR is scoped to the confirm crop (`model.baseImage`). First press only

@@ -26,6 +26,7 @@ enum NotchCaptureKeyboardContract {
         /// Production Esc/Return commits confirm-overlay text drafts first.
         func commitInlineTextEditingIfNeeded() -> Bool { false }
         func performInlineUndoRedo(redo: Bool) -> Bool { false }
+        func performInlineDeleteSelected() -> Bool { false }
         func copyInlineOCRSelectionIfNeeded() -> Bool { false }
     }
     enum ShortcutCapture { static var isCapturing = false }

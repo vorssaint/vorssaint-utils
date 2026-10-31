@@ -1991,6 +1991,7 @@ def main():
           + "func commitInlineTextEditingIfNeeded() -> Bool { false }\n"
           + "var isEditingInlineConfirmText: Bool { false }\n"
           + "func handleInlineAnnotateUndoRedo(redo: Bool) -> Bool { false }\n"
+          + "func handleInlineDeleteSelected() -> Bool { false }\n"
           + "func copyInlineOCRSelectionIfNeeded() -> Bool { false }\n"
           + "static func isScrollingCaptureKey(_ event: NSEvent) -> Bool { false }\n"
           + "static func isLoupeKey(_ event: NSEvent) -> Bool { false }\n"

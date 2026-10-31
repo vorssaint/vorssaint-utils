@@ -423,8 +423,8 @@ enum ScreenshotFeatureTests {
                "capture delay only accepts the offered steps")
         suite.expect(ScreenshotSupport.allowedDelays == [0, 3, 5, 10],
                "region capture offers Off/3/5/10s countdown before selection")
-        suite.expect(ScreenshotSupport.confirmSelectionToolbarMinWidth == 400,
-               "confirm toolbar min width fits highlight and spotlight chips")
+        suite.expect(ScreenshotSupport.confirmSelectionToolbarMinWidth == 340,
+               "confirm toolbar min width fits the slim annotate strip")
         let settingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenshotSettings.swift",
             encoding: .utf8)) ?? ""
@@ -3718,8 +3718,8 @@ enum ScreenshotFeatureTests {
         // Confirm overlay digits follow the slim WeChat-style strip, not the
         // full editor rail (select/crop/sticker/expand stay out).
         let confirmTools = ScreenshotSupport.Tool.confirmAnnotateTools
-        suite.expect(confirmTools == [.freehand, .arrow, .rect, .ellipse, .highlight, .spotlight, .pixelate, .text],
-               "confirm-selection toolbar keeps pen/arrow/shapes/highlight/spotlight/mosaic/text")
+        suite.expect(confirmTools == [.freehand, .arrow, .rect, .ellipse, .pixelate, .text],
+               "confirm-selection toolbar keeps pen/arrow/shapes/mosaic/text only")
         suite.expect(ScreenshotSupport.Tool.startingTool(remembered: nil) == .arrow
                 && ScreenshotSupport.Tool.startingTool(remembered: "select") == .arrow,
                "confirm overlay default annotate tool is arrow")
@@ -3753,14 +3753,43 @@ enum ScreenshotFeatureTests {
                 && fullToolbar.maxY <= confirmBounds.maxY - 12
                 && fullToolbar.maxY <= fullSelection.maxY,
                "a full-screen selection keeps the annotate toolbar on-screen below the menu bar")
-        suite.expect(ScreenshotSupport.Tool.confirmAnnotateTools.count == 8
-                && ScreenshotSupport.Tool.confirmAnnotateTools.contains(.highlight)
-                && ScreenshotSupport.Tool.confirmAnnotateTools.contains(.spotlight)
+        suite.expect(ScreenshotSupport.Tool.confirmAnnotateTools.count == 6
+                && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.highlight)
+                && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.spotlight)
                 && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.crop)
                 && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.sticker)
                 && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.expandCanvas)
                 && ScreenshotSupport.Tool.confirmAnnotateTools.contains(.text),
-               "confirm-selection toolbar is the slim annotate set with highlight/spotlight/text, no crop/sticker/expand")
+               "confirm-selection toolbar is the slim annotate set with text, no highlight/spotlight/crop/sticker/expand")
+        let selectionControllerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(selectionControllerSource.contains("performInlineDeleteSelected")
+                && selectionControllerSource.contains("case kVK_Delete, kVK_ForwardDelete:"),
+               "confirm overlay Delete/Backspace removes the selected annotation")
+        suite.expect(((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotConfirmInlineSession.swift",
+            encoding: .utf8)) ?? "").contains("drawSelectionChrome(in:"),
+               "confirm overlay draws selection chrome so Delete has a visible target")
+
+        let lockRect = ScreenshotSupport.confirmSelectionLockButtonRect(
+            for: confirmSelection, in: confirmBounds)
+        suite.expect(confirmSelection.contains(CGPoint(x: lockRect.midX, y: lockRect.midY))
+                && abs(lockRect.maxX + ScreenshotSupport.confirmSelectionLockButtonInset
+                       - confirmSelection.maxX) < 0.5
+                && abs(lockRect.maxY + ScreenshotSupport.confirmSelectionLockButtonInset
+                       - confirmSelection.maxY) < 0.5,
+               "the crop lock sits in the selection's bottom-right corner")
+        let toolbarSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Screenshot/ScreenshotConfirmToolbar.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!toolbarSource.contains("showsSelectionLock")
+                && !toolbarSource.contains("onToggleSelectionLock")
+                && !toolbarSource.contains("lock.fill"),
+               "confirm toolbar no longer hosts the crop lock — it lives on the selection")
+        suite.expect(selectionControllerSource.contains("drawConfirmSelectionLockButton")
+                && selectionControllerSource.contains("confirmSelectionLockButtonRect"),
+               "confirm overlay draws and hits the corner crop lock")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,
                "window highlights preserve the existing selection appearance by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,

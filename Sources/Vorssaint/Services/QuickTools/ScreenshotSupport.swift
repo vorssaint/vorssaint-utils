@@ -1501,7 +1501,7 @@ enum ScreenshotSupport {
         /// WeChat-style confirm-selection strip. Crop / expand / stickers /
         /// select stay in the full editor.
         static let confirmAnnotateTools: [Tool] = [
-            .freehand, .arrow, .rect, .ellipse, .highlight, .spotlight, .pixelate, .text
+            .freehand, .arrow, .rect, .ellipse, .pixelate, .text
         ]
 
         static let shortcutLimit = 9
@@ -2088,9 +2088,12 @@ enum ScreenshotSupport {
     /// Fallback Complete control size when the inline toolbar is unavailable.
     static let confirmSelectionDoneButtonSize: CGFloat = 28
     static let confirmSelectionDoneButtonGap: CGFloat = 8
+    /// Corner lock that freezes crop grips after the first mark (Shottr-style).
+    static let confirmSelectionLockButtonSize: CGFloat = 26
+    static let confirmSelectionLockButtonInset: CGFloat = 8
     /// Preferred inline toolbar height (tools row + optional style strip).
     static let confirmSelectionToolbarHeight: CGFloat = 72
-    static let confirmSelectionToolbarMinWidth: CGFloat = 400
+    static let confirmSelectionToolbarMinWidth: CGFloat = 340
 
     /// Places a WeChat-style toolbar outside the selection, preferring below
     /// then above. When the selection fills the display, the bar sits inside
@@ -2150,6 +2153,39 @@ enum ScreenshotSupport {
             topInset: topInset,
             bottomInset: bottomInset)
         return CGRect(x: frame.maxX - size, y: frame.minY, width: size, height: size)
+    }
+
+    /// Bottom-right corner of the adjustable selection (flipped view space).
+    /// Stays visible on the crop itself so the lock is not buried in the toolbar.
+    static func confirmSelectionLockButtonRect(for selection: CGRect,
+                                               in bounds: CGRect,
+                                               size: CGFloat = confirmSelectionLockButtonSize,
+                                               inset: CGFloat = confirmSelectionLockButtonInset) -> CGRect {
+        let edgePad: CGFloat = 4
+        var rect = CGRect(x: selection.maxX - size - inset,
+                          y: selection.maxY - size - inset,
+                          width: size,
+                          height: size)
+        if rect.maxX > bounds.maxX - edgePad {
+            rect.origin.x = bounds.maxX - edgePad - size
+        }
+        if rect.maxY > bounds.maxY - edgePad {
+            rect.origin.y = bounds.maxY - edgePad - size
+        }
+        if rect.minX < bounds.minX + edgePad {
+            rect.origin.x = bounds.minX + edgePad
+        }
+        if rect.minY < bounds.minY + edgePad {
+            rect.origin.y = bounds.minY + edgePad
+        }
+        // Prefer staying on the selection when it is large enough.
+        if selection.width > size + inset * 2, selection.height > size + inset * 2 {
+            rect.origin.x = min(max(rect.origin.x, selection.minX + inset),
+                                selection.maxX - size - inset)
+            rect.origin.y = min(max(rect.origin.y, selection.minY + inset),
+                                selection.maxY - size - inset)
+        }
+        return rect
     }
 
     /// Region drags and window clicks honor confirm-before-capture; color picks do not.

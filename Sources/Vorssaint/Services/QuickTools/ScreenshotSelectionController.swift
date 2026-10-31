@@ -465,6 +465,11 @@ final class ScreenshotSelectionController {
                   && !flags.contains(.option) && !flags.contains(.control) && !flags.contains(.shift):
                 if self.copyInlineOCRSelectionIfNeeded() { break }
                 return event
+            case kVK_Delete, kVK_ForwardDelete:
+                // Delete the selected mark without walking the undo stack
+                // (editor Delete). Ignored while typing in the text field.
+                if self.handleInlineDeleteSelected() { break }
+                return event
             case kVK_Space:
                 if let panel = self.panelUnderMouse(), panel.overlayView.isDragging {
                     // Holding Space moves the in-progress selection.
@@ -555,6 +560,15 @@ final class ScreenshotSelectionController {
         else { return false }
         if panel.overlayView.isEditingConfirmText { return false }
         return panel.overlayView.performInlineUndoRedo(redo: redo)
+    }
+
+    /// Delete / ForwardDelete removes the selected annotation on the confirm
+    /// surface (same as the editor), so one mark can go without undoing others.
+    private func handleInlineDeleteSelected() -> Bool {
+        guard let panel = panels.first(where: { $0.overlayView.isAdjustingSelection })
+        else { return false }
+        if panel.overlayView.isEditingConfirmText { return false }
+        return panel.overlayView.performInlineDeleteSelected()
     }
 
     /// Cmd+C copies a narrowed OCR word selection on the confirm surface.
@@ -1251,6 +1265,19 @@ private final class ScreenshotOverlayView: NSView {
         return true
     }
 
+    /// Deletes the currently selected annotation, if any. Returns true when
+    /// the confirm overlay handled the key (even if nothing was selected).
+    fileprivate func performInlineDeleteSelected() -> Bool {
+        guard isAdjusting, let session = inlineSession else { return false }
+        if session.model.selectedID != nil {
+            session.model.deleteSelected()
+            layoutConfirmToolbar()
+            layoutConfirmTextEditor()
+            needsDisplay = true
+        }
+        return true
+    }
+
     fileprivate func copyInlineOCRSelectionIfNeeded() -> Bool {
         guard isAdjusting, let session = inlineSession else { return false }
         return session.copyOCRSelectionIfAny()
@@ -1340,6 +1367,12 @@ private final class ScreenshotOverlayView: NSView {
     /// for the active app, so the pointer is set on every pointer event: the
     /// crosshair over the area to pick, the arrow over the clickable controls.
     private func refreshCursor(at point: CGPoint) {
+        if isAdjusting, showsSelectionLockControl,
+           confirmSelectionLockButtonRect.contains(point) {
+            toolTip = strings.confirmSelectionLockTooltip
+        } else if toolTip != nil {
+            toolTip = nil
+        }
         let overControl = pointerIsOverFullScreenControl(point)
             || (!guideHost.isHidden && !guideHost.passesThrough && guideHost.frame.contains(point))
             || (isAdjusting && isOverConfirmChrome(at: point))
@@ -1566,6 +1599,10 @@ private final class ScreenshotOverlayView: NSView {
                let field = confirmTextField, !field.frame.contains(point) {
                 _ = commitInlineTextEditingIfNeeded()
             }
+            if showsSelectionLockControl, confirmSelectionLockButtonRect.contains(point) {
+                toggleConfirmSelectionLock()
+                return
+            }
             if isOverConfirmChrome(at: point) {
                 if inlineSession == nil,
                    ScreenshotSupport.confirmSelectionDoneButtonRect(
@@ -1772,6 +1809,9 @@ private final class ScreenshotOverlayView: NSView {
         if let field = confirmTextField, !field.isHidden, field.frame.contains(point) {
             return true
         }
+        if showsSelectionLockControl, confirmSelectionLockButtonRect.contains(point) {
+            return true
+        }
         if inlineSession == nil {
             return ScreenshotSupport.confirmSelectionDoneButtonRect(
                 for: selection, in: bounds).contains(point)
@@ -1862,8 +1902,6 @@ private final class ScreenshotOverlayView: NSView {
         ScreenshotConfirmToolbar(
             model: session.model,
             strings: strings,
-            selectionLocked: isSelectionAdjustLocked,
-            showsSelectionLock: showsSelectionLockControl,
             onComplete: { [weak self] in
                 _ = self?.confirmAdjustingSelectionIfNeeded()
             },
@@ -1887,13 +1925,19 @@ private final class ScreenshotOverlayView: NSView {
             onRedo: { [weak self] in
                 self?.inlineSession?.model.redo()
                 self?.needsDisplay = true
-            },
-            onToggleSelectionLock: { [weak self] in
-                guard let self else { return }
-                self.selectionUnlocked.toggle()
-                self.refreshConfirmToolbarContent()
-                self.needsDisplay = true
             })
+    }
+
+    private var confirmSelectionLockButtonRect: CGRect {
+        ScreenshotSupport.confirmSelectionLockButtonRect(for: selection, in: bounds)
+    }
+
+    private func toggleConfirmSelectionLock() {
+        guard showsSelectionLockControl else { return }
+        selectionUnlocked.toggle()
+        refreshConfirmToolbarContent()
+        needsDisplay = true
+        refreshCursor(at: hoverPoint)
     }
 
     private func layoutConfirmToolbar() {
@@ -2145,6 +2189,9 @@ private final class ScreenshotOverlayView: NSView {
                 context.strokeEllipse(in: dot)
             }
         }
+        if showsSelectionLockControl {
+            drawConfirmSelectionLockButton(context, in: confirmSelectionLockButtonRect)
+        }
         if inlineSession == nil {
             // Freeze-off fallback: lone Complete until pixels exist for tools.
             drawConfirmCompleteButton(
@@ -2188,6 +2235,36 @@ private final class ScreenshotOverlayView: NSView {
         context.addLine(to: CGPoint(x: inset.minX + inset.width * 0.32, y: inset.maxY))
         context.addLine(to: CGPoint(x: inset.maxX, y: inset.minY))
         context.strokePath()
+    }
+
+    /// Persistent corner lock once marks exist — easier to find than a toolbar chip.
+    private func drawConfirmSelectionLockButton(_ context: CGContext, in rect: CGRect) {
+        let locked = isSelectionAdjustLocked
+        let fill = locked
+            ? CGColor(srgbRed: 0.18, green: 0.55, blue: 1, alpha: 0.95)
+            : CGColor(gray: 0.18, alpha: 0.82)
+        drawConfirmButtonChrome(context, in: rect, fill: fill)
+        let symbolName = locked ? "lock.fill" : "lock.open"
+        let pointSize = max(11, rect.width * 0.44)
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
+        guard let symbol = NSImage(systemSymbolName: symbolName,
+                                   accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) else { return }
+        symbol.isTemplate = true
+        let tinted = NSImage(size: symbol.size, flipped: false) { bounds in
+            NSColor.white.set()
+            symbol.draw(in: bounds)
+            return true
+        }
+        let iconSize = tinted.size
+        let iconRect = CGRect(x: rect.midX - iconSize.width / 2,
+                              y: rect.midY - iconSize.height / 2,
+                              width: iconSize.width,
+                              height: iconSize.height)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+        tinted.draw(in: iconRect)
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawWindowHighlight(_ context: CGContext, rect: CGRect) {
