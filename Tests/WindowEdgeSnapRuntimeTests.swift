@@ -36,6 +36,7 @@ enum WindowEdgeSnapRuntimeTests {
     static var stampsEvents = true
     /// The saved placements of the drop areas, read only under their own key.
     static var zoneActions: String?
+    static var lastTargetFrame: CGRect?
     /// Whether the window's app is on the ignored list.
     static var appIgnored = false
     /// Whether the window's server ID can be read from its Accessibility element.
@@ -135,10 +136,13 @@ enum WindowEdgeSnapRuntimeTests {
             EdgeSnapGeometry.locationAvoidingSystemTopDrag(point, screenFrames: screenFrames,
                                                            enabledZones: enabledZones)
         }
-        static func target(at point: CGPoint, screens: [WindowEdgeSnapScreen], velocity: CGVector,
+        static func target(at point: CGPoint, screens: [WindowEdgeSnapScreen],
+                           currentFrame: CGRect?, velocity: CGVector,
                            enabledZones: Set<WindowEdgeSnapZone>,
                            layout: WindowEdgeSnapLayout) -> WindowEdgeSnapTarget? {
-            EdgeSnapGeometry.target(at: point, screens: screens, velocity: velocity,
+            lastTargetFrame = currentFrame
+            return EdgeSnapGeometry.target(at: point, screens: screens, currentFrame: currentFrame,
+                                    velocity: velocity,
                                     enabledZones: enabledZones, layout: layout)
         }
     }
@@ -357,6 +361,7 @@ enum WindowEdgeSnapRuntimeTests {
         clockStart = TimeInterval(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1_000_000_000
         stampsEvents = true
         zoneActions = nil
+        lastTargetFrame = nil
         appIgnored = false
         windowIDReadable = true
         reserveStageManager = false
@@ -593,6 +598,31 @@ enum WindowEdgeSnapRuntimeTests {
                      "a window dropped on an area set to another placement lands in that placement")
 
         reset()
+        zoneActions = "right=center"
+        let centeredEdge = Host()
+        send(centeredEdge, .leftMouseDown, pressPoint)
+        currentFrame = initialFrame.offsetBy(dx: 40, dy: 0)
+        send(centeredEdge, .leftMouseDragged, CGPoint(x: 240, y: 200))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        currentFrame = movedToEdge
+        send(centeredEdge, .leftMouseDragged, edgePoint)
+        let visible = NSScreen.primary.windowLayoutVisibleFrame
+        let centeredPreview = WindowLayoutGeometry.rect(for: .center,
+            current: initialFrame, visibleFrame: visible).integral
+        suite.expect(centeredEdge.previewFrame == centeredPreview && mainAXWhileHeld == 0,
+                     "live center preview keeps the dragged window's size without asking AX")
+        currentFrame.size = CGSize(width: 900, height: 600)
+        send(centeredEdge, .leftMouseDragged, edgePoint)
+        let resizedPreview = WindowLayoutGeometry.rect(for: .center,
+            current: currentFrame, visibleFrame: visible).integral
+        suite.expect(centeredEdge.previewFrame == resizedPreview && mainAXWhileHeld == 0,
+                     "center preview follows size changes during a drag without asking AX")
+        send(centeredEdge, .leftMouseUp, edgePoint)
+        suite.expect(centeredEdge.placedActions == [.center],
+                     "releasing on a center area applies the existing center placement")
+
+        reset()
         var splitRight = WindowEdgeSnapLayout.standard
         splitRight.setPartCount(2, for: .right)
         zoneActions = splitRight.storageValue
@@ -633,6 +663,19 @@ enum WindowEdgeSnapRuntimeTests {
         DispatchQueue.main.drain()
         suite.expect(lateAdopted.placements.count == 1,
                      "a window whose new frame reaches the window server after the release still snaps")
+
+        reset()
+        zoneActions = "right=center"
+        let lateCenter = Host()
+        send(lateCenter, .leftMouseDown, pressPoint)
+        send(lateCenter, .leftMouseDragged, CGPoint(x: 240, y: 200))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        releaseOnly(lateCenter, at: edgePoint)
+        currentFrame = movedToEdge
+        DispatchQueue.main.drain()
+        suite.expect(lateCenter.placedActions == [.center] && lastTargetFrame == movedToEdge,
+                     "delayed center release reads the current frame after tracking clears")
 
         reset()
         let lateUnresolved = Host()
