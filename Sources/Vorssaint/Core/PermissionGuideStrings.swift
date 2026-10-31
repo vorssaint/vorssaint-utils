@@ -31,6 +31,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -136,6 +137,19 @@ extension PermissionGuideStrings {
         staleHint: "¿Ya está activado en esa lista? Esa entrada pertenece a una copia anterior de la app. Empieza de nuevo para reemplazarla.",
         startOver: "Empezar de nuevo",
         relaunch: "Reabrir para aplicar"
+    )
+
+    static let ca = PermissionGuideStrings(
+        title: "Queda un pas",
+        stepOpen: "El macOS ha obert l’app Configuració del Sistema a la llista correcta.",
+        stepToggle: "Activa el Vorssaint en aquesta llista.",
+        stepReturn: "Torna aquí. Aquesta targeta ho detecta automàticament.",
+        waiting: "S’està esperant el permís…",
+        granted: "Permís concedit!",
+        closeHelp: "Tanca",
+        staleHint: "Ja està activat en aquesta llista? Aquesta entrada és d’una còpia anterior de l’app. Torna a començar per substituir-la.",
+        startOver: "Torna a començar",
+        relaunch: "Torna a obrir per aplicar-ho"
     )
 
     static let sk = PermissionGuideStrings(

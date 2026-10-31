@@ -127,6 +127,7 @@ struct KeepAwakeEndTimePicker: View {
         case .tr: return ("Saat (0–23)", "Dakika")
         case .ru: return ("Час (0–23)", "Минута")
         case .es: return ("Hora (0–23)", "Minuto")
+        case .ca: return ("Hora (0–23)", "Minut")
         case .sk: return ("Hodina (0–23)", "Minúta")
         case .de: return ("Stunde (0–23)", "Minute")
         case .fr: return ("Heure (0–23)", "Minute")

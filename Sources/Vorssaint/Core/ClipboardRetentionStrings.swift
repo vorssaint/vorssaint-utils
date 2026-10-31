@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -80,6 +81,14 @@ extension ClipboardRetentionStrings {
         oneDay: "1 día",
         daysFormat: "%d días",
         caption: "Los elementos más antiguos se eliminan aunque no se alcance el límite. Los fijados se conservan siempre."
+    )
+
+    static let ca = ClipboardRetentionStrings(
+        title: "Conserva els ítems",
+        forever: "Sempre",
+        oneDay: "1 dia",
+        daysFormat: "%d dies",
+        caption: "Els ítems més antics s’eliminen encara que no s’arribi al límit. Els fixats es conserven sempre."
     )
 
     static let sk = ClipboardRetentionStrings(

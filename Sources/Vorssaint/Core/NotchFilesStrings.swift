@@ -76,6 +76,23 @@ extension FeatureStrings {
             optimizeMedia: "Optimizar contenido",
             optimizeDropHint: "Arrastra imágenes o un vídeo a la isla y suéltalos en Optimizar contenido para elegir cómo guardar una copia.",
             resumeMedia: "Volver al contenido multimedia")
+        case .ca: return NotchFilesStrings(
+            archive: "Crea un ZIP",
+            archiveHint: "Cada ítem seleccionat es desa en un ZIP separat. Els originals no canvien.",
+            saved: "Desat",
+            downloadsTitle: "Descàrregues",
+            downloadsDescription: "Mostra els arxius que arriben a la carpeta que triïs, directament a la Dynamic Island.",
+            downloadsHint: "Tria la carpeta on el navegador desa les descàrregues. Només se supervisa aquesta carpeta.",
+            chooseFolder: "Selecciona una carpeta…",
+            folderUnavailable: "Aquesta carpeta no està disponible. Torna-la a seleccionar per recuperar-hi l’accés.",
+            waiting: "No hi ha arxius en aquesta carpeta",
+            inProgress: "S’està descarregant",
+            totalUnknown: "Mida total no disponible",
+            completed: "Descàrrega completada",
+            clearFolder: "Oblida la carpeta",
+            optimizeMedia: "Optimitza el contingut multimèdia",
+            optimizeDropHint: "Arrossega imatges o un vídeo a la Dynamic Island i deixa’ls anar a “Optimitza el contingut multimèdia” per triar com desar-ne una còpia.",
+            resumeMedia: "Torna al contingut multimèdia")
         case .sk: return NotchFilesStrings(
             archive: "Vytvoriť ZIP",
             archiveHint: "Každá vybratá položka sa uloží ako samostatný ZIP. Originály zostanú nezmenené.",

@@ -105,6 +105,11 @@ extension FeatureStrings {
             compact: "Compacto",
             comfortable: "Cómodo",
             hint: "Las entradas compactas muestran una o dos líneas y se amplían cuando el puntero se detiene sobre ellas.")
+        case .ca: return NotchClipboardSizeStrings(
+            entrySize: "Mida de les entrades",
+            compact: "Compacta",
+            comfortable: "Còmoda",
+            hint: "Les entrades compactes mostren una o dues línies i s’amplien quan el punter s’hi atura.")
         case .sk: return NotchClipboardSizeStrings(
             entrySize: "Veľkosť položiek",
             compact: "Kompaktná",
