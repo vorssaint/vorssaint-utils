@@ -20,6 +20,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
     @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
+    @AppStorage(DefaultsKey.menuBarIPhoneBattery) private var iPhoneBattery = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
     @AppStorage(DefaultsKey.menuBarFanSpeed) private var fanSpeed = false
@@ -132,6 +133,7 @@ struct MenuBarMetricsPreview: View {
         let _ = diskActivity
         let _ = battery
         let _ = batteryTime
+        let _ = iPhoneBattery
         let _ = peripheralBattery
         let _ = power
         let _ = fanSpeed

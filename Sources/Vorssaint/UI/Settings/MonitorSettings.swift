@@ -394,6 +394,9 @@ private struct MenuBarMetricTile: View {
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var uploadFirst = false
     @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
+    @AppStorage(DefaultsKey.nativeIPhoneUDID) private var selectedIPhoneUDID = ""
+    @AppStorage(DefaultsKey.airBatteryLowThreshold) private var airBatteryLowThreshold = 20
+    @ObservedObject private var monitor = SystemMonitor.shared
 
     init(metric: MenuBarMetric) {
         self.metric = metric
@@ -418,6 +421,7 @@ private struct MenuBarMetricTile: View {
             case DiskMenuBarStyle.used: return l10n.s.diskMenuBarUsedSpace
             default: return l10n.s.diskMenuBarUsedPercentage
             }
+        case .iPhoneBattery: return FeatureStrings.mouseClickDebounce(l10n.language).moreOptions
         default: return ""
         }
     }
@@ -442,6 +446,24 @@ private struct MenuBarMetricTile: View {
                 Text(l10n.s.diskMenuBarUsedSpace).tag(DiskMenuBarStyle.used)
             }
             .pickerStyle(.menu))
+        case .iPhoneBattery:
+            return AnyView(VStack(alignment: .leading, spacing: 9) {
+                Picker("iPhone", selection: $selectedIPhoneUDID) {
+                    Text("Select an iPhone").tag("")
+                    ForEach(monitor.snapshot.nativeIPhoneDevices) { device in
+                        Text(device.name).tag(device.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                HStack {
+                    Spacer()
+                    Picker("Low battery threshold", selection: $airBatteryLowThreshold) {
+                        ForEach([10, 15, 20, 25, 30], id: \.self) { value in
+                            Text("\(value)%").tag(value)
+                        }
+                    }.pickerStyle(.menu)
+                }
+            })
         default:
             return nil
         }

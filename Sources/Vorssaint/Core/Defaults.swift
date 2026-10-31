@@ -398,6 +398,9 @@ enum DefaultsKey {
     static let menuBarBattery = "menuBarBattery"
     static let menuBarBatteryTime = "menuBarBatteryTime"
     static let menuBarPeripheralBattery = "menuBarPeripheralBattery"
+    static let menuBarIPhoneBattery = "menuBarIPhoneBattery"
+    static let nativeIPhoneUDID = "nativeIPhoneUDID"
+    static let airBatteryLowThreshold = "airBatteryLowThreshold"
     static let menuBarConnectedDevices = "menuBarConnectedDevices"
     static let menuBarPower = "menuBarPower"
     static let menuBarFanSpeed = "menuBarFanSpeed"
@@ -1193,7 +1196,7 @@ enum Defaults {
         "cpu", "cpuTemperature",
         "gpu", "gpuTemperature",
         "memory",
-        "battery", "batteryTime", "batteryTemperature", "peripheralBattery",
+        "battery", "batteryTime", "batteryTemperature", "iPhoneBattery", "peripheralBattery",
         "network", "diskUsage", "diskActivity", "connectedDevices", "power", "fanSpeed",
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
@@ -1658,6 +1661,9 @@ enum Defaults {
         DefaultsKey.menuBarDiskUsage: false,
         DefaultsKey.menuBarDiskActivity: false,
         DefaultsKey.menuBarPeripheralBattery: false,
+        DefaultsKey.menuBarIPhoneBattery: false,
+        DefaultsKey.nativeIPhoneUDID: "",
+        DefaultsKey.airBatteryLowThreshold: 20,
         DefaultsKey.menuBarConnectedDevices: false,
         DefaultsKey.menuBarFanSpeed: false,
         DefaultsKey.menuBarPreset: "dense",

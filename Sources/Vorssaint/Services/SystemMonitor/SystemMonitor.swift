@@ -62,6 +62,9 @@ struct SystemSnapshot {
     var power: PowerReading?
     var peripheralBatteries: [PeripheralBatteryDevice] = []
     var peripheralBatterySample = PeripheralBatterySample()
+    var iPhoneBatteryPercent: Int?
+    var iPhoneBatteryCharging: Bool?
+    var nativeIPhoneDevices: [NativeIPhoneBattery] = []
 
     // Disk
     var disk: DiskReading?
@@ -177,6 +180,7 @@ final class SystemMonitor: ObservableObject {
     private let networkSampler = NetworkSampler()
     private let diskSampler = DiskSampler()
     private let peripheralBatterySampler = PeripheralBatterySampler()
+    private let nativeIPhoneBatterySampler = NativeIPhoneBatterySampler()
     private let cpuCoreSampler = CPUCoreSampler()
     private var powerSampler: PowerSampler?
     private let usbSampler = USBDeviceSampler()
@@ -497,6 +501,7 @@ final class SystemMonitor: ObservableObject {
         var needPower = false
         var needPowerDraw = false
         var needPeripheralBattery = false
+        var needIPhoneBattery = false
         var needGPUUsage = false
         var needGPUUsageMenuBar = false
         var needCPUTemperature = false
@@ -528,7 +533,7 @@ final class SystemMonitor: ObservableObject {
 
         var any: Bool {
             needCPU || needMemory || needNetwork || needDisk || needPower ||
-                needPeripheralBattery || needGPUUsage || needTemperature || needFanSpeed || needConnectedDevices
+                needPeripheralBattery || needIPhoneBattery || needGPUUsage || needTemperature || needFanSpeed || needConnectedDevices
         }
     }
 
@@ -588,6 +593,7 @@ final class SystemMonitor: ObservableObject {
         plan.needPeripheralBattery = menuPanelNeeds.peripheralBattery || notchAccessoryMonitoring
             || (menuPanelNeeds.powerCard && defaults.bool(forKey: DefaultsKey.monitorPwrPeripherals))
             || defaults.bool(forKey: DefaultsKey.menuBarPeripheralBattery)
+        plan.needIPhoneBattery = defaults.bool(forKey: DefaultsKey.menuBarIPhoneBattery)
         plan.needGPUUsage = panelGPU || defaults.bool(forKey: DefaultsKey.menuBarGPU)
         plan.needGPUUsageMenuBar = defaults.bool(forKey: DefaultsKey.menuBarGPU)
         plan.needCPUTemperature = panelTemps || menuPanelNeeds.cpuTemperature ||
@@ -632,6 +638,7 @@ final class SystemMonitor: ObservableObject {
             (available(.monitorCPU) && defaults.bool(forKey: DefaultsKey.menuBarCPUTemperature))
             || (available(.monitorGPU) && defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature))
         if !available(.monitorMemory) { plan.needMemory = false }
+        if !available(.monitorPower) { plan.needIPhoneBattery = false }
         if !available(.monitorNetwork) { plan.needNetwork = false }
         if !available(.monitorDisk) { plan.needDisk = false }
         if !available(.monitorPower) {
@@ -867,6 +874,20 @@ final class SystemMonitor: ObservableObject {
                 }
                 next.peripheralBatterySample = self.lastPeripheralBatterySample
                 next.peripheralBatteries = self.lastPeripheralBatterySample.devices
+            }
+
+            if plan.needIPhoneBattery {
+                let reading = self.nativeIPhoneBatterySampler.sampleIfDue(now: now)
+                next.nativeIPhoneDevices = reading.devices
+                let selectedID = UserDefaults.standard.string(forKey: DefaultsKey.nativeIPhoneUDID) ?? ""
+                if let selected = reading.devices.first(where: { $0.id == selectedID }) {
+                    next.iPhoneBatteryPercent = selected.percent
+                    next.iPhoneBatteryCharging = selected.charging
+                } else {
+                    next.iPhoneBatteryPercent = nil
+                    next.iPhoneBatteryCharging = nil
+                }
+                sampledAnything = sampledAnything || reading.sampled
             }
 
             // GPU usage is the priciest normal monitor read. When the panel first

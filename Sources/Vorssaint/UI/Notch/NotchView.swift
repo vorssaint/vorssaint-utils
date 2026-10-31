@@ -637,6 +637,7 @@ enum NotchRestingBattery {
                                            early: early, earlyThreshold: earlyThreshold) {
         case .low: return .red
         case .early: return .orange
+        case .charging: return Color(red: 155 / 255, green: 231 / 255, blue: 176 / 255)
         case .none: return .white.opacity(0.9)
         }
     }

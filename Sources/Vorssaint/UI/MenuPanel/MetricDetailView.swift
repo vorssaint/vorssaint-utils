@@ -106,7 +106,7 @@ extension MenuBarMetric {
             return .network
         case .diskUsage, .diskActivity:
             return .disk
-        case .battery, .batteryTemperature, .peripheralBattery:
+        case .battery, .batteryTemperature, .iPhoneBattery, .peripheralBattery:
             return .battery
         case .batteryTime, .power:
             return .power

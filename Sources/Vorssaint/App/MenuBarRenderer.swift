@@ -5,7 +5,7 @@ import AppKit
 
 /// A live reading the user can pin next to the menu bar icon.
 enum MenuBarMetric: String, CaseIterable, Identifiable {
-    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed, connectedDevices
+    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, iPhoneBattery, peripheralBattery, power, fanSpeed, connectedDevices
 
     var id: String { rawValue }
 
@@ -23,6 +23,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .battery: return DefaultsKey.menuBarBattery
         case .batteryTime: return DefaultsKey.menuBarBatteryTime
         case .peripheralBattery: return DefaultsKey.menuBarPeripheralBattery
+        case .iPhoneBattery: return DefaultsKey.menuBarIPhoneBattery
         case .power: return DefaultsKey.menuBarPower
         case .connectedDevices: return DefaultsKey.menuBarConnectedDevices
         case .fanSpeed: return DefaultsKey.menuBarFanSpeed
@@ -43,6 +44,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .battery: return "battery.100"
         case .batteryTime: return "clock"
         case .peripheralBattery: return "keyboard"
+        case .iPhoneBattery: return "iphone"
         case .connectedDevices: return "cable.connector"
         case .power: return "powerplug.fill"
         case .fanSpeed: return "fanblades"
@@ -63,6 +65,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .battery: return strings.batteryLabel
         case .batteryTime: return FeatureStrings.batteryTime(L10n.shared.language).title
         case .peripheralBattery: return strings.monitorShowPeripheralBattery
+        case .iPhoneBattery: return "\(strings.batteryLabel) (iPhone)"
         case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).title
         case .power: return strings.monitorShowPowerLabel
         case .fanSpeed: return FeatureStrings.fanControl(L10n.shared.language).menuBarTitle
@@ -73,7 +76,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         .cpu, .cpuTemperature,
         .gpu, .gpuTemperature,
         .memory,
-        .battery, .batteryTime, .batteryTemperature, .peripheralBattery,
+        .battery, .batteryTime, .batteryTemperature, .iPhoneBattery, .peripheralBattery,
         .network, .diskUsage, .diskActivity, .connectedDevices, .power, .fanSpeed,
     ]
 
@@ -98,7 +101,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .network: return .monitorNetwork
         case .diskUsage, .diskActivity: return .monitorDisk
         case .connectedDevices: return .connectedDevices
-        case .battery, .batteryTime, .batteryTemperature, .peripheralBattery, .power: return .monitorPower
+        case .battery, .batteryTime, .batteryTemperature, .iPhoneBattery, .peripheralBattery, .power: return .monitorPower
         case .fanSpeed: return .fanControl
         }
     }
@@ -573,6 +576,13 @@ enum MenuBarRenderer {
                                                 style: style,
                                                 pressure: nil)])
                 }
+            case .iPhoneBattery:
+                let value = snapshot.iPhoneBatteryPercent.map { "\($0)%" } ?? "..."
+                let low = (snapshot.iPhoneBatteryPercent ?? 100) < UserDefaults.standard.integer(forKey: DefaultsKey.airBatteryLowThreshold)
+                let status: BatteryWarning = snapshot.iPhoneBatteryCharging == true ? .charging : (low ? .low : .none)
+                groups.append([.metricBlock(label: "IPHONE", value: value,
+                                            minimumValue: "100%", style: style,
+                                            pressure: nil, warning: status)])
             case .connectedDevices:
                 let count = snapshot.connectedDevices.count
                 groups.append([.metricBlock(label: FeatureStrings.connectedDevices(L10n.shared.language).menuBarLabel,
@@ -665,6 +675,8 @@ enum MenuBarRenderer {
             return 11      // symbol + " CPU 999°" / " GPU 999°" / " BAT 999°"
         case (_, .peripheralBattery):
             return 12      // symbol + " KBD 100%+9"
+        case (_, .iPhoneBattery):
+            return 12      // symbol + " IPHONE 100%"
         case (_, .network):
             return 15      // down symbol + 999Kb/1023K + up symbol + 999Kb/1023K
         case (_, .diskUsage):
@@ -1154,8 +1166,9 @@ enum MenuBarRenderer {
 
     static func nsColor(for warning: BatteryWarning) -> NSColor? {
         switch warning {
-        case .low: return .systemRed
+        case .low: return NSColor(red: 250 / 255, green: 112 / 255, blue: 112 / 255, alpha: 1)
         case .early: return .systemOrange
+        case .charging: return NSColor(red: 155 / 255, green: 231 / 255, blue: 176 / 255, alpha: 1)
         case .none: return nil
         }
     }

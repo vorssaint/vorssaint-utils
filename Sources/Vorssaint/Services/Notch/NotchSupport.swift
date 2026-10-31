@@ -714,7 +714,7 @@ enum NotchIdleContent: String, CaseIterable {
 
 /// How urgently the charge is shown: amber for the early warning, red when low.
 enum BatteryWarning: Equatable {
-    case none, early, low
+    case none, early, low, charging
 }
 
 /// Resizing can send hover exits and entries without any pointer movement.
