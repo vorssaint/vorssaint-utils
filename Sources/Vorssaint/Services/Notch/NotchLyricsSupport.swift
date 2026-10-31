@@ -111,11 +111,12 @@ struct NotchLyricsMemory {
 /// Remembers which lyrics file the user chose for a song, and its adjustment,
 /// so the same song shows the same file whenever it plays again. Only the
 /// file's location is stored, as a bookmark that follows renames and moves;
-/// the lyrics are read from the file each time. A song is its title, artist
-/// and album, not a player process or session, so it survives player restarts
-/// and players that report no stable item ID. Length is deliberately not part
-/// of it: a player can report the same song a few seconds longer or shorter
-/// from one play to the next.
+/// the lyrics are read from the file each time. A song is its title and album
+/// with at least one shared artist, not a player process or session, so it
+/// survives player restarts and players that report no stable item ID. One
+/// player can credit only the main artist where another lists every artist,
+/// and the same player can report a few seconds' difference in length from one
+/// play to the next, so neither the full credit nor the length is compared.
 enum NotchLyricsLocalFiles {
     static let limit = 200
     private static let lock = NSLock()
@@ -128,26 +129,20 @@ enum NotchLyricsLocalFiles {
 
     struct Entry: Codable {
         var location: Location
+        var artists: [String]
         var offset: Double
         var used: Date
     }
 
-    /// Nil when the song has no title, so it is never remembered or matched:
-    /// a choice could not be told apart from other songs.
+    /// The stored key: title, album and full credit. Nil when the song has no
+    /// title, so it is never remembered or matched.
     static func key(for track: NotchMusicIdentity) -> String? {
-        func normalized(_ text: String) -> String {
-            text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
-                .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-        }
-        let title = normalized(track.title)
-        guard !title.isEmpty else { return nil }
-        let key = [title, normalized(track.artist), normalized(track.album)].joined(separator: "\u{1F}")
-        return key.utf8.count <= 3072 ? key : nil
+        guard let song = song(for: track) else { return nil }
+        return song + "\u{1F}" + artists(of: track).joined(separator: "\u{1E}")
     }
 
     static func contains(_ track: NotchMusicIdentity, in defaults: UserDefaults = .standard) -> Bool {
-        guard let key = key(for: track) else { return false }
-        return locked { entries(in: defaults)[key] != nil }
+        locked { match(for: track, in: entries(in: defaults)) != nil }
     }
 
     /// The app is not sandboxed: a security scope is kept for parity with the
@@ -165,7 +160,8 @@ enum NotchLyricsLocalFiles {
         guard let key = key(for: track) else { return }
         locked {
             var all = entries(in: defaults)
-            all[key] = Entry(location: location, offset: offset.isFinite ? offset : 0, used: now)
+            while let previous = match(for: track, in: all) { all.removeValue(forKey: previous) }
+            all[key] = Entry(location: location, artists: artists(of: track), offset: offset.isFinite ? offset : 0, used: now)
             while all.count > limit, let oldest = all.min(by: { $0.value.used < $1.value.used })?.key {
                 all.removeValue(forKey: oldest)
             }
@@ -174,10 +170,10 @@ enum NotchLyricsLocalFiles {
     }
 
     static func setOffset(_ offset: Double, for track: NotchMusicIdentity, in defaults: UserDefaults = .standard) {
-        guard offset.isFinite, let key = key(for: track) else { return }
+        guard offset.isFinite else { return }
         locked {
             var all = entries(in: defaults)
-            guard all[key] != nil, all[key]?.offset != offset else { return }
+            guard let key = match(for: track, in: all), all[key]?.offset != offset else { return }
             all[key]?.offset = offset
             all[key]?.used = Date()
             store(all, in: defaults)
@@ -189,8 +185,10 @@ enum NotchLyricsLocalFiles {
     /// choice is kept so a restored or reconnected file works again.
     static func lines(for track: NotchMusicIdentity,
                       in defaults: UserDefaults = .standard) -> (lines: [NotchLyricLine], offset: Double)? {
-        guard let key = key(for: track), let entry = locked({ entries(in: defaults)[key] }),
-              let (url, renew) = resolve(entry.location),
+        guard let (key, entry) = locked({ () -> (String, Entry)? in
+            let all = entries(in: defaults)
+            return match(for: track, in: all).flatMap { key in all[key].map { (key, $0) } }
+        }), let (url, renew) = resolve(entry.location),
               !url.pathComponents.contains(where: { $0 == ".Trash" || $0 == ".Trashes" }) else { return nil }
         let lines = read(url, duration: track.duration)
         guard !lines.isEmpty else { return nil }
@@ -228,6 +226,33 @@ enum NotchLyricsLocalFiles {
                               relativeTo: nil, bookmarkDataIsStale: &stale) { return (url, true) }
         let url = URL(fileURLWithPath: location.path)
         return FileManager.default.fileExists(atPath: url.path) ? (url, true) : nil
+    }
+
+    private static func normalized(_ text: String) -> String {
+        NotchLyricsSupport.folded(text.precomposedStringWithCompatibilityMapping)
+            .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
+
+    /// Title and album, the part of a song every player reports alike.
+    private static func song(for track: NotchMusicIdentity) -> String? {
+        let title = normalized(track.title)
+        guard !title.isEmpty else { return nil }
+        let song = title + "\u{1F}" + normalized(track.album)
+        return song.utf8.count <= 2048 ? song : nil
+    }
+
+    private static func artists(of track: NotchMusicIdentity) -> [String] {
+        Array(Set(NotchLyricsSupport.artistNames(track.artist).map(normalized).filter { !$0.isEmpty })).sorted()
+    }
+
+    /// The remembered choice for this title and album that shares an artist,
+    /// or that either side reports without one. The most recent wins.
+    private static func match(for track: NotchMusicIdentity, in all: [String: Entry]) -> String? {
+        guard let song = song(for: track) else { return nil }
+        let prefix = song + "\u{1F}", credited = Set(artists(of: track))
+        return all.filter { $0.key.hasPrefix(prefix)
+            && (credited.isEmpty || $0.value.artists.isEmpty || !credited.isDisjoint(with: $0.value.artists)) }
+            .max(by: { $0.value.used < $1.value.used })?.key
     }
 
     /// Decoded once per stored value, not on every song change.
@@ -482,7 +507,7 @@ enum NotchLyricsSupport {
         return url.url.map { [$0] } ?? []
     }
 
-    private static func folded(_ text: String) -> String {
+    static func folded(_ text: String) -> String {
         // Fold Latin accents without turning Cyrillic й into и.
         let latin = text.precomposedStringWithCanonicalMapping.map { character -> String in
             let value = String(character)
@@ -502,7 +527,7 @@ enum NotchLyricsSupport {
         searchText(text).replacingOccurrences(of: " ", with: "")
     }
 
-    private static func artistNames(_ text: String) -> [String] {
+    static func artistNames(_ text: String) -> [String] {
         let separated = text.replacingOccurrences(
             of: #"[,;，、]|\s+[/&•]\s+|\s+(?:feat\.?|ft\.?|featuring)\s+"#,
             with: "\n", options: [.regularExpression, .caseInsensitive])

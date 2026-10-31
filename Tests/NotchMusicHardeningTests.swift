@@ -1215,6 +1215,29 @@ enum NotchMusicHardeningTests {
             suite.expect(!Files.contains(untitled) && !Files.contains(NotchMusicIdentity(relaunched("other-title"))),
                          "a song without a title is never remembered or matched")
             Files.reset()
+            func song(_ title: String, _ artist: String, _ album: String) -> NotchMusicIdentity {
+                NotchMusicIdentity(NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: artist, album: album,
+                                                                                 artworkData: nil, appBundleIdentifier: nil, appPID: nil),
+                                                 isPlaying: true, elapsed: 0, duration: 185, rate: 1, sampledAt: .now, canSeek: false))
+            }
+            Files.reset()
+            let credited = folder.appendingPathComponent("credited.lrc")
+            try "[00:01]Credited verse".write(to: credited, atomically: true, encoding: .utf8)
+            Files.save(Files.location(of: credited)!, offset: 0.5, for: song("Barsaat", "Banjaare", "Barsaat"))
+            suite.expect(Files.lines(for: song("Barsaat", "Banjaare, Roni", "Barsaat"))?.offset == 0.5
+                         && Files.lines(for: song("Barsaat", "Roni & Banjaare", "Barsaat")) != nil,
+                         "a player listing every credited artist finds the file chosen where only the main artist was reported")
+            Files.save(Files.location(of: credited)!, offset: 1.5, for: song("Barsaat", "Banjaare, Roni", "Barsaat"))
+            let replaced = (try? PropertyListDecoder().decode([String: ProductionLyricsLocalFiles.Entry].self,
+                                                             from: Files.defaults.data(forKey: DefaultsKey.notchLyricsLocalFiles) ?? Data())) ?? [:]
+            suite.expect(replaced.count == 1 && Files.lines(for: song("Barsaat", "Banjaare", "Barsaat"))?.offset == 1.5,
+                         "choosing a file from the other player replaces the song's one choice")
+            suite.expect(!Files.contains(song("Barsaat", "Someone Else", "Barsaat"))
+                         && !Files.contains(song("Barsaat", "Banjaare", "Monsoon Hits")),
+                         "the same title by other artists, or on another album, is a different song")
+            Files.save(placeholder, offset: 0, for: song("बरसात", "Banjaare", "Single"))
+            suite.expect(!Files.contains(song("बरसत", "Banjaare", "Single")),
+                         "titles in other scripts that differ only by a vowel sign stay different songs")
             Files.reset()
             Files.save(placeholder, offset: 1, for: NotchMusicIdentity(relaunched("same-song")))
             Files.save(placeholder, offset: 2, for: NotchMusicIdentity(relaunched("Same-Song", duration: 240)))
