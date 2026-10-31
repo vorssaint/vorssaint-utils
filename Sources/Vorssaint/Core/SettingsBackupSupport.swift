@@ -180,6 +180,7 @@ enum SettingsBackupSupport {
         // protected-folder prompt without a fresh choice.
         DefaultsKey.commandBarFileScopes,
         DefaultsKey.notchDownloadsFolderBookmark,
+        DefaultsKey.notchLyricsLocalFiles,
         DefaultsKey.wallpaperOwnBookmarks,
         DefaultsKey.wallpaperExcludedOwnPaths,
         DefaultsKey.recorderSaveFolder,

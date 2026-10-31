@@ -77,28 +77,197 @@ struct NotchLyricsMemory {
     private(set) var track: NotchMusicIdentity?
     private(set) var lyrics: NotchLyrics?
     private(set) var offset = 0.0
+    /// The lyrics came from a file the user chose, so its adjustment is remembered.
+    private(set) var isLocal = false
 
     mutating func select(_ next: NotchMusicIdentity?) {
         guard next != track else { return }
         track = next
         lyrics = nil
         offset = 0
+        isLocal = false
     }
 
-    @discardableResult mutating func replace(_ lyrics: NotchLyrics?, for expected: NotchMusicIdentity) -> Bool {
+    @discardableResult mutating func replace(_ lyrics: NotchLyrics?, offset: Double = 0, local: Bool = false,
+                                             for expected: NotchMusicIdentity) -> Bool {
         guard track == expected else { return false }
         self.lyrics = lyrics
-        offset = 0
+        self.offset = offset.isFinite ? Self.bounded(offset) : 0
+        isLocal = local && lyrics != nil
         return true
     }
 
     mutating func adjustOffset(by amount: Double) {
         guard track != nil, amount.isFinite else { return }
-        offset = min(10, max(-10, ((offset + amount) * 4).rounded() / 4))
+        offset = Self.bounded(offset + amount)
     }
+
+    private static func bounded(_ offset: Double) -> Double { min(10, max(-10, (offset * 4).rounded() / 4)) }
 
     mutating func resetOffset() { offset = 0 }
     mutating func clear() { self = Self() }
+}
+
+/// Remembers which lyrics file the user chose for a song, and its adjustment,
+/// so the same song shows the same file whenever it plays again. Only the
+/// file's location is stored, as a bookmark that follows renames and moves;
+/// the lyrics are read from the file each time. A song is its title, artist,
+/// album and length, not a player process or session, so it survives player
+/// restarts and players that report no stable item ID. Recordings that share
+/// names but differ in length keep separate choices.
+enum NotchLyricsLocalFiles {
+    static let limit = 200
+    /// Players can round a recording's length differently; a different
+    /// recording with the same names is usually further apart than this.
+    static let lengthTolerance = 2.0
+    private static let lock = NSLock()
+    private static var cache: (data: Data, entries: [String: Entry])?
+
+    struct Location: Codable, Equatable {
+        var bookmark: Data
+        var path: String
+    }
+
+    struct Entry: Codable {
+        var location: Location
+        var offset: Double
+        var duration: Double
+        var used: Date
+    }
+
+    /// Nil when the song has no title or no known length, so it is never
+    /// remembered or matched: a choice could not be told apart from other songs.
+    static func key(for track: NotchMusicIdentity) -> String? {
+        guard let names = names(for: track) else { return nil }
+        return names + "\u{1F}" + String(Int(track.duration.rounded()))
+    }
+
+    static func contains(_ track: NotchMusicIdentity, in defaults: UserDefaults = .standard) -> Bool {
+        locked { match(for: track, in: entries(in: defaults)) != nil }
+    }
+
+    /// The app is not sandboxed: a security scope is kept for parity with the
+    /// other remembered locations, and a plain bookmark and path cover a build
+    /// whose signature no longer opens it.
+    static func location(of url: URL) -> Location? {
+        let bookmark = (try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil))
+            ?? (try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil))
+        return bookmark.map { Location(bookmark: $0, path: url.path) }
+    }
+
+    /// Choosing another file for the same recording replaces the earlier choice.
+    static func save(_ location: Location, offset: Double, for track: NotchMusicIdentity,
+                     in defaults: UserDefaults = .standard, now: Date = Date()) {
+        guard let key = key(for: track) else { return }
+        locked {
+            var all = entries(in: defaults)
+            if let previous = match(for: track, in: all) { all.removeValue(forKey: previous) }
+            all[key] = Entry(location: location, offset: offset.isFinite ? offset : 0, duration: track.duration, used: now)
+            while all.count > limit, let oldest = all.min(by: { $0.value.used < $1.value.used })?.key {
+                all.removeValue(forKey: oldest)
+            }
+            store(all, in: defaults)
+        }
+    }
+
+    static func setOffset(_ offset: Double, for track: NotchMusicIdentity, in defaults: UserDefaults = .standard) {
+        guard offset.isFinite else { return }
+        locked {
+            var all = entries(in: defaults)
+            guard let key = match(for: track, in: all), all[key]?.offset != offset else { return }
+            all[key]?.offset = offset
+            all[key]?.used = Date()
+            store(all, in: defaults)
+        }
+    }
+
+    /// Reads the remembered file again. Nil when there is no choice for this
+    /// song or its file is gone, moved to the Trash, unreadable or empty; the
+    /// choice is kept so a restored or reconnected file works again.
+    static func lines(for track: NotchMusicIdentity,
+                      in defaults: UserDefaults = .standard) -> (lines: [NotchLyricLine], offset: Double)? {
+        guard let (key, entry) = locked({ () -> (String, Entry)? in
+            let all = entries(in: defaults)
+            return match(for: track, in: all).flatMap { key in all[key].map { (key, $0) } }
+        }), let (url, renew) = resolve(entry.location),
+              !url.pathComponents.contains(where: { $0 == ".Trash" || $0 == ".Trashes" }) else { return nil }
+        let lines = read(url, duration: track.duration)
+        guard !lines.isEmpty else { return nil }
+        let renewed = renew ? location(of: url) : nil
+        locked {
+            var all = entries(in: defaults)
+            guard all[key]?.location == entry.location else { return }
+            if let renewed { all[key]?.location = renewed }
+            all[key]?.used = Date()
+            store(all, in: defaults)
+        }
+        return (lines, entry.offset)
+    }
+
+    /// The same bounded read used when the file is first chosen.
+    static func read(_ url: URL, duration: Double) -> [NotchLyricLine] {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return [] }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: NotchLyricsSupport.maximumBytes + 1),
+              data.count <= NotchLyricsSupport.maximumBytes,
+              let text = String(data: data, encoding: .utf8) else { return [] }
+        return NotchLyricsSupport.parse(text, duration: duration)
+    }
+
+    /// The scoped bookmark first, then the same bookmark without a scope, then
+    /// the last known path. Anything but a fresh scoped resolve is renewed.
+    private static func resolve(_ location: Location) -> (url: URL, renew: Bool)? {
+        var stale = false
+        if let url = try? URL(resolvingBookmarkData: location.bookmark,
+                              options: [.withSecurityScope, .withoutUI, .withoutMounting],
+                              relativeTo: nil, bookmarkDataIsStale: &stale) { return (url, stale) }
+        if let url = try? URL(resolvingBookmarkData: location.bookmark, options: [.withoutUI, .withoutMounting],
+                              relativeTo: nil, bookmarkDataIsStale: &stale) { return (url, true) }
+        let url = URL(fileURLWithPath: location.path)
+        return FileManager.default.fileExists(atPath: url.path) ? (url, true) : nil
+    }
+
+    private static func names(for track: NotchMusicIdentity) -> String? {
+        func normalized(_ text: String) -> String {
+            text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
+                .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        }
+        let title = normalized(track.title)
+        guard !title.isEmpty, track.duration.isFinite, (1...86_400).contains(track.duration) else { return nil }
+        let names = [title, normalized(track.artist), normalized(track.album)].joined(separator: "\u{1F}")
+        return names.utf8.count <= 3072 ? names : nil
+    }
+
+    /// The remembered recording with these names closest in length, if any.
+    private static func match(for track: NotchMusicIdentity, in all: [String: Entry]) -> String? {
+        guard let names = names(for: track) else { return nil }
+        let prefix = names + "\u{1F}"
+        return all.filter { $0.key.hasPrefix(prefix) && abs($0.value.duration - track.duration) <= lengthTolerance }
+            .min(by: { abs($0.value.duration - track.duration) < abs($1.value.duration - track.duration) })?.key
+    }
+
+    /// Decoded once per stored value, not on every song change.
+    private static func entries(in defaults: UserDefaults) -> [String: Entry] {
+        guard let data = defaults.data(forKey: DefaultsKey.notchLyricsLocalFiles) else { return [:] }
+        if let cache, cache.data == data { return cache.entries }
+        let decoded = (try? PropertyListDecoder().decode([String: Entry].self, from: data)) ?? [:]
+        cache = (data, decoded)
+        return decoded
+    }
+
+    private static func store(_ all: [String: Entry], in defaults: UserDefaults) {
+        guard let data = try? PropertyListEncoder().encode(all) else { return }
+        defaults.set(data, forKey: DefaultsKey.notchLyricsLocalFiles)
+        cache = (data, all)
+    }
+
+    private static func locked<T>(_ work: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return work()
+    }
 }
 
 /// A server-side lookup failure may still have working search results. Network
