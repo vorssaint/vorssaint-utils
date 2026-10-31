@@ -1989,6 +1989,8 @@ def main():
           + "func selectCaptureTool(for event: NSEvent) -> Bool { false }\n"
           + "func selectInlineAnnotateTool(for event: NSEvent) -> Bool { false }\n"
           + "func commitInlineTextEditingIfNeeded() -> Bool { false }\n"
+          + "func handleInlineAnnotateUndoRedo(redo: Bool) -> Bool { false }\n"
+          + "func copyInlineOCRSelectionIfNeeded() -> Bool { false }\n"
           + "static func isScrollingCaptureKey(_ event: NSEvent) -> Bool { false }\n"
           + "static func isLoupeKey(_ event: NSEvent) -> Bool { false }\n"
           + "static func isCopyColorKey(_ event: NSEvent) -> Bool { false }\n"

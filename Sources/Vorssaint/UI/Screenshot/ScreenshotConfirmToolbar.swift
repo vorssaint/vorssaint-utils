@@ -80,14 +80,38 @@ struct ScreenshotConfirmToolbar: View {
         switch model.tool {
         case .select, .crop, .expandCanvas, .image:
             return false
-        case .pixelate:
-            return true
         default:
             return true
         }
     }
 
+    @ViewBuilder
     private var styleStrip: some View {
+        HStack(spacing: 6) {
+            switch model.tool {
+            case .pixelate:
+                // Mosaic only needs strength — no color chips (CleanShot / WeChat).
+                blurLevelStrip
+            case .text:
+                colorStrip
+                chromeDivider
+                textSizeStrip
+            case .arrow:
+                colorStrip
+                chromeDivider
+                strokeStrip
+                chromeDivider
+                arrowStyleStrip
+            default:
+                colorStrip
+                chromeDivider
+                strokeStrip
+            }
+        }
+        .padding(.leading, 2)
+    }
+
+    private var colorStrip: some View {
         HStack(spacing: 6) {
             ForEach(ScreenshotSupport.ColorID.allCases, id: \.self) { color in
                 let selected = model.color == color
@@ -107,40 +131,90 @@ struct ScreenshotConfirmToolbar: View {
                 }
                 .buttonStyle(.plain)
             }
+        }
+    }
 
-            chromeDivider
-
-            if model.tool == .text {
-                ForEach(ScreenshotSupport.textSizes.filter { [14, 19, 24, 36].contains($0) },
-                        id: \.self) { size in
-                    let selected = model.textSize == size
-                    Button {
-                        model.textSize = size
-                    } label: {
-                        Text("A")
-                            .font(.system(size: max(9, CGFloat(size) * 0.45), weight: .bold))
-                            .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.7))
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(.plain)
-                    .help(strings.fontSizeLabel)
+    private var strokeStrip: some View {
+        HStack(spacing: 6) {
+            ForEach(ScreenshotSupport.StrokeID.allCases, id: \.self) { stroke in
+                let selected = model.stroke == stroke
+                Button {
+                    model.stroke = stroke
+                } label: {
+                    Capsule()
+                        .fill(Color.primary.opacity(selected ? 0.9 : 0.35))
+                        .frame(width: 18, height: stroke.width)
                 }
-            } else {
-                ForEach(ScreenshotSupport.StrokeID.allCases, id: \.self) { stroke in
-                    let selected = model.stroke == stroke
-                    Button {
-                        model.stroke = stroke
-                    } label: {
-                        Capsule()
-                            .fill(Color.primary.opacity(selected ? 0.9 : 0.35))
-                            .frame(width: 18, height: stroke.width)
-                    }
-                    .buttonStyle(.plain)
-                    .help(stroke.rawValue)
-                }
+                .buttonStyle(.plain)
+                .help(stroke.rawValue)
             }
         }
-        .padding(.leading, 2)
+    }
+
+    private var textSizeStrip: some View {
+        HStack(spacing: 4) {
+            ForEach(ScreenshotSupport.textSizes.filter { [14, 19, 24, 36].contains($0) },
+                    id: \.self) { size in
+                let selected = model.textSize == size
+                Button {
+                    model.textSize = size
+                } label: {
+                    Text("A")
+                        .font(.system(size: max(9, CGFloat(size) * 0.45), weight: .bold))
+                        .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.7))
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+                .help(strings.fontSizeLabel)
+            }
+        }
+    }
+
+    private var arrowStyleStrip: some View {
+        HStack(spacing: 2) {
+            ForEach(ScreenshotSupport.ArrowStyleID.allCases, id: \.self) { style in
+                let selected = model.arrowStyle == style
+                Button {
+                    model.arrowStyle = style
+                } label: {
+                    Text(strings.arrowStyleTitle(style))
+                        .font(.system(size: 10, weight: selected ? .semibold : .medium))
+                        .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.75))
+                        .padding(.horizontal, 6)
+                        .frame(height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(selected ? Color.accentColor.opacity(0.18) : .clear)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(strings.arrowStyleLabel)
+            }
+        }
+    }
+
+    private var blurLevelStrip: some View {
+        let levels = Array(ScreenshotSupport.BlurStrength.levels)
+        return HStack(spacing: 4) {
+            Image(systemName: "aqi.low")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+            ForEach(levels, id: \.self) { level in
+                let selected = model.blurLevel == level
+                Button {
+                    model.blurLevel = level
+                } label: {
+                    Capsule()
+                        .fill(Color.primary.opacity(selected ? 0.9 : 0.3))
+                        .frame(width: 10 + CGFloat(level) * 3, height: 6 + CGFloat(level))
+                }
+                .buttonStyle(.plain)
+                .help(strings.blurStrengthLabel)
+            }
+            Image(systemName: "aqi.high")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var chromeDivider: some View {
@@ -183,37 +257,5 @@ struct ScreenshotConfirmToolbar: View {
         .disabled(!enabled)
         .help(help)
         .accessibilityLabel(help)
-    }
-}
-
-/// Inline text field hosted over a confirm-selection annotation.
-struct ScreenshotConfirmTextEditor: View {
-    let placeholder: String
-    let color: Color
-    let fontSize: CGFloat
-    @Binding var text: String
-    let onSubmit: () -> Void
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        TextField(placeholder, text: $text)
-            .textFieldStyle(.plain)
-            .font(.system(size: fontSize, weight: .semibold))
-            .foregroundStyle(color)
-            .focused($focused)
-            .frame(minWidth: 120)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(.black.opacity(0.35),
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(0.7), lineWidth: 1)
-            )
-            .onAppear {
-                DispatchQueue.main.async { focused = true }
-            }
-            .onSubmit(onSubmit)
-            .onExitCommand(perform: onSubmit)
     }
 }

@@ -16,7 +16,7 @@ final class ScreenshotConfirmInlineSession {
     private var selectionPixelRect: CGRect
     private var dragStartView: CGPoint?
     private var annotating = false
-    private var pendingOCRCopy = false
+    private var pendingOCRRecognize = false
     private var cancellables = Set<AnyCancellable>()
 
     var onChange: (() -> Void)?
@@ -38,14 +38,17 @@ final class ScreenshotConfirmInlineSession {
         model.$textWords
             .receive(on: RunLoop.main)
             .sink { [weak self] words in
-                guard let self, self.pendingOCRCopy else { return }
-                self.pendingOCRCopy = false
+                guard let self, self.pendingOCRRecognize else { return }
+                self.pendingOCRRecognize = false
                 if words.isEmpty {
                     self.onOCRFeedback?(L10n.shared.s.ocrNoText)
                     return
                 }
-                self.model.selectAllRecognizedWords()
-                self.copyAllRecognizedText()
+                // WeChat / Shottr style: outline words in the crop and wait for
+                // a click or drag-select before copying — never dump everything
+                // on the first recognition pass.
+                self.model.clearTextSelection()
+                self.onChange?()
             }
             .store(in: &cancellables)
     }
@@ -130,7 +133,7 @@ final class ScreenshotConfirmInlineSession {
     /// instead of panning the crop; otherwise select still moves the frame.
     var usesSelectionInteriorForTools: Bool {
         if model.tool != .select { return true }
-        return pendingOCRCopy || !model.textWords.isEmpty
+        return pendingOCRRecognize || !model.textWords.isEmpty
     }
 
     func prepareForExport() {
@@ -192,27 +195,31 @@ final class ScreenshotConfirmInlineSession {
         context.restoreGState()
     }
 
+    /// OCR is scoped to the confirm crop (`model.baseImage`). First press only
+    /// recognizes and shows word boxes; later presses copy the current word
+    /// selection (or the whole crop if the person has not narrowed it).
     func copyOCRSelectionOrAll() {
         model.tool = .select
         onChange?()
-        if !model.selectedWordIndexes.isEmpty {
+        if !model.textWords.isEmpty {
+            if model.selectedWordIndexes.isEmpty {
+                model.selectAllRecognizedWords()
+            }
             copyText(model.selectedText)
             return
         }
-        if !model.textWords.isEmpty {
-            model.selectAllRecognizedWords()
-            copyAllRecognizedText()
-            return
-        }
         // Avoid stacking overlapping recognitions if the person mashes OCR.
-        if pendingOCRCopy { return }
-        pendingOCRCopy = true
+        if pendingOCRRecognize { return }
+        pendingOCRRecognize = true
         model.recognizeText()
     }
 
-    private func copyAllRecognizedText() {
-        let indexes = Array(model.textWords.indices)
-        copyText(ScreenshotSupport.joinedWords(model.textWords, selected: indexes))
+    /// Cmd+C while adjusting: copy a narrowed OCR selection only.
+    @discardableResult
+    func copyOCRSelectionIfAny() -> Bool {
+        guard !model.selectedWordIndexes.isEmpty else { return false }
+        copyText(model.selectedText)
+        return true
     }
 
     private func copyText(_ text: String) {

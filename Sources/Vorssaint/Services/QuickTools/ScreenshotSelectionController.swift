@@ -431,6 +431,7 @@ final class ScreenshotSelectionController {
                 self.spaceIsDown = false
                 return nil
             }
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             switch Int(event.keyCode) {
             case kVK_Escape:
                 if self.commitInlineTextEditingIfNeeded() { break }
@@ -438,6 +439,19 @@ final class ScreenshotSelectionController {
             case kVK_Return, kVK_ANSI_KeypadEnter:
                 if self.commitInlineTextEditingIfNeeded() { break }
                 self.confirmSelectionWithKeyboard()
+            case kVK_ANSI_Z where flags.contains(.command)
+                  && !flags.contains(.option) && !flags.contains(.control):
+                // Annotation undo/redo while confirming (Flameshot / CleanShot).
+                // Leave the event alone when the text field is editing so macOS
+                // can undo typing inside the field.
+                if self.handleInlineAnnotateUndoRedo(redo: flags.contains(.shift)) {
+                    break
+                }
+                return event
+            case kVK_ANSI_C where flags.contains(.command)
+                  && !flags.contains(.option) && !flags.contains(.control) && !flags.contains(.shift):
+                if self.copyInlineOCRSelectionIfNeeded() { break }
+                return event
             case kVK_Space:
                 if let panel = self.panelUnderMouse(), panel.overlayView.isDragging {
                     // Holding Space moves the in-progress selection.
@@ -514,6 +528,19 @@ final class ScreenshotSelectionController {
     /// Commits in-progress confirm-overlay text editing, if any.
     private func commitInlineTextEditingIfNeeded() -> Bool {
         panels.contains { $0.overlayView.commitInlineTextEditingIfNeeded() }
+    }
+
+    /// Cmd+Z / Cmd+Shift+Z while the confirm overlay owns the session.
+    private func handleInlineAnnotateUndoRedo(redo: Bool) -> Bool {
+        guard let panel = panels.first(where: { $0.overlayView.isAdjustingSelection })
+        else { return false }
+        if panel.overlayView.isEditingConfirmText { return false }
+        return panel.overlayView.performInlineUndoRedo(redo: redo)
+    }
+
+    /// Cmd+C copies a narrowed OCR word selection on the confirm surface.
+    private func copyInlineOCRSelectionIfNeeded() -> Bool {
+        panels.contains { $0.overlayView.copyInlineOCRSelectionIfNeeded() }
     }
 
     /// The loupe toggle follows the typed character, with the physical slot
@@ -1110,8 +1137,9 @@ private final class ScreenshotOverlayView: NSView {
     /// Shared editor model hosted on the selection surface (WeChat-style annotate).
     private var inlineSession: ScreenshotConfirmInlineSession?
     private var toolbarHost: PassThroughHostingView<ScreenshotConfirmToolbar>?
-    private var textEditorHost: PassThroughHostingView<ScreenshotConfirmTextEditor>?
-    private var editingTextDraft = ""
+    /// AppKit field so Return/commit reads `stringValue` synchronously (SwiftUI
+    /// bindings lagged behind the local key monitor and dropped the draft).
+    private var confirmTextField: NSTextField?
     /// True while a drawing tool owns the drag inside the selection.
     private var annotationDragActive = false
     /// Which grip is being dragged while adjusting; nil means moving the whole rect.
@@ -1160,12 +1188,40 @@ private final class ScreenshotOverlayView: NSView {
         guard let session = inlineSession, let id = session.model.editingTextID else {
             return false
         }
-        session.model.commitText(id, text: editingTextDraft)
-        editingTextDraft = ""
+        let text = confirmTextField?.stringValue ?? ""
+        session.model.commitText(id, text: text)
         removeConfirmTextEditor()
         layoutConfirmToolbar()
         needsDisplay = true
         return true
+    }
+
+    fileprivate var isEditingConfirmText: Bool {
+        guard let field = confirmTextField, let window else { return false }
+        if window.firstResponder === field { return true }
+        if let text = window.firstResponder as? NSView {
+            return text.isDescendant(of: field)
+        }
+        return window.firstResponder is NSText && field.currentEditor() != nil
+    }
+
+    fileprivate func performInlineUndoRedo(redo: Bool) -> Bool {
+        guard isAdjusting, let session = inlineSession else { return false }
+        if redo {
+            guard session.model.canRedo else { return true }
+            session.model.redo()
+        } else {
+            guard session.model.canUndo else { return true }
+            session.model.undo()
+        }
+        layoutConfirmToolbar()
+        needsDisplay = true
+        return true
+    }
+
+    fileprivate func copyInlineOCRSelectionIfNeeded() -> Bool {
+        guard isAdjusting, let session = inlineSession else { return false }
+        return session.copyOCRSelectionIfAny()
     }
 
     /// A surface whose session is over answers nothing, so the rest of a
@@ -1461,6 +1517,10 @@ private final class ScreenshotOverlayView: NSView {
         hoverPoint = point
 
         if isAdjusting {
+            if confirmTextField != nil,
+               let field = confirmTextField, !field.frame.contains(point) {
+                _ = commitInlineTextEditingIfNeeded()
+            }
             if isOverConfirmChrome(at: point) {
                 if inlineSession == nil,
                    ScreenshotSupport.confirmSelectionDoneButtonRect(
@@ -1663,7 +1723,7 @@ private final class ScreenshotOverlayView: NSView {
         if let host = toolbarHost, !host.isHidden, host.frame.contains(point) {
             return true
         }
-        if let host = textEditorHost, !host.isHidden, host.frame.contains(point) {
+        if let field = confirmTextField, !field.isHidden, field.frame.contains(point) {
             return true
         }
         if inlineSession == nil {
@@ -1729,7 +1789,6 @@ private final class ScreenshotOverlayView: NSView {
         removeConfirmTextEditor()
         inlineSession = nil
         annotationDragActive = false
-        editingTextDraft = ""
     }
 
     private func installConfirmToolbar(session: ScreenshotConfirmInlineSession) {
@@ -1782,8 +1841,8 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     private func removeConfirmTextEditor() {
-        textEditorHost?.removeFromSuperview()
-        textEditorHost = nil
+        confirmTextField?.removeFromSuperview()
+        confirmTextField = nil
     }
 
     private func layoutConfirmTextEditor() {
@@ -1798,31 +1857,41 @@ private final class ScreenshotOverlayView: NSView {
         let zoomY = selection.height / max(session.model.imageSize.height, 1)
         let fontSize = max(11, ScreenshotRenderer.fontSize(for: annotation.textSize,
                                                            scale: session.model.scale) * min(zoomX, zoomY))
-        let color = Color(nsColor: ScreenshotRenderer.nsColor(annotation.color))
-        if textEditorHost == nil {
-            editingTextDraft = annotation.text
-            let editor = ScreenshotConfirmTextEditor(
-                placeholder: strings.textPlaceholder,
-                color: color,
-                fontSize: fontSize,
-                text: Binding(
-                    get: { [weak self] in self?.editingTextDraft ?? "" },
-                    set: { [weak self] in self?.editingTextDraft = $0 }),
-                onSubmit: { [weak self] in
-                    _ = self?.commitInlineTextEditingIfNeeded()
-                })
-            let host = PassThroughHostingView(interactiveRootView: editor)
-            addSubview(host)
-            textEditorHost = host
+        if confirmTextField == nil {
+            let field = NSTextField(frame: .zero)
+            field.placeholderString = strings.textPlaceholder
+            field.stringValue = annotation.text
+            field.isBordered = false
+            field.isBezeled = false
+            field.drawsBackground = true
+            field.backgroundColor = NSColor.black.withAlphaComponent(0.4)
+            field.textColor = ScreenshotRenderer.nsColor(annotation.color)
+            field.font = .systemFont(ofSize: fontSize, weight: .semibold)
+            field.focusRingType = .none
+            field.cell?.wraps = false
+            field.cell?.isScrollable = true
+            field.target = self
+            field.action = #selector(confirmTextFieldAction(_:))
+            addSubview(field)
+            confirmTextField = field
+            window?.makeFirstResponder(field)
         }
-        guard let host = textEditorHost else { return }
-        let fitting = host.fittingSize
+        guard let field = confirmTextField else { return }
+        field.font = .systemFont(ofSize: fontSize, weight: .semibold)
+        field.textColor = ScreenshotRenderer.nsColor(annotation.color)
         let origin = CGPoint(
             x: selection.minX + annotation.rect.minX * zoomX - 6,
             y: selection.minY + annotation.rect.minY * zoomY - 3)
-        host.frame = CGRect(origin: origin,
-                            size: CGSize(width: max(fitting.width, 130),
-                                         height: max(fitting.height, fontSize + 12)))
+        // Grow with typed content so longer labels stay visible while editing.
+        let textWidth = max(130, (field.stringValue as NSString)
+            .size(withAttributes: [.font: field.font as Any]).width + 16)
+        field.frame = CGRect(origin: origin,
+                             size: CGSize(width: min(textWidth, max(130, selection.maxX - origin.x)),
+                                          height: max(fontSize + 14, 28)))
+    }
+
+    @objc private func confirmTextFieldAction(_ sender: NSTextField) {
+        _ = commitInlineTextEditingIfNeeded()
     }
 
     func refreshGuideVisibility() {
