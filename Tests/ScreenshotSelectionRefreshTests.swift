@@ -55,6 +55,8 @@ enum ScreenshotSelectionRefreshContract {
         var loupeImage: CGImage?
         var dragOrigin: CGPoint?
         var selection = CGRect.zero
+        var isAdjusting = false
+        var activeHandle: ScreenshotSupport.Handle?
         var hoverPoint = CGPoint.zero
         var pointerIsInside = false
         var hoveredWindow: ScreenshotSupport.PickableWindow?
@@ -69,6 +71,8 @@ enum ScreenshotSelectionRefreshContract {
         func refreshCaptureGuide() {}
         func refreshPointerState() {}
         func updateLoupeImage(_ image: CGImage?) { loupeImage = image }
+        /// Production Enter/Done confirm for adjustable regions; unused in these doubles.
+        func confirmAdjustingSelectionIfNeeded() -> Bool { false }
     }
     @MainActor final class ScreenshotOverlayPanel {
         let displayID: CGDirectDisplayID

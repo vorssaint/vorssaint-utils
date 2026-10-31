@@ -17,7 +17,11 @@ enum NotchCaptureKeyboardContract {
         var overlayView = Overlay()
         let screenFrame = CGRect(x: 0, y: 0, width: 100, height: 100)
     }
-    final class Overlay { var isDragging = false }
+    final class Overlay {
+        var isDragging = false
+        /// Production Enter confirm for adjustable regions; unused in these doubles.
+        func confirmAdjustingSelectionIfNeeded() -> Bool { false }
+    }
     enum ShortcutCapture { static var isCapturing = false }
     struct NSEvent {
         static let mouseLocation = CGPoint(x: 23, y: 61)

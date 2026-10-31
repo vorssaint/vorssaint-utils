@@ -3680,6 +3680,34 @@ enum ScreenshotFeatureTests {
                "screenshot annotation shadows ship off")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotShowLastRegion] as? Bool == true,
                "the previous capture outline stays visible by default, as it always was")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotConfirmSelection] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotConfirmSelection),
+               "confirm-before-capture ships off and travels in settings backups")
+        suite.expect(AppLanguage.allCases.allSatisfy { language in
+            let strings = FeatureStrings.screenshot(language)
+            return !strings.confirmSelectionToggle.isEmpty && !strings.confirmSelectionCaption.isEmpty
+        }, "confirm-selection settings copy exists in every language")
+        suite.expect(ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: true,
+                                                                   isColorPick: false,
+                                                                   isWindowClick: false)
+                && !ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: false,
+                                                                  isColorPick: false,
+                                                                  isWindowClick: false)
+                && !ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: true,
+                                                                  isColorPick: true,
+                                                                  isWindowClick: false)
+                && !ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: true,
+                                                                  isColorPick: false,
+                                                                  isWindowClick: true),
+               "confirm-before-capture only gates region drags, not color picks or window clicks")
+        let confirmBounds = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let confirmSelection = CGRect(x: 40, y: 40, width: 120, height: 80)
+        let doneRect = ScreenshotSupport.confirmSelectionDoneButtonRect(for: confirmSelection,
+                                                                        in: confirmBounds)
+        suite.expect(confirmBounds.contains(doneRect)
+                && doneRect.width == ScreenshotSupport.confirmSelectionDoneButtonSize
+                && doneRect.minX >= confirmSelection.maxX,
+               "the Done control sits outside the selection and stays on-screen")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,
                "window highlights preserve the existing selection appearance by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,
