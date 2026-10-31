@@ -129,11 +129,18 @@ final class ScreenshotConfirmInlineSession {
     var isAnnotating: Bool { annotating }
 
     /// Drawing tools always use the selection interior. Select does too once
-    /// OCR words exist (or a recognition is in flight) so taps pick text
-    /// instead of panning the crop; otherwise select still moves the frame.
+    /// annotations or OCR words exist so taps can re-edit text / pick marks
+    /// instead of panning the crop (CleanShot / WeChat). An empty select
+    /// session still moves the frame.
     var usesSelectionInteriorForTools: Bool {
         if model.tool != .select { return true }
-        return pendingOCRRecognize || !model.textWords.isEmpty
+        if pendingOCRRecognize || !model.textWords.isEmpty { return true }
+        return !model.annotations.isEmpty
+    }
+
+    /// Marks that should lock crop handles until the person unlocks (Shottr).
+    var hasLockableAnnotations: Bool {
+        !model.annotations.isEmpty
     }
 
     func prepareForExport() {

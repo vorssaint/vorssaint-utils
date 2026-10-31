@@ -1159,6 +1159,10 @@ private final class ScreenshotOverlayView: NSView {
     /// AppKit field so Return/commit reads `stringValue` synchronously (SwiftUI
     /// bindings lagged behind the local key monitor and dropped the draft).
     private var confirmTextField: NSTextField?
+    private var editingTextAnnotationID: UUID?
+    /// After the first mark, crop handles stay locked until the person unlocks
+    /// (Shottr / CleanShot). Cleared when annotations go empty.
+    private var selectionUnlocked = false
     /// True while a drawing tool owns the drag inside the selection.
     private var annotationDragActive = false
     /// Which grip is being dragged while adjusting; nil means moving the whole rect.
@@ -1221,6 +1225,16 @@ private final class ScreenshotOverlayView: NSView {
     /// shortcut gating miss and digits switch tools mid-typing.
     fileprivate var isEditingConfirmText: Bool {
         confirmTextField != nil
+    }
+
+    /// Crop grips are locked once annotations exist, unless unlocked.
+    private var isSelectionAdjustLocked: Bool {
+        guard let session = inlineSession else { return false }
+        return session.hasLockableAnnotations && !selectionUnlocked
+    }
+
+    private var showsSelectionLockControl: Bool {
+        inlineSession?.hasLockableAnnotations == true
     }
 
     fileprivate func performInlineUndoRedo(redo: Bool) -> Bool {
@@ -1548,7 +1562,8 @@ private final class ScreenshotOverlayView: NSView {
                 // Toolbar hits are handled by the hosted SwiftUI controls.
                 return
             }
-            if let handle = ScreenshotSupport.handle(
+            if !isSelectionAdjustLocked,
+               let handle = ScreenshotSupport.handle(
                 at: point,
                 rect: selection,
                 tolerance: ScreenshotSupport.confirmSelectionHandleTolerance) {
@@ -1571,6 +1586,8 @@ private final class ScreenshotOverlayView: NSView {
                     needsDisplay = true
                     return
                 }
+                // Move the whole crop only while unlocked / still unmarked.
+                guard !isSelectionAdjustLocked else { return }
                 activeHandle = nil
                 annotationDragActive = false
                 adjustBaseRect = selection
@@ -1790,9 +1807,14 @@ private final class ScreenshotOverlayView: NSView {
             viewSize: bounds.size)
         else { return }
         session.onChange = { [weak self] in
-            self?.needsDisplay = true
-            self?.layoutConfirmToolbar()
-            self?.layoutConfirmTextEditor()
+            guard let self else { return }
+            // Undo that clears every mark unlocks the crop again.
+            if self.inlineSession?.hasLockableAnnotations != true {
+                self.selectionUnlocked = false
+            }
+            self.needsDisplay = true
+            self.refreshConfirmToolbarContent()
+            self.layoutConfirmTextEditor()
         }
         session.onOCRFeedback = { [weak self] message in
             self?.showConfirmFeedback(message)
@@ -1807,12 +1829,30 @@ private final class ScreenshotOverlayView: NSView {
         removeConfirmTextEditor()
         inlineSession = nil
         annotationDragActive = false
+        selectionUnlocked = false
+        editingTextAnnotationID = nil
     }
 
     private func installConfirmToolbar(session: ScreenshotConfirmInlineSession) {
-        let toolbar = ScreenshotConfirmToolbar(
+        let host = PassThroughHostingView(interactiveRootView: makeConfirmToolbar(session: session))
+        addSubview(host)
+        toolbarHost = host
+        layoutConfirmToolbar()
+        layoutConfirmTextEditor()
+    }
+
+    private func refreshConfirmToolbarContent() {
+        guard let session = inlineSession, let host = toolbarHost else { return }
+        host.rootView = makeConfirmToolbar(session: session)
+        layoutConfirmToolbar()
+    }
+
+    private func makeConfirmToolbar(session: ScreenshotConfirmInlineSession) -> ScreenshotConfirmToolbar {
+        ScreenshotConfirmToolbar(
             model: session.model,
             strings: strings,
+            selectionLocked: isSelectionAdjustLocked,
+            showsSelectionLock: showsSelectionLockControl,
             onComplete: { [weak self] in
                 _ = self?.confirmAdjustingSelectionIfNeeded()
             },
@@ -1833,12 +1873,13 @@ private final class ScreenshotOverlayView: NSView {
             onRedo: { [weak self] in
                 self?.inlineSession?.model.redo()
                 self?.needsDisplay = true
+            },
+            onToggleSelectionLock: { [weak self] in
+                guard let self else { return }
+                self.selectionUnlocked.toggle()
+                self.refreshConfirmToolbarContent()
+                self.needsDisplay = true
             })
-        let host = PassThroughHostingView(interactiveRootView: toolbar)
-        addSubview(host)
-        toolbarHost = host
-        layoutConfirmToolbar()
-        layoutConfirmTextEditor()
     }
 
     private func layoutConfirmToolbar() {
@@ -1861,6 +1902,7 @@ private final class ScreenshotOverlayView: NSView {
     private func removeConfirmTextEditor() {
         confirmTextField?.removeFromSuperview()
         confirmTextField = nil
+        editingTextAnnotationID = nil
     }
 
     private func layoutConfirmTextEditor() {
@@ -1875,7 +1917,9 @@ private final class ScreenshotOverlayView: NSView {
         let zoomY = selection.height / max(session.model.imageSize.height, 1)
         let fontSize = max(11, ScreenshotRenderer.fontSize(for: annotation.textSize,
                                                            scale: session.model.scale) * min(zoomX, zoomY))
-        if confirmTextField == nil {
+        // Re-open on a different label must rebuild the field with that text.
+        if confirmTextField == nil || editingTextAnnotationID != editingID {
+            removeConfirmTextEditor()
             let field = NSTextField(frame: .zero)
             field.placeholderString = strings.textPlaceholder
             field.stringValue = annotation.text
@@ -1892,6 +1936,7 @@ private final class ScreenshotOverlayView: NSView {
             field.action = #selector(confirmTextFieldAction(_:))
             addSubview(field)
             confirmTextField = field
+            editingTextAnnotationID = editingID
             window?.makeFirstResponder(field)
         }
         guard let field = confirmTextField else { return }
@@ -2073,16 +2118,18 @@ private final class ScreenshotOverlayView: NSView {
                   near: CGPoint(x: selection.midX, y: selection.maxY + 10))
 
         guard isAdjusting else { return }
-        for handle in ScreenshotSupport.Handle.allCases {
-            let position = handle.position(in: selection)
-            let radius: CGFloat = 4.5
-            let dot = CGRect(x: position.x - radius, y: position.y - radius,
-                             width: radius * 2, height: radius * 2)
-            context.setFillColor(CGColor(gray: 1, alpha: 1))
-            context.fillEllipse(in: dot)
-            context.setStrokeColor(CGColor(srgbRed: 0.18, green: 0.55, blue: 1, alpha: 0.95))
-            context.setLineWidth(1.25)
-            context.strokeEllipse(in: dot)
+        if !isSelectionAdjustLocked {
+            for handle in ScreenshotSupport.Handle.allCases {
+                let position = handle.position(in: selection)
+                let radius: CGFloat = 4.5
+                let dot = CGRect(x: position.x - radius, y: position.y - radius,
+                                 width: radius * 2, height: radius * 2)
+                context.setFillColor(CGColor(gray: 1, alpha: 1))
+                context.fillEllipse(in: dot)
+                context.setStrokeColor(CGColor(srgbRed: 0.18, green: 0.55, blue: 1, alpha: 0.95))
+                context.setLineWidth(1.25)
+                context.strokeEllipse(in: dot)
+            }
         }
         if inlineSession == nil {
             // Freeze-off fallback: lone Complete until pixels exist for tools.

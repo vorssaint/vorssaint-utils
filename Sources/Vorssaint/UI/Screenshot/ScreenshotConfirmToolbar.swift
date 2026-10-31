@@ -8,12 +8,16 @@ import SwiftUI
 struct ScreenshotConfirmToolbar: View {
     @ObservedObject var model: ScreenshotEditorModel
     let strings: ScreenshotFeatureStrings
+    /// When true, crop handles are locked because annotations exist.
+    let selectionLocked: Bool
+    let showsSelectionLock: Bool
     let onComplete: () -> Void
     let onCancel: () -> Void
     let onPin: () -> Void
     let onOCR: () -> Void
     let onUndo: () -> Void
     let onRedo: () -> Void
+    let onToggleSelectionLock: () -> Void
 
     private var tools: [ScreenshotSupport.Tool] {
         ScreenshotSupport.Tool.confirmAnnotateTools
@@ -33,6 +37,15 @@ struct ScreenshotConfirmToolbar: View {
                 }
                 actionIcon("arrow.uturn.forward", enabled: model.canRedo, help: "Redo") {
                     onRedo()
+                }
+
+                if showsSelectionLock {
+                    chromeDivider
+                    actionIcon(selectionLocked ? "lock.fill" : "lock.open",
+                               enabled: true,
+                               help: selectionLocked ? "Unlock selection size" : "Lock selection size") {
+                        onToggleSelectionLock()
+                    }
                 }
 
                 chromeDivider
