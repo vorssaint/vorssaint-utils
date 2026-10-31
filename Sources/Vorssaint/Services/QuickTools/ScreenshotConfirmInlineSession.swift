@@ -65,9 +65,8 @@ final class ScreenshotConfirmInlineSession {
         // Confirm overlay always opens on arrow, matching WeChat and the editor's
         // fallback starting tool — not select (which would only move the frame).
         model.tool = .arrow
-        // Overlay arrows read thin at medium; start one step thicker than the
-        // editor's remembered default so the first stroke is easy to see.
-        model.stroke = .large
+        // Confirm overlay keeps the editor's medium stroke — large looked too thick.
+        model.stroke = .medium
         return ScreenshotConfirmInlineSession(
             model: model,
             sourceImage: sourceImage,
@@ -234,7 +233,11 @@ final class ScreenshotConfirmInlineSession {
     /// Pin at the live selection's on-screen frame (original size), then the
     /// caller dismisses the capture UI — WeChat-style floating pin.
     func pin(screenFrame: CGRect) {
-        guard let export = exportImage() else { return }
+        prepareForExport()
+        // Keep Retina pixels: the 1x-downscale preference is for files/clipboard,
+        // not the floating pin (which should match the confirm preview sharpness).
+        guard let export = model.exportImage(withBackdrop: false, downscaleTo1x: false)
+        else { return }
         ScreenshotPinController.shared.pin(image: export.image,
                                            scale: export.scale,
                                            screenFrame: screenFrame)

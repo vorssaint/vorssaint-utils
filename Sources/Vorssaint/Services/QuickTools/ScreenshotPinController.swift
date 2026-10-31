@@ -96,10 +96,10 @@ private final class ScreenshotPinWindow: OverlayPanel {
                              height: CGFloat(image.height) / max(scale, 0.001))
         let rect: CGRect
         if let preferred = preferredScreenFrame, preferred.width >= 2, preferred.height >= 2 {
-            // Confirm-overlay pin: keep the capture's on-screen size and place
-            // it where the selection was (WeChat-style), only shrinking when it
-            // cannot fit the visible desktop.
-            var size = preferred.size
+            // Confirm-overlay pin: use the image's true point size (pixels / scale)
+            // so Retina captures are not resampled, and place that frame where
+            // the selection was (WeChat-style). Shrink only when it cannot fit.
+            var size = natural
             let maxW = max(90, screen.width - 24)
             let maxH = max(60, screen.height - 24)
             let fit = min(1, min(maxW / max(size.width, 1), maxH / max(size.height, 1)))
@@ -138,7 +138,7 @@ private final class ScreenshotPinWindow: OverlayPanel {
                                     height: CGFloat(max(1, image.height)))
         minSize = CGSize(width: 90, height: 60)
 
-        let view = PinContentView(image: image, window: self)
+        let view = PinContentView(image: image, scale: scale, window: self)
         contentView = view
     }
 
@@ -220,17 +220,28 @@ private final class ScreenshotPinWindow: OverlayPanel {
         /// releases its window from inside this view's own event handling,
         /// so a menu item or a second click can arrive with the window gone.
         private weak var pinWindow: ScreenshotPinWindow?
+        private let imageScale: CGFloat
 
-        init(image: CGImage, window: ScreenshotPinWindow) {
+        init(image: CGImage, scale: CGFloat, window: ScreenshotPinWindow) {
             pinWindow = window
+            imageScale = max(scale, 0.001)
             super.init(frame: .zero)
             wantsLayer = true
+            // Map CGImage pixels through the capture scale (not a default 1x
+            // contentsScale). On Retina, omitting this stretched a 2x bitmap
+            // as if it were 1x points and the floating pin looked soft.
             layer?.contents = image
-            layer?.contentsGravity = .resizeAspect
+            layer?.contentsGravity = .resize
+            layer?.contentsScale = imageScale
             layer?.cornerRadius = 7
             layer?.masksToBounds = true
             layer?.borderWidth = 1
             layer?.borderColor = CGColor(gray: 0.5, alpha: 0.4)
+        }
+
+        override func viewDidChangeBackingProperties() {
+            super.viewDidChangeBackingProperties()
+            layer?.contentsScale = imageScale
         }
 
         @available(*, unavailable)

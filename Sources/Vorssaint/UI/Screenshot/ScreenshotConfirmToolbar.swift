@@ -9,16 +9,14 @@ struct ScreenshotConfirmToolbar: View {
     @ObservedObject var model: ScreenshotEditorModel
     let strings: ScreenshotFeatureStrings
     let onComplete: () -> Void
+    let onCancel: () -> Void
     let onPin: () -> Void
     let onOCR: () -> Void
     let onUndo: () -> Void
     let onRedo: () -> Void
 
-    @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
-        ScreenshotSupport.Tool.defaultOrderStorage
-
     private var tools: [ScreenshotSupport.Tool] {
-        ScreenshotSupport.Tool.ordered(from: toolOrderRaw)
+        ScreenshotSupport.Tool.confirmAnnotateTools
     }
 
     var body: some View {
@@ -47,6 +45,10 @@ struct ScreenshotConfirmToolbar: View {
                 }
 
                 chromeDivider
+
+                actionIcon("xmark", enabled: true, help: strings.cancel) {
+                    onCancel()
+                }
 
                 Button(action: onComplete) {
                     Image(systemName: "checkmark")
@@ -108,17 +110,34 @@ struct ScreenshotConfirmToolbar: View {
 
             chromeDivider
 
-            ForEach(ScreenshotSupport.StrokeID.allCases, id: \.self) { stroke in
-                let selected = model.stroke == stroke
-                Button {
-                    model.stroke = stroke
-                } label: {
-                    Capsule()
-                        .fill(Color.primary.opacity(selected ? 0.9 : 0.35))
-                        .frame(width: 18, height: stroke.width)
+            if model.tool == .text {
+                ForEach(ScreenshotSupport.textSizes.filter { [14, 19, 24, 36].contains($0) },
+                        id: \.self) { size in
+                    let selected = model.textSize == size
+                    Button {
+                        model.textSize = size
+                    } label: {
+                        Text("A")
+                            .font(.system(size: max(9, CGFloat(size) * 0.45), weight: .bold))
+                            .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.7))
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .help(strings.fontSizeLabel)
                 }
-                .buttonStyle(.plain)
-                .help(stroke.rawValue)
+            } else {
+                ForEach(ScreenshotSupport.StrokeID.allCases, id: \.self) { stroke in
+                    let selected = model.stroke == stroke
+                    Button {
+                        model.stroke = stroke
+                    } label: {
+                        Capsule()
+                            .fill(Color.primary.opacity(selected ? 0.9 : 0.35))
+                            .frame(width: 18, height: stroke.width)
+                    }
+                    .buttonStyle(.plain)
+                    .help(stroke.rawValue)
+                }
             }
         }
         .padding(.leading, 2)
@@ -164,5 +183,37 @@ struct ScreenshotConfirmToolbar: View {
         .disabled(!enabled)
         .help(help)
         .accessibilityLabel(help)
+    }
+}
+
+/// Inline text field hosted over a confirm-selection annotation.
+struct ScreenshotConfirmTextEditor: View {
+    let placeholder: String
+    let color: Color
+    let fontSize: CGFloat
+    @Binding var text: String
+    let onSubmit: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .font(.system(size: fontSize, weight: .semibold))
+            .foregroundStyle(color)
+            .focused($focused)
+            .frame(minWidth: 120)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(.black.opacity(0.35),
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.7), lineWidth: 1)
+            )
+            .onAppear {
+                DispatchQueue.main.async { focused = true }
+            }
+            .onSubmit(onSubmit)
+            .onExitCommand(perform: onSubmit)
     }
 }

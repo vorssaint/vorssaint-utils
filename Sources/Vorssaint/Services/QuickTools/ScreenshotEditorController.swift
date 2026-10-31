@@ -1354,9 +1354,11 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Output
 
-    func exportImage(withBackdrop: Bool = true) -> ScreenshotRenderer.Export? {
+    func exportImage(withBackdrop: Bool = true,
+                     downscaleTo1x: Bool? = nil) -> ScreenshotRenderer.Export? {
         ensureBlurSamplesForAnnotations()
-        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        let downscale = downscaleTo1x
+            ?? UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         return ScreenshotRenderer.renderExport(
             baseImage: baseImage,
             annotations: annotations,

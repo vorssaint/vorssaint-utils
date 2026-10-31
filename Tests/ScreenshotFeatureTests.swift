@@ -3703,14 +3703,11 @@ enum ScreenshotFeatureTests {
                                                                   isColorPick: true,
                                                                   isWindowClick: true),
                "confirm-before-capture gates region drags and window clicks; color picks stay immediate")
-        // Digits 1–4 map through the shared editor shortcut table (default order:
-        // select, arrow, pixelate, crop). Confirm overlay starts on arrow.
-        let order = ScreenshotSupport.Tool.defaultOrderStorage
-        suite.expect(ScreenshotSupport.Tool.shortcutTool(number: 1, orderRaw: order, enabled: true) == .select
-                && ScreenshotSupport.Tool.shortcutTool(number: 2, orderRaw: order, enabled: true) == .arrow
-                && ScreenshotSupport.Tool.shortcutTool(number: 3, orderRaw: order, enabled: true) == .pixelate
-                && ScreenshotSupport.Tool.shortcutTool(number: 4, orderRaw: order, enabled: true) == .crop,
-               "confirm-selection tool digits 1–4 match the screenshot editor rail")
+        // Confirm overlay digits follow the slim WeChat-style strip, not the
+        // full editor rail (select/crop/sticker/expand stay out).
+        let confirmTools = ScreenshotSupport.Tool.confirmAnnotateTools
+        suite.expect(confirmTools == [.freehand, .arrow, .rect, .ellipse, .pixelate, .text],
+               "confirm-selection toolbar keeps pen/arrow/shapes/mosaic/text only")
         suite.expect(ScreenshotSupport.Tool.startingTool(remembered: nil) == .arrow
                 && ScreenshotSupport.Tool.startingTool(remembered: "select") == .arrow,
                "confirm overlay default annotate tool is arrow")
@@ -3744,8 +3741,12 @@ enum ScreenshotFeatureTests {
                 && fullToolbar.maxY <= confirmBounds.maxY - 12
                 && fullToolbar.maxY <= fullSelection.maxY,
                "a full-screen selection keeps the annotate toolbar on-screen below the menu bar")
-        suite.expect(ScreenshotSupport.Tool.editorTools.count >= 10,
-               "confirm-selection toolbar exposes the real editor tool set")
+        suite.expect(ScreenshotSupport.Tool.confirmAnnotateTools.count == 6
+                && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.crop)
+                && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.sticker)
+                && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.expandCanvas)
+                && ScreenshotSupport.Tool.confirmAnnotateTools.contains(.text),
+               "confirm-selection toolbar is the slim annotate set with text, no crop/sticker/expand")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,
                "window highlights preserve the existing selection appearance by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,

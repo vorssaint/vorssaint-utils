@@ -1498,6 +1498,12 @@ enum ScreenshotSupport {
         /// Content-only image annotations never appear in the tool rail.
         static var editorTools: [Tool] { allCases.filter { $0 != .image } }
 
+        /// WeChat-style confirm-selection strip: draw + mosaic + text only.
+        /// Crop / expand / stickers / select stay in the full editor.
+        static let confirmAnnotateTools: [Tool] = [
+            .freehand, .arrow, .rect, .ellipse, .pixelate, .text
+        ]
+
         static let shortcutLimit = 9
 
         static var defaultOrderStorage: String {
@@ -2061,7 +2067,7 @@ enum ScreenshotSupport {
     static let confirmSelectionDoneButtonGap: CGFloat = 8
     /// Preferred inline toolbar height (tools row + optional style strip).
     static let confirmSelectionToolbarHeight: CGFloat = 72
-    static let confirmSelectionToolbarMinWidth: CGFloat = 420
+    static let confirmSelectionToolbarMinWidth: CGFloat = 340
 
     /// Places a WeChat-style toolbar outside the selection, preferring below
     /// then above. When the selection fills the display, the bar sits inside

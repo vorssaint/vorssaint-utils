@@ -433,8 +433,10 @@ final class ScreenshotSelectionController {
             }
             switch Int(event.keyCode) {
             case kVK_Escape:
+                if self.commitInlineTextEditingIfNeeded() { break }
                 self.finish(.cancelled)
             case kVK_Return, kVK_ANSI_KeypadEnter:
+                if self.commitInlineTextEditingIfNeeded() { break }
                 self.confirmSelectionWithKeyboard()
             case kVK_Space:
                 if let panel = self.panelUnderMouse(), panel.overlayView.isDragging {
@@ -486,20 +488,32 @@ final class ScreenshotSelectionController {
         guard let panel = panels.first(where: { $0.overlayView.isAdjustingSelection })
         else { return false }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let orderRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder)
-        let bindingsRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolShortcuts)
         let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotToolShortcutsEnabled)
         let number = event.characters?.first.flatMap { Int(String($0)) }
+        // Digits follow the slim confirm strip (pen/arrow/rect/ellipse/mosaic/text),
+        // not the full editor rail order.
+        if enabled, let number, (1...ScreenshotSupport.Tool.confirmAnnotateTools.count).contains(number) {
+            let tool = ScreenshotSupport.Tool.confirmAnnotateTools[number - 1]
+            return panel.overlayView.applyInlineAnnotateTool(tool)
+        }
+        let orderRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder)
+        let bindingsRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolShortcuts)
         guard let tool = ScreenshotSupport.Tool.shortcutTool(
             keyCode: Int64(event.keyCode),
             modifiers: GlobalShortcutModifiers(eventFlags: flags),
-            number: number,
+            number: nil,
             orderRaw: orderRaw,
             bindingsRaw: bindingsRaw,
             enabled: enabled,
-            capsLockOn: flags.contains(.capsLock))
+            capsLockOn: flags.contains(.capsLock)),
+              ScreenshotSupport.Tool.confirmAnnotateTools.contains(tool)
         else { return false }
         return panel.overlayView.applyInlineAnnotateTool(tool)
+    }
+
+    /// Commits in-progress confirm-overlay text editing, if any.
+    private func commitInlineTextEditingIfNeeded() -> Bool {
+        panels.contains { $0.overlayView.commitInlineTextEditingIfNeeded() }
     }
 
     /// The loupe toggle follows the typed character, with the physical slot
@@ -1096,6 +1110,8 @@ private final class ScreenshotOverlayView: NSView {
     /// Shared editor model hosted on the selection surface (WeChat-style annotate).
     private var inlineSession: ScreenshotConfirmInlineSession?
     private var toolbarHost: PassThroughHostingView<ScreenshotConfirmToolbar>?
+    private var textEditorHost: PassThroughHostingView<ScreenshotConfirmTextEditor>?
+    private var editingTextDraft = ""
     /// True while a drawing tool owns the drag inside the selection.
     private var annotationDragActive = false
     /// Which grip is being dragged while adjusting; nil means moving the whole rect.
@@ -1128,8 +1144,25 @@ private final class ScreenshotOverlayView: NSView {
 
     /// Digit / custom bindings while handles + toolbar are showing.
     fileprivate func applyInlineAnnotateTool(_ tool: ScreenshotSupport.Tool) -> Bool {
-        guard isAdjusting, let session = inlineSession else { return false }
+        guard isAdjusting, let session = inlineSession,
+              ScreenshotSupport.Tool.confirmAnnotateTools.contains(tool)
+        else { return false }
         session.model.tool = tool
+        layoutConfirmToolbar()
+        layoutConfirmTextEditor()
+        needsDisplay = true
+        return true
+    }
+
+    /// Returns true when an inline text draft was committed (caller should not
+    /// treat Esc/Return as cancel/complete).
+    fileprivate func commitInlineTextEditingIfNeeded() -> Bool {
+        guard let session = inlineSession, let id = session.model.editingTextID else {
+            return false
+        }
+        session.model.commitText(id, text: editingTextDraft)
+        editingTextDraft = ""
+        removeConfirmTextEditor()
         layoutConfirmToolbar()
         needsDisplay = true
         return true
@@ -1547,6 +1580,7 @@ private final class ScreenshotOverlayView: NSView {
                 activeHandle = nil
                 controller.spaceIsDown = false
                 layoutConfirmToolbar()
+                layoutConfirmTextEditor()
                 needsDisplay = true
                 return
             }
@@ -1629,6 +1663,9 @@ private final class ScreenshotOverlayView: NSView {
         if let host = toolbarHost, !host.isHidden, host.frame.contains(point) {
             return true
         }
+        if let host = textEditorHost, !host.isHidden, host.frame.contains(point) {
+            return true
+        }
         if inlineSession == nil {
             return ScreenshotSupport.confirmSelectionDoneButtonRect(
                 for: selection, in: bounds).contains(point)
@@ -1677,6 +1714,7 @@ private final class ScreenshotOverlayView: NSView {
         session.onChange = { [weak self] in
             self?.needsDisplay = true
             self?.layoutConfirmToolbar()
+            self?.layoutConfirmTextEditor()
         }
         session.onOCRFeedback = { [weak self] message in
             self?.showConfirmFeedback(message)
@@ -1688,8 +1726,10 @@ private final class ScreenshotOverlayView: NSView {
     private func endInlineEditingSession() {
         toolbarHost?.removeFromSuperview()
         toolbarHost = nil
+        removeConfirmTextEditor()
         inlineSession = nil
         annotationDragActive = false
+        editingTextDraft = ""
     }
 
     private func installConfirmToolbar(session: ScreenshotConfirmInlineSession) {
@@ -1698,6 +1738,9 @@ private final class ScreenshotOverlayView: NSView {
             strings: strings,
             onComplete: { [weak self] in
                 _ = self?.confirmAdjustingSelectionIfNeeded()
+            },
+            onCancel: { [weak self] in
+                self?.controller?.cancel()
             },
             onPin: { [weak self] in
                 self?.pinAdjustingSelection()
@@ -1718,6 +1761,7 @@ private final class ScreenshotOverlayView: NSView {
         addSubview(host)
         toolbarHost = host
         layoutConfirmToolbar()
+        layoutConfirmTextEditor()
     }
 
     private func layoutConfirmToolbar() {
@@ -1735,6 +1779,50 @@ private final class ScreenshotOverlayView: NSView {
             size: size,
             topInset: topInset,
             bottomInset: bottomInset)
+    }
+
+    private func removeConfirmTextEditor() {
+        textEditorHost?.removeFromSuperview()
+        textEditorHost = nil
+    }
+
+    private func layoutConfirmTextEditor() {
+        guard isAdjusting, let session = inlineSession,
+              let editingID = session.model.editingTextID,
+              let annotation = session.model.annotations.first(where: { $0.id == editingID })
+        else {
+            removeConfirmTextEditor()
+            return
+        }
+        let zoomX = selection.width / max(session.model.imageSize.width, 1)
+        let zoomY = selection.height / max(session.model.imageSize.height, 1)
+        let fontSize = max(11, ScreenshotRenderer.fontSize(for: annotation.textSize,
+                                                           scale: session.model.scale) * min(zoomX, zoomY))
+        let color = Color(nsColor: ScreenshotRenderer.nsColor(annotation.color))
+        if textEditorHost == nil {
+            editingTextDraft = annotation.text
+            let editor = ScreenshotConfirmTextEditor(
+                placeholder: strings.textPlaceholder,
+                color: color,
+                fontSize: fontSize,
+                text: Binding(
+                    get: { [weak self] in self?.editingTextDraft ?? "" },
+                    set: { [weak self] in self?.editingTextDraft = $0 }),
+                onSubmit: { [weak self] in
+                    _ = self?.commitInlineTextEditingIfNeeded()
+                })
+            let host = PassThroughHostingView(interactiveRootView: editor)
+            addSubview(host)
+            textEditorHost = host
+        }
+        guard let host = textEditorHost else { return }
+        let fitting = host.fittingSize
+        let origin = CGPoint(
+            x: selection.minX + annotation.rect.minX * zoomX - 6,
+            y: selection.minY + annotation.rect.minY * zoomY - 3)
+        host.frame = CGRect(origin: origin,
+                            size: CGSize(width: max(fitting.width, 130),
+                                         height: max(fitting.height, fontSize + 12)))
     }
 
     func refreshGuideVisibility() {

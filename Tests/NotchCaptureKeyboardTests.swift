@@ -21,6 +21,8 @@ enum NotchCaptureKeyboardContract {
         var isDragging = false
         /// Production Enter confirm for adjustable regions; unused in these doubles.
         func confirmAdjustingSelectionIfNeeded() -> Bool { false }
+        /// Production Esc/Return commits confirm-overlay text drafts first.
+        func commitInlineTextEditingIfNeeded() -> Bool { false }
     }
     enum ShortcutCapture { static var isCapturing = false }
     struct NSEvent {
