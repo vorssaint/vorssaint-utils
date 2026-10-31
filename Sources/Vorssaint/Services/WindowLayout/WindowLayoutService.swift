@@ -1620,7 +1620,8 @@ final class WindowLayoutService: ObservableObject {
             let lookupsExhausted = edgeSnapResolveAttempts >= edgeSnapResolveAttemptLimit && !edgeSnapResolving
             let releasedOverZone = pressOrigin.map {
                 WindowGestureSupport.exceedsDragSlop(from: $0, to: location)
-                    && edgeSnapTarget(atQuartzPoint: location, velocity: velocity) != nil
+                    && edgeSnapTarget(atQuartzPoint: location, velocity: velocity,
+                                      currentFrame: edgeSnapDrag?.initialFrame ?? pressCandidate?.frame) != nil
             } ?? false
             var lookedUpAtRelease = false
             if edgeSnapDrag == nil, releasedOverZone,
@@ -1695,7 +1696,8 @@ final class WindowLayoutService: ObservableObject {
                 pointerStart: drag.pointerStart,
                 pointerNow: releaseLocation
               ) == .moving,
-              let target = edgeSnapTarget(atQuartzPoint: releaseLocation, velocity: velocity)
+              let target = edgeSnapTarget(atQuartzPoint: releaseLocation, velocity: velocity,
+                                          currentFrame: current)
         else { return }
         applyEdgeSnap(drag, target: target)
     }
@@ -1863,7 +1865,23 @@ final class WindowLayoutService: ObservableObject {
             }
         }
 
-        let target = edgeSnapTarget(atQuartzPoint: location, velocity: edgeSnapTrail.velocity(at: now))
+        let velocity = edgeSnapTrail.velocity(at: now)
+        var target = edgeSnapTarget(atQuartzPoint: location, velocity: velocity,
+                                    currentFrame: drag.initialFrame)
+        if target?.action == .center {
+            let sampledAt = ProcessInfo.processInfo.systemUptime
+            if forceSample || drag.previewWindowFrame == nil
+                || sampledAt - drag.lastSampleAt >= edgeSnapSampleInterval {
+                guard let current = WindowServerSupport.frame(ofWindowID: drag.key.windowID) else {
+                    cancelEdgeSnapTracking()
+                    return
+                }
+                drag.previewWindowFrame = current
+                drag.lastSampleAt = sampledAt
+            }
+            target = edgeSnapTarget(atQuartzPoint: location, velocity: velocity,
+                                     currentFrame: drag.previewWindowFrame)
+        }
         if target != drag.target {
             drag.target = target
             if let target {
@@ -1876,13 +1894,15 @@ final class WindowLayoutService: ObservableObject {
     }
 
     /// `velocity` is in Quartz points per second, like the point.
-    private func edgeSnapTarget(atQuartzPoint point: CGPoint, velocity: CGVector) -> WindowEdgeSnapTarget? {
+    private func edgeSnapTarget(atQuartzPoint point: CGPoint, velocity: CGVector,
+                                currentFrame: CGRect? = nil) -> WindowEdgeSnapTarget? {
         let appKitPoint = CGPoint(x: point.x, y: menuBarScreenTopY - point.y)
         let screens = NSScreen.screens.map {
             WindowEdgeSnapScreen(frame: $0.frame, visibleFrame: $0.windowLayoutVisibleFrame)
         }
         return WindowEdgeSnapSupport.target(at: appKitPoint,
                                             screens: screens,
+                                            currentFrame: currentFrame,
                                             velocity: CGVector(dx: velocity.dx, dy: -velocity.dy),
                                             enabledZones: enabledEdgeSnapZones,
                                             layout: edgeSnapLayout)
@@ -3086,6 +3106,7 @@ private struct WindowEdgeSnapDrag {
     let window: AXUIElement
     let key: WindowLayoutWindowKey
     let initialFrame: CGRect
+    var previewWindowFrame: CGRect? = nil
     let pointerStart: CGPoint
     let protectsSystemTopEdge: Bool
     let quartzScreenFrames: [CGRect]

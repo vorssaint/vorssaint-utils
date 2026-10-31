@@ -510,10 +510,39 @@ enum WindowLayoutFeatureTests {
                && saved.actions(for: .topLeft) == [.topLeft]
                && saved.actions(for: .bottom) == [.bottomHalf]
                && saved.actions(for: .right) == [.rightHalf]
-               && saved.actions(for: .bottomRight) == [.bottomRight]
+               && saved.actions(for: .bottomRight) == [.center]
                && saved.actions(for: .topRight) == [.topRight]
                && saved.actions(for: .bottomLeft) == [.bottomLeftSixth],
-               "a saved area with an unknown placement, one a drop cannot preview or more than one area in a corner keeps its default, and the valid ones still apply")
+               "invalid saved areas keep defaults while valid choices, including center, apply")
+        var centered = WindowEdgeSnapLayout.standard
+        centered.setAction(.center, for: .top, part: 0)
+        centered.setPartCount(2, for: .left)
+        centered.setAction(.center, for: .left, part: 1)
+        suite.expect(centered.storageValue == "top=center,left=topHalf+center"
+               && WindowEdgeSnapLayout(storageValue: centered.storageValue) == centered,
+               "center persists for both whole and split drop areas")
+        let offsetScreen = WindowEdgeSnapScreen(
+            frame: CGRect(x: -1600, y: 100, width: 1200, height: 900),
+            visibleFrame: CGRect(x: -1600, y: 100, width: 1200, height: 870))
+        let dragged = CGRect(x: 50, y: 50, width: 700, height: 420)
+        let expectedCenter = WindowLayoutGeometry.rect(for: .center, current: dragged,
+                                                       visibleFrame: offsetScreen.visibleFrame).integral
+        let topCenter = WindowEdgeSnapSupport.target(
+            at: CGPoint(x: -1000, y: 970), screens: [offsetScreen],
+            currentFrame: dragged, layout: centered)
+        let splitCenter = WindowEdgeSnapSupport.target(
+            at: CGPoint(x: -1600, y: 300), screens: [offsetScreen],
+            currentFrame: dragged, layout: centered)
+        suite.expect(topCenter?.action == .center && topCenter?.frame == expectedCenter
+               && splitCenter?.action == .center && splitCenter?.frame == expectedCenter,
+               "center previews the dragged window size on an offset display from top and split edges")
+        let oversized = CGRect(x: 0, y: 0, width: 1800, height: 1100)
+        suite.expect(WindowEdgeSnapSupport.target(
+            at: CGPoint(x: -1000, y: 970), screens: [offsetScreen],
+            currentFrame: oversized, layout: centered)?.frame
+            == WindowLayoutGeometry.rect(for: .center, current: oversized,
+                                         visibleFrame: offsetScreen.visibleFrame).integral,
+            "center preview uses the same oversized-window clamp as placement")
         let fiveAreas = "top=" + [WindowLayoutAction.leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter,
                                   .rightQuarter, .maximize].map(\.rawValue).joined(separator: "+")
         suite.expect(WindowEdgeSnapLayout(storageValue: fiveAreas) == .standard,
@@ -565,6 +594,9 @@ enum WindowLayoutFeatureTests {
 
         let offered = WindowEdgeSnapPlacementGroup.allCases.flatMap(\.actions)
         let pictures = offered.map(WindowEdgeSnapLayout.previewRect(for:))
+        suite.expect(WindowEdgeSnapLayout.previewRect(for: .center)
+                     == CGRect(x: 0.2, y: 0.2, width: 0.6, height: 0.6),
+                     "Settings depicts center as a distinct smaller window")
         let screenBounds = CGRect(x: 0, y: 0, width: 1, height: 1).insetBy(dx: -0.001, dy: -0.001)
         suite.expect(Set(offered).count == offered.count
                && pictures.indices.allSatisfy { first in
