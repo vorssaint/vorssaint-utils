@@ -52,6 +52,8 @@ over a new subsystem. Keep each PR focused on one independently useful change.
 - Update every locale in `AppLanguage.allCases`, including feature-specific
   string catalogs. A new language also needs its locale registration, localized
   permission prompts where applicable, and coverage tests.
+  Translate from the current English, and name macOS elements as macOS does in
+  that language: its `.loctable` files hold the exact strings.
 - New source files retain the project's SPDX license and copyright headers.
 
 Sensor changes should include a dump from `./build/Vorssaint --sensors` and the

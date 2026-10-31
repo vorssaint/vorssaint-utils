@@ -62,6 +62,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -179,6 +180,41 @@ extension QuitProtectionStrings {
         releaseHint: "Suelta para confirmar",
         shiftKey: "Mayúsculas",
         optionKey: "Opción",
+        controlKey: "Control"
+    )
+
+    static let ca = QuitProtectionStrings(
+        name: "Protecció de sortida",
+        description: "Protegeix ⌘Q i ⌘W de les premudes accidentals",
+        intro: "Configura cada drecera per separat. L’acció original només s’executa després de la confirmació seleccionada.",
+        enabled: "Protegeix aquesta drecera",
+        enabledCaption: "Les altres dreceres amb la tecla Ordre continuen funcionant amb normalitat.",
+        mode: "Mode de confirmació",
+        hold: "Mantén premut per confirmar",
+        doublePress: "Prem dues vegades",
+        extraModifier: "Requereix una tecla de modificació addicional",
+        holdDuration: "Durada de la premuda",
+        doublePressInterval: "Interval entre premudes",
+        modifier: "Tecla de modificació addicional",
+        appScope: "Apps",
+        allApps: "Totes les apps",
+        selectedOnly: "Només les apps seleccionades",
+        allExceptSelected: "Totes excepte les seleccionades",
+        exceptions: "Apps seleccionades",
+        noExceptions: "Cap app seleccionada",
+        addApp: "Afegeix una app…",
+        feedback: "Mostra una resposta visual",
+        accessibilityCaption: "La protecció utilitza el permís d’Accessibilitat per observar només ⌘Q i ⌘W a tot el sistema.",
+        holdQuitHUDFormat: "Mantén premut %@ per sortir",
+        holdCloseHUDFormat: "Mantén premut %@ per tancar",
+        doubleQuitHUDFormat: "Prem %@ de nou per sortir",
+        doubleCloseHUDFormat: "Prem %@ de nou per tancar",
+        extraQuitHUDFormat: "Fes servir %@ per sortir",
+        extraCloseHUDFormat: "Fes servir %@ per tancar",
+        cancelHint: "Esc per cancel·lar",
+        releaseHint: "Deixa anar per confirmar",
+        shiftKey: "Majúscules",
+        optionKey: "Opció",
         controlKey: "Control"
     )
 

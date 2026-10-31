@@ -63,6 +63,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -321,6 +322,56 @@ extension ScratchpadFeatureStrings {
         markLink: "Enlace",
         formatMarks: "Formato",
         textSize: "Tamaño del texto"
+    )
+
+    static let ca = ScratchpadFeatureStrings(
+        // Scratchpad is for taking notes, and macOS uses “esborrany” for “draft”. The backup description must contain this title (FeatureCatalogTests).
+        pageTitle: "Bloc de notes",
+        hubDescription: "Blocs flotants per a notes efímeres",
+        panelCaption: "Notes ràpides en pestanyes separades",
+        openButton: "Obre el bloc de notes",
+        placeholder: "Escriu el que vulguis. Es desa tot sol.",
+        copyAll: "Copia-ho tot",
+        copied: "Copiat",
+        exportAction: "Desa com a arxiu",
+        exportFailed: "No s’ha pogut desar l’arxiu",
+        loadFailed: "No s’han pogut obrir les notes. No s’hi ha fet cap canvi.",
+        saveFailed: "No s’han pogut desar les notes. Copia-les en un altre lloc abans de sortir.",
+        clearAction: "Esborra",
+        retentionTitle: "Esborrat automàtic",
+        retentionNever: "Mai",
+        retentionDay: "Després d’un dia sense ús",
+        retentionWeek: "Després d’una setmana sense ús",
+        retentionMonth: "Després d’un mes sense ús",
+        retentionCaption: "El bloc es buida quan el text passa aquest temps sense canvis.",
+        closeOnClickOutside: "Tanca en fer clic a fora",
+        keepOpen: "Mantén obert",
+        backgroundOpacity: "Fons del bloc",
+        backgroundTranslucent: "Translúcid",
+        backgroundOpaque: "Opac",
+        newPad: "Bloc de notes nou",
+        padActions: "Accions del bloc de notes",
+        renamePad: "Canvia el nom del bloc de notes",
+        closePad: "Tanca el bloc de notes",
+        saveName: "Desa",
+        cancel: "Cancel·la",
+        deletePadMessageFormat: "Vols eliminar “%@” i tot el que conté?",
+        padLimitFormat: "Pots tenir fins a %d blocs de notes",
+        previewFormatting: "Mostra el format",
+        editText: "Edita el text",
+        taskDone: "Feta",
+        taskNotDone: "Sense fer",
+        markBold: "Negreta",
+        markItalic: "Cursiva",
+        markStrikethrough: "Ratllat",
+        markHeading: "Capçalera",
+        markBullet: "Llista de vinyetes",
+        markNumbered: "Llista numerada",
+        markQuote: "Cita",
+        markCode: "Codi",
+        markLink: "Enllaç",
+        formatMarks: "Format",
+        textSize: "Mida del text"
     )
 
     static let sk = ScratchpadFeatureStrings(

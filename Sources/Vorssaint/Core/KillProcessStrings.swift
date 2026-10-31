@@ -47,6 +47,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -225,6 +226,39 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "No se pudo finalizar el proceso",
         killFailedMessage: "El proceso puede haber terminado ya o requerir privilegios adicionales.",
         adminPromptFormat: "Vorssaint necesita acceso de administrador para finalizar “%@”."
+    )
+
+    static let ca = KillProcessFeatureStrings(
+        pageTitle: "Finalitza processos",
+        browseSubtitle: "Explora i finalitza",
+        hubDescription: "Cerca processos en execució i en força la sortida, els reinicia o finalitza arbres de processos",
+        searchPlaceholder: "Filtra per nom",
+        columnProcess: "Procés",
+        columnCPU: "CPU",
+        columnMemory: "Memòria",
+        columnPID: "PID",
+        groupToggle: "Agrupa els processos relacionats",
+        groupCaption: "Agrupa els processos auxiliars sota l’app que en és responsable.",
+        commandBarToggle: "Mostra a la barra d’ordres",
+        commandBarCaption: "Afegeix els processos en execució a la barra d’ordres, perquè els puguis trobar i finalitzar sense obrir la configuració.",
+        refreshTooltip: "Actualitza",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "Processos: %d",
+        killButton: "Finalitza",
+        forceKillButton: "Força la finalització",
+        killAllFormat: "Finalitza tots els “%@”",
+        killTreeButton: "Finalitza l’arbre de processos",
+        restartButton: "Reinicia",
+        copyPID: "Copia el PID",
+        copyPath: "Copia la ruta",
+        emptyStateTitle: "No s’ha trobat cap procés",
+        confirmKillFormat: "Vols finalitzar %@?",
+        confirmForceKillFormat: "Vols forçar la finalització de %@?",
+        confirmKillAllFormat: "Vols finalitzar tots els processos “%@”?",
+        confirmKillTreeFormat: "Vols finalitzar %@ i tots els seus processos secundaris?",
+        killFailedTitle: "No s’ha pogut finalitzar el procés",
+        killFailedMessage: "És possible que el procés ja hagi acabat o que requereixi privilegis addicionals.",
+        adminPromptFormat: "El Vorssaint necessita accés d’administrador per finalitzar “%@”."
     )
 
     static let sk = KillProcessFeatureStrings(
