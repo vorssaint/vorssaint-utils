@@ -1209,6 +1209,10 @@ final class AppSwitcher: ObservableObject {
             guard hypot(mouse.x - anchor.x, mouse.y - anchor.y) > 4 else { return }
             hoverAnchor = nil
         }
+        // The edge slide starts only after the anchor clears, and it selects on its own.
+        guard SwitcherSupport.hoverMovesSelection(
+            ignoreHoverSelection: UserDefaults.standard.bool(forKey: DefaultsKey.switcherIgnoreHoverSelection))
+        else { return }
         select(index: index)
     }
 
@@ -1216,8 +1220,8 @@ final class AppSwitcher: ObservableObject {
         if hoveredWindowIndex == index { hoveredWindowIndex = nil }
     }
 
-    /// Icon-row hover. Selects the tile, then only the last visible overflow
-    /// icon may start the one-by-one slide.
+    /// Icon-row hover. Selects the tile unless hover selection is ignored,
+    /// then only the last visible overflow icon may start the one-by-one slide.
     func hoverSelectIconRow(index: Int) {
         hoverSelect(index: index)
         guard hoverAnchor == nil else { return }

@@ -236,6 +236,8 @@ extension Strings {
         switcherMaxColumnsAuto: "自動",
         switcherInstantSelection: "即時選取",
         switcherInstantSelectionCaption: "瀏覽 App 和視窗時，立即移動醒目提示並捲動列表。",
+        switcherIgnoreHoverSelection: "停留時不選取",
+        switcherIgnoreHoverSelectionCaption: "指標經過 App 和視窗時，醒目提示保持原位。按一下仍會開啟。",
         switcherMergeTabs: "每個 App 僅顯示一項",
         switcherMergeTabsCaption: "將一個 App 的所有視窗合併為切換器中的一項，而不是每個視窗一項。",
         switcherWindowlessApps: "沒有開啟視窗的 App",

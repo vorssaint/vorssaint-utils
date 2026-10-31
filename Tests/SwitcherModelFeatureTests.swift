@@ -457,6 +457,17 @@ enum SwitcherModelFeatureTests {
         }
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: instantSelectionBackup)?[DefaultsKey.switcherInstantSelection] as? Bool == true,
                "App Switcher restores the instant selection choice from a settings backup")
+        suite.expect(registeredDefaults[DefaultsKey.switcherIgnoreHoverSelection] as? Bool == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherIgnoreHoverSelection),
+               "App Switcher keeps hover selection by default and carries ignore-hover selection in backups")
+        let ignoreHoverBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.switcherIgnoreHoverSelection ? true : nil
+        }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: ignoreHoverBackup)?[DefaultsKey.switcherIgnoreHoverSelection] as? Bool == true,
+               "App Switcher restores the ignore-hover selection choice from a settings backup")
+        suite.expect(SwitcherSupport.hoverMovesSelection(ignoreHoverSelection: false)
+               && !SwitcherSupport.hoverMovesSelection(ignoreHoverSelection: true),
+               "hover moves the highlight until ignore-hover selection is on, and then leaves it")
         suite.expect(SwitcherSupport.appearanceDelayMillisecondsRange
                .contains(SwitcherSupport.defaultAppearanceDelayMilliseconds),
                "the default App Switcher appearance delay is one the slider accepts")
