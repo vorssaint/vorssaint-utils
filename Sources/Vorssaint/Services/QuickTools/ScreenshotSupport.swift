@@ -2056,23 +2056,34 @@ enum ScreenshotSupport {
 
     /// Hit tolerance for the eight region-adjust grips (view points).
     static let confirmSelectionHandleTolerance: CGFloat = 8
-    /// Green Done control size beside an adjustable selection.
+    /// Complete / Edit control size beside an adjustable selection.
     static let confirmSelectionDoneButtonSize: CGFloat = 28
     static let confirmSelectionDoneButtonGap: CGFloat = 8
+    /// Space between the Edit and Complete controls in the action cluster.
+    static let confirmSelectionActionSpacing: CGFloat = 8
 
-    /// Places the WeChat-style Done control outside the selection, preferring
+    /// Which control sits in the confirm-selection action cluster.
+    enum ConfirmSelectionAction: CaseIterable {
+        case edit
+        case complete
+    }
+
+    /// Origin of the Edit+Complete cluster outside the selection, preferring
     /// below-trailing in the flipped overlay, then clamping into `bounds`.
-    static func confirmSelectionDoneButtonRect(for selection: CGRect,
-                                               in bounds: CGRect,
-                                               size: CGFloat = confirmSelectionDoneButtonSize,
-                                               gap: CGFloat = confirmSelectionDoneButtonGap) -> CGRect {
+    static func confirmSelectionActionClusterOrigin(for selection: CGRect,
+                                                    in bounds: CGRect,
+                                                    includingEdit: Bool,
+                                                    size: CGFloat = confirmSelectionDoneButtonSize,
+                                                    gap: CGFloat = confirmSelectionDoneButtonGap,
+                                                    spacing: CGFloat = confirmSelectionActionSpacing) -> CGPoint {
+        let clusterWidth = includingEdit ? (size * 2 + spacing) : size
         var x = selection.maxX + gap
         var y = selection.maxY + gap
-        if x + size > bounds.maxX {
-            x = selection.minX - gap - size
+        if x + clusterWidth > bounds.maxX {
+            x = selection.minX - gap - clusterWidth
         }
         if x < bounds.minX {
-            x = min(max(selection.maxX - size, bounds.minX), bounds.maxX - size)
+            x = min(max(selection.maxX - clusterWidth, bounds.minX), bounds.maxX - clusterWidth)
         }
         if y + size > bounds.maxY {
             y = selection.minY - gap - size
@@ -2080,8 +2091,8 @@ enum ScreenshotSupport {
         if y < bounds.minY {
             y = bounds.minY
         }
-        if x + size > bounds.maxX {
-            x = max(bounds.minX, bounds.maxX - size)
+        if x + clusterWidth > bounds.maxX {
+            x = max(bounds.minX, bounds.maxX - clusterWidth)
         }
         if x < bounds.minX {
             x = bounds.minX
@@ -2089,7 +2100,45 @@ enum ScreenshotSupport {
         if y + size > bounds.maxY {
             y = max(bounds.minY, bounds.maxY - size)
         }
-        return CGRect(x: x, y: y, width: size, height: size)
+        return CGPoint(x: x, y: y)
+    }
+
+    /// Rect for Edit or Complete beside an adjustable selection.
+    static func confirmSelectionActionRect(_ action: ConfirmSelectionAction,
+                                           for selection: CGRect,
+                                           in bounds: CGRect,
+                                           includingEdit: Bool = true,
+                                           size: CGFloat = confirmSelectionDoneButtonSize,
+                                           gap: CGFloat = confirmSelectionDoneButtonGap,
+                                           spacing: CGFloat = confirmSelectionActionSpacing) -> CGRect {
+        let origin = confirmSelectionActionClusterOrigin(
+            for: selection,
+            in: bounds,
+            includingEdit: includingEdit,
+            size: size,
+            gap: gap,
+            spacing: spacing)
+        switch action {
+        case .edit:
+            return CGRect(x: origin.x, y: origin.y, width: size, height: size)
+        case .complete:
+            let x = includingEdit ? origin.x + size + spacing : origin.x
+            return CGRect(x: x, y: origin.y, width: size, height: size)
+        }
+    }
+
+    /// Places the Complete control (green check). Kept for call sites that only
+    /// need Done; when Edit is shown, Complete is the trailing control.
+    static func confirmSelectionDoneButtonRect(for selection: CGRect,
+                                               in bounds: CGRect,
+                                               size: CGFloat = confirmSelectionDoneButtonSize,
+                                               gap: CGFloat = confirmSelectionDoneButtonGap) -> CGRect {
+        confirmSelectionActionRect(.complete,
+                                   for: selection,
+                                   in: bounds,
+                                   includingEdit: false,
+                                   size: size,
+                                   gap: gap)
     }
 
     /// Region drags honor confirm-before-capture; window clicks and color picks do not.

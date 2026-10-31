@@ -35,6 +35,9 @@ final class ScreenshotSelectionController {
 
     enum Outcome {
         case captured(Capture)
+        /// Same pixels as `captured`, but the screenshot tool opens the editor
+        /// instead of running the configured After capture action.
+        case capturedForEdit(Capture)
         case region(RecorderSupport.Region)
         case scrollingRegion(RecorderSupport.Region)
         case color(NSColor)
@@ -206,7 +209,7 @@ final class ScreenshotSelectionController {
 
     private var activeTool: ScreenCaptureTool? { screenCaptureOptions?.selectedTool }
 
-    private var activeMode: Mode {
+    fileprivate var activeMode: Mode {
         switch activeTool {
         case .recording: return .geometry
         case .color: return .color
@@ -654,7 +657,9 @@ final class ScreenshotSelectionController {
             scale: scale)
     }
 
-    fileprivate func confirmRegion(_ viewRect: CGRect, on panel: ScreenshotOverlayPanel) {
+    fileprivate func confirmRegion(_ viewRect: CGRect,
+                                   on panel: ScreenshotOverlayPanel,
+                                   openEditor: Bool = false) {
         guard acceptsCaptureInput, activeMode != .color,
               viewRect.width >= 1, viewRect.height >= 1 else { return }
         markCapturePending()
@@ -676,19 +681,21 @@ final class ScreenshotSelectionController {
                 finish(.failed)
                 return
             }
-            finish(.captured(Capture(
+            let capture = Capture(
                 image: cropped,
                 scale: panel.pixelScale,
                 anchorRect: ScreenshotSupport.cocoaRect(
                     fromFlippedView: viewRect,
-                    screenFrame: panel.screenFrame))))
+                    screenFrame: panel.screenFrame))
+            finish(openEditor ? .capturedForEdit(capture) : .captured(capture))
         } else {
             captureLive(displayID: panel.displayID,
                         pixelRect: pixelRect,
                         scale: panel.pixelScale,
                         anchorRect: ScreenshotSupport.cocoaRect(
                             fromFlippedView: viewRect,
-                            screenFrame: panel.screenFrame))
+                            screenFrame: panel.screenFrame),
+                        openEditor: openEditor)
         }
     }
 
@@ -785,7 +792,8 @@ final class ScreenshotSelectionController {
     private func captureLive(displayID: CGDirectDisplayID,
                              pixelRect: CGRect?,
                              scale: CGFloat,
-                             anchorRect: CGRect) {
+                             anchorRect: CGRect,
+                             openEditor: Bool = false) {
         retirePanels()
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -809,9 +817,10 @@ final class ScreenshotSelectionController {
                 }
                 image = cropped
             }
-            self.finish(.captured(Capture(image: image,
-                                          scale: scale,
-                                          anchorRect: anchorRect)))
+            let capture = Capture(image: image,
+                                  scale: scale,
+                                  anchorRect: anchorRect)
+            self.finish(openEditor ? .capturedForEdit(capture) : .captured(capture))
         }
     }
 
@@ -1160,8 +1169,7 @@ private final class ScreenshotOverlayView: NSView {
     private func refreshCursor(at point: CGPoint) {
         let overControl = pointerIsOverFullScreenControl(point)
             || (!guideHost.isHidden && !guideHost.passesThrough && guideHost.frame.contains(point))
-            || (isAdjusting && ScreenshotSupport.confirmSelectionDoneButtonRect(
-                for: selection, in: bounds).contains(point))
+            || (isAdjusting && confirmActionHitTest(at: point) != nil)
         if overControl {
             NSCursor.arrow.set()
         } else if isAdjusting, selection.contains(point)
@@ -1331,10 +1339,8 @@ private final class ScreenshotOverlayView: NSView {
         hoverPoint = point
 
         if isAdjusting {
-            let doneRect = ScreenshotSupport.confirmSelectionDoneButtonRect(for: selection,
-                                                                            in: bounds)
-            if doneRect.contains(point) {
-                _ = confirmAdjustingSelectionIfNeeded()
+            if let action = confirmActionHitTest(at: point) {
+                _ = confirmAdjustingSelectionIfNeeded(openEditor: action == .edit)
                 return
             }
             if let handle = ScreenshotSupport.handle(
@@ -1468,14 +1474,37 @@ private final class ScreenshotOverlayView: NSView {
         controller.confirmRegion(selection, on: panel)
     }
 
-    /// Enter / Done while handles are showing. Returns whether a capture started.
-    fileprivate func confirmAdjustingSelectionIfNeeded() -> Bool {
+    /// Whether the Edit control is offered while adjusting (screenshot pixels
+    /// only — not scrolling capture or geometry/recorder picks).
+    private var offersConfirmEditAction: Bool {
+        guard let controller else { return false }
+        return controller.activeMode == .image && !controller.scrollingCaptureEnabled
+    }
+
+    private func confirmActionHitTest(at point: CGPoint) -> ScreenshotSupport.ConfirmSelectionAction? {
+        guard isAdjusting else { return nil }
+        let includingEdit = offersConfirmEditAction
+        let complete = ScreenshotSupport.confirmSelectionActionRect(
+            .complete, for: selection, in: bounds, includingEdit: includingEdit)
+        if complete.contains(point) { return .complete }
+        if includingEdit {
+            let edit = ScreenshotSupport.confirmSelectionActionRect(
+                .edit, for: selection, in: bounds, includingEdit: true)
+            if edit.contains(point) { return .edit }
+        }
+        return nil
+    }
+
+    /// Enter / Complete (or Edit) while handles are showing. Returns whether a
+    /// capture started. Enter always takes the Complete path.
+    fileprivate func confirmAdjustingSelectionIfNeeded(openEditor: Bool = false) -> Bool {
         guard isAdjusting, let controller, let panel,
               selection.width >= 2, selection.height >= 2 else { return false }
+        let edit = openEditor && offersConfirmEditAction
         isAdjusting = false
         activeHandle = nil
         dragOrigin = nil
-        controller.confirmRegion(selection, on: panel)
+        controller.confirmRegion(selection, on: panel, openEditor: edit)
         return true
     }
 
@@ -1647,23 +1676,44 @@ private final class ScreenshotOverlayView: NSView {
             context.setLineWidth(1.25)
             context.strokeEllipse(in: dot)
         }
-        drawConfirmDoneButton(context)
+        drawConfirmActionButtons(context)
     }
 
-    private func drawConfirmDoneButton(_ context: CGContext) {
-        let rect = ScreenshotSupport.confirmSelectionDoneButtonRect(for: selection, in: bounds)
+    private func drawConfirmActionButtons(_ context: CGContext) {
+        let includingEdit = offersConfirmEditAction
+        if includingEdit {
+            drawConfirmEditButton(
+                context,
+                in: ScreenshotSupport.confirmSelectionActionRect(
+                    .edit, for: selection, in: bounds, includingEdit: true))
+        }
+        drawConfirmCompleteButton(
+            context,
+            in: ScreenshotSupport.confirmSelectionActionRect(
+                .complete, for: selection, in: bounds, includingEdit: includingEdit))
+    }
+
+    private func drawConfirmButtonChrome(_ context: CGContext,
+                                         in rect: CGRect,
+                                         fill: CGColor) {
         context.saveGState()
         context.setShadow(offset: CGSize(width: 0, height: 1),
                           blur: 4,
                           color: CGColor(gray: 0, alpha: 0.35))
-        context.setFillColor(CGColor(srgbRed: 0.15, green: 0.78, blue: 0.35, alpha: 1))
+        context.setFillColor(fill)
         context.fillEllipse(in: rect)
         context.restoreGState()
         context.setStrokeColor(CGColor(gray: 1, alpha: 0.9))
         context.setLineWidth(1)
         context.strokeEllipse(in: rect)
+    }
 
-        // White checkmark, WeChat-style.
+    private func drawConfirmCompleteButton(_ context: CGContext, in rect: CGRect) {
+        drawConfirmButtonChrome(
+            context,
+            in: rect,
+            fill: CGColor(srgbRed: 0.15, green: 0.78, blue: 0.35, alpha: 1))
+        // White checkmark, WeChat-style Complete.
         let inset = rect.insetBy(dx: rect.width * 0.28, dy: rect.height * 0.28)
         context.setStrokeColor(CGColor(gray: 1, alpha: 1))
         context.setLineWidth(max(2.2, rect.width * 0.1))
@@ -1674,6 +1724,46 @@ private final class ScreenshotOverlayView: NSView {
         context.addLine(to: CGPoint(x: inset.minX + inset.width * 0.32, y: inset.maxY))
         context.addLine(to: CGPoint(x: inset.maxX, y: inset.minY))
         context.strokePath()
+    }
+
+    private func drawConfirmEditButton(_ context: CGContext, in rect: CGRect) {
+        drawConfirmButtonChrome(
+            context,
+            in: rect,
+            fill: CGColor(srgbRed: 0.18, green: 0.45, blue: 0.95, alpha: 1))
+        // Simple pencil glyph so the flipped overlay does not need SF Symbol
+        // mirroring gymnastics.
+        let inset = rect.insetBy(dx: rect.width * 0.28, dy: rect.height * 0.28)
+        context.setStrokeColor(CGColor(gray: 1, alpha: 1))
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.setLineWidth(max(2.0, rect.width * 0.09))
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        let tip = CGPoint(x: inset.maxX, y: inset.minY)
+        let bodyEnd = CGPoint(x: inset.minX + inset.width * 0.28,
+                              y: inset.maxY - inset.height * 0.18)
+        context.beginPath()
+        context.move(to: tip)
+        context.addLine(to: bodyEnd)
+        context.strokePath()
+        // Eraser end.
+        let eraser = CGRect(x: inset.minX,
+                            y: inset.maxY - inset.height * 0.38,
+                            width: inset.width * 0.34,
+                            height: inset.height * 0.34)
+        context.saveGState()
+        context.translateBy(x: eraser.midX, y: eraser.midY)
+        context.rotate(by: -.pi / 4)
+        context.translateBy(x: -eraser.midX, y: -eraser.midY)
+        context.stroke(eraser)
+        context.restoreGState()
+        // Tip diamond.
+        context.beginPath()
+        context.move(to: tip)
+        context.addLine(to: CGPoint(x: tip.x - inset.width * 0.18, y: tip.y + inset.height * 0.02))
+        context.addLine(to: CGPoint(x: tip.x - inset.width * 0.02, y: tip.y + inset.height * 0.18))
+        context.closePath()
+        context.fillPath()
     }
 
     private func drawWindowHighlight(_ context: CGContext, rect: CGRect) {
