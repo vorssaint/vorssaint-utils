@@ -423,8 +423,8 @@ enum ScreenshotFeatureTests {
                "capture delay only accepts the offered steps")
         suite.expect(ScreenshotSupport.allowedDelays == [0, 3, 5, 10],
                "region capture offers Off/3/5/10s countdown before selection")
-        suite.expect(ScreenshotSupport.confirmSelectionToolbarMinWidth == 340,
-               "confirm toolbar min width fits the slim annotate strip")
+        suite.expect(ScreenshotSupport.confirmSelectionToolbarMinWidth == 380,
+               "confirm toolbar min width leaves room for arrow-style chips")
         let settingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenshotSettings.swift",
             encoding: .utf8)) ?? ""
@@ -1967,6 +1967,19 @@ enum ScreenshotFeatureTests {
                         .boundingBox.width ?? 0 >= 100
                 },
                "solid and numbered arrows are filled silhouettes; other styles are one stroked path")
+
+        let numberedSeed: [ScreenshotSupport.Annotation] = [
+            .init(tool: .arrow, points: [.zero, CGPoint(x: 10, y: 0)],
+                  arrowStyle: .numbered, number: 1),
+            .init(tool: .rect, rect: CGRect(x: 0, y: 0, width: 4, height: 4)),
+            .init(tool: .arrow, points: [.zero, CGPoint(x: 0, y: 10)],
+                  arrowStyle: .numbered, number: 7),
+        ]
+        suite.expect(ScreenshotSupport.nextNumberedArrowNumber(in: numberedSeed) == 8,
+               "the next numbered arrow continues past the highest existing number")
+        let renumberedArrows = ScreenshotSupport.renumberingNumberedArrows(numberedSeed)
+        suite.expect(renumberedArrows.filter { $0.arrowStyle == .numbered }.map(\.number) == [1, 2],
+               "renumbering numbered arrows restores a dense 1…n sequence")
         // With shadows on, a shaft pixel under the head's shadow must match a
         // shaft pixel far from the head: the head and the shaft are one
         // stroke, so the head never shades the shaft where they meet.
@@ -3790,6 +3803,18 @@ enum ScreenshotFeatureTests {
         suite.expect(selectionControllerSource.contains("drawConfirmSelectionLockButton")
                 && selectionControllerSource.contains("confirmSelectionLockButtonRect"),
                "confirm overlay draws and hits the corner crop lock")
+
+        suite.expect(((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotConfirmInlineSession.swift",
+            encoding: .utf8)) ?? "").contains("keepsCreationToolWhenSelecting = true"),
+               "confirm overlay keeps the draw tool after selecting a mark so numbered arrows stay consecutive")
+        let confirmToolbarSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Screenshot/ScreenshotConfirmToolbar.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(confirmToolbarSource.contains("ScrollView(.horizontal")
+                && confirmToolbarSource.contains("arrowStyleChip")
+                && confirmToolbarSource.contains("arrowStyleGlyph"),
+               "confirm arrow-style strip scrolls and uses compact chips so Numbered stays reachable")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,
                "window highlights preserve the existing selection appearance by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,

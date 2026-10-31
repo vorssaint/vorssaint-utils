@@ -70,6 +70,9 @@ final class ScreenshotConfirmInlineSession {
         model.tool = .arrow
         // Confirm overlay keeps the editor's medium stroke — large looked too thick.
         model.stroke = .medium
+        // Tap-selecting a mark must not steal the draw tool — numbered arrows
+        // need consecutive strokes without re-picking Arrow each time.
+        model.keepsCreationToolWhenSelecting = true
         return ScreenshotConfirmInlineSession(
             model: model,
             sourceImage: sourceImage,

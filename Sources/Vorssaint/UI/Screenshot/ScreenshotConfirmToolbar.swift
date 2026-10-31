@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// WeChat-style tool strip beside an adjustable capture selection. Tools drive
@@ -100,30 +101,34 @@ struct ScreenshotConfirmToolbar: View {
 
     @ViewBuilder
     private var styleStrip: some View {
-        HStack(spacing: 6) {
-            if isEditingOrUsingText {
-                colorStrip
-                chromeDivider
-                textSizeStrip
-            } else {
-                switch model.tool {
-                case .pixelate:
-                    // Mosaic only needs strength — no color chips (CleanShot / WeChat).
-                    blurLevelStrip
-                case .arrow:
+        // Horizontal scroll so the last chips (esp. 编号) stay reachable when
+        // the tools row is narrower than color+stroke+styles.
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                if isEditingOrUsingText {
                     colorStrip
                     chromeDivider
-                    strokeStrip
-                    chromeDivider
-                    arrowStyleStrip
-                default:
-                    colorStrip
-                    chromeDivider
-                    strokeStrip
+                    textSizeStrip
+                } else {
+                    switch model.tool {
+                    case .pixelate:
+                        // Mosaic only needs strength — no color chips (CleanShot / WeChat).
+                        blurLevelStrip
+                    case .arrow:
+                        colorStrip
+                        chromeDivider
+                        strokeStrip
+                        chromeDivider
+                        arrowStyleStrip
+                    default:
+                        colorStrip
+                        chromeDivider
+                        strokeStrip
+                    }
                 }
             }
+            .padding(.leading, 2)
         }
-        .padding(.leading, 2)
     }
 
     private var colorStrip: some View {
@@ -186,25 +191,45 @@ struct ScreenshotConfirmToolbar: View {
     }
 
     private var arrowStyleStrip: some View {
+        // Short glyphs keep every style (especially Numbered) on-screen after
+        // the toolbar lost width when the crop lock moved to the selection.
         HStack(spacing: 2) {
             ForEach(ScreenshotSupport.ArrowStyleID.allCases, id: \.self) { style in
-                let selected = model.arrowStyle == style
-                Button {
-                    model.arrowStyle = style
-                } label: {
-                    Text(strings.arrowStyleTitle(style))
-                        .font(.system(size: 10, weight: selected ? .semibold : .medium))
-                        .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.75))
-                        .padding(.horizontal, 6)
-                        .frame(height: 22)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(selected ? Color.accentColor.opacity(0.18) : .clear)
-                        )
-                }
-                .buttonStyle(.plain)
-                .help(strings.arrowStyleLabel)
+                arrowStyleChip(style)
             }
+        }
+    }
+
+    private func arrowStyleChip(_ style: ScreenshotSupport.ArrowStyleID) -> some View {
+        let selected = model.arrowStyle == style
+        return Button {
+            model.arrowStyle = style
+        } label: {
+            Text(Self.arrowStyleGlyph(style))
+                .font(.system(size: style == .numbered ? 11 : 10,
+                              weight: selected ? .bold : .medium,
+                              design: .rounded))
+                .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.8))
+                .frame(minWidth: 22, minHeight: 22)
+                .padding(.horizontal, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(selected ? Color.accentColor.opacity(0.18) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(strings.arrowStyleTitle(style))
+        .accessibilityLabel(strings.arrowStyleTitle(style))
+    }
+
+    private static func arrowStyleGlyph(_ style: ScreenshotSupport.ArrowStyleID) -> String {
+        switch style {
+        case .filled: return "▶"
+        case .outline: return "▷"
+        case .open: return "➔"
+        case .doubleEnded: return "↔"
+        case .scribbly: return "≈"
+        case .numbered: return "1"
         }
     }
 

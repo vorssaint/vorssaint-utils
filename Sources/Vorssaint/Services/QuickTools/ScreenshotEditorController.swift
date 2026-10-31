@@ -29,6 +29,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     @Published var selectedID: UUID?
     @Published var editingTextID: UUID?
+    /// Confirm-selection keeps the active draw tool after tap-selecting a mark
+    /// so consecutive numbered arrows (1, 2, 3…) stay available. The full
+    /// editor still switches to select for handle editing.
+    var keepsCreationToolWhenSelecting = false
     @Published var tool: ScreenshotSupport.Tool {
         didSet {
             UserDefaults.standard.set(tool.rawValue, forKey: DefaultsKey.screenshotLastTool)
@@ -1167,7 +1171,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         selectedID = hitID
         editingTextID = hit.tool == .text ? hitID : nil
         clearTextSelection()
-        tool = .select
+        if !keepsCreationToolWhenSelecting {
+            tool = .select
+        }
         return true
     }
 

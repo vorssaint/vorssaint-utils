@@ -2093,7 +2093,7 @@ enum ScreenshotSupport {
     static let confirmSelectionLockButtonInset: CGFloat = 8
     /// Preferred inline toolbar height (tools row + optional style strip).
     static let confirmSelectionToolbarHeight: CGFloat = 72
-    static let confirmSelectionToolbarMinWidth: CGFloat = 340
+    static let confirmSelectionToolbarMinWidth: CGFloat = 380
 
     /// Places a WeChat-style toolbar outside the selection, preferring below
     /// then above. When the selection fills the display, the bar sits inside
