@@ -111,15 +111,13 @@ struct NotchLyricsMemory {
 /// Remembers which lyrics file the user chose for a song, and its adjustment,
 /// so the same song shows the same file whenever it plays again. Only the
 /// file's location is stored, as a bookmark that follows renames and moves;
-/// the lyrics are read from the file each time. A song is its title, artist,
-/// album and length, not a player process or session, so it survives player
-/// restarts and players that report no stable item ID. Recordings that share
-/// names but differ in length keep separate choices.
+/// the lyrics are read from the file each time. A song is its title, artist
+/// and album, not a player process or session, so it survives player restarts
+/// and players that report no stable item ID. Length is deliberately not part
+/// of it: a player can report the same song a few seconds longer or shorter
+/// from one play to the next.
 enum NotchLyricsLocalFiles {
     static let limit = 200
-    /// Players can round a recording's length differently; a different
-    /// recording with the same names is usually further apart than this.
-    static let lengthTolerance = 2.0
     private static let lock = NSLock()
     private static var cache: (data: Data, entries: [String: Entry])?
 
@@ -131,19 +129,25 @@ enum NotchLyricsLocalFiles {
     struct Entry: Codable {
         var location: Location
         var offset: Double
-        var duration: Double
         var used: Date
     }
 
-    /// Nil when the song has no title or no known length, so it is never
-    /// remembered or matched: a choice could not be told apart from other songs.
+    /// Nil when the song has no title, so it is never remembered or matched:
+    /// a choice could not be told apart from other songs.
     static func key(for track: NotchMusicIdentity) -> String? {
-        guard let names = names(for: track) else { return nil }
-        return names + "\u{1F}" + String(Int(track.duration.rounded()))
+        func normalized(_ text: String) -> String {
+            text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
+                .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        }
+        let title = normalized(track.title)
+        guard !title.isEmpty else { return nil }
+        let key = [title, normalized(track.artist), normalized(track.album)].joined(separator: "\u{1F}")
+        return key.utf8.count <= 3072 ? key : nil
     }
 
     static func contains(_ track: NotchMusicIdentity, in defaults: UserDefaults = .standard) -> Bool {
-        locked { match(for: track, in: entries(in: defaults)) != nil }
+        guard let key = key(for: track) else { return false }
+        return locked { entries(in: defaults)[key] != nil }
     }
 
     /// The app is not sandboxed: a security scope is kept for parity with the
@@ -155,14 +159,13 @@ enum NotchLyricsLocalFiles {
         return bookmark.map { Location(bookmark: $0, path: url.path) }
     }
 
-    /// Choosing another file for the same recording replaces the earlier choice.
+    /// Choosing another file for the same song replaces the earlier choice.
     static func save(_ location: Location, offset: Double, for track: NotchMusicIdentity,
                      in defaults: UserDefaults = .standard, now: Date = Date()) {
         guard let key = key(for: track) else { return }
         locked {
             var all = entries(in: defaults)
-            if let previous = match(for: track, in: all) { all.removeValue(forKey: previous) }
-            all[key] = Entry(location: location, offset: offset.isFinite ? offset : 0, duration: track.duration, used: now)
+            all[key] = Entry(location: location, offset: offset.isFinite ? offset : 0, used: now)
             while all.count > limit, let oldest = all.min(by: { $0.value.used < $1.value.used })?.key {
                 all.removeValue(forKey: oldest)
             }
@@ -171,10 +174,10 @@ enum NotchLyricsLocalFiles {
     }
 
     static func setOffset(_ offset: Double, for track: NotchMusicIdentity, in defaults: UserDefaults = .standard) {
-        guard offset.isFinite else { return }
+        guard offset.isFinite, let key = key(for: track) else { return }
         locked {
             var all = entries(in: defaults)
-            guard let key = match(for: track, in: all), all[key]?.offset != offset else { return }
+            guard all[key] != nil, all[key]?.offset != offset else { return }
             all[key]?.offset = offset
             all[key]?.used = Date()
             store(all, in: defaults)
@@ -186,10 +189,8 @@ enum NotchLyricsLocalFiles {
     /// choice is kept so a restored or reconnected file works again.
     static func lines(for track: NotchMusicIdentity,
                       in defaults: UserDefaults = .standard) -> (lines: [NotchLyricLine], offset: Double)? {
-        guard let (key, entry) = locked({ () -> (String, Entry)? in
-            let all = entries(in: defaults)
-            return match(for: track, in: all).flatMap { key in all[key].map { (key, $0) } }
-        }), let (url, renew) = resolve(entry.location),
+        guard let key = key(for: track), let entry = locked({ entries(in: defaults)[key] }),
+              let (url, renew) = resolve(entry.location),
               !url.pathComponents.contains(where: { $0 == ".Trash" || $0 == ".Trashes" }) else { return nil }
         let lines = read(url, duration: track.duration)
         guard !lines.isEmpty else { return nil }
@@ -227,25 +228,6 @@ enum NotchLyricsLocalFiles {
                               relativeTo: nil, bookmarkDataIsStale: &stale) { return (url, true) }
         let url = URL(fileURLWithPath: location.path)
         return FileManager.default.fileExists(atPath: url.path) ? (url, true) : nil
-    }
-
-    private static func names(for track: NotchMusicIdentity) -> String? {
-        func normalized(_ text: String) -> String {
-            text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
-                .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-        }
-        let title = normalized(track.title)
-        guard !title.isEmpty, track.duration.isFinite, (1...86_400).contains(track.duration) else { return nil }
-        let names = [title, normalized(track.artist), normalized(track.album)].joined(separator: "\u{1F}")
-        return names.utf8.count <= 3072 ? names : nil
-    }
-
-    /// The remembered recording with these names closest in length, if any.
-    private static func match(for track: NotchMusicIdentity, in all: [String: Entry]) -> String? {
-        guard let names = names(for: track) else { return nil }
-        let prefix = names + "\u{1F}"
-        return all.filter { $0.key.hasPrefix(prefix) && abs($0.value.duration - track.duration) <= lengthTolerance }
-            .min(by: { abs($0.value.duration - track.duration) < abs($1.value.duration - track.duration) })?.key
     }
 
     /// Decoded once per stored value, not on every song change.

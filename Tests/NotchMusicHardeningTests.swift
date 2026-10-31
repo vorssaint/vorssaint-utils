@@ -1150,10 +1150,14 @@ enum NotchMusicHardeningTests {
             suite.expect(service.lyrics?.lines.first?.text == "Chosen verse",
                          "case and surrounding space differences, another player and a missing item ID still name the same song")
             service.playbackChanged(nil)
-            service.update(playback: relaunched("Same  Song", duration: 240), visible: true)
+            service.update(playback: relaunched("same-song", duration: 186), visible: true)
             drain()
-            suite.expect(service.lyrics == nil && service.state == .consent,
-                         "a recording of clearly different length is a different song")
+            suite.expect(service.lyrics?.lines.first?.text == "Chosen verse",
+                         "a player reporting the same song several seconds longer than at import still shows its file")
+            service.playbackChanged(nil)
+            service.update(playback: relaunched("same song", duration: 180), visible: true)
+            drain()
+            suite.expect(service.lyrics == nil && service.state == .consent, "a different title is a different song")
 
             try FileManager.default.removeItem(at: moved)
             service.playbackChanged(nil)
@@ -1207,21 +1211,17 @@ enum NotchMusicHardeningTests {
 
             let placeholder = ProductionLyricsLocalFiles.Location(bookmark: Data([1]), path: "/nonexistent.lrc")
             let untitled = NotchMusicIdentity(relaunched("  "))
-            let unknownLength = NotchMusicIdentity(relaunched("same-song", duration: 0))
             Files.save(placeholder, offset: 0, for: untitled)
-            Files.save(placeholder, offset: 0, for: unknownLength)
-            suite.expect(!Files.contains(untitled) && !Files.contains(unknownLength)
-                         && !Files.contains(NotchMusicIdentity(relaunched("other-title"))),
-                         "a song without a title or a known length is never remembered or matched")
+            suite.expect(!Files.contains(untitled) && !Files.contains(NotchMusicIdentity(relaunched("other-title"))),
+                         "a song without a title is never remembered or matched")
             Files.reset()
-            let studio = NotchMusicIdentity(relaunched("same-song")), live = NotchMusicIdentity(relaunched("same-song", duration: 240))
-            Files.save(placeholder, offset: 1, for: studio)
-            Files.save(placeholder, offset: 2, for: live)
-            Files.save(placeholder, offset: 3, for: NotchMusicIdentity(relaunched("same-song", duration: 181)))
+            Files.reset()
+            Files.save(placeholder, offset: 1, for: NotchMusicIdentity(relaunched("same-song")))
+            Files.save(placeholder, offset: 2, for: NotchMusicIdentity(relaunched("Same-Song", duration: 240)))
             let saved = (try? PropertyListDecoder().decode([String: ProductionLyricsLocalFiles.Entry].self,
                                                           from: Files.defaults.data(forKey: DefaultsKey.notchLyricsLocalFiles) ?? Data())) ?? [:]
-            suite.expect(saved.count == 2 && Set(saved.values.map(\.offset)) == [2, 3],
-                         "recordings that share names but differ in length keep separate choices; a re-import replaces only its own")
+            suite.expect(saved.count == 1 && saved.values.first?.offset == 2,
+                         "one song keeps one choice: a re-import replaces it whatever length the player reports")
             Files.reset()
             let start = Date(timeIntervalSinceReferenceDate: 0)
             for index in 0...ProductionLyricsLocalFiles.limit {
