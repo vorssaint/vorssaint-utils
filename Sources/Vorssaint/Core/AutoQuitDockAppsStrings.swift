@@ -19,6 +19,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -72,6 +73,14 @@ extension AutoQuitDockAppsStrings {
         addButton: "Añadir app…",
         removeButton: "Quitar",
         emptyNote: "No hay apps de la barra de menús disponibles para añadir."
+    )
+
+    static let ca = AutoQuitDockAppsStrings(
+        listTitle: "Apps de la barra de menús per tancar",
+        caption: "Les apps de la barra de menús es mantenen obertes per omissió. Les apps que seleccionis aquí es poden tancar quan se’n tanca l’última finestra, mentre són al Dock. Les excepcions continuen mantenint-les obertes.",
+        addButton: "Afegeix una app…",
+        removeButton: "Elimina",
+        emptyNote: "No hi ha cap app de la barra de menús disponible per afegir."
     )
 
     static let sk = AutoQuitDockAppsStrings(

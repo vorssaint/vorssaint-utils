@@ -24,6 +24,9 @@ extension FeatureStrings {
         case .es:
             return .init(allWindows: "Todas las ventanas",
                          allWindowsCaption: "Usa un atajo independiente para recorrer las ventanas de todas las apps con cualquier diseño. Los filtros de ventanas siguen aplicándose.")
+        case .ca:
+            return .init(allWindows: "Totes les finestres",
+                         allWindowsCaption: "Utilitza una drecera a part per recórrer les finestres de totes les apps amb qualsevol disposició. Els filtres de finestres continuen actius.")
         case .sk:
             return .init(allWindows: "Všetky okná",
                          allWindowsCaption: "Samostatnou skratkou prepínajte medzi oknami všetkých aplikácií v ľubovoľnom rozložení. Filtre okien platia naďalej.")

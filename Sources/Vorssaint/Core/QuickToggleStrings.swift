@@ -53,6 +53,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -261,6 +262,45 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Iniciar el salvapantallas",
         screenSaverCaption: "Empieza al momento, en todas las pantallas.",
         actionFailed: "No se pudo completar."
+    )
+
+    static let ca = QuickToggleFeatureStrings(
+        pageTitle: "Accions ràpides",
+        hubDescription: "Accions d’un sol clic, com ara el mode fosc i la paperera",
+        panelCaption: "Accions del sistema d’un sol clic al tauler de la barra de menús i al tauler ràpid.",
+        darkModeToDark: "Canvia al mode fosc",
+        darkModeToLight: "Canvia al mode clar",
+        darkModeCaption: "Canvia l’aspecte de tot el sistema.",
+        emptyTrashTitle: "Buida la paperera",
+        emptyTrashCaption: "Elimina tot el contingut de la paperera.",
+        emptyTrashConfirmTitle: "Vols buidar la paperera?",
+        emptyTrashConfirmMessage: "S’eliminaran tots els ítems de la paperera. Aquesta acció no es pot desfer.",
+        emptyTrashConfirmButton: "Buida la paperera",
+        quitAllTitle: "Surt de totes les apps",
+        quitOthersTitle: "Surt de totes les apps excepte la de primer pla",
+        quitAppsHeader: "Apps obertes",
+        quitAppsQuitAll: "Surt de totes",
+        quitAppsQuitAllExcept: "Surt de totes excepte %@",
+        quitAppsQuitOne: "Surt de %@",
+        quitAppsFrontBadge: "Primer pla",
+        quitAppsKeptBadge: "Conservada",
+        quitAppsEmpty: "No hi ha cap altra app oberta.",
+        exceptionsTitle: "Apps conservades",
+        exceptionsCaption: "“Surt de totes” deixa aquestes apps obertes. El Finder, el Vorssaint i l’app Telèfon es conserven sempre. Tot i això, pots sortir d’una app conservada des de la seva fila.",
+        ejectTitle: "Expulsa tots els discos",
+        ejectCaption: "Expulsa amb seguretat tots els discos externs.",
+        hiddenFilesShow: "Mostra els arxius ocults",
+        hiddenFilesHide: "Deixa de mostrar els arxius ocults",
+        desktopIconsHide: "Oculta les icones de l’escriptori",
+        desktopIconsShow: "Mostra les icones de l’escriptori",
+        finderRestartCaption: "El Finder es reinicia per aplicar el canvi.",
+        lockScreenTitle: "Bloqueja la pantalla",
+        lockScreenCaption: "Demana la contrasenya per tornar-hi.",
+        displayOffTitle: "Apaga la pantalla",
+        displayOffCaption: "El Mac continua funcionant amb la pantalla apagada.",
+        screenSaverTitle: "Activa l’estalvi de pantalla",
+        screenSaverCaption: "S’activa immediatament, a totes les pantalles.",
+        actionFailed: "No s’ha pogut completar."
     )
 
     static let sk = QuickToggleFeatureStrings(

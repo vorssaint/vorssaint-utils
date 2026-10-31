@@ -24,6 +24,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -97,6 +98,19 @@ extension CameraPreviewFeatureStrings {
         noCameraMessage: "No se detectó ninguna cámara",
         permName: "Cámara",
         permExplain: "Muestra tu cámara solo en la ventana de vista previa, para que compruebes cómo te ves antes de una llamada. No se graba nada y nada sale de tu Mac."
+    )
+
+    static let ca = CameraPreviewFeatureStrings(
+        // “Previsualització de la càmera” is cut off in the sidebar, even at its widest.
+        pageTitle: "Vista de la càmera",
+        hubDescription: "Obre un mirall flotant amb la càmera",
+        panelCaption: "Comprova com et veus abans d’una trucada",
+        openButton: "Obre la previsualització",
+        cameraMenuLabel: "Càmera",
+        deniedMessage: "L’accés a la càmera per al Vorssaint està desactivat a l’app Configuració del Sistema.",
+        noCameraMessage: "No s’ha detectat cap càmera",
+        permName: "Càmera",
+        permExplain: "Mostra la càmera només a la finestra de previsualització perquè puguis comprovar com et veus abans d’una trucada. No es grava res ni surt res del Mac."
     )
 
     static let sk = CameraPreviewFeatureStrings(

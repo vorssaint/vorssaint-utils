@@ -42,6 +42,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -229,6 +230,36 @@ extension GeneralSettingsStrings {
         sectionUtilities: "Capturas de pantalla, limpieza, actualizaciones y otras herramientas.",
         sectionControls: "Interruptores para funciones de ratón, teclado y ventanas.",
         sectionToggles: "Acciones de un clic, como el modo oscuro y silenciar el micrófono."
+    )
+
+    static let ca = GeneralSettingsStrings(
+        pageDescription: "Com s’inicia el Vorssaint, quin aspecte té i què mostra el tauler de la barra de menús.",
+        appearanceCaption: "S’aplica a les finestres i els taulers del Vorssaint, no a tot el Mac.",
+        launchAtLoginCaption: "S’obre sol cada vegada que engegues el Mac.",
+        liquidGlassCaption: "Taulers translúcids, amb aspecte de vidre.",
+        liquidGlassOtherWindows: "Altres finestres i taulers",
+        panelIntro: "Fes clic a la icona del Vorssaint a la barra de menús per obrir el tauler. Les pestanyes apareixen en aquest ordre.",
+        panelReorderHint: "Arrossega per reordenar. Desactiva el que no necessitis.",
+        menuBarIconTitle: "Icona de la barra de menús",
+        menuBarIconCaption: "Tria la icona que el Vorssaint mostra a la barra de menús.",
+        menuBarIconOther: "Un altre símbol",
+        menuBarIconOtherCaption: "Escriu el nom de qualsevol SF Symbol. Deixa-ho en blanc per fer servir la icona del Vorssaint.",
+        menuBarIconUnknown: "Aquest Mac no té cap símbol amb aquest nom.",
+        menuBarIconReset: "Utilitza la icona del Vorssaint",
+        iconMissingTitle: "No trobes la icona?",
+        // No Apple or TERMCAT form exists for the display cutout, and “osca” and “notch” both circulate. “Osca” is in Softcatalà’s dictionary and Viquipèdia, so this first mention gives both; “osca” elsewhere.
+        iconMissingCaption: "Una barra de menús plena pot ocultar-la, sobretot als Mac amb osca (notch).",
+        sectionKeepAwake: "Manté el Mac actiu tant de temps com vulguis.",
+        sectionDisplays: "Brillantor de les pantalles.",
+        sectionMixer: "Volum de cada app, amb un regulador per a cadascuna.",
+        sectionSystem: "Processador, gràfics i memòria d’un cop d’ull.",
+        sectionNetwork: "Velocitat d’internet i quines apps en fan ús.",
+        sectionDisks: "Espai lliure i activitat dels discos.",
+        sectionPower: "Bateria, càrrega i consum d’energia.",
+        sectionFanControl: "Velocitat dels ventiladors i corba de ventilació pròpia.",
+        sectionUtilities: "Captures de pantalla, netejador, actualitzacions i altres eines.",
+        sectionControls: "Interruptors per a funcions del ratolí, el teclat i les finestres.",
+        sectionToggles: "Accions d’un sol clic, com ara el mode fosc o silenciar el micròfon."
     )
 
     static let sk = GeneralSettingsStrings(

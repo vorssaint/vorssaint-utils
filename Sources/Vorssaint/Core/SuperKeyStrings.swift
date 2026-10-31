@@ -45,6 +45,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -183,6 +184,30 @@ extension SuperKeyStrings {
         mappingForeignMapping: "La reasignación de otra app usa la tecla seleccionada. Elimínala en esa app: salir de ella no basta.",
         mappingSystemRefused: "macOS rechazó la reasignación de teclas. Vuelve a conectar el teclado o reinicia el Mac y activa esto de nuevo.",
         keyboardTapRefused: "macOS no dejó que Vorssaint vigilara el teclado. Desactiva y vuelve a activar Vorssaint en Ajustes del Sistema › Privacidad y seguridad › Accesibilidad y activa esto de nuevo."
+    )
+
+    static let ca = SuperKeyStrings(
+        pageTitle: "Supertecla",
+        hubDescription: "Converteix una tecla en la combinació de tecles de modificació que triïs.",
+        enableToggle: "Utilitza aquesta tecla com a supertecla",
+        enableCaption: "Mantén-la premuda i prem qualsevol tecla. Tria una o més tecles de modificació a sota.",
+        modifierKeysNote: "Mantén l’acció per omissió d’aquesta tecla a l’app Configuració del Sistema › Teclat › Tecles de modificació.",
+        sourceKey: "Tecla que cal mantenir premuda",
+        capsLockKey: "Bloqueig de majúscules",
+        rightKeyFormat: "%@ dreta",
+        holdHint: "Mantén premuda",
+        soloSection: "Un toc tot sol",
+        soloCaption: "Què fa un toc ràpid quan no es prem cap altra tecla.",
+        soloNothing: "Res",
+        soloCapsLock: "Activa i desactiva les majúscules",
+        soloEscape: "Prem Esc",
+        activeNow: "Ja funciona",
+        panelCaptionFormat: "%1$@ equival a %2$@.",
+        manageButton: "Configura…",
+        soloInputSource: "Canvia la font d’entrada; mantén la tecla premuda per bloquejar les majúscules",
+        mappingForeignMapping: "L’assignació de tecles d’una altra app utilitza la tecla seleccionada. Elimina-la en aquella app: no n’hi ha prou de sortir-ne.",
+        mappingSystemRefused: "El macOS ha rebutjat l’assignació de tecles. Torna a connectar el teclat o reinicia el Mac i, després, torna a activar aquesta opció.",
+        keyboardTapRefused: "El macOS no ha permès que el Vorssaint supervisi el teclat. Desactiva i torna a activar el Vorssaint a l’app Configuració del Sistema › Privacitat i seguretat › Accessibilitat i, després, torna a activar aquesta opció."
     )
 
     static let sk = SuperKeyStrings(
