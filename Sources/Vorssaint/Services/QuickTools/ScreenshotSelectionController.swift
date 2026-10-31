@@ -443,6 +443,8 @@ final class ScreenshotSelectionController {
                 } else { return event }
             case _ where Self.isRepeatRegionKey(event):
                 self.repeatLastRegion()
+            case _ where self.selectInlineAnnotateTool(for: event):
+                break
             case _ where self.selectCaptureTool(for: event):
                 break
             case _ where Self.isScrollingCaptureKey(event):
@@ -475,6 +477,29 @@ final class ScreenshotSelectionController {
         else { return false }
         screenCaptureOptions.select(tool)
         return true
+    }
+
+    /// While the confirm overlay is adjusting, digit / custom bindings select
+    /// editor annotate tools — the same mapping the screenshot editor uses —
+    /// instead of switching capture modes (1–4).
+    private func selectInlineAnnotateTool(for event: NSEvent) -> Bool {
+        guard let panel = panels.first(where: { $0.overlayView.isAdjustingSelection })
+        else { return false }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let orderRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder)
+        let bindingsRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolShortcuts)
+        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotToolShortcutsEnabled)
+        let number = event.characters?.first.flatMap { Int(String($0)) }
+        guard let tool = ScreenshotSupport.Tool.shortcutTool(
+            keyCode: Int64(event.keyCode),
+            modifiers: GlobalShortcutModifiers(eventFlags: flags),
+            number: number,
+            orderRaw: orderRaw,
+            bindingsRaw: bindingsRaw,
+            enabled: enabled,
+            capsLockOn: flags.contains(.capsLock))
+        else { return false }
+        return panel.overlayView.applyInlineAnnotateTool(tool)
     }
 
     /// The loupe toggle follows the typed character, with the physical slot
@@ -1096,6 +1121,17 @@ private final class ScreenshotOverlayView: NSView {
 
     var isDragging: Bool { dragOrigin != nil }
 
+    fileprivate var isAdjustingSelection: Bool { isAdjusting }
+
+    /// Digit / custom bindings while handles + toolbar are showing.
+    fileprivate func applyInlineAnnotateTool(_ tool: ScreenshotSupport.Tool) -> Bool {
+        guard isAdjusting, let session = inlineSession else { return false }
+        session.model.tool = tool
+        layoutConfirmToolbar()
+        needsDisplay = true
+        return true
+    }
+
     /// A surface whose session is over answers nothing, so the rest of a
     /// gesture can neither reach a controller that is gone nor start a second
     /// capture behind the one already running.
@@ -1497,9 +1533,26 @@ private final class ScreenshotOverlayView: NSView {
         }
 
         let clicked = ScreenshotSupport.isClick(from: origin, to: point)
+        let confirmPreference = UserDefaults.standard.bool(
+            forKey: DefaultsKey.screenshotConfirmSelection)
         if clicked {
             if controller.acceptsWindowClick,
                let target = ScreenshotSupport.window(at: point, in: windows) {
+                let confirmBefore = ScreenshotSupport.confirmsRegionBeforeCapture(
+                    preferenceEnabled: confirmPreference,
+                    isColorPick: false,
+                    isWindowClick: true)
+                if confirmBefore {
+                    // Same adjustable confirm surface as a dragged region: the
+                    // window frame is the starting selection, not an immediate capture.
+                    selection = target.frame
+                    isAdjusting = true
+                    beginInlineEditingSession()
+                    layoutConfirmToolbar()
+                    needsDisplay = true
+                    controller.setSelectionInProgress(false)
+                    return
+                }
                 controller.confirmWindow(target.windowID, frame: target.frame, on: panel)
             }
             selection = .zero
@@ -1514,8 +1567,7 @@ private final class ScreenshotOverlayView: NSView {
             return
         }
         let confirmBefore = ScreenshotSupport.confirmsRegionBeforeCapture(
-            preferenceEnabled: UserDefaults.standard.bool(
-                forKey: DefaultsKey.screenshotConfirmSelection),
+            preferenceEnabled: confirmPreference,
             isColorPick: false,
             isWindowClick: false)
         if confirmBefore {

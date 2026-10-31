@@ -55,6 +55,9 @@ final class ScreenshotConfirmInlineSession {
               let cropped = sourceImage.cropping(to: pixelRect)
         else { return nil }
         let model = ScreenshotEditorModel(image: cropped, scale: scale)
+        // Confirm overlay always opens on arrow, matching WeChat and the editor's
+        // fallback starting tool — not select (which would only move the frame).
+        model.tool = .arrow
         return ScreenshotConfirmInlineSession(
             model: model,
             sourceImage: sourceImage,

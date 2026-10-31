@@ -3690,6 +3690,9 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: true,
                                                                    isColorPick: false,
                                                                    isWindowClick: false)
+                && ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: true,
+                                                                 isColorPick: false,
+                                                                 isWindowClick: true)
                 && !ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: false,
                                                                   isColorPick: false,
                                                                   isWindowClick: false)
@@ -3697,9 +3700,20 @@ enum ScreenshotFeatureTests {
                                                                   isColorPick: true,
                                                                   isWindowClick: false)
                 && !ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: true,
-                                                                  isColorPick: false,
+                                                                  isColorPick: true,
                                                                   isWindowClick: true),
-               "confirm-before-capture only gates region drags, not color picks or window clicks")
+               "confirm-before-capture gates region drags and window clicks; color picks stay immediate")
+        // Digits 1–4 map through the shared editor shortcut table (default order:
+        // select, arrow, pixelate, crop). Confirm overlay starts on arrow.
+        let order = ScreenshotSupport.Tool.defaultOrderStorage
+        suite.expect(ScreenshotSupport.Tool.shortcutTool(number: 1, orderRaw: order, enabled: true) == .select
+                && ScreenshotSupport.Tool.shortcutTool(number: 2, orderRaw: order, enabled: true) == .arrow
+                && ScreenshotSupport.Tool.shortcutTool(number: 3, orderRaw: order, enabled: true) == .pixelate
+                && ScreenshotSupport.Tool.shortcutTool(number: 4, orderRaw: order, enabled: true) == .crop,
+               "confirm-selection tool digits 1–4 match the screenshot editor rail")
+        suite.expect(ScreenshotSupport.Tool.startingTool(remembered: nil) == .arrow
+                && ScreenshotSupport.Tool.startingTool(remembered: "select") == .arrow,
+               "confirm overlay default annotate tool is arrow")
         let confirmBounds = CGRect(x: 0, y: 0, width: 800, height: 600)
         let confirmSelection = CGRect(x: 200, y: 120, width: 160, height: 100)
         let doneRect = ScreenshotSupport.confirmSelectionDoneButtonRect(for: confirmSelection,

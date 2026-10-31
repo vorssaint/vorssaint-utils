@@ -2105,11 +2105,14 @@ enum ScreenshotSupport {
         return CGRect(x: frame.maxX - size, y: frame.minY, width: size, height: size)
     }
 
-    /// Region drags honor confirm-before-capture; window clicks and color picks do not.
+    /// Region drags and window clicks honor confirm-before-capture; color picks do not.
+    /// `isWindowClick` is kept for call-site clarity; window clicks share the same
+    /// adjustable confirm surface as dragged regions (WeChat-style).
     static func confirmsRegionBeforeCapture(preferenceEnabled: Bool,
                                             isColorPick: Bool,
                                             isWindowClick: Bool) -> Bool {
-        preferenceEnabled && !isColorPick && !isWindowClick
+        _ = isWindowClick
+        return preferenceEnabled && !isColorPick
     }
 
     // MARK: - Selection handles
