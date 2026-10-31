@@ -407,6 +407,9 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.diskImageInstallerTrashesDownload)
                 && backupKeys.contains(DefaultsKey.diskImageInstallerRevealsApp),
                "the disk image installer keeps trashing downloads by default, reveals apps only on request and both choices travel with settings backup")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.diskImageInstallerEjectsOnClose] as? Bool == false
+                && backupKeys.contains(DefaultsKey.diskImageInstallerEjectsOnClose),
+               "ejecting a disk image when it is closed is opt-in and travels with settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.windowPreviewExcludedApps)
                 && (Defaults.registeredDefaults[DefaultsKey.windowPreviewExcludedApps] as? [String]) == [],
                "the window preview exclusion list starts empty and travels with the settings backup")

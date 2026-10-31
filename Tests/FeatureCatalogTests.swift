@@ -958,6 +958,41 @@ enum FeatureCatalogTests {
             appURL: URL(fileURLWithPath: "/Volumes/Installer/Fallback.app")) == "Example App",
             "untrusted bundle names are flattened before entering an alert")
 
+        func ejectInfo(image: String, writeable: Bool) -> Data {
+            (try? PropertyListSerialization.data(fromPropertyList: ["images": [[
+                "image-path": image,
+                "writeable": writeable,
+                "system-entities": [["mount-point": "/private/tmp/Eject Mount"]],
+            ]]], format: .xml, options: 0)) ?? Data()
+        }
+        let ejectMount = URL(fileURLWithPath: "/tmp/Eject Mount")
+        func qualifies(_ image: String, writeable: Bool = false, root: [String] = ["App.app"]) -> Bool {
+            DiskImageInstallerSupport.qualifiesForEject(
+                mountedAt: ejectMount, hdiutilInfo: ejectInfo(image: image, writeable: writeable),
+                rootNames: root, isExcluded: { $0.path.contains("/Caches/Homebrew/") })
+        }
+        suite.expect(qualifies("/Users/test/Downloads/App.dmg")
+                && qualifies("/Users/test/Downloads/App.dmg", root: ["Setup.pkg"]),
+                "a read-only image with an app or package at its root is watched for eject")
+        suite.expect(!qualifies("/Users/test/Downloads/Vault.dmg", writeable: true),
+                "a writable image is never ejected when its window closes")
+        suite.expect(!qualifies("/Users/test/Library/Caches/Homebrew/downloads/App.dmg"),
+                "a Homebrew cache image is never ejected when its window closes")
+        suite.expect(!DiskImageInstallerSupport.qualifiesForEject(
+                mountedAt: ejectMount,
+                hdiutilInfo: (try? PropertyListSerialization.data(
+                    fromPropertyList: ["images": [[String: Any]]()], format: .xml, options: 0)) ?? Data(),
+                rootNames: ["App.app"], isExcluded: { _ in false }),
+                "an image hdiutil does not list for the mount fails closed instead of counting as read-only")
+        suite.expect(!qualifies("/Users/test/Downloads/Data.dmg", root: ["notes.txt", "Docs"]),
+                "an image with no app or package at its root is left mounted")
+        suite.expect(DiskImageInstallerSupport.shouldEject(busy: false, windowOpen: false),
+                "a closed window with no prompt or install ejects the image")
+        suite.expect(!DiskImageInstallerSupport.shouldEject(busy: false, windowOpen: true),
+                "Cancel with the window still open, or a same-named folder still open, leaves the image mounted")
+        suite.expect(!DiskImageInstallerSupport.shouldEject(busy: true, windowOpen: false),
+                "closing the window during a prompt or install waits")
+
         // MARK: Fan Control safety policy
 
         suite.expect(FanControlPolicy.coolingDuration == 15 * 60

@@ -30,6 +30,36 @@ enum DiskImageInstallerSupport {
         return url
     }
 
+    /// Whether closing this image's window may eject it: a read-only image
+    /// (a writable vault or sparse image is left alone) with an app or package
+    /// at its root, and not one the caller excludes (Homebrew's cache).
+    static func qualifiesForEject(mountedAt mountURL: URL,
+                                  hdiutilInfo: Data,
+                                  rootNames: [String],
+                                  isExcluded: (URL) -> Bool) -> Bool {
+        guard let imageURL = imageURL(mountedAt: mountURL, hdiutilInfo: hdiutilInfo),
+              !isExcluded(imageURL),
+              rootNames.contains(where: {
+                  let ext = URL(fileURLWithPath: $0).pathExtension
+                  return ext.caseInsensitiveCompare("app") == .orderedSame
+                      || ext.caseInsensitiveCompare("pkg") == .orderedSame
+              }),
+              let root = try? PropertyListSerialization.propertyList(from: hdiutilInfo,
+                                                                    options: [],
+                                                                    format: nil) as? [String: Any],
+              let images = root["images"] as? [[String: Any]]
+        else { return false }
+        let matches = images.filter { ($0["image-path"] as? String).map { URL(fileURLWithPath: $0).standardizedFileURL } == imageURL }
+        return !matches.isEmpty && matches.allSatisfy { $0["writeable"] as? Bool == false }
+    }
+
+    /// The one rule for ejecting a watched image, checked after its prompt
+    /// ends and after its window closes. A window still named like the volume
+    /// only delays the eject, so a wrong match can never cause one.
+    static func shouldEject(busy: Bool, windowOpen: Bool) -> Bool {
+        !busy && !windowOpen
+    }
+
     static func applicationsDomain(useUserApplications: Bool) -> FileManager.SearchPathDomainMask {
         useUserApplications ? .userDomainMask : .localDomainMask
     }

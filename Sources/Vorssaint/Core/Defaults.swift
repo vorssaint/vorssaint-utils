@@ -180,6 +180,7 @@ enum DefaultsKey {
     static let finderRenameShortcut = "finderRenameShortcut"
     static let diskImageInstallerTrashesDownload = "diskImageInstallerTrashesDownload"
     static let diskImageInstallerRevealsApp = "diskImageInstallerRevealsApp"
+    static let diskImageInstallerEjectsOnClose = "diskImageInstallerEjectsOnClose"
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
     static let diskImageInstallerUseUserApplications = "diskImageInstallerUseUserApplications"
     static let autoQuitEnabled = "autoQuitEnabled"
@@ -1818,6 +1819,7 @@ enum Defaults {
         DefaultsKey.diskImageInstallerUseUserApplications: false,
         DefaultsKey.diskImageInstallerTrashesDownload: true,
         DefaultsKey.diskImageInstallerRevealsApp: false,
+        DefaultsKey.diskImageInstallerEjectsOnClose: false,
         DefaultsKey.colorPickerShortcutEnabled: false,
         DefaultsKey.colorPickerShortcut: GlobalShortcut.colorPickerDefault.storageValue,
         DefaultsKey.colorPickerFormat: "hex",
