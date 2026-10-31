@@ -1506,14 +1506,14 @@ def main():
     battery_body, next_case, _ = rest.partition("            case .batteryTime:\n")
     if not switch or not battery_case or not next_case:
         raise ValueError("Expected the battery branch in blockSegments")
-    for line in ["        let usesBars = appearance == .bars\n",
-                 "        var renderedCPU = false\n", "        var renderedGPU = false\n"]:
+    for line in ["        var renderedCPU = false\n", "        var renderedGPU = false\n"]:
         if line not in prefix:
             raise ValueError("Expected the unrelated activity state in blockSegments")
         prefix = prefix.replace(line, "")
     battery_segments = (prefix + switch + battery_case + battery_body
                         + "            }\n        }\n        return blockJoined(groups, style: style)\n    }\n#sourceLocation()\n")
-    battery_warning = declaration(renderer, "    private static func batteryWarning(")
+    battery_warning = (declaration(renderer, "    private static func batterySegment(")
+                       + declaration(renderer, "    private static func batteryWarning("))
     connection = "externalConnected: power?.externalConnected ?? false)"
     if connection not in battery_warning:
         raise ValueError("Expected the battery warning's power connection")
@@ -1525,7 +1525,8 @@ def main():
           + declaration(renderer, "enum MenuBarSegment {")
           + declaration(renderer, "enum MenuBarBlockStyle {")
           + "".join(declaration(spacing, prefix).replace("UserDefaults.standard", "ReviewDefaults.current!")
-                    for prefix in ["enum MenuBarMetricSpacing:", "enum MenuBarMetricAppearance:"])
+                    for prefix in ["enum MenuBarMetricSpacing:", "enum MenuBarMetricAppearance:",
+                                   "enum MenuBarBatteryStyle:", "enum MenuBarUsageBarSupport {"])
           + "}\nextension MenuBarBatteryWarningTests.Renderer {\n"
           + (battery_segments + battery_warning).replace("private static", "static")
               .replace("UserDefaults.standard", "ReviewDefaults.current!")
@@ -1536,7 +1537,10 @@ def main():
                         "    private static func batteryBlockImage(", "    private static func blockImageCost(",
                         "    private static func dynamicTextAttributes(", "    static func nsColor(for warning:",
                         "    static func nsColor(for pressure:", "    private static func temperatureCompact(",
-                        "    private static func temperatureLabel(", "    private static func combinedComponentValue("])
+                        "    private static func temperatureLabel(", "    private static func combinedComponentValue(",
+                        "    private static func usageBarBlockAttachment(", "    private static func usageBarBlockImage(",
+                        "    static func usageBarSize(", "    private static func drawChargingBolt(",
+                        "    private static func usageBarColor("])
           + "}\n")
     metric_cases = "\n".join(line for line in declaration(metric_view, "enum MetricDetailKind:").splitlines()
                              if line.startswith("    case "))
