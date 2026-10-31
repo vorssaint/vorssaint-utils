@@ -3708,6 +3708,17 @@ enum ScreenshotFeatureTests {
                 && doneRect.width == ScreenshotSupport.confirmSelectionDoneButtonSize
                 && doneRect.minX >= confirmSelection.maxX,
                "the Done control sits outside the selection and stays on-screen")
+        let editRect = ScreenshotSupport.confirmSelectionActionRect(
+            .edit, for: confirmSelection, in: confirmBounds, includingEdit: true)
+        let completeRect = ScreenshotSupport.confirmSelectionActionRect(
+            .complete, for: confirmSelection, in: confirmBounds, includingEdit: true)
+        suite.expect(confirmBounds.contains(editRect)
+                && confirmBounds.contains(completeRect)
+                && editRect.width == ScreenshotSupport.confirmSelectionDoneButtonSize
+                && completeRect.minX >= editRect.maxX
+                && !editRect.intersects(completeRect)
+                && completeRect.minX >= confirmSelection.maxX,
+               "Edit and Complete sit side by side outside the selection")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,
                "window highlights preserve the existing selection appearance by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,

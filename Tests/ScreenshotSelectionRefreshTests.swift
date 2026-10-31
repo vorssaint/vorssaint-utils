@@ -71,8 +71,8 @@ enum ScreenshotSelectionRefreshContract {
         func refreshCaptureGuide() {}
         func refreshPointerState() {}
         func updateLoupeImage(_ image: CGImage?) { loupeImage = image }
-        /// Production Enter/Done confirm for adjustable regions; unused in these doubles.
-        func confirmAdjustingSelectionIfNeeded() -> Bool { false }
+        /// Production Enter/Complete confirm for adjustable regions; unused in these doubles.
+        func confirmAdjustingSelectionIfNeeded(openEditor: Bool = false) -> Bool { false }
     }
     @MainActor final class ScreenshotOverlayPanel {
         let displayID: CGDirectDisplayID
@@ -154,8 +154,8 @@ enum ScreenshotSelectionRefreshContract {
             let anchorRect: CGRect
         }
         enum Outcome {
-            case captured(Capture), region(RecorderSupport.Region), scrollingRegion(
-                RecorderSupport.Region), color(NSColor), failed, cancelled
+            case captured(Capture), capturedForEdit(Capture), region(RecorderSupport.Region),
+                scrollingRegion(RecorderSupport.Region), color(NSColor), failed, cancelled
         }
         var activeTool: ScreenCaptureTool?
         var activeMode: Mode {
@@ -222,8 +222,12 @@ enum ScreenshotSelectionRefreshContract {
             finished = true
         }
         func captureLive(
-            displayID: CGDirectDisplayID, pixelRect: CGRect?, scale: CGFloat, anchorRect: CGRect
-        ) { finish(.captured(Capture(image: CGImage(excluded: []), scale: scale, anchorRect: anchorRect))) }
+            displayID: CGDirectDisplayID, pixelRect: CGRect?, scale: CGFloat, anchorRect: CGRect,
+            openEditor: Bool = false
+        ) {
+            let capture = Capture(image: CGImage(excluded: []), scale: scale, anchorRect: anchorRect)
+            finish(openEditor ? .capturedForEdit(capture) : .captured(capture))
+        }
     }
 
     enum QuickToolsSupport {
