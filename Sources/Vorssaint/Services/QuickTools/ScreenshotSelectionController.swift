@@ -431,6 +431,19 @@ final class ScreenshotSelectionController {
                 self.spaceIsDown = false
                 return nil
             }
+            // Confirm text field is up: digits / Z / S / tool bindings must type
+            // into the field (WeChat / CleanShot). Only Esc and Return are ours.
+            // The shared field editor is often not a descendant of NSTextField,
+            // so gate on the field's presence, not firstResponder ancestry.
+            if self.isEditingInlineConfirmText {
+                switch Int(event.keyCode) {
+                case kVK_Escape, kVK_Return, kVK_ANSI_KeypadEnter:
+                    _ = self.commitInlineTextEditingIfNeeded()
+                    return nil
+                default:
+                    return event
+                }
+            }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             switch Int(event.keyCode) {
             case kVK_Escape:
@@ -481,7 +494,8 @@ final class ScreenshotSelectionController {
         }
         globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard event.keyCode == UInt16(kVK_Escape) else { return }
-            self?.finish(.cancelled)
+            guard let self, !self.isEditingInlineConfirmText else { return }
+            self.finish(.cancelled)
         }
     }
 
@@ -528,6 +542,11 @@ final class ScreenshotSelectionController {
     /// Commits in-progress confirm-overlay text editing, if any.
     private func commitInlineTextEditingIfNeeded() -> Bool {
         panels.contains { $0.overlayView.commitInlineTextEditingIfNeeded() }
+    }
+
+    /// True while any confirm overlay hosts its text field (typing session).
+    private var isEditingInlineConfirmText: Bool {
+        panels.contains { $0.overlayView.isEditingConfirmText }
     }
 
     /// Cmd+Z / Cmd+Shift+Z while the confirm overlay owns the session.
@@ -1196,13 +1215,12 @@ private final class ScreenshotOverlayView: NSView {
         return true
     }
 
+    /// The confirm text field exists only while a label is being typed. Do not
+    /// require firstResponder ancestry: AppKit's shared field editor often
+    /// sits on the window, not as a descendant of the NSTextField, which made
+    /// shortcut gating miss and digits switch tools mid-typing.
     fileprivate var isEditingConfirmText: Bool {
-        guard let field = confirmTextField, let window else { return false }
-        if window.firstResponder === field { return true }
-        if let text = window.firstResponder as? NSView {
-            return text.isDescendant(of: field)
-        }
-        return window.firstResponder is NSText && field.currentEditor() != nil
+        confirmTextField != nil
     }
 
     fileprivate func performInlineUndoRedo(redo: Bool) -> Bool {
