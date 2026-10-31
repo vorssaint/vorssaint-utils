@@ -74,9 +74,11 @@ enum NotchNotificationSupport {
     static let nativeCloseGrace: TimeInterval = 1.2
     /// Moving the window that holds a banner was measured on macOS 27, where
     /// the center keeps its banners in one window it places again each time
-    /// it shows one. Earlier versions close the original after the grace.
+    /// it shows one. A moved banner stays where it was put on macOS 26 as
+    /// well, so the same close works there. Versions before 26 close the
+    /// original after the grace.
     static var movesNativeWindow: Bool {
-        if #available(macOS 27, *) { return true }
+        if #available(macOS 26, *) { return true }
         return false
     }
 
