@@ -421,6 +421,16 @@ enum ScreenshotFeatureTests {
                 && ScreenshotSupport.sanitizedDelay(7) == 0
                 && ScreenshotSupport.sanitizedDelay(-3) == 0,
                "capture delay only accepts the offered steps")
+        suite.expect(ScreenshotSupport.allowedDelays == [0, 3, 5, 10],
+               "region capture offers Off/3/5/10s countdown before selection")
+        suite.expect(ScreenshotSupport.confirmSelectionToolbarMinWidth == 400,
+               "confirm toolbar min width fits highlight and spotlight chips")
+        let settingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenshotSettings.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(settingsSource.contains("strings.delayCaption"),
+               "screenshot settings show the delay caption under the Delay picker")
+
         suite.expect(ScreenshotSupport.scrollingCaptureMaximumDuration == 120
                 && ScreenshotSupport.scrollingCaptureMaximumFrames == 512
                 && ScreenshotSupport.scrollingCaptureMaximumRetainedPixels == 60_000_000
@@ -3708,8 +3718,8 @@ enum ScreenshotFeatureTests {
         // Confirm overlay digits follow the slim WeChat-style strip, not the
         // full editor rail (select/crop/sticker/expand stay out).
         let confirmTools = ScreenshotSupport.Tool.confirmAnnotateTools
-        suite.expect(confirmTools == [.freehand, .arrow, .rect, .ellipse, .pixelate, .text],
-               "confirm-selection toolbar keeps pen/arrow/shapes/mosaic/text only")
+        suite.expect(confirmTools == [.freehand, .arrow, .rect, .ellipse, .highlight, .spotlight, .pixelate, .text],
+               "confirm-selection toolbar keeps pen/arrow/shapes/highlight/spotlight/mosaic/text")
         suite.expect(ScreenshotSupport.Tool.startingTool(remembered: nil) == .arrow
                 && ScreenshotSupport.Tool.startingTool(remembered: "select") == .arrow,
                "confirm overlay default annotate tool is arrow")
@@ -3743,12 +3753,14 @@ enum ScreenshotFeatureTests {
                 && fullToolbar.maxY <= confirmBounds.maxY - 12
                 && fullToolbar.maxY <= fullSelection.maxY,
                "a full-screen selection keeps the annotate toolbar on-screen below the menu bar")
-        suite.expect(ScreenshotSupport.Tool.confirmAnnotateTools.count == 6
+        suite.expect(ScreenshotSupport.Tool.confirmAnnotateTools.count == 8
+                && ScreenshotSupport.Tool.confirmAnnotateTools.contains(.highlight)
+                && ScreenshotSupport.Tool.confirmAnnotateTools.contains(.spotlight)
                 && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.crop)
                 && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.sticker)
                 && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.expandCanvas)
                 && ScreenshotSupport.Tool.confirmAnnotateTools.contains(.text),
-               "confirm-selection toolbar is the slim annotate set with text, no crop/sticker/expand")
+               "confirm-selection toolbar is the slim annotate set with highlight/spotlight/text, no crop/sticker/expand")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,
                "window highlights preserve the existing selection appearance by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,

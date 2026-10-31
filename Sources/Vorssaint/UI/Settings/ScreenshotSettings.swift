@@ -143,6 +143,9 @@ struct ScreenshotCaptureSettings: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                Text(strings.delayCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle(strings.pointerToggle, isOn: $includePointer)
                 Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
                 Toggle(strings.confirmSelectionToggle, isOn: $confirmSelection)
