@@ -235,6 +235,8 @@ extension Strings {
         switcherMaxColumnsAuto: "Auto",
         switcherInstantSelection: "Sofortige Auswahl",
         switcherInstantSelectionCaption: "Verschiebt Markierung und Liste beim Durchgehen von Apps und Fenstern sofort.",
+        switcherIgnoreHoverSelection: "Auswahl beim Zeigen ignorieren",
+        switcherIgnoreHoverSelectionCaption: "Bewegt sich der Zeiger über Apps und Fenster, bleibt die Markierung an ihrem Platz. Ein Klick öffnet weiterhin einen Eintrag.",
         switcherMergeTabs: "Einen Eintrag pro App anzeigen",
         switcherMergeTabsCaption: "Fasst alle Fenster einer App zu einem Eintrag im Umschalter zusammen, statt einen Eintrag pro Fenster.",
         switcherWindowlessApps: "Apps ohne geöffnetes Fenster",
