@@ -3700,25 +3700,24 @@ enum ScreenshotFeatureTests {
                                                                   isColorPick: false,
                                                                   isWindowClick: true),
                "confirm-before-capture only gates region drags, not color picks or window clicks")
-        let confirmBounds = CGRect(x: 0, y: 0, width: 400, height: 300)
-        let confirmSelection = CGRect(x: 40, y: 40, width: 120, height: 80)
+        let confirmBounds = CGRect(x: 0, y: 0, width: 800, height: 600)
+        let confirmSelection = CGRect(x: 200, y: 120, width: 160, height: 100)
         let doneRect = ScreenshotSupport.confirmSelectionDoneButtonRect(for: confirmSelection,
                                                                         in: confirmBounds)
         suite.expect(confirmBounds.contains(doneRect)
                 && doneRect.width == ScreenshotSupport.confirmSelectionDoneButtonSize
-                && doneRect.minX >= confirmSelection.maxX,
-               "the Done control sits outside the selection and stays on-screen")
-        let editRect = ScreenshotSupport.confirmSelectionActionRect(
-            .edit, for: confirmSelection, in: confirmBounds, includingEdit: true)
-        let completeRect = ScreenshotSupport.confirmSelectionActionRect(
-            .complete, for: confirmSelection, in: confirmBounds, includingEdit: true)
-        suite.expect(confirmBounds.contains(editRect)
-                && confirmBounds.contains(completeRect)
-                && editRect.width == ScreenshotSupport.confirmSelectionDoneButtonSize
-                && completeRect.minX >= editRect.maxX
-                && !editRect.intersects(completeRect)
-                && completeRect.minX >= confirmSelection.maxX,
-               "Edit and Complete sit side by side outside the selection")
+                && doneRect.minY >= confirmSelection.maxY,
+               "the fallback Done control sits outside the selection and stays on-screen")
+        let toolbar = ScreenshotSupport.confirmSelectionToolbarFrame(
+            for: confirmSelection,
+            in: confirmBounds,
+            size: CGSize(width: 360, height: ScreenshotSupport.confirmSelectionToolbarHeight))
+        suite.expect(confirmBounds.contains(toolbar)
+                && toolbar.minY >= confirmSelection.maxY
+                && abs(toolbar.midX - confirmSelection.midX) < 1,
+               "the inline annotate toolbar sits centered below the selection")
+        suite.expect(ScreenshotSupport.Tool.editorTools.count >= 10,
+               "confirm-selection toolbar exposes the real editor tool set")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,
                "window highlights preserve the existing selection appearance by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,

@@ -57,6 +57,7 @@ enum ScreenshotSelectionRefreshContract {
         var selection = CGRect.zero
         var isAdjusting = false
         var activeHandle: ScreenshotSupport.Handle?
+        var annotationDragActive = false
         var hoverPoint = CGPoint.zero
         var pointerIsInside = false
         var hoveredWindow: ScreenshotSupport.PickableWindow?
@@ -73,6 +74,8 @@ enum ScreenshotSelectionRefreshContract {
         func updateLoupeImage(_ image: CGImage?) { loupeImage = image }
         /// Production Enter/Complete confirm for adjustable regions; unused in these doubles.
         func confirmAdjustingSelectionIfNeeded(openEditor: Bool = false) -> Bool { false }
+        /// Mirrors production cleanup when the capture tool changes mid-session.
+        func endInlineEditingSession() { annotationDragActive = false }
     }
     @MainActor final class ScreenshotOverlayPanel {
         let displayID: CGDirectDisplayID
