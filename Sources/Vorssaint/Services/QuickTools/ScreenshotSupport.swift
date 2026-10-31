@@ -2064,29 +2064,43 @@ enum ScreenshotSupport {
     static let confirmSelectionToolbarMinWidth: CGFloat = 420
 
     /// Places a WeChat-style toolbar outside the selection, preferring below
-    /// then above, then clamping into `bounds`.
+    /// then above. When the selection fills the display, the bar sits inside
+    /// the selection near its bottom edge so menu bar / notch / dock never
+    /// cover it. `topInset`/`bottomInset` are in the same flipped view space
+    /// as `bounds` (y grows downward; 0 is the top of the display).
     static func confirmSelectionToolbarFrame(for selection: CGRect,
                                              in bounds: CGRect,
                                              size: CGSize,
-                                             gap: CGFloat = confirmSelectionDoneButtonGap) -> CGRect {
-        let width = min(max(size.width, 1), bounds.width - 8)
-        let height = min(max(size.height, 1), bounds.height - 8)
+                                             gap: CGFloat = confirmSelectionDoneButtonGap,
+                                             topInset: CGFloat = 0,
+                                             bottomInset: CGFloat = 0) -> CGRect {
+        let edgePad: CGFloat = 8
+        let safeTop = bounds.minY + max(topInset, edgePad)
+        let safeBottom = bounds.maxY - max(bottomInset, edgePad)
+        let width = min(max(size.width, 1), max(1, bounds.width - edgePad * 2))
+        let height = min(max(size.height, 1), max(1, safeBottom - safeTop))
         var x = selection.midX - width / 2
+        // Prefer below the selection (toward the bottom of a flipped view).
         var y = selection.maxY + gap
-        if y + height > bounds.maxY {
+        let fitsBelow = y + height <= safeBottom
+        if !fitsBelow {
+            // Then above the selection (toward the menu bar / notch).
             y = selection.minY - gap - height
         }
-        if y < bounds.minY {
-            y = bounds.minY
+        let fitsAbove = y >= safeTop
+        if !fitsBelow && !fitsAbove {
+            // Full-screen (or near-full) selection: park inside, near the
+            // bottom edge of the selection but still in the safe band.
+            y = min(selection.maxY, safeBottom) - height - gap
+            if y < max(selection.minY + gap, safeTop) {
+                y = max(selection.minY + gap, safeTop)
+            }
         }
-        if y + height > bounds.maxY {
-            y = max(bounds.minY, bounds.maxY - height)
-        }
-        if x < bounds.minX {
-            x = bounds.minX
-        }
-        if x + width > bounds.maxX {
-            x = max(bounds.minX, bounds.maxX - width)
+        if y < safeTop { y = safeTop }
+        if y + height > safeBottom { y = max(safeTop, safeBottom - height) }
+        if x < bounds.minX + edgePad { x = bounds.minX + edgePad }
+        if x + width > bounds.maxX - edgePad {
+            x = max(bounds.minX + edgePad, bounds.maxX - edgePad - width)
         }
         return CGRect(x: x, y: y, width: width, height: height)
     }
@@ -2096,12 +2110,16 @@ enum ScreenshotSupport {
     static func confirmSelectionDoneButtonRect(for selection: CGRect,
                                                in bounds: CGRect,
                                                size: CGFloat = confirmSelectionDoneButtonSize,
-                                               gap: CGFloat = confirmSelectionDoneButtonGap) -> CGRect {
+                                               gap: CGFloat = confirmSelectionDoneButtonGap,
+                                               topInset: CGFloat = 0,
+                                               bottomInset: CGFloat = 0) -> CGRect {
         let frame = confirmSelectionToolbarFrame(
             for: selection,
             in: bounds,
             size: CGSize(width: size, height: size),
-            gap: gap)
+            gap: gap,
+            topInset: topInset,
+            bottomInset: bottomInset)
         return CGRect(x: frame.maxX - size, y: frame.minY, width: size, height: size)
     }
 

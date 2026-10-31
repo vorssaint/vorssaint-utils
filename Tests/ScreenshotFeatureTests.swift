@@ -3730,6 +3730,20 @@ enum ScreenshotFeatureTests {
                 && toolbar.minY >= confirmSelection.maxY
                 && abs(toolbar.midX - confirmSelection.midX) < 1,
                "the inline annotate toolbar sits centered below the selection")
+        // Near-full-screen selection: bar must stay inside the safe band (below
+        // a 38pt menu-bar/notch inset) rather than clamping under the chrome.
+        let fullSelection = CGRect(x: 4, y: 4, width: 792, height: 592)
+        let fullToolbar = ScreenshotSupport.confirmSelectionToolbarFrame(
+            for: fullSelection,
+            in: confirmBounds,
+            size: CGSize(width: 420, height: ScreenshotSupport.confirmSelectionToolbarHeight),
+            topInset: 38,
+            bottomInset: 12)
+        suite.expect(confirmBounds.contains(fullToolbar)
+                && fullToolbar.minY >= 38
+                && fullToolbar.maxY <= confirmBounds.maxY - 12
+                && fullToolbar.maxY <= fullSelection.maxY,
+               "a full-screen selection keeps the annotate toolbar on-screen below the menu bar")
         suite.expect(ScreenshotSupport.Tool.editorTools.count >= 10,
                "confirm-selection toolbar exposes the real editor tool set")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,

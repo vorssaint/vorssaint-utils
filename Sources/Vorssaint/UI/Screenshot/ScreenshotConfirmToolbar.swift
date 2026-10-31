@@ -39,7 +39,7 @@ struct ScreenshotConfirmToolbar: View {
 
                 chromeDivider
 
-                actionIcon("text.viewfinder", enabled: true, help: strings.toolSelect) {
+                actionIcon("text.viewfinder", enabled: true, help: strings.copyTextButton) {
                     onOCR()
                 }
                 actionIcon("pin", enabled: true, help: strings.pinButton) {

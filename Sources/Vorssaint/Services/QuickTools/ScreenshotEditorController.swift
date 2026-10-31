@@ -434,6 +434,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         if !selectedWordIndexes.isEmpty { selectedWordIndexes = [] }
     }
 
+    /// Highlights every recognized word so an OCR pass is visible on the
+    /// confirm overlay the same way a drag-selected range is in the editor.
+    func selectAllRecognizedWords() {
+        selectedWordIndexes = Array(textWords.indices)
+    }
+
+
     func wordIndex(at point: CGPoint) -> Int? {
         textWords.firstIndex { $0.rect.insetBy(dx: -2 * scale, dy: -2 * scale).contains(point) }
     }

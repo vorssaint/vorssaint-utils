@@ -1110,6 +1110,9 @@ private final class ScreenshotOverlayView: NSView {
     /// because the regular HUD sits under these shielding-level panels.
     private var copiedValue: String?
     private var copiedValueReset: DispatchWorkItem?
+    /// In-overlay toast for OCR (QuickToolHUD sits under shielding panels).
+    private var confirmFeedback: String?
+    private var confirmFeedbackReset: DispatchWorkItem?
     var ghostRect: CGRect?
     var isCapturePending = false {
         didSet {
@@ -1300,6 +1303,41 @@ private final class ScreenshotOverlayView: NSView {
         copiedValueReset = reset
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.4, execute: reset)
         needsDisplay = true
+    }
+
+    private func showConfirmFeedback(_ message: String) {
+        confirmFeedback = message
+        confirmFeedbackReset?.cancel()
+        let reset = DispatchWorkItem { [weak self] in
+            self?.confirmFeedback = nil
+            self?.needsDisplay = true
+        }
+        confirmFeedbackReset = reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: reset)
+        needsDisplay = true
+    }
+
+    /// AppKit screen rect for the current selection (bottom-left origin).
+    private func selectionScreenFrame() -> CGRect? {
+        guard let panel, selection.width >= 2, selection.height >= 2 else { return nil }
+        return CGRect(
+            x: panel.screenFrame.minX + selection.minX,
+            y: panel.screenFrame.maxY - selection.maxY,
+            width: selection.width,
+            height: selection.height)
+    }
+
+    private func pinAdjustingSelection() {
+        guard let session = inlineSession,
+              let screenFrame = selectionScreenFrame() else { return }
+        session.pin(screenFrame: screenFrame)
+        // WeChat-style: floating pin replaces the capture UI.
+        endInlineEditingSession()
+        isAdjusting = false
+        activeHandle = nil
+        annotationDragActive = false
+        dragOrigin = nil
+        controller?.cancel()
     }
 
     func refreshCaptureGuide() {
@@ -1640,6 +1678,9 @@ private final class ScreenshotOverlayView: NSView {
             self?.needsDisplay = true
             self?.layoutConfirmToolbar()
         }
+        session.onOCRFeedback = { [weak self] message in
+            self?.showConfirmFeedback(message)
+        }
         inlineSession = session
         installConfirmToolbar(session: session)
     }
@@ -1659,7 +1700,7 @@ private final class ScreenshotOverlayView: NSView {
                 _ = self?.confirmAdjustingSelectionIfNeeded()
             },
             onPin: { [weak self] in
-                self?.inlineSession?.pin()
+                self?.pinAdjustingSelection()
             },
             onOCR: { [weak self] in
                 self?.inlineSession?.copyOCRSelectionOrAll()
@@ -1685,8 +1726,15 @@ private final class ScreenshotOverlayView: NSView {
         let size = CGSize(
             width: max(fitting.width, ScreenshotSupport.confirmSelectionToolbarMinWidth),
             height: max(fitting.height, 40))
+        let topInset = panel?.topChromeHeight ?? 0
+        // Keep clear of the Dock when the selection fills the display.
+        let bottomInset: CGFloat = 12
         host.frame = ScreenshotSupport.confirmSelectionToolbarFrame(
-            for: selection, in: bounds, size: size)
+            for: selection,
+            in: bounds,
+            size: size,
+            topInset: topInset,
+            bottomInset: bottomInset)
     }
 
     func refreshGuideVisibility() {
@@ -1866,6 +1914,11 @@ private final class ScreenshotOverlayView: NSView {
             drawConfirmCompleteButton(
                 context,
                 in: ScreenshotSupport.confirmSelectionDoneButtonRect(for: selection, in: bounds))
+        }
+        if let confirmFeedback {
+            drawBadge(confirmFeedback,
+                      near: CGPoint(x: selection.midX,
+                                    y: max(selection.minY - 18, 24)))
         }
     }
 

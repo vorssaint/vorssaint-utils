@@ -20,6 +20,8 @@ final class ScreenshotConfirmInlineSession {
     private var cancellables = Set<AnyCancellable>()
 
     var onChange: (() -> Void)?
+    /// HUD sits under shielding panels; the overlay draws this feedback itself.
+    var onOCRFeedback: ((String) -> Void)?
 
     private init(model: ScreenshotEditorModel,
                  sourceImage: CGImage,
@@ -36,8 +38,13 @@ final class ScreenshotConfirmInlineSession {
         model.$textWords
             .receive(on: RunLoop.main)
             .sink { [weak self] words in
-                guard let self, self.pendingOCRCopy, !words.isEmpty else { return }
+                guard let self, self.pendingOCRCopy else { return }
                 self.pendingOCRCopy = false
+                if words.isEmpty {
+                    self.onOCRFeedback?(L10n.shared.s.ocrNoText)
+                    return
+                }
+                self.model.selectAllRecognizedWords()
                 self.copyAllRecognizedText()
             }
             .store(in: &cancellables)
@@ -58,6 +65,9 @@ final class ScreenshotConfirmInlineSession {
         // Confirm overlay always opens on arrow, matching WeChat and the editor's
         // fallback starting tool — not select (which would only move the frame).
         model.tool = .arrow
+        // Overlay arrows read thin at medium; start one step thicker than the
+        // editor's remembered default so the first stroke is easy to see.
+        model.stroke = .large
         return ScreenshotConfirmInlineSession(
             model: model,
             sourceImage: sourceImage,
@@ -116,10 +126,12 @@ final class ScreenshotConfirmInlineSession {
 
     var isAnnotating: Bool { annotating }
 
-    /// Drawing tools use the selection interior; select still moves the frame
-    /// unless an annotation is already targeted.
+    /// Drawing tools always use the selection interior. Select does too once
+    /// OCR words exist (or a recognition is in flight) so taps pick text
+    /// instead of panning the crop; otherwise select still moves the frame.
     var usesSelectionInteriorForTools: Bool {
-        model.tool != .select
+        if model.tool != .select { return true }
+        return pendingOCRCopy || !model.textWords.isEmpty
     }
 
     func prepareForExport() {
@@ -160,12 +172,22 @@ final class ScreenshotConfirmInlineSession {
             skippingText: model.editingTextID,
             spotlightDimStrength: model.spotlightDimStrength)
 
-        if !model.selectedWordIndexes.isEmpty {
-            context.setFillColor(CGColor(srgbRed: 0.04, green: 0.52, blue: 1, alpha: 0.32))
-            for index in model.selectedWordIndexes where model.textWords.indices.contains(index) {
-                let rect = model.textWords[index].rect.insetBy(dx: -1.5 * model.scale,
-                                                               dy: -1.5 * model.scale)
-                context.fill(rect)
+        if !model.textWords.isEmpty {
+            // Recognized words stay lightly outlined so OCR is visible even
+            // before a copy; selected ones fill like the editor.
+            context.setStrokeColor(CGColor(srgbRed: 0.04, green: 0.52, blue: 1, alpha: 0.55))
+            context.setLineWidth(max(1, model.scale))
+            for word in model.textWords {
+                let rect = word.rect.insetBy(dx: -1.0 * model.scale, dy: -1.0 * model.scale)
+                context.stroke(rect)
+            }
+            if !model.selectedWordIndexes.isEmpty {
+                context.setFillColor(CGColor(srgbRed: 0.04, green: 0.52, blue: 1, alpha: 0.32))
+                for index in model.selectedWordIndexes where model.textWords.indices.contains(index) {
+                    let rect = model.textWords[index].rect.insetBy(dx: -1.5 * model.scale,
+                                                                   dy: -1.5 * model.scale)
+                    context.fill(rect)
+                }
             }
         }
         context.restoreGState()
@@ -173,14 +195,18 @@ final class ScreenshotConfirmInlineSession {
 
     func copyOCRSelectionOrAll() {
         model.tool = .select
+        onChange?()
         if !model.selectedWordIndexes.isEmpty {
             copyText(model.selectedText)
             return
         }
         if !model.textWords.isEmpty {
+            model.selectAllRecognizedWords()
             copyAllRecognizedText()
             return
         }
+        // Avoid stacking overlapping recognitions if the person mashes OCR.
+        if pendingOCRCopy { return }
         pendingOCRCopy = true
         model.recognizeText()
     }
@@ -191,17 +217,27 @@ final class ScreenshotConfirmInlineSession {
     }
 
     private func copyText(_ text: String) {
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty else {
+            onOCRFeedback?(L10n.shared.s.ocrNoText)
+            return
+        }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.declareVorssaintSource()
         pasteboard.setString(text, forType: .string)
-        QuickToolHUD.show(icon: "text.viewfinder", message: L10n.shared.s.ocrCopied)
+        // Shielding panels bury QuickToolHUD; surface the same copy toast on
+        // the overlay so OCR feedback is actually visible.
+        onOCRFeedback?(L10n.shared.s.ocrCopied)
+        onChange?()
     }
 
-    func pin() {
+    /// Pin at the live selection's on-screen frame (original size), then the
+    /// caller dismisses the capture UI — WeChat-style floating pin.
+    func pin(screenFrame: CGRect) {
         guard let export = exportImage() else { return }
-        ScreenshotPinController.shared.pin(image: export.image, scale: export.scale)
+        ScreenshotPinController.shared.pin(image: export.image,
+                                           scale: export.scale,
+                                           screenFrame: screenFrame)
         model.markExported()
     }
 }
