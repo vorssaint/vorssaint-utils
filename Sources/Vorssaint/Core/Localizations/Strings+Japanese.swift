@@ -192,6 +192,7 @@ extension Strings {
         ocrCaption: "画面の範囲を選択すると、認識されたテキストがコピーされ、すぐにペーストできます。",
         ocrCopied: "テキストをコピーしました",
         ocrNoText: "テキストが見つかりません",
+        ocrPickToCopyHint: "単語をクリックまたはドラッグしてコピー",
         colorPickerName: "カラーピッカー",
         colorPickerCaption: "画面上の任意のピクセルの色を取得し、好みの形式でコピーします。",
         colorPickerFormatLabel: "コピー形式",

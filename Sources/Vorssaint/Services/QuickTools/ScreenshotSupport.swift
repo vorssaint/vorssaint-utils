@@ -1498,6 +1498,12 @@ enum ScreenshotSupport {
         /// Content-only image annotations never appear in the tool rail.
         static var editorTools: [Tool] { allCases.filter { $0 != .image } }
 
+        /// WeChat-style confirm-selection strip. Crop / expand / stickers /
+        /// select stay in the full editor.
+        static let confirmAnnotateTools: [Tool] = [
+            .freehand, .arrow, .rect, .ellipse, .pixelate, .text
+        ]
+
         static let shortcutLimit = 9
 
         static var defaultOrderStorage: String {
@@ -1824,7 +1830,7 @@ enum ScreenshotSupport {
     }
 
     enum ArrowStyleID: String, CaseIterable {
-        case filled, outline, open, doubleEnded, scribbly
+        case filled, outline, open, doubleEnded, scribbly, numbered
 
         static func sanitized(_ raw: String?) -> ArrowStyleID {
             ArrowStyleID(rawValue: raw ?? "") ?? .filled
@@ -2046,10 +2052,149 @@ enum ScreenshotSupport {
         }
     }
 
+    /// Numbered arrows keep a 1…n sequence in creation order, like counters.
+    static func renumberingNumberedArrows(_ annotations: [Annotation]) -> [Annotation] {
+        var next = 1
+        return annotations.map { annotation in
+            guard annotation.tool == .arrow, annotation.arrowStyle == .numbered else {
+                return annotation
+            }
+            var updated = annotation
+            updated.number = next
+            next += 1
+            return updated
+        }
+    }
+
+    static func nextNumberedArrowNumber(in annotations: [Annotation]) -> Int {
+        // Prefer the dense count so a delete that reflows 1…n never leaves a
+        // hole for the next stroke to jump over.
+        let numbered = annotations.filter { $0.tool == .arrow && $0.arrowStyle == .numbered }
+        let highest = numbered.map(\.number).max() ?? 0
+        return max(numbered.count, highest) + 1
+    }
+
     /// Counter badge diameter for an image, scaling with capture resolution
     /// so badges stay readable without swallowing small screenshots.
     static func counterDiameter(for imageSize: CGSize, scale: CGFloat) -> CGFloat {
         max(22, min(imageSize.width, imageSize.height) / 24) * scale
+    }
+
+    // MARK: - Confirm-before-capture selection
+
+    /// Hit tolerance for the eight region-adjust grips (view points).
+    static let confirmSelectionHandleTolerance: CGFloat = 8
+    /// Fallback Complete control size when the inline toolbar is unavailable.
+    static let confirmSelectionDoneButtonSize: CGFloat = 28
+    static let confirmSelectionDoneButtonGap: CGFloat = 8
+    /// Corner lock that freezes crop grips after the first mark (Shottr-style).
+    static let confirmSelectionLockButtonSize: CGFloat = 26
+    static let confirmSelectionLockButtonInset: CGFloat = 8
+    /// Preferred inline toolbar height (tools row + optional style strip).
+    static let confirmSelectionToolbarHeight: CGFloat = 72
+    static let confirmSelectionToolbarMinWidth: CGFloat = 380
+
+    /// Places a WeChat-style toolbar outside the selection, preferring below
+    /// then above. When the selection fills the display, the bar sits inside
+    /// the selection near its bottom edge so menu bar / notch / dock never
+    /// cover it. `topInset`/`bottomInset` are in the same flipped view space
+    /// as `bounds` (y grows downward; 0 is the top of the display).
+    static func confirmSelectionToolbarFrame(for selection: CGRect,
+                                             in bounds: CGRect,
+                                             size: CGSize,
+                                             gap: CGFloat = confirmSelectionDoneButtonGap,
+                                             topInset: CGFloat = 0,
+                                             bottomInset: CGFloat = 0) -> CGRect {
+        let edgePad: CGFloat = 8
+        let safeTop = bounds.minY + max(topInset, edgePad)
+        let safeBottom = bounds.maxY - max(bottomInset, edgePad)
+        let width = min(max(size.width, 1), max(1, bounds.width - edgePad * 2))
+        let height = min(max(size.height, 1), max(1, safeBottom - safeTop))
+        var x = selection.midX - width / 2
+        // Prefer below the selection (toward the bottom of a flipped view).
+        var y = selection.maxY + gap
+        let fitsBelow = y + height <= safeBottom
+        if !fitsBelow {
+            // Then above the selection (toward the menu bar / notch).
+            y = selection.minY - gap - height
+        }
+        let fitsAbove = y >= safeTop
+        if !fitsBelow && !fitsAbove {
+            // Full-screen (or near-full) selection: park inside, near the
+            // bottom edge of the selection but still in the safe band.
+            y = min(selection.maxY, safeBottom) - height - gap
+            if y < max(selection.minY + gap, safeTop) {
+                y = max(selection.minY + gap, safeTop)
+            }
+        }
+        if y < safeTop { y = safeTop }
+        if y + height > safeBottom { y = max(safeTop, safeBottom - height) }
+        if x < bounds.minX + edgePad { x = bounds.minX + edgePad }
+        if x + width > bounds.maxX - edgePad {
+            x = max(bounds.minX + edgePad, bounds.maxX - edgePad - width)
+        }
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    /// Places a lone Complete control (green check) when the toolbar cannot
+    /// start because freeze pixels are missing.
+    static func confirmSelectionDoneButtonRect(for selection: CGRect,
+                                               in bounds: CGRect,
+                                               size: CGFloat = confirmSelectionDoneButtonSize,
+                                               gap: CGFloat = confirmSelectionDoneButtonGap,
+                                               topInset: CGFloat = 0,
+                                               bottomInset: CGFloat = 0) -> CGRect {
+        let frame = confirmSelectionToolbarFrame(
+            for: selection,
+            in: bounds,
+            size: CGSize(width: size, height: size),
+            gap: gap,
+            topInset: topInset,
+            bottomInset: bottomInset)
+        return CGRect(x: frame.maxX - size, y: frame.minY, width: size, height: size)
+    }
+
+    /// Bottom-right corner of the adjustable selection (flipped view space).
+    /// Stays visible on the crop itself so the lock is not buried in the toolbar.
+    static func confirmSelectionLockButtonRect(for selection: CGRect,
+                                               in bounds: CGRect,
+                                               size: CGFloat = confirmSelectionLockButtonSize,
+                                               inset: CGFloat = confirmSelectionLockButtonInset) -> CGRect {
+        let edgePad: CGFloat = 4
+        var rect = CGRect(x: selection.maxX - size - inset,
+                          y: selection.maxY - size - inset,
+                          width: size,
+                          height: size)
+        if rect.maxX > bounds.maxX - edgePad {
+            rect.origin.x = bounds.maxX - edgePad - size
+        }
+        if rect.maxY > bounds.maxY - edgePad {
+            rect.origin.y = bounds.maxY - edgePad - size
+        }
+        if rect.minX < bounds.minX + edgePad {
+            rect.origin.x = bounds.minX + edgePad
+        }
+        if rect.minY < bounds.minY + edgePad {
+            rect.origin.y = bounds.minY + edgePad
+        }
+        // Prefer staying on the selection when it is large enough.
+        if selection.width > size + inset * 2, selection.height > size + inset * 2 {
+            rect.origin.x = min(max(rect.origin.x, selection.minX + inset),
+                                selection.maxX - size - inset)
+            rect.origin.y = min(max(rect.origin.y, selection.minY + inset),
+                                selection.maxY - size - inset)
+        }
+        return rect
+    }
+
+    /// Region drags and window clicks honor confirm-before-capture; color picks do not.
+    /// `isWindowClick` is kept for call-site clarity; window clicks share the same
+    /// adjustable confirm surface as dragged regions (WeChat-style).
+    static func confirmsRegionBeforeCapture(preferenceEnabled: Bool,
+                                            isColorPick: Bool,
+                                            isWindowClick: Bool) -> Bool {
+        _ = isWindowClick
+        return preferenceEnabled && !isColorPick
     }
 
     // MARK: - Selection handles
@@ -2362,7 +2507,8 @@ enum ScreenshotSupport {
         let head = arrowHead(from: tail, to: tip, strokeWidth: strokeWidth)
         let path = CGMutablePath()
         switch style {
-        case .filled:
+        case .filled, .numbered:
+            // Numbered uses the solid silhouette plus a badge in the renderer.
             return nil
         case .outline:
             path.addLines(between: [tail, CGPoint(x: (head.left.x + head.right.x) / 2,

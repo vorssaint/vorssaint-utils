@@ -421,6 +421,16 @@ enum ScreenshotFeatureTests {
                 && ScreenshotSupport.sanitizedDelay(7) == 0
                 && ScreenshotSupport.sanitizedDelay(-3) == 0,
                "capture delay only accepts the offered steps")
+        suite.expect(ScreenshotSupport.allowedDelays == [0, 3, 5, 10],
+               "region capture offers Off/3/5/10s countdown before selection")
+        suite.expect(ScreenshotSupport.confirmSelectionToolbarMinWidth == 380,
+               "confirm toolbar min width leaves room for arrow-style chips")
+        let settingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenshotSettings.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(settingsSource.contains("strings.delayCaption"),
+               "screenshot settings show the delay caption under the Delay picker")
+
         suite.expect(ScreenshotSupport.scrollingCaptureMaximumDuration == 120
                 && ScreenshotSupport.scrollingCaptureMaximumFrames == 512
                 && ScreenshotSupport.scrollingCaptureMaximumRetainedPixels == 60_000_000
@@ -1920,9 +1930,9 @@ enum ScreenshotFeatureTests {
                                   transform: .identity),
                "the arrow stays filled where its shaft meets the head")
         let arrowStyles = ScreenshotSupport.ArrowStyleID.allCases
-        suite.expect(arrowStyles == [.filled, .outline, .open, .doubleEnded, .scribbly]
+        suite.expect(arrowStyles == [.filled, .outline, .open, .doubleEnded, .scribbly, .numbered]
                 && ScreenshotSupport.ArrowStyleID.sanitized("unknown") == .filled,
-               "the screenshot editor offers five arrow styles and safely falls back to solid")
+               "the screenshot editor offers six arrow styles and safely falls back to solid")
         let openArrow = ScreenshotSupport.Annotation(tool: .arrow,
                                                      points: [.zero, CGPoint(x: 100, y: 100)],
                                                      arrowStyle: .open)
@@ -1949,12 +1959,38 @@ enum ScreenshotFeatureTests {
                "scribbly arrows vary by seed but keep one stable design when redrawn")
         suite.expect(ScreenshotSupport.arrowStrokePath(from: .zero, to: CGPoint(x: 100, y: 0),
                                                  strokeWidth: 4, style: .filled, seed: 0) == nil
-                && arrowStyles.filter { $0 != .filled }.allSatisfy {
+                && ScreenshotSupport.arrowStrokePath(from: .zero, to: CGPoint(x: 100, y: 0),
+                                                     strokeWidth: 4, style: .numbered, seed: 0) == nil
+                && arrowStyles.filter { $0 != .filled && $0 != .numbered }.allSatisfy {
                     ScreenshotSupport.arrowStrokePath(from: .zero, to: CGPoint(x: 100, y: 0),
                                                       strokeWidth: 4, style: $0, seed: 17)?
                         .boundingBox.width ?? 0 >= 100
                 },
-               "the solid arrow is a filled silhouette and every other style is one stroked path")
+               "solid and numbered arrows are filled silhouettes; other styles are one stroked path")
+
+        let numberedSeed: [ScreenshotSupport.Annotation] = [
+            .init(tool: .arrow, points: [.zero, CGPoint(x: 10, y: 0)],
+                  arrowStyle: .numbered, number: 1),
+            .init(tool: .rect, rect: CGRect(x: 0, y: 0, width: 4, height: 4)),
+            .init(tool: .arrow, points: [.zero, CGPoint(x: 0, y: 10)],
+                  arrowStyle: .numbered, number: 7),
+        ]
+        suite.expect(ScreenshotSupport.nextNumberedArrowNumber(in: numberedSeed) == 8,
+               "the next numbered arrow continues past the highest existing number")
+        let renumberedArrows = ScreenshotSupport.renumberingNumberedArrows(numberedSeed)
+        suite.expect(renumberedArrows.filter { $0.arrowStyle == .numbered }.map(\.number) == [1, 2],
+               "renumbering numbered arrows restores a dense 1…n sequence")
+        let withHole = ScreenshotSupport.renumberingNumberedArrows([
+            .init(tool: .arrow, points: [.zero, CGPoint(x: 1, y: 0)],
+                  arrowStyle: .numbered, number: 1),
+            .init(tool: .arrow, points: [.zero, CGPoint(x: 2, y: 0)],
+                  arrowStyle: .numbered, number: 2),
+            .init(tool: .arrow, points: [.zero, CGPoint(x: 3, y: 0)],
+                  arrowStyle: .numbered, number: 3),
+        ].filter { $0.number != 2 })
+        suite.expect(withHole.map(\.number) == [1, 2],
+               "deleting a middle numbered arrow reflows survivors to 1…n")
+
         // With shadows on, a shaft pixel under the head's shadow must match a
         // shaft pixel far from the head: the head and the shaft are one
         // stroke, so the head never shades the shaft where they meet.
@@ -3680,6 +3716,129 @@ enum ScreenshotFeatureTests {
                "screenshot annotation shadows ship off")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotShowLastRegion] as? Bool == true,
                "the previous capture outline stays visible by default, as it always was")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotConfirmSelection] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotConfirmSelection),
+               "confirm-before-capture ships off and travels in settings backups")
+        suite.expect(AppLanguage.allCases.allSatisfy { language in
+            let strings = FeatureStrings.screenshot(language)
+            return !strings.confirmSelectionToggle.isEmpty && !strings.confirmSelectionCaption.isEmpty
+        }, "confirm-selection settings copy exists in every language")
+        suite.expect(ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: true,
+                                                                   isColorPick: false,
+                                                                   isWindowClick: false)
+                && ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: true,
+                                                                 isColorPick: false,
+                                                                 isWindowClick: true)
+                && !ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: false,
+                                                                  isColorPick: false,
+                                                                  isWindowClick: false)
+                && !ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: true,
+                                                                  isColorPick: true,
+                                                                  isWindowClick: false)
+                && !ScreenshotSupport.confirmsRegionBeforeCapture(preferenceEnabled: true,
+                                                                  isColorPick: true,
+                                                                  isWindowClick: true),
+               "confirm-before-capture gates region drags and window clicks; color picks stay immediate")
+        // Confirm overlay digits follow the slim WeChat-style strip, not the
+        // full editor rail (select/crop/sticker/expand stay out).
+        let confirmTools = ScreenshotSupport.Tool.confirmAnnotateTools
+        suite.expect(confirmTools == [.freehand, .arrow, .rect, .ellipse, .pixelate, .text],
+               "confirm-selection toolbar keeps pen/arrow/shapes/mosaic/text only")
+        suite.expect(ScreenshotSupport.Tool.startingTool(remembered: nil) == .arrow
+                && ScreenshotSupport.Tool.startingTool(remembered: "select") == .arrow,
+               "confirm overlay default annotate tool is arrow")
+        let confirmBounds = CGRect(x: 0, y: 0, width: 800, height: 600)
+        let confirmSelection = CGRect(x: 200, y: 120, width: 160, height: 100)
+        let doneRect = ScreenshotSupport.confirmSelectionDoneButtonRect(for: confirmSelection,
+                                                                        in: confirmBounds)
+        suite.expect(confirmBounds.contains(doneRect)
+                && doneRect.width == ScreenshotSupport.confirmSelectionDoneButtonSize
+                && doneRect.minY >= confirmSelection.maxY,
+               "the fallback Done control sits outside the selection and stays on-screen")
+        let toolbar = ScreenshotSupport.confirmSelectionToolbarFrame(
+            for: confirmSelection,
+            in: confirmBounds,
+            size: CGSize(width: 360, height: ScreenshotSupport.confirmSelectionToolbarHeight))
+        suite.expect(confirmBounds.contains(toolbar)
+                && toolbar.minY >= confirmSelection.maxY
+                && abs(toolbar.midX - confirmSelection.midX) < 1,
+               "the inline annotate toolbar sits centered below the selection")
+        // Near-full-screen selection: bar must stay inside the safe band (below
+        // a 38pt menu-bar/notch inset) rather than clamping under the chrome.
+        let fullSelection = CGRect(x: 4, y: 4, width: 792, height: 592)
+        let fullToolbar = ScreenshotSupport.confirmSelectionToolbarFrame(
+            for: fullSelection,
+            in: confirmBounds,
+            size: CGSize(width: 420, height: ScreenshotSupport.confirmSelectionToolbarHeight),
+            topInset: 38,
+            bottomInset: 12)
+        suite.expect(confirmBounds.contains(fullToolbar)
+                && fullToolbar.minY >= 38
+                && fullToolbar.maxY <= confirmBounds.maxY - 12
+                && fullToolbar.maxY <= fullSelection.maxY,
+               "a full-screen selection keeps the annotate toolbar on-screen below the menu bar")
+        suite.expect(ScreenshotSupport.Tool.confirmAnnotateTools.count == 6
+                && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.highlight)
+                && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.spotlight)
+                && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.crop)
+                && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.sticker)
+                && !ScreenshotSupport.Tool.confirmAnnotateTools.contains(.expandCanvas)
+                && ScreenshotSupport.Tool.confirmAnnotateTools.contains(.text),
+               "confirm-selection toolbar is the slim annotate set with text, no highlight/spotlight/crop/sticker/expand")
+        let selectionControllerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(selectionControllerSource.contains("performInlineDeleteSelected")
+                && selectionControllerSource.contains("case kVK_Delete, kVK_ForwardDelete:"),
+               "confirm overlay Delete/Backspace removes the selected annotation")
+        suite.expect(selectionControllerSource.contains("case copied(Capture)")
+                && selectionControllerSource.contains("copyOnly: true"),
+               "confirm Complete finishes as clipboard-only, not After capture / editor")
+        suite.expect(((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+            encoding: .utf8)) ?? "").contains("routeClipboardOnly"),
+               "screenshot service routes confirm Complete through clipboard-only dismissal")
+        suite.expect(((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotConfirmInlineSession.swift",
+            encoding: .utf8)) ?? "").contains("drawSelectionChrome(in:"),
+               "confirm overlay draws selection chrome so Delete has a visible target")
+
+        let lockRect = ScreenshotSupport.confirmSelectionLockButtonRect(
+            for: confirmSelection, in: confirmBounds)
+        suite.expect(confirmSelection.contains(CGPoint(x: lockRect.midX, y: lockRect.midY))
+                && abs(lockRect.maxX + ScreenshotSupport.confirmSelectionLockButtonInset
+                       - confirmSelection.maxX) < 0.5
+                && abs(lockRect.maxY + ScreenshotSupport.confirmSelectionLockButtonInset
+                       - confirmSelection.maxY) < 0.5,
+               "the crop lock sits in the selection's bottom-right corner")
+        let toolbarSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Screenshot/ScreenshotConfirmToolbar.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!toolbarSource.contains("showsSelectionLock")
+                && !toolbarSource.contains("onToggleSelectionLock")
+                && !toolbarSource.contains("lock.fill"),
+               "confirm toolbar no longer hosts the crop lock — it lives on the selection")
+        suite.expect(selectionControllerSource.contains("drawConfirmSelectionLockButton")
+                && selectionControllerSource.contains("confirmSelectionLockButtonRect"),
+               "confirm overlay draws and hits the corner crop lock")
+
+        suite.expect(((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotConfirmInlineSession.swift",
+            encoding: .utf8)) ?? "").contains("keepsCreationToolWhenSelecting = true"),
+               "confirm overlay keeps the draw tool after selecting a mark so numbered arrows stay consecutive")
+
+        suite.expect(((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotConfirmInlineSession.swift",
+            encoding: .utf8)) ?? "").contains("Shottr-style: finishing a word click"),
+               "confirm OCR copies as soon as a word click or drag-select finishes")
+        let confirmToolbarSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Screenshot/ScreenshotConfirmToolbar.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(confirmToolbarSource.contains("ScrollView(.horizontal")
+                && confirmToolbarSource.contains("arrowStyleChip")
+                && confirmToolbarSource.contains("ViewThatFits")
+                && confirmToolbarSource.contains("availableWidth"),
+               "confirm toolbar reflows with ViewThatFits and keeps a scrollable style strip")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,
                "window highlights preserve the existing selection appearance by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,

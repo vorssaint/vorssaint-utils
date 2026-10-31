@@ -22,16 +22,22 @@ final class ScreenshotPinController {
         Set(pins.compactMap { $0.isVisible && $0.windowNumber > 0 ? CGWindowID($0.windowNumber) : nil })
     }
 
-    func pin(image: CGImage, scale: CGFloat) {
-        let window = ScreenshotPinWindow(image: image, scale: scale, controller: self)
+    func pin(image: CGImage, scale: CGFloat, screenFrame: CGRect? = nil) {
+        let window = ScreenshotPinWindow(image: image,
+                                         scale: scale,
+                                         preferredScreenFrame: screenFrame,
+                                         controller: self)
         pins.append(window)
-        // Cascade so consecutive pins never stack invisibly.
-        let offset = CGFloat((pins.count - 1) % 5) * 26
-        var origin = window.frame.origin
-        origin.x += offset
-        origin.y -= offset
-        window.setFrameOrigin(origin)
+        if screenFrame == nil {
+            // Cascade so consecutive centered pins never stack invisibly.
+            let offset = CGFloat((pins.count - 1) % 5) * 26
+            var origin = window.frame.origin
+            origin.x += offset
+            origin.y -= offset
+            window.setFrameOrigin(origin)
+        }
         window.orderFrontRegardless()
+        window.makeKey()
     }
 
     func closeAll() {
@@ -77,21 +83,44 @@ private final class ScreenshotPinWindow: OverlayPanel {
         FeatureStrings.screenshot(L10n.shared.language)
     }
 
-    init(image: CGImage, scale: CGFloat, controller: ScreenshotPinController) {
+    init(image: CGImage,
+         scale: CGFloat,
+         preferredScreenFrame: CGRect? = nil,
+         controller: ScreenshotPinController) {
         self.image = image
         self.scale = scale
         self.controller = controller
 
         let screen = NSScreen.pointerVisibleFrame
-        var size = CGSize(width: CGFloat(image.width) / scale,
-                          height: CGFloat(image.height) / scale)
-        let cap = min(screen.width, screen.height) * 0.55
-        let ratio = min(1, min(cap / max(size.width, 1), cap / max(size.height, 1)))
-        size = CGSize(width: max(90, size.width * ratio), height: max(60, size.height * ratio))
-        let rect = CGRect(x: screen.midX - size.width / 2,
+        let natural = CGSize(width: CGFloat(image.width) / max(scale, 0.001),
+                             height: CGFloat(image.height) / max(scale, 0.001))
+        let rect: CGRect
+        if let preferred = preferredScreenFrame, preferred.width >= 2, preferred.height >= 2 {
+            // Confirm-overlay pin: use the image's true point size (pixels / scale)
+            // so Retina captures are not resampled, and place that frame where
+            // the selection was (WeChat-style). Shrink only when it cannot fit.
+            var size = natural
+            let maxW = max(90, screen.width - 24)
+            let maxH = max(60, screen.height - 24)
+            let fit = min(1, min(maxW / max(size.width, 1), maxH / max(size.height, 1)))
+            size = CGSize(width: max(90, size.width * fit), height: max(60, size.height * fit))
+            var origin = preferred.origin
+            // preferred is AppKit screen coords (bottom-left origin).
+            origin.x += (preferred.width - size.width) / 2
+            origin.y += (preferred.height - size.height) / 2
+            origin.x = min(max(origin.x, screen.minX + 8), screen.maxX - size.width - 8)
+            origin.y = min(max(origin.y, screen.minY + 8), screen.maxY - size.height - 8)
+            rect = CGRect(origin: origin, size: size)
+        } else {
+            var size = natural
+            let cap = min(screen.width, screen.height) * 0.55
+            let ratio = min(1, min(cap / max(size.width, 1), cap / max(size.height, 1)))
+            size = CGSize(width: max(90, size.width * ratio), height: max(60, size.height * ratio))
+            rect = CGRect(x: screen.midX - size.width / 2,
                           y: screen.midY - size.height / 2,
                           width: size.width,
                           height: size.height)
+        }
 
         super.init(contentRect: rect,
                    styleMask: [.borderless, .nonactivatingPanel, .resizable],
@@ -109,7 +138,7 @@ private final class ScreenshotPinWindow: OverlayPanel {
                                     height: CGFloat(max(1, image.height)))
         minSize = CGSize(width: 90, height: 60)
 
-        let view = PinContentView(image: image, window: self)
+        let view = PinContentView(image: image, scale: scale, window: self)
         contentView = view
     }
 
@@ -191,17 +220,28 @@ private final class ScreenshotPinWindow: OverlayPanel {
         /// releases its window from inside this view's own event handling,
         /// so a menu item or a second click can arrive with the window gone.
         private weak var pinWindow: ScreenshotPinWindow?
+        private let imageScale: CGFloat
 
-        init(image: CGImage, window: ScreenshotPinWindow) {
+        init(image: CGImage, scale: CGFloat, window: ScreenshotPinWindow) {
             pinWindow = window
+            imageScale = max(scale, 0.001)
             super.init(frame: .zero)
             wantsLayer = true
+            // Map CGImage pixels through the capture scale (not a default 1x
+            // contentsScale). On Retina, omitting this stretched a 2x bitmap
+            // as if it were 1x points and the floating pin looked soft.
             layer?.contents = image
-            layer?.contentsGravity = .resizeAspect
+            layer?.contentsGravity = .resize
+            layer?.contentsScale = imageScale
             layer?.cornerRadius = 7
             layer?.masksToBounds = true
             layer?.borderWidth = 1
             layer?.borderColor = CGColor(gray: 0.5, alpha: 0.4)
+        }
+
+        override func viewDidChangeBackingProperties() {
+            super.viewDidChangeBackingProperties()
+            layer?.contentsScale = imageScale
         }
 
         @available(*, unavailable)

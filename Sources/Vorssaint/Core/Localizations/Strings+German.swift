@@ -192,6 +192,7 @@ extension Strings {
         ocrCaption: "Wähle einen Bildschirmbereich aus und der erkannte Text wird kopiert, bereit zum Einsetzen.",
         ocrCopied: "Text kopiert",
         ocrNoText: "Kein Text gefunden",
+        ocrPickToCopyHint: "Zum Kopieren Wörter anklicken oder aufziehen",
         colorPickerName: "Farbpipette",
         colorPickerCaption: "Greife die Farbe jedes Pixels auf dem Bildschirm ab und kopiere sie im gewünschten Format.",
         colorPickerFormatLabel: "Kopiertes Format",

@@ -309,6 +309,10 @@ final class ScreenshotService: ObservableObject {
             switch outcome {
             case .captured(let capture):
                 self.route(capture)
+            case .capturedForEdit(let capture):
+                self.route(capture, preferEditor: true)
+            case .copied(let capture):
+                self.routeClipboardOnly(capture)
             case .region(let region):
                 guard mode == .scrolling else { break }
                 self.captureScrolling(region)
@@ -324,8 +328,13 @@ final class ScreenshotService: ObservableObject {
         }
     }
 
-    func receiveUnifiedCapture(_ capture: ScreenshotSelectionController.Capture) {
-        route(capture)
+    func receiveUnifiedCapture(_ capture: ScreenshotSelectionController.Capture,
+                               openEditor: Bool = false) {
+        route(capture, preferEditor: openEditor)
+    }
+
+    func receiveUnifiedClipboardCapture(_ capture: ScreenshotSelectionController.Capture) {
+        routeClipboardOnly(capture)
     }
 
     func receiveUnifiedScrollingRegion(_ region: RecorderSupport.Region) {
@@ -436,6 +445,16 @@ final class ScreenshotService: ObservableObject {
         let saved: SaveOutcome?
     }
 
+    /// Confirm Complete: always copy the finished pixels and stop. No After
+    /// capture action, preview, or editor.
+    private func routeClipboardOnly(_ capture: ScreenshotSelectionController.Capture) {
+        beginLatestCapture(capture)
+        NotchService.shared.reactMascot(.flash, patience: 1)
+        preview?.close()
+        RecentCaptureService.shared.recordScreenshot(capture)
+        _ = copyDirect(capture)
+    }
+
     /// A finished capture runs its configured after-capture action first, then
     /// either stays quiet, shows a confirmation/recovery preview, or opens the
     /// editor directly.
@@ -443,7 +462,7 @@ final class ScreenshotService: ObservableObject {
     /// The clipboard copy happens first and independently, so it also reaches
     /// the captures that open straight in the editor, where no preview button
     /// exists to reach for.
-    private func route(_ capture: ScreenshotSelectionController.Capture) {
+    private func route(_ capture: ScreenshotSelectionController.Capture, preferEditor: Bool = false) {
         beginLatestCapture(capture)
         // The island's companion blinks hard, as a flash, if it is there to see.
         NotchService.shared.reactMascot(.flash, patience: 1)
@@ -454,9 +473,10 @@ final class ScreenshotService: ObservableObject {
             autoCopy(capture)
         }
         let defaultAction = ScreenshotDefaultAction.current
-        if defaultAction == .edit {
+        if preferEditor || defaultAction == .edit {
             // The editor decides what is kept. Its Add to Shelf puts the
             // finished picture there, so the raw capture is not shelved too.
+            // Prefer-editor (or After capture = Edit) opens the existing editor.
             openEditor(with: capture)
             return
         }

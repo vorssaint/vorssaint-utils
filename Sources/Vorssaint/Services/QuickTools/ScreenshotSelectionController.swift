@@ -35,6 +35,12 @@ final class ScreenshotSelectionController {
 
     enum Outcome {
         case captured(Capture)
+        /// Same pixels as `captured`, but the screenshot tool opens the editor
+        /// instead of running the configured After capture action.
+        case capturedForEdit(Capture)
+        /// Confirm Complete / Enter: copy final pixels and dismiss — skip After
+        /// capture, preview, and editor.
+        case copied(Capture)
         case region(RecorderSupport.Region)
         case scrollingRegion(RecorderSupport.Region)
         case color(NSColor)
@@ -206,7 +212,7 @@ final class ScreenshotSelectionController {
 
     private var activeTool: ScreenCaptureTool? { screenCaptureOptions?.selectedTool }
 
-    private var activeMode: Mode {
+    fileprivate var activeMode: Mode {
         switch activeTool {
         case .recording: return .geometry
         case .color: return .color
@@ -428,11 +434,45 @@ final class ScreenshotSelectionController {
                 self.spaceIsDown = false
                 return nil
             }
+            // Confirm text field is up: digits / Z / S / tool bindings must type
+            // into the field (WeChat / CleanShot). Only Esc and Return are ours.
+            // The shared field editor is often not a descendant of NSTextField,
+            // so gate on the field's presence, not firstResponder ancestry.
+            if self.isEditingInlineConfirmText {
+                switch Int(event.keyCode) {
+                case kVK_Escape, kVK_Return, kVK_ANSI_KeypadEnter:
+                    _ = self.commitInlineTextEditingIfNeeded()
+                    return nil
+                default:
+                    return event
+                }
+            }
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             switch Int(event.keyCode) {
             case kVK_Escape:
+                if self.commitInlineTextEditingIfNeeded() { break }
                 self.finish(.cancelled)
             case kVK_Return, kVK_ANSI_KeypadEnter:
+                if self.commitInlineTextEditingIfNeeded() { break }
                 self.confirmSelectionWithKeyboard()
+            case kVK_ANSI_Z where flags.contains(.command)
+                  && !flags.contains(.option) && !flags.contains(.control):
+                // Annotation undo/redo while confirming (Flameshot / CleanShot).
+                // Leave the event alone when the text field is editing so macOS
+                // can undo typing inside the field.
+                if self.handleInlineAnnotateUndoRedo(redo: flags.contains(.shift)) {
+                    break
+                }
+                return event
+            case kVK_ANSI_C where flags.contains(.command)
+                  && !flags.contains(.option) && !flags.contains(.control) && !flags.contains(.shift):
+                if self.copyInlineOCRSelectionIfNeeded() { break }
+                return event
+            case kVK_Delete, kVK_ForwardDelete:
+                // Delete the selected mark without walking the undo stack
+                // (editor Delete). Ignored while typing in the text field.
+                if self.handleInlineDeleteSelected() { break }
+                return event
             case kVK_Space:
                 if let panel = self.panelUnderMouse(), panel.overlayView.isDragging {
                     // Holding Space moves the in-progress selection.
@@ -440,6 +480,8 @@ final class ScreenshotSelectionController {
                 } else { return event }
             case _ where Self.isRepeatRegionKey(event):
                 self.repeatLastRegion()
+            case _ where self.selectInlineAnnotateTool(for: event):
+                break
             case _ where self.selectCaptureTool(for: event):
                 break
             case _ where Self.isScrollingCaptureKey(event):
@@ -460,7 +502,8 @@ final class ScreenshotSelectionController {
         }
         globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard event.keyCode == UInt16(kVK_Escape) else { return }
-            self?.finish(.cancelled)
+            guard let self, !self.isEditingInlineConfirmText else { return }
+            self.finish(.cancelled)
         }
     }
 
@@ -472,6 +515,68 @@ final class ScreenshotSelectionController {
         else { return false }
         screenCaptureOptions.select(tool)
         return true
+    }
+
+    /// While the confirm overlay is adjusting, digit / custom bindings select
+    /// editor annotate tools — the same mapping the screenshot editor uses —
+    /// instead of switching capture modes (1–4).
+    private func selectInlineAnnotateTool(for event: NSEvent) -> Bool {
+        guard let panel = panels.first(where: { $0.overlayView.isAdjustingSelection })
+        else { return false }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotToolShortcutsEnabled)
+        let number = event.characters?.first.flatMap { Int(String($0)) }
+        // Digits follow the slim confirm strip (pen/arrow/rect/ellipse/mosaic/text),
+        // not the full editor rail order.
+        if enabled, let number, (1...ScreenshotSupport.Tool.confirmAnnotateTools.count).contains(number) {
+            let tool = ScreenshotSupport.Tool.confirmAnnotateTools[number - 1]
+            return panel.overlayView.applyInlineAnnotateTool(tool)
+        }
+        let orderRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder)
+        let bindingsRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolShortcuts)
+        guard let tool = ScreenshotSupport.Tool.shortcutTool(
+            keyCode: Int64(event.keyCode),
+            modifiers: GlobalShortcutModifiers(eventFlags: flags),
+            number: nil,
+            orderRaw: orderRaw,
+            bindingsRaw: bindingsRaw,
+            enabled: enabled,
+            capsLockOn: flags.contains(.capsLock)),
+              ScreenshotSupport.Tool.confirmAnnotateTools.contains(tool)
+        else { return false }
+        return panel.overlayView.applyInlineAnnotateTool(tool)
+    }
+
+    /// Commits in-progress confirm-overlay text editing, if any.
+    private func commitInlineTextEditingIfNeeded() -> Bool {
+        panels.contains { $0.overlayView.commitInlineTextEditingIfNeeded() }
+    }
+
+    /// True while any confirm overlay hosts its text field (typing session).
+    private var isEditingInlineConfirmText: Bool {
+        panels.contains { $0.overlayView.isEditingConfirmText }
+    }
+
+    /// Cmd+Z / Cmd+Shift+Z while the confirm overlay owns the session.
+    private func handleInlineAnnotateUndoRedo(redo: Bool) -> Bool {
+        guard let panel = panels.first(where: { $0.overlayView.isAdjustingSelection })
+        else { return false }
+        if panel.overlayView.isEditingConfirmText { return false }
+        return panel.overlayView.performInlineUndoRedo(redo: redo)
+    }
+
+    /// Delete / ForwardDelete removes the selected annotation on the confirm
+    /// surface (same as the editor), so one mark can go without undoing others.
+    private func handleInlineDeleteSelected() -> Bool {
+        guard let panel = panels.first(where: { $0.overlayView.isAdjustingSelection })
+        else { return false }
+        if panel.overlayView.isEditingConfirmText { return false }
+        return panel.overlayView.performInlineDeleteSelected()
+    }
+
+    /// Cmd+C copies a narrowed OCR word selection on the confirm surface.
+    private func copyInlineOCRSelectionIfNeeded() -> Bool {
+        panels.contains { $0.overlayView.copyInlineOCRSelectionIfNeeded() }
     }
 
     /// The loupe toggle follows the typed character, with the physical slot
@@ -613,6 +718,9 @@ final class ScreenshotSelectionController {
             let point = CGPoint(x: location.x - panel.screenFrame.minX,
                                 y: panel.screenFrame.maxY - location.y)
             confirmColor(at: point, on: panel)
+        } else if let panel = panelUnderMouse(),
+                  panel.overlayView.confirmAdjustingSelectionIfNeeded() {
+            return
         } else if acceptsWindowClick {
             captureFullDisplayUnderMouse()
         }
@@ -651,7 +759,11 @@ final class ScreenshotSelectionController {
             scale: scale)
     }
 
-    fileprivate func confirmRegion(_ viewRect: CGRect, on panel: ScreenshotOverlayPanel) {
+    fileprivate func confirmRegion(_ viewRect: CGRect,
+                                   on panel: ScreenshotOverlayPanel,
+                                   openEditor: Bool = false,
+                                   annotatedImage: CGImage? = nil,
+                                   copyOnly: Bool = false) {
         guard acceptsCaptureInput, activeMode != .color,
               viewRect.width >= 1, viewRect.height >= 1 else { return }
         markCapturePending()
@@ -664,6 +776,18 @@ final class ScreenshotSelectionController {
             finish(.scrollingRegion(region(fromView: viewRect, on: panel, windowID: nil)))
             return
         }
+        let anchor = ScreenshotSupport.cocoaRect(
+            fromFlippedView: viewRect,
+            screenFrame: panel.screenFrame)
+        if let annotatedImage {
+            let capture = Capture(
+                image: annotatedImage,
+                scale: panel.pixelScale,
+                anchorRect: anchor)
+            finish(copyOnly ? .copied(capture)
+                    : openEditor ? .capturedForEdit(capture) : .captured(capture))
+            return
+        }
         let pixelRect = ScreenshotSupport.imagePixelRect(
             fromView: viewRect,
             viewSize: panel.screenFrame.size,
@@ -673,19 +797,19 @@ final class ScreenshotSelectionController {
                 finish(.failed)
                 return
             }
-            finish(.captured(Capture(
+            let capture = Capture(
                 image: cropped,
                 scale: panel.pixelScale,
-                anchorRect: ScreenshotSupport.cocoaRect(
-                    fromFlippedView: viewRect,
-                    screenFrame: panel.screenFrame))))
+                anchorRect: anchor)
+            finish(copyOnly ? .copied(capture)
+                    : openEditor ? .capturedForEdit(capture) : .captured(capture))
         } else {
             captureLive(displayID: panel.displayID,
                         pixelRect: pixelRect,
                         scale: panel.pixelScale,
-                        anchorRect: ScreenshotSupport.cocoaRect(
-                            fromFlippedView: viewRect,
-                            screenFrame: panel.screenFrame))
+                        anchorRect: anchor,
+                        openEditor: openEditor,
+                        copyOnly: copyOnly)
         }
     }
 
@@ -782,7 +906,9 @@ final class ScreenshotSelectionController {
     private func captureLive(displayID: CGDirectDisplayID,
                              pixelRect: CGRect?,
                              scale: CGFloat,
-                             anchorRect: CGRect) {
+                             anchorRect: CGRect,
+                             openEditor: Bool = false,
+                             copyOnly: Bool = false) {
         retirePanels()
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -806,9 +932,11 @@ final class ScreenshotSelectionController {
                 }
                 image = cropped
             }
-            self.finish(.captured(Capture(image: image,
-                                          scale: scale,
-                                          anchorRect: anchorRect)))
+            let capture = Capture(image: image,
+                                  scale: scale,
+                                  anchorRect: anchorRect)
+            self.finish(copyOnly ? .copied(capture)
+                         : openEditor ? .capturedForEdit(capture) : .captured(capture))
         }
     }
 
@@ -1046,6 +1174,24 @@ private final class ScreenshotOverlayView: NSView {
     private var dragOrigin: CGPoint?
     private var lastDragPoint: CGPoint = .zero
     private var selection: CGRect = .zero
+    /// Preference-gated pause after a region drag: handles + toolbar stay until confirm.
+    private var isAdjusting = false
+    /// Shared editor model hosted on the selection surface (WeChat-style annotate).
+    private var inlineSession: ScreenshotConfirmInlineSession?
+    private var toolbarHost: PassThroughHostingView<ScreenshotConfirmToolbar>?
+    /// AppKit field so Return/commit reads `stringValue` synchronously (SwiftUI
+    /// bindings lagged behind the local key monitor and dropped the draft).
+    private var confirmTextField: NSTextField?
+    private var editingTextAnnotationID: UUID?
+    /// After the first mark, crop handles stay locked until the person unlocks
+    /// (Shottr / CleanShot). Cleared when annotations go empty.
+    private var selectionUnlocked = false
+    /// True while a drawing tool owns the drag inside the selection.
+    private var annotationDragActive = false
+    /// Which grip is being dragged while adjusting; nil means moving the whole rect.
+    private var activeHandle: ScreenshotSupport.Handle?
+    private var adjustBaseRect: CGRect = .zero
+    private var adjustPointerAnchor: CGPoint = .zero
     private var hoverPoint: CGPoint = .zero
     private var pointerIsInside = false
     private var hoveredWindow: ScreenshotSupport.PickableWindow?
@@ -1054,6 +1200,9 @@ private final class ScreenshotOverlayView: NSView {
     /// because the regular HUD sits under these shielding-level panels.
     private var copiedValue: String?
     private var copiedValueReset: DispatchWorkItem?
+    /// In-overlay toast for OCR (QuickToolHUD sits under shielding panels).
+    private var confirmFeedback: String?
+    private var confirmFeedbackReset: DispatchWorkItem?
     var ghostRect: CGRect?
     var isCapturePending = false {
         didSet {
@@ -1064,6 +1213,84 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     var isDragging: Bool { dragOrigin != nil }
+
+    fileprivate var isAdjustingSelection: Bool { isAdjusting }
+
+    /// Digit / custom bindings while handles + toolbar are showing.
+    fileprivate func applyInlineAnnotateTool(_ tool: ScreenshotSupport.Tool) -> Bool {
+        guard isAdjusting, let session = inlineSession,
+              ScreenshotSupport.Tool.confirmAnnotateTools.contains(tool)
+        else { return false }
+        session.model.tool = tool
+        layoutConfirmToolbar()
+        layoutConfirmTextEditor()
+        needsDisplay = true
+        return true
+    }
+
+    /// Returns true when an inline text draft was committed (caller should not
+    /// treat Esc/Return as cancel/complete).
+    fileprivate func commitInlineTextEditingIfNeeded() -> Bool {
+        guard let session = inlineSession, let id = session.model.editingTextID else {
+            return false
+        }
+        let text = confirmTextField?.stringValue ?? ""
+        session.model.commitText(id, text: text)
+        removeConfirmTextEditor()
+        layoutConfirmToolbar()
+        needsDisplay = true
+        return true
+    }
+
+    /// The confirm text field exists only while a label is being typed. Do not
+    /// require firstResponder ancestry: AppKit's shared field editor often
+    /// sits on the window, not as a descendant of the NSTextField, which made
+    /// shortcut gating miss and digits switch tools mid-typing.
+    fileprivate var isEditingConfirmText: Bool {
+        confirmTextField != nil
+    }
+
+    /// Crop grips are locked once annotations exist, unless unlocked.
+    private var isSelectionAdjustLocked: Bool {
+        guard let session = inlineSession else { return false }
+        return session.hasLockableAnnotations && !selectionUnlocked
+    }
+
+    private var showsSelectionLockControl: Bool {
+        inlineSession?.hasLockableAnnotations == true
+    }
+
+    fileprivate func performInlineUndoRedo(redo: Bool) -> Bool {
+        guard isAdjusting, let session = inlineSession else { return false }
+        if redo {
+            guard session.model.canRedo else { return true }
+            session.model.redo()
+        } else {
+            guard session.model.canUndo else { return true }
+            session.model.undo()
+        }
+        layoutConfirmToolbar()
+        needsDisplay = true
+        return true
+    }
+
+    /// Deletes the currently selected annotation, if any. Returns true when
+    /// the confirm overlay handled the key (even if nothing was selected).
+    fileprivate func performInlineDeleteSelected() -> Bool {
+        guard isAdjusting, let session = inlineSession else { return false }
+        if session.model.selectedID != nil {
+            session.model.deleteSelected()
+            layoutConfirmToolbar()
+            layoutConfirmTextEditor()
+            needsDisplay = true
+        }
+        return true
+    }
+
+    fileprivate func copyInlineOCRSelectionIfNeeded() -> Bool {
+        guard isAdjusting, let session = inlineSession else { return false }
+        return session.copyOCRSelectionIfAny()
+    }
 
     /// A surface whose session is over answers nothing, so the rest of a
     /// gesture can neither reach a controller that is gone nor start a second
@@ -1149,13 +1376,31 @@ private final class ScreenshotOverlayView: NSView {
     /// for the active app, so the pointer is set on every pointer event: the
     /// crosshair over the area to pick, the arrow over the clickable controls.
     private func refreshCursor(at point: CGPoint) {
+        if isAdjusting, showsSelectionLockControl,
+           confirmSelectionLockButtonRect.contains(point) {
+            toolTip = strings.confirmSelectionLockTooltip
+        } else if toolTip != nil {
+            toolTip = nil
+        }
         let overControl = pointerIsOverFullScreenControl(point)
             || (!guideHost.isHidden && !guideHost.passesThrough && guideHost.frame.contains(point))
-        (overControl ? NSCursor.arrow : NSCursor.crosshair).set()
+            || (isAdjusting && isOverConfirmChrome(at: point))
+        if overControl {
+            NSCursor.arrow.set()
+        } else if isAdjusting, selection.contains(point)
+                    || ScreenshotSupport.handle(
+                        at: point,
+                        rect: selection,
+                        tolerance: ScreenshotSupport.confirmSelectionHandleTolerance) != nil {
+            NSCursor.arrow.set()
+        } else {
+            NSCursor.crosshair.set()
+        }
     }
 
     override func layout() {
         super.layout()
+        layoutConfirmToolbar()
         let width = min(screenCaptureOptions == nil ? 680 : 620,
                         max(280, bounds.width - 32))
         let height: CGFloat = screenCaptureOptions != nil
@@ -1223,6 +1468,54 @@ private final class ScreenshotOverlayView: NSView {
         needsDisplay = true
     }
 
+    private func showConfirmFeedback(_ message: String) {
+        confirmFeedback = message
+        confirmFeedbackReset?.cancel()
+        let reset = DispatchWorkItem { [weak self] in
+            self?.confirmFeedback = nil
+            self?.needsDisplay = true
+        }
+        confirmFeedbackReset = reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: reset)
+        needsDisplay = true
+    }
+
+    /// AppKit screen rect for the current selection (bottom-left origin).
+    private func selectionScreenFrame() -> CGRect? {
+        guard let panel, selection.width >= 2, selection.height >= 2 else { return nil }
+        return CGRect(
+            x: panel.screenFrame.minX + selection.minX,
+            y: panel.screenFrame.maxY - selection.maxY,
+            width: selection.width,
+            height: selection.height)
+    }
+
+    private func pinAdjustingSelection() {
+        guard let session = inlineSession,
+              let screenFrame = selectionScreenFrame() else { return }
+        session.pin(screenFrame: screenFrame)
+        // WeChat-style: floating pin replaces the capture UI.
+        endInlineEditingSession()
+        isAdjusting = false
+        activeHandle = nil
+        annotationDragActive = false
+        dragOrigin = nil
+        controller?.cancel()
+    }
+
+    /// Explicit restart from the toolbar — not from clicking the dimmed mask.
+    private func retakeConfirmSelection() {
+        _ = commitInlineTextEditingIfNeeded()
+        endInlineEditingSession()
+        isAdjusting = false
+        activeHandle = nil
+        annotationDragActive = false
+        dragOrigin = nil
+        selection = .zero
+        controller?.setSelectionInProgress(false)
+        needsDisplay = true
+    }
+
     func refreshCaptureGuide() {
         guideHost.rootView = CaptureGuideView(
             strings: strings,
@@ -1238,6 +1531,9 @@ private final class ScreenshotOverlayView: NSView {
     func captureToolDidChange() {
         dragOrigin = nil
         selection = .zero
+        endInlineEditingSession()
+        isAdjusting = false
+        activeHandle = nil
         hoveredWindow = nil
         refreshGuideVisibility()
         refreshCaptureGuide()
@@ -1306,6 +1602,65 @@ private final class ScreenshotOverlayView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         pointerIsInside = true
         hoverPoint = point
+
+        if isAdjusting {
+            if confirmTextField != nil,
+               let field = confirmTextField, !field.frame.contains(point) {
+                _ = commitInlineTextEditingIfNeeded()
+            }
+            if showsSelectionLockControl, confirmSelectionLockButtonRect.contains(point) {
+                toggleConfirmSelectionLock()
+                return
+            }
+            if isOverConfirmChrome(at: point) {
+                if inlineSession == nil,
+                   ScreenshotSupport.confirmSelectionDoneButtonRect(
+                    for: selection, in: bounds).contains(point) {
+                    _ = confirmAdjustingSelectionIfNeeded()
+                }
+                // Toolbar hits are handled by the hosted SwiftUI controls.
+                return
+            }
+            if !isSelectionAdjustLocked,
+               let handle = ScreenshotSupport.handle(
+                at: point,
+                rect: selection,
+                tolerance: ScreenshotSupport.confirmSelectionHandleTolerance) {
+                activeHandle = handle
+                annotationDragActive = false
+                adjustBaseRect = selection
+                adjustPointerAnchor = point
+                dragOrigin = point
+                lastDragPoint = point
+                needsDisplay = true
+                return
+            }
+            if selection.contains(point) {
+                if let session = inlineSession, session.usesSelectionInteriorForTools {
+                    annotationDragActive = true
+                    activeHandle = nil
+                    dragOrigin = point
+                    lastDragPoint = point
+                    session.beginAnnotation(at: point, selection: selection)
+                    needsDisplay = true
+                    return
+                }
+                // Move the whole crop only while unlocked / still unmarked.
+                guard !isSelectionAdjustLocked else { return }
+                activeHandle = nil
+                annotationDragActive = false
+                adjustBaseRect = selection
+                adjustPointerAnchor = point
+                dragOrigin = point
+                lastDragPoint = point
+                needsDisplay = true
+                return
+            }
+            // Dimmed area outside the crop: ignore. Restarting the capture is
+            // Esc / Cancel, or the toolbar Retake control — not an easy mis-tap.
+            return
+        }
+
         dragOrigin = point
         controller?.setSelectionInProgress(true)
         lastDragPoint = point
@@ -1320,6 +1675,28 @@ private final class ScreenshotOverlayView: NSView {
         pointerIsInside = true
         hoverPoint = point
         if controller.isPickingColor {
+            lastDragPoint = point
+            needsDisplay = true
+            return
+        }
+        if isAdjusting {
+            if annotationDragActive, let session = inlineSession {
+                session.continueAnnotation(to: point, selection: selection)
+                lastDragPoint = point
+                needsDisplay = true
+                return
+            }
+            if let handle = activeHandle {
+                selection = ScreenshotSupport.clamp(
+                    ScreenshotSupport.resizedRect(adjustBaseRect, dragging: handle, to: point),
+                    to: bounds)
+            } else {
+                let delta = CGPoint(x: point.x - adjustPointerAnchor.x,
+                                    y: point.y - adjustPointerAnchor.y)
+                selection = ScreenshotSupport.movedRect(adjustBaseRect,
+                                                        by: delta,
+                                                        within: bounds)
+            }
             lastDragPoint = point
             needsDisplay = true
             return
@@ -1345,6 +1722,30 @@ private final class ScreenshotOverlayView: NSView {
     override func mouseUp(with event: NSEvent) {
         guard acceptsPointerInput, let controller, let panel else { return }
         let point = convert(event.locationInWindow, from: nil)
+
+        if isAdjusting {
+            guard dragOrigin != nil else { return }
+            if annotationDragActive, let session = inlineSession {
+                session.endAnnotation(at: point, selection: selection)
+                annotationDragActive = false
+                dragOrigin = nil
+                activeHandle = nil
+                controller.spaceIsDown = false
+                layoutConfirmToolbar()
+                layoutConfirmTextEditor()
+                needsDisplay = true
+                return
+            }
+            dragOrigin = nil
+            activeHandle = nil
+            annotationDragActive = false
+            controller.spaceIsDown = false
+            inlineSession?.syncSelection(selection, viewSize: bounds.size)
+            layoutConfirmToolbar()
+            needsDisplay = true
+            return
+        }
+
         guard let origin = dragOrigin else { return }
         dragOrigin = nil
         controller.spaceIsDown = false
@@ -1356,9 +1757,26 @@ private final class ScreenshotOverlayView: NSView {
         }
 
         let clicked = ScreenshotSupport.isClick(from: origin, to: point)
+        let confirmPreference = UserDefaults.standard.bool(
+            forKey: DefaultsKey.screenshotConfirmSelection)
         if clicked {
             if controller.acceptsWindowClick,
                let target = ScreenshotSupport.window(at: point, in: windows) {
+                let confirmBefore = ScreenshotSupport.confirmsRegionBeforeCapture(
+                    preferenceEnabled: confirmPreference,
+                    isColorPick: false,
+                    isWindowClick: true)
+                if confirmBefore {
+                    // Same adjustable confirm surface as a dragged region: the
+                    // window frame is the starting selection, not an immediate capture.
+                    selection = target.frame
+                    isAdjusting = true
+                    beginInlineEditingSession()
+                    layoutConfirmToolbar()
+                    needsDisplay = true
+                    controller.setSelectionInProgress(false)
+                    return
+                }
                 controller.confirmWindow(target.windowID, frame: target.frame, on: panel)
             }
             selection = .zero
@@ -1372,7 +1790,245 @@ private final class ScreenshotOverlayView: NSView {
             needsDisplay = true
             return
         }
+        let confirmBefore = ScreenshotSupport.confirmsRegionBeforeCapture(
+            preferenceEnabled: confirmPreference,
+            isColorPick: false,
+            isWindowClick: false)
+        if confirmBefore {
+            isAdjusting = true
+            beginInlineEditingSession()
+            layoutConfirmToolbar()
+            needsDisplay = true
+            return
+        }
         controller.confirmRegion(selection, on: panel)
+    }
+
+    /// Inline annotate is only for screenshot pixels, not scrolling/geometry picks.
+    private var offersInlineEditor: Bool {
+        guard let controller else { return false }
+        return controller.activeMode == .image && !controller.scrollingCaptureEnabled
+    }
+
+    private func isOverConfirmChrome(at point: CGPoint) -> Bool {
+        guard isAdjusting else { return false }
+        if let host = toolbarHost, !host.isHidden, host.frame.contains(point) {
+            return true
+        }
+        if let field = confirmTextField, !field.isHidden, field.frame.contains(point) {
+            return true
+        }
+        if showsSelectionLockControl, confirmSelectionLockButtonRect.contains(point) {
+            return true
+        }
+        if inlineSession == nil {
+            return ScreenshotSupport.confirmSelectionDoneButtonRect(
+                for: selection, in: bounds).contains(point)
+        }
+        return false
+    }
+
+    /// Enter / Complete while handles + toolbar are showing.
+    /// Always copies the final crop (with marks) to the clipboard and dismisses —
+    /// no After capture / Preview / Edit (WeChat / Shottr Complete).
+    fileprivate func confirmAdjustingSelectionIfNeeded(openEditor: Bool = false) -> Bool {
+        guard isAdjusting, let controller, let panel,
+              selection.width >= 2, selection.height >= 2 else { return false }
+        _ = openEditor // legacy API; Complete no longer opens the editor.
+        let annotated: CGImage?
+        if let session = inlineSession, let export = session.exportImage() {
+            annotated = export.image
+        } else {
+            inlineSession?.prepareForExport()
+            annotated = nil
+        }
+        endInlineEditingSession()
+        isAdjusting = false
+        activeHandle = nil
+        annotationDragActive = false
+        dragOrigin = nil
+        controller.confirmRegion(selection,
+                                 on: panel,
+                                 annotatedImage: annotated,
+                                 copyOnly: true)
+        return true
+    }
+
+    private func beginInlineEditingSession() {
+        endInlineEditingSession()
+        guard offersInlineEditor, let panel, let frozen = panel.frozenImage ?? frozenImage else {
+            return
+        }
+        guard let session = ScreenshotConfirmInlineSession.start(
+            sourceImage: frozen,
+            scale: panel.pixelScale,
+            selectionViewRect: selection,
+            viewSize: bounds.size)
+        else { return }
+        session.onChange = { [weak self] in
+            guard let self else { return }
+            // Undo that clears every mark unlocks the crop again.
+            if self.inlineSession?.hasLockableAnnotations != true {
+                self.selectionUnlocked = false
+            }
+            self.needsDisplay = true
+            self.refreshConfirmToolbarContent()
+            self.layoutConfirmTextEditor()
+        }
+        session.onOCRFeedback = { [weak self] message in
+            self?.showConfirmFeedback(message)
+        }
+        inlineSession = session
+        installConfirmToolbar(session: session)
+    }
+
+    private func endInlineEditingSession() {
+        toolbarHost?.removeFromSuperview()
+        toolbarHost = nil
+        removeConfirmTextEditor()
+        inlineSession = nil
+        annotationDragActive = false
+        selectionUnlocked = false
+        editingTextAnnotationID = nil
+    }
+
+    private func installConfirmToolbar(session: ScreenshotConfirmInlineSession) {
+        let host = PassThroughHostingView(interactiveRootView: makeConfirmToolbar(session: session))
+        addSubview(host)
+        toolbarHost = host
+        layoutConfirmToolbar()
+        layoutConfirmTextEditor()
+    }
+
+    private func refreshConfirmToolbarContent() {
+        guard let session = inlineSession, let host = toolbarHost else { return }
+        host.rootView = makeConfirmToolbar(session: session)
+        layoutConfirmToolbar()
+    }
+
+    private func makeConfirmToolbar(session: ScreenshotConfirmInlineSession) -> ScreenshotConfirmToolbar {
+        let maxWidth = max(200, bounds.width - 16)
+        return ScreenshotConfirmToolbar(
+            model: session.model,
+            strings: strings,
+            availableWidth: maxWidth,
+            onComplete: { [weak self] in
+                _ = self?.confirmAdjustingSelectionIfNeeded()
+            },
+            onCancel: { [weak self] in
+                self?.controller?.cancel()
+            },
+            onRetake: { [weak self] in
+                self?.retakeConfirmSelection()
+            },
+            onPin: { [weak self] in
+                self?.pinAdjustingSelection()
+            },
+            onOCR: { [weak self] in
+                self?.inlineSession?.copyOCRSelectionOrAll()
+                self?.needsDisplay = true
+            },
+            onUndo: { [weak self] in
+                self?.inlineSession?.model.undo()
+                self?.needsDisplay = true
+            },
+            onRedo: { [weak self] in
+                self?.inlineSession?.model.redo()
+                self?.needsDisplay = true
+            })
+    }
+
+    private var confirmSelectionLockButtonRect: CGRect {
+        ScreenshotSupport.confirmSelectionLockButtonRect(for: selection, in: bounds)
+    }
+
+    private func toggleConfirmSelectionLock() {
+        guard showsSelectionLockControl else { return }
+        selectionUnlocked.toggle()
+        refreshConfirmToolbarContent()
+        needsDisplay = true
+        refreshCursor(at: hoverPoint)
+    }
+
+    private func layoutConfirmToolbar() {
+        guard isAdjusting, let host = toolbarHost, let session = inlineSession else { return }
+        let maxWidth = max(200, bounds.width - 16)
+        // Rebuild with the current width budget so ViewThatFits can wrap before
+        // we measure — otherwise a full-screen bar stays wide and clips.
+        host.rootView = makeConfirmToolbar(session: session)
+        let fitting = host.fittingSize
+        let preferred = min(ScreenshotSupport.confirmSelectionToolbarMinWidth, maxWidth)
+        let width = min(max(fitting.width, preferred), maxWidth)
+        let size = CGSize(
+            width: width,
+            height: max(fitting.height, 40))
+        let topInset = panel?.topChromeHeight ?? 0
+        // Keep clear of the Dock when the selection fills the display.
+        let bottomInset: CGFloat = 12
+        host.frame = ScreenshotSupport.confirmSelectionToolbarFrame(
+            for: selection,
+            in: bounds,
+            size: size,
+            topInset: topInset,
+            bottomInset: bottomInset)
+    }
+
+    private func removeConfirmTextEditor() {
+        confirmTextField?.removeFromSuperview()
+        confirmTextField = nil
+        editingTextAnnotationID = nil
+    }
+
+    private func layoutConfirmTextEditor() {
+        guard isAdjusting, let session = inlineSession,
+              let editingID = session.model.editingTextID,
+              let annotation = session.model.annotations.first(where: { $0.id == editingID })
+        else {
+            removeConfirmTextEditor()
+            return
+        }
+        let zoomX = selection.width / max(session.model.imageSize.width, 1)
+        let zoomY = selection.height / max(session.model.imageSize.height, 1)
+        let fontSize = max(11, ScreenshotRenderer.fontSize(for: annotation.textSize,
+                                                           scale: session.model.scale) * min(zoomX, zoomY))
+        // Re-open on a different label must rebuild the field with that text.
+        if confirmTextField == nil || editingTextAnnotationID != editingID {
+            removeConfirmTextEditor()
+            let field = NSTextField(frame: .zero)
+            field.placeholderString = strings.textPlaceholder
+            field.stringValue = annotation.text
+            field.isBordered = false
+            field.isBezeled = false
+            field.drawsBackground = true
+            field.backgroundColor = NSColor.black.withAlphaComponent(0.4)
+            field.textColor = ScreenshotRenderer.nsColor(annotation.color)
+            field.font = .systemFont(ofSize: fontSize, weight: .semibold)
+            field.focusRingType = .none
+            field.cell?.wraps = false
+            field.cell?.isScrollable = true
+            field.target = self
+            field.action = #selector(confirmTextFieldAction(_:))
+            addSubview(field)
+            confirmTextField = field
+            editingTextAnnotationID = editingID
+            window?.makeFirstResponder(field)
+        }
+        guard let field = confirmTextField else { return }
+        field.font = .systemFont(ofSize: fontSize, weight: .semibold)
+        field.textColor = ScreenshotRenderer.nsColor(annotation.color)
+        let origin = CGPoint(
+            x: selection.minX + annotation.rect.minX * zoomX - 6,
+            y: selection.minY + annotation.rect.minY * zoomY - 3)
+        // Grow with typed content so longer labels stay visible while editing.
+        let textWidth = max(130, (field.stringValue as NSString)
+            .size(withAttributes: [.font: field.font as Any]).width + 16)
+        field.frame = CGRect(origin: origin,
+                             size: CGSize(width: min(textWidth, max(130, selection.maxX - origin.x)),
+                                          height: max(fontSize + 14, 28)))
+    }
+
+    @objc private func confirmTextFieldAction(_ sender: NSTextField) {
+        _ = commitInlineTextEditingIfNeeded()
     }
 
     func refreshGuideVisibility() {
@@ -1462,8 +2118,12 @@ private final class ScreenshotOverlayView: NSView {
         // Opening controls in the notch should not darken the whole desktop.
         // Keep selection feedback, without the initial full-screen dim/tint.
         let notchChooser = screenCaptureOptions?.controlsInNotch == true
-        let dimAlpha = ScreenshotSupport.selectionDimAlpha(notchControls: notchChooser,
-                                                          isFrozen: frozenImage != nil, isDragging: isDragging)
+        var dimAlpha = ScreenshotSupport.selectionDimAlpha(notchControls: notchChooser,
+                                                           isFrozen: frozenImage != nil,
+                                                           isDragging: isDragging || isAdjusting)
+        if isAdjusting, !notchChooser {
+            dimAlpha = max(dimAlpha, 0.48)
+        }
         context.setFillColor(CGColor(gray: 0, alpha: dimAlpha))
         if selection.width > 0, selection.height > 0 {
             context.beginPath()
@@ -1473,6 +2133,7 @@ private final class ScreenshotOverlayView: NSView {
                                    cornerHeight: 8,
                                    transform: nil))
             context.fillPath(using: .evenOdd)
+            inlineSession?.drawAnnotations(in: context, selection: selection)
             drawSelectionChrome(context, pixelScale: panel.pixelScale)
         } else if dragOrigin == nil, hoveredWindow != nil {
             if let hovered = hoveredWindow {
@@ -1488,7 +2149,7 @@ private final class ScreenshotOverlayView: NSView {
             context.fill(bounds)
         }
 
-        if controller.loupeEnabled, !controller.spaceIsDown,
+        if controller.loupeEnabled, !controller.spaceIsDown, !isAdjusting,
            pointerIsInside, let loupeImage {
             let point = isDragging ? lastDragPoint : hoverPoint
             drawCaptureLoupe(context,
@@ -1529,6 +2190,97 @@ private final class ScreenshotOverlayView: NSView {
         let pixelHeight = Int((selection.height * pixelScale).rounded())
         drawBadge("\(pixelWidth) × \(pixelHeight)",
                   near: CGPoint(x: selection.midX, y: selection.maxY + 10))
+
+        guard isAdjusting else { return }
+        if !isSelectionAdjustLocked {
+            for handle in ScreenshotSupport.Handle.allCases {
+                let position = handle.position(in: selection)
+                let radius: CGFloat = 4.5
+                let dot = CGRect(x: position.x - radius, y: position.y - radius,
+                                 width: radius * 2, height: radius * 2)
+                context.setFillColor(CGColor(gray: 1, alpha: 1))
+                context.fillEllipse(in: dot)
+                context.setStrokeColor(CGColor(srgbRed: 0.18, green: 0.55, blue: 1, alpha: 0.95))
+                context.setLineWidth(1.25)
+                context.strokeEllipse(in: dot)
+            }
+        }
+        if showsSelectionLockControl {
+            drawConfirmSelectionLockButton(context, in: confirmSelectionLockButtonRect)
+        }
+        if inlineSession == nil {
+            // Freeze-off fallback: lone Complete until pixels exist for tools.
+            drawConfirmCompleteButton(
+                context,
+                in: ScreenshotSupport.confirmSelectionDoneButtonRect(for: selection, in: bounds))
+        }
+        if let confirmFeedback {
+            drawBadge(confirmFeedback,
+                      near: CGPoint(x: selection.midX,
+                                    y: max(selection.minY - 18, 24)))
+        }
+    }
+
+    private func drawConfirmButtonChrome(_ context: CGContext,
+                                         in rect: CGRect,
+                                         fill: CGColor) {
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: 1),
+                          blur: 4,
+                          color: CGColor(gray: 0, alpha: 0.35))
+        context.setFillColor(fill)
+        context.fillEllipse(in: rect)
+        context.restoreGState()
+        context.setStrokeColor(CGColor(gray: 1, alpha: 0.9))
+        context.setLineWidth(1)
+        context.strokeEllipse(in: rect)
+    }
+
+    private func drawConfirmCompleteButton(_ context: CGContext, in rect: CGRect) {
+        drawConfirmButtonChrome(
+            context,
+            in: rect,
+            fill: CGColor(srgbRed: 0.15, green: 0.78, blue: 0.35, alpha: 1))
+        let inset = rect.insetBy(dx: rect.width * 0.28, dy: rect.height * 0.28)
+        context.setStrokeColor(CGColor(gray: 1, alpha: 1))
+        context.setLineWidth(max(2.2, rect.width * 0.1))
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        context.beginPath()
+        context.move(to: CGPoint(x: inset.minX, y: inset.midY))
+        context.addLine(to: CGPoint(x: inset.minX + inset.width * 0.32, y: inset.maxY))
+        context.addLine(to: CGPoint(x: inset.maxX, y: inset.minY))
+        context.strokePath()
+    }
+
+    /// Persistent corner lock once marks exist — easier to find than a toolbar chip.
+    private func drawConfirmSelectionLockButton(_ context: CGContext, in rect: CGRect) {
+        let locked = isSelectionAdjustLocked
+        let fill = locked
+            ? CGColor(srgbRed: 0.18, green: 0.55, blue: 1, alpha: 0.95)
+            : CGColor(gray: 0.18, alpha: 0.82)
+        drawConfirmButtonChrome(context, in: rect, fill: fill)
+        let symbolName = locked ? "lock.fill" : "lock.open"
+        let pointSize = max(11, rect.width * 0.44)
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
+        guard let symbol = NSImage(systemSymbolName: symbolName,
+                                   accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) else { return }
+        symbol.isTemplate = true
+        let tinted = NSImage(size: symbol.size, flipped: false) { bounds in
+            NSColor.white.set()
+            symbol.draw(in: bounds)
+            return true
+        }
+        let iconSize = tinted.size
+        let iconRect = CGRect(x: rect.midX - iconSize.width / 2,
+                              y: rect.midY - iconSize.height / 2,
+                              width: iconSize.width,
+                              height: iconSize.height)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+        tinted.draw(in: iconRect)
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawWindowHighlight(_ context: CGContext, rect: CGRect) {

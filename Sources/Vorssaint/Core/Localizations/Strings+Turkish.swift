@@ -192,6 +192,7 @@ extension Strings {
         ocrCaption: "Ekranda bir alan seçin; tanınan metin kopyalanır ve yapıştırmaya hazır olur.",
         ocrCopied: "Metin kopyalandı",
         ocrNoText: "Metin bulunamadı",
+        ocrPickToCopyHint: "Kopyalamak için sözcüklere tıklayın veya sürükleyin",
         colorPickerName: "Renk damlalığı",
         colorPickerCaption: "Ekrandaki herhangi bir pikselin rengini alın ve istediğiniz biçimde kopyalayın.",
         colorPickerFormatLabel: "Kopyalama biçimi",
