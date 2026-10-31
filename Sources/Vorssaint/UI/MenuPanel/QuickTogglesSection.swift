@@ -336,7 +336,7 @@ struct QuickTogglesList: View {
     private func shortcutHint(_ role: GlobalShortcutRole) -> String? {
         guard role.requiredEnableKeys.allSatisfy({ UserDefaults.standard.bool(forKey: $0) })
         else { return nil }
-        return role.savedShortcut.displayString
+        return role.assignedShortcut()?.displayString
     }
 
     private func ejectCaption(_ strings: QuickToggleFeatureStrings) -> String {

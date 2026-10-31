@@ -1736,6 +1736,35 @@ enum FeatureCatalogTests {
                                                   boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "an alert with its metric off in the hub stays disarmed")
 
+        for role in [GlobalShortcutRole.keepAwake, .snippetLibrary] {
+            let key = role.storageKey
+            let cleared = GlobalShortcutRole.clearedShortcutStorageValue
+            suite.expect(role.supportsClearing, "\(role) supports clearing")
+            suite.expect(role.assignedShortcut(storedValue: { _ in nil }) == role.defaultShortcut,
+                         "\(role) retains its default when absent")
+            suite.expect(role.assignedShortcut(storedValue: { _ in "invalid" }) == role.defaultShortcut,
+                         "\(role) retains its default when corrupt")
+            suite.expect(role.assignedShortcut(storedValue: { _ in cleared }) == nil,
+                         "\(role) stays cleared")
+            suite.expect(role.assignedShortcut(storedValue: { _ in role.defaultShortcut.storageValue })
+                             == role.defaultShortcut, "\(role) can be reset")
+            suite.expect(role.assignedShortcut(storedValue: { _ in GlobalShortcut.shelfDefault.storageValue })
+                             == .shelfDefault, "\(role) accepts a replacement shortcut")
+            suite.expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true },
+                storedValue: { $0 == key ? cleared : nil }).contains(role),
+                "\(role) is inactive when cleared")
+            suite.expect(GlobalShortcutRole.conflict(for: role.defaultShortcut, excluding: nil,
+                isAvailable: { _ in true }, includeInactive: true,
+                storedValue: { $0 == key ? cleared : nil }) != role,
+                "\(role) releases its conflict reservation")
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { $0 == key ? cleared : nil }
+            let restored = SettingsBackupSupport.sanitizedSettings(from: backup)?[key] as? String
+            suite.expect(role.assignedShortcut(storedValue: { _ in restored }) == nil,
+                         "\(role) stays cleared after a settings backup round trip")
+        }
+        suite.expect(!GlobalShortcutRole.switcher.supportsClearing
+                     && GlobalShortcutRole.switcher.assignedShortcut(storedValue: { _ in "none" }) == .switcherDefault,
+                     "roles outside this change retain their existing invalid-value fallback")
         suite.expect(GlobalShortcutRole.activeRoles(isOn: { _ in true }).count
                 == GlobalShortcutRole.allCases.count,
                "the availability-free overload keeps every enabled current role")

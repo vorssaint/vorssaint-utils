@@ -39,10 +39,13 @@ final class SnippetLibraryService: ObservableObject {
     func syncWithPreferences() {
         let enabled = AppFeature.textSnippets.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.snippetLibraryEnabled)
-        let shortcut = GlobalShortcut.saved(for: DefaultsKey.snippetLibraryShortcut,
-                                            fallback: .snippetLibraryDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
-                                                  storageKey: DefaultsKey.snippetLibraryShortcut)
+        if let shortcut = GlobalShortcutRole.snippetLibrary.assignedShortcut() {
+            shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                      storageKey: DefaultsKey.snippetLibraryShortcut)
+        } else {
+            hotkey.unregister()
+            shortcutRegistrationFailed = false
+        }
         if !enabled { hide() }
         if isVisible {
             reloadSnippets()
