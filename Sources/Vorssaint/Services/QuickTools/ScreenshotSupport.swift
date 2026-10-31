@@ -1830,7 +1830,7 @@ enum ScreenshotSupport {
     }
 
     enum ArrowStyleID: String, CaseIterable {
-        case filled, outline, open, doubleEnded, scribbly
+        case filled, outline, open, doubleEnded, scribbly, numbered
 
         static func sanitized(_ raw: String?) -> ArrowStyleID {
             ArrowStyleID(rawValue: raw ?? "") ?? .filled
@@ -2050,6 +2050,29 @@ enum ScreenshotSupport {
             next += 1
             return updated
         }
+    }
+
+    /// Numbered arrows keep a 1…n sequence in creation order, like counters.
+    static func renumberingNumberedArrows(_ annotations: [Annotation]) -> [Annotation] {
+        var next = 1
+        return annotations.map { annotation in
+            guard annotation.tool == .arrow, annotation.arrowStyle == .numbered else {
+                return annotation
+            }
+            var updated = annotation
+            updated.number = next
+            next += 1
+            return updated
+        }
+    }
+
+    static func nextNumberedArrowNumber(in annotations: [Annotation]) -> Int {
+        var highest = 0
+        for annotation in annotations {
+            guard annotation.tool == .arrow, annotation.arrowStyle == .numbered else { continue }
+            highest = max(highest, annotation.number)
+        }
+        return highest + 1
     }
 
     /// Counter badge diameter for an image, scaling with capture resolution
@@ -2449,7 +2472,8 @@ enum ScreenshotSupport {
         let head = arrowHead(from: tail, to: tip, strokeWidth: strokeWidth)
         let path = CGMutablePath()
         switch style {
-        case .filled:
+        case .filled, .numbered:
+            // Numbered uses the solid silhouette plus a badge in the renderer.
             return nil
         case .outline:
             path.addLines(between: [tail, CGPoint(x: (head.left.x + head.right.x) / 2,

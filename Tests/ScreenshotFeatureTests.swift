@@ -1920,9 +1920,9 @@ enum ScreenshotFeatureTests {
                                   transform: .identity),
                "the arrow stays filled where its shaft meets the head")
         let arrowStyles = ScreenshotSupport.ArrowStyleID.allCases
-        suite.expect(arrowStyles == [.filled, .outline, .open, .doubleEnded, .scribbly]
+        suite.expect(arrowStyles == [.filled, .outline, .open, .doubleEnded, .scribbly, .numbered]
                 && ScreenshotSupport.ArrowStyleID.sanitized("unknown") == .filled,
-               "the screenshot editor offers five arrow styles and safely falls back to solid")
+               "the screenshot editor offers six arrow styles and safely falls back to solid")
         let openArrow = ScreenshotSupport.Annotation(tool: .arrow,
                                                      points: [.zero, CGPoint(x: 100, y: 100)],
                                                      arrowStyle: .open)
@@ -1949,12 +1949,14 @@ enum ScreenshotFeatureTests {
                "scribbly arrows vary by seed but keep one stable design when redrawn")
         suite.expect(ScreenshotSupport.arrowStrokePath(from: .zero, to: CGPoint(x: 100, y: 0),
                                                  strokeWidth: 4, style: .filled, seed: 0) == nil
-                && arrowStyles.filter { $0 != .filled }.allSatisfy {
+                && ScreenshotSupport.arrowStrokePath(from: .zero, to: CGPoint(x: 100, y: 0),
+                                                     strokeWidth: 4, style: .numbered, seed: 0) == nil
+                && arrowStyles.filter { $0 != .filled && $0 != .numbered }.allSatisfy {
                     ScreenshotSupport.arrowStrokePath(from: .zero, to: CGPoint(x: 100, y: 0),
                                                       strokeWidth: 4, style: $0, seed: 17)?
                         .boundingBox.width ?? 0 >= 100
                 },
-               "the solid arrow is a filled silhouette and every other style is one stroked path")
+               "solid and numbered arrows are filled silhouettes; other styles are one stroked path")
         // With shadows on, a shaft pixel under the head's shadow must match a
         // shaft pixel far from the head: the head and the shaft are one
         // stroke, so the head never shades the shaft where they meet.

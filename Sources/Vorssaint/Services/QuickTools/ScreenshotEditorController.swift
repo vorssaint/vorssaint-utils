@@ -751,6 +751,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 annotations[index].scribbleSeed = ScreenshotSupport.randomScribbleSeed()
             }
             annotations[index].arrowStyle = arrowStyle
+            if arrowStyleChanged {
+                if arrowStyle != .numbered {
+                    annotations[index].number = 0
+                }
+                annotations = ScreenshotSupport.renumberingNumberedArrows(annotations)
+            }
         }
         if annotations[index].tool == .text {
             annotations[index].textSize = textSize
@@ -851,9 +857,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         case .arrow, .line:
             registerUndo()
             dragRegistered = true
+            let arrowNumber = (tool == .arrow && arrowStyle == .numbered)
+                ? ScreenshotSupport.nextNumberedArrowNumber(in: annotations)
+                : 0
             let annotation = ScreenshotSupport.Annotation(
                 tool: tool, points: [point, point], color: color, stroke: stroke,
-                arrowStyle: arrowStyle)
+                arrowStyle: arrowStyle, number: arrowNumber)
             annotations.append(annotation)
             draftID = annotation.id
         case .freehand:
@@ -910,6 +919,14 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 }
             }
         }
+        // Prefer OCR words when recognition is showing so confirm-selection
+        // (and the editor) can pick a phrase without hitting marks first.
+        if !textWords.isEmpty, let word = wordIndex(at: point) {
+            self.selectedID = nil
+            textSelectionAnchor = point
+            selectedWordIndexes = [word]
+            return
+        }
         let hitID = hitTest(point)
         self.selectedID = nil
         if let hitID, let hit = annotations.first(where: { $0.id == hitID }) {
@@ -918,10 +935,6 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             moveOrigin = hit.rect
             movePoints = hit.points
             clearTextSelection()
-        } else if let word = wordIndex(at: point) {
-            // A drag over recognized text selects intersecting words.
-            textSelectionAnchor = point
-            selectedWordIndexes = [word]
         }
     }
 
@@ -1121,15 +1134,17 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private func finishSelectDrag(at point: CGPoint, isTap: Bool) {
         textSelectionAnchor = nil
         guard isTap, !dragRegistered else { return }
-        let hitID = hitTest(point)
         self.selectedID = nil
-        if let hitID, let hit = annotations.first(where: { $0.id == hitID }) {
+        if !textWords.isEmpty, let word = wordIndex(at: point) {
+            selectedWordIndexes = [word]
+            return
+        }
+        if let hitID = hitTest(point),
+           let hit = annotations.first(where: { $0.id == hitID }) {
             syncControls(to: hit)
             self.selectedID = hitID
             editingTextID = hit.tool == .text ? hitID : nil
             clearTextSelection()
-        } else if let word = wordIndex(at: point) {
-            selectedWordIndexes = [word]
         } else {
             clearTextSelection()
         }
@@ -1245,7 +1260,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         guard annotations.contains(where: { $0.id == selectedID }) else { return }
         registerUndo()
         annotations.removeAll { $0.id == selectedID }
-        annotations = ScreenshotSupport.renumberingCounters(annotations)
+        annotations = ScreenshotSupport.renumberingNumberedArrows(
+            ScreenshotSupport.renumberingCounters(annotations))
         self.selectedID = nil
         editingTextID = nil
         if newTextID == selectedID { newTextID = nil }

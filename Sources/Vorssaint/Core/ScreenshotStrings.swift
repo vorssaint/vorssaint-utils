@@ -45,6 +45,7 @@ struct ScreenshotFeatureStrings {
     let arrowStyleOpen: String
     let arrowStyleDoubleEnded: String
     let arrowStyleScribbly: String
+    let arrowStyleNumbered: String
     let toolLine: String
     let toolRect: String
     let toolEllipse: String
@@ -308,6 +309,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "Open",
         arrowStyleDoubleEnded: "Double-ended",
         arrowStyleScribbly: "Scribbly",
+        arrowStyleNumbered: "Numbered",
         toolLine: "Line",
         toolRect: "Rectangle",
         toolEllipse: "Ellipse",
@@ -521,6 +523,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "Aberta",
         arrowStyleDoubleEnded: "Duas pontas",
         arrowStyleScribbly: "Rabiscada",
+        arrowStyleNumbered: "Numerada",
         toolLine: "Linha",
         toolRect: "Retângulo",
         toolEllipse: "Elipse",
@@ -734,6 +737,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "Açık",
         arrowStyleDoubleEnded: "Çift uçlu",
         arrowStyleScribbly: "Karalama",
+        arrowStyleNumbered: "Numaralı",
         toolLine: "Çizgi",
         toolRect: "Dikdörtgen",
         toolEllipse: "Elips",
@@ -947,6 +951,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "Открытая",
         arrowStyleDoubleEnded: "Двунаправленная",
         arrowStyleScribbly: "Набросок",
+        arrowStyleNumbered: "Нумерованная",
         toolLine: "Линия",
         toolRect: "Прямоугольник",
         toolEllipse: "Эллипс",
@@ -1160,6 +1165,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "Abierta",
         arrowStyleDoubleEnded: "De doble punta",
         arrowStyleScribbly: "Garabato",
+        arrowStyleNumbered: "Numerada",
         toolLine: "Línea",
         toolRect: "Rectángulo",
         toolEllipse: "Elipse",
@@ -1373,6 +1379,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "Otvorená",
         arrowStyleDoubleEnded: "Obojstranná",
         arrowStyleScribbly: "Čmáraná",
+        arrowStyleNumbered: "Číslovaná",
         toolLine: "Čiara",
         toolRect: "Obdĺžnik",
         toolEllipse: "Elipsa",
@@ -1586,6 +1593,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "Offen",
         arrowStyleDoubleEnded: "Beidseitig",
         arrowStyleScribbly: "Gekritzelt",
+        arrowStyleNumbered: "Nummeriert",
         toolLine: "Linie",
         toolRect: "Rechteck",
         toolEllipse: "Ellipse",
@@ -1799,6 +1807,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "Ouverte",
         arrowStyleDoubleEnded: "À deux pointes",
         arrowStyleScribbly: "Gribouillée",
+        arrowStyleNumbered: "Numérotée",
         toolLine: "Ligne",
         toolRect: "Rectangle",
         toolEllipse: "Ellipse",
@@ -2012,6 +2021,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "Aperta",
         arrowStyleDoubleEnded: "A doppia punta",
         arrowStyleScribbly: "Scarabocchio",
+        arrowStyleNumbered: "Numerata",
         toolLine: "Linea",
         toolRect: "Rettangolo",
         toolEllipse: "Ellisse",
@@ -2225,6 +2235,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "開いた矢印",
         arrowStyleDoubleEnded: "両矢印",
         arrowStyleScribbly: "手描き",
+        arrowStyleNumbered: "番号付き",
         toolLine: "直線",
         toolRect: "長方形",
         toolEllipse: "楕円",
@@ -2438,6 +2449,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "열린 화살표",
         arrowStyleDoubleEnded: "양방향",
         arrowStyleScribbly: "낙서풍",
+        arrowStyleNumbered: "번호",
         toolLine: "직선",
         toolRect: "사각형",
         toolEllipse: "타원",
@@ -2651,6 +2663,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "开口",
         arrowStyleDoubleEnded: "双向",
         arrowStyleScribbly: "涂鸦",
+        arrowStyleNumbered: "编号",
         toolLine: "直线",
         toolRect: "矩形",
         toolEllipse: "椭圆",
@@ -2864,6 +2877,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "開口",
         arrowStyleDoubleEnded: "雙向",
         arrowStyleScribbly: "塗鴉",
+        arrowStyleNumbered: "編號",
         toolLine: "直線",
         toolRect: "矩形",
         toolEllipse: "橢圓",
@@ -3077,6 +3091,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "開口",
         arrowStyleDoubleEnded: "雙向",
         arrowStyleScribbly: "塗鴉",
+        arrowStyleNumbered: "編號",
         toolLine: "直線",
         toolRect: "矩形",
         toolEllipse: "橢圓",
@@ -3289,6 +3304,7 @@ extension ScreenshotFeatureStrings {
         arrowStyleOpen: "Відкрита",
         arrowStyleDoubleEnded: "Двостороння",
         arrowStyleScribbly: "Намальована від руки",
+        arrowStyleNumbered: "Нумерована",
         toolLine: "Лінія",
         toolRect: "Прямокутник",
         toolEllipse: "Еліпс",
@@ -3478,6 +3494,7 @@ extension ScreenshotFeatureStrings {
         case .open: return arrowStyleOpen
         case .doubleEnded: return arrowStyleDoubleEnded
         case .scribbly: return arrowStyleScribbly
+        case .numbered: return arrowStyleNumbered
         }
     }
 }

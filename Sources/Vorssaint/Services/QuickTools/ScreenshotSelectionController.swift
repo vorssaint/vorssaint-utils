@@ -1461,6 +1461,19 @@ private final class ScreenshotOverlayView: NSView {
         controller?.cancel()
     }
 
+    /// Explicit restart from the toolbar — not from clicking the dimmed mask.
+    private func retakeConfirmSelection() {
+        _ = commitInlineTextEditingIfNeeded()
+        endInlineEditingSession()
+        isAdjusting = false
+        activeHandle = nil
+        annotationDragActive = false
+        dragOrigin = nil
+        selection = .zero
+        controller?.setSelectionInProgress(false)
+        needsDisplay = true
+    }
+
     func refreshCaptureGuide() {
         guideHost.rootView = CaptureGuideView(
             strings: strings,
@@ -1597,11 +1610,9 @@ private final class ScreenshotOverlayView: NSView {
                 needsDisplay = true
                 return
             }
-            // Empty area starts a fresh drag selection.
-            endInlineEditingSession()
-            isAdjusting = false
-            activeHandle = nil
-            annotationDragActive = false
+            // Dimmed area outside the crop: ignore. Restarting the capture is
+            // Esc / Cancel, or the toolbar Retake control — not an easy mis-tap.
+            return
         }
 
         dragOrigin = point
@@ -1858,6 +1869,9 @@ private final class ScreenshotOverlayView: NSView {
             },
             onCancel: { [weak self] in
                 self?.controller?.cancel()
+            },
+            onRetake: { [weak self] in
+                self?.retakeConfirmSelection()
             },
             onPin: { [weak self] in
                 self?.pinAdjustingSelection()

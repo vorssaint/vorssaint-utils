@@ -204,13 +204,16 @@ final class ScreenshotConfirmInlineSession {
 
     /// OCR is scoped to the confirm crop (`model.baseImage`). First press only
     /// recognizes and shows word boxes; later presses copy the current word
-    /// selection (or the whole crop if the person has not narrowed it).
+    /// selection. Partial copy needs a click or drag-select first (WeChat).
     func copyOCRSelectionOrAll() {
         model.tool = .select
         onChange?()
         if !model.textWords.isEmpty {
-            if model.selectedWordIndexes.isEmpty {
-                model.selectAllRecognizedWords()
+            guard !model.selectedWordIndexes.isEmpty else {
+                // Boxes are already visible — wait for a pick instead of
+                // dumping the whole crop again.
+                onChange?()
+                return
             }
             copyText(model.selectedText)
             return

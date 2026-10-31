@@ -13,6 +13,7 @@ struct ScreenshotConfirmToolbar: View {
     let showsSelectionLock: Bool
     let onComplete: () -> Void
     let onCancel: () -> Void
+    let onRetake: () -> Void
     let onPin: () -> Void
     let onOCR: () -> Void
     let onUndo: () -> Void
@@ -32,10 +33,10 @@ struct ScreenshotConfirmToolbar: View {
 
                 chromeDivider
 
-                actionIcon("arrow.uturn.backward", enabled: model.canUndo, help: "Undo") {
+                actionIcon("arrow.uturn.backward", enabled: model.canUndo, help: "Undo (⌘Z)") {
                     onUndo()
                 }
-                actionIcon("arrow.uturn.forward", enabled: model.canRedo, help: "Redo") {
+                actionIcon("arrow.uturn.forward", enabled: model.canRedo, help: "Redo (⇧⌘Z)") {
                     onRedo()
                 }
 
@@ -43,23 +44,32 @@ struct ScreenshotConfirmToolbar: View {
                     chromeDivider
                     actionIcon(selectionLocked ? "lock.fill" : "lock.open",
                                enabled: true,
-                               help: selectionLocked ? "Unlock selection size" : "Lock selection size") {
+                               help: selectionLocked
+                                   ? "Unlock selection size"
+                                   : "Lock selection size") {
                         onToggleSelectionLock()
                     }
                 }
 
                 chromeDivider
 
-                actionIcon("text.viewfinder", enabled: true, help: strings.copyTextButton) {
+                actionIcon("text.viewfinder",
+                           enabled: true,
+                           help: "Recognize text in selection — click or drag words, then click again to copy") {
                     onOCR()
                 }
                 actionIcon("pin", enabled: true, help: strings.pinButton) {
                     onPin()
                 }
+                actionIcon("camera.viewfinder",
+                           enabled: true,
+                           help: "Retake — discard marks and pick a new area") {
+                    onRetake()
+                }
 
                 chromeDivider
 
-                actionIcon("xmark", enabled: true, help: strings.cancel) {
+                actionIcon("xmark", enabled: true, help: strings.cancel + " (Esc)") {
                     onCancel()
                 }
 
@@ -90,6 +100,7 @@ struct ScreenshotConfirmToolbar: View {
     }
 
     private var showsStyleStrip: Bool {
+        if model.editingTextID != nil { return true }
         switch model.tool {
         case .select, .crop, .expandCanvas, .image:
             return false
@@ -98,27 +109,33 @@ struct ScreenshotConfirmToolbar: View {
         }
     }
 
+    private var isEditingOrUsingText: Bool {
+        model.tool == .text || model.editingTextID != nil
+    }
+
     @ViewBuilder
     private var styleStrip: some View {
         HStack(spacing: 6) {
-            switch model.tool {
-            case .pixelate:
-                // Mosaic only needs strength — no color chips (CleanShot / WeChat).
-                blurLevelStrip
-            case .text:
+            if isEditingOrUsingText {
                 colorStrip
                 chromeDivider
                 textSizeStrip
-            case .arrow:
-                colorStrip
-                chromeDivider
-                strokeStrip
-                chromeDivider
-                arrowStyleStrip
-            default:
-                colorStrip
-                chromeDivider
-                strokeStrip
+            } else {
+                switch model.tool {
+                case .pixelate:
+                    // Mosaic only needs strength — no color chips (CleanShot / WeChat).
+                    blurLevelStrip
+                case .arrow:
+                    colorStrip
+                    chromeDivider
+                    strokeStrip
+                    chromeDivider
+                    arrowStyleStrip
+                default:
+                    colorStrip
+                    chromeDivider
+                    strokeStrip
+                }
             }
         }
         .padding(.leading, 2)
