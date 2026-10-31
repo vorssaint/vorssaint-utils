@@ -2052,6 +2052,53 @@ enum ScreenshotSupport {
         max(22, min(imageSize.width, imageSize.height) / 24) * scale
     }
 
+    // MARK: - Confirm-before-capture selection
+
+    /// Hit tolerance for the eight region-adjust grips (view points).
+    static let confirmSelectionHandleTolerance: CGFloat = 8
+    /// Green Done control size beside an adjustable selection.
+    static let confirmSelectionDoneButtonSize: CGFloat = 28
+    static let confirmSelectionDoneButtonGap: CGFloat = 8
+
+    /// Places the WeChat-style Done control outside the selection, preferring
+    /// below-trailing in the flipped overlay, then clamping into `bounds`.
+    static func confirmSelectionDoneButtonRect(for selection: CGRect,
+                                               in bounds: CGRect,
+                                               size: CGFloat = confirmSelectionDoneButtonSize,
+                                               gap: CGFloat = confirmSelectionDoneButtonGap) -> CGRect {
+        var x = selection.maxX + gap
+        var y = selection.maxY + gap
+        if x + size > bounds.maxX {
+            x = selection.minX - gap - size
+        }
+        if x < bounds.minX {
+            x = min(max(selection.maxX - size, bounds.minX), bounds.maxX - size)
+        }
+        if y + size > bounds.maxY {
+            y = selection.minY - gap - size
+        }
+        if y < bounds.minY {
+            y = bounds.minY
+        }
+        if x + size > bounds.maxX {
+            x = max(bounds.minX, bounds.maxX - size)
+        }
+        if x < bounds.minX {
+            x = bounds.minX
+        }
+        if y + size > bounds.maxY {
+            y = max(bounds.minY, bounds.maxY - size)
+        }
+        return CGRect(x: x, y: y, width: size, height: size)
+    }
+
+    /// Region drags honor confirm-before-capture; window clicks and color picks do not.
+    static func confirmsRegionBeforeCapture(preferenceEnabled: Bool,
+                                            isColorPick: Bool,
+                                            isWindowClick: Bool) -> Bool {
+        preferenceEnabled && !isColorPick && !isWindowClick
+    }
+
     // MARK: - Selection handles
 
     enum Handle: CaseIterable {

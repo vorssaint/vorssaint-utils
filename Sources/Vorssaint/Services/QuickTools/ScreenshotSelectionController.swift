@@ -613,6 +613,9 @@ final class ScreenshotSelectionController {
             let point = CGPoint(x: location.x - panel.screenFrame.minX,
                                 y: panel.screenFrame.maxY - location.y)
             confirmColor(at: point, on: panel)
+        } else if let panel = panelUnderMouse(),
+                  panel.overlayView.confirmAdjustingSelectionIfNeeded() {
+            return
         } else if acceptsWindowClick {
             captureFullDisplayUnderMouse()
         }
@@ -1046,6 +1049,12 @@ private final class ScreenshotOverlayView: NSView {
     private var dragOrigin: CGPoint?
     private var lastDragPoint: CGPoint = .zero
     private var selection: CGRect = .zero
+    /// Preference-gated pause after a region drag: handles + Done stay until confirm.
+    private var isAdjusting = false
+    /// Which grip is being dragged while adjusting; nil means moving the whole rect.
+    private var activeHandle: ScreenshotSupport.Handle?
+    private var adjustBaseRect: CGRect = .zero
+    private var adjustPointerAnchor: CGPoint = .zero
     private var hoverPoint: CGPoint = .zero
     private var pointerIsInside = false
     private var hoveredWindow: ScreenshotSupport.PickableWindow?
@@ -1151,7 +1160,19 @@ private final class ScreenshotOverlayView: NSView {
     private func refreshCursor(at point: CGPoint) {
         let overControl = pointerIsOverFullScreenControl(point)
             || (!guideHost.isHidden && !guideHost.passesThrough && guideHost.frame.contains(point))
-        (overControl ? NSCursor.arrow : NSCursor.crosshair).set()
+            || (isAdjusting && ScreenshotSupport.confirmSelectionDoneButtonRect(
+                for: selection, in: bounds).contains(point))
+        if overControl {
+            NSCursor.arrow.set()
+        } else if isAdjusting, selection.contains(point)
+                    || ScreenshotSupport.handle(
+                        at: point,
+                        rect: selection,
+                        tolerance: ScreenshotSupport.confirmSelectionHandleTolerance) != nil {
+            NSCursor.arrow.set()
+        } else {
+            NSCursor.crosshair.set()
+        }
     }
 
     override func layout() {
@@ -1238,6 +1259,8 @@ private final class ScreenshotOverlayView: NSView {
     func captureToolDidChange() {
         dragOrigin = nil
         selection = .zero
+        isAdjusting = false
+        activeHandle = nil
         hoveredWindow = nil
         refreshGuideVisibility()
         refreshCaptureGuide()
@@ -1306,6 +1329,40 @@ private final class ScreenshotOverlayView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         pointerIsInside = true
         hoverPoint = point
+
+        if isAdjusting {
+            let doneRect = ScreenshotSupport.confirmSelectionDoneButtonRect(for: selection,
+                                                                            in: bounds)
+            if doneRect.contains(point) {
+                _ = confirmAdjustingSelectionIfNeeded()
+                return
+            }
+            if let handle = ScreenshotSupport.handle(
+                at: point,
+                rect: selection,
+                tolerance: ScreenshotSupport.confirmSelectionHandleTolerance) {
+                activeHandle = handle
+                adjustBaseRect = selection
+                adjustPointerAnchor = point
+                dragOrigin = point
+                lastDragPoint = point
+                needsDisplay = true
+                return
+            }
+            if selection.contains(point) {
+                activeHandle = nil
+                adjustBaseRect = selection
+                adjustPointerAnchor = point
+                dragOrigin = point
+                lastDragPoint = point
+                needsDisplay = true
+                return
+            }
+            // Empty area starts a fresh drag selection.
+            isAdjusting = false
+            activeHandle = nil
+        }
+
         dragOrigin = point
         controller?.setSelectionInProgress(true)
         lastDragPoint = point
@@ -1320,6 +1377,22 @@ private final class ScreenshotOverlayView: NSView {
         pointerIsInside = true
         hoverPoint = point
         if controller.isPickingColor {
+            lastDragPoint = point
+            needsDisplay = true
+            return
+        }
+        if isAdjusting {
+            if let handle = activeHandle {
+                selection = ScreenshotSupport.clamp(
+                    ScreenshotSupport.resizedRect(adjustBaseRect, dragging: handle, to: point),
+                    to: bounds)
+            } else {
+                let delta = CGPoint(x: point.x - adjustPointerAnchor.x,
+                                    y: point.y - adjustPointerAnchor.y)
+                selection = ScreenshotSupport.movedRect(adjustBaseRect,
+                                                        by: delta,
+                                                        within: bounds)
+            }
             lastDragPoint = point
             needsDisplay = true
             return
@@ -1345,6 +1418,16 @@ private final class ScreenshotOverlayView: NSView {
     override func mouseUp(with event: NSEvent) {
         guard acceptsPointerInput, let controller, let panel else { return }
         let point = convert(event.locationInWindow, from: nil)
+
+        if isAdjusting {
+            guard dragOrigin != nil else { return }
+            dragOrigin = nil
+            activeHandle = nil
+            controller.spaceIsDown = false
+            needsDisplay = true
+            return
+        }
+
         guard let origin = dragOrigin else { return }
         dragOrigin = nil
         controller.spaceIsDown = false
@@ -1372,7 +1455,28 @@ private final class ScreenshotOverlayView: NSView {
             needsDisplay = true
             return
         }
+        let confirmBefore = ScreenshotSupport.confirmsRegionBeforeCapture(
+            preferenceEnabled: UserDefaults.standard.bool(
+                forKey: DefaultsKey.screenshotConfirmSelection),
+            isColorPick: false,
+            isWindowClick: false)
+        if confirmBefore {
+            isAdjusting = true
+            needsDisplay = true
+            return
+        }
         controller.confirmRegion(selection, on: panel)
+    }
+
+    /// Enter / Done while handles are showing. Returns whether a capture started.
+    fileprivate func confirmAdjustingSelectionIfNeeded() -> Bool {
+        guard isAdjusting, let controller, let panel,
+              selection.width >= 2, selection.height >= 2 else { return false }
+        isAdjusting = false
+        activeHandle = nil
+        dragOrigin = nil
+        controller.confirmRegion(selection, on: panel)
+        return true
     }
 
     func refreshGuideVisibility() {
@@ -1463,7 +1567,8 @@ private final class ScreenshotOverlayView: NSView {
         // Keep selection feedback, without the initial full-screen dim/tint.
         let notchChooser = screenCaptureOptions?.controlsInNotch == true
         let dimAlpha = ScreenshotSupport.selectionDimAlpha(notchControls: notchChooser,
-                                                          isFrozen: frozenImage != nil, isDragging: isDragging)
+                                                          isFrozen: frozenImage != nil,
+                                                          isDragging: isDragging || isAdjusting)
         context.setFillColor(CGColor(gray: 0, alpha: dimAlpha))
         if selection.width > 0, selection.height > 0 {
             context.beginPath()
@@ -1488,7 +1593,7 @@ private final class ScreenshotOverlayView: NSView {
             context.fill(bounds)
         }
 
-        if controller.loupeEnabled, !controller.spaceIsDown,
+        if controller.loupeEnabled, !controller.spaceIsDown, !isAdjusting,
            pointerIsInside, let loupeImage {
             let point = isDragging ? lastDragPoint : hoverPoint
             drawCaptureLoupe(context,
@@ -1529,6 +1634,46 @@ private final class ScreenshotOverlayView: NSView {
         let pixelHeight = Int((selection.height * pixelScale).rounded())
         drawBadge("\(pixelWidth) × \(pixelHeight)",
                   near: CGPoint(x: selection.midX, y: selection.maxY + 10))
+
+        guard isAdjusting else { return }
+        for handle in ScreenshotSupport.Handle.allCases {
+            let position = handle.position(in: selection)
+            let radius: CGFloat = 4.5
+            let dot = CGRect(x: position.x - radius, y: position.y - radius,
+                             width: radius * 2, height: radius * 2)
+            context.setFillColor(CGColor(gray: 1, alpha: 1))
+            context.fillEllipse(in: dot)
+            context.setStrokeColor(CGColor(srgbRed: 0.18, green: 0.55, blue: 1, alpha: 0.95))
+            context.setLineWidth(1.25)
+            context.strokeEllipse(in: dot)
+        }
+        drawConfirmDoneButton(context)
+    }
+
+    private func drawConfirmDoneButton(_ context: CGContext) {
+        let rect = ScreenshotSupport.confirmSelectionDoneButtonRect(for: selection, in: bounds)
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: 1),
+                          blur: 4,
+                          color: CGColor(gray: 0, alpha: 0.35))
+        context.setFillColor(CGColor(srgbRed: 0.15, green: 0.78, blue: 0.35, alpha: 1))
+        context.fillEllipse(in: rect)
+        context.restoreGState()
+        context.setStrokeColor(CGColor(gray: 1, alpha: 0.9))
+        context.setLineWidth(1)
+        context.strokeEllipse(in: rect)
+
+        // White checkmark, WeChat-style.
+        let inset = rect.insetBy(dx: rect.width * 0.28, dy: rect.height * 0.28)
+        context.setStrokeColor(CGColor(gray: 1, alpha: 1))
+        context.setLineWidth(max(2.2, rect.width * 0.1))
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        context.beginPath()
+        context.move(to: CGPoint(x: inset.minX, y: inset.midY))
+        context.addLine(to: CGPoint(x: inset.minX + inset.width * 0.32, y: inset.maxY))
+        context.addLine(to: CGPoint(x: inset.maxX, y: inset.minY))
+        context.strokePath()
     }
 
     private func drawWindowHighlight(_ context: CGContext, rect: CGRect) {
