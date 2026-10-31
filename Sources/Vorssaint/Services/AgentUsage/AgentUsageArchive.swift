@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 4
+    private static let format = 5
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.

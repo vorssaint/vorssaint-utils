@@ -27,6 +27,17 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAccountChecking = false
     @Published private(set) var claudeAccountFailure: AgentClaudeServer.Failure?
     @Published private(set) var claudeProfile = ClaudeAccountProfile()
+    @Published private(set) var claudeAccounts: [ClaudeMonitoredAccount] = []
+    @Published var claudeAccountFilter: String? {
+        didSet {
+            let filter = claudeAccountFilter
+            queue.async { [self] in
+                readerClaudeFilter = filter
+                if readerSession >= 0 { publish() }
+            }
+        }
+    }
+    @Published private(set) var claudeSnapshots: [String: AgentUsageSnapshot] = [:]
     @Published private(set) var claudeAccountIdentity: ClaudeAccountProfile.Identity?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
@@ -103,6 +114,9 @@ final class AgentUsageService: ObservableObject {
     private var claudeOrganization: String?
     private var claudeIdentity: ClaudeAccountProfile.Identity?
     private var readerClaudeProfile = ClaudeAccountProfile()
+    private var readerClaudeAccounts: [ClaudeMonitoredAccount] = []
+    private var readerClaudeScopes: [String: String] = [:]
+    private var readerClaudeFilter: String?
     private var claudeProfileModified: Date?
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
@@ -123,25 +137,29 @@ final class AgentUsageService: ObservableObject {
 
     func syncWithPreferences() {
         CodexProfileLimitsService.shared.synchronize()
+        ClaudeProfileLimitsService.shared.synchronize()
         guard NotchAgentSupport.isEnabled() else { stop(); return }
         let wanted = NotchAgentSupport.providers()
-        let profile = ClaudeAccountProfile.selected()
+        let accounts = ClaudeMonitoredAccount.configured()
+        let profile = accounts[0].profile
         let showingPage = pageVisible
         // An agent turned off is no longer read at all, and one turned on is
         // read from its start: both take a fresh reading, which would not
         // resume progress saved for the old set, so it goes at once. Codex
         // accounts keep their checks: they read no log.
-        if running, wanted != providers || profile != claudeProfile {
+        if running, wanted != providers || accounts.map(\.directory) != claudeAccounts.map(\.directory) {
             stop(keepingProgress: false, pausingAccounts: false)
         }
         if claudeProfile != profile { claudeProfile = profile }
+        if claudeAccounts != accounts { claudeAccounts = accounts }
+        if let selected = claudeAccountFilter, accounts.count <= 1 || !accounts.contains(where: { $0.id == selected }) { claudeAccountFilter = nil }
         pageVisible = showingPage
         if !running {
             running = true
             session += 1
             cancellation = Cancellation()
             providers = wanted
-            start(session: session, providers: Set(wanted), cancellation: cancellation, claudeProfile: profile)
+            start(session: session, providers: Set(wanted), cancellation: cancellation, claudeProfile: profile, claudeAccounts: accounts)
         } else if paused {
             resume()
         }
@@ -154,6 +172,7 @@ final class AgentUsageService: ObservableObject {
     /// way back costs far more than the pause saves.
     func pause() {
         CodexProfileLimitsService.shared.pause()
+        ClaudeProfileLimitsService.shared.pause()
         // A page torn down with the island never reports leaving, so the
         // minute cadence would outlive it.
         pageVisible = false
@@ -176,7 +195,8 @@ final class AgentUsageService: ObservableObject {
         startTimer()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
-            watch(AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile).filter { enabled.contains($0.provider) })
+            watch(AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile,
+                additionalClaudeProfiles: readerClaudeAccounts.dropFirst().map(\.profile)).filter { enabled.contains($0.provider) })
             filesChanged([], rescan: true)
             startPolling()
             // Time went by meanwhile: a window or the day may have moved on.
@@ -185,7 +205,10 @@ final class AgentUsageService: ObservableObject {
     }
 
     func stop(keepingProgress keeps: Bool = true, pausingAccounts: Bool = true) {
-        if pausingAccounts { CodexProfileLimitsService.shared.pause() }
+        if pausingAccounts {
+            CodexProfileLimitsService.shared.pause()
+            ClaudeProfileLimitsService.shared.pause()
+        }
         pageVisible = false
         // A first read still going stops at its next chunk, so the wait
         // below is short.
@@ -206,6 +229,7 @@ final class AgentUsageService: ObservableObject {
         pricesInFlight = false
         pricesSaved = nil
         snapshot = AgentUsageSnapshot()
+        claudeSnapshots = [:]
         claudeAppChecked = nil
         claudeAccountIdentity = nil
         queue.async { [self] in
@@ -285,20 +309,24 @@ final class AgentUsageService: ObservableObject {
     }
 
     private func start(session: Int, providers: Set<AgentProvider>, cancellation: Cancellation,
-                       claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) {
+                       claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile(),
+                       claudeAccounts: [ClaudeMonitoredAccount] = []) {
         startTimer()
         queue.async { [self] in
             readerSession = session
             readerCancellation = cancellation
             enabled = providers
             readerClaudeProfile = claudeProfile
+            readerClaudeAccounts = claudeAccounts
+            readerClaudeScopes = ClaudeMonitoredAccount.logScopes(claudeAccounts, home: home)
             store = AgentUsageStore()
             cursors.removeAll()
             // Prices first, so the first read is already priced.
             loadPrices()
             // Keep the loading state until all initial history has been read.
             let horizon = Date().addingTimeInterval(-Self.horizon)
-            let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile).filter { providers.contains($0.provider) }
+            let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile,
+                additionalClaudeProfiles: claudeAccounts.dropFirst().map(\.profile)).filter { providers.contains($0.provider) }
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
             if let saved = AgentUsageArchive.load(), saved.providers == providers {
@@ -489,9 +517,12 @@ final class AgentUsageService: ObservableObject {
     @discardableResult
     private func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool = false) -> Bool {
         guard store.showsClaudeTurn else { return false }
-        let folders = roots.filter { $0.provider == .claude }
-            .map { $0.url.deletingLastPathComponent().appending(path: "sessions", directoryHint: .isDirectory) }
-        return store.closeEndedTurns(AgentSessionRegistry.read(folders), atLaunch: atLaunch)
+        var closed = false
+        for root in roots where root.provider == .claude {
+            let folder = root.url.deletingLastPathComponent().appending(path: "sessions", directoryHint: .isDirectory)
+            closed = store.closeEndedTurns(AgentSessionRegistry.read([folder]), atLaunch: atLaunch, root: root.url) || closed
+        }
+        return closed
     }
 
     /// True when the log had entries to apply, or was gone and took a
@@ -507,6 +538,7 @@ final class AgentUsageService: ObservableObject {
         cursors[path] = cursor
         var changed = false
         let now = Date()
+        let accountScope = provider == .claude ? readerClaudeScopes.first { path.hasPrefix($0.key) }?.value : nil
         let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
@@ -519,7 +551,7 @@ final class AgentUsageService: ObservableObject {
             let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)"
                 : cursor.parent ?? cursor.codexParent(among: cursors)
             let finished = store.apply(entries, file: turnFile, provider: provider, tracksTurns: tracksTurns,
-                                       parent: parent, modified: cursor.modified, now: now)
+                                       parent: parent, accountScope: accountScope, modified: cursor.modified, now: now)
             finished.forEach(report)
         }
         if provider.reader.readsFullHistoryFirst && cursor.offset == 0 {
@@ -592,8 +624,10 @@ final class AgentUsageService: ObservableObject {
             // A folder that appears later, like a first Codex session, is
             // picked up without a restart.
             if now.timeIntervalSince(lastRootCheck) > 300 {
-                let roots = AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile).filter { enabled.contains($0.provider) }
+                let roots = AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile,
+                additionalClaudeProfiles: readerClaudeAccounts.dropFirst().map(\.profile)).filter { enabled.contains($0.provider) }
                 if roots.filter(\.exists) != watchedRoots {
+                    readerClaudeScopes = ClaudeMonitoredAccount.logScopes(readerClaudeAccounts, home: home)
                     for file in AgentLogReader.discover(roots, since: now.addingTimeInterval(-Self.horizon)) {
                         if read(file.path, provider: file.provider) { changed = true }
                     }
@@ -639,8 +673,14 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        if readerClaudeAccounts.count > 1 { next.claudeBlock = nil }
         published = next
+        var accountSnapshots: [String: AgentUsageSnapshot] = [:]
+        if enabled.contains(.claude), let account = readerClaudeAccounts.first(where: { $0.id == readerClaudeFilter }) {
+            accountSnapshots[account.id] = store.claudeSnapshot(roots: account.logURLs(home: home), now: next.now)
+        }
+        let snapshots = accountSnapshots
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
             claudeOrganization == nil || $0.organization == nil || $0.organization == claudeOrganization
@@ -654,6 +694,7 @@ final class AgentUsageService: ObservableObject {
             if self.claudeAccountIdentity != identity { self.claudeAccountIdentity = identity }
             if self.pricesUpdated != prices { self.pricesUpdated = prices }
             if self.snapshot != next { self.snapshot = next }
+            if self.claudeSnapshots != snapshots { self.claudeSnapshots = snapshots }
         }
     }
 
@@ -781,7 +822,7 @@ final class AgentUsageService: ObservableObject {
                 : (try? Data(contentsOf: url)).flatMap(AgentClaudeAppUsage.samples) ?? []
         }
         // Claude Code's own first request can place the session's start.
-        let start = AgentClaudeAppUsage.sessionStart(store.records, samples: claudeAppSamples,
+        let start = AgentClaudeAppUsage.sessionStart(store.claudeRecords(roots: ClaudeMonitoredAccount(directory: readerClaudeProfile.directory).logURLs(home: home)), samples: claudeAppSamples,
                                                      organization: claudeOrganization)
         let desktop = AgentClaudeAppUsage.limits(from: claudeAppSamples, now: now, sessionStart: start,
                                                  organization: claudeOrganization)
@@ -867,6 +908,7 @@ final class AgentUsageService: ObservableObject {
     /// Back online, the checks start over from the shortest wait: those the
     /// network failed say nothing about how Claude Code is set up. Main thread.
     private func networkChanged(online: Bool) {
+        ClaudeProfileLimitsService.shared.setOnline(online)
         guard online != self.online else { return }
         self.online = online
         if online { claudeAccountUnreachable = 0 }
