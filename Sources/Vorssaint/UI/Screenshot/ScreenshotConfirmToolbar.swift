@@ -9,6 +9,8 @@ import SwiftUI
 struct ScreenshotConfirmToolbar: View {
     @ObservedObject var model: ScreenshotEditorModel
     let strings: ScreenshotFeatureStrings
+    /// Host clamps the bar to the display; the strip reflows instead of clipping.
+    var availableWidth: CGFloat = 480
     let onComplete: () -> Void
     let onCancel: () -> Void
     let onRetake: () -> Void
@@ -22,53 +24,11 @@ struct ScreenshotConfirmToolbar: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 2) {
-                ForEach(tools, id: \.self) { tool in
-                    toolButton(tool)
-                }
-
-                chromeDivider
-
-                actionIcon("arrow.uturn.backward", enabled: model.canUndo, help: "Undo (⌘Z)") {
-                    onUndo()
-                }
-                actionIcon("arrow.uturn.forward", enabled: model.canRedo, help: "Redo (⇧⌘Z)") {
-                    onRedo()
-                }
-
-                chromeDivider
-
-                actionIcon("text.viewfinder",
-                           enabled: true,
-                           help: "Recognize text in selection — click or drag words, then click again to copy") {
-                    onOCR()
-                }
-                actionIcon("pin", enabled: true, help: strings.pinButton) {
-                    onPin()
-                }
-                actionIcon("camera.viewfinder",
-                           enabled: true,
-                           help: "Retake — discard marks and pick a new area") {
-                    onRetake()
-                }
-
-                chromeDivider
-
-                actionIcon("xmark", enabled: true, help: strings.cancel + " (Esc)") {
-                    onCancel()
-                }
-
-                Button(action: onComplete) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(Circle().fill(Color(red: 0.15, green: 0.78, blue: 0.35)))
-                }
-                .buttonStyle(.plain)
-                .help(strings.copyButton + " / " + strings.saveButton)
-                .accessibilityLabel(strings.copyButton)
+        let budget = max(200, availableWidth - 16)
+        return VStack(alignment: .leading, spacing: 6) {
+            ViewThatFits(in: .horizontal) {
+                toolsRow(compact: false)
+                toolsRow(compact: true)
             }
 
             if showsStyleStrip {
@@ -77,12 +37,82 @@ struct ScreenshotConfirmToolbar: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+        .frame(maxWidth: budget, alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.22), radius: 12, y: 4)
+    }
+
+    @ViewBuilder
+    private func toolsRow(compact: Bool) -> some View {
+        if compact {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 2) {
+                    ForEach(tools, id: \.self) { tool in
+                        toolButton(tool)
+                    }
+                }
+                HStack(spacing: 2) {
+                    actionCluster
+                    Spacer(minLength: 0)
+                    confirmCluster
+                }
+            }
+        } else {
+            HStack(spacing: 2) {
+                ForEach(tools, id: \.self) { tool in
+                    toolButton(tool)
+                }
+                chromeDivider
+                actionCluster
+                chromeDivider
+                confirmCluster
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionCluster: some View {
+        actionIcon("arrow.uturn.backward", enabled: model.canUndo, help: "Undo (⌘Z)") {
+            onUndo()
+        }
+        actionIcon("arrow.uturn.forward", enabled: model.canRedo, help: "Redo (⇧⌘Z)") {
+            onRedo()
+        }
+        chromeDivider
+        actionIcon("text.viewfinder",
+                   enabled: true,
+                   help: "Recognize text — click or drag words to copy") {
+            onOCR()
+        }
+        actionIcon("pin", enabled: true, help: strings.pinButton) {
+            onPin()
+        }
+        actionIcon("camera.viewfinder",
+                   enabled: true,
+                   help: "Retake — discard marks and pick a new area") {
+            onRetake()
+        }
+    }
+
+    @ViewBuilder
+    private var confirmCluster: some View {
+        actionIcon("xmark", enabled: true, help: strings.cancel + " (Esc)") {
+            onCancel()
+        }
+        Button(action: onComplete) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(Color(red: 0.15, green: 0.78, blue: 0.35)))
+        }
+        .buttonStyle(.plain)
+        .help(strings.copyButton + " / " + strings.saveButton)
+        .accessibilityLabel(strings.copyButton)
     }
 
     private var showsStyleStrip: Bool {

@@ -1980,6 +1980,17 @@ enum ScreenshotFeatureTests {
         let renumberedArrows = ScreenshotSupport.renumberingNumberedArrows(numberedSeed)
         suite.expect(renumberedArrows.filter { $0.arrowStyle == .numbered }.map(\.number) == [1, 2],
                "renumbering numbered arrows restores a dense 1…n sequence")
+        let withHole = ScreenshotSupport.renumberingNumberedArrows([
+            .init(tool: .arrow, points: [.zero, CGPoint(x: 1, y: 0)],
+                  arrowStyle: .numbered, number: 1),
+            .init(tool: .arrow, points: [.zero, CGPoint(x: 2, y: 0)],
+                  arrowStyle: .numbered, number: 2),
+            .init(tool: .arrow, points: [.zero, CGPoint(x: 3, y: 0)],
+                  arrowStyle: .numbered, number: 3),
+        ].filter { $0.number != 2 })
+        suite.expect(withHole.map(\.number) == [1, 2],
+               "deleting a middle numbered arrow reflows survivors to 1…n")
+
         // With shadows on, a shaft pixel under the head's shadow must match a
         // shaft pixel far from the head: the head and the shaft are one
         // stroke, so the head never shades the shaft where they meet.
@@ -3808,13 +3819,19 @@ enum ScreenshotFeatureTests {
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotConfirmInlineSession.swift",
             encoding: .utf8)) ?? "").contains("keepsCreationToolWhenSelecting = true"),
                "confirm overlay keeps the draw tool after selecting a mark so numbered arrows stay consecutive")
+
+        suite.expect(((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotConfirmInlineSession.swift",
+            encoding: .utf8)) ?? "").contains("Shottr-style: finishing a word click"),
+               "confirm OCR copies as soon as a word click or drag-select finishes")
         let confirmToolbarSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Screenshot/ScreenshotConfirmToolbar.swift",
             encoding: .utf8)) ?? ""
         suite.expect(confirmToolbarSource.contains("ScrollView(.horizontal")
                 && confirmToolbarSource.contains("arrowStyleChip")
-                && confirmToolbarSource.contains("arrowStyleGlyph"),
-               "confirm arrow-style strip scrolls and uses compact chips so Numbered stays reachable")
+                && confirmToolbarSource.contains("ViewThatFits")
+                && confirmToolbarSource.contains("availableWidth"),
+               "confirm toolbar reflows with ViewThatFits and keeps a scrollable style strip")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHighlightWindows] as? Bool == true,
                "window highlights preserve the existing selection appearance by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,

@@ -1899,9 +1899,11 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     private func makeConfirmToolbar(session: ScreenshotConfirmInlineSession) -> ScreenshotConfirmToolbar {
-        ScreenshotConfirmToolbar(
+        let maxWidth = max(200, bounds.width - 16)
+        return ScreenshotConfirmToolbar(
             model: session.model,
             strings: strings,
+            availableWidth: maxWidth,
             onComplete: { [weak self] in
                 _ = self?.confirmAdjustingSelectionIfNeeded()
             },
@@ -1941,10 +1943,16 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     private func layoutConfirmToolbar() {
-        guard isAdjusting, let host = toolbarHost else { return }
+        guard isAdjusting, let host = toolbarHost, let session = inlineSession else { return }
+        let maxWidth = max(200, bounds.width - 16)
+        // Rebuild with the current width budget so ViewThatFits can wrap before
+        // we measure — otherwise a full-screen bar stays wide and clips.
+        host.rootView = makeConfirmToolbar(session: session)
         let fitting = host.fittingSize
+        let preferred = min(ScreenshotSupport.confirmSelectionToolbarMinWidth, maxWidth)
+        let width = min(max(fitting.width, preferred), maxWidth)
         let size = CGSize(
-            width: max(fitting.width, ScreenshotSupport.confirmSelectionToolbarMinWidth),
+            width: width,
             height: max(fitting.height, 40))
         let topInset = panel?.topChromeHeight ?? 0
         // Keep clear of the Dock when the selection fills the display.

@@ -931,6 +931,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             selectedWordIndexes = [word]
             return
         }
+        // A press that is not on a word drops any prior OCR highlight so a
+        // later release cannot re-copy a stale selection (Shottr-style).
+        clearTextSelection()
         let hitID = hitTest(point)
         self.selectedID = nil
         if let hitID, let hit = annotations.first(where: { $0.id == hitID }) {
@@ -938,7 +941,6 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             self.selectedID = hitID
             moveOrigin = hit.rect
             movePoints = hit.points
-            clearTextSelection()
         }
     }
 
@@ -1264,13 +1266,17 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     func deleteSelected() {
         guard let selectedID else { return }
         guard annotations.contains(where: { $0.id == selectedID }) else { return }
+        let removedID = selectedID
         registerUndo()
-        annotations.removeAll { $0.id == selectedID }
+        annotations.removeAll { $0.id == removedID }
+        // Dense 1…n after deleting a middle numbered arrow (and counters).
         annotations = ScreenshotSupport.renumberingNumberedArrows(
             ScreenshotSupport.renumberingCounters(annotations))
         self.selectedID = nil
         editingTextID = nil
-        if newTextID == selectedID { newTextID = nil }
+        if newTextID == removedID { newTextID = nil }
+        refreshUndoFlags()
+        refreshDirtyState()
     }
 
     /// Moves the selected annotation one step through the drawing order, so a
@@ -1282,7 +1288,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         let reordered = ScreenshotSupport.reordering(annotations, moving: selectedID, move)
         guard reordered.map(\.id) != annotations.map(\.id) else { return }
         registerUndo()
-        annotations = ScreenshotSupport.renumberingCounters(reordered)
+        annotations = ScreenshotSupport.renumberingNumberedArrows(
+            ScreenshotSupport.renumberingCounters(reordered))
+        refreshUndoFlags()
+        refreshDirtyState()
     }
 
     func commitText(_ id: UUID, text: String) {

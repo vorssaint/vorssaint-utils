@@ -126,7 +126,13 @@ final class ScreenshotConfirmInlineSession {
         }
         let start = dragStartView ?? viewPoint
         let isTap = ScreenshotSupport.isClick(from: start, to: viewPoint)
+        let priorOCR = model.selectedWordIndexes
         model.endDrag(at: imagePoint(fromView: viewPoint, selection: selection), isTap: isTap)
+        // Shottr-style: finishing a word click or drag-select copies immediately.
+        let ocr = model.selectedWordIndexes
+        if !ocr.isEmpty, isTap || ocr != priorOCR {
+            copyText(model.selectedText)
+        }
     }
 
     var isAnnotating: Bool { annotating }
@@ -243,16 +249,18 @@ final class ScreenshotConfirmInlineSession {
         }
     }
 
-    /// OCR is scoped to the confirm crop (`model.baseImage`). First press only
-    /// recognizes and shows word boxes; later presses copy the current word
-    /// selection. Partial copy needs a click or drag-select first (WeChat).
+    /// OCR is scoped to the confirm crop (`model.baseImage`). First press
+    /// recognizes and outlines words; a click or drag-select then copies
+    /// immediately (Shottr). The toolbar button copies the current pick, or
+    /// re-runs recognition when there is none yet.
     func copyOCRSelectionOrAll() {
         model.tool = .select
         onChange?()
         if !model.textWords.isEmpty {
             guard !model.selectedWordIndexes.isEmpty else {
-                // Boxes are already visible — wait for a pick instead of
-                // dumping the whole crop again.
+                // Boxes are already visible — wait for a pick (auto-copies on
+                // mouse-up) instead of dumping the whole crop.
+                onOCRFeedback?(L10n.shared.s.ocrPickToCopyHint)
                 onChange?()
                 return
             }

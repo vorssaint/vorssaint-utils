@@ -2067,12 +2067,11 @@ enum ScreenshotSupport {
     }
 
     static func nextNumberedArrowNumber(in annotations: [Annotation]) -> Int {
-        var highest = 0
-        for annotation in annotations {
-            guard annotation.tool == .arrow, annotation.arrowStyle == .numbered else { continue }
-            highest = max(highest, annotation.number)
-        }
-        return highest + 1
+        // Prefer the dense count so a delete that reflows 1…n never leaves a
+        // hole for the next stroke to jump over.
+        let numbered = annotations.filter { $0.tool == .arrow && $0.arrowStyle == .numbered }
+        let highest = numbered.map(\.number).max() ?? 0
+        return max(numbered.count, highest) + 1
     }
 
     /// Counter badge diameter for an image, scaling with capture resolution

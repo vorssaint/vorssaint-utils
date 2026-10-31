@@ -192,6 +192,7 @@ extension Strings {
         ocrCaption: "Selecciona un área de la pantalla y el texto reconocido se copia, listo para pegar.",
         ocrCopied: "Texto copiado",
         ocrNoText: "No se encontró texto",
+        ocrPickToCopyHint: "Haz clic o arrastra palabras para copiar",
         colorPickerName: "Cuentagotas de color",
         colorPickerCaption: "Captura el color de cualquier píxel de la pantalla y cópialo en tu formato preferido.",
         colorPickerFormatLabel: "Formato copiado",
