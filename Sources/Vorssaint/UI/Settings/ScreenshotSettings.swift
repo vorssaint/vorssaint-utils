@@ -24,6 +24,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotFileNumberNext) private var nextNumber = 1
     @AppStorage(DefaultsKey.screenshotIncludePointer) private var includePointer = false
     @AppStorage(DefaultsKey.screenshotShowLastRegion) private var showLastRegion = true
+    @AppStorage(DefaultsKey.screenshotConfirmSelection) private var confirmSelection = false
     @AppStorage(DefaultsKey.screenshotHighlightWindows) private var highlightWindows = true
     @AppStorage(DefaultsKey.screenshotLoupeStartsOn) private var loupeStartsOn = false
     @AppStorage(DefaultsKey.screenshotLoupeRememberZoom) private var rememberLoupeZoom = false
@@ -144,6 +145,10 @@ struct ScreenshotCaptureSettings: View {
                 .pickerStyle(.segmented)
                 Toggle(strings.pointerToggle, isOn: $includePointer)
                 Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
+                Toggle(strings.confirmSelectionToggle, isOn: $confirmSelection)
+                Text(strings.confirmSelectionCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle(strings.highlightWindowsToggle, isOn: $highlightWindows)
                 Text(strings.highlightWindowsCaption)
                     .font(.caption)
