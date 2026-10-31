@@ -665,6 +665,33 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         recordCleanState()
     }
 
+    /// Swaps the capture pixels for an in-overlay confirm session that has not
+    /// been annotated yet. Tool and style choices stay; undo history resets.
+    func resetCaptureImage(_ image: CGImage) {
+        baseImage = image
+        annotations = []
+        selectedID = nil
+        editingTextID = nil
+        newTextID = nil
+        cropDraft = nil
+        cropLoupePoint = nil
+        expansionDraft = nil
+        expansionRejected = false
+        textWords = []
+        textRuns = nil
+        selectedWordIndexes = []
+        textSelectionAnchor = nil
+        qrReading = nil
+        pixelated = [:]
+        softBlurred = [:]
+        undoStack = []
+        redoStack = []
+        draftID = nil
+        carriedRuns = [:]
+        refreshUndoFlags()
+        recordCleanState()
+    }
+
     private func recordCleanState() {
         cleanImage = baseImage
         cleanAnnotations = annotations
