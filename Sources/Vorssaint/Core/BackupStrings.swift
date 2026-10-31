@@ -33,6 +33,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -180,6 +181,20 @@ extension BackupFeatureStrings {
         configFileConfirmTitle: "¿Guardar en el archivo de ajustes?",
         configFileConfirmFormat: "Todos tus ajustes actuales se escriben en %@ y reemplazan ese archivo si ya existe. Vorssaint lo aplica cada vez que se abre, así que vuelve a guardar después de cambiar los ajustes aquí.",
         configFileAction: "Guardar"
+    )
+
+    static let ca = BackupFeatureStrings(
+        title: "Còpia de seguretat",
+        description: "Porta la configuració a un altre Mac: exporta totes les preferències a un arxiu i importa’l allà. El contingut de “Bloc de notes”, l’historial del porta-retalls, els ítems del prestatge i els permisos del sistema no surten mai d’aquest Mac.",
+        exportButton: "Exporta la configuració…",
+        importButton: "Importa la configuració…",
+        exported: "S’ha desat la còpia de seguretat",
+        exportFailed: "No s’ha pogut desar la còpia de seguretat.",
+        importConfirmTitle: "Vols importar aquesta configuració?",
+        importConfirmBody: "La configuració actual se substitueix per la de l’arxiu i l’app es reinicia. No es toca res més d’aquest Mac.",
+        importMissingIslandBody: "Aquesta còpia de seguretat no té configuració de la Dynamic Island. Es conservarà la d’aquest Mac. Per copiar-la, torna a exportar amb el Vorssaint 3.4 o posterior des de l’altre Mac. S’importarà la resta de la configuració i l’app es reiniciarà.",
+        importAction: "Importa i reinicia",
+        invalidFile: "Aquest arxiu no és una còpia de seguretat vàlida del Vorssaint."
     )
 
     static let sk = BackupFeatureStrings(

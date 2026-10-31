@@ -47,6 +47,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "Bandeja llena",
                 fullBody: "El adjunto terminó de guardarse, pero no queda sitio en la bandeja.",
                 okButton: "OK")
+        case .ca:
+            return .init(
+                failedTitle: "No s’ha pogut afegir l’adjunt",
+                failedBody: "L’arxiu no s’ha acabat de desar al prestatge.",
+                fullTitle: "El prestatge és ple",
+                fullBody: "L’adjunt s’ha acabat de desar, però no queda espai al prestatge.",
+                okButton: "D’acord")
         case .sk:
             return .init(
                 failedTitle: "Nepodarilo sa pridať prílohu",

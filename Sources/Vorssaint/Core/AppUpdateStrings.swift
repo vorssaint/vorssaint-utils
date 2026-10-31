@@ -66,6 +66,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -349,6 +350,60 @@ extension AppUpdateStrings {
         noVisibleUpdates: "No hay actualizaciones fuera de tus reglas",
         uncomparableVersions: "Versiones sin comparar",
         uncomparableVersionsNote: "No se muestra ninguna actualización cuando la versión que indica la app no se puede comparar con el catálogo. Busca actualizaciones en la propia app."
+    )
+
+    static let ca = AppUpdateStrings(
+        pageTitle: "Actualitza les apps",
+        hubDescription: "Cerca i instal·la actualitzacions de les apps que tens",
+        caption: "Cerca versions més recents de les apps d’aquest Mac i t’ajuda a acabar cada actualització des de la font original.",
+        panelCaption: "Mira quines apps tenen una versió més recent",
+        checkNow: "Comprova ara",
+        checking: "S’està comprovant",
+        lastCheckFormat: "Darrera comprovació: %@",
+        neverChecked: "Encara no s’ha comprovat",
+        upToDate: "No s’ha trobat cap actualització",
+        partialUpToDate: "No s’ha trobat cap actualització en aquesta comprovació parcial",
+        coverageNote: "Comprova les fonts originals de les apps instal·lades i un catàleg públic. Les actualitzacions s’instal·len des de la font original.",
+        selectAll: "Selecciona-ho tot",
+        clearSelection: "Desselecciona",
+        updateSelectedFormat: "Actualitza %d",
+        updateOne: "Actualitza",
+        openAppStore: "Obre l’App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Obre l’App Store, on s’instal·la aquesta actualització",
+        frequencyLabel: "Comprova en segon pla",
+        frequencyOff: "Desactivat",
+        frequencyDaily: "Cada dia",
+        frequencyWeekly: "Cada setmana",
+        nextCheckFormat: "Propera comprovació: %@",
+        notifyToggle: "Avisa’m quan una app tingui una actualització",
+        includeStoreToggle: "Inclou les apps de l’App Store",
+        includeStoreCaption: "Comprova les versions de la botiga segons la regió d’aquest Mac. Apple instal·la aquestes actualitzacions.",
+        packageMissing: "El Homebrew no està instal·lat, de manera que encara no es poden actualitzar apps des d’aquí.",
+        notificationBodyFormat: "%@ apps tenen una versió més recent.",
+        notificationBodyOne: "Una app té una versió més recent.",
+        showInPanel: "Mostra al tauler",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Fonts",
+        includeHomebrewToggle: "Inclou les apps del Homebrew",
+        onlineBadge: "En línia",
+        openApp: "Obre",
+        openAppHint: "Obre l’app perquè el seu actualitzador pugui acabar",
+        includeOnlineToggle: "Inclou altres apps instal·lades",
+        includeOnlineCaption: "Consulta directament els desenvolupadors de les apps quan és possible i després fa servir un catàleg públic. L’app instal·la l’actualització amb el seu propi actualitzador.",
+        incompleteCheck: "Comprovació incompleta",
+        onlineUnavailable: "No s’ha pogut completar la comprovació en línia. Els altres resultats continuen visibles.",
+        skipVersionFormat: "Omet la versió %@",
+        excludeApp: "No comprovis aquesta app",
+        rulesTitle: "Excepcions d’actualització",
+        addException: "Afegeix una app que no s’hagi de comprovar",
+        skippedVersionFormat: "Versió %@ omesa",
+        excludedApp: "No es comprova fins que s’elimini aquesta regla",
+        removeRule: "Elimina",
+        rulesHint: "Si omets una versió, les posteriors es continuen mostrant. Després d’eliminar l’exclusió d’una app, fes clic a “Comprova ara” per actualitzar-ne l’estat.",
+        noVisibleUpdates: "Cap actualització fora de les regles",
+        uncomparableVersions: "Versions sense comparar",
+        uncomparableVersionsNote: "No es mostra cap actualització quan la versió de l’app no es pot comparar amb la del catàleg. Cerca actualitzacions a l’app mateixa."
     )
 
     static let sk = AppUpdateStrings(

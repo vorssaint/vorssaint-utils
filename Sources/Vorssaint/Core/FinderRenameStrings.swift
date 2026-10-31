@@ -20,6 +20,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -78,6 +79,15 @@ extension FinderRenameFeatureStrings {
         enableLabel: "Usar un atajo para renombrar",
         caption: "El atajo solo funciona en el Finder y no interfiere con los campos de texto. F2 funciona como tecla normal; si controla el brillo, usa Fn-F2 o elige otro atajo.",
         shortcutLabel: "Renombrar"
+    )
+
+    static let ca = FinderRenameFeatureStrings(
+        pageTitle: "Dreceres del Finder",
+        hubTitle: "Canvia el nom",
+        hubDescription: "Canvia el nom de l’arxiu o la carpeta seleccionats amb la drecera que triïs.",
+        enableLabel: "Utilitza una drecera per canviar el nom",
+        caption: "La drecera només actua al Finder i no afecta els camps de text. F2 funciona com una tecla normal; als teclats on controla la brillantor, fes servir Fn-F2 o tria una altra drecera.",
+        shortcutLabel: "Canvia el nom"
     )
 
     static let sk = FinderRenameFeatureStrings(

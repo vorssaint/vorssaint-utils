@@ -39,6 +39,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -182,6 +183,31 @@ extension WallpaperFeatureStrings {
         applyFailed: "No se pudo establecer el fondo",
         previousPage: "Anterior",
         nextPage: "Siguiente"
+    )
+    static let ca = WallpaperFeatureStrings(
+        pageTitle: "Fons de pantalla",
+        hubDescription: "Tria un fons de pantalla estàtic sense obrir l’app Configuració del Sistema",
+        panelDescription: "Tria un fons de pantalla estàtic sense obrir l’app Configuració del Sistema.",
+        filterAll: "Tots",
+        filterOwn: "Imatges pròpies",
+        filterApple: "Apple",
+        applyAllDisplays: "Mostra en tots els Spaces",
+        addImage: "Afegeix una imatge",
+        addFolder: "Afegeix una carpeta",
+        removeAdded: "Elimina",
+        doneRemoving: "Fet",
+        sourceUnavailable: "No disponible",
+        addImagePrompt: "Tria imatges per conservar-les a la llista de fons de pantalla del Vorssaint",
+        addFolderPrompt: "Tria una carpeta d’imatges per conservar-la a la llista de fons de pantalla del Vorssaint",
+        openSystemSettings: "Obre la configuració de Fons de pantalla",
+        emptyAll: "No s’ha trobat cap fons de pantalla",
+        emptyOwn: "Encara no s’ha afegit cap imatge",
+        emptyApple: "No s’ha trobat cap fons estàtic d’Apple",
+        downloading: "S’està descarregant…",
+        downloadFailed: "No s’ha pogut descarregar el fons de pantalla",
+        applyFailed: "No s’ha pogut definir el fons de pantalla",
+        previousPage: "Anterior",
+        nextPage: "Següent"
     )
     static let sk = WallpaperFeatureStrings(
         pageTitle: "Pozadie",

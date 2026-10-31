@@ -23,6 +23,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -96,6 +97,18 @@ extension RecorderShareStrings {
         tooLarge: "Esta grabación no cabe en 100 MB sin perder demasiada calidad.",
         failed: "No se pudo crear el enlace temporal",
         tourCaption: "Comprime una grabación terminada en este Mac y compártela durante 1 o 6 horas."
+    )
+
+    static let ca = RecorderShareStrings(
+        caption: "Tria 1 o 6 hores. El vídeo final es comprimeix en aquest Mac perquè ocupi menys de 100 MB i s’elimina automàticament.",
+        privacyData: "El Vorssaint només envia el vídeo final creat a partir d’aquesta gravació, inclòs l’àudio que hagis conservat, i la caducitat que triïs. No envia el nom, el compte ni l’identificador del dispositiu.",
+        privacyStorage: "Els proveïdors de xarxa i el servei tracten temporalment l’adreça IP pública per evitar abusos. El vídeo i les metadades de l’enllaç s’eliminen definitivament quan elimines l’enllaç o quan s’acaba el temps. El servei no crea còpies de seguretat.",
+        privacyAccess: "Qualsevol persona que tingui l’enllaç pot veure, descarregar, desar o redistribuir el vídeo. L’operador del servei té accés als enllaços actius per moderar abusos. Comparteix-lo només amb persones de confiança.",
+        compressing: "S’està comprimint per compartir…",
+        uploading: "S’està pujant de manera segura…",
+        tooLarge: "Aquesta gravació no pot ocupar menys de 100 MB sense perdre massa qualitat.",
+        failed: "No s’ha pogut crear l’enllaç temporal",
+        tourCaption: "Comprimeix una gravació acabada en aquest Mac i comparteix-la durant 1 o 6 hores."
     )
 
     static let sk = RecorderShareStrings(

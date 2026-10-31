@@ -24,6 +24,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -87,6 +88,16 @@ extension BluetoothSleepStrings {
         restoreToggle: "Volver a encender el Bluetooth cuando el Mac despierte",
         restoreCaption: "Solo cuando fue Vorssaint quien lo apagó.",
         unsupported: "Este Mac no tiene controlador Bluetooth."
+    )
+
+    static let ca = BluetoothSleepStrings(
+        pageTitle: "Bluetooth en repòs",
+        hubDescription: "Desactiva el Bluetooth mentre el Mac està en repòs, perquè els auriculars de la bossa deixin de connectar-s’hi.",
+        enable: "Desactiva el Bluetooth quan el Mac entri en repòs",
+        enableCaption: "Si el Bluetooth ja estava desactivat abans del repòs, no es toca i continua desactivat en sortir-ne.",
+        restoreToggle: "Torna a activar el Bluetooth quan el Mac surti del repòs",
+        restoreCaption: "Només si l’ha desactivat el Vorssaint.",
+        unsupported: "Aquest Mac no té cap controlador de Bluetooth."
     )
 
     static let sk = BluetoothSleepStrings(
