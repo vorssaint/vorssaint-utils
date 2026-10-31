@@ -418,7 +418,9 @@ enum SpaceWindowBridge {
                                   replacing focusedWindowID: CGWindowID?,
                                   while isCurrent: @escaping () -> Bool,
                                   completion: @escaping (Bool) -> Void) {
-        guard isCurrent(), setFrontProcess != nil, processForPID != nil, postEventRecord != nil else {
+        // The no-raise activation is optional. The focus-record handoff still
+        // needs the process and the event transport.
+        guard isCurrent(), processForPID != nil, postEventRecord != nil else {
             completion(false)
             return
         }
@@ -450,17 +452,27 @@ enum SpaceWindowBridge {
         }
     }
 
-    /// Activate the process without ordering any of its windows, then give
-    /// this window keyboard focus. frontWindow's user-generated activation
-    /// and mouse press can raise the window even without an AXRaise action.
-    /// Failure must not fall back to that path when the user disabled raising.
+    /// Gives this window keyboard focus, leaving stacking order alone when the
+    /// no-raise activation can do it. That activation (`kCPSNoWindows`) runs
+    /// first. When its symbol is missing or the call fails, the focus record
+    /// from 3.4.2 is posted instead. `frontWindow` runs only when that record
+    /// is not delivered: its user-generated activation and mouse press can
+    /// raise the window.
     private static func makeKeyWithoutRaise(_ windowID: CGWindowID, ownerPID: pid_t) -> Bool {
-        guard let setFrontProcess, let processForPID, postEventRecord != nil else { return false }
-        var psn = ProcessSerialNumber()
-        guard processForPID(ownerPID, &psn) == noErr else { return false }
-        let noWindows: UInt32 = 0x400 // kCPSNoWindows
-        guard setFrontProcess(&psn, windowID, noWindows) == .success else { return false }
-        return postFocusRecord(windowID, ownerPID: ownerPID, gained: true)
+        var noRaiseActivated = false
+        if let setFrontProcess, let processForPID, postEventRecord != nil {
+            var psn = ProcessSerialNumber()
+            if processForPID(ownerPID, &psn) == noErr {
+                let noWindows: UInt32 = 0x400 // kCPSNoWindows
+                noRaiseActivated = setFrontProcess(&psn, windowID, noWindows) == .success
+            }
+        }
+        if noRaiseActivated {
+            if postFocusRecord(windowID, ownerPID: ownerPID, gained: true) { return true }
+        } else if postFocusRecord(windowID, ownerPID: ownerPID, gained: true) {
+            return true
+        }
+        return frontWindow(windowID, ownerPID: ownerPID)
     }
 
     @discardableResult
