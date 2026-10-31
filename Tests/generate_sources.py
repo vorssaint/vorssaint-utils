@@ -1053,12 +1053,15 @@ def main():
           + "}\n}\n")
 
     super_key = "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift"
-    write("SuperKeyTap.swift", "import CoreGraphics\nimport Foundation\n"
+    write("SuperKeyTap.swift", "import Carbon.HIToolbox\nimport CoreGraphics\nimport Foundation\n"
           + "extension SuperKeyTapContract {\nfinal class SuperKeyService: State {\n"
           + "".join(declaration(super_key, prefix).replace("private func", "func", 1)
                     for prefix in ["    private func runEventTap()", "    private func setMappingFailure(",
                                    "    private func handle(", "    private static func classify("])
             .replace("CGEvent.tapCreate(", "Tap.create(")
+          + "}\nfinal class InputSourceSwitch: InputSourceState {\n"
+          + declaration(super_key, "    private static func selectNextInputSource()")
+            .replace("private static func", "static func", 1)
           + "}\nfinal class ShortcutRecordingTap: RecordingState {\n"
           + "".join(declaration("Sources/Vorssaint/Services/ShortcutRecordingTap.swift", prefix)
                     .replace("private static func", "static func", 1)
