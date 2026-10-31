@@ -30,6 +30,10 @@ struct BrowserPickerRule: Codable, Hashable, Identifiable {
     /// How the target was named when the rule was saved, to label it once
     /// the browser is gone.
     var targetName: String?
+    /// When set, the rule matches by this pattern and `site` and `path` stay
+    /// empty. An empty site never matches, so a version that does not know
+    /// patterns leaves such a rule unused instead of misrouting links.
+    var pattern: BrowserPickerPattern?
 }
 
 /// The fields of a rule while it is edited, as typed.
@@ -39,6 +43,9 @@ struct BrowserPickerRuleDraft {
     var path: String
     var target: BrowserPickerTarget?
     var isEnabled = true
+    /// nil while the rule is a site rule.
+    var patternKind: BrowserPickerPattern.Kind?
+    var patternText = ""
 
     init(site: String, path: String, target: BrowserPickerTarget?) {
         self.site = site
@@ -52,12 +59,30 @@ struct BrowserPickerRuleDraft {
         path = rule.path.removingPercentEncoding ?? rule.path
         target = rule.target
         isEnabled = rule.isEnabled
+        patternKind = rule.pattern?.kind
+        patternText = rule.pattern?.text ?? ""
     }
+
+    /// The pattern these fields describe, valid or not; nil for a site rule.
+    var pattern: BrowserPickerPattern? {
+        patternKind.map {
+            BrowserPickerPattern(kind: $0, text: patternText.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+    }
+
+    /// What the editor is titled for an existing rule.
+    var title: String { patternKind == nil ? site : patternText }
 
     /// The rule these fields describe, or nil while they do not describe one.
     /// A path typed into the site field counts when the path field is empty.
     var rule: BrowserPickerRule? {
-        guard let target, let parsed = BrowserPickerRules.normalizedSite(site) else { return nil }
+        guard let target else { return nil }
+        if let pattern {
+            guard pattern.problem == nil else { return nil }
+            return BrowserPickerRule(id: id ?? UUID(), site: "", target: target,
+                                     isEnabled: isEnabled, pattern: pattern)
+        }
+        guard let parsed = BrowserPickerRules.normalizedSite(site) else { return nil }
         let typedPath = BrowserPickerRules.normalizedPath(path)
         return BrowserPickerRule(id: id ?? UUID(), site: parsed.site,
                                  path: typedPath.isEmpty ? parsed.path : typedPath,
@@ -87,7 +112,13 @@ enum BrowserPickerRules {
     static func firstMatch(for url: URL, in rules: [BrowserPickerRule]) -> BrowserPickerRule? {
         guard let host = host(of: url) else { return nil }
         let path = url.path(percentEncoded: true)
-        return rules.first { $0.isEnabled && covers($0, host: host, path: path) }
+        return rules.first { $0.isEnabled && covers($0, url: url, host: host, path: path) }
+    }
+
+    /// Whether a rule takes a link: by its pattern, or by its site and path.
+    static func covers(_ rule: BrowserPickerRule, url: URL, host: String, path: String) -> Bool {
+        guard let pattern = rule.pattern else { return covers(rule, host: host, path: path) }
+        return pattern.matches(url)
     }
 
     static func covers(_ rule: BrowserPickerRule, host: String, path: String) -> Bool {
@@ -140,7 +171,7 @@ enum BrowserPickerRules {
         guard let site = suggestedSite(for: url) else { return rules }
         var rules = rules
         let matched = firstMatch(for: url, in: rules).flatMap { match in rules.firstIndex { $0.id == match.id } }
-        guard let index = rules.firstIndex(where: { $0.site == site && $0.path.isEmpty }) else {
+        guard let index = rules.firstIndex(where: { $0.pattern == nil && $0.site == site && $0.path.isEmpty }) else {
             rules.insert(BrowserPickerRule(site: site, target: target), at: matched ?? rules.endIndex)
             return rules
         }

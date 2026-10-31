@@ -7,6 +7,7 @@ import SQLite3
 enum BrowserPickerTests {
     static func run(_ suite: TestSuite) {
         matching(suite)
+        patterns(suite)
         typedInput(suite)
         routing(suite)
         storage(suite)
@@ -66,6 +67,85 @@ enum BrowserPickerTests {
         suite.expect(matched("https://xn--bcher-kva.de/a", idn) == arc
                 && matched("https://bücher.de/a", idn) == arc,
             "an international site matches its links in either spelling")
+    }
+
+    private static func patternRule(_ text: String, _ kind: BrowserPickerPattern.Kind = .wildcard,
+                                    target: BrowserPickerTarget = work) -> BrowserPickerRule {
+        BrowserPickerRule(site: "", target: target, pattern: BrowserPickerPattern(kind: kind, text: text))
+    }
+
+    private static func patterns(_ suite: TestSuite) {
+        let jira = [patternRule("jira.*")]
+        suite.expect(matched("https://jira.company.com/browse/X-1", jira) == work
+                && matched("https://myjira.company.com/", jira) == nil
+                && matched("https://company.com/jira.html", jira) == nil,
+            "a wildcard in the host is matched as written, anchored at both ends")
+
+        let zoom = [patternRule("*.zoom.us")]
+        suite.expect(matched("https://zoom.us/j/1", zoom) == work
+                && matched("https://us02web.zoom.us/j/1", zoom) == work
+                && matched("https://zoom.us.evil.test/", zoom) == nil
+                && matched("https://notzoom.us/", zoom) == nil,
+            "*.domain covers the domain and its subdomains, never a lookalike")
+        suite.expect(matched("https://gist.github.com/x", [patternRule("github.com")]) == work
+                && matched("https://notgithub.com/", [patternRule("github.com")]) == nil,
+            "a plain host in a wildcard covers its subdomains like a site rule")
+
+        let meet = [patternRule("https://meet.google.com/*")]
+        suite.expect(matched("https://meet.google.com/abc-defg-hij?authuser=1", meet) == work
+                && matched("http://meet.google.com/abc", meet) == nil
+                && matched("https://meet.google.com.evil.test/abc", meet) == nil,
+            "a scheme in a wildcard must match, and the host stays anchored")
+        suite.expect(matched("http://intranet.test/", [patternRule("http://*")]) == work
+                && matched("https://intranet.test/", [patternRule("http://*")]) == nil,
+            "a wildcard can route one scheme")
+
+        let wiki = [patternRule("*/wiki/*")]
+        suite.expect(matched("https://example.com/wiki/Page", wiki) == work
+                && matched("https://example.com/docs/wiki", wiki) == nil,
+            "a path part is anchored at the start of the path")
+        suite.expect(matched("https://example.com/Wiki/Page", wiki) == nil
+                && matched("https://EXAMPLE.com/wiki/x", [patternRule("Example.COM/wiki/*")]) == work,
+            "a wildcard's path keeps its case like a site rule's path, its host does not")
+        suite.expect(matched("https://example.com/a?utm_source=x", [patternRule("example.com/a")]) == work
+                && matched("https://example.com/a?tab=2", [patternRule("example.com/a?tab=*")]) == work
+                && matched("https://example.com/a?tab=2", [patternRule("example.com/a?id=*")]) == nil,
+            "a path part ignores the query unless it names one")
+        suite.expect(matched("https://example.com:8443/", [patternRule("example.com:8443")]) == work
+                && matched("https://example.com/", [patternRule("example.com:8443")]) == nil
+                && matched("https://example.com:8443/", [patternRule("example.com")]) == work,
+            "a port in a wildcard must match; without one any port does")
+        suite.expect(matched("https://example.com/", [patternRule("example.?om")]) == work
+                && matched("https://exampleXcom/", [patternRule("example.com")]) == nil,
+            "? stands for one character and a dot is literal")
+
+        let figma = #"^https://([a-z0-9-]+\.)?figma\.com/(file|design)/"#
+        suite.expect(matched("https://www.figma.com/design/x", [patternRule(figma, .regularExpression)]) == work
+                && matched("https://figma.com.evil.test/design/x", [patternRule(figma, .regularExpression)]) == nil
+                && matched("https://figma.com/proto/x", [patternRule(figma, .regularExpression)]) == nil,
+            "a regular expression is searched for in the whole link")
+        suite.expect(matched("https://JIRA.company.com/", [patternRule("jira\\.", .regularExpression)]) == work,
+            "a regular expression ignores case and matches anywhere unless anchored")
+
+        suite.expect(BrowserPickerPattern(kind: .wildcard, text: "  ").problem == .empty
+                && BrowserPickerPattern(kind: .wildcard, text: "/docs/*").problem == .missingHost
+                && BrowserPickerPattern(kind: .regularExpression, text: "[").problem == .invalidRegularExpression
+                && BrowserPickerPattern(kind: .wildcard, text: "example[1].com").problem == nil
+                && BrowserPickerPattern(kind: .regularExpression, text: "^https://").problem == nil,
+            "an empty pattern, a wildcard without a host and a broken expression cannot be saved")
+        suite.expect(matched("https://example.com/", [patternRule("[", .regularExpression)]) == nil
+                && matched("https://example.com/docs/", [patternRule("/docs/*")]) == nil,
+            "a pattern that cannot be saved never matches")
+
+        let ordered = [BrowserPickerRule(site: "github.com", target: arc), patternRule("*")]
+        suite.expect(matched("https://github.com/x", ordered) == arc
+                && matched("https://example.com/", ordered) == work,
+            "site and pattern rules share one order, and * catches every link")
+        suite.expect(matched("https://github.com/x", [BrowserPickerRule(site: "", target: arc)]) == nil,
+            "a rule with an empty site, as a pattern rule reads without its pattern, never matches")
+        suite.expect(BrowserPickerRules.remembering(arc, for: url("https://example.com/"),
+                                                    in: [patternRule("example.com")]).count == 2,
+            "⌥ adds a site rule instead of repointing a pattern rule")
     }
 
     private static func typedInput(_ suite: TestSuite) {
@@ -128,6 +208,15 @@ enum BrowserPickerTests {
                      BrowserPickerRule(site: "figma.com", target: arc)]
         suite.expect(BrowserPickerRules.decode(BrowserPickerRules.encode(rules)) == rules,
             "saved rules come back in order with their targets and switches")
+        let patterned = [patternRule("jira.*"), patternRule("^https://x\\.test/", .regularExpression, target: arc)]
+        suite.expect(BrowserPickerRules.decode(BrowserPickerRules.encode(patterned)) == patterned,
+            "pattern rules come back with their kind and text")
+        let earlier = Data(#"""
+        {"version":1,"rules":[{"id":"8D6F2B51-9E0B-4C77-9C47-3A1D1E5C2F10","site":"github.com","path":"",
+          "target":{"application":{"bundleID":"company.thebrowser.Browser"}},"isEnabled":true}]}
+        """#.utf8)
+        suite.expect(BrowserPickerRules.decode(earlier).map { "\($0.site)|\($0.pattern == nil)" } == ["github.com|true"],
+            "rules saved before patterns existed still read as site rules")
         suite.expect(BrowserPickerRules.decode(nil).isEmpty
                 && BrowserPickerRules.decode(Data("{".utf8)).isEmpty
                 && BrowserPickerRules.decode(Data(#"{"version":2,"rules":[]}"#.utf8)).isEmpty,
@@ -147,6 +236,19 @@ enum BrowserPickerTests {
         let edited = BrowserPickerRuleDraft(saved)
         suite.expect(edited.path == "/my files" && edited.rule == saved,
             "editing an untouched rule keeps its identity, path and switch")
+
+        var wildcard = BrowserPickerRuleDraft(site: "github.com", path: "", target: arc)
+        wildcard.patternKind = .wildcard
+        wildcard.patternText = "  jira.*  "
+        suite.expect(wildcard.rule?.pattern == BrowserPickerPattern(kind: .wildcard, text: "jira.*")
+                && wildcard.rule?.site == "" && wildcard.rule?.path == "",
+            "a pattern draft saves the trimmed pattern and no site")
+        wildcard.patternText = "/docs/*"
+        suite.expect(wildcard.rule == nil, "a pattern that cannot be saved makes no rule")
+        let savedPattern = patternRule("^https://x\\.test/", .regularExpression, target: arc)
+        suite.expect(BrowserPickerRuleDraft(savedPattern).rule == savedPattern
+                && BrowserPickerRuleDraft(savedPattern).title == "^https://x\\.test/",
+            "editing an untouched pattern rule keeps it as it was")
     }
 
     private static func chromiumProfiles(_ suite: TestSuite) {

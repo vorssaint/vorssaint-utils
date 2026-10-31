@@ -19,15 +19,29 @@ struct BrowserPickerRuleEditor: View {
         VStack(spacing: 0) {
             // The window from the picker has a title bar; the settings sheet does not.
             if testURL == nil {
-                Text(draft.id == nil ? strings.newRuleTitle : draft.site)
+                Text(draft.id == nil ? strings.newRuleTitle : draft.title)
                     .font(.headline)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding([.horizontal, .top], 20)
             }
             Form {
                 Section {
-                    TextField(strings.siteLabel, text: $draft.site, prompt: Text(verbatim: "example.com"))
-                    TextField(strings.pathLabel, text: $draft.path, prompt: Text(strings.pathPlaceholder))
+                    Picker(strings.matchLabel, selection: $draft.patternKind) {
+                        Text(strings.siteLabel).tag(BrowserPickerPattern.Kind?.none)
+                        Text(strings.matchWildcard).tag(BrowserPickerPattern.Kind?.some(.wildcard))
+                        Text(strings.matchRegularExpression)
+                            .tag(BrowserPickerPattern.Kind?.some(.regularExpression))
+                    }
+                    if draft.patternKind == nil {
+                        TextField(strings.siteLabel, text: $draft.site, prompt: Text(verbatim: "example.com"))
+                        TextField(strings.pathLabel, text: $draft.path, prompt: Text(strings.pathPlaceholder))
+                    } else {
+                        TextField(strings.patternLabel, text: $draft.patternText,
+                                  prompt: Text(verbatim: draft.patternKind == .wildcard
+                                      ? "*.example.com/docs/*" : #"^https://(www\.)?example\.com/"#))
+                            .font(.body.monospaced())
+                            .autocorrectionDisabled()
+                    }
                     Picker(strings.openInLabel, selection: $draft.target) {
                         if draft.target == nil {
                             Text(strings.chooseBrowser).tag(BrowserPickerTarget?.none)
@@ -57,6 +71,13 @@ struct BrowserPickerRuleEditor: View {
         }
         .frame(width: 440)
         .fixedSize(horizontal: false, vertical: true)
+        .onChange(of: draft.patternKind) { previous, current in
+            // Switching a site rule to a wildcard starts from the typed site.
+            guard previous == nil, current == .wildcard,
+                  draft.patternText.trimmingCharacters(in: .whitespaces).isEmpty,
+                  let parsed = BrowserPickerRules.normalizedSite(draft.site) else { return }
+            draft.patternText = parsed.site
+        }
     }
 
     private func targetLabel(_ target: BrowserPickerTarget) -> some View {
@@ -72,6 +93,7 @@ struct BrowserPickerRuleEditor: View {
 
     /// What the rule will do, in one line, checked against the waiting link.
     private var summary: String {
+        if let pattern = draft.pattern { return patternSummary(pattern) }
         guard !draft.site.trimmingCharacters(in: .whitespaces).isEmpty else { return strings.siteHint }
         guard let parsed = BrowserPickerRules.normalizedSite(draft.site) else { return strings.invalidSite }
         let typedPath = BrowserPickerRules.normalizedPath(draft.path)
@@ -85,6 +107,18 @@ struct BrowserPickerRuleEditor: View {
             text += " " + (matches ? strings.linkMatches : strings.linkDoesNotMatch)
         }
         return text
+    }
+
+    private func patternSummary(_ pattern: BrowserPickerPattern) -> String {
+        let hint = pattern.kind == .wildcard ? strings.wildcardHint : strings.regularExpressionHint
+        switch pattern.problem {
+        case .empty: return hint
+        case .missingHost: return strings.missingPatternHost
+        case .invalidRegularExpression: return strings.invalidRegularExpression
+        case nil: break
+        }
+        guard let testURL else { return hint }
+        return hint + " " + (pattern.matches(testURL) ? strings.linkMatches : strings.linkDoesNotMatch)
     }
 }
 

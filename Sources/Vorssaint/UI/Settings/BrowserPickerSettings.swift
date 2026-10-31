@@ -119,11 +119,21 @@ private struct BrowserPickerRuleRow: View {
             Button(action: edit) {
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(rule.site)
-                        if !rule.path.isEmpty {
-                            Text(rule.path.removingPercentEncoding ?? rule.path)
+                        if let pattern = rule.pattern {
+                            Text(verbatim: pattern.text)
+                                .font(.body.monospaced())
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Text(pattern.kind == .wildcard ? strings.matchWildcard : strings.matchRegularExpression)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                        } else {
+                            Text(rule.site)
+                            if !rule.path.isEmpty {
+                                Text(rule.path.removingPercentEncoding ?? rule.path)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                     Spacer(minLength: 8)

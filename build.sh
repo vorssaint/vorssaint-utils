@@ -333,6 +333,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchMusicCommandWriter.swift
         Sources/Vorssaint/Core/FeatureCatalog.swift
         Sources/Vorssaint/Core/BrowserPickerRules.swift
+        Sources/Vorssaint/Core/BrowserPickerPatterns.swift
         Sources/Vorssaint/Core/BrowserPickerStrings.swift
         Sources/Vorssaint/Services/BrowserPicker/BrowserPickerBrowsers.swift
         Sources/Vorssaint/Core/FeaturePresets.swift

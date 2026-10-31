@@ -495,7 +495,6 @@ extension AppFeature {
         case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .diskImageInstaller, .audioPriority,
              .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps, .browserPicker:
             return false
-            return false
         }
     }
 
