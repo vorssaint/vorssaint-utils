@@ -14,26 +14,31 @@ enum DisplayInputTests {
         shortcut(suite)
     }
 
+    /// XOR of a packet's bytes, typed so every compiler reads the literals as bytes.
+    private static func checksum(_ bytes: [UInt8]) -> UInt8 {
+        bytes.reduce(0) { $0 ^ $1 }
+    }
+
     private static func packets(_ suite: TestSuite) {
         // m1ddc's `set input 15`: 0x84 0x03 0x60 0x00 0x0F, checksum seeded 0x6E ^ 0x51.
         let standard = DisplayInputSupport.writePacket(for: DisplayInput(value: 0x0F, alternate: false))
         suite.expect(standard.hostAddress == 0x51, "standard input writes through the usual host address")
-        suite.expect(standard.packet == [0x84, 0x03, 0x60, 0x00, 0x0F, 0x6E ^ 0x51 ^ 0x84 ^ 0x03 ^ 0x60 ^ 0x0F],
+        suite.expect(standard.packet == [0x84, 0x03, 0x60, 0x00, 0x0F, checksum([0x6E, 0x51, 0x84, 0x03, 0x60, 0x0F])],
                      "standard input packet matches m1ddc")
         // m1ddc's `set input-alt 208`: VCP 0xF4 on host address 0x50.
         let lg = DisplayInputSupport.writePacket(for: DisplayInput(value: 0xD0, alternate: true))
         suite.expect(lg.hostAddress == 0x50, "LG input writes through the alternate host address")
-        suite.expect(lg.packet == [0x84, 0x03, 0xF4, 0x00, 0xD0, 0x6E ^ 0x50 ^ 0x84 ^ 0x03 ^ 0xF4 ^ 0xD0],
+        suite.expect(lg.packet == [0x84, 0x03, 0xF4, 0x00, 0xD0, checksum([0x6E, 0x50, 0x84, 0x03, 0xF4, 0xD0])],
                      "LG input packet's checksum covers the alternate host address")
         suite.expect(BrightnessSupport.writePacket(code: 0x10, value: 50)
                         == BrightnessSupport.packet(payload: [0x10, 0, 50]),
                      "luminance packets keep the usual host address")
         // m1ddc's `get input`; a Samsung Odyssey G5 ignored the request without 0x51.
         suite.expect(DisplayInputSupport.readRequestPacket(code: 0x60)
-                        == [0x82, 0x01, 0x60, 0x6E ^ 0x51 ^ 0x82 ^ 0x01 ^ 0x60],
+                        == [0x82, 0x01, 0x60, checksum([0x6E, 0x51, 0x82, 0x01, 0x60])],
                      "input read request's checksum covers the host address")
         suite.expect(DisplayInputSupport.capabilitiesRequestPacket(offset: 0x20)
-                        == [0x83, 0xF3, 0x00, 0x20, 0x6E ^ 0x51 ^ 0x83 ^ 0xF3 ^ 0x20],
+                        == [0x83, 0xF3, 0x00, 0x20, checksum([0x6E, 0x51, 0x83, 0xF3, 0x20])],
                      "capabilities request carries its offset")
     }
 
