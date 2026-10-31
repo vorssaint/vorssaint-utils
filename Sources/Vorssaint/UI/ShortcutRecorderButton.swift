@@ -368,6 +368,9 @@ struct ShortcutPreferenceRow: View {
                         ShortcutRecorderButton(shortcut: pendingTakeOver ?? shortcut,
                                                isEnabled: isEnabled,
                                                waitingTitle: l10n.s.shortcutPressKeys,
+                                               emptyTitle: role.supportsClearing && assignedShortcut == nil
+                                                   && pendingTakeOver == nil ? l10n.s.shortcutNone : nil,
+                                               clearAction: role.supportsClearing ? clear : nil,
                                                notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
                                                recordingChanged: { recording in
                                                    isRecording = recording
@@ -382,7 +385,17 @@ struct ShortcutPreferenceRow: View {
                                                captureAction: save)
                             .frame(width: 108)
                             .disabled(!isEnabled)
-                        if reservesClearButtonSpace {
+                        if role.supportsClearing {
+                            Button(action: clear) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .symbolRenderingMode(.hierarchical)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!isEnabled || assignedShortcut == nil)
+                            .help(l10n.s.shortcutClear)
+                            .accessibilityLabel(l10n.s.shortcutClear)
+                        } else if reservesClearButtonSpace {
                             // Rows beside it have a clear button here; keep the
                             // recorders in one column.
                             Image(systemName: "xmark.circle.fill")
@@ -396,7 +409,7 @@ struct ShortcutPreferenceRow: View {
                             SystemShortcutTakeover.setTakeOver(role.storageKey, false)
                             onChange()
                         }
-                        .disabled(!isEnabled || shortcut == role.defaultShortcut)
+                        .disabled(!isEnabled || (assignedShortcut == role.defaultShortcut))
                     }
                     if let alternative = superKeyAlternative {
                         Text(String(format: FeatureStrings.shortcuts(l10n.language)
@@ -413,7 +426,7 @@ struct ShortcutPreferenceRow: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else if isRecording {
-                Text(ShortcutRecordingCaption.text(l10n.s, canClear: false))
+                Text(ShortcutRecordingCaption.text(l10n.s, canClear: role.supportsClearing))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -438,9 +451,22 @@ struct ShortcutPreferenceRow: View {
         GlobalShortcut(storageValue: rawValue) ?? role.defaultShortcut
     }
 
+    private var assignedShortcut: GlobalShortcut? {
+        role.assignedShortcut(storedValue: { _ in rawValue })
+    }
+
+    private func clear() {
+        guard role.supportsClearing else { return }
+        rawValue = GlobalShortcutRole.clearedShortcutStorageValue
+        errorText = nil
+        pendingTakeOver = nil
+        SystemShortcutTakeover.setTakeOver(role.storageKey, false)
+        onChange()
+    }
+
     private var superKeyAlternative: String? {
-        guard showsSuperKeyAlternative else { return nil }
-        return shortcut.superKeyAlternative(
+        guard showsSuperKeyAlternative, let assignedShortcut else { return nil }
+        return assignedShortcut.superKeyAlternative(
             sourceLabel: FeatureStrings.superKey(l10n.language).sourceLabel(superKey.source),
             superKeyModifiers: superKeyModifiers)
     }

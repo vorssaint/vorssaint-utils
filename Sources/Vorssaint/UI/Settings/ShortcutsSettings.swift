@@ -12,6 +12,8 @@ struct ShortcutsSettings: View {
     @ObservedObject private var superKey = SuperKeyService.shared
     @ObservedObject private var router = SettingsRouter.shared
     @AppStorage(DefaultsKey.keyboardBrightnessShortcutsEnabled) private var keyboardBrightnessShortcutsEnabled = false
+    @AppStorage(DefaultsKey.keepAwakeShortcut) private var keepAwakeShortcut = GlobalShortcut.keepAwakeDefault.storageValue
+    @AppStorage(DefaultsKey.snippetLibraryShortcut) private var snippetLibraryShortcut = GlobalShortcut.snippetLibraryDefault.storageValue
     /// Keyed by group too: brightness has a row in two groups, and each opens on its own.
     @State private var expandedFeatures: [FeatureGroup: Set<AppFeature>] = [.tools: [.screenshot]]
     @State private var showsAppShortcuts = false
@@ -219,7 +221,7 @@ struct ShortcutsSettings: View {
                          reservesClearButtonSpace: Bool = false) -> some View {
         let title = role.title(l10n.s)
         let featureTitle = role.feature.hubTitle(l10n.s, hub: hub)
-        let active = role.requiredEnableKeys.allSatisfy {
+        let active = hasAssignedShortcut(role) && role.requiredEnableKeys.allSatisfy {
             UserDefaults.standard.bool(forKey: $0)
         }
         return ShortcutPreferenceRow(
@@ -264,8 +266,19 @@ struct ShortcutsSettings: View {
             return true
         }
         return roles.contains { role in
-            role.requiredEnableKeys.allSatisfy { UserDefaults.standard.bool(forKey: $0) }
+            hasAssignedShortcut(role)
+                && role.requiredEnableKeys.allSatisfy { UserDefaults.standard.bool(forKey: $0) }
         }
+    }
+
+    private func hasAssignedShortcut(_ role: GlobalShortcutRole) -> Bool {
+        role.assignedShortcut(storedValue: { key in
+            switch key {
+            case DefaultsKey.keepAwakeShortcut: return keepAwakeShortcut
+            case DefaultsKey.snippetLibraryShortcut: return snippetLibraryShortcut
+            default: return UserDefaults.standard.string(forKey: key)
+            }
+        }) != nil
     }
 
     private func groupTitle(_ group: FeatureGroup) -> String {

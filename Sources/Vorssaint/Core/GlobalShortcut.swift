@@ -820,6 +820,17 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         GlobalShortcut.saved(for: storageKey, fallback: defaultShortcut)
     }
 
+    static let clearedShortcutStorageValue = "none"
+
+    var supportsClearing: Bool { self == .keepAwake || self == .snippetLibrary }
+
+    func assignedShortcut(storedValue: (String) -> String? = { UserDefaults.standard.string(forKey: $0) })
+        -> GlobalShortcut? {
+        let raw = storedValue(storageKey)
+        if supportsClearing && raw == Self.clearedShortcutStorageValue { return nil }
+        return raw.flatMap(GlobalShortcut.init(storageValue:)) ?? defaultShortcut
+    }
+
     /// The switcher's event tap can handle its native combinations without
     /// changing the system takeover setting. Other system actions stay reserved.
     var permittedSystemShortcutIDs: Set<Int32> {
@@ -891,17 +902,18 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
                          isOn: (String) -> Bool = { UserDefaults.standard.bool(forKey: $0) },
                          isAvailable: (AppFeature) -> Bool = { $0.isAvailable },
                          includeInactive: Bool = false,
-                         radialMenuShortcuts: () -> [GlobalShortcut] = { RadialMenuSupport.profileShortcuts() })
+                         radialMenuShortcuts: () -> [GlobalShortcut] = { RadialMenuSupport.profileShortcuts() },
+                         storedValue: (String) -> String? = { UserDefaults.standard.string(forKey: $0) })
         -> GlobalShortcutRole? {
         let candidates = includeInactive
             ? availableRoles(isAvailable: isAvailable)
-            : activeRoles(isOn: isOn, isAvailable: isAvailable)
+            : activeRoles(isOn: isOn, isAvailable: isAvailable, storedValue: storedValue)
         return candidates.first { candidate in
             guard candidate != role else { return false }
             // The radial menu's role key only seeds the first wheel. Every
             // wheel registers its own combination, so those are the ones taken.
             if candidate == .radialMenu { return radialMenuShortcuts().contains(shortcut) }
-            return candidate.savedShortcut == shortcut
+            return candidate.assignedShortcut(storedValue: storedValue) == shortcut
         }
     }
 
@@ -1039,9 +1051,12 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     /// shortcuts overview page. Injected readers so the harness can test the
     /// gating without touching real defaults.
     static func activeRoles(isOn: (String) -> Bool,
-                            isAvailable: (AppFeature) -> Bool = { _ in true }) -> [GlobalShortcutRole] {
+                            isAvailable: (AppFeature) -> Bool = { _ in true },
+                            storedValue: (String) -> String? = { UserDefaults.standard.string(forKey: $0) })
+        -> [GlobalShortcutRole] {
         allCases.filter { role in
             role.isAvailable(using: isAvailable) && role.requiredEnableKeys.allSatisfy(isOn)
+                && role.assignedShortcut(storedValue: storedValue) != nil
         }
     }
 
