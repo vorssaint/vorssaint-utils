@@ -2426,6 +2426,12 @@ final class NotchService: ObservableObject {
                                 symbol: "sun.max.fill", level: level))
     }
 
+    /// The input a monitor was switched to, beside the monitor's name, like
+    /// the keyboard layout notice. Display notices share brightness' toggle.
+    func showDisplayInput(_ input: String, monitor: String) -> Bool {
+        show(NotchNotice(event: .brightness, title: input, detail: monitor, symbol: "arrow.right.square"))
+    }
+
     @discardableResult
     func showKeyboardLight(_ level: Double) -> Bool {
         guard level.isFinite, (0...1).contains(level) else { return false }

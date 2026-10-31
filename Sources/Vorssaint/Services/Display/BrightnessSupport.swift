@@ -124,17 +124,19 @@ enum BrightnessSupport {
     /// Wraps a DDC payload: length-tagged header, payload, XOR checksum. The
     /// checksum seed covers the destination address, and the sub-address only
     /// participates for multi-byte payloads (single-byte requests omit it).
-    static func packet(payload: [UInt8]) -> [UInt8] {
+    /// LG's input control is written through another sub-address, which the
+    /// checksum then covers instead.
+    static func packet(payload: [UInt8], hostAddress: UInt32 = dataAddress) -> [UInt8] {
         var bytes: [UInt8] = [UInt8(0x80 | (payload.count + 1)), UInt8(payload.count)]
         bytes.append(contentsOf: payload)
-        let seed = UInt8(chipAddress << 1) ^ (payload.count == 1 ? 0 : UInt8(dataAddress))
+        let seed = UInt8(chipAddress << 1) ^ (payload.count == 1 ? 0 : UInt8(hostAddress))
         bytes.append(bytes.reduce(seed) { $0 ^ $1 })
         return bytes
     }
 
     /// Set VCP Feature packet (opcode 0x03 carried in the length header).
-    static func writePacket(code: UInt8, value: UInt16) -> [UInt8] {
-        packet(payload: [code, UInt8(value >> 8), UInt8(value & 0xFF)])
+    static func writePacket(code: UInt8, value: UInt16, hostAddress: UInt32 = dataAddress) -> [UInt8] {
+        packet(payload: [code, UInt8(value >> 8), UInt8(value & 0xFF)], hostAddress: hostAddress)
     }
 
     /// Get VCP Feature request packet.
