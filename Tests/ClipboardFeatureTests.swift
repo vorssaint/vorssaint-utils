@@ -16,8 +16,10 @@ enum ClipboardFeatureTests {
     /// Runs the production placement of the history window on a panel that is
     /// never shown, against a fixed screen and defaults of its own.
     final class PanelPlacementHost {
-        enum Screen {
+        struct Screen {
             static let pointerVisibleFrame = CGRect(x: 0, y: 25, width: 1512, height: 920)
+            static let screens = [Screen()]
+            var visibleFrame: CGRect { Self.pointerVisibleFrame }
         }
         typealias NSScreen = Screen
         enum UserDefaults {
@@ -26,6 +28,7 @@ enum ClipboardFeatureTests {
         }
         var quickLayout = ClipboardHistoryLayout.cards
         var quickPreviewPresented = false
+        var adjustingPanelFrame = false
     }
 
     /// Runs the production `pasteIntoPreviousApp` with a target app, the
@@ -757,6 +760,47 @@ enum ClipboardFeatureTests {
         placement.position(placementPanel)
         suite.expect(placementPanel.frame.size == NSSize(width: 700, height: 500),
                "the list reopens at the size the user gave it")
+        placementDefaults.set(100.0, forKey: DefaultsKey.clipboardHistoryWindowX)
+        placementDefaults.set(200.0, forKey: DefaultsKey.clipboardHistoryWindowY)
+        placement.position(placementPanel)
+        suite.expect(placementPanel.frame == NSRect(x: 100, y: 200, width: 700, height: 500),
+               "reopening the list reads its saved coordinates and restores its frame")
+        placement.quickLayout = .cards
+        placement.position(placementPanel)
+        suite.expect(placementPanel.frame.minX == placementScreen.minX + 16
+                     && placementPanel.frame.minY == placementScreen.minY + 8,
+               "saved list coordinates do not move the card shelf")
+        placement.quickLayout = .list
+        placementDefaults.removeObject(forKey: DefaultsKey.clipboardHistoryWindowX)
+        placementDefaults.removeObject(forKey: DefaultsKey.clipboardHistoryWindowY)
+        let otherDisplay = NSRect(x: -1440, y: 0, width: 1440, height: 900)
+        let savedOrigin = NSPoint(x: -1100, y: 180)
+        let restored = ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: savedOrigin, visibleFrames: [placementScreen, otherDisplay],
+            size: { ClipboardHistoryWindowSizing.contentSize(preview: false,
+                        savedWidth: 700, savedHeight: 500, visibleFrame: $0) })
+        suite.expect(restored == NSRect(origin: savedOrigin, size: NSSize(width: 700, height: 500)),
+               "a list reopens on its chosen display even when the pointer is elsewhere")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: placementScreen.origin, visibleFrames: [placementScreen],
+            size: { _ in compactSize }) == NSRect(origin: placementScreen.origin, size: compactSize),
+               "a chosen position against the display edges is retained")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: NSPoint(x: -20, y: 180), visibleFrames: [placementScreen],
+            size: { _ in compactSize }) == NSRect(x: 0, y: 180, width: 560, height: 420),
+               "a partly offscreen window stays on its display with its frame brought into view")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: savedOrigin, visibleFrames: [placementScreen], size: { _ in compactSize }) == nil
+            && ClipboardHistoryWindowPlacement.restoredFrame(
+                origin: NSPoint(x: CGFloat.infinity, y: 100), visibleFrames: [placementScreen],
+                size: { _ in compactSize }) == nil,
+               "a disconnected display or invalid position uses the default placement")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: NSPoint(x: 600, y: 180), visibleFrames: [placementScreen],
+            size: { ClipboardHistoryWindowSizing.contentSize(preview: true,
+                        savedWidth: 700, savedHeight: 500, visibleFrame: $0) })
+                == NSRect(x: 532, y: 180, width: 980, height: 580),
+               "preview expansion keeps the chosen display and brings the larger window into view")
         placement.quickPreviewPresented = true
         placement.position(placementPanel)
         suite.expect(placementPanel.frame.size == NSSize(width: 980, height: 580),

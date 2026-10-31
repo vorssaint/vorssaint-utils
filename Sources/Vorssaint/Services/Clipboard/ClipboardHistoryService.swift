@@ -94,6 +94,8 @@ final class ClipboardHistoryService: ObservableObject {
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
     private var panelResizeObserver: NSObjectProtocol?
+    private var panelMoveObserver: NSObjectProtocol?
+    private var adjustingPanelFrame = false
     private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
     private var localClickMonitor: Any?
@@ -1385,6 +1387,14 @@ final class ClipboardHistoryService: ObservableObject {
             guard let self, let panel else { return }
             self.savePanelSize(panel)
         }
+        panelMoveObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification, object: panel, queue: .main
+        ) { [weak self, weak panel] _ in
+            guard let self, let panel, panel.isVisible, self.quickLayout == .list,
+                  !self.adjustingPanelFrame else { return }
+            UserDefaults.standard.set(Double(panel.frame.minX), forKey: DefaultsKey.clipboardHistoryWindowX)
+            UserDefaults.standard.set(Double(panel.frame.minY), forKey: DefaultsKey.clipboardHistoryWindowY)
+        }
         self.panel = panel
         return panel
     }
@@ -1423,9 +1433,10 @@ final class ClipboardHistoryService: ObservableObject {
 
     /// Placed again on every open, so a changed display never strands it.
     /// Cards make a shelf along the bottom of the screen the pointer is on.
-    /// The list is a window of the size the user last gave it, centered
-    /// toward the top.
+    /// The list keeps its chosen location when that display is still usable.
     private func position(_ panel: NSPanel) {
+        adjustingPanelFrame = true
+        defer { adjustingPanelFrame = false }
         let screen = NSScreen.pointerVisibleFrame
         switch quickLayout {
         case .cards:
@@ -1436,6 +1447,17 @@ final class ClipboardHistoryService: ObservableObject {
                            animate: false)
         case .list:
             panel.styleMask.insert(.resizable)
+            let defaults = UserDefaults.standard
+            if defaults.object(forKey: DefaultsKey.clipboardHistoryWindowX) != nil,
+               defaults.object(forKey: DefaultsKey.clipboardHistoryWindowY) != nil,
+               let restored = ClipboardHistoryWindowPlacement.restoredFrame(
+                   origin: NSPoint(x: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowX),
+                                   y: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowY)),
+                   visibleFrames: NSScreen.screens.map(\.visibleFrame),
+                   size: preferredPanelSize(visibleFrame:)) {
+                panel.setFrame(restored, display: true, animate: false)
+                return
+            }
             let size = preferredPanelSize(visibleFrame: screen)
             let x = screen.midX - size.width / 2
             let y = min(screen.maxY - size.height - 54, screen.midY - size.height / 2)
@@ -1450,6 +1472,8 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func resize(_ panel: NSPanel, to contentSize: NSSize,
                         around current: NSRect, animated: Bool) {
+        adjustingPanelFrame = true
+        defer { adjustingPanelFrame = false }
         var target = NSRect(origin: .zero, size: contentSize)
         target.origin.x = current.midX - target.width / 2
         target.origin.y = current.midY - target.height / 2
