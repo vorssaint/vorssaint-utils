@@ -157,7 +157,8 @@ enum ScreenshotSelectionRefreshContract {
             let anchorRect: CGRect
         }
         enum Outcome {
-            case captured(Capture), capturedForEdit(Capture), region(RecorderSupport.Region),
+            case captured(Capture), capturedForEdit(Capture), copied(Capture),
+                region(RecorderSupport.Region),
                 scrollingRegion(RecorderSupport.Region), color(NSColor), failed, cancelled
         }
         var activeTool: ScreenCaptureTool?
@@ -226,10 +227,15 @@ enum ScreenshotSelectionRefreshContract {
         }
         func captureLive(
             displayID: CGDirectDisplayID, pixelRect: CGRect?, scale: CGFloat, anchorRect: CGRect,
-            openEditor: Bool = false
+            openEditor: Bool = false,
+            copyOnly: Bool = false
         ) {
             let capture = Capture(image: CGImage(excluded: []), scale: scale, anchorRect: anchorRect)
-            finish(openEditor ? .capturedForEdit(capture) : .captured(capture))
+            if copyOnly {
+                finish(.copied(capture))
+            } else {
+                finish(openEditor ? .capturedForEdit(capture) : .captured(capture))
+            }
         }
     }
 

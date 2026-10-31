@@ -284,6 +284,12 @@ final class ScreenCaptureService: ObservableObject {
                 return
             }
             ScreenshotService.shared.receiveUnifiedCapture(capture, openEditor: true)
+        case .copied(let capture):
+            guard selected == .screenshot else {
+                showFailure(for: selected)
+                return
+            }
+            ScreenshotService.shared.receiveUnifiedClipboardCapture(capture)
         case .region(let region):
             guard selected == .recording else {
                 showFailure(for: selected)

@@ -3791,6 +3791,13 @@ enum ScreenshotFeatureTests {
         suite.expect(selectionControllerSource.contains("performInlineDeleteSelected")
                 && selectionControllerSource.contains("case kVK_Delete, kVK_ForwardDelete:"),
                "confirm overlay Delete/Backspace removes the selected annotation")
+        suite.expect(selectionControllerSource.contains("case copied(Capture)")
+                && selectionControllerSource.contains("copyOnly: true"),
+               "confirm Complete finishes as clipboard-only, not After capture / editor")
+        suite.expect(((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+            encoding: .utf8)) ?? "").contains("routeClipboardOnly"),
+               "screenshot service routes confirm Complete through clipboard-only dismissal")
         suite.expect(((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotConfirmInlineSession.swift",
             encoding: .utf8)) ?? "").contains("drawSelectionChrome(in:"),

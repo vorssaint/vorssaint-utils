@@ -38,6 +38,9 @@ final class ScreenshotSelectionController {
         /// Same pixels as `captured`, but the screenshot tool opens the editor
         /// instead of running the configured After capture action.
         case capturedForEdit(Capture)
+        /// Confirm Complete / Enter: copy final pixels and dismiss — skip After
+        /// capture, preview, and editor.
+        case copied(Capture)
         case region(RecorderSupport.Region)
         case scrollingRegion(RecorderSupport.Region)
         case color(NSColor)
@@ -759,7 +762,8 @@ final class ScreenshotSelectionController {
     fileprivate func confirmRegion(_ viewRect: CGRect,
                                    on panel: ScreenshotOverlayPanel,
                                    openEditor: Bool = false,
-                                   annotatedImage: CGImage? = nil) {
+                                   annotatedImage: CGImage? = nil,
+                                   copyOnly: Bool = false) {
         guard acceptsCaptureInput, activeMode != .color,
               viewRect.width >= 1, viewRect.height >= 1 else { return }
         markCapturePending()
@@ -780,7 +784,8 @@ final class ScreenshotSelectionController {
                 image: annotatedImage,
                 scale: panel.pixelScale,
                 anchorRect: anchor)
-            finish(openEditor ? .capturedForEdit(capture) : .captured(capture))
+            finish(copyOnly ? .copied(capture)
+                    : openEditor ? .capturedForEdit(capture) : .captured(capture))
             return
         }
         let pixelRect = ScreenshotSupport.imagePixelRect(
@@ -796,13 +801,15 @@ final class ScreenshotSelectionController {
                 image: cropped,
                 scale: panel.pixelScale,
                 anchorRect: anchor)
-            finish(openEditor ? .capturedForEdit(capture) : .captured(capture))
+            finish(copyOnly ? .copied(capture)
+                    : openEditor ? .capturedForEdit(capture) : .captured(capture))
         } else {
             captureLive(displayID: panel.displayID,
                         pixelRect: pixelRect,
                         scale: panel.pixelScale,
                         anchorRect: anchor,
-                        openEditor: openEditor)
+                        openEditor: openEditor,
+                        copyOnly: copyOnly)
         }
     }
 
@@ -900,7 +907,8 @@ final class ScreenshotSelectionController {
                              pixelRect: CGRect?,
                              scale: CGFloat,
                              anchorRect: CGRect,
-                             openEditor: Bool = false) {
+                             openEditor: Bool = false,
+                             copyOnly: Bool = false) {
         retirePanels()
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -927,7 +935,8 @@ final class ScreenshotSelectionController {
             let capture = Capture(image: image,
                                   scale: scale,
                                   anchorRect: anchorRect)
-            self.finish(openEditor ? .capturedForEdit(capture) : .captured(capture))
+            self.finish(copyOnly ? .copied(capture)
+                         : openEditor ? .capturedForEdit(capture) : .captured(capture))
         }
     }
 
@@ -1820,20 +1829,16 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     /// Enter / Complete while handles + toolbar are showing.
+    /// Always copies the final crop (with marks) to the clipboard and dismisses —
+    /// no After capture / Preview / Edit (WeChat / Shottr Complete).
     fileprivate func confirmAdjustingSelectionIfNeeded(openEditor: Bool = false) -> Bool {
         guard isAdjusting, let controller, let panel,
               selection.width >= 2, selection.height >= 2 else { return false }
+        _ = openEditor // legacy API; Complete no longer opens the editor.
         let annotated: CGImage?
-        if openEditor {
-            // Legacy path kept for callers; inline annotate replaces Edit.
-            annotated = nil
-        } else if let session = inlineSession,
-                  (session.model.isDirty || !session.model.annotations.isEmpty),
-                  let export = session.exportImage() {
+        if let session = inlineSession, let export = session.exportImage() {
             annotated = export.image
         } else {
-            // Clean confirm keeps the existing crop / live-capture path (and
-            // its watermark / After capture behavior).
             inlineSession?.prepareForExport()
             annotated = nil
         }
@@ -1842,7 +1847,10 @@ private final class ScreenshotOverlayView: NSView {
         activeHandle = nil
         annotationDragActive = false
         dragOrigin = nil
-        controller.confirmRegion(selection, on: panel, openEditor: openEditor, annotatedImage: annotated)
+        controller.confirmRegion(selection,
+                                 on: panel,
+                                 annotatedImage: annotated,
+                                 copyOnly: true)
         return true
     }
 

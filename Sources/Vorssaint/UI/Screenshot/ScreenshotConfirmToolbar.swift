@@ -111,7 +111,7 @@ struct ScreenshotConfirmToolbar: View {
                 .background(Circle().fill(Color(red: 0.15, green: 0.78, blue: 0.35)))
         }
         .buttonStyle(.plain)
-        .help(strings.copyButton + " / " + strings.saveButton)
+        .help(strings.copiedHUD + " (Enter)")
         .accessibilityLabel(strings.copyButton)
     }
 
