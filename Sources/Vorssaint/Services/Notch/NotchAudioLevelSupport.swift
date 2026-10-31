@@ -29,6 +29,22 @@ enum NotchAudioLevelSupport {
     /// process list is not free.
     static let processSettle = 0.25
 
+    /// The longest the bars hold back what the tap heard. Bluetooth outputs
+    /// report a few hundred milliseconds; a figure past this is a device
+    /// misreporting rather than a real wait.
+    static let longestPlaybackDelay = 0.75
+
+    /// Frames between the tap hearing a sample and the output playing it: the
+    /// device's latency, its safety offset, one IO buffer and the stream's
+    /// latency, as Core Audio reports them for the output. The tap hears the
+    /// player as it renders, so without this the bars run ahead of the sound,
+    /// by a few hundred milliseconds on Bluetooth headphones.
+    static func playbackDelayFrames(deviceLatency: UInt32, safetyOffset: UInt32, bufferFrames: UInt32,
+                                    streamLatency: UInt32, sampleRate: Double) -> Int {
+        let total = Int(deviceLatency) + Int(safetyOffset) + Int(bufferFrames) + Int(streamLatency)
+        return min(total, Int(max(0, sampleRate) * longestPlaybackDelay))
+    }
+
     static func fallsBack(heard: Bool, elapsed: TimeInterval) -> Bool {
         !heard && elapsed >= silenceGrace
     }
