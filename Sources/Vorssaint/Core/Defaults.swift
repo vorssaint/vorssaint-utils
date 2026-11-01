@@ -92,6 +92,11 @@ enum DefaultsKey {
     static let mouseButtonExceptions = "mouseButtonExceptions"
     static let middleClickExceptions = "middleClickExceptions"
     static let superKeyExceptions = "superKeyExceptions"
+    static let globeKeyEnabled = "globeKeyEnabled"          // the Globe key switches to the named source per gesture
+    static let globeKeySinglePressAction = "globeKeySinglePressAction" // GlobeKeyAction storage value
+    static let globeKeyDoublePressAction = "globeKeyDoublePressAction"
+    static let globeKeyTriplePressAction = "globeKeyTriplePressAction"
+    static let globeKeyLongPressAction = "globeKeyLongPressAction"
     static let switcherEnabled = "switcherEnabled"
     static let switcherTakeOverSystemShortcuts = "switcherTakeOverSystemShortcuts"
     // Machine state, never exported: the system shortcuts this process owns,
@@ -1264,6 +1269,11 @@ enum Defaults {
         DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
+        DefaultsKey.globeKeyEnabled: false,
+        DefaultsKey.globeKeySinglePressAction: GlobeKeyAction.none.storageValue,
+        DefaultsKey.globeKeyDoublePressAction: GlobeKeyAction.none.storageValue,
+        DefaultsKey.globeKeyTriplePressAction: GlobeKeyAction.none.storageValue,
+        DefaultsKey.globeKeyLongPressAction: GlobeKeyAction.openKeyboardSettings.storageValue,
         DefaultsKey.smoothScrollExceptions: [String](),
         DefaultsKey.linearScrollExceptions: [String](),
         DefaultsKey.scrollInverterExceptions: [String](),
