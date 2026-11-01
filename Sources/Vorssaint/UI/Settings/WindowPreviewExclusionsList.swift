@@ -24,6 +24,8 @@ struct WindowPreviewExclusionsList: View {
                       addTitle: text.addButton,
                       removeLabel: text.removeButton,
                       bundleIDs: apps,
+                      reachesEveryApp: true,
+                      acceptsExecutables: true,
                       onAdd: { save(apps + [$0]) },
                       onRemove: { bundleID in save(apps.filter { $0 != bundleID }) })
     }

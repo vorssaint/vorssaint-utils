@@ -718,6 +718,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
         ShelfService.shared.sourceOperationMask(for: context)
     }
 
+    func draggingSession(_ session: NSDraggingSession, movedTo screenPoint: NSPoint) {
+        ShelfService.shared.internalDragMoved(to: screenPoint)
+    }
+
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         // A non-empty operation means the drop was accepted somewhere — pull the
         // dragged tiles out of the shelf. A cancelled drag leaves them.

@@ -16,8 +16,8 @@ enum ClipboardHistoryMoveDirection {
 }
 
 /// Opt-in clipboard history. It records plain text and, optionally, copied
-/// images and files; keeps a small local history and avoids obvious
-/// secret-looking strings by default.
+/// images and files; keeps a small local history. Confidential pasteboard
+/// content is excluded; guessing sensitive text is a separate opt-in.
 final class ClipboardHistoryService: ObservableObject {
     static let shared = ClipboardHistoryService()
 
@@ -71,7 +71,17 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var quickLayout = ClipboardHistoryLayout.current()
 
     private var timer: Timer?
+    /// Entries age out with nothing new copied, so the retention window is
+    /// also checked on its own clock instead of only after each capture.
+    private var retentionTimer: Timer?
+    /// The entry open in the preview editor. Expiring it mid-edit would swap
+    /// the preview and throw the unsaved draft away, so the retention window
+    /// skips it until the editor lets go; the next trim then applies as usual.
+    var editingEntryID: UUID?
     private var lastChangeCount = 0
+    /// Only an explicitly temporary write can make the previous clipboard's
+    /// return silent. Ordinary copies never establish a pending restore.
+    private var pendingRestore: (previous: ClipboardHistoryEntry, at: Date)?
     /// The poll reads the pasteboard off the main thread: while a password
     /// prompt is up the pasteboard server can take seconds to answer, and a
     /// blocked main thread stalls every event tap with it, so typing freezes
@@ -312,7 +322,7 @@ final class ClipboardHistoryService: ObservableObject {
         var updated = entries.remove(at: index)
         let pinning = !updated.isPinned
         if updated.isPinned {
-            updated.pinnedAt = nil
+            updated = ClipboardHistoryEditing.unpinned(updated)
             entries.insert(updated, at: firstRecentIndex)
         } else {
             updated.pinnedAt = Date()
@@ -650,6 +660,12 @@ final class ClipboardHistoryService: ObservableObject {
         timer.tolerance = 0.25
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+        let retentionTimer = Timer(timeInterval: 3_600, repeats: true) { [weak self] _ in
+            self?.trimToLimit()
+        }
+        retentionTimer.tolerance = 600
+        RunLoop.main.add(retentionTimer, forMode: .common)
+        self.retentionTimer = retentionTimer
         isRunning = true
         ClipboardIgnoredApps.shared.setHistoryRunning(true)
         captureState.restart()
@@ -659,9 +675,12 @@ final class ClipboardHistoryService: ObservableObject {
     private func stop() {
         timer?.invalidate()
         timer = nil
+        retentionTimer?.invalidate()
+        retentionTimer = nil
         isRunning = false
         ClipboardIgnoredApps.shared.setHistoryRunning(false)
         captureState.invalidate()
+        pendingRestore = nil
         // Otherwise the last known copy keeps showing in the menu bar preview
         // for the moment between history starting to watch again and the
         // baseline check actually answering, instead of going blank right
@@ -671,6 +690,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     /// What the background pasteboard read hands back to the main thread.
     private enum CapturedContent {
+        case transient
         case files([String])
         case image((data: Data, width: Int, height: Int))
         case text(String)
@@ -733,17 +753,43 @@ final class ClipboardHistoryService: ObservableObject {
                 read: result.changeCount, since: sinceChangeCount, last: self.lastChangeCount
             ) else { return }
             self.lastChangeCount = accepted
+            // A restarted pasteboard server cannot finish an old restore.
+            let advanced = result.changeCount > sinceChangeCount
+            let previous = advanced ? self.latestPasteboardEntry : nil
+            let pending = advanced ? self.pendingRestore : nil
+            self.pendingRestore = nil
             // The pasteboard changed to something this check is about to
             // decide not to record (an ignored app, a concealed/secret copy,
             // or an image with the images toggle off): the menu bar preview
             // must not keep advertising the previous entry as still current.
             // A recording path below sets this back.
             self.latestPasteboardEntry = nil
+            if case .transient? = result.content {
+                // A temporary write can span several polls or replacements.
+                // Keep the first deadline instead of extending it indefinitely.
+                self.pendingRestore = previous.map { (previous: $0, at: Date()) } ?? pending
+                return
+            }
             guard !source.excluded, let content = result.content else { return }
             // A copy out of the history's own panel, such as text selected in
             // the preview, is of an entry already there, and its app stays.
             let keepsSource = source.fromHistoryPanel
+            if let pending, let restored = self.matchingEntry(for: content),
+               restored.id == pending.previous.id,
+               ClipboardHistoryPasteRestore.isWithinWindow(capturedAt: pending.at, now: Date()) {
+                // A restored entry still faces today's capture preferences.
+                if case .text(let raw) = content {
+                    let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters,
+                          !(UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText)
+                            && self.looksSensitive(text)) else { return }
+                }
+                self.touch([restored.id])
+                self.latestPasteboardEntry = self.entries.first { $0.id == restored.id }
+                return
+            }
             switch content {
+            case .transient: break
             case .files(let paths): self.promoteFiles(paths, source: source.bundleID, keepsSource: keepsSource)
             case .image(let image): self.promoteImage(image, source: source.bundleID, keepsSource: keepsSource)
             case .text(let text): self.promote(text, source: source.bundleID, keepsSource: keepsSource)
@@ -758,7 +804,10 @@ final class ClipboardHistoryService: ObservableObject {
     /// promoteFiles use to recognize a re-copy of something already saved.
     private func matchingEntry(for content: CapturedContent) -> ClipboardHistoryEntry? {
         switch content {
+        case .transient: return nil
         case .text(let text):
+            // Saved the way promote saves it, without the surrounding space.
+            let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
             return entries.first(where: { $0.kind == .text && $0.text == text })
         case .image(let image):
             let hash = Self.sha256Hex(image.data)
@@ -776,9 +825,11 @@ final class ClipboardHistoryService: ObservableObject {
         // what the apps that keep passwords do when they hand one over. Said
         // that plainly by the app itself, it is taken at its word and the
         // content is never even read, whatever the other options say.
-        if ClipboardHistorySensitiveText.isConcealed((pasteboard.types ?? []).map(\.rawValue)) {
-            return nil
-        }
+        // Content its app is about to take back, which is how a dictation
+        // app types, is no copy either, and is left unread the same way.
+        let types = (pasteboard.types ?? []).map(\.rawValue)
+        if ClipboardHistorySensitiveText.isConcealed(types) { return nil }
+        if ClipboardHistorySensitiveText.isTransient(types) { return .transient }
         // Files first: a Finder copy also carries name strings, and a browser
         // image copy also carries URL text, so richer content wins over its
         // own textual fallbacks.
@@ -909,7 +960,7 @@ final class ClipboardHistoryService: ObservableObject {
     private func promote(_ raw: String, source: String?, keepsSource: Bool) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters else { return }
-        if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistorySkipSensitive),
+        if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText),
            looksSensitive(text) {
             return
         }
@@ -934,7 +985,13 @@ final class ClipboardHistoryService: ObservableObject {
         let limit = Defaults.sanitizedClipboardHistoryLimit(
             UserDefaults.standard.integer(forKey: DefaultsKey.clipboardHistoryLimit)
         )
-        let trimmed = ClipboardHistoryEditing.retainedEntries(entries, recentLimit: limit)
+        let retentionDays = Defaults.sanitizedClipboardHistoryRetentionDays(
+            UserDefaults.standard.integer(forKey: DefaultsKey.clipboardHistoryRetentionDays)
+        )
+        let trimmed = ClipboardHistoryEditing.retainedEntries(entries,
+                                                              recentLimit: limit,
+                                                              retentionDays: retentionDays,
+                                                              ageExemptIDs: Set([editingEntryID].compactMap { $0 }))
         if trimmed != entries {
             entries = trimmed
             save()
@@ -1580,15 +1637,15 @@ final class ClipboardHistoryService: ObservableObject {
 
     private static func digitIndex(for keyCode: UInt16) -> Int? {
         switch Int(keyCode) {
-        case kVK_ANSI_1: return 0
-        case kVK_ANSI_2: return 1
-        case kVK_ANSI_3: return 2
-        case kVK_ANSI_4: return 3
-        case kVK_ANSI_5: return 4
-        case kVK_ANSI_6: return 5
-        case kVK_ANSI_7: return 6
-        case kVK_ANSI_8: return 7
-        case kVK_ANSI_9: return 8
+        case kVK_ANSI_1, kVK_ANSI_Keypad1: return 0
+        case kVK_ANSI_2, kVK_ANSI_Keypad2: return 1
+        case kVK_ANSI_3, kVK_ANSI_Keypad3: return 2
+        case kVK_ANSI_4, kVK_ANSI_Keypad4: return 3
+        case kVK_ANSI_5, kVK_ANSI_Keypad5: return 4
+        case kVK_ANSI_6, kVK_ANSI_Keypad6: return 5
+        case kVK_ANSI_7, kVK_ANSI_Keypad7: return 6
+        case kVK_ANSI_8, kVK_ANSI_Keypad8: return 7
+        case kVK_ANSI_9, kVK_ANSI_Keypad9: return 8
         default: return nil
         }
     }

@@ -51,6 +51,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var updateHighlightsIsReview = false
     private var updateShowcaseWindow: NSWindow?
     private var updatePreviewWindow: NSWindow?
+    private var whatsNewWindow: NSWindow?
+    private var whatsNewIsReview = false
+    private var updateWindowsKeepingAppRegular = Set<ObjectIdentifier>()
+    private var settingsFloatsForWhatsNew = false
 
     // MARK: - Lifecycle
 
@@ -75,6 +79,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // build, or retire a leftover old-named bundle. Returns true when we are
         // quitting to relaunch under the new name, so skip the rest of startup.
         if BundleMigration.run() { return }
+
+        DispatchQueue.global(qos: .utility).async {
+            RecorderGIFWorkspace.sweep()
+        }
 
         // Shape a clean install before any feature can create a listener,
         // timer or shortcut. The onboarding can replace this set after the
@@ -209,16 +217,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.showUpdateHighlights(isReview: true)
                 return
             }
+            // `--preview-whats-new [version]`: the post-update window for an
+            // update from that version (this one by default), with the
+            // changelog's unreleased notes on top. Nothing is marked as seen.
+            // `--preview-stable-update` previews the same flow with the next
+            // stable version on its cover, without changing the app version.
+            let stablePreview = CommandLine.arguments.firstIndex(of: "--preview-stable-update")
+            if let flag = stablePreview ?? CommandLine.arguments.firstIndex(of: "--preview-whats-new") {
+                let next = CommandLine.arguments.dropFirst(flag + 1).first
+                let previous = next.flatMap { $0.hasPrefix("-") ? nil : $0 } ?? AppInfo.version
+                self.showWhatsNew(from: previous, includeUnreleased: true, isReview: true,
+                                  previewVersion: stablePreview == nil ? nil : SupportUpdateIntroInfo.releaseVersion)
+                return
+            }
             #endif
             if !defaults.bool(forKey: DefaultsKey.hasOnboarded) {
                 guard !skipStartupWindows else { return }
                 self.showOnboarding(mode: .full)
             } else {
-                // Keep the last seen version marker current without opening
-                // post-update release notes; the update flow already previews
-                // them.
+                // Keep the last seen version marker current. An update is
+                // queued for the What's New window first, so a start that
+                // goes wrong before the window opens still shows it next time.
                 let previousVersion = defaults.string(forKey: DefaultsKey.lastUpdateIntroVersion)
                 self.queueBrightnessUpdatePromptIfNeeded(previousVersion: previousVersion)
+                self.queueWhatsNewIfNeeded(previousVersion: previousVersion)
                 defaults.set(OnboardingInfo.currentFeatureSet, forKey: DefaultsKey.featuresOnboardingVersion)
                 defaults.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
                 guard !skipStartupWindows else { return }
@@ -344,6 +366,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             Self.menuBarLog.log("reopen ignored from \(ReopenRequestSupport.logName(requester), privacy: .public)")
             return false
         }
+        if let window = supportIntroWindow ?? whatsNewWindow {
+            sender.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            return false
+        }
         guard !flag else { return true }
         // A deliberate reopen with no windows showing is the user's recovery action.
         // Rebuild the menu bar item only when it is actually missing: the
@@ -382,6 +409,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// bar (in which case the button still has a window, just not an on-screen one).
     private static let menuBarLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                            category: "menubar")
+    private static let updateLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                          category: "update")
 
     private func iconIsOnScreen() -> Bool {
         // A hidden item is not on screen, whatever frame its window last had.
@@ -2040,6 +2069,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// Beta updates only introduce their new feature; other update surfaces
     /// retain their own release gates.
     private func presentUpdateIntros() {
+        if showWhatsNewIfNeeded() { return }
         if showUpdateHighlightsIfNeeded() { return }
         if !AppInfo.isBeta {
             if showSupportUpdateIntroIfNeeded() { return }
@@ -2165,6 +2195,155 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                                   forKey: DefaultsKey.updateHighlightsSeenVersion)
     }
 
+    /// Records an update the What's New window still has to cover. A second
+    /// update before it opens keeps the older starting point.
+    private func queueWhatsNewIfNeeded(previousVersion: String?) {
+        // The Developer build takes its version from whichever worktree built
+        // it, so its versions jump around; it previews with a launch flag.
+        guard !AppInfo.isDeveloperBuild else { return }
+        let pending = WhatsNewInfo.pendingVersion(
+            current: AppInfo.version, previous: previousVersion,
+            seen: UserDefaults.standard.string(forKey: DefaultsKey.whatsNewSeenVersion),
+            pending: UserDefaults.standard.string(forKey: DefaultsKey.whatsNewPendingVersion))
+        UserDefaults.standard.set(pending, forKey: DefaultsKey.whatsNewPendingVersion)
+    }
+
+    private func showWhatsNewIfNeeded() -> Bool {
+        guard !isTerminating,
+              let previous = UserDefaults.standard.string(forKey: DefaultsKey.whatsNewPendingVersion)
+        else { return false }
+        // Turned off in Settings, or nothing in the update touches what this
+        // Mac uses: the update counts as read.
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.releaseNotesOnUpdate),
+              showWhatsNew(from: previous) else {
+            markWhatsNewSeen()
+            return false
+        }
+        return true
+    }
+
+    private func markWhatsNewSeen() {
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.whatsNewPendingVersion)
+        UserDefaults.standard.set(AppInfo.version, forKey: DefaultsKey.whatsNewSeenVersion)
+        UserDefaults.standard.set(WhatsNewInfo.knownFeaturesValue, forKey: DefaultsKey.whatsNewKnownFeatures)
+    }
+
+    /// Opens What's New for the changes since `previous`. Returns false, and
+    /// opens nothing, when none of them concern this Mac's features.
+    @discardableResult
+    func showWhatsNew(from previous: String, includeUnreleased: Bool = false, isReview: Bool = false,
+                      previewVersion: String? = nil) -> Bool {
+        if let window = whatsNewWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            return true
+        }
+        let defaults = UserDefaults.standard
+        var digest = ReleaseDigest.make(from: previous, to: AppInfo.version,
+                                       changelog: ReleaseNotes.bundledChangelog() ?? "",
+                                       includeUnreleased: includeUnreleased)
+        if isReview, let previewVersion {
+            // Keep this build's beta and unreleased notes in the preview;
+            // the stable changelog has not been assembled yet.
+            digest = ReleaseDigest(previousVersion: digest.previousVersion, version: previewVersion,
+                                   versions: digest.versions, summary: digest.summary, changes: digest.changes)
+        }
+        let strings = L10n.shared.s
+        let language = L10n.shared.language
+        let hub = FeatureStrings.hub(language)
+        let sections = WhatsNewSupport.sections(
+            digest: digest,
+            newFeatures: WhatsNewInfo.newFeatures(
+                known: defaults.string(forKey: DefaultsKey.whatsNewKnownFeatures),
+                isSupported: { $0.isHardwareSupported }),
+            sidebarItems: SettingsDirectory.sidebarItems(strings, language: language,
+                                                         isAvailable: { $0.isAvailable }),
+            isAvailable: { $0.isAvailable },
+            title: { $0.hubTitle(strings, hub: hub) },
+            generalTitle: strings.tabGeneral)
+        guard sections.hasContentForYou || (isReview && !sections.rows.isEmpty) else { return false }
+        closePopover()
+        let visible = NSScreen.pointerVisibleFrame
+        let rows = sections.rows
+        let host = NSHostingController(rootView: WhatsNewDigestView(
+            digest: digest, sections: sections, availableSize: visible.size,
+            retitle: {
+                // Titles follow a language change made while the window is open.
+                let strings = L10n.shared.s
+                let language = L10n.shared.language
+                let hub = FeatureStrings.hub(language)
+                return WhatsNewSupport.titles(
+                    of: rows,
+                    sidebarItems: SettingsDirectory.sidebarItems(strings, language: language,
+                                                                 isAvailable: { _ in true }),
+                    title: { $0.hubTitle(strings, hub: hub) },
+                    generalTitle: strings.tabGeneral)
+            },
+            onOpenSettings: { [weak self] in self?.openSettingsFromWhatsNew() },
+            onFinish: { [weak self] in self?.whatsNewWindow?.close() }
+        ))
+        host.sizingOptions = .preferredContentSize
+        let window = NSWindow(contentViewController: host)
+        window.title = strings.tabReleaseNotes
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isReleasedWhenClosed = false
+        window.isRestorable = false
+        window.delegate = self
+        keepUpdateWindowReachable(window)
+        centerIntroWindow(window)
+        whatsNewIsReview = isReview
+        whatsNewWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, window === self.whatsNewWindow else { return }
+            self.centerIntroWindow(window)
+        }
+        return true
+    }
+
+    /// Settings opens beside What's New, so the change just read and the
+    /// option it mentions are both on screen. Where the screen is too narrow
+    /// for both, Settings stays in front, since its controls are the point.
+    private func openSettingsFromWhatsNew() {
+        openSettingsWindow()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let window = self.whatsNewWindow, window.isVisible else { return }
+            self.positionTourBesideSettings(window)
+            if let settings = self.settingsWindow {
+                if window.frame.intersects(settings.frame) {
+                    // On a narrow display, the controls must remain clickable
+                    // even though the tour floats above ordinary windows.
+                    settings.level = .floating
+                    self.settingsFloatsForWhatsNew = true
+                    settings.orderFront(nil)
+                } else {
+                    self.restoreSettingsLevelAfterWhatsNew()
+                    window.orderFront(nil)
+                }
+            }
+        }
+    }
+
+    private func keepUpdateWindowReachable(_ window: NSWindow) {
+        window.level = .floating
+        window.hidesOnDeactivate = false
+        window.canHide = false
+        window.collectionBehavior.remove(.ignoresCycle)
+        window.collectionBehavior.insert(.participatesInCycle)
+        if updateWindowsKeepingAppRegular.insert(ObjectIdentifier(window)).inserted {
+            WindowActivationPolicy.retain()
+        }
+    }
+
+    private func restoreSettingsLevelAfterWhatsNew() {
+        guard settingsFloatsForWhatsNew else { return }
+        settingsWindow?.level = .normal
+        settingsFloatsForWhatsNew = false
+    }
+
     private func showUpdateShowcaseIntroIfNeeded() -> Bool {
         guard AppInfo.version == UpdateShowcaseInfo.releaseVersion else {
             UpdateShowcaseInfo.cleanupCache()
@@ -2253,6 +2432,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.delegate = self
         supportIntroCanClose = false
         supportIntroIsReview = isReview
+        keepUpdateWindowReachable(window)
         centerIntroWindow(window)
         supportIntroWindow = window
         NSApp.activate(ignoringOtherApps: true)
@@ -2277,6 +2457,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
            host.rootView.availableSize != visible.size {
             host.rootView.availableSize = visible.size
         }
+        if let host = window.contentViewController as? NSHostingController<WhatsNewDigestView>,
+           host.rootView.availableSize != visible.size {
+            host.rootView.availableSize = visible.size
+        }
         window.contentView?.layoutSubtreeIfNeeded()
         if let fitting = window.contentViewController?.view.fittingSize,
            fitting.width > 0, fitting.height > 0 {
@@ -2290,16 +2474,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     /// The pre-install update preview, shown before any download from BOTH the
     /// Settings install button and the menu panel's update banner (the blue
-    /// button most people use), so the changelog is always seen first. In the
-    /// Developer build `downloadAndInstall()` is a no-op, so confirming is safe.
+    /// button most people use), so the changelog is seen first unless the
+    /// person chose to skip it. In the Developer build `downloadAndInstall()`
+    /// is a no-op, so confirming is safe.
     func showUpdatePreview() {
         guard case let .available(version) = UpdateService.shared.state else { return }
-        closePopover()
         if let window = updatePreviewWindow {
+            closePopover()
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
             return
         }
+        // The panel stays open, so its banner shows the download's progress.
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.showReleaseNotesBeforeUpdate) else {
+            if AppInfo.isDeveloperBuild {
+                // The Developer build never installs; say so instead of
+                // ignoring the click.
+                Self.updateLog.log("release notes skipped; the Developer build does not install updates")
+            }
+            UpdateService.shared.downloadAndInstall()
+            return
+        }
+        closePopover()
         let host = NSHostingController(rootView: UpdatePreviewView(
             version: version,
             notes: UpdateService.shared.availableNotes,
@@ -2374,7 +2570,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
+        let releasesActivation = updateWindowsKeepingAppRegular.remove(ObjectIdentifier(window)) != nil
+        defer {
+            if releasesActivation {
+                // The next intro is queued below. Let it retain activation
+                // first so the Dock icon does not disappear during the handoff.
+                DispatchQueue.main.async { WindowActivationPolicy.release() }
+            }
+        }
         if window === settingsWindow {
+            restoreSettingsLevelAfterWhatsNew()
             // Covers size changes that end without a live resize (zoom).
             saveSettingsWindowSize(window)
             if settingsKeepsAppRegular {
@@ -2426,6 +2631,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             markUpdateHighlightsSeen()
             finishedUpdateIntro = true
         }
+        if window === whatsNewWindow {
+            restoreSettingsLevelAfterWhatsNew()
+            whatsNewWindow = nil
+            let isReview = whatsNewIsReview
+            whatsNewIsReview = false
+            guard !isTerminating else { return }
+            if isReview {
+                DispatchQueue.main.async { [weak self] in self?.showSupportUpdateIntro(isReview: true) }
+                return
+            }
+            markWhatsNewSeen()
+            // Done, Escape and the window's close button all arrive here.
+            // The stable invitation follows the changelog before older tours.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if !AppInfo.isBeta, self.showSupportUpdateIntroIfNeeded() { return }
+                self.presentUpdateIntros()
+            }
+            return
+        }
         if window === updatePreviewWindow {
             updatePreviewWindow = nil
         }
@@ -2447,6 +2672,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // A clean install that just saw everything in onboarding should not
         // then get the update tour; only people who updated get it.
         markUpdateHighlightsSeen()
+        // Nor treat the features it was just offered as new on the next
+        // update, or a restored backup's older version as an update.
+        if UserDefaults.standard.string(forKey: DefaultsKey.whatsNewKnownFeatures) == nil {
+            UserDefaults.standard.set(WhatsNewInfo.knownFeaturesValue, forKey: DefaultsKey.whatsNewKnownFeatures)
+        }
+        UserDefaults.standard.set(
+            WhatsNewInfo.later(UserDefaults.standard.string(forKey: DefaultsKey.whatsNewSeenVersion), AppInfo.version),
+            forKey: DefaultsKey.whatsNewSeenVersion)
         // Setup just picked the installed features; a beta adds the companion
         // for a Command Bar user now.
         Defaults.installCompanionForBetaCommandBar(in: .standard)

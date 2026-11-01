@@ -24,8 +24,8 @@ final class MouseButtonShortcutService: ObservableObject {
     /// re-enters does not take it straight back. The window gesture tags its
     /// own replayed presses the same way.
     private static let replayedPressMarker: Int64 = 0x564F5253
-    /// Read by Smooth Scroll before it touches any side-wheel fields. False
-    /// while this feature is off, unavailable, untrusted or has no wheel map.
+    /// False while this feature is off, unavailable, untrusted or has no
+    /// wheel map, so the side-wheel path lets every wheel event through.
     private(set) static var hasActiveSideWheelInterest = false
 
     /// True while the tap is up and the mapped buttons actually fire.
@@ -64,10 +64,6 @@ final class MouseButtonShortcutService: ObservableObject {
     private var lastGesturePhaseTimestamp: UInt64?
     private var wantsSideWheelEvents = false
     private var sideWheelGesture = MouseButtonShortcutSupport.SideWheelGestureGate()
-    /// Smooth Scroll checks the exception before passing this exact event to
-    /// the session tap. Matching its timestamp avoids doing that lookup twice.
-    private var preflightedSideWheelTimestamp: UInt64?
-    private var preflightedSideWheelInput: Int64?
     /// The button the Spaces and Mission Control drag is bound to, or nil.
     private var spacesButton: Int64?
     /// The held press being watched for such a drag. Only touched from the tap
@@ -167,26 +163,6 @@ final class MouseButtonShortcutService: ObservableObject {
         Self.isCaptureActive = capturing
         lastInputSeen = nil
         syncWithPreferences()
-    }
-
-    /// Smooth scrolling runs at the HID level before this service's session
-    /// tap. It leaves a side-wheel event untouched only when this service is
-    /// alive and will really consume it; otherwise the normal glide remains.
-    static func claimsSideWheel(_ input: Int64,
-                                at location: CGPoint,
-                                sourceProcessID: Int64,
-                                eventTimestamp: UInt64) -> Bool {
-        guard hasActiveSideWheelInterest else { return false }
-        let service = shared
-        guard service.isRunning,
-              service.isCapturing || service.mappings[input] != nil else { return false }
-        guard service.isCapturing
-            || !MouseAppExceptions.shared.excludesActionTarget(
-                .buttonShortcuts, at: location, sourceProcessID: sourceProcessID
-            ) else { return false }
-        service.preflightedSideWheelTimestamp = eventTimestamp
-        service.preflightedSideWheelInput = input
-        return true
     }
 
     private func start() {
@@ -291,8 +267,6 @@ final class MouseButtonShortcutService: ObservableObject {
         consumedButtons.removeAll()
         lastGesturePhaseTimestamp = nil
         sideWheelGesture.reset()
-        preflightedSideWheelTimestamp = nil
-        preflightedSideWheelInput = nil
         isDraining = false
         restartAfterDrain = false
         isRunning = false
@@ -301,8 +275,6 @@ final class MouseButtonShortcutService: ObservableObject {
     private func handle(proxy: CGEventTapProxy?, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             sideWheelGesture.reset()
-            preflightedSideWheelTimestamp = nil
-            preflightedSideWheelInput = nil
             // While the tap was off the rest of that press went straight to
             // the app. Keep custody only for buttons that are still physically
             // held; a released button's Up has already bypassed this tap.
@@ -511,6 +483,9 @@ final class MouseButtonShortcutService: ObservableObject {
         }
     }
 
+    /// Smooth scrolling, Scroll Direction and linear scrolling all run at the
+    /// annotated stage, after this session tap, so a tick taken here never
+    /// reaches them.
     private func handleSideWheel(_ event: CGEvent) -> Unmanaged<CGEvent>? {
         if AppSwitcher.shared.scrollNavigationActive {
             return Unmanaged.passUnretained(event)
@@ -523,10 +498,6 @@ final class MouseButtonShortcutService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         let timestamp = UInt64(event.timestamp)
-        let wasPreflighted = preflightedSideWheelTimestamp == timestamp
-            && preflightedSideWheelInput == input
-        preflightedSideWheelTimestamp = nil
-        preflightedSideWheelInput = nil
         if isCapturing {
             guard sideWheelGesture.shouldFire(input, at: timestamp) else { return nil }
             // Report after the tap callback returns so Settings can stop and
@@ -539,10 +510,8 @@ final class MouseButtonShortcutService: ObservableObject {
         }
         guard let shortcut = mappings[input] else { return Unmanaged.passUnretained(event) }
         let sourceProcessID = event.getIntegerValueField(.eventSourceUnixProcessID)
-        if !wasPreflighted,
-           MouseAppExceptions.shared.excludesActionTarget(
-            .buttonShortcuts, at: event.location, sourceProcessID: sourceProcessID
-           ) {
+        if MouseAppExceptions.shared.excludesActionTarget(
+            .buttonShortcuts, at: event.location, sourceProcessID: sourceProcessID) {
             return Unmanaged.passUnretained(event)
         }
         guard sideWheelGesture.shouldFire(input, at: timestamp) else { return nil }
@@ -567,17 +536,22 @@ final class MouseButtonShortcutService: ObservableObject {
         guard ScrollWheelSupport.isMouseWheel(
             traits,
             secondsSinceLastGesturePhase: secondsSinceGesturePhase) else { return nil }
+        // Scroll Direction's tap used to turn the wheel at the HID stage,
+        // ahead of this one, so the directions Settings recorded, and the
+        // ones that fired, are the turned ones. Reading the same here keeps
+        // every saved shortcut on the direction it had.
+        let wheel = ScrollInverter.directionApplied(to: event)
         return MouseButtonShortcutSupport.sideWheelInput(
             isContinuous: traits.isContinuous,
             vertical: (
-                line: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1)),
-                fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1),
-                point: Double(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1))
+                line: Double(wheel.getIntegerValueField(.scrollWheelEventDeltaAxis1)),
+                fixedPoint: wheel.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1),
+                point: Double(wheel.getIntegerValueField(.scrollWheelEventPointDeltaAxis1))
             ),
             horizontal: (
-                line: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2)),
-                fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2),
-                point: Double(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2))
+                line: Double(wheel.getIntegerValueField(.scrollWheelEventDeltaAxis2)),
+                fixedPoint: wheel.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2),
+                point: Double(wheel.getIntegerValueField(.scrollWheelEventPointDeltaAxis2))
             )
         )
     }

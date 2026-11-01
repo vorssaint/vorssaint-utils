@@ -12,6 +12,7 @@ enum PastePlainTests {
         var contents: [PasteboardType: Data] = [:]
         var reads = 0
         var dataReads = 0
+        var changeCount = 0
         var types: [PasteboardType]? { Array(contents.keys) }
         func string(forType type: PasteboardType) -> String? {
             reads += 1
@@ -81,9 +82,12 @@ enum PastePlainTests {
     /// Exercises the real forwarding method while the unchanged event-post
     /// helper is held pending, including its busy guard and completion.
     final class OriginalPasteHost {
+        typealias NSPasteboard = PastePlainTests.NSPasteboard
+        typealias GeneralPasteboardAccess = PastePlainTests.GeneralPasteboardAccess
         var isPerforming = false
         static var pending: (() -> Void)?
         static func postPasteWhenModifiersReleased(attempt: Int,
+                                                  expectedChangeCount: Int,
                                                   willPost: (() -> Void)?,
                                                   didPost: (() -> Void)?,
                                                   didFail: (() -> Void)?,

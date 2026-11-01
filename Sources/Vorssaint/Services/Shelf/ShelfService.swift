@@ -1354,6 +1354,14 @@ final class ShelfService: ObservableObject {
         internalDragWasMerged = false
     }
 
+    /// Where a tile drag is now, so the island can step aside once its
+    /// tile leaves it.
+    func internalDragMoved(to screenPoint: CGPoint) {
+        guard !activeInternalDragIDs.isEmpty, let window = internalDragWindow,
+              window === NotchService.shared.presentationWindow else { return }
+        NotchService.shared.shelfDragMoved(to: screenPoint)
+    }
+
     func finishInternalDrag(dropAccepted: Bool) -> [UUID] {
         defer {
             activeInternalDragIDs = []

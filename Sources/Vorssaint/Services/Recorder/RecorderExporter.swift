@@ -3,8 +3,6 @@
 
 import AVFoundation
 import CoreGraphics
-import ImageIO
-import UniformTypeIdentifiers
 
 /// Writes the finished file: reads the master, applies the edit and encodes.
 ///
@@ -35,7 +33,6 @@ final class RecorderExporter {
         case noVideo
         case readFailed
         case writeFailed
-        case tooLongForGIF
         case tooLargeForSharing
         case invalidShareArtifact
         case cancelled
@@ -307,6 +304,7 @@ final class RecorderExporter {
                                                quality: document.resolvedQuality,
                                                codec: .hevc)
             resolved = writer.canApply(outputSettings: preferred, forMediaType: .video)
+                && RecorderWriter.hevcEncodes(width: Int(outputSize.width), height: Int(outputSize.height))
                 ? preferred
                 : Self.videoSettings(size: outputSize,
                                      frameRate: outputFrameRate,
@@ -342,6 +340,7 @@ final class RecorderExporter {
         let expectedFrames = max(1, Int((timelineDuration.seconds
             * Double(outputFrameRate)).rounded()))
         let counter = FrameCounter()
+        let frameProgress = ProgressThrottle(progress)
 
         await withTaskGroup(of: Void.self) { group in
             group.addTask { [cancelled] in
@@ -354,7 +353,7 @@ final class RecorderExporter {
                     // Weighted so the bar never parks at almost-done while the
                     // sound is still being written. It reaches one when the
                     // file is closed, and not before.
-                    progress(min(0.9, Double(done) / Double(expectedFrames) * 0.9))
+                    frameProgress.report(min(0.9, Double(done) / Double(expectedFrames) * 0.9))
                 }
             }
             if let audioInput, let audioOutput {
@@ -545,10 +544,9 @@ final class RecorderExporter {
 
     // MARK: - GIF
 
-    /// A GIF is written by ImageIO, which holds every frame until the file is
-    /// closed. The frame budget in RecorderSupport is what keeps that from
-    /// becoming the memory of the whole machine, so it is enforced here before
-    /// a single frame is decoded.
+    /// Sample the edited timeline and encode it chunk by chunk into a
+    /// disk-backed GIF. Decoded frames never exceed one chunk and the encoded
+    /// file is not held in memory, however long the recording gets.
     private func exportGIF(asset: AVURLAsset,
                            videoTrack: AVAssetTrack,
                            pointerURL: URL,
@@ -571,9 +569,6 @@ final class RecorderExporter {
         else { return .readFailed }
         let timeline = result.asset
         let outputDuration = CMTimeGetSeconds((try? await timeline.load(.duration)) ?? .zero)
-        guard RecorderSupport.gifFitsBudget(duration: outputDuration, fps: fps) else {
-            return .tooLongForGIF
-        }
         let frameCount = RecorderSupport.gifFrameCount(duration: outputDuration, fps: fps)
         guard frameCount > 0 else { return .noVideo }
 
@@ -591,6 +586,7 @@ final class RecorderExporter {
         let size = RecorderSupport.gifOutputSize(source: canvas, size: document.resolvedGIFSize)
 
         let generator = AVAssetImageGenerator(asset: timeline)
+        defer { generator.cancelAllCGImageGeneration() }
         generator.appliesPreferredTrackTransform = true
         generator.requestedTimeToleranceBefore = .zero
         generator.requestedTimeToleranceAfter = .zero
@@ -609,48 +605,42 @@ final class RecorderExporter {
             generator.videoComposition = composition
         }
 
-        // Encoded in memory and written out only once it is whole. Given a
-        // URL, ImageIO writes through a hidden file of its own beside it, and
-        // a cancel before the end leaves that file behind in the person's
-        // folder. The frames are held until the end either way, and the
-        // finished GIF is much smaller than they are.
-        let encoded = NSMutableData()
-        guard let sink = CGImageDestinationCreateWithData(encoded as CFMutableData,
-                                                          UTType.gif.identifier as CFString,
-                                                          frameCount,
-                                                          nil)
-        else { return .writeFailed }
-        CGImageDestinationSetProperties(sink, [
-            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0],
-        ] as CFDictionary)
-
-        let delay = RecorderSupport.gifDelay(fps: fps)
-        // Readers clamp anything under 100 ms unless the unclamped delay is
-        // written as well, so both go in and a 12 fps GIF actually plays at
-        // 12 fps instead of at 10.
-        let frameProperties = [
-            kCGImagePropertyGIFDictionary: [
-                kCGImagePropertyGIFDelayTime: delay,
-                kCGImagePropertyGIFUnclampedDelayTime: delay,
-            ],
-        ] as CFDictionary
-
-        for index in 0..<frameCount {
-            if cancelled.isCancelled { return .cancelled }
-            let seconds = min(outputDuration, Double(index) / Double(fps))
-            let time = CMTime(seconds: seconds, preferredTimescale: 600)
-            guard let frame = try? await generator.image(at: time).image else { continue }
-            CGImageDestinationAddImage(sink, frame, frameProperties)
-            progress(min(0.99, Double(index + 1) / Double(frameCount)))
-        }
-
-        guard CGImageDestinationFinalize(sink) else { return .writeFailed }
-        // A cancel that arrived while the GIF was finalized writes nothing.
-        if cancelled.isCancelled { return .cancelled }
+        guard let workspace = try? RecorderGIFWorkspace() else { return .writeFailed }
+        defer { workspace.discard() }
+        let frameProgress = ProgressThrottle(progress)
         do {
-            try encoded.write(to: destination)
+            let writer = try RecorderGIFWriter(url: workspace.fileURL, fps: fps)
+            // A frame that does not decode, as in a damaged stretch of an
+            // imported movie, repeats the one before it, and frames before
+            // the first that decodes take that one, so the animation keeps
+            // its length. Only a timeline without a single frame fails, and
+            // then the existing destination stays.
+            var previous: CGImage?
+            var missing = 0
+            for index in 0..<frameCount {
+                if cancelled.isCancelled { return .cancelled }
+                let seconds = min(outputDuration, Double(index) / Double(fps))
+                let time = CMTime(seconds: seconds, preferredTimescale: 600)
+                let decoded = try? await generator.image(at: time).image
+                if cancelled.isCancelled { return .cancelled }
+                if let frame = decoded ?? previous {
+                    for _ in 0...missing { try writer.append(frame) }
+                    missing = 0
+                    previous = frame
+                } else {
+                    missing += 1
+                }
+                frameProgress.report(min(0.99, Double(index + 1) / Double(frameCount)))
+            }
+            guard previous != nil else { return .readFailed }
+            if cancelled.isCancelled { return .cancelled }
+            try writer.finish()
+            if cancelled.isCancelled { return .cancelled }
+            // Copy the completed file to the destination volume before the
+            // entry point's atomic replacement. Both scratch and this staged
+            // sibling are removed on error or cancellation.
+            try FileManager.default.copyItem(at: workspace.fileURL, to: destination)
         } catch {
-            try? FileManager.default.removeItem(at: destination)
             return .writeFailed
         }
         progress(1)
@@ -685,6 +675,35 @@ private final class FrameCounter: @unchecked Sendable {
         defer { lock.unlock() }
         count += 1
         return count
+    }
+}
+
+/// Passes progress on at most ten times a second, and only once it has
+/// moved by half a percent. Frames are appended far faster than that, and
+/// every report redraws the editor on the main thread (#3075).
+private final class ProgressThrottle: @unchecked Sendable {
+    private static let interval: TimeInterval = 0.1
+    private static let step = 0.005
+    private let lock = NSLock()
+    private let forward: (Double) -> Void
+    private var lastValue = 0.0
+    private var lastTime = -TimeInterval.infinity
+
+    init(_ forward: @escaping (Double) -> Void) {
+        self.forward = forward
+    }
+
+    func report(_ value: Double) {
+        let now = ProcessInfo.processInfo.systemUptime
+        lock.lock()
+        guard value - lastValue >= Self.step, now - lastTime >= Self.interval else {
+            lock.unlock()
+            return
+        }
+        lastValue = value
+        lastTime = now
+        lock.unlock()
+        forward(value)
     }
 }
 

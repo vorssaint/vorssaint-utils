@@ -36,6 +36,61 @@ enum CommandBarFeatureTests {
         typealias QuickToolHUD = HUD
     }
 
+    /// Runs the production `runScript` and script runner against a bar that
+    /// keeps only what a script row touches: the field, the mode, the open
+    /// category, the saved links, and the part of its refresh that runs
+    /// whichever script the field names. Closing it ends the runner's
+    /// session, as the bar's own hide does.
+    enum ScriptRunHost {
+        final class Defaults {
+            static let standard = Defaults()
+            var links: [CommandBarLink] = []
+            func data(forKey key: String) -> Data? {
+                key == DefaultsKey.commandBarLinks ? CommandBarLinks.encode(links) : nil
+            }
+        }
+        typealias UserDefaults = Defaults
+        enum Mode { case search, actions, naming, argument }
+        final class Bar {
+            static let shared = Bar()
+            let scriptRunner = CommandBarScriptRunner()
+            var queryWhenRun = ""
+            var query = "" { didSet { if query != oldValue { refresh() } } }
+            var mode = Mode.search
+            var activeCategory: CommandBarSource?
+            var prefilled: [String] = []
+            var hidden = 0
+            init() { scriptRunner.onResult = { [weak self] in self?.refresh() } }
+            func prefill(_ text: String) {
+                prefilled.append(text)
+                query = text
+            }
+            func hide() {
+                hidden += 1
+                scriptRunner.reset()
+            }
+            /// As the bar's refresh does: a script the field names outside a
+            /// category shows its cached answer, or runs once typing pauses.
+            func refresh() {
+                let text = query.trimmingCharacters(in: .whitespaces)
+                guard mode == .search, activeCategory == nil, !text.isEmpty,
+                      let match = CommandBarLinks.matchingScriptLink(in: Defaults.standard.links, query: text)
+                else {
+                    scriptRunner.cancelPending()
+                    return
+                }
+                if scriptRunner.cachedResult(linkID: match.link.id, argument: match.argument) != nil {
+                    scriptRunner.cancelPending()
+                } else {
+                    scriptRunner.schedule(link: match.link, argument: match.argument)
+                }
+            }
+        }
+        typealias CommandBarService = Bar
+        static var copied: [String] = []
+        static func copyAnswer(_ text: String) { copied.append(text) }
+    }
+
     /// Runs the production `applyBrightness` with two screens, one of which
     /// the brightness service cannot drive, and records where it lands.
     enum BrightnessHost {
@@ -155,6 +210,19 @@ enum CommandBarFeatureTests {
         suite.expect(math("e-mail") == nil, "a hyphenated word is not a subtraction")
         suite.expect(math("9999999999999999*99")?.contains("e") == true,
                "a number past plain reading switches notation")
+        suite.expect(math("12345678901+1") == "12,345,678,902" && math("987654321098+1") == "987,654,321,099"
+                     && math("2^39") == "549,755,813,888" && math("10000000000+0.5") == "10,000,000,000.5"
+                     && math("1234567890.25+0") == "1,234,567,890.25",
+               "an answer short of that keeps every digit it prints")
+        suite.expect(CommandBarMath.evaluate("100000.1-100000", decimalSeparator: ".", groupingSeparator: ",")
+                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "0.1",
+               "a small difference of large numbers still loses its binary noise")
+        suite.expect(CommandBarMath.evaluate("1234567890123+1", decimalSeparator: ".", groupingSeparator: ",")
+                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "1234567890124",
+               "reusing an answer shown in scientific notation keeps every whole digit")
+        suite.expect(CommandBarMath.evaluate("2^56", decimalSeparator: ".", groupingSeparator: ",")
+                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "7.20575940379279e+16",
+               "reusing a huge answer keeps fifteen digits without binary noise")
 
         // The same numbers as the owner's Mac writes them.
         suite.expect(CommandBarMath.evaluate("1.234,5 + 1",
@@ -425,6 +493,152 @@ enum CommandBarFeatureTests {
                         && shown.map(\.message) == [FeatureStrings.commandBar(L10n.shared.language).copyFailed],
                    "a copied answer shows the value only when the pasteboard took it, found \(shown)")
         }
+        do {
+            // Scripts that note each run in a file of their own, for the
+            // production runner to run the way the bar does (issue #3094).
+            let folder = FileManager.default.temporaryDirectory
+                .appending(path: "vorss-script-runs-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: folder) }
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            // A slow one waits before it prints, so a run started after it
+            // answers first.
+            func script(_ name: String, printing output: String, failing: Bool = false,
+                        slow: Bool = false) -> CommandBarLink {
+                let file = folder.appending(path: UUID().uuidString)
+                let lines: [String] = ["#!/bin/sh", "echo run >> \"$0.runs\"", slow ? "sleep 0.5" : "",
+                                       output.isEmpty ? "" : "echo '\(output)'", failing ? "exit 3" : ""]
+                let body = lines.joined(separator: "\n") + "\n"
+                FileManager.default.createFile(atPath: file.path, contents: Data(body.utf8),
+                                               attributes: [.posixPermissions: 0o755])
+                return CommandBarLink(name: name, kind: .script, destination: file.path, runsWithoutArgument: true)
+            }
+            func runs(_ link: CommandBarLink) -> Int {
+                ((try? String(contentsOfFile: link.destination + ".runs", encoding: .utf8)) ?? "")
+                    .split(separator: "\n").count
+            }
+            let bar = ScriptRunHost.Bar.shared
+            func settle() {
+                let deadline = Date().addingTimeInterval(5)
+                while bar.scriptRunner.isAwaiting && Date() < deadline {
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+                }
+            }
+            // Return on a script row, then one more refresh once its run is
+            // over, as a background load landing brings. `meanwhile` is what
+            // the person does while the script runs; `before` runs first, for
+            // a run that is already going when Return is pressed.
+            func returnOnScript(_ link: CommandBarLink, typed: String, saved: [CommandBarLink],
+                                category: CommandBarSource? = nil, sameOpening: Bool = false,
+                                before: () -> Void = {}, meanwhile: () -> Void = {}) {
+                if !sameOpening { bar.scriptRunner.reset() }
+                ScriptRunHost.Defaults.standard.links = saved
+                bar.mode = .search
+                bar.activeCategory = category
+                bar.query = typed
+                bar.queryWhenRun = typed
+                bar.prefilled = []
+                bar.hidden = 0
+                ScriptRunHost.copied = []
+                before()
+                ScriptRunHost.runScript(link)
+                meanwhile()
+                settle()
+                bar.refresh()
+                settle()
+            }
+            for typed in ["co", ""] {
+                let place = typed.isEmpty ? "its shortcut" : "part of its name"
+                let copyPath = script("Copy Path", printing: "/tmp/notes")
+                returnOnScript(copyPath, typed: typed, saved: [copyPath])
+                suite.expect(runs(copyPath) == 1 && ScriptRunHost.copied == ["/tmp/notes"]
+                             && bar.hidden == 1 && bar.prefilled.isEmpty,
+                       "a script run from \(place) runs once, copies its output and closes the bar, found \(runs(copyPath)) runs, \(ScriptRunHost.copied) and \(bar.hidden)")
+                let toggle = script("Toggle Dark Mode", printing: "")
+                returnOnScript(toggle, typed: typed, saved: [toggle])
+                suite.expect(runs(toggle) == 1 && ScriptRunHost.copied.isEmpty && bar.hidden == 0
+                             && bar.query == typed,
+                       "a script run from \(place) that succeeds without printing runs once and leaves the bar open as it was, found \(runs(toggle)) runs, \(ScriptRunHost.copied) and \(bar.hidden)")
+            }
+            let failing = script("Copy Path", printing: "", failing: true)
+            returnOnScript(failing, typed: "co", saved: [failing])
+            suite.expect(runs(failing) == 1 && bar.hidden == 1
+                         && ScriptRunHost.copied == [FeatureStrings.commandBar(L10n.shared.language).scriptRunFailed],
+                   "a script that fails without printing answers with the failure, as its answer row would, found \(ScriptRunHost.copied)")
+            let meanwhiles: [(what: String, typed: String, action: () -> Void)] = [
+                ("the field is edited", "co", { bar.query = "cop" }),
+                ("the bar lists a row's actions", "co", { bar.mode = .actions }),
+                ("the bar asks for a name", "", { bar.mode = .naming }),
+                ("the bar asks for a value", "", { bar.mode = .argument }),
+                ("the bar opens a category", "", { bar.activeCategory = .apps }),
+                ("the bar closes", "co", { bar.hide() }),
+            ]
+            for meanwhile in meanwhiles {
+                let copyPath = script("Copy Path", printing: "/tmp/notes")
+                returnOnScript(copyPath, typed: meanwhile.typed, saved: [copyPath], meanwhile: meanwhile.action)
+                // Closing ends the session, so nothing is awaited any more;
+                // the process itself still finishes on its own.
+                let deadline = Date().addingTimeInterval(5)
+                while runs(copyPath) == 0 && Date() < deadline {
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+                }
+                RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+                let hides = meanwhile.what == "the bar closes" ? 1 : 0
+                suite.expect(runs(copyPath) == 1 && ScriptRunHost.copied.isEmpty && bar.hidden == hides,
+                       "if \(meanwhile.what) while a script runs, its output is not copied over it, found \(ScriptRunHost.copied) and \(bar.hidden)")
+            }
+            // The field's own run is still going when Return is pressed, as
+            // once it named the script and was then cut back to part of it.
+            let going = script("Copy Path", printing: "/tmp/notes")
+            returnOnScript(going, typed: "co", saved: [going],
+                           before: { bar.scriptRunner.runNow(link: going, argument: "") })
+            suite.expect(runs(going) == 1 && ScriptRunHost.copied == ["/tmp/notes"] && bar.hidden == 1,
+                   "Return while that same run is already going waits for it instead of losing its output, found \(runs(going)) runs and \(ScriptRunHost.copied)")
+            let twice = script("Copy Path", printing: "/tmp/notes")
+            returnOnScript(twice, typed: "co", saved: [twice], before: { ScriptRunHost.runScript(twice) })
+            suite.expect(runs(twice) == 1 && ScriptRunHost.copied == ["/tmp/notes"] && bar.hidden == 1,
+                   "Return pressed again while its run is going runs and copies once, found \(runs(twice)) runs, \(ScriptRunHost.copied) and \(bar.hidden)")
+            // Return on one script, then on another before the first has
+            // answered: what lands first must not stand in for the last pick.
+            let earlier = script("Copy Path", printing: "/tmp/notes")
+            let later = script("Commit", printing: "abc123", slow: true)
+            returnOnScript(later, typed: "co", saved: [earlier, later],
+                           before: { ScriptRunHost.runScript(earlier) })
+            suite.expect(runs(earlier) == 1 && runs(later) == 1 && ScriptRunHost.copied == ["abc123"]
+                         && bar.hidden == 1,
+                   "Return on another script while one runs copies the last one picked, found \(ScriptRunHost.copied) and \(bar.hidden)")
+            // Then Return on a row the field names, which waits for its own
+            // answer row: the script still running must not close the bar.
+            let named = script("co", printing: "co-out")
+            let running = script("Copy Path", printing: "/tmp/notes", slow: true)
+            returnOnScript(named, typed: "co", saved: [named, running],
+                           before: { ScriptRunHost.runScript(running) })
+            suite.expect(runs(named) == 1 && runs(running) == 1 && ScriptRunHost.copied.isEmpty
+                         && bar.hidden == 0
+                         && bar.scriptRunner.cachedResult(linkID: named.id, argument: "")?.text == "co-out",
+                   "Return on a row that shows its own answer takes over from a script still running, found \(ScriptRunHost.copied) and \(bar.hidden)")
+            let first = script("Deploy", printing: "staging")
+            let second = script("deploy", printing: "production")
+            returnOnScript(second, typed: "dep", saved: [first, second])
+            suite.expect(runs(first) == 0 && runs(second) == 1 && ScriptRunHost.copied == ["production"],
+                   "of two scripts saved under the same name, only the one picked runs and copies, found \(runs(first)) and \(runs(second)) runs")
+            let inCategory = script("Copy Path", printing: "/tmp/notes")
+            returnOnScript(inCategory, typed: "copy path", saved: [inCategory], category: .links)
+            suite.expect(runs(inCategory) == 1 && ScriptRunHost.copied == ["/tmp/notes"] && bar.hidden == 1,
+                   "inside a category, which never shows an answer row, the full name copies and closes too, found \(runs(inCategory)) runs, \(ScriptRunHost.copied) and \(bar.hidden)")
+            let copyPath = script("Copy Path", printing: "/tmp/notes")
+            returnOnScript(copyPath, typed: "copy path", saved: [copyPath])
+            suite.expect(runs(copyPath) == 1 && ScriptRunHost.copied.isEmpty && bar.hidden == 0
+                         && bar.scriptRunner.cachedResult(linkID: copyPath.id, argument: "")?.text == "/tmp/notes",
+                   "a script named in the field runs once and leaves its answer row for Return, found \(runs(copyPath)) runs, \(ScriptRunHost.copied) and \(bar.hidden)")
+            returnOnScript(copyPath, typed: "co", saved: [copyPath], sameOpening: true)
+            suite.expect(ScriptRunHost.copied == ["/tmp/notes"] && bar.hidden == 1 && runs(copyPath) == 1,
+                   "a script that already answered copies the answer and closes the bar")
+            var needsInput = script("Copy Path", printing: "/tmp/notes")
+            needsInput.runsWithoutArgument = false
+            returnOnScript(needsInput, typed: "co", saved: [needsInput])
+            suite.expect(bar.prefilled == ["Copy Path "] && runs(needsInput) == 0,
+                   "a script that needs input still asks for it instead of running")
+        }
         for (x, expected, beeps) in [(50.0, [CGDirectDisplayID(2)], 0), (150.0, [], 1)] {
             BrightnessHost.Event.mouseLocation = NSPoint(x: x, y: 50)
             BrightnessHost.Service.shared.set = []
@@ -690,6 +904,12 @@ enum CommandBarFeatureTests {
         suite.expect(InputSourceSelection.asciiLayoutID(currentID: asciiCapableMethod.id,
                                                   snapshots: [asciiCapableMethod, latinSource]) == latinSourceID,
                "an ASCII-capable input method still moves to a plain layout")
+        suite.expect(InputSourceSelection.shortCode(languages: ["ru"]) == "RU",
+               "the island's layout notice reads the source's language as a short code")
+        suite.expect(InputSourceSelection.shortCode(languages: ["zh-Hans", "zh"]) == "ZH",
+               "a script-qualified language still reads as its two letters")
+        suite.expect(InputSourceSelection.shortCode(languages: []).isEmpty,
+               "a source with no language leaves the notice its mark alone")
 
         let commandBarServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
@@ -707,6 +927,10 @@ enum CommandBarFeatureTests {
         suite.expect(commandBarServiceSource.contains("UninstallerSupport.acceptedApplicationIDs(apps)")
                 && commandBarServiceSource.contains("uninstallable: uninstallableAppIDs"),
                "the uninstall browse lists only the apps the background scan saw the uninstaller accept")
+        suite.expect(commandBarServiceSource.range(
+                of: #"installedApplications\(\s*includeSystemApplications: true,\s*includeBundledApplications: true,"#,
+                options: .regularExpression) != nil,
+               "the bar's app scan lists the apps other apps ship, such as Xcode's tools")
         let uninstallCatalogSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
             encoding: .utf8)) ?? ""
@@ -998,6 +1222,22 @@ enum CommandBarFeatureTests {
         suite.expect(unitValue("1.5 l to ml").map { abs($0 - 1500) < 0.001 } == true,
                "a decimal amount converts")
         suite.expect(units("100 km to kg") == nil, "two different families never meet")
+        suite.expect(units("100 kilometres to miles") != nil
+                && units("100 kilometres to miles") == units("100 kilometers to miles")
+                && units("5 centimetres to inches") == units("5 cm to in")
+                && units("3 millimetres to inches") == units("3 mm to in")
+                && units("500 millilitres to cups") == units("500 ml to cups")
+                && units("1 kilometre to miles") == units("1 kilometer to miles")
+                && units("1 centimetre to inches") == units("1 cm to in")
+                && units("1 millimetre to inches") == units("1 mm to in")
+                && units("1 millilitre to cups") == units("1 ml to cups"),
+               "British spellings convert like the American ones, as metres and litres already do")
+        suite.expect(units("8 fl oz to ml") != nil
+                && units("8 fl oz to ml") == units("8 floz to ml")
+                && units("8 fluid ounces to ml") == units("8 floz to ml")
+                && units("1 fluid ounce to ml") == units("1 floz to ml")
+                && units("236 ml to fl oz") == units("236 ml to floz"),
+               "fluid ounces written as two words, the way a bottle prints them, convert")
         suite.expect(units("100 km") == nil, "without the word there is no conversion")
         suite.expect(units("to") == nil && units("in") == nil,
                "the little words alone convert nothing")
@@ -1085,6 +1325,23 @@ enum CommandBarFeatureTests {
                                                    locale: Locale(identifier: "pt_BR"))?.formatted)
                 == ["5", "10,87"],
                "feet and inches follow the person's number format")
+
+        // The number shown must read back as the answer; a tiny one is not 0.
+        let unitShown: (String) -> Double? = { input in
+            units(input)?.split(separator: " ").first.flatMap { Double($0) }
+        }
+        for (input, expected) in [("1 mm to km", 1e-6), ("1 mg to t", 1e-9), ("3 ms to h", 3 / 3_600_000.0)] {
+            suite.expect(unitShown(input).map { abs($0 - expected) <= expected * 0.01 } == true,
+                         "\(input) shows \(expected), not \(units(input) ?? "nil")")
+        }
+        suite.expect(unitNumbers(units("0 mm to km")) == ["0"], "zero still reads as plain 0")
+        for input in ["32 f to c", "-459.67 f to k", "273.15 k to c"] {
+            let numbers = unitNumbers(units(input))
+            suite.expect(numbers.count == 1 && numbers.first.flatMap(Double.init) == 0,
+                         "\(input) rounds temperature offset noise back to zero, found \(units(input) ?? "nil")")
+        }
+        suite.expect(unitNumbers(units("0.0001 c to c")) == ["0.0001"],
+                     "small temperatures retain their existing four-decimal precision")
 
         // MARK: Command bar emoji
 
@@ -1561,8 +1818,9 @@ enum CommandBarFeatureTests {
             .components(separatedBy: "private var storedHiddenKeys").first ?? ""
         suite.expect(runRowCode.contains("!isVisible, let app = installedApp(for: entry)")
                 && runRowCode.contains("CommandBarRowShortcuts.hidesAppInFront(")
-                && runRowCode.contains("running.hide() {"),
-               "only a closed bar hides an app row, through the shared rule, and a refused hide opens it")
+                && runRowCode.contains("running.hide()\n            return")
+                && !runRowCode.contains("running.hide() {"),
+               "only a closed bar hides an app row, through the shared rule, whatever hide() returns")
         suite.expect(runRowCode.contains(
                     "NSWorkspace.shared.frontmostApplication?.processIdentifier == running.processIdentifier")
                 && runRowCode.contains("ownsFrontWindow: WindowServerSupport.frontWindowOwner(")
@@ -1757,6 +2015,9 @@ enum CommandBarFeatureTests {
         suite.expect(dated("today + 10 days") == "August 7, 2026"
                 && dated("today - 10 days") == "July 18, 2026",
                "a plain sign decides the direction")
+        suite.expect(dated("in -9223372036854775808 days") == nil
+                && dated("-9223372036854775808 days ago") == nil,
+               "the smallest whole number is out of range, not a crash")
         suite.expect(dated("3 days") == nil && dated("2+2") == nil && dated("100 km to mi") == nil,
                "without a direction it is not a question, and a sum is not a date")
         suite.expect(CommandBarDates.evaluate("in 3 weeks", now: tuesday, calendar: gregorian,
@@ -1764,6 +2025,9 @@ enum CommandBarFeatureTests {
                "the answer says which weekday it lands on")
         suite.expect(dated("days until 12/25")?.contains("150") == true,
                "how far away a written date is, counted in whole days")
+        // 581 days from 28 July 2026 is 29 February 2028; 216 would be 1 March 2027.
+        suite.expect(dated("days until 2/29") == "581 days",
+               "a leap day counts to the next 29 February, not to the 1 March after it")
         suite.expect(CommandBarDates.evaluate("time in tokyo", now: tuesday, calendar: gregorian,
                                         locale: english)?.detail.hasPrefix("Tokyo") == true,
                "the clock somewhere else, from the time zones the Mac already knows")
@@ -1912,6 +2176,28 @@ enum CommandBarFeatureTests {
                "nothing is dropped for a script that did not match, or for a non-script link")
         suite.expect(CommandBarLinks.matchingScriptLink(in: scriptLinks, query: "a 100 usd eur") == nil,
                "a non-script link never matches, even with an argument")
+        // Return on a script row waits for its answer row only when the field
+        // will show one; a row reached by part of its name has to finish the
+        // run itself, or the output is dropped (issue #3094).
+        let clean = bareRunnable[0]
+        suite.expect(CommandBarLinks.queryShowsAnswer(for: clean, argument: "",
+                                                      query: "clean", in: bareRunnable)
+                && CommandBarLinks.queryShowsAnswer(for: clean, argument: "code",
+                                                    query: "clean code", in: bareRunnable),
+               "the bare name, or the name and an argument, grow the answer row for that run")
+        suite.expect(!CommandBarLinks.queryShowsAnswer(for: clean, argument: "",
+                                                       query: "cle", in: bareRunnable),
+               "a script row reached by part of its name never grows an answer row")
+        let nested = [
+            CommandBarLink(name: "copy", kind: .script, destination: "/tmp/copy"),
+            CommandBarLink(name: "copy path", kind: .script, destination: "/tmp/copy-path",
+                           runsWithoutArgument: true),
+        ]
+        suite.expect(!CommandBarLinks.queryShowsAnswer(for: nested[0], argument: "path",
+                                                       query: "copy path", in: nested)
+                && CommandBarLinks.queryShowsAnswer(for: nested[1], argument: "",
+                                                    query: "copy path", in: nested),
+               "only the script the answer row stands for counts as showing its answer")
 
         // A script marked to run directly answers to its own global shortcut
         // with nothing on screen; everything else falls back to opening the
@@ -2332,6 +2618,9 @@ enum CommandBarInputSourceContract {
         static var acceptsSelection = true
         static var selected: [String] = []
         static func currentSourceID() -> String? { current }
+        static func currentReading() -> ProductionInputSourceSelection.Reading? {
+            .init(id: current, code: current.uppercased(), name: current)
+        }
         static func snapshots() -> [ProductionInputSourceSelection.Snapshot] {
             [.init(id: "original", isLayout: true, isASCIICapable: false),
              .init(id: "ascii", isLayout: true, isASCIICapable: true)]
@@ -2358,6 +2647,7 @@ enum CommandBarInputSourceContract {
         typealias UserDefaults = Preferences
         typealias InputSourceSelection = Sources
         typealias DispatchQueue = Queue
+        typealias NotchService = Island
         var suspendedInputSourceID: String?
         var presentationID = UUID()
     }
@@ -2369,15 +2659,57 @@ enum CommandBarInputSourceContract {
             Sources.selected = []
             Sources.acceptsSelection = true
             Preferences.enabled = true
+            Island.shared = Island()
+            Island.shared.inputSourceID = Sources.current
             return Service()
         }
         let normal = reset()
         normal.adoptASCIIInputSource()
+        Island.shared.inputSourceChanged()
         normal.restoreSuspendedInputSource()
         suite.expect(Sources.current == "ascii", "closing inside a key event defers keyboard restoration")
         Queue.drain()
         suite.expect(Sources.selected == ["ascii", "original"] && normal.suspendedInputSourceID == nil,
                      "ordinary close restores the original layout exactly once")
+        Island.shared.inputSourceChanged()
+        suite.expect(Island.shared.presented.isEmpty,
+                     "the borrowed layout and its return both leave the island's layout notice quiet")
+        for coalesced in [false, true] {
+            let manual = reset()
+            manual.adoptASCIIInputSource()
+            if !coalesced { Island.shared.inputSourceChanged() }
+            Sources.current = "de"
+            Island.shared.inputSourceChanged()
+            Island.shared.inputSourceChanged()
+            suite.expect(Island.shared.presented.map(\.title) == ["DE"],
+                         "a manual switch immediately after borrowing appears once, even with coalesced notifications")
+            Sources.current = "ascii"
+            Island.shared.inputSourceChanged()
+            suite.expect(Island.shared.presented.map(\.title) == ["DE", "ASCII"],
+                         "returning manually to the borrowed source is no longer an app-owned switch")
+            manual.restoreBorrowedInputSource()
+            Island.shared.inputSourceChanged()
+            Sources.current = "fr"
+            Island.shared.inputSourceChanged()
+            suite.expect(Island.shared.presented.map(\.title) == ["DE", "ASCII", "FR"],
+                         "restoration stays quiet without hiding the following manual switch")
+        }
+        let delayed = reset()
+        delayed.adoptASCIIInputSource()
+        Sources.current = "original"
+        Island.shared.inputSourceChanged()
+        Sources.current = "ascii"
+        Island.shared.inputSourceChanged()
+        suite.expect(Island.shared.presented.isEmpty,
+                     "an unchanged reading before a delayed selection lands does not lose its quiet marker")
+        let merged = reset()
+        merged.adoptASCIIInputSource()
+        merged.restoreBorrowedInputSource()
+        Island.shared.inputSourceChanged()
+        Sources.current = "ascii"
+        Island.shared.inputSourceChanged()
+        suite.expect(Island.shared.presented.map(\.title) == ["ASCII"],
+                     "coalesced borrowing and restoration cannot suppress a later manual change")
         let reopened = reset()
         reopened.adoptASCIIInputSource()
         reopened.restoreSuspendedInputSource()

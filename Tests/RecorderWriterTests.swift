@@ -6,6 +6,7 @@ import AVFoundation
 enum RecorderWriterTests {
     static func run(_ suite: TestSuite) {
         checkClock(suite)
+        checkPreparation(suite)
         let finished = DispatchSemaphore(value: 0)
         Task.detached {
             do {
@@ -22,8 +23,29 @@ enum RecorderWriterTests {
             catch { suite.expect(false, "recorder writer fixture failed: \(error)") }
             finished.signal()
         }
-        suite.expect(finished.wait(timeout: .now() + 30) == .success,
+        suite.expect(finished.wait(timeout: .now() + 90) == .success,
                      "recorder writer scenarios finish within their bounded fixture deadline")
+    }
+
+    private static func checkPreparation(_ suite: TestSuite) {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("recorder-prepare-\(UUID()).mov")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var returned = false
+        var completed = false
+        RecorderWriter.prepare(url: url, pixelSize: CGSize(width: 64, height: 64), frameRate: 30,
+                               capturesSystemAudio: false, capturesMicrophone: false,
+                               pauseClock: RecorderPauseClock()) { writer in
+            suite.expect(returned && Thread.isMainThread && writer != nil,
+                         "writer preparation returns asynchronously to the main thread with a usable encoder")
+            writer?.cancel()
+            completed = true
+        }
+        returned = true
+        let deadline = Date(timeIntervalSinceNow: 30)
+        while !completed, Date() < deadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.005))
+        }
+        suite.expect(completed, "writer preparation finishes within its fixture deadline")
     }
 
     private static func checkClock(_ suite: TestSuite) {

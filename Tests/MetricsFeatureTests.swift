@@ -789,6 +789,85 @@ enum MetricsFeatureTests {
         suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
             readings: appleM4Sensors, platform: .appleM4Family
         ) ?? -1, 46.12, "a mapped M4 keeps reading its own cores, not the hotter hotspot")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4Sensors,
+            platform: TemperatureSensorSelector.platform(brandString: "Apple M4")
+        ) ?? -1, 46.12, "a base M4 identified by its brand keeps its mapped cores")
+
+        // MacBook Pro 14-inch, Mac16,8, Apple M4 Pro, macOS 15.7.1 (issue
+        // #2460). Te09, Te0H and Tp0V of the base M4 set do not exist here,
+        // and the keys it does map sit well below the hottest cores. Each
+        // Tpx/Tex key repeats the hottest of a few Tp/Te sensors next to it.
+        // One sample of --sensors under load:
+        let appleM4ProSensors: [(key: String, value: Double)] = [
+            ("Te05", 74.15), ("Te0S", 72.94), ("Te06", 79.64), ("Tex1", 79.64),
+            ("Tp01", 77.10), ("Tp05", 79.19), ("Tp09", 73.73), ("Tp0D", 74.44),
+            ("Tp0Y", 87.08), ("Tp0b", 77.96), ("Tp0e", 73.06),
+            ("Tp06", 91.91), ("Tp0c", 92.77), ("Tpx1", 92.77),
+            ("Tp0M", 96.59), ("Tp23", 96.59), ("TpxD", 96.59),
+            ("Tp0U", 97.84), ("Tpx5", 97.84), ("Tp29", 95.81),
+            ("Tp1o", 93.22), ("Tpx9", 93.22), ("Tp2G", 92.84),
+        ]
+        // Light idle (CPU 85 % idle), every P core parked: their sensors read
+        // 0, negative or a few degrees, and only the E-core family answers.
+        let appleM4ProIdleParked: [(key: String, value: Double)] = [
+            ("Te04", 49.00), ("Te05", 54.80), ("Te06", 58.05), ("Te0R", 48.93),
+            ("Te0S", 54.53), ("Te0T", 57.19),
+            ("Tex0", 53.00), ("Tex1", 58.05), ("Tex2", 52.93), ("Tex3", 57.19),
+            ("Tpx0", 0), ("Tpx1", 0), ("Tpx5", 0), ("Tpx9", 0), ("TpxD", 0),
+            ("Tp01", 2.20), ("Tp05", 1.50), ("Tp0Y", 0), ("Tp0U", 0),
+            ("Tp0W", -4.00), ("Tp00", -4.00), ("Tp2W", 5.20), ("Tp0v", 5.20),
+        ]
+        // Light idle (CPU 87 % idle) with part of the P cores awake: the base
+        // M4 set stops at Te05 while TpxD repeats a core at 76.48.
+        let appleM4ProIdleAwake: [(key: String, value: Double)] = [
+            ("Te05", 54.51), ("Te0S", 53.94), ("Tex1", 59.67), ("Tex3", 57.88),
+            ("Tpx5", 0), ("Tpx8", 56.84), ("Tpx9", 75.73), ("TpxB", 62.69),
+            ("TpxD", 76.48), ("Tp23", 76.48), ("Tp29", 75.84), ("Tp1o", 75.73),
+            ("Tp20", 68.09), ("Tp01", 2.20), ("Tp0Y", 0), ("Tp0W", -4.00),
+        ]
+        // Light idle (CPU 88 % idle) with the P-core summaries at 0 while ten
+        // parked P sensors, Tp0Y of the base M4 set among them, hold at 40.
+        let appleM4ProIdleHeld: [(key: String, value: Double)] = [
+            ("Te05", 60.81), ("Te0S", 60.93), ("Te06", 64.52),
+            ("Tex0", 59.45), ("Tex1", 64.52), ("Tex2", 59.34), ("Tex3", 63.88),
+            ("Tpx0", 0), ("Tpx5", 0), ("TpxD", 0),
+            ("Tp01", 40.00), ("Tp0Y", 40.00), ("Tp0W", 40.00), ("Tp23", 0),
+        ]
+        let m4ProPlatform = TemperatureSensorSelector.platform(brandString: "Apple M4 Pro")
+        suite.expect(TemperatureSensorSelector.platform(brandString: " Apple M4 Pro\n") == m4ProPlatform,
+               "M4 Pro identification ignores surrounding whitespace")
+        suite.expect(TemperatureSensorSelector.hasCPUCoreSet(platform: m4ProPlatform),
+               "an M4 Pro has its own CPU sensor set")
+        let m4ProCPUReadings = appleM4ProSensors.filter {
+            TemperatureSensorSelector.isCPUTemperatureKey($0.key, platform: m4ProPlatform)
+        }
+        suite.expect(m4ProCPUReadings.count == appleM4ProSensors.count
+                && !TemperatureSensorSelector.isCPUTemperatureKey("Tg0k", platform: m4ProPlatform)
+                && !TemperatureSensorSelector.isCPUTemperatureKey("TB0T", platform: m4ProPlatform),
+               "M4 Pro discovery keeps both CPU families and excludes GPU and battery")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m4ProCPUReadings, platform: m4ProPlatform
+        ) ?? -1, 97.84, "an M4 Pro under load shows its hottest core, not the base M4 set")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4ProIdleParked, platform: m4ProPlatform
+        ) ?? -1, 58.05, "an idle M4 Pro with its P cores parked reads its hottest E core")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4ProIdleAwake, platform: m4ProPlatform
+        ) ?? -1, 76.48, "an idle M4 Pro reads a P core that is awake")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4ProIdleHeld, platform: m4ProPlatform
+        ) ?? -1, 64.52, "an idle M4 Pro ignores parked P sensors holding a fixed value")
+        // A key outside the set that runs hot at idle, as Tp0W does on the
+        // base M4, must not become the reading while the set answers.
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4ProIdleParked + [("Tp0W", 68.0), ("Tp3X", 69.0)],
+            platform: m4ProPlatform
+        ) ?? -1, 58.05, "an M4 Pro keeps a hotter auxiliary sensor out of the idle reading")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("Tex1", 0), ("Tpx5", 7.0), ("TpxD", 130.0), ("Te05", 54.80)],
+            platform: m4ProPlatform
+        ) ?? -1, 54.80, "an M4 Pro whose set has no plausible reading still shows its CPU family")
         let genericCPU = TemperatureSensorSelector.displayedCPUTemperature(
             readings: [("Tp00", 44.5), ("Tp01", 51.6)],
             platform: .generic

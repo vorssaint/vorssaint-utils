@@ -27,6 +27,44 @@ enum UninstallerSupport {
         let infoIdentity: FileIdentity
     }
 
+    /// Why the uninstaller turned an app down. A refused drop springs back,
+    /// so the empty state names the rule instead of staying silent (#1582).
+    enum Refusal: Error, Equatable {
+        /// A web link, a document or a folder rather than an app.
+        case notAnApp
+        /// Part of macOS: protected by the system, with live OS state as its data.
+        case systemApp
+        /// Apple's apps and components other apps embed: their identifiers
+        /// also name data that macOS or those apps still use.
+        case sharedIdentifier
+        /// Shipped inside another app, which needs it.
+        case insideAnotherApp
+        /// Vorssaint itself, which removes itself from Advanced settings.
+        case thisApp
+        /// A link to an app kept somewhere else, never its destination.
+        case link
+        /// No Info.plist or bundle identifier that says which app it is.
+        case unidentified
+    }
+
+    /// An app the uninstaller turned down, named the way the drop zone says it.
+    struct RefusedApp: Equatable {
+        let name: String
+        let refusal: Refusal
+
+        func message(_ strings: Strings) -> String {
+            switch refusal {
+            case .notAnApp: return strings.uninstallerRefusedNotApp
+            case .systemApp: return String(format: strings.uninstallerRefusedSystemFormat, name)
+            case .sharedIdentifier: return String(format: strings.uninstallerRefusedSharedFormat, name)
+            case .insideAnotherApp: return String(format: strings.uninstallerRefusedNestedFormat, name)
+            case .thisApp: return String(format: strings.uninstallerRefusedSelfFormat, strings.tabAdvanced)
+            case .link: return String(format: strings.uninstallerRefusedLinkFormat, name)
+            case .unidentified: return String(format: strings.uninstallerRefusedUnidentifiedFormat, name)
+            }
+        }
+    }
+
     /// Tokens that identify one selected app. Bundle identifiers stay exact;
     /// display names are compared after stripping punctuation so "App Name"
     /// and "AppName.plist" can meet without turning the name into a path.
@@ -126,25 +164,95 @@ enum UninstallerSupport {
     /// The one answer for "will the uninstaller take this app": the picker
     /// offers only what this accepts, and a drop of anything else is refused.
     static func selection(for appURL: URL) -> Selection? {
+        try? evaluate(appURL).get()
+    }
+
+    /// The selection, or the rule that refused it.
+    static func evaluate(_ appURL: URL) -> Result<Selection, Refusal> {
         // Browser links are not bundles on disk and must be refused before loading one.
-        guard appURL.isFileURL else { return nil }
-        guard let bundle = Bundle(url: appURL) else { return nil }
+        guard appURL.isFileURL else { return .failure(.notAnApp) }
+        // An app inside another app's bundle, a tool it ships or a helper,
+        // belongs to that app: removing it alone would break the app.
+        guard !appURL.standardizedFileURL.pathComponents.dropLast().contains(where: {
+            $0.lowercased().hasSuffix(".app")
+        }) else { return .failure(.insideAnotherApp) }
+        // Something named like an app that does not read as one is still
+        // reported as an app, never as a stray document.
+        let unreadable: Refusal = appURL.pathExtension.lowercased() == "app" ? .unidentified : .notAnApp
+        guard let bundle = Bundle(url: appURL) else { return .failure(unreadable) }
         // System apps are SIP-protected and their support data is live OS
         // state; removing either would be wrong, so refuse the selection.
-        guard !InstalledApps.isSystemApplication(at: appURL) else { return nil }
+        guard !InstalledApps.isSystemApplication(at: appURL) else { return .failure(.systemApp) }
         // Only a verified bundle identifier becomes a path component. A
         // display name is presentation only and can never claim user data.
-        guard let bundleID = verifiedBundleID(bundle.bundleIdentifier) else { return nil }
+        guard let rawBundleID = bundle.bundleIdentifier,
+              CleanerSupport.looksLikeBundleID(rawBundleID) else { return .failure(unreadable) }
+        guard let bundleID = verifiedBundleID(rawBundleID) else {
+            return .failure(isOwnBundleID(rawBundleID) ? .thisApp : .sharedIdentifier)
+        }
         let selectedURL = appURL.standardizedFileURL
-        guard selectedURL == selectedURL.resolvingSymlinksInPath() else { return nil }
-        guard selectedURL != Bundle.main.bundleURL.standardizedFileURL else { return nil }
-        guard !isSymbolicLink(appURL) else { return nil }
-        guard let selectedIdentity = fileIdentity(at: selectedURL) else { return nil }
-        let infoURL = selectedURL.appendingPathComponent("Contents/Info.plist")
+        guard selectedURL == selectedURL.resolvingSymlinksInPath() else { return .failure(.link) }
+        guard selectedURL != Bundle.main.bundleURL.standardizedFileURL else { return .failure(.thisApp) }
+        guard !isSymbolicLink(appURL) else { return .failure(.link) }
+        guard let selectedIdentity = fileIdentity(at: selectedURL) else { return .failure(unreadable) }
+        let infoURL = infoPlistURL(in: selectedURL)
         guard let selectedInfoIdentity = fileIdentity(at: infoURL),
-              removalPathIsSafe(infoURL, within: selectedURL) else { return nil }
-        return Selection(bundleID: bundleID, url: selectedURL,
-                         identity: selectedIdentity, infoIdentity: selectedInfoIdentity)
+              removalPathIsSafe(infoURL, within: selectedURL) else { return .failure(.unidentified) }
+        return .success(Selection(bundleID: bundleID, url: selectedURL,
+                                  identity: selectedIdentity, infoIdentity: selectedInfoIdentity))
+    }
+
+    /// The Info.plist that holds the identifier a selection verified. A Mac
+    /// app keeps it in Contents. An iPhone or iPad app installed on a Mac
+    /// with Apple silicon is a wrapper instead: the real bundle sits in its
+    /// Wrapper folder with the Info.plist at the top, and Bundle reads it
+    /// through the WrappedBundle link even when a Contents folder exists too.
+    static func infoPlistURL(in appURL: URL) -> URL {
+        guard let wrapped = wrappedBundleURL(in: appURL) else {
+            return appURL.appendingPathComponent("Contents/Info.plist")
+        }
+        let contents = wrapped.appendingPathComponent("Contents", isDirectory: true)
+        return fileIdentity(at: contents) == nil
+            ? wrapped.appendingPathComponent("Info.plist")
+            : contents.appendingPathComponent("Info.plist")
+    }
+
+    /// The bundle a wrapper's WrappedBundle link names. Bundle follows only a
+    /// relative link to an app inside the Wrapper folder, and only with a
+    /// lowercase .app, so nothing else counts as a wrapper here either.
+    static func wrappedBundleURL(in appURL: URL) -> URL? {
+        let link = appURL.appendingPathComponent("WrappedBundle")
+        guard isSymbolicLink(link),
+              let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: link.path),
+              !destination.hasPrefix("/"), !destination.hasSuffix("/") else { return nil }
+        let wrapper = appURL.appendingPathComponent("Wrapper", isDirectory: true).standardizedFileURL
+        let bundle = appURL.appendingPathComponent(destination, isDirectory: true).standardizedFileURL
+        guard bundle.path.hasPrefix(wrapper.path + "/"),
+              bundle.pathExtension == "app" else { return nil }
+        return bundle
+    }
+
+    /// Whether the app at url is still the one a selection verified: the same
+    /// bundle and the same Info.plist, found the way the selection found it,
+    /// so a wrapper stays selected once its scan ends.
+    static func applicationIdentityMatches(
+        _ url: URL,
+        appIdentity: FileIdentity?,
+        infoIdentity: FileIdentity?
+    ) -> Bool {
+        guard let appIdentity, let infoIdentity,
+              fileIdentity(at: url) == appIdentity else { return false }
+        let infoURL = infoPlistURL(in: url)
+        return fileIdentity(at: infoURL) == infoIdentity
+            && removalPathIsSafe(infoURL, within: url)
+    }
+
+    /// The name the uninstaller shows for an app, without its extension.
+    static func appName(at url: URL) -> String {
+        var name = url.isFileURL
+            ? FileManager.default.displayName(atPath: url.path) : url.lastPathComponent
+        if name.hasSuffix(".app") { name.removeLast(4) }
+        return name
     }
 
     /// What the pickers list. An app that selection(for:) would refuse is
@@ -677,6 +785,13 @@ enum UninstallerSupport {
         relative.split(separator: "/").reduce(root) {
             $0.appendingPathComponent(String($1), isDirectory: true)
         }
+    }
+
+    /// Vorssaint's own identifiers, among the protected ones.
+    private static func isOwnBundleID(_ id: String) -> Bool {
+        let lowered = id.lowercased()
+        return lowered == "com.vorssaint" || lowered.hasPrefix("com.vorssaint.")
+            || lowered.hasPrefix("vorss.")
     }
 
     private static func stripKnownSuffix(_ rawName: String) -> String {

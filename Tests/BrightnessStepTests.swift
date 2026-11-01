@@ -59,6 +59,8 @@ enum BrightnessStepTests {
         var displays: [BrightnessDisplay] = []
         var levelKnownAt: [UInt32: Date] = [:]
         var ddcPendingSteps: [UInt32: Double] = [:]
+        var focusedDisplayID: UInt32?
+        func focusKeyDisplay(_ id: UInt32) { focusedDisplayID = id }
         var reply: (current: UInt16, maximum: UInt16) = (0, 100)
         var routes: [UInt32: Route] = [:]
         var committed: [Double] = []
@@ -93,6 +95,17 @@ enum BrightnessStepTests {
         DispatchQueue.main.drain()
         suite.expect(service.committed.last.map { abs($0 - 0.9) < 0.0001 } == true,
                      "a step after a pause starts from the level the monitor reports")
+        suite.expect(service.focusedDisplayID == 2, "the island's brightness level follows the display a key steps")
+        suite.expect(BrightnessSupport.keyMovesFocus(islandOpen: true, focused: 1, key: 2)
+                     && !BrightnessSupport.keyMovesFocus(islandOpen: false, focused: 1, key: 2)
+                     && !BrightnessSupport.keyMovesFocus(islandOpen: true, focused: 2, key: 2),
+                     "a key moves the island's brightness focus only while the island shows it")
+        suite.expect(BrightnessSupport.sliderShowsFocusedDisplay(controlEnabled: true, shown: [1, 2], focused: 2)
+                     && BrightnessSupport.sliderShowsFocusedDisplay(controlEnabled: true, shown: [1], focused: nil)
+                     && !BrightnessSupport.sliderShowsFocusedDisplay(controlEnabled: true, shown: [1], focused: 3)
+                     && !BrightnessSupport.sliderShowsFocusedDisplay(controlEnabled: true, shown: [], focused: nil)
+                     && !BrightnessSupport.sliderShowsFocusedDisplay(controlEnabled: false, shown: [1], focused: 1),
+                     "the island's brightness slider shows a key's display only when it is on and can show that display")
 
         service.levelKnownAt[2] = nil
         service.step(2, method: .ddc, delta: 0.1, showOSD: false)

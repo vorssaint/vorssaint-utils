@@ -301,6 +301,31 @@ enum MixerInputVolumeContract {
         m = manager()
         check(m.inputVolume == nil, "read-only gain hidden")
         m.stop()
+        for (label, bad) in [("positive infinity", Float.infinity),
+                             ("negative infinity", -Float.infinity),
+                             ("NaN", Float.nan)] {
+            HAL.reset()
+            HAL.levels[HAL.key(10)] = bad
+            m = manager()
+            check(m.inputVolume == nil, "\(label) main gain is hidden")
+            m.stop()
+            HAL.reset()
+            HAL.levels[HAL.key(10, 1)] = 0.4
+            HAL.levels[HAL.key(10, 2)] = bad
+            m = manager()
+            check(m.inputVolume == nil, "\(label) on one channel hides the gain")
+            m.stop()
+        }
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = -0.5
+        m = manager()
+        check(near(m.inputVolume, 0), "negative gain clamps to 0")
+        m.stop()
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 1.5
+        m = manager()
+        check(near(m.inputVolume, 1), "gain above 1 clamps to 1")
+        m.stop()
         HAL.reset()
         HAL.levels[HAL.key(10, 1)] = 0.2
         HAL.levels[HAL.key(10, 2)] = 0.8

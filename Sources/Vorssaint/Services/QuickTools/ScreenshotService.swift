@@ -781,7 +781,7 @@ final class ScreenshotService: ObservableObject {
 
     /// Copying a file in Finder leaves both its URL and a small icon preview on
     /// the pasteboard, so the file on disk wins whenever it is a readable image.
-    private static func clipboardImage(from pasteboard: NSPasteboard) -> NSImage? {
+    static func clipboardImage(from pasteboard: NSPasteboard) -> NSImage? {
         let options: [NSPasteboard.ReadingOptionKey: Any] = [
             .urlReadingFileURLsOnly: true,
             .urlReadingContentsConformToTypes: [UTType.image.identifier]
@@ -847,6 +847,21 @@ final class ScreenshotService: ObservableObject {
             }
             ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: output.0)
             self.autoCopyTask = nil
+        }
+    }
+
+    /// Runs `body` once an automatic copy still being prepared has reached
+    /// the clipboard, or at once when none is. A preview's Copy text waits
+    /// for it: the capture lands first, as the after-capture setting asks,
+    /// and the text then replaces it, while a capture with no text stays.
+    func afterAutoCopy(_ body: @escaping () -> Void) {
+        guard let pending = autoCopyTask else {
+            body()
+            return
+        }
+        Task { @MainActor in
+            await pending.value
+            body()
         }
     }
 

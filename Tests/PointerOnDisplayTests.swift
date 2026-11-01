@@ -42,18 +42,32 @@ enum PointerOnDisplayContract {
         static func spaces(of windowID: CGWindowID) -> [UInt64] { windowSpaces }
         static func spaceShortcut(_ direction: SpaceDirection) -> SpaceShortcut? { SpaceShortcut() }
         static func pressSpaceShortcut(_ shortcut: SpaceShortcut) { presses += 1 }
+        static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) {}
     }
 
-    /// `SpaceHop` taking one step toward a window on a hidden Space, with a
-    /// pointer warp that only records where it would go.
+    /// `SpaceHop` starting and taking one step toward a window on a hidden
+    /// Space, with an app and a pointer warp that only record what they did.
     final class Hop {
         typealias NSScreen = Screen
         typealias NSEvent = Event
         typealias SpaceWindowBridge = Bridge
+        typealias NSRunningApplication = App
+        typealias ActivationHandoff = Handoff
         struct CGEvent {
             let location = CGPoint.zero
             init?(source: CGEventSource?) {}
         }
+        final class App {
+            static let current = App()
+            var isHidden = false
+            var unhides = 0
+            func unhide() { unhides += 1 }
+            func activate(from: App, options: NSApplication.ActivationOptions) -> Bool { true }
+            @discardableResult func activate(options: NSApplication.ActivationOptions) -> Bool { true }
+        }
+        enum Handoff { static func yield(to app: App) {} }
+        let app = App()
+        let windowOwnerPID: pid_t = 1
         let windowID: CGWindowID = 1
         var cancelled = false
         var arrowPressesLeft = SpaceHopSupport.maximumArrowSteps
@@ -61,6 +75,7 @@ enum PointerOnDisplayContract {
         var warpedCursorLocation: CGPoint?
         var warps: [CGPoint] = []
         func windowSpaceIsVisible() -> Bool { false }
+        func appHasWindowOnVisibleSpace() -> Bool { false }
         func focusOnArrival() {}
         func finish() {}
         func waitForTravel(from visibleBefore: Set<UInt64>, then completion: @escaping (TravelOutcome) -> Void) {}
@@ -154,6 +169,15 @@ enum PointerOnDisplayContract {
             suite.expect(shown == [under.displayID],
                          "the capture guide shows only on display \(under.displayID) for \(place), found \(shown)")
         }
+        // Issue #1503: unhiding an app that is not hidden raises every one of
+        // its windows, so a hop shows its app again only when it was hidden.
+        let visibleHop = Hop()
+        visibleHop.start()
+        let hiddenHop = Hop()
+        hiddenHop.app.isHidden = true
+        hiddenHop.start()
+        suite.expect(visibleHop.app.unhides == 0 && hiddenHop.app.unhides == 1,
+                     "a Space hop unhides its app only when the app is hidden")
         // With 64-point icons the Dock's strip is 160 points deep, measured
         // from the edge of the display the pointer is on.
         let dock: [(NSPoint, DockPreviewOrientation, Bool, String)] = [

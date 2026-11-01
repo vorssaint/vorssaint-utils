@@ -8,9 +8,6 @@ import SwiftUI
 extension Notification.Name {
     /// A file is being dragged toward the island while it shows where to drop it.
     static let notchMascotDragMoved = Notification.Name("NotchMascotDragMoved")
-    /// The pointer moved over the open island, or left it.
-    static let notchMascotPointerMoved = Notification.Name("NotchMascotPointerMoved")
-    static let notchMascotPointerLeft = Notification.Name("NotchMascotPointerLeft")
     /// An activity takes the place of the companion resting in the closed island.
     static let notchMascotRestYields = Notification.Name("NotchMascotRestYields")
 }
@@ -895,7 +892,6 @@ final class NotchMascotHostView: NSView {
     deinit {
         if let visibilityObserver { NotificationCenter.default.removeObserver(visibilityObserver) }
         if let dragObserver { NotificationCenter.default.removeObserver(dragObserver) }
-        islandObservers.forEach(NotificationCenter.default.removeObserver)
         if let yieldObserver { NotificationCenter.default.removeObserver(yieldObserver) }
         cameoWork?.cancel()
     }
@@ -919,25 +915,6 @@ final class NotchMascotHostView: NSView {
         let point = convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
         mascot.attend(to: NotchMascotSupport.pointerGaze(from: mascot.root.position, to: point, size: mascot.size))
     }
-
-    /// Beside the camera in the open island, its eyes follow the pointer
-    /// anywhere over the island, not only over the row it stands in, and the
-    /// pointer coming back wakes it.
-    var followsIsland = false {
-        didSet {
-            guard followsIsland != oldValue else { return }
-            islandObservers.forEach(NotificationCenter.default.removeObserver)
-            islandObservers = !followsIsland ? [] : [
-                NotificationCenter.default.addObserver(forName: .notchMascotPointerMoved, object: nil, queue: .main) {
-                    [weak self] _ in self?.followIslandPointer()
-                },
-                NotificationCenter.default.addObserver(forName: .notchMascotPointerLeft, object: nil, queue: .main) {
-                    [weak self] _ in self?.mascot.lookAhead(after: 0.25)
-                },
-            ]
-        }
-    }
-    private var islandObservers: [NSObjectProtocol] = []
 
     /// Resting in the closed island, it fades out in the first half of the
     /// crossfade an arriving activity brings, and the strip comes in over the
@@ -971,13 +948,6 @@ final class NotchMascotHostView: NSView {
         DispatchQueue.main.asyncAfter(deadline: .now() + NotchMascotMotion.restCrossfade * 2) { [weak self] in
             self?.layer?.removeAnimation(forKey: "yield")
         }
-    }
-
-    private func followIslandPointer() {
-        guard followsPointer, !mascot.isVisiting, let window else { return }
-        greetPointer()
-        let point = convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
-        mascot.attend(to: NotchMascotSupport.pointerGaze(from: mascot.root.position, to: point, size: mascot.size))
     }
 
     override var isFlipped: Bool { true }
@@ -1265,8 +1235,6 @@ struct NotchMascotTrackView: NSViewRepresentable {
     /// Switched off, the Settings preview shows it asleep: eyes shut, no
     /// blinking, and no eyes for the pointer.
     var awake = true
-    /// Its eyes follow the pointer over the whole open island.
-    var followsIsland = false
     /// It rests in the closed island and fades out early as an activity takes its place.
     var yieldsToActivities = false
 
@@ -1289,7 +1257,6 @@ struct NotchMascotTrackView: NSViewRepresentable {
         }
         view.place(at: CGPoint(x: x, y: track.baseline), visible: visible)
         view.followsPointer = rests && awake
-        view.followsIsland = followsIsland && rests && awake
         view.yieldsToActivities = yieldsToActivities
         // A countdown is watched from the camera's left whatever the side.
         let stand = visit?.kind.watchesTimer == true ? track.leftSide.rest : track.rest

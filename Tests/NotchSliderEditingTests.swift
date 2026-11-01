@@ -43,5 +43,18 @@ enum NotchSliderEditingTests {
         editing.valueChanged({ levels.append(0.75) }, onEditingChanged: nil)
         suite.expect(levels == [0.25, 0.5, 0.75],
                "volume and brightness controls without an editing callback retain exactly one value write per action")
+
+        let easing = NotchSliderEasing(from: 0.8, to: 0.6, start: 10)
+        let midway = easing.value(at: 10 + NotchSliderEasing.duration / 2)
+        let end = easing.value(at: 10 + NotchSliderEasing.duration)
+        suite.expect(easing.value(at: 10) == (0.8, false) && !midway.done && midway.value < 0.7 && midway.value > 0.6
+                     && end == (0.6, true) && easing.value(at: 99) == (0.6, true),
+               "a level moved from outside the slider eases out from where it was drawn and lands exactly on the new one")
+        suite.expect(NotchSliderEasing.eases(enabled: true, onScreen: true, reduceMotion: false, tracking: false)
+                     && !NotchSliderEasing.eases(enabled: true, onScreen: false, reduceMotion: false, tracking: false)
+                     && !NotchSliderEasing.eases(enabled: true, onScreen: true, reduceMotion: true, tracking: false)
+                     && !NotchSliderEasing.eases(enabled: true, onScreen: true, reduceMotion: false, tracking: true)
+                     && !NotchSliderEasing.eases(enabled: false, onScreen: true, reduceMotion: false, tracking: false),
+               "only a level slider on screen, not dragged and without reduced motion eases; a page that opens starts at its level")
     }
 }

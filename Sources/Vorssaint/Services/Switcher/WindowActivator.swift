@@ -44,7 +44,10 @@ enum WindowActivator {
         )
         let windowOwnerPID = item.windowOwnerPID
 
-        app.unhide()
+        // Unhiding an app that is not hidden still brings every one of its
+        // windows forward (measured on macOS 27.2), so a window selection
+        // raised its siblings before fronting the window (issue #1503).
+        if app.isHidden { app.unhide() }
         let activationPlan = SwitcherSupport.activationPlan(
             targetsSpecificWindow: item.windowID != nil
         )
@@ -669,7 +672,7 @@ enum WindowActivator {
         guard let sourceApp = NSRunningApplication(processIdentifier: pid),
               !sourceApp.isTerminated else { return false }
 
-        sourceApp.unhide()
+        if sourceApp.isHidden { sourceApp.unhide() }
         if let windowID {
             prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID ?? pid)
         }

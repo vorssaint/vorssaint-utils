@@ -77,11 +77,45 @@ enum LocalizationFeatureContractTests {
                    && !strings.secureInputUnattributed.isEmpty
                    && !strings.secureInputUnidentified.isEmpty,
                    "\(prefix) secure input copy is translated")
+            // The switcher's captions explain a macOS switcher on ⌘Tab, not
+            // typing, so each names the shortcut it is about.
+            expectFormat(strings.secureInputSwitcherHeldFormat, ["@"],
+                         "\(prefix) switcher secure input holder format")
+            suite.expect([strings.secureInputSwitcherHeldFormat, strings.secureInputSwitcherUnattributed,
+                          strings.secureInputSwitcherUnidentified].allSatisfy { $0.contains("⌘Tab") },
+                   "\(prefix) switcher secure input copy names ⌘Tab")
+            // macOS records the app that was active when secure input turned
+            // on, never the one holding it, so the switcher page gives the
+            // typing pages' advice for the same state and offers that app in
+            // the same words.
+            let advice = { (text: String) -> String in
+                text.components(separatedBy: CharacterSet(charactersIn: ".。"))
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .last { !$0.isEmpty } ?? ""
+            }
+            suite.expect(!advice(strings.secureInputHeldFormat).isEmpty
+                   && !advice(strings.secureInputUnattributed).isEmpty
+                   && strings.secureInputSwitcherHeldFormat.contains(advice(strings.secureInputHeldFormat))
+                   && strings.secureInputSwitcherUnattributed.contains(advice(strings.secureInputUnattributed)),
+                   "\(prefix) switcher secure input captions give the typing captions' advice")
+            if language == .enUS {
+                let attribution = strings.secureInputHeldFormat.components(separatedBy: ", so ").first ?? ""
+                suite.expect(attribution.contains("was the active app")
+                       && strings.secureInputSwitcherHeldFormat.hasPrefix(attribution),
+                       "the switcher page offers the recorded app as a lead, never as the holder")
+            }
             suite.expect(strings.quickToolsTab == strings.launcherName,
                    "\(prefix) Quick panel keeps the same name in Settings")
             expectFormat(strings.cutMovedPluralFormat, ["d"], "\(prefix) cut plural format")
             expectFormat(strings.uninstallerSelectedFormat, ["d", "d"], "\(prefix) uninstaller selected format")
             expectFormat(strings.uninstallerFreedFormat, ["@"], "\(prefix) uninstaller freed format")
+            for format in [strings.uninstallerRefusedSystemFormat, strings.uninstallerRefusedSharedFormat,
+                           strings.uninstallerRefusedNestedFormat, strings.uninstallerRefusedSelfFormat,
+                           strings.uninstallerRefusedLinkFormat, strings.uninstallerRefusedUnidentifiedFormat] {
+                expectFormat(format, ["@"], "\(prefix) uninstaller refusal format")
+            }
+            expectFormat(strings.uninstallerRefusedNotApp, [], "\(prefix) uninstaller not-an-app note")
+            expectFormat(strings.uninstallerPickerHiddenNote, [], "\(prefix) uninstaller unlisted apps note")
             expectFormat(strings.shelfSelectedFormat, ["d"], "\(prefix) shelf selection format")
             suite.expect(!strings.shelfClearOnClose.isEmpty
                    && !strings.shelfClearOnCloseCaption.isEmpty
@@ -145,6 +179,12 @@ enum LocalizationFeatureContractTests {
                    && !strings.switcherAppearanceDelay.contains("—")
                    && !strings.switcherAppearanceDelayCaption.contains("—"),
                    "\(prefix) App Switcher appearance-delay labels are present without em dash")
+            suite.expect(!strings.switcherMaxColumns.isEmpty
+                   && !strings.switcherMaxColumnsCaption.isEmpty
+                   && !strings.switcherMaxColumnsAuto.isEmpty
+                   && !strings.switcherMaxColumns.contains("—")
+                   && !strings.switcherMaxColumnsCaption.contains("—"),
+                   "\(prefix) App Switcher max-columns labels are present without em dash")
             suite.expect(!strings.switcherWindowlessApps.isEmpty
                    && !strings.switcherWindowlessApps.contains("—"),
                    "\(prefix) App Switcher windowless apps title is present without em dash")
@@ -163,6 +203,8 @@ enum LocalizationFeatureContractTests {
                    && !strings.switcherWindowlessAppsFinder.contains("—")
                    && !strings.switcherWindowlessAppsAll.contains("—"),
                    "\(prefix) App Switcher windowless apps choices are all present without em dash")
+            expectFormat(strings.switcherWindowlessAppsLockedFormat, ["@"],
+                         "\(prefix) App Switcher windowless apps locked reason names the shortcut takeover")
             suite.expect(!strings.diskAvailable.isEmpty
                    && !strings.diskPurgeable.isEmpty
                    && !strings.diskAvailable.contains("—")
@@ -425,6 +467,7 @@ enum LocalizationFeatureContractTests {
             ("finderRenameDefault", GlobalShortcut.finderRenameDefault),
             ("keepAwakeDefault", GlobalShortcut.keepAwakeDefault),
             ("micMuteDefault", GlobalShortcut.micMuteDefault),
+            ("notchDefault", GlobalShortcut.notchDefault),
             ("pastePlainDefault", GlobalShortcut.pastePlainDefault),
             ("pointerNextDisplayDefault", GlobalShortcut.pointerNextDisplayDefault),
             ("quickLauncherDefault", GlobalShortcut.quickLauncherDefault),
@@ -460,7 +503,7 @@ enum LocalizationFeatureContractTests {
             ("windowLayoutTopLeftDefault", GlobalShortcut.windowLayoutTopLeftDefault),
             ("windowLayoutTopRightDefault", GlobalShortcut.windowLayoutTopRightDefault),
         ]
-        suite.expect(defaultShortcuts.count == 41, "every default shortcut is in the round trip")
+        suite.expect(defaultShortcuts.count == 42, "every default shortcut is in the round trip")
         var brokenShortcuts: [String] = []
         for (name, shortcut) in defaultShortcuts {
             guard let restored = GlobalShortcut(storageValue: shortcut.storageValue),

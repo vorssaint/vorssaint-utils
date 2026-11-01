@@ -12,6 +12,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
 | Calendars | Yes | Upcoming appointments in the notch |
+| Bluetooth | Yes | Accessory battery levels in Monitor, optional accessory alerts in the notch and Bluetooth on sleep |
 | Files and Folders | Yes | Monitoring downloads in a folder you choose |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
@@ -88,6 +89,20 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 ## Calendars
 
 The optional notch calendar asks for access when you press its permission button. macOS calls this full calendar access; Vorssaint uses it only to read appointments and never modifies them. If access is denied, the calendar shows a System Settings shortcut while the rest of the notch remains available. Event content stays on this Mac.
+
+## Bluetooth
+
+**Why it comes up.** macOS asks before an app can use Bluetooth. Some accessories report their battery level only when an app talks to them over Bluetooth, and recent macOS versions also ask before an app checks or switches Bluetooth itself.
+
+**What uses it.**
+
+- **Monitor**, for the battery level of keyboards, mice, headphones and other accessories. It is read only while the battery details are open or while you show it in the menu bar or in the Power card. Both stay off until you turn them on.
+- **Notch**, for the optional accessory alerts when an accessory connects or runs low.
+- **Bluetooth on sleep**, which checks and switches Bluetooth around sleep while you have it turned on.
+
+**If you say no.** Accessories that report their battery to macOS directly, as many keyboards, mice and trackpads do, still show it. Others can be missing from the list and from accessory alerts. Bluetooth on sleep may be unable to switch Bluetooth off and back on.
+
+**Optional.** Yes. Battery levels and the Bluetooth state are read on your Mac and never leave it.
 
 ## Files and Folders
 

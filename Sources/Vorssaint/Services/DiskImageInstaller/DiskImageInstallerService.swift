@@ -107,12 +107,25 @@ final class DiskImageInstallerService {
         }
     }
 
+    /// Only Homebrew's own images are excluded. An unrelated manual mount
+    /// must still be offered while a cask installation is running.
+    private static func isHomebrewImage(_ imageURL: URL) -> Bool {
+        guard let libraryURL = FileManager.default.urls(for: .libraryDirectory,
+                                                        in: .userDomainMask).first else { return false }
+        let cacheURL = libraryURL.appendingPathComponent("Caches/Homebrew", isDirectory: true)
+            .standardizedFileURL.resolvingSymlinksInPath()
+        let imagePath = imageURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let cachePath = cacheURL.path
+        return imagePath == cachePath || imagePath.hasPrefix(cachePath + "/")
+    }
+
     private func candidate(mountedAt mountURL: URL) -> Candidate? {
         let fm = FileManager.default
         let info = Self.run("/usr/bin/hdiutil", arguments: ["info", "-plist"])
         guard info.status == 0,
               let imageURL = DiskImageInstallerSupport.imageURL(mountedAt: mountURL,
                                                                  hdiutilInfo: info.output),
+              !Self.isHomebrewImage(imageURL),
               let imageIdentity = Self.fileIdentity(at: imageURL),
               let entries = try? fm.contentsOfDirectory(at: mountURL,
                                                         includingPropertiesForKeys: [

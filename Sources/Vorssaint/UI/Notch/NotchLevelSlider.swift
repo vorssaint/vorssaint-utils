@@ -21,6 +21,9 @@ struct NotchLevelSlider: NSViewRepresentable {
     /// A value worth a tick on the track, such as unity on a fader that boosts.
     var marker: Double?
     var valueLabel: String?
+    /// A level moved from outside, by a key, eases to its new place; the
+    /// playback position and a drag follow at once.
+    var easesChanges = false
     var onEditingChanged: ((Bool) -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -45,7 +48,12 @@ struct NotchLevelSlider: NSViewRepresentable {
         slider.target = context.coordinator
         slider.action = #selector(Coordinator.changed(_:))
         slider.setAccessibilityLabel(label)
+        context.coordinator.slider = slider
         return slider
+    }
+
+    static func dismantleNSView(_ slider: NSSlider, coordinator: Coordinator) {
+        coordinator.stopEasing()
     }
 
     func updateNSView(_ slider: NSSlider, context: Context) {
@@ -59,7 +67,21 @@ struct NotchLevelSlider: NSViewRepresentable {
         (slider.cell as? NotchLevelCell)?.marker = marker
         (slider.cell as? NotchLevelCell)?.trackThickness = trackThickness
         let bounded = value.isFinite ? min(upper, max(lower, value)) : lower
-        if slider.doubleValue != bounded { slider.doubleValue = bounded }
+        if slider.doubleValue != bounded {
+            let cell = slider.cell as? NotchLevelCell
+            let drawn = cell?.drawnValue ?? slider.doubleValue
+            slider.doubleValue = bounded
+            // A slider not yet on screen starts at its level rather than
+            // filling up from empty each time the page opens.
+            if NotchSliderEasing.eases(enabled: easesChanges,
+                                       onScreen: slider.window?.occlusionState.contains(.visible) == true,
+                                       reduceMotion: context.environment.accessibilityReduceMotion,
+                                       tracking: cell?.isTracking != false) {
+                context.coordinator.ease(from: drawn, to: bounded)
+            } else {
+                context.coordinator.stopEasing()
+            }
+        }
         slider.isEnabled = context.environment.isEnabled
         let span = upper - lower
         slider.setAccessibilityValueDescription(
@@ -69,10 +91,40 @@ struct NotchLevelSlider: NSViewRepresentable {
 
     final class Coordinator: NSObject {
         var parent: NotchLevelSlider
+        weak var slider: NSSlider?
         private var editing = NotchSliderEditing()
+        private var easing: NotchSliderEasing?
+        private var timer: Timer?
         init(_ parent: NotchLevelSlider) { self.parent = parent }
         func trackingChanged(_ value: Bool) {
+            if value { stopEasing() }
             editing.trackingChanged(value, onEditingChanged: parent.onEditingChanged)
+        }
+
+        func ease(from: Double, to: Double) {
+            easing = NotchSliderEasing(from: from, to: to, start: CACurrentMediaTime())
+            (slider?.cell as? NotchLevelCell)?.drawnValue = from
+            guard timer == nil else { return }
+            let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in self?.tick() }
+            RunLoop.main.add(timer, forMode: .common)
+            self.timer = timer
+        }
+
+        func stopEasing() {
+            timer?.invalidate()
+            timer = nil
+            easing = nil
+            guard let slider, let cell = slider.cell as? NotchLevelCell, cell.drawnValue != nil else { return }
+            cell.drawnValue = nil
+            slider.needsDisplay = true
+        }
+
+        private func tick() {
+            guard let easing, let slider, let cell = slider.cell as? NotchLevelCell else { return stopEasing() }
+            let step = easing.value(at: CACurrentMediaTime())
+            guard !step.done else { return stopEasing() }
+            cell.drawnValue = step.value
+            slider.needsDisplay = true
         }
         @objc func changed(_ sender: NSSlider) {
             editing.valueChanged({ parent.value = sender.doubleValue }, onEditingChanged: parent.onEditingChanged)
@@ -85,6 +137,9 @@ private final class NotchLevelCell: NSSliderCell {
     var marker: Double?
     var trackThickness: CGFloat?
     var trackingChanged: ((Bool) -> Void)?
+    /// Where the bar is drawn while it eases to the slider's value.
+    var drawnValue: Double?
+    private(set) var isTracking = false
     private var isFader: Bool { isVertical }
 
     override func barRect(flipped: Bool) -> NSRect {
@@ -103,13 +158,17 @@ private final class NotchLevelCell: NSSliderCell {
 
     override func startTracking(at startPoint: NSPoint, in controlView: NSView) -> Bool {
         let started = super.startTracking(at: startPoint, in: controlView)
-        if started { trackingChanged?(true) }
+        if started {
+            isTracking = true
+            trackingChanged?(true)
+        }
         return started
     }
 
     override func stopTracking(last lastPoint: NSPoint, current stopPoint: NSPoint,
                                in controlView: NSView, mouseIsUp flag: Bool) {
         super.stopTracking(last: lastPoint, current: stopPoint, in: controlView, mouseIsUp: flag)
+        isTracking = false
         trackingChanged?(false)
     }
 
@@ -123,7 +182,7 @@ private final class NotchLevelCell: NSSliderCell {
         NSColor.white.withAlphaComponent(0.14).setFill()
         track.fill()
         let span = maxValue - minValue
-        let fraction = span > 0 ? min(1, max(0, (doubleValue - minValue) / span)) : 0
+        let fraction = span > 0 ? min(1, max(0, ((drawnValue ?? doubleValue) - minValue) / span)) : 0
         fill.withAlphaComponent(isEnabled ? 0.92 : 0.3).setFill()
         if isFader {
             let height = track.height * fraction

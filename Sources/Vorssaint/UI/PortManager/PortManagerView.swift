@@ -102,7 +102,7 @@ struct PortManagerView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
-                    Text("\(entry.port)")
+                    Text(String(entry.port))
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
                     Text(entry.protocolName)
                         .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -116,7 +116,7 @@ struct PortManagerView: View {
                 Text(entry.processName)
                     .font(.system(size: 11))
                     .lineLimit(1)
-                Text("PID \(entry.pid)  •  \(entry.address)")
+                Text("PID \(String(entry.pid))  •  \(entry.address)")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)

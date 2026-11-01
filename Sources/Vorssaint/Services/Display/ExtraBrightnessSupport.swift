@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
 
 /// Pure math for the extra brightness boost, kept free of AppKit and Metal so
@@ -163,5 +164,24 @@ enum ExtraBrightnessSupport {
                                      overlayOnActiveSpace: Bool,
                                      triggerOnActiveSpace: Bool) -> Bool {
         sameDisplay && overlayOnActiveSpace && triggerOnActiveSpace
+    }
+
+    // MARK: - Overlay geometry
+
+    /// The multiply overlay is two windows, the lower and upper half of the
+    /// screen, never one over the whole display. AppKit tells the window
+    /// manager that a window above the main menu level is a full screen window
+    /// when its frame contains the screen's safe area
+    /// (`-[NSWindow _updateWMWindowPresentationMode]`, macOS 27.2), and the
+    /// overlay is on every Space. Read that way, it left only the wallpaper
+    /// in Mission Control's desktop thumbnails (#3292). The halves meet on a
+    /// whole point, so the uniform multiply shows no seam.
+    static func overlayFrames(for screen: CGRect) -> [CGRect] {
+        let lowerHeight = (screen.height / 2).rounded(.down)
+        let lower = CGRect(x: screen.minX, y: screen.minY,
+                           width: screen.width, height: lowerHeight)
+        let upper = CGRect(x: screen.minX, y: screen.minY + lowerHeight,
+                           width: screen.width, height: screen.height - lowerHeight)
+        return [lower, upper]
     }
 }

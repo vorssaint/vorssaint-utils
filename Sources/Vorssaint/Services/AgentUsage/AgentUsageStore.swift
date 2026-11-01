@@ -552,8 +552,10 @@ struct AgentSessionRegistry: Equatable {
 final class AgentLogCursor {
     let path: String
     let provider: AgentProvider
-    /// Subagents and side threads report to a turn another file tracks.
-    let tracksTurns: Bool
+    /// Subagents report to a turn another file tracks.
+    var tracksTurns: Bool {
+        provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
+    }
     /// The session log a Claude subagent works for.
     let parent: String?
     /// Replies still being written and the rows read last, for a database.
@@ -568,14 +570,31 @@ final class AgentLogCursor {
     /// part of it was read. What its old contents gave is still counted, so
     /// its progress is not saved: the next launch reads it as rewritten.
     private(set) var restarted = false
+    /// The log of the thread a Codex subagent works for, and how many logs
+    /// there were when it was looked for. Not saved: a relaunch looks again.
+    private var codexParentLog: String?
+    private var codexParentSearch = -1
 
     init(path: String, provider: AgentProvider) {
         self.path = path
         self.provider = provider
-        let name = (path as NSString).lastPathComponent
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
-        tracksTurns = provider == .claude ? parent == nil : (provider == .codex ? !name.contains("_") : true)
+    }
+
+    /// The log whose turn a Codex subagent's responses count toward. It can
+    /// be read after the subagent's or move, and a reverted thread goes on in
+    /// a new log, so it is looked for again when a log turns up or the one
+    /// found goes away; the one written last is the thread's current log.
+    func codexParent(among cursors: [String: AgentLogCursor]) -> String? {
+        guard provider == .codex, !state.codexRoot.isEmpty, !tracksTurns else { return nil }
+        if codexParentSearch != cursors.count || codexParentLog.map({ cursors[$0] == nil }) == true {
+            codexParentSearch = cursors.count
+            codexParentLog = cursors.values
+                .filter { $0.provider == .codex && $0.tracksTurns && $0.state.session == state.codexRoot }
+                .max { $0.modified < $1.modified }?.path
+        }
+        return codexParentLog
     }
 
     /// Where reading stopped, at a line boundary: a line still being written
@@ -610,6 +629,7 @@ final class AgentLogCursor {
         discarding = false
         state = AgentLogState()
         fingerprinted = nil
+        codexParentSearch = -1
     }
 
     func fingerprintRead() {
@@ -705,8 +725,9 @@ enum AgentLogReader {
     }
 
     /// Log files changed since `horizon`, newest last so live turns settle
-    /// on the most recent state. Subagents come after every session, so the
-    /// turn each one works for already stands when its responses are read.
+    /// on the most recent state. Claude subagents come after every session,
+    /// so the turn each one works for already stands when its responses are
+    /// read.
     static func discover(_ roots: [AgentLogRoot], since horizon: Date) -> [(path: String, provider: AgentProvider)] {
         var found: [(path: String, provider: AgentProvider, modified: Date, subagent: Bool)] = []
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]

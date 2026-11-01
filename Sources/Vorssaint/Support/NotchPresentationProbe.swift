@@ -406,15 +406,39 @@ enum NotchPresentationProbe {
         exit(failures.isEmpty ? 0 : 1)
     }
 
+    /// Every flag `runAndExit` dispatches on, in the order it checks them.
+    enum Mode: String, CaseIterable {
+        case standard = "--notch-presentation-test"
+        case mediaLayout = "--media-layout"
+        case missionControl = "--mission-control"
+        case previewNotice = "--preview-notice"
+        case profileOnly = "--profile-only"
+        case quickAccessClicks = "--quick-access-clicks"
+    }
+
+    /// Any mode selects the probe on its own, so none of them falls through
+    /// to launching the whole app.
+    static func isRequested(by arguments: [String]) -> Bool {
+        Mode.allCases.contains { arguments.contains($0.rawValue) }
+    }
+
     static func runAndExit() -> Never {
-        if CommandLine.arguments.contains("--media-layout") { NotchMediaPresentationProbe.runAndExit() }
-        if CommandLine.arguments.contains("--mission-control") { runMissionControlAndExit() }
-        if let index = CommandLine.arguments.firstIndex(of: "--preview-notice"),
-           CommandLine.arguments.indices.contains(index + 1) {
-            previewNoticeAndExit(title: CommandLine.arguments[index + 1])
+        let arguments = CommandLine.arguments
+        for mode in Mode.allCases {
+            guard let index = arguments.firstIndex(of: mode.rawValue) else { continue }
+            switch mode {
+            case .standard: continue
+            case .mediaLayout: NotchMediaPresentationProbe.runAndExit()
+            case .missionControl: runMissionControlAndExit()
+            case .previewNotice:
+                guard arguments.indices.contains(index + 1) else {
+                    print("NOTCH PREVIEW FAILED: --preview-notice needs a title"); exit(1)
+                }
+                previewNoticeAndExit(title: arguments[index + 1])
+            case .profileOnly: runProfileAndExit()
+            case .quickAccessClicks: runQuickAccessClicksAndExit()
+            }
         }
-        if CommandLine.arguments.contains("--profile-only") { runProfileAndExit() }
-        if CommandLine.arguments.contains("--quick-access-clicks") { runQuickAccessClicksAndExit() }
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
         guard let screen = NSScreen.main else { print("NOTCH PROBE FAILED: no display"); exit(1) }
@@ -706,6 +730,40 @@ enum NotchPresentationProbe {
         }
         advance(0.60)
         if !matchesNativeFrame(host.panel.frame, geometry.frame(for: geometry.collapsed)) { failures.append("interrupted motion did not settle") }
+        // The Command Bar's rows, measured while the island opens around its
+        // field, move the target further down. Asked for as SwiftUI draws
+        // them, the resize reaches the screen only with them, a few frames on;
+        // the island carries on from where it has got to by then.
+        if !reduceMotion {
+            let field = CGSize(width: geometry.expanded.width, height: geometry.collapsed.height + 40)
+            host.present(size: field, geometry: geometry, animated: true, transitionContent: .reveal)
+            advance(0.03)
+            let earlier = host.visibleFrame.width
+            advance(0.03)
+            let before = host.visibleFrame.width
+            CATransaction.begin()
+            host.present(size: geometry.expanded, geometry: geometry, animated: true)
+            Thread.sleep(forTimeInterval: 0.03)
+            CATransaction.commit()
+            var widths = [host.visibleFrame.width]
+            if widths[0] < before + (before - earlier) / 2 {
+                failures.append("an opening island went back as its target moved on: \(Int(earlier)), \(Int(before)), \(Int(widths[0]))")
+            }
+            let began = CACurrentMediaTime()
+            while CACurrentMediaTime() - began < 0.12 {
+                advance(0.008)
+                widths.append(host.visibleFrame.width)
+            }
+            if zip(widths, widths.dropFirst()).contains(where: { $1 < $0 - 0.5 }) {
+                failures.append("a carried opening narrowed before reaching its width")
+            }
+            advance(0.6)
+            if !matchesNativeFrame(host.panel.frame, geometry.frame(for: geometry.expanded)) {
+                failures.append("a carried opening did not settle at its new size")
+            }
+            host.present(size: geometry.collapsed, geometry: geometry, animated: true, transitionContent: .dismiss)
+            advance(0.6)
+        }
         noticeHeightLimit = geometry.notice.height
         for wing in [CGFloat(112), 190, 240] {
             let size = geometry.noticeSize(wingWidth: wing)

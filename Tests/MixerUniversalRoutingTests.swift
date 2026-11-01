@@ -228,5 +228,33 @@ enum MixerUniversalRoutingContract {
         suite.expect(Mixer.runningAddress(kAudioProcessPropertyDevices).mScope == kAudioObjectPropertyScopeOutput
                      && Mixer.runningAddress(kAudioProcessPropertyIsRunningOutput).mScope == kAudioObjectPropertyScopeGlobal,
                      "process routing changes use the output-scoped listener while running state keeps its global scope")
+
+        // A refresh pass reads the HAL for a while after it captured the saved
+        // volumes. Publishing must resolve them again, so a slider or MIDI write
+        // made in between is never reverted by the pass (measured: 0.835 requested,
+        // 0.614 written during the pass, 0.835 published).
+        let publishing = Mixer()
+        var chrome = row("com.google.Chrome", persistenceID: "com.google.Chrome")
+        chrome.volume = 0.835
+        var unkeyed = row("process:88", persistenceID: nil)
+        unkeyed.volume = 0.9
+        let zoom = row("us.zoom.xos", persistenceID: "us.zoom.xos", bypassed: true)
+        publishing.volumes = ["com.google.Chrome": 0.835, "us.zoom.xos": 0.5]
+        publishing.sessionVolumes = ["process:88": 0.9]
+        let read = [chrome, unkeyed, zoom]
+        suite.expect(publishing.applyingCurrentVolumes(to: read) == read,
+                     "publishing unchanged volumes keeps every row as read, a bypassed one at unity")
+
+        publishing.volumes["com.google.Chrome"] = 0.614
+        publishing.sessionVolumes["process:88"] = 0.4
+        var written = read
+        written[0].volume = 0.614
+        written[1].volume = 0.4
+        suite.expect(publishing.applyingCurrentVolumes(to: read) == written,
+                     "a volume written while the pass read the HAL replaces the one captured at request time, and nothing else changes")
+
+        publishing.volumes.removeValue(forKey: "com.google.Chrome")
+        suite.expect(publishing.applyingCurrentVolumes(to: read)[0].volume == 1,
+                     "a volume returned to 100 percent while the pass read publishes as unity, not the old gain")
     }
 }

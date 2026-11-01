@@ -79,7 +79,7 @@ enum NotchMirrorContract {
             mascotVisible && (geometry.floats || geometry.restingWingWidth > 0)
         }
         var expanded = false, peeking = false, canFollowPointer = true
-        var hidesUntilHover = false, coversMenus = true, showsInCaptures = true
+        var hidesUntilHover = false, hiddenShowsActivity = false, coversMenus = true, showsInCaptures = true
         var outlineEnabled = false, hidesInFullscreen = false
         let openTitle = "Open"
         var opened = 0, collapses = 0, countdownOpenings = 0
@@ -185,6 +185,22 @@ enum NotchMirrorContract {
         service.syncMirrors()
         suite.expect(notch?.model.shown == true && notch?.host.presented.last?.animated == false,
                      "leaving full screen shows the copy again at once")
+
+        // Set to show activity, a hidden island's copies draw the activity it
+        // shows, and go with it once nothing runs.
+        service.hidesUntilHover = true
+        service.syncMirrors()
+        service.hiddenShowsActivity = true
+        service.syncMirrors()
+        suite.expect(notch?.model.shown == true && notch?.model.activity == .timer && notch?.host.panel.isVisible == true,
+                     "copies of a hidden island set to show activity draw the activity it shows")
+        service.compactActivity = nil
+        service.syncMirrors()
+        suite.expect(notch?.model.shown == false, "the copies of a hidden island go once its activity ends")
+        service.compactActivity = .timer
+        service.hiddenShowsActivity = false
+        service.hidesUntilHover = false
+        service.syncMirrors()
 
         // Displays with their own menu bars and menus the island must not cover.
         NSScreen.screensHaveSeparateSpaces = true

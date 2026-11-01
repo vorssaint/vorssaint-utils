@@ -16,6 +16,7 @@ struct UpdatePreviewView: View {
     var onCancel: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
+    @State private var skipNextTime = false
 
     private var release: ReleaseNotes {
         // The release body is the changelog section without its `## [..]` header;
@@ -46,13 +47,23 @@ struct UpdatePreviewView: View {
 
             Divider()
 
-            HStack {
+            HStack(spacing: 12) {
+                Toggle(FeatureStrings.whatsNew(l10n.language).skipPreviewCheckbox, isOn: $skipNextTime)
+                    .toggleStyle(.checkbox)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
                 Button(l10n.s.uninstallerCancel) { onCancel() }
                     .keyboardShortcut(.cancelAction)
-                Spacer()
-                Button(l10n.s.updateInstallButton) { onUpdate() }
-                    .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
+                Button(l10n.s.updateInstallButton) {
+                    // Saved only on Update: ticking the box and then cancelling
+                    // must not turn the next update into a silent install.
+                    if skipNextTime {
+                        UserDefaults.standard.set(false, forKey: DefaultsKey.showReleaseNotesBeforeUpdate)
+                    }
+                    onUpdate()
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
             }
             .padding(16)
         }
@@ -167,24 +178,22 @@ struct UpdateSupportIntroView: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
+        VStack(spacing: 18) {
             UpdateSupportContent()
-                .padding(.horizontal, 34)
-            Spacer(minLength: 0)
-
-            Divider()
 
             HStack {
                 Spacer()
                 Button(l10n.s.supportIntroDoneButton, action: onFinish)
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(.bordered)
+                    .tint(.secondary)
             }
-            .padding(16)
         }
-        .frame(width: 560, height: 420)
+        .padding(.horizontal, 28)
+        .padding(.top, 24)
+        .padding(.bottom, 18)
+        .frame(width: 560)
+        .fixedSize(horizontal: false, vertical: true)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }
@@ -202,56 +211,56 @@ private struct UpdateSupportContent: View {
     }
 
     var body: some View {
-        VStack(spacing: 13) {
-            ZStack {
-                Circle()
-                    .fill(Theme.spaceGradient)
-                    .frame(width: 74, height: 74)
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Theme.spaceGradient)
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                .accessibilityHidden(true)
 
-            Text(l10n.s.supportIntroTitle)
-                .font(.system(size: 22, weight: .bold))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(l10n.s.supportIntroTitle)
+                    .font(.system(size: 20, weight: .bold))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Text(l10n.s.supportIntroMessage)
                 .font(.system(size: 13.5))
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 440)
 
-            Button {
-                openURL(AppInfo.coffeeURL)
-            } label: {
-                Label(l10n.s.supportIntroCoffeeButton,
-                      systemImage: "cup.and.saucer.fill")
+            VStack(alignment: .leading, spacing: 12) {
+                Button {
+                    openURL(AppInfo.coffeeURL)
+                } label: {
+                    Label(l10n.s.supportIntroCoffeeButton,
+                          systemImage: "cup.and.saucer.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                Button {
+                    openURL(AppInfo.repositoryURL)
+                } label: {
+                    Label(l10n.s.supportIntroStarHint, systemImage: "star")
+                        .font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(l10n.s.supportIntroStarButton)
+                .accessibilityLabel(l10n.s.supportIntroStarButton)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
 
             Text(donateThanksText)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-
-            Button {
-                openURL(AppInfo.repositoryURL)
-            } label: {
-                Label(l10n.s.supportIntroStarHint, systemImage: "star")
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: 440)
-            .padding(.top, 4)
-            .help(l10n.s.supportIntroStarButton)
-            .accessibilityLabel(l10n.s.supportIntroStarButton)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

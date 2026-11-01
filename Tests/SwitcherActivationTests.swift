@@ -15,9 +15,11 @@ enum SwitcherActivationTests {
         static let current = App(processIdentifier: 1)!
         static var executablePaths: [pid_t: String] = [:]
         static var names: [pid_t: String] = [:]
+        static var hiddenPIDs: Set<pid_t> = []
         let processIdentifier: pid_t
         var executableURL: URL? { Self.executablePaths[processIdentifier].map { URL(fileURLWithPath: $0) } }
         var localizedName: String? { Self.names[processIdentifier] }
+        var isHidden: Bool { Self.hiddenPIDs.contains(processIdentifier) }
         var isTerminated = false
         init?(processIdentifier: pid_t) {
             guard processIdentifier > 0 else { return nil }
@@ -51,7 +53,7 @@ enum SwitcherActivationTests {
     }
     static func reset(raise: Bool = true, front: CGError = .success, down: CGError = .success, up: CGError = .success) {
         events = []; records = []; canRaise = raise
-        App.executablePaths = [:]; App.names = [:]
+        App.executablePaths = [:]; App.names = [:]; App.hiddenPIDs = []
         Bridge.processForPID = { pid, _ in events.append("owner:\(pid)"); return noErr }
         Bridge.setFrontProcess = { _, id, _ in events.append("front:\(id)"); return front }
         Bridge.postEventRecord = { _, bytes in
@@ -99,8 +101,13 @@ enum SwitcherActivationTests {
         suite.expect(events.prefix(3) == ["yield:20", "activate:20:false", "owner:30"],
                      "host menus are activated before fronting an accessory owner's window")
         suite.expect(events.last == "raise:77:30:false", "helper window focusing does not replace host activation")
+        // Unhiding an app that is not hidden raises every one of its windows.
         reset(); _ = Activator.activateSource(pid: 20, windowID: nil, windowOwnerPID: nil)
-        suite.expect(events == ["unhide", "yield:20", "activate:20:false"], "returning without a saved window does not raise all source windows")
+        suite.expect(events == ["yield:20", "activate:20:false"],
+                     "returning to a visible source without a saved window raises none of its other windows")
+        reset(); App.hiddenPIDs = [20]
+        _ = Activator.activateSource(pid: 20, windowID: 77, windowOwnerPID: 20)
+        suite.expect(events.first == "unhide" && events.contains("front:77"), "a hidden source is shown again before its window returns")
         reset(); _ = Activator.activateSource(pid: 20, windowID: 77, windowOwnerPID: 20)
         suite.expect(!events.contains("activate:20:true") && events.contains("front:77"), "returning to an identified source still selects its window")
         reset(); Activator.activateApp(app, plan: SwitcherSupport.activationPlan(targetsSpecificWindow: false))

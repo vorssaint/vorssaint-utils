@@ -250,7 +250,7 @@ enum SettingsDirectory {
                                        featureKeywords: [
                                         (.switcher, [s.switcherEnable, s.switcherInstantSelection,
                                                      s.switcherWindowlessApps,
-                                                     s.switcherShowShortcutHints,
+                                                     s.switcherShowShortcutHints, s.switcherMaxColumns,
                                                      FeatureStrings.switcherAppRules(language).listTitle,
                                                      FeatureStrings.switcherAppRules(language)
                                                         .showWithoutWindows,
@@ -300,6 +300,7 @@ enum SettingsDirectory {
                                        icon: "doc.on.clipboard",
                                        featureKeywords: [
                                         (.clipboardHistory, [FeatureStrings.clipboard(language).limit,
+                                                             FeatureStrings.clipboardRetention(language).title,
                                                              FeatureStrings.clipboard(language).historyLayout,
                                                              FeatureStrings.clipboard(language).skipSensitive,
                                                              FeatureStrings.clipboard(language).pasteImageAsFile,
@@ -442,9 +443,7 @@ enum SettingsDirectory {
                                       keywords: [s.reviewIntro, s.reviewHighlights]),
                 SettingsDirectoryItem(page: .releaseNotes, title: s.tabReleaseNotes, icon: "sparkles"),
                 SettingsDirectoryItem(page: .support, title: s.tabSupport, icon: "heart.fill",
-                                      keywords: [s.donateButton, s.supportIntroStarButton,
-                                                 s.discordIntroJoinButton,
-                                                 s.communityIntroFollowButton]),
+                                      keywords: [s.donateButton, s.supportIntroStarButton]),
             ]),
         ]
     }

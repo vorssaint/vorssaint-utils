@@ -433,6 +433,21 @@ enum SettingsFeatureTests {
                 restored: restored, carried: [localJavaPath]) == restored,
                    "repeated window layout restores do not duplicate local paths")
         }
+        suite.expect(Set(SettingsBackupSupport.thumbnailPauseListKeys)
+                == [DefaultsKey.windowPreviewExcludedApps, DefaultsKey.switcherPreviewExcludedApps],
+               "both thumbnail pause lists are treated as holding machine-local paths")
+        for key in SettingsBackupSupport.thumbnailPauseListKeys {
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { requested in
+                requested == key ? ["com.apple.Safari", localJavaPath] : nil
+            }
+            let imported = SettingsBackupSupport.sanitizedSettings(from: [
+                SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+                SettingsBackupSupport.settingsKey: [key: ["com.apple.Safari", localJavaPath]],
+            ])
+            suite.expect((backup[SettingsBackupSupport.settingsKey] as? [String: Any])?[key] as? [String]
+                    == ["com.apple.Safari"] && imported?[key] as? [String] == ["com.apple.Safari"],
+                   "\(key) exports and imports bundle IDs only, never this Mac's paths")
+        }
         let mixedExceptionBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
             exceptionKeys.contains(key) ? ["com.apple.Safari", localJavaPath] : nil
         }
@@ -509,6 +524,23 @@ enum SettingsFeatureTests {
                 && captureAt! < clearAt! && writeAt! < putBackAt!,
                "a settings restore reads the machine-local entries before clearing "
                    + "and writes them back after the file's values")
+        let thumbnailCaptureAt = backupServiceLines.firstIndex {
+            isCodeLine($0) && $0.contains("SettingsBackupSupport.thumbnailPauseListKeys")
+        }
+        suite.expect(thumbnailCaptureAt != nil && clearAt != nil && thumbnailCaptureAt! < clearAt!,
+               "the thumbnail pause lists' machine-local entries are read before a restore clears them")
+        suite.expect(SettingsBackupSupport.sharedSwitcherPauseList(in: [
+                    DefaultsKey.windowPreviewExcludedApps: ["com.apple.Safari"]]) == ["com.apple.Safari"]
+                && SettingsBackupSupport.sharedSwitcherPauseList(in: [
+                    DefaultsKey.windowPreviewExcludedApps: ["com.apple.Safari"],
+                    DefaultsKey.switcherPreviewExcludedApps: [String]()]) == nil,
+               "a backup from before the switcher kept its own paused apps gives it Dock Preview's list")
+        let sharedPauseAt = backupServiceLines.firstIndex {
+            isCodeLine($0) && $0.contains("SettingsBackupSupport.sharedSwitcherPauseList(")
+        }
+        suite.expect([sharedPauseAt, writeAt, putBackAt].allSatisfy { $0 != nil }
+                && writeAt! < sharedPauseAt! && sharedPauseAt! < putBackAt!,
+               "a restore copies an old backup's shared paused apps before this Mac's paths go back")
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: [SettingsBackupSupport.settingsKey: [String: Any]()]) == nil,
                "a file without the version envelope is rejected")
         let tampered: [String: Any] = [
