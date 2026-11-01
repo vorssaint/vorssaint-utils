@@ -55,9 +55,10 @@ import Foundation
 // Stage Manager: Organitzador visual. Hot Corners: Angles actius. Login Items: Ítems d’inici
 //   de sessió. Clipboard: porta-retalls. Screen Recording: gravació de pantalla. Sleep: repòs.
 // Trash: paperera. Move to Trash: Trasllada a la paperera. Default: per omissió. Item: ítem.
-// Rename: Canvia el nom. Reset: Restableix. Remove, Delete: Elimina. Clear, Erase: Esborra.
+// About: Informació as a page, “Sobre el Vorssaint” in the app menu. Rename: Canvia el nom. Reset: Restableix. Remove, Delete: Elimina. Clear, Erase: Esborra.
 // Keys: Ordre, Opció, Control, Majúscules, Retorn, Esc, Espai, Fn, Supressió.
-// Mission Control, Spotlight, Dock, Finder, Spaces and AirDrop stay as they are.
+// Mission Control, Spotlight, Dock, Finder and AirDrop stay as they are. A desktop Space
+//   stays too, masculine as in macOS: "un Space", "els Spaces". "Espai" is only for room.
 // Dynamic Island: la Dynamic Island, feminine. Keep Awake: Mantenir actiu. Shelf: prestatge.
 // Scratchpad: bloc de notes. Snippet: fragment. Cleaner: Netejador. Mixer: mesclador de volum.
 // Switcher: selector. Super Key: supertecla. Command Bar: barra d’ordres. Panel: tauler.
@@ -169,7 +170,8 @@ extension Strings {
         tabMouse: "Ratolí i trackpad",
         tabSwitcher: "Selector",
         tabAdvanced: "Avançat",
-        tabAbout: "Sobre",
+        // macOS’s label for this kind of page: Configuració del Sistema › General › Informació.
+        tabAbout: "Informació",
         tabReleaseNotes: "Novetats",
         releaseNotesOnUpdateToggle: "Mostra les novetats després d’actualitzar",
         minimalWindowPreviews: "Previsualitzacions minimalistes",
@@ -192,7 +194,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Vols desinstal·lar el Vorssaint?",
         advancedUninstallConfirmBody: "El Vorssaint esborrarà els permisos, eliminarà les preferències, es traslladarà a la paperera i es tancarà. Això no es pot desfer des de l’app, però es quedarà a la paperera fins que la buidis.",
         advancedUninstallFailedTitle: "S’ha aturat la desinstal·lació",
-        advancedUninstallFailedBody: "El Vorssaint no ha pogut restaurar una opció del sistema que havia canviat: el repòs, la velocitat dels ventiladors, l’acceleració del ratolí o l’ordre dels espais. No s’ha eliminat res. Torna-ho a provar i permet la sol·licitud de contrasenya si apareix.",
+        advancedUninstallFailedBody: "El Vorssaint no ha pogut restaurar una opció del sistema que havia canviat: el repòs, la velocitat dels ventiladors, l’acceleració del ratolí o l’ordre dels Spaces. No s’ha eliminat res. Torna-ho a provar i permet la sol·licitud de contrasenya si apareix.",
         launchAtLogin: "Obre en iniciar la sessió",
         languageLabel: "Idioma",
         menuBarSection: "Barra de menús",
@@ -906,7 +908,7 @@ extension Strings {
         panelCategoryInput: "Ratolí i teclat",
         panelCategoryFiles: "Arxius",
         windowMaximizeName: "Maximitza finestres",
-        windowMaximizeCaption: "El botó verd maximitza sense crear un altre espai.",
+        windowMaximizeCaption: "El botó verd maximitza sense crear un altre Space.",
         windowMaximizeActiveNow: "Substitució del botó verd activa",
         windowMaximizeNeedsAccessibility: "Cal el permís d’Accessibilitat perquè funcioni.",
         keyDebounceName: "Antirebot",

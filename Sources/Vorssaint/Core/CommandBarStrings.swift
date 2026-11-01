@@ -1065,7 +1065,7 @@ extension CommandBarFeatureStrings {
         needsPermissionHint: "Cal un permís · Retorn el demana",
         actionCheckAppUpdates: "Cerca actualitzacions d’apps",
         actionCleanURL: "Neteja l’enllaç copiat",
-        actionOpenSettings: "Obre Configuració",
+        actionOpenSettings: "Obre la configuració",
         answerBatteryLabel: "Bateria",
         answerBatteryCharging: "en càrrega",
         answerBatteryPlugged: "connectada al corrent",
