@@ -150,6 +150,7 @@ enum DisplayRestorationTests {
         var displays: [BrightnessDisplay] = []
         var refreshes = 0
         var running = false
+        var displayControlEnabled = true
         var wakeObserversInstalled = false
         var wakeRebuild: DispatchWorkItem?
         var displayPowerIsSuspended = false
@@ -1000,6 +1001,16 @@ enum DisplayRestorationTests {
         Hardware.callback = nil
         suite.expect(Hardware.configurations.count == 1 && Hardware.configurations.first?.id == 1,
                      "each automatic disable rechecks the remaining displays before the next transaction")
+
+        service = externalSwitchedOff()
+        service.displayControlEnabled = false
+        Hardware.online = [1, 2]
+        Hardware.active = [1, 2]
+        suite.expect(!service.reapplyManagedDisplayDisables() && Hardware.configurations.isEmpty,
+                     "warmth-only mode never reapplies a saved monitor power-off choice")
+        service.restoreManagedDisplays()
+        suite.expect(service.managedDisabledIDs.isEmpty && UserDefaults.standard.stored.isEmpty,
+                     "releasing display controls restores their managed monitors while warmth keeps running")
 
         // Measured with a MacBook panel (1) mirroring a monitor (2): the
         // participating set is the same extended or mirrored, and only the

@@ -500,6 +500,7 @@ final class BrightnessService: ObservableObject {
         if wanted { start() } else if running { stop() }
         syncNightShift()
         if running, wasRunning, controlsChanged {
+            if !displayControlEnabled { restoreManagedDisplays() }
             stateLock.lock()
             pendingLevels = [:]
             stateLock.unlock()
@@ -2088,7 +2089,7 @@ final class BrightnessService: ObservableObject {
     /// or safety recovery retires it. Unknown identities are safe to enable
     /// during recovery, but must never be automatically switched off.
     private func reapplyManagedDisplayDisables() -> Bool {
-        guard running, !displayPowerIsSuspended else { return false }
+        guard running, displayControlEnabled, !displayPowerIsSuspended else { return false }
         var reapplied = false
         stateLock.lock()
         let disabled = managedDisabledDisplays
