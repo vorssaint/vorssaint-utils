@@ -304,9 +304,11 @@ final class WindowLayoutService: ObservableObject {
             return finish(.failure(.failed))
         }
         let sideRepeatCyclesThirds = WindowLayoutSideRepeat.cyclesThirds
+        let repeatCyclesAll = WindowLayoutSideRepeat.cyclesAll
         if let crossing = WindowLayoutGeometry.displayCrossing(for: action,
                                                                previousAction: lastActions[target.key],
-                                                               sideRepeatCyclesThirds: sideRepeatCyclesThirds),
+                                                               sideRepeatCyclesThirds: sideRepeatCyclesThirds,
+                                                               repeatCyclesAll: repeatCyclesAll),
            accepted(actual: target.frame,
                     targetRect: placement(for: action,
                                           current: target.frame,
@@ -326,7 +328,8 @@ final class WindowLayoutService: ObservableObject {
         return applyPlacement(action,
                               to: target,
                               visibleFrame: screen.windowLayoutVisibleFrame,
-                              sideRepeatCyclesThirds: sideRepeatCyclesThirds)
+                              sideRepeatCyclesThirds: sideRepeatCyclesThirds,
+                              repeatCyclesAll: repeatCyclesAll)
     }
 
     /// Applies a pointer-selected snap target to one exact external window.
@@ -345,11 +348,13 @@ final class WindowLayoutService: ObservableObject {
                                 visibleFrame: NSRect,
                                 historyFrame: WindowLayoutFrame? = nil,
                                 cyclesRepeatedAction: Bool = true,
-                                sideRepeatCyclesThirds: Bool = false) -> WindowLayoutResult {
+                                sideRepeatCyclesThirds: Bool = false,
+                                repeatCyclesAll: Bool = false) -> WindowLayoutResult {
         let currentRect = appKitFrame(fromAX: target.frame)
         let previousAction = cyclesRepeatedAction ? lastActions[target.key] : nil
         let cyclePress = WindowLayoutGeometry.sideCyclePress(for: action,
-                                                             cyclesThirds: sideRepeatCyclesThirds)
+                                                             cyclesThirds: sideRepeatCyclesThirds,
+                                                             cyclesAll: repeatCyclesAll)
         // The size cycle only advances when the previous placement came from
         // the same side key and the window still sits where that step left
         // it: another shortcut, or a window dragged or resized by hand in
@@ -365,7 +370,8 @@ final class WindowLayoutService: ObservableObject {
                                                                    current: currentRect,
                                                                    visibleFrame: visibleFrame,
                                                                    previousAction: previousAction,
-                                                                   sideRepeatCyclesThirds: cyclesSides)
+                                                                   sideRepeatCyclesThirds: cyclesSides,
+                                                                   repeatCyclesAll: repeatCyclesAll)
         let placement = placement(for: effectiveAction,
                                   current: target.frame,
                                   visibleFrame: visibleFrame)
@@ -755,7 +761,9 @@ final class WindowLayoutService: ObservableObject {
                 .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
                 .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
-                .topLeft, .topRight, .bottomLeft, .bottomRight, .marginMaximize:
+                .topLeft, .topRight, .bottomLeft, .bottomRight,
+                .topLeftTwoThirds, .topRightTwoThirds, .bottomLeftTwoThirds, .bottomRightTwoThirds,
+                .marginMaximize:
             return true
         default:
             return false

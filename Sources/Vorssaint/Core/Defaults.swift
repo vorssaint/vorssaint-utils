@@ -511,6 +511,7 @@ enum DefaultsKey {
     static let windowReserveStageManagerSpace = "windowReserveStageManagerSpace"
     static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // per-edge percentage for margin maximize
     static let windowLayoutSideRepeatCyclesThirds = "windowLayoutSideRepeatCyclesThirds" // repeated Left/Right cycles half, 2/3, 1/3 on the same display
+    static let windowLayoutRepeatCyclesAll = "windowLayoutRepeatCyclesAll" // every half and corner cycles sizes on a repeat, like Rectangle
     static let windowLayoutIgnoredApps = "windowLayoutIgnoredApps" // apps that temporarily disable window layout while focused
     static let panelCollapsedSections = "panelCollapsedSections"
     static let panelCollapsedResetVersion = "panelCollapsedResetVersion"
@@ -807,6 +808,13 @@ enum DefaultsKey {
     static let windowLayoutShortcutBottomLeftSixth = "windowLayoutShortcutBottomLeftSixth"
     static let windowLayoutShortcutBottomCenterSixth = "windowLayoutShortcutBottomCenterSixth"
     static let windowLayoutShortcutBottomRightSixth = "windowLayoutShortcutBottomRightSixth"
+    static let windowLayoutShortcutTopLeftTwoThirds = "windowLayoutShortcutTopLeftTwoThirds"
+    static let windowLayoutShortcutTopRightTwoThirds = "windowLayoutShortcutTopRightTwoThirds"
+    static let windowLayoutShortcutBottomLeftTwoThirds = "windowLayoutShortcutBottomLeftTwoThirds"
+    static let windowLayoutShortcutBottomRightTwoThirds = "windowLayoutShortcutBottomRightTwoThirds"
+    static let windowLayoutShortcutMaximizeHeight = "windowLayoutShortcutMaximizeHeight"
+    static let windowLayoutShortcutMakeSmaller = "windowLayoutShortcutMakeSmaller"
+    static let windowLayoutShortcutMakeLarger = "windowLayoutShortcutMakeLarger"
 
     // Text snippets: type a trigger, get the expansion.
     static let textSnippetsEnabled = "textSnippetsEnabled"
@@ -1766,6 +1774,7 @@ enum Defaults {
         DefaultsKey.windowReserveStageManagerSpace: false,
         DefaultsKey.windowLayoutMarginPercent: 5.0,
         DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
+        DefaultsKey.windowLayoutRepeatCyclesAll: false,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,
@@ -2091,6 +2100,13 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomLeftSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutTopLeftTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutTopRightTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutBottomLeftTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutBottomRightTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutMaximizeHeight: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutMakeSmaller: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutMakeLarger: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
     ].merging(AppSound.registeredDefaults) { current, _ in current }
 
