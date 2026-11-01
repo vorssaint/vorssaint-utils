@@ -29,7 +29,7 @@ enum NotchEqualizerTests {
                        height: CGFloat = 20, tint: NSColor = .white) {
             view.configure(animates: animates, bars: count, barWidth: width, height: height, tint: tint)
         }
-        func layers() -> [CALayer] { view.layer?.sublayers ?? [] }
+        func layers() -> [CALayer] { view.barLayers }
         func heights() -> [CGFloat] { layers().map(\.bounds.height) }
         func isStopped() -> Bool {
             !view.isMoving && layers().allSatisfy { $0.bounds.height == $0.bounds.width }
@@ -50,7 +50,7 @@ enum NotchEqualizerTests {
         view.layout()
         expect(zip(original, layers()).allSatisfy { $0 === $1 } && view.motionStart == started,
                "metadata, tint and layout changes preserve bar layers and the motion's phase")
-        expect(layers().allSatisfy { $0.backgroundColor == NSColor.red.cgColor },
+        expect(view.barColors == NotchEqualizerView.gradientColors(for: .red),
                "a new artwork tint updates every bar without restarting motion")
         view.step(at: started + 0.1)
         let early = heights()
@@ -189,7 +189,7 @@ enum NotchEqualizerTests {
         window.shown = false
         window.exposed = false
         window.notifyVisibility()
-        expect((arrived.layer?.sublayers ?? []).allSatisfy { $0.bounds.height == $0.bounds.width },
+        expect(arrived.barLayers.allSatisfy { $0.bounds.height == $0.bounds.width },
                "letting the copied pose go drops the wave once the window is away")
         arrived.removeFromSuperview()
         window.shown = true
@@ -205,16 +205,17 @@ enum NotchEqualizerTests {
         window.exposed = false
         window.notifyVisibility()
         expect(wave.isMoving && wave.motionStart == phase
-               && (wave.layer?.sublayers ?? []).allSatisfy { $0.bounds.height > $0.bounds.width },
+               && wave.barLayers.allSatisfy { $0.bounds.height > $0.bounds.width },
                "a display change keeps the music wave drawn and in phase while the window is away")
         wave.configure(animates: true, bars: 7, barWidth: 2, height: 20, tint: .white,
                        levels: [1, 1, 1, 1, 1, 1, 1])
         expect(wave.motionStart == phase
-               && (wave.layer?.sublayers ?? []).allSatisfy { abs($0.bounds.height - 20) < 0.001 },
+               && abs(wave.barLayers[3].bounds.height - 20) < 0.001
+               && wave.barLayers.allSatisfy { $0.bounds.height > 12 },
                "live levels keep updating the held wave without restarting its phase")
         window.holdsWave = false
         window.notifyVisibility()
-        expect(!wave.isMoving && (wave.layer?.sublayers ?? []).allSatisfy { $0.bounds.height == $0.bounds.width },
+        expect(!wave.isMoving && wave.barLayers.allSatisfy { $0.bounds.height == $0.bounds.width },
                "a window that is still away drops the wave once the display change lets it go")
         wave.removeFromSuperview()
 

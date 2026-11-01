@@ -66,7 +66,7 @@ struct NotchLockScreenIsland: View {
                     Spacer(minLength: 0)
                     NotchEqualizerBars(isPlaying: playing, bars: NotchLayout.compactMusicBarCount,
                                        barWidth: NotchLayout.compactMusicBarWidth, height: geometry.compactMusicBarHeight,
-                                       tint: music.artworkTint?.color ?? .white)
+                                       tint: music.artworkTint?.barColor ?? .white, field: music.artworkTint?.field ?? [])
                         .opacity(playing ? 1 : 0)
                         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: playing)
                         .padding(.trailing, max(0, min(geometry.compactMusicBarsInset, wing - NotchLayout.compactMusicBarsWidth)))

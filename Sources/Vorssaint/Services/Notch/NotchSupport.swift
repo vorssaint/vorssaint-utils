@@ -368,7 +368,7 @@ enum NotchLayout {
     /// Breathing room every compact strip keeps from its silhouette.
     static let compactEdgeGap: CGFloat = 5
     /// The compact player's equalizer, spaced by its own bar width.
-    static let compactMusicBarCount = 7
+    static let compactMusicBarCount = 6
     static let compactMusicBarWidth: CGFloat = 1.8
     static var compactMusicBarsWidth: CGFloat {
         compactMusicBarWidth * (CGFloat(compactMusicBarCount) + CGFloat(compactMusicBarCount - 1) * 0.85)
