@@ -12,6 +12,7 @@ struct UninstallerView: View {
     @ObservedObject private var homebrew = HomebrewManager.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.uninstallerCommandBarEnabled) private var commandBarEnabled = false
+    @AppStorage(DefaultsKey.uninstallerTrashDetectionEnabled) private var trashDetectionEnabled = true
     @State private var dropTargeted = false
     @State private var showingAppPicker = false
     @State private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
@@ -100,6 +101,7 @@ struct UninstallerView: View {
                 .foregroundStyle(.tertiary)
 
             commandBarToggle
+            trashDetectionToggle
 
             if !permissions.fullDiskAccess {
                 FullDiskAccessNote().frame(width: 360)
@@ -119,6 +121,23 @@ struct UninstallerView: View {
             guard let app = urls.first(where: { $0.pathExtension == "app" }) ?? urls.first else { return false }
             return uninstaller.select(appURL: app)
         } isTargeted: { dropTargeted = $0 }
+    }
+
+    private var trashDetectionToggle: some View {
+        Form {
+            Section {
+                Toggle(l10n.s.uninstallerTrashDetectionTitle, isOn: $trashDetectionEnabled)
+                Text(l10n.s.uninstallerTrashDetectionCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 360)
+        .onChange(of: trashDetectionEnabled) { _, enabled in
+            TrashSuggestionService.shared.setEnabled(enabled)
+        }
     }
 
     // MARK: Busy

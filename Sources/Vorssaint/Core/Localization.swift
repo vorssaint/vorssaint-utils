@@ -524,6 +524,8 @@ struct Strings {
     let uninstallerCommandBarToggle: String
     let uninstallerCommandBarCaption: String
     let uninstallerCommandBarFinderTitle: String
+    let uninstallerTrashDetectionTitle: String = "Suggest cleanup for apps moved to Trash"
+    let uninstallerTrashDetectionCaption: String = "Watch the Trash and offer to review an app's leftover files after you move it there."
     let uninstallerSelectionUnavailable: String
     let uninstallerRefusedNotApp: String
     let uninstallerRefusedSystemFormat: String        // + app name

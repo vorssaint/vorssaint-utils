@@ -14,6 +14,16 @@ import VMStatisticsCompat
 enum AppManagementFeatureTests {
     static func run(_ suite: TestSuite) {
         let registeredDefaults = Defaults.registeredDefaults
+        suite.expect(registeredDefaults[DefaultsKey.trashSuggestionPresentation] as? String
+                    == TrashSuggestionPresentation.notch.rawValue,
+                    "Trash suggestions default to the Dynamic Island")
+        let currentTrashApps = [URL(fileURLWithPath: "/Users/test/.Trash/Example.app"),
+                                URL(fileURLWithPath: "/Users/test/.Trash/Other.app")]
+        let knownTrashApps = Set([currentTrashApps[0].path])
+        suite.expect(TrashSuggestionSupport.newlyTrashedApps(current: currentTrashApps,
+                                                              knownPaths: knownTrashApps)
+                    == [currentTrashApps[1]],
+                    "Trash suggestions ignore apps already observed")
         suite.expect(registeredDefaults[DefaultsKey.extraBrightnessEnabled] as? Bool == false,
                "extra brightness is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.extraBrightnessLevel] as? Int == 100,
