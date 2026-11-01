@@ -23,6 +23,7 @@ struct DockSettings: View {
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
+    @AppStorage(DefaultsKey.dockClickNewWindow) private var dockClickNewWindow = false
     @AppStorage(DefaultsKey.spacesOrderEnabled) private var spacesOrderEnabled = false
 
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
@@ -174,6 +175,14 @@ struct DockSettings: View {
                 Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
                     .labelsHidden()
                     .onChange(of: dockClickCycleWindows) { _, _ in
+                        DockClickService.shared.syncWithPreferences()
+                    }
+            }
+            SettingsRow(symbol: "plus.rectangle.on.rectangle", title: l10n.s.dockClickNewWindow,
+                        caption: l10n.s.dockClickNewWindowCaption) {
+                Toggle(l10n.s.dockClickNewWindow, isOn: $dockClickNewWindow)
+                    .labelsHidden()
+                    .onChange(of: dockClickNewWindow) { _, _ in
                         DockClickService.shared.syncWithPreferences()
                     }
             }

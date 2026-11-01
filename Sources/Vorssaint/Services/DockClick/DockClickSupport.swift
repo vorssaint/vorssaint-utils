@@ -9,6 +9,7 @@ enum DockClickAction: Equatable {
     case restore
     case hide
     case cycleWindows
+    case newWindow
     case passThrough
 }
 
@@ -62,6 +63,25 @@ enum DockClickSupport {
         commandCharacter?.uppercased() == "M"
             && modifiers == 2
             && identifier == "miniaturizeAll:"
+    }
+
+    /// Standard Cocoa action identifiers for opening a new window.
+    static func isVerifiedNewWindow(identifier: String?) -> Bool {
+        identifier == "newWindow:" || identifier == "newWindowForTab:"
+    }
+
+    /// Whether a menu item carries the standard ⌘N (New / New Window) shortcut
+    /// with no extra modifiers (Shift, Option, Control or No-Command bit).
+    static func isPlainNewCommand(commandCharacter: String?,
+                                  modifiers: Int?) -> Bool {
+        commandCharacter?.uppercased() == "N" && (modifiers ?? 0) == 0
+    }
+
+    /// The frontmost window in `after` that was not listed in `before`: the
+    /// window a New Window command just opened on the current Space.
+    static func newlyOpenedWindowID(before: Set<CGWindowID>,
+                                    afterFrontToBack after: [CGWindowID]) -> CGWindowID? {
+        after.first { !before.contains($0) }
     }
 
     /// Clicks closer together than this count as one intent.
@@ -170,7 +190,7 @@ enum DockClickSupport {
         switch lastAction {
         case .minimize: return .toggle(.restore)
         case .restore: return .toggle(.minimize)
-        case .hide, .cycleWindows: return .deriveFromState
+        case .hide, .cycleWindows, .newWindow: return .deriveFromState
         case .passThrough: return .deriveFromState
         }
     }
@@ -250,6 +270,15 @@ enum DockClickSupport {
         if minimizeEnabled, appIsFrontmost, hasUnminimizedWindows { return .minimize }
         if minimizeEnabled, ownsMinimize, !hasUnminimizedWindows, hasMinimizedWindows { return .restore }
         return .passThrough
+    }
+
+    /// Dock middle-click action: opens a new window in the clicked app
+    /// regardless of whether it is frontmost or already has windows open.
+    /// Modifier clicks keep their native behavior.
+    static func middleClickAction(hasModifiers: Bool,
+                                  newWindowEnabled: Bool) -> DockClickAction {
+        guard newWindowEnabled, !hasModifiers else { return .passThrough }
+        return .newWindow
     }
 
     /// Cheap geometric gate that runs before any Accessibility hit-test, in the

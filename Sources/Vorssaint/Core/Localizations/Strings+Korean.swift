@@ -1116,6 +1116,8 @@ extension Strings {
         spacesOrderName: "공간 순서 고정",
         spacesOrderCaption: "macOS가 최근 사용 순서에 따라 공간을 재정렬하지 않도록 해 정한 순서를 유지합니다. 끄면 이전 설정으로 돌아갑니다. 변경 사항을 적용하려고 Dock이 한 번 다시 시작될 수 있습니다.",
         quitAppsName: "앱 종료",
-        quitAppsCaption: "열려 있는 앱을 나열해 하나씩, 한 번에 모두, 또는 맨 앞의 앱을 제외하고 모두 종료할 수 있습니다. 무엇이든 종료하기 전에 항상 목록을 먼저 보여 줍니다."
+        quitAppsCaption: "열려 있는 앱을 나열해 하나씩, 한 번에 모두, 또는 맨 앞의 앱을 제외하고 모두 종료할 수 있습니다. 무엇이든 종료하기 전에 항상 목록을 먼저 보여 줍니다.",
+        dockClickNewWindow: "Dock 가운데 클릭으로 새 윈도우 열기",
+        dockClickNewWindowCaption: "이미 열려 있는 윈도우가 있어도 앱의 Dock 아이콘을 가운데 클릭하면 새 윈도우를 엽니다."
     )
 }

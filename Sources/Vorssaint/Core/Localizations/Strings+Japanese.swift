@@ -1115,6 +1115,8 @@ extension Strings {
         spacesOrderName: "スペースの順序を固定",
         spacesOrderCaption: "最近の使用状況に応じてmacOSがスペースを並べ替えないようにし、設定した順序を保ちます。オフにすると以前の設定に戻ります。変更を適用するためにDockが一度再起動することがあります。",
         quitAppsName: "アプリを終了",
-        quitAppsCaption: "開いているアプリを一覧表示し、1つずつ、すべてまとめて、または最前面以外をすべて終了できます。何かを終了する前に必ず一覧を表示します。"
+        quitAppsCaption: "開いているアプリを一覧表示し、1つずつ、すべてまとめて、または最前面以外をすべて終了できます。何かを終了する前に必ず一覧を表示します。",
+        dockClickNewWindow: "Dock の中クリックで新規ウインドウを開く",
+        dockClickNewWindowCaption: "すでにウインドウが開いていても、Dock アイコンを中クリックするとそのアプリの新しいウインドウを開きます。"
     )
 }
