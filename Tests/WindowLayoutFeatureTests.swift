@@ -1445,6 +1445,64 @@ enum WindowLayoutFeatureTests {
                "window layout top twice still maximizes while the side cycle is on")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.windowLayoutSideRepeatCyclesThirds] as? Bool == false,
                "window layout side repeat cycling stays off by default")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.windowLayoutRepeatCyclesAll] as? Bool == false,
+               "window layout Rectangle-style repeat cycling stays off by default")
+        for (pressed, twoThirds, third) in [
+            (WindowLayoutAction.topHalf, WindowLayoutAction.topTwoThirds, WindowLayoutAction.topThird),
+            (.bottomHalf, .bottomTwoThirds, .bottomThird),
+            (.centerHalf, .centerTwoThirds, .centerThird),
+            (.topLeft, .topLeftTwoThirds, .topLeftSixth),
+            (.topRight, .topRightTwoThirds, .topRightSixth),
+            (.bottomLeft, .bottomLeftTwoThirds, .bottomLeftSixth),
+            (.bottomRight, .bottomRightTwoThirds, .bottomRightSixth),
+        ] {
+            func next(after previous: WindowLayoutAction?) -> WindowLayoutAction {
+                WindowLayoutGeometry.effectiveAction(for: pressed, current: currentWindow,
+                                                     visibleFrame: visibleFrame,
+                                                     previousAction: previous,
+                                                     sideRepeatCyclesThirds: true,
+                                                     repeatCyclesAll: true)
+            }
+            suite.expect(next(after: pressed) == twoThirds && next(after: twoThirds) == third
+                    && next(after: third) == pressed && next(after: nil) == pressed,
+                   "window layout \(pressed.rawValue) cycles half, two thirds, third when every repeat cycles")
+            suite.expect(WindowLayoutGeometry.sideCyclePress(for: pressed, cyclesThirds: false, cyclesAll: true) == pressed
+                    && WindowLayoutGeometry.sideCyclePress(for: pressed, cyclesThirds: true) == nil,
+                   "window layout \(pressed.rawValue) records a cycle press only when every repeat cycles")
+            suite.expect(WindowLayoutGeometry.displayCrossing(for: pressed, previousAction: pressed,
+                                                              repeatCyclesAll: true) == nil,
+                   "window layout \(pressed.rawValue) repeated stays on its display when every repeat cycles")
+        }
+        suite.expect(WindowLayoutGeometry.effectiveAction(for: .topHalf, current: currentWindow,
+                                                          visibleFrame: visibleFrame,
+                                                          previousAction: .topHalf,
+                                                          repeatCyclesAll: true) == .topHalf,
+               "window layout top twice does not maximize when every repeat cycles")
+        let cornerTwoThirds = WindowLayoutGeometry.rect(for: .bottomRightTwoThirds,
+                                                        current: currentWindow, visibleFrame: visibleFrame)
+        suite.expect(cornerTwoThirds.maxX == visibleFrame.maxX && cornerTwoThirds.minY == visibleFrame.minY
+                && cornerTwoThirds.width == visibleFrame.width * 2 / 3
+                && cornerTwoThirds.height == visibleFrame.height / 2,
+               "window layout bottom right 2/3 keeps the corner with two thirds of the width")
+        let tallened = WindowLayoutGeometry.rect(for: .maximizeHeight, current: currentWindow,
+                                                 visibleFrame: visibleFrame)
+        suite.expect(tallened.minX == currentWindow.minX && tallened.width == currentWindow.width
+                && tallened.minY == visibleFrame.minY && tallened.height == visibleFrame.height,
+               "window layout maximize height keeps the width and fills the height")
+        let larger = WindowLayoutGeometry.rect(for: .makeLarger, current: currentWindow, visibleFrame: visibleFrame)
+        let smaller = WindowLayoutGeometry.rect(for: .makeSmaller, current: currentWindow, visibleFrame: visibleFrame)
+        suite.expect(larger.width == currentWindow.width + 30 && larger.height == currentWindow.height + 30
+                && abs(larger.midX - currentWindow.midX) <= 1 && abs(larger.midY - currentWindow.midY) <= 1
+                && smaller.width == currentWindow.width - 30 && smaller.height == currentWindow.height - 30,
+               "window layout make larger and smaller step 30 points around the center")
+        let snappedLeftHalf = WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame)
+        let largerHalf = WindowLayoutGeometry.rect(for: .makeLarger, current: snappedLeftHalf, visibleFrame: visibleFrame)
+        suite.expect(largerHalf.minX == visibleFrame.minX && largerHalf.height == visibleFrame.height
+                && largerHalf.width == snappedLeftHalf.width + 30,
+               "window layout make larger keeps a half pinned to its edges")
+        let tiny = CGRect(x: 500, y: 400, width: 370, height: 230)
+        suite.expect(WindowLayoutGeometry.rect(for: .makeSmaller, current: tiny, visibleFrame: visibleFrame) == tiny,
+               "window layout make smaller stops at a quarter of the display")
         let sideRepeatSettingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/WindowLayoutSettings.swift",
             encoding: .utf8)) ?? ""
