@@ -2501,6 +2501,36 @@ def main():
                         "    private func syncPolling(").replace("private func", "func", 1)
           + "}\n}\n")
 
+    recorder = "Sources/Vorssaint/Services/Recorder/RecorderEditorController.swift"
+    write("RecorderExportControls.swift", "import Foundation\nimport CoreGraphics\nimport UniformTypeIdentifiers\n"
+          + declaration(recorder, "struct RecorderEditorExportSelection")
+          + declaration(recorder, "final class RecorderClipboardPublication:")
+          + "final class RecorderExportControlsFixture {\nvar document = RecorderEditDocument()\nvar isExporting = false\nvar sourceSize = CGSize(width: 1920, height: 1080)\n"
+          + "".join(declaration(recorder, prefix) for prefix in [
+              "    var exportSize:", "    var exportCanvasSize:", "    func exportSize(for",
+              "    func setExportFormat(", "    func setGIFScalePercent(", "    func setGIFFrameRate(",
+              "    func beginClipboardPublication()", "    func completeClipboardPublication(", "    func cancelExport()"])
+          + "var clipboardPublication: RecorderClipboardPublication?\nvar exporter: RecorderExporter?\nvar shareTask: Task<Void, Never>?\n"
+          + "var request: (RecorderExporter.Output, URL)?\nvar completion: ((RecorderExporter.Failure?) -> Void)?\n"
+          + "func export(_ output: RecorderExporter.Output, to destination: URL, rememberDestination: Bool, completion: @escaping (RecorderExporter.Failure?) -> Void) { request = (output, destination); self.completion = completion }\n"
+          + "}\nfinal class RecorderExportActionFixture {\n"
+          + "let model = RecorderExportControlsFixture()\nvar exported = false\nvar confirmedClose = false\n"
+          + "final class Window { var closes = 0; func close() { closes += 1 } }\nvar window: Window? = Window()\n"
+          + "let strings = FeatureStrings.recorder(.enUS)\nvar saved: (RecorderExporter.Output, URL)? { model.request }\nvar copied: (RecorderSupport.ExportFormat, Bool)?\n"
+          + "enum NSSound { static func beep() {} }\nenum QuickToolHUD { static func show(icon: String, message: String) {} }\n"
+          + "enum ScreenRecorderService { static func saveDestination(strings: RecorderFeatureStrings, fileExtension: String) -> URL { URL(fileURLWithPath: \"/tmp/recording.\" + fileExtension) } }\n"
+          + "struct RecentCaptureService { static let shared = RecentCaptureService(); func recordRecording(at url: URL) {} }\n"
+          + "struct RecorderGIFClipboard { static var publications = 0; static func publish(fileURL: URL) -> Bool { publications += 1; return true } }\n"
+          + "final class GeneralPasteboardAccess { static let shared = GeneralPasteboardAccess(); var pending: [(work: () -> Bool, completion: (Bool) -> Void)] = []; func async(_ work: @escaping () -> Bool, then completion: @escaping (Bool) -> Void) { pending.append((work, completion)) } }\n"
+          + "func copyDestination(fileExtension: String) -> URL? { URL(fileURLWithPath: \"/tmp/copy.\" + fileExtension) }\n"
+          + declaration(recorder, "    private func copyGIFAndDelete(").replace("private func copyGIFAndDelete", "func startGIFCopy", 1)
+          + "func copyVideoAndDelete(_ deletes: Bool) { copied = (.video, deletes) }\nfunc copyGIFAndDelete(_ deletes: Bool) { copied = (.gif, deletes) }\n"
+          + "".join(declaration(recorder, prefix).replace("private var", "var", 1).replace("private func", "func", 1) for prefix in [
+              "    private var selectedExport:", "    func save()", "    func copySelected()",
+              "    private func copySelectedAndDelete(", "    func copyAndDelete()",
+              "    private func finishClipboardPublication(", "    private func run(_ output:"])
+          + "}\n")
+
     # Same-file extensions exercise private routing and AppKit content without
     # widening production interfaces or presenting an application window.
     service = "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift"

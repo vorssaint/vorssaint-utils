@@ -1505,11 +1505,11 @@ enum ScreenshotFeatureTests {
         // Both editors state a size the same way. The recorder wrote
         // "1960x1274" beside a screenshot editor that already read
         // "2940 \u{00D7} 1912 px", and the letter x is the tell.
-        let recorderEditorSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/UI/Recorder/RecorderEditorView.swift",
+        let recorderExportControlSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Recorder/RecorderExportFormatControl.swift",
             encoding: .utf8)) ?? ""
-        suite.expect(!recorderEditorSource.isEmpty, "the recorder editor source reads back for its shape check")
-        suite.expect(recorderEditorSource.contains("\\(Int(size.width)) \u{00D7} \\(Int(size.height))"),
+        suite.expect(!recorderExportControlSource.isEmpty, "the recorder export control source reads back for its shape check")
+        suite.expect(recorderExportControlSource.contains("\\(Int(size.width)) \u{00D7} \\(Int(size.height))"),
                "the recorder states its output size with the multiplication sign")
         // A card that names itself twice reads like filler. The look cards had
         // borrowed the shape, pointer and background labels as subtitles, so
