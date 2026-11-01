@@ -4,6 +4,33 @@
 import Darwin
 import Foundation
 
+enum TrashSuggestionPresentation: String {
+    case notch
+    case window
+
+    static var current: Self {
+        Self(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.trashSuggestionPresentation) ?? "")
+            ?? .notch
+    }
+}
+
+enum TrashSuggestionSupport {
+    static func appURLs(in trashURL: URL, fileManager: FileManager = .default) -> [URL] {
+        (try? fileManager.contentsOfDirectory(
+            at: trashURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ))?.filter { url in
+            guard url.pathExtension.caseInsensitiveCompare("app") == .orderedSame else { return false }
+            return (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        } ?? []
+    }
+
+    static func newlyTrashedApps(current: [URL], knownPaths: Set<String>) -> [URL] {
+        current.filter { !knownPaths.contains($0.standardizedFileURL.path) }
+    }
+}
+
 /// Pure ownership and leftover-matching rules for the Uninstaller. Bundle
 /// identifiers never become paths by concatenation with a display name;
 /// names are only compared against directory listings that already exist.

@@ -319,6 +319,7 @@ enum DefaultsKey {
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
     static let uninstallerCommandBarEnabled = "uninstallerCommandBarEnabled"
+    static let uninstallerTrashDetectionEnabled = "uninstallerTrashDetectionEnabled"
     static let killProcessCommandBarEnabled = "killProcessCommandBarEnabled"
     static let killProcessGroupRelated = "killProcessGroupRelated"
     static let killProcessSortBy = "killProcessSortBy" // cpu | memory | name | pid
@@ -940,6 +941,7 @@ enum DefaultsKey {
     static let notchReturnHome = "notchReturnHome"
     static let notchHomeModule = "notchHomeModule"
     static let notchOpensActivity = "notchOpensActivity"
+    static let trashSuggestionPresentation = "trashSuggestionPresentation"
     static let notchHiddenModules = "notchHiddenModules"
     static let notchModuleOrder = "notchModuleOrder"
     static let notchQuickAccessLayout = "notchQuickAccessLayout"
@@ -1546,6 +1548,7 @@ enum Defaults {
         DefaultsKey.notchReturnHome: false,
         DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,
         DefaultsKey.notchOpensActivity: true,
+        DefaultsKey.trashSuggestionPresentation: TrashSuggestionPresentation.notch.rawValue,
         DefaultsKey.notchHiddenModules: "",
         DefaultsKey.notchModuleOrder: "",
         DefaultsKey.notchQuickAccessLayout: Data(),
@@ -1591,6 +1594,7 @@ enum Defaults {
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.uninstallerCommandBarEnabled: false,
+        DefaultsKey.uninstallerTrashDetectionEnabled: true,
         DefaultsKey.killProcessCommandBarEnabled: true,
         DefaultsKey.killProcessGroupRelated: true,
         DefaultsKey.killProcessSortBy: "cpu",

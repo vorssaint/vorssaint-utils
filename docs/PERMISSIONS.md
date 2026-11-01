@@ -15,7 +15,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Bluetooth | Yes | Accessory battery levels in Monitor, optional accessory alerts in the notch and Bluetooth on sleep |
 | Files and Folders | Yes | Monitoring downloads in a folder you choose |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
-| Full Disk Access | Yes | A deeper uninstaller scan |
+| Full Disk Access | Yes | A deeper uninstaller scan and monitoring the user Trash for app cleanup suggestions |
 | Administrator (one time) | Yes | Password free closed lid toggling |
 | Automation | Yes | Finder actions and supported music playback controls |
 | App Management | Yes | App installs, updates and removal |
@@ -126,7 +126,7 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 
 ## Full Disk Access
 
-**Why it comes up.** The uninstaller hunts down the files an app leaves behind, like caches, preferences and logs. Some of those spots are protected by macOS and only open up with Full Disk Access.
+**Why it comes up.** The uninstaller hunts down the files an app leaves behind, like caches, preferences and logs. Some of those spots are protected by macOS and only open up with Full Disk Access. Vorssaint also watches the user Trash for newly removed apps so it can offer the same cleanup review immediately.
 
 **What uses it.** The uninstaller, for a deeper scan.
 

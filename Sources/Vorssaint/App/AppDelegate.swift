@@ -174,6 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
+        TrashSuggestionService.shared.start()
         if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
             MaxCapacityProbe.shared.refreshIfStale()
         }
@@ -314,6 +315,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        TrashSuggestionService.shared.stop()
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
@@ -1722,6 +1724,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     @objc private func menuOpenUninstaller() {
         SettingsRouter.shared.page = .uninstaller
+        openSettingsWindow()
+    }
+
+    func openUninstaller(for appURL: URL) {
+        guard AppFeature.uninstaller.isAvailable else { return }
+        SettingsRouter.shared.page = .uninstaller
+        AppUninstaller.shared.select(appURL: appURL)
         openSettingsWindow()
     }
 
