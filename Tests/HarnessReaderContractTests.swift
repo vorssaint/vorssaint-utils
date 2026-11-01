@@ -36,8 +36,9 @@ enum HarnessReaderContractTests {
                      "a Claude prompt opens its turn")
         let interrupted = line(#"{"type":"user","timestamp":1790088010,"sessionId":"s","message":{"content":"[Request interrupted by user for now"}}"#)
         suite.expect(reader.parse(interrupted, state: &state, now: now)
-                        == [.turnEnded(nil, completed: false, duration: nil)],
-                     "an interrupted Claude prompt ends its turn unfinished")
+                        == [.turnEnded(nil, completed: false, duration: nil),
+                            .turnAwaiting(.interrupted, Date(timeIntervalSince1970: 1_790_088_010), inferred: false)],
+                     "an interrupted Claude prompt ends its turn unfinished and leaves its work waiting")
         let sidechain = line(#"{"type":"user","timestamp":1790088020,"sessionId":"s","isSidechain":true,"message":{"content":"work"}}"#)
         suite.expect(reader.parse(sidechain, state: &state, now: now).isEmpty,
                      "a Claude subagent prompt never opens a turn")
@@ -53,8 +54,17 @@ enum HarnessReaderContractTests {
                      "Codex session metadata names the session and project")
         let started = line(#"{"type":"event_msg","timestamp":1790088000,"payload":{"type":"task_started"}}"#)
         suite.expect(reader.parse(started, state: &state, now: now)
-                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000))],
-                     "a Codex task start opens its turn")
+                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000)), .turnPlace(.terminal)],
+                     "a Codex task start opens its turn, in the command line unless the app started the thread")
+        var appState = AgentLogState()
+        let appMeta = line(#"{"type":"session_meta","timestamp":1790088000,"payload":{"id":"a","cwd":"/tmp/example","originator":"Codex Desktop","source":"vscode"}}"#)
+        _ = reader.parse(appMeta, state: &appState, now: now)
+        suite.expect(reader.parse(started, state: &appState, now: now)
+                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000)), .turnPlace(.app)],
+                     "a thread the Codex app started runs in the app")
+        suite.expect(CodexReader.isApp(originator: "codex_work_desktop") && !CodexReader.isApp(originator: "codex_cli_rs")
+                        && !CodexReader.isApp(originator: nil),
+                     "Codex's desktop originators are the app; the command line and a missing one are not")
         let bogus = line(#"{"type":"bogus","timestamp":1790088000,"payload":{}}"#)
         suite.expect(reader.parse(bogus, state: &state, now: now).isEmpty,
                      "an unknown Codex line parses to nothing")

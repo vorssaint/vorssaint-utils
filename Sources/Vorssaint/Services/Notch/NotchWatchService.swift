@@ -73,7 +73,6 @@ final class NotchWatchService: ObservableObject {
     /// A chosen area can still be preparing after its selector closes.
     /// Stopping or choosing again makes that preparation stale.
     private var choiceGeneration = UUID()
-    private lazy var tone = NSSound(contentsOfFile: "/System/Library/Sounds/Glass.aiff", byReference: false)
 
     private init() {}
 
@@ -362,9 +361,7 @@ final class NotchWatchService: ObservableObject {
         state = .finished(outcome)
         let strings = FeatureStrings.notchWatch(L10n.shared.language)
         let title = strings.outcome(outcome)
-        if UserDefaults.standard.bool(forKey: DefaultsKey.notchWatchSound) {
-            if let tone { tone.stop(); tone.play() } else { NSSound.beep() }
-        }
+        AppSoundService.shared.play(.watchFinished)
         let notch = NotchService.shared
         let onPage = notch.expanded && notch.selected == .watch
         let shown = onPage || notch.show(NotchNotice(event: .watch, title: title, detail: target.appName,

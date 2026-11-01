@@ -9,26 +9,33 @@ struct NotchAgentsSettingsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var usage = AgentUsageService.shared
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
-    @AppStorage(DefaultsKey.notchAgentsClaudeProfile) private var claudeProfile = ""
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
-    @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
+    @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = NotchAgentSupport.defaultHiddenCards
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var limitFocus = NotchAgentLimitFocus.mostUsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsRestingLayout) private var restingLayout = NotchAgentRestingLayout.single.rawValue
-    @AppStorage(DefaultsKey.notchAgentsRestingSession) private var restingSession = true
-    @AppStorage(DefaultsKey.notchAgentsRestingWeekly) private var restingWeekly = true
     @AppStorage(DefaultsKey.notchAgentsRestingHidden) private var restingHidden = ""
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
     @AppStorage(DefaultsKey.notchAgentsFinishMinimum) private var finishMinimum = NotchAgentSupport.defaultFinishMinimum
+    @AppStorage(DefaultsKey.notchAgentsInputAlert) private var inputAlert = true
+    @AppStorage(DefaultsKey.notchAgentsInputDelay) private var inputDelay = AgentAttentionPolicy.defaultDelay
+    @AppStorage(DefaultsKey.notchAgentsInputRepeat) private var inputRepeat = true
+    @AppStorage(DefaultsKey.notchAgentsInputInferred) private var inputInferred = false
+    @AppStorage(DefaultsKey.notchAgentsInterruptAlert) private var interruptAlert = false
     @AppStorage(DefaultsKey.notchAgentsLimitAlert) private var limitAlert = true
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
     @AppStorage(DefaultsKey.notchAgentsDailyBudget) private var dailyBudget = 0.0
     @AppStorage(DefaultsKey.notchAgentsPriceUpdates) private var priceUpdates = true
+    @AppStorage(DefaultsKey.notchAgentsClaudeBilling) private var claudeBilling = AgentClaudeBilling.automatic.rawValue
+    @AppStorage(DefaultsKey.notchAgentsClaudeCredits) private var claudeCredits = 0.0
+    @AppStorage(DefaultsKey.notchAgentsClaudeCreditsSince) private var claudeCreditsSince = 0.0
+    /// The balance being typed, kept apart until it is saved.
+    @State private var creditsDraft = ""
     @State private var dragging: NotchAgentCard?
     @State private var roots: [AgentProvider: Bool] = [:]
     @State private var claudeApp: URL?
@@ -36,12 +43,13 @@ struct NotchAgentsSettingsControls: View {
     @State private var claudeAppFileCheck: Date?
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
+    private var attention: AgentAttentionStrings { FeatureStrings.agentAttention(l10n.language) }
+    private var billingText: ClaudeBillingStrings { FeatureStrings.claudeBilling(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
 
+    @AppStorage(DefaultsKey.notchAgentsClaudeSeats) private var claudeSeats = ""
     private var orderedCards: [NotchAgentCard] {
-        let stored = cardOrder.split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) }
-        var seen = Set<NotchAgentCard>()
-        return (stored + NotchAgentCard.allCases).filter { seen.insert($0).inserted }
+        NotchAgentSupport.orderedCards(cardOrder, claudeSeats: claude && !ClaudeSeatProfile.decode(claudeSeats).isEmpty)
     }
 
     var body: some View {
@@ -54,8 +62,9 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
-            if claude { ClaudeAccountSettings() }
+            if claude { ClaudeSeatsSettings() }
             if codex { CodexAccountsSettings() }
+            NotchLimitVisibilitySettings(claude: claude, codex: codex)
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
@@ -121,6 +130,20 @@ struct NotchAgentsSettingsControls: View {
                 }
                 .padding(.leading, settingsRowTextInset)
             }
+            switchRow("hand.raised", attention.inputAlert, isOn: $inputAlert)
+            if inputAlert {
+                Group {
+                    SettingsMenuRow(symbol: "timer", title: attention.inputAfter, selection: $inputDelay) {
+                        ForEach(AgentAttentionPolicy.delays, id: \.self) { seconds in
+                            Text(AgentFormat.duration(seconds, locale: locale, style: .short)).tag(seconds)
+                        }
+                    }
+                    switchRow("bell.badge", attention.inputRepeat, isOn: $inputRepeat)
+                    switchRow("questionmark.circle", attention.inputInferred, isOn: $inputInferred)
+                }
+                .padding(.leading, settingsRowTextInset)
+            }
+            switchRow("pause.circle", attention.interruptAlert, isOn: $interruptAlert)
             switchRow("exclamationmark.triangle", text.limitAlert, isOn: $limitAlert)
             if limitAlert {
                 SettingsMenuRow(symbol: "gauge.with.dots.needle.67percent", title: text.limitAt, selection: $limitThreshold) {
@@ -148,10 +171,9 @@ struct NotchAgentsSettingsControls: View {
                     claudeLimitsStatus(now: context.date)
                 }
                 if usage.claudeAccountChecking { ProgressView().controlSize(.small) }
-                if claudeProfile.isEmpty {
-                    Text(text.claudeLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(text.claudeLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                claudeBillingGroup
             }
         }
         .toggleStyle(.switch)
@@ -161,18 +183,67 @@ struct NotchAgentsSettingsControls: View {
             if claude { findClaudeApp() }
         }
         .onChange(of: claude) { _, on in if on { findClaudeApp() } }
-        .onChange(of: claudeProfile) { _, _ in
-            claudeAppFileCheck = nil
-            findRoots()
-            if claude { findClaudeApp() }
-            NotchService.shared.syncWithPreferences()
-        }
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
-                       String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
+                       String(liveActivity), readout, limitDisplay, limitFocus, claudeBilling]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
+    }
+
+    /// Who pays for Claude Code, and the API key's balance when it does.
+    @ViewBuilder private var claudeBillingGroup: some View {
+        let detected = AgentClaudeBilling.detected(home: FileManager.default.homeDirectoryForCurrentUser)
+        Text(billingText.billingTitle).font(.subheadline.weight(.medium)).padding(.top, 4)
+        SettingsMenuRow(symbol: "creditcard", title: billingText.billsTo, selection: $claudeBilling) {
+            ForEach(AgentClaudeBilling.allCases) { option in
+                Text(billingText.billing(option, detectedAPI: detected)).tag(option.rawValue)
+            }
+        }
+        Text(billingText.billingCaption).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        let _ = claudeBilling
+        if AgentClaudeBilling.usesAPI() {
+            SettingsRow(symbol: "dollarsign.circle", title: billingText.creditsTitle) {
+                HStack(spacing: 6) {
+                    TextField(billingText.balance, text: $creditsDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 96)
+                        .multilineTextAlignment(.trailing)
+                        .onSubmit(saveCredits)
+                    Button(billingText.save, action: saveCredits)
+                        .disabled(parsedCredits == nil)
+                    if claudeCredits > 0 {
+                        Button(billingText.clear) {
+                            AgentClaudeCredits.clear()
+                            creditsDraft = ""
+                        }
+                    }
+                }
+            }
+            if let stored = AgentClaudeCredits.stored(), claudeCreditsSince > 0,
+               let left = stored.remaining(days: usage.snapshot.days) {
+                Text(billingText.creditsLeft(AgentFormat.cost(max(0, left)),
+                                             since: stored.since.formatted(.relative(presentation: .named).locale(locale))))
+                    .font(.callout)
+                    .padding(.leading, settingsRowTextInset)
+            }
+            Text(billingText.creditsCaption).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The balance typed, in the reader's own way of writing numbers.
+    private var parsedCredits: Double? {
+        let trimmed = creditsDraft.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
+        let value = (try? Double(trimmed, format: .number.locale(locale))) ?? Double(trimmed)
+        return value.flatMap { $0 > 0 && $0.isFinite ? $0 : nil }
+    }
+
+    private func saveCredits() {
+        guard let balance = parsedCredits else { return }
+        AgentClaudeCredits.store(balance: balance, now: Date(), days: usage.snapshot.days)
+        creditsDraft = ""
     }
 
     /// Agents switched on that report a plan allowance, the ones that can rest.
@@ -181,8 +252,9 @@ struct NotchAgentsSettingsControls: View {
         return AgentProvider.allCases.filter { on[$0] == true && $0.reportsLimits }
     }
 
-    /// How the resting island shows the allowances: the layout, the windows
-    /// its meters fill, the agents that rest, and the strip as it will look.
+    /// How the resting island shows the allowances: the layout, the agents
+    /// that rest, and the strip as it will look. "Limit to show" above picks
+    /// the limit each meter shows.
     @ViewBuilder private var restingGroup: some View {
         let layout = NotchAgentRestingLayout(rawValue: restingLayout) ?? .single
         Text(text.atRest).font(.subheadline.weight(.medium)).padding(.top, 4)
@@ -191,14 +263,6 @@ struct NotchAgentsSettingsControls: View {
                 Text(text.restingLayout(option)).tag(option.rawValue)
             }
         }
-        restingWindowRow(text.sessionLimit, isOn: $restingSession) { tint in
-            Circle().stroke(tint, lineWidth: 1.6).frame(width: 10, height: 10)
-        }
-        .disabled(layout == .single)
-        restingWindowRow(text.weeklyLimit, isOn: $restingWeekly) { tint in
-            Capsule().fill(tint).frame(width: 12, height: 2.5)
-        }
-        .disabled(layout == .single)
         Text(text.restingFocusCaption).font(.caption).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         if layout == .split, restable.filter({ !restingHiddenSet.contains($0) }).count > 2 {
@@ -225,20 +289,6 @@ struct NotchAgentsSettingsControls: View {
     }
 
     private var restingHiddenSet: Set<AgentProvider> { NotchAgentSupport.parseRestingHidden(restingHidden) }
-
-    /// A window's switch, beside the shape that window takes on the island.
-    private func restingWindowRow<Chip: View>(_ title: String, isOn: Binding<Bool>,
-                                              @ViewBuilder chip: (Color) -> Chip) -> some View {
-        HStack(spacing: 12) {
-            chip(agentStatusTint(.normal))
-                .frame(width: 26, height: 26)
-                .background(.black, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .accessibilityHidden(true)
-            Text(title)
-            Spacer(minLength: 12)
-            Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch)
-        }
-    }
 
     private func restingBinding(_ provider: AgentProvider) -> Binding<Bool> {
         Binding {
@@ -287,10 +337,6 @@ struct NotchAgentsSettingsControls: View {
                     .foregroundStyle(now.timeIntervalSince(account) < AgentClaudeAppUsage.freshness ? .green : .orange)
                 explained(failure) { Text("Claude Code · " + text.updated(relative(account, now: now))) }
                 Spacer(minLength: 0)
-            } else if !claudeProfile.isEmpty {
-                Image(systemName: "info.circle.fill").foregroundStyle(.secondary)
-                Text(failure ?? FeatureStrings.claudeAccount(l10n.language).noLimits)
-                Spacer(minLength: 0)
             } else if let checked, now.timeIntervalSince(checked) < AgentClaudeAppUsage.freshness {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                 explained(failure) { Text(text.claudeLimitsCurrent(relative(checked, now: now))) }
@@ -333,11 +379,10 @@ struct NotchAgentsSettingsControls: View {
     /// The app and the file are looked up when the page opens, off the main
     /// thread for the file, never on every draw.
     private func findClaudeApp() {
-        guard claudeProfile.isEmpty else { claudeApp = nil; claudeAppFileCheck = nil; return }
         claudeApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: AgentClaudeAppUsage.bundleIdentifier)
         DispatchQueue.global(qos: .utility).async {
             let checked = AgentClaudeAppUsage.lastCheck()
-            DispatchQueue.main.async { if claudeProfile.isEmpty { claudeAppFileCheck = checked } }
+            DispatchQueue.main.async { claudeAppFileCheck = checked }
         }
     }
 
@@ -363,7 +408,7 @@ struct NotchAgentsSettingsControls: View {
 
     /// Where the logs live is checked when the page opens, not on every draw.
     private func findRoots() {
-        let found = AgentLogRoot.all(claudeProfile: ClaudeAccountProfile(directory: claudeProfile)).filter(\.exists).map(\.provider)
+        let found = AgentLogRoot.all().filter(\.exists).map(\.provider)
         roots = Dictionary(uniqueKeysWithValues: AgentProvider.allCases.map { ($0, found.contains($0)) })
     }
 
@@ -407,15 +452,20 @@ private struct NotchAgentStripSample: View {
 
     var body: some View {
         NotchAgentReadoutTimeline(readout: readout) { date in
-            let working = usage.snapshot.live.first?.provider ?? provider
+            // An example works in both places while nothing runs.
+            let mark = NotchAgentWorkingLayout(usage.snapshot.live, budget: 16)
+                ?? NotchAgentWorkingLayout(provider: provider, terminal: 1, app: 1, budget: 16)
             HStack(spacing: 0) {
-                NotchAgentGlyph(provider: working, size: 11)
+                NotchAgentWorkingMark(layout: mark,
+                                      window: NotchAgentSupport.focusedLimit(usage.snapshot.limits[mark.provider],
+                                                                             focus: focus, now: date),
+                                      used: display == .used)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Color.clear.frame(width: Self.camera)
                 Text(reading(at: date))
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 12, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(working.tint)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }

@@ -98,6 +98,9 @@ struct NotchNoticeView: View {
                         Image(systemName: notice.symbol)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(tint)
+                            // An agent waiting on the person beckons twice.
+                            .symbolEffect(.pulse, options: .repeat(2),
+                                          isActive: !reduceMotion && notice.symbol.hasPrefix("hand.raised"))
                     }
                 }
                 .frame(width: 18)

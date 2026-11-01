@@ -131,10 +131,14 @@ enum SettingsBackupSupport {
     static let machineStateKeys: Set<String> = [
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
-        // Agent profiles are folders on this Mac whose sign-in the cards use,
+        // Codex homes are folders on this Mac whose sign-in the cards use,
         // never settings to bring to another one.
         DefaultsKey.notchAgentsCodexProfiles,
-        DefaultsKey.notchAgentsClaudeProfile,
+        // So are the Claude seats' profiles.
+        DefaultsKey.notchAgentsClaudeSeats,
+        // Which of them each place leaves out goes with them.
+        DefaultsKey.notchAgentsIslandHiddenProfiles,
+        DefaultsKey.notchAgentsLockHiddenProfiles,
         DefaultsKey.dockPreviewRestoreAutohide,
         // The Space arrangement setting to put back, and a Dock restart still
         // owed, belong to this Mac's Dock.

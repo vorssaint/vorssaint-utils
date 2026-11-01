@@ -106,13 +106,10 @@ struct NotchAgentStrings {
     let restingSingle: String
     let restingSplit: String
     let restingCycle: String
-    let sessionLimit: String
-    let weeklyLimit: String
     let showAtRest: String
     let restingFocusCaption: String
     let restingSplitCaption: String
-    let restingWordLeft: String
-    let restingWordUsed: String
+    let restingResetsFormat: String
     let aiLimit: String
     let aiLimits: String
     let aiLimitsRotating: String
@@ -175,6 +172,7 @@ struct NotchAgentStrings {
     }
 
     func restingWindow(_ name: String, _ reading: String) -> String { String(format: restingWindowFormat, name, reading) }
+    func restingResets(_ when: String) -> String { String(format: restingResetsFormat, when) }
 
     func restingLayout(_ layout: NotchAgentRestingLayout) -> String {
         switch layout {
@@ -327,13 +325,10 @@ extension NotchAgentStrings {
         restingSingle: "Single",
         restingSplit: "One per side",
         restingCycle: "Rotate",
-        sessionLimit: "Session limit",
-        weeklyLimit: "Weekly limit",
         showAtRest: "Show at rest",
-        restingFocusCaption: "“Limit to show” picks which limit every number shows. Single shows only that one.",
+        restingFocusCaption: "“Limit to show” picks the limit each ring and number shows, with the time it resets.",
         restingSplitCaption: "One per side shows the first two. Rotate shows them all.",
-        restingWordLeft: "left",
-        restingWordUsed: "used",
+        restingResetsFormat: "resets %@",
         aiLimit: "AI limit",
         aiLimits: "AI limits",
         aiLimitsRotating: "AI limits, rotating",
@@ -444,13 +439,10 @@ extension NotchAgentStrings {
         restingSingle: "Один",
         restingSplit: "По одному з боків",
         restingCycle: "По черзі",
-        sessionLimit: "Ліміт сеансу",
-        weeklyLimit: "Тижневий ліміт",
         showAtRest: "Показувати в спокої",
-        restingFocusCaption: "«Який ліміт показувати» вибирає ліміт для кожного числа. «Один» показує лише його.",
+        restingFocusCaption: "«Який ліміт показувати» вибирає ліміт для кожного кільця й числа та час, коли він оновиться.",
         restingSplitCaption: "«По одному з боків» показує перші два. «По черзі» показує всі.",
-        restingWordLeft: "залиш.",
-        restingWordUsed: "викор.",
+        restingResetsFormat: "оновиться %@",
         aiLimit: "Ліміт ШІ",
         aiLimits: "Ліміти ШІ",
         aiLimitsRotating: "Ліміти ШІ, по черзі",
@@ -561,13 +553,10 @@ extension NotchAgentStrings {
         restingSingle: "Único",
         restingSplit: "Um de cada lado",
         restingCycle: "Alternar",
-        sessionLimit: "Limite da sessão",
-        weeklyLimit: "Limite semanal",
         showAtRest: "Mostrar em repouso",
-        restingFocusCaption: "“Limite exibido” escolhe o limite de cada número. Único mostra só esse.",
+        restingFocusCaption: "“Limite exibido” escolhe o limite de cada anel e número, com a hora em que ele renova.",
         restingSplitCaption: "Um de cada lado mostra os dois primeiros. Alternar mostra todos.",
-        restingWordLeft: "resta",
-        restingWordUsed: "usado",
+        restingResetsFormat: "renova %@",
         aiLimit: "Limite de IA",
         aiLimits: "Limites de IA",
         aiLimitsRotating: "Limites de IA, alternando",
@@ -678,13 +667,10 @@ extension NotchAgentStrings {
         restingSingle: "Único",
         restingSplit: "Uno por lado",
         restingCycle: "Alternar",
-        sessionLimit: "Límite de la sesión",
-        weeklyLimit: "Límite semanal",
         showAtRest: "Mostrar en reposo",
-        restingFocusCaption: "“Límite a mostrar” elige el límite de cada número. Único muestra solo ese.",
+        restingFocusCaption: "“Límite a mostrar” elige el límite de cada anillo y número, con la hora en que se renueva.",
         restingSplitCaption: "Uno por lado muestra los dos primeros. Alternar los muestra todos.",
-        restingWordLeft: "queda",
-        restingWordUsed: "usado",
+        restingResetsFormat: "se renueva %@",
         aiLimit: "Límite de IA",
         aiLimits: "Límites de IA",
         aiLimitsRotating: "Límites de IA, alternando",
@@ -795,13 +781,10 @@ extension NotchAgentStrings {
         restingSingle: "Jeden",
         restingSplit: "Po jednom na stranu",
         restingCycle: "Striedať",
-        sessionLimit: "Limit relácie",
-        weeklyLimit: "Týždenný limit",
         showAtRest: "Zobraziť v pokoji",
-        restingFocusCaption: "„Zobrazený limit“ vyberá limit pre každé číslo. Jeden zobrazí len ten.",
+        restingFocusCaption: "„Zobrazený limit“ vyberá limit pre každý kruh a číslo aj s časom, keď sa obnoví.",
         restingSplitCaption: "Po jednom na stranu zobrazí prvé dva. Striedať zobrazí všetky.",
-        restingWordLeft: "zostáva",
-        restingWordUsed: "využ.",
+        restingResetsFormat: "obnoví sa %@",
         aiLimit: "Limit AI",
         aiLimits: "Limity AI",
         aiLimitsRotating: "Limity AI, striedanie",
@@ -912,13 +895,10 @@ extension NotchAgentStrings {
         restingSingle: "Einzeln",
         restingSplit: "Je Seite eins",
         restingCycle: "Wechseln",
-        sessionLimit: "Sitzungslimit",
-        weeklyLimit: "Wochenlimit",
         showAtRest: "In Ruhe zeigen",
-        restingFocusCaption: "„Angezeigtes Limit“ wählt das Limit jeder Zahl. Einzeln zeigt nur dieses.",
+        restingFocusCaption: "„Angezeigtes Limit“ wählt das Limit jedes Rings und jeder Zahl, mit der Uhrzeit, zu der es sich erneuert.",
         restingSplitCaption: "Je Seite eins zeigt die ersten zwei. Wechseln zeigt alle.",
-        restingWordLeft: "übrig",
-        restingWordUsed: "genutzt",
+        restingResetsFormat: "erneuert sich %@",
         aiLimit: "KI-Limit",
         aiLimits: "KI-Limits",
         aiLimitsRotating: "KI-Limits, wechselnd",
@@ -1029,13 +1009,10 @@ extension NotchAgentStrings {
         restingSingle: "Unique",
         restingSplit: "Un de chaque côté",
         restingCycle: "Alterner",
-        sessionLimit: "Limite de session",
-        weeklyLimit: "Limite hebdomadaire",
         showAtRest: "Afficher au repos",
-        restingFocusCaption: "« Limite affichée » choisit la limite de chaque nombre. Unique n’affiche que celle-là.",
+        restingFocusCaption: "« Limite affichée » choisit la limite de chaque anneau et de chaque nombre, avec l’heure à laquelle elle se renouvelle.",
         restingSplitCaption: "Un de chaque côté affiche les deux premiers. Alterner les affiche tous.",
-        restingWordLeft: "restant",
-        restingWordUsed: "utilisé",
+        restingResetsFormat: "se renouvelle %@",
         aiLimit: "Limite IA",
         aiLimits: "Limites IA",
         aiLimitsRotating: "Limites IA, en alternance",
@@ -1146,13 +1123,10 @@ extension NotchAgentStrings {
         restingSingle: "Singolo",
         restingSplit: "Uno per lato",
         restingCycle: "Alterna",
-        sessionLimit: "Limite della sessione",
-        weeklyLimit: "Limite settimanale",
         showAtRest: "Mostra a riposo",
-        restingFocusCaption: "“Limite mostrato” sceglie il limite di ogni numero. Singolo mostra solo quello.",
+        restingFocusCaption: "“Limite mostrato” sceglie il limite di ogni anello e numero, con l’ora in cui si rinnova.",
         restingSplitCaption: "Uno per lato mostra i primi due. Alterna li mostra tutti.",
-        restingWordLeft: "resta",
-        restingWordUsed: "usato",
+        restingResetsFormat: "si rinnova %@",
         aiLimit: "Limite IA",
         aiLimits: "Limiti IA",
         aiLimitsRotating: "Limiti IA, a rotazione",
@@ -1263,13 +1237,10 @@ extension NotchAgentStrings {
         restingSingle: "Один",
         restingSplit: "По одному с каждой стороны",
         restingCycle: "По очереди",
-        sessionLimit: "Лимит сессии",
-        weeklyLimit: "Недельный лимит",
         showAtRest: "Показывать в покое",
-        restingFocusCaption: "«Показ лимита» выбирает лимит для каждого числа. «Один» показывает только его.",
+        restingFocusCaption: "«Показ лимита» выбирает лимит для каждого кольца и числа и время, когда он обновится.",
         restingSplitCaption: "«По одному с каждой стороны» показывает первые два. «По очереди» показывает все.",
-        restingWordLeft: "ост.",
-        restingWordUsed: "исп.",
+        restingResetsFormat: "обновится %@",
         aiLimit: "Лимит ИИ",
         aiLimits: "Лимиты ИИ",
         aiLimitsRotating: "Лимиты ИИ, по очереди",
@@ -1380,13 +1351,10 @@ extension NotchAgentStrings {
         restingSingle: "Tek",
         restingSplit: "Her yanda bir",
         restingCycle: "Sırayla",
-        sessionLimit: "Oturum sınırı",
-        weeklyLimit: "Haftalık sınır",
         showAtRest: "Beklerken göster",
-        restingFocusCaption: "“Gösterilen sınır” her sayının sınırını seçer. Tek yalnızca onu gösterir.",
+        restingFocusCaption: "“Gösterilen sınır” her halkanın ve sayının sınırını, yenileneceği saatle birlikte seçer.",
         restingSplitCaption: "Her yanda bir ilk ikisini gösterir. Sırayla hepsini gösterir.",
-        restingWordLeft: "kalan",
-        restingWordUsed: "kullanılan",
+        restingResetsFormat: "%@ yenilenir",
         aiLimit: "YZ sınırı",
         aiLimits: "YZ sınırları",
         aiLimitsRotating: "YZ sınırları, sırayla",
@@ -1497,13 +1465,10 @@ extension NotchAgentStrings {
         restingSingle: "1つ",
         restingSplit: "左右に1つずつ",
         restingCycle: "順番に表示",
-        sessionLimit: "セッションの上限",
-        weeklyLimit: "週の上限",
         showAtRest: "待機中に表示",
-        restingFocusCaption: "「表示する上限」で各数値の上限を選びます。「1つ」ではその1つだけを表示します。",
+        restingFocusCaption: "「表示する上限」で各リングと数値の上限を選びます。リセットされる時刻も表示します。",
         restingSplitCaption: "「左右に1つずつ」は最初の2つを、「順番に表示」はすべてを表示します。",
-        restingWordLeft: "残り",
-        restingWordUsed: "使用",
+        restingResetsFormat: "%@にリセット",
         aiLimit: "AIの上限",
         aiLimits: "AIの上限",
         aiLimitsRotating: "AIの上限、順番に表示",
@@ -1614,13 +1579,10 @@ extension NotchAgentStrings {
         restingSingle: "하나",
         restingSplit: "양쪽에 하나씩",
         restingCycle: "순환",
-        sessionLimit: "세션 한도",
-        weeklyLimit: "주간 한도",
         showAtRest: "대기 중 표시",
-        restingFocusCaption: "‘표시할 한도’에서 각 숫자의 한도를 고릅니다. ‘하나’는 그 하나만 보여 줍니다.",
+        restingFocusCaption: "‘표시할 한도’에서 각 링과 숫자의 한도를 고릅니다. 초기화되는 시각도 함께 보여 줍니다.",
         restingSplitCaption: "‘양쪽에 하나씩’은 처음 두 개를, ‘순환’은 모두를 보여 줍니다.",
-        restingWordLeft: "남음",
-        restingWordUsed: "사용",
+        restingResetsFormat: "%@에 초기화",
         aiLimit: "AI 한도",
         aiLimits: "AI 한도",
         aiLimitsRotating: "AI 한도, 순환",
@@ -1731,13 +1693,10 @@ extension NotchAgentStrings {
         restingSingle: "单个",
         restingSplit: "每侧一个",
         restingCycle: "轮流",
-        sessionLimit: "会话额度",
-        weeklyLimit: "每周额度",
         showAtRest: "静止时显示",
-        restingFocusCaption: "“显示的额度”决定每个数字显示的额度。“单个”只显示这一项。",
+        restingFocusCaption: "“显示的额度”决定每个圆环和数字显示的额度，并附上它的重置时间。",
         restingSplitCaption: "“每侧一个”显示前两个，“轮流”显示全部。",
-        restingWordLeft: "剩余",
-        restingWordUsed: "已用",
+        restingResetsFormat: "%@重置",
         aiLimit: "AI 额度",
         aiLimits: "AI 额度",
         aiLimitsRotating: "AI 额度，轮流显示",
@@ -1848,13 +1807,10 @@ extension NotchAgentStrings {
         restingSingle: "單一",
         restingSplit: "每側一個",
         restingCycle: "輪流",
-        sessionLimit: "工作階段額度",
-        weeklyLimit: "每週額度",
         showAtRest: "靜止時顯示",
-        restingFocusCaption: "「顯示的額度」決定每個數字顯示的額度。「單一」只顯示這一項。",
+        restingFocusCaption: "「顯示的額度」決定每個圓環和數字顯示的額度，並附上它的重設時間。",
         restingSplitCaption: "「每側一個」顯示前兩個，「輪流」顯示全部。",
-        restingWordLeft: "剩餘",
-        restingWordUsed: "已用",
+        restingResetsFormat: "%@重設",
         aiLimit: "AI 額度",
         aiLimits: "AI 額度",
         aiLimitsRotating: "AI 額度，輪流顯示",
@@ -1965,17 +1921,346 @@ extension NotchAgentStrings {
         restingSingle: "單一",
         restingSplit: "每邊一個",
         restingCycle: "輪流",
-        sessionLimit: "工作階段額度",
-        weeklyLimit: "每週額度",
         showAtRest: "靜止時顯示",
-        restingFocusCaption: "「顯示的額度」決定每個數字顯示的額度。「單一」只顯示這一項。",
+        restingFocusCaption: "「顯示的額度」決定每個圓環和數字顯示的額度，並附上它的重設時間。",
         restingSplitCaption: "「每邊一個」顯示首兩個，「輪流」顯示全部。",
-        restingWordLeft: "剩餘",
-        restingWordUsed: "已用",
+        restingResetsFormat: "%@重設",
         aiLimit: "AI 額度",
         aiLimits: "AI 額度",
         aiLimitsRotating: "AI 額度，輪流顯示",
         restingLow: "偏低",
         restingAlmostOut: "快將用完",
         restingWindowFormat: "%1$@：%2$@")
+}
+
+/// The words of a notice that an agent waits on the person, and of its
+/// settings.
+struct AgentAttentionStrings {
+    let waitingFormat: String
+    let pausedFormat: String
+    let maybeWaitingFormat: String
+    let manyWaitingFormat: String
+    let approveStep: String
+    let answerQuestion: String
+    let reviewPlan: String
+    let finishPrompt: String
+    let pickUp: String
+    let checkSession: String
+    let waitedFormat: String
+    let inputAlert: String
+    let inputAfter: String
+    let inputRepeat: String
+    let inputInferred: String
+    let interruptAlert: String
+
+    func waiting(_ agent: String) -> String { String(format: waitingFormat, agent) }
+    func paused(_ agent: String) -> String { String(format: pausedFormat, agent) }
+    func maybeWaiting(_ agent: String) -> String { String(format: maybeWaitingFormat, agent) }
+    func manyWaiting(_ count: Int) -> String { String(format: manyWaitingFormat, count) }
+    func waited(_ time: String) -> String { String(format: waitedFormat, time) }
+
+    /// What the person does to answer.
+    func action(_ cause: AgentAwait) -> String {
+        switch cause {
+        case .permission: return approveStep
+        case .question: return answerQuestion
+        case .plan: return reviewPlan
+        case .dialog: return finishPrompt
+        case .interrupted: return pickUp
+        }
+    }
+}
+
+extension FeatureStrings {
+    static func agentAttention(_ language: AppLanguage) -> AgentAttentionStrings {
+        switch language {
+        case .enUS: return .enUS
+        case .ptBR: return .ptBR
+        case .es: return .es
+        case .sk: return .sk
+        case .de: return .de
+        case .fr: return .fr
+        case .it: return .it
+        case .ru: return .ru
+        case .tr: return .tr
+        case .ja: return .ja
+        case .ko: return .ko
+        case .uk: return .uk
+        case .zhHans: return .zhHans
+        case .zhTW: return .zhTW
+        case .zhHK: return .zhHK
+        }
+    }
+}
+
+extension AgentAttentionStrings {
+    static let enUS = AgentAttentionStrings(
+        waitingFormat: "%@ is waiting on you",
+        pausedFormat: "%@ is paused",
+        maybeWaitingFormat: "%@ may be waiting",
+        manyWaitingFormat: "%d agents are waiting on you",
+        approveStep: "Approve a step",
+        answerQuestion: "Answer a question",
+        reviewPlan: "Review the plan",
+        finishPrompt: "Finish a prompt",
+        pickUp: "Pick up where you left off",
+        checkSession: "Check the session",
+        waitedFormat: "Waiting %@",
+        inputAlert: "When an agent is waiting on you",
+        inputAfter: "Remind after",
+        inputRepeat: "Keep reminding",
+        inputInferred: "Also when it might be waiting",
+        interruptAlert: "When a task is interrupted")
+
+    static let ptBR = AgentAttentionStrings(
+        waitingFormat: "%@ está esperando por você",
+        pausedFormat: "%@ está pausado",
+        maybeWaitingFormat: "%@ pode estar esperando",
+        manyWaitingFormat: "%d agentes estão esperando por você",
+        approveStep: "Aprove uma etapa",
+        answerQuestion: "Responda a uma pergunta",
+        reviewPlan: "Revise o plano",
+        finishPrompt: "Conclua um aviso",
+        pickUp: "Continue de onde parou",
+        checkSession: "Confira a sessão",
+        waitedFormat: "Esperando há %@",
+        inputAlert: "Quando um agente espera por você",
+        inputAfter: "Lembrar depois de",
+        inputRepeat: "Continuar lembrando",
+        inputInferred: "Também quando pode estar esperando",
+        interruptAlert: "Quando uma tarefa é interrompida")
+
+    static let es = AgentAttentionStrings(
+        waitingFormat: "%@ te está esperando",
+        pausedFormat: "%@ está en pausa",
+        maybeWaitingFormat: "%@ puede estar esperando",
+        manyWaitingFormat: "%d agentes te están esperando",
+        approveStep: "Aprueba un paso",
+        answerQuestion: "Responde una pregunta",
+        reviewPlan: "Revisa el plan",
+        finishPrompt: "Completa un aviso",
+        pickUp: "Retoma donde lo dejaste",
+        checkSession: "Revisa la sesión",
+        waitedFormat: "Esperando %@",
+        inputAlert: "Cuando un agente te espera",
+        inputAfter: "Recordar después de",
+        inputRepeat: "Seguir recordando",
+        inputInferred: "También cuando quizá esté esperando",
+        interruptAlert: "Cuando se interrumpe una tarea")
+
+    static let sk = AgentAttentionStrings(
+        waitingFormat: "%@ na vás čaká",
+        pausedFormat: "%@ je pozastavený",
+        maybeWaitingFormat: "%@ možno čaká",
+        manyWaitingFormat: "Agenti, ktorí na vás čakajú: %d",
+        approveStep: "Schváľte krok",
+        answerQuestion: "Odpovedzte na otázku",
+        reviewPlan: "Pozrite si plán",
+        finishPrompt: "Dokončite výzvu",
+        pickUp: "Pokračujte, kde ste skončili",
+        checkSession: "Pozrite si reláciu",
+        waitedFormat: "Čaká %@",
+        inputAlert: "Keď na vás agent čaká",
+        inputAfter: "Pripomenúť po",
+        inputRepeat: "Pripomínať znova",
+        inputInferred: "Aj keď možno čaká",
+        interruptAlert: "Keď sa úloha preruší")
+
+    static let de = AgentAttentionStrings(
+        waitingFormat: "%@ wartet auf dich",
+        pausedFormat: "%@ ist pausiert",
+        maybeWaitingFormat: "%@ wartet vielleicht",
+        manyWaitingFormat: "%d Agenten warten auf dich",
+        approveStep: "Gib einen Schritt frei",
+        answerQuestion: "Beantworte eine Frage",
+        reviewPlan: "Prüfe den Plan",
+        finishPrompt: "Schließe eine Abfrage ab",
+        pickUp: "Mach weiter, wo du warst",
+        checkSession: "Sieh in die Sitzung",
+        waitedFormat: "Wartet seit %@",
+        inputAlert: "Wenn ein Agent auf dich wartet",
+        inputAfter: "Erinnern nach",
+        inputRepeat: "Weiter erinnern",
+        inputInferred: "Auch wenn er vielleicht wartet",
+        interruptAlert: "Wenn eine Aufgabe unterbrochen wird")
+
+    static let fr = AgentAttentionStrings(
+        waitingFormat: "%@ vous attend",
+        pausedFormat: "%@ est en pause",
+        maybeWaitingFormat: "%@ attend peut-être",
+        manyWaitingFormat: "%d agents vous attendent",
+        approveStep: "Approuvez une étape",
+        answerQuestion: "Répondez à une question",
+        reviewPlan: "Relisez le plan",
+        finishPrompt: "Terminez une invite",
+        pickUp: "Reprenez là où vous en étiez",
+        checkSession: "Consultez la session",
+        waitedFormat: "En attente depuis %@",
+        inputAlert: "Quand un agent vous attend",
+        inputAfter: "Rappeler après",
+        inputRepeat: "Rappeler encore",
+        inputInferred: "Aussi quand il attend peut-être",
+        interruptAlert: "Quand une tâche est interrompue")
+
+    static let it = AgentAttentionStrings(
+        waitingFormat: "%@ ti sta aspettando",
+        pausedFormat: "%@ è in pausa",
+        maybeWaitingFormat: "%@ potrebbe aspettare",
+        manyWaitingFormat: "%d agenti ti stanno aspettando",
+        approveStep: "Approva un passaggio",
+        answerQuestion: "Rispondi a una domanda",
+        reviewPlan: "Rivedi il piano",
+        finishPrompt: "Completa una richiesta",
+        pickUp: "Riprendi da dove eri rimasto",
+        checkSession: "Controlla la sessione",
+        waitedFormat: "In attesa da %@",
+        inputAlert: "Quando un agente ti aspetta",
+        inputAfter: "Ricorda dopo",
+        inputRepeat: "Continua a ricordare",
+        inputInferred: "Anche quando potrebbe aspettare",
+        interruptAlert: "Quando un’attività viene interrotta")
+
+    static let ru = AgentAttentionStrings(
+        waitingFormat: "%@ ждёт вас",
+        pausedFormat: "%@ на паузе",
+        maybeWaitingFormat: "%@, возможно, ждёт",
+        manyWaitingFormat: "Вас ждут агенты: %d",
+        approveStep: "Одобрите шаг",
+        answerQuestion: "Ответьте на вопрос",
+        reviewPlan: "Проверьте план",
+        finishPrompt: "Завершите запрос",
+        pickUp: "Продолжите с того же места",
+        checkSession: "Загляните в сессию",
+        waitedFormat: "Ждёт %@",
+        inputAlert: "Когда агент ждёт вас",
+        inputAfter: "Напомнить через",
+        inputRepeat: "Напоминать снова",
+        inputInferred: "И когда он, возможно, ждёт",
+        interruptAlert: "Когда задача прервана")
+
+    static let tr = AgentAttentionStrings(
+        waitingFormat: "%@ sizi bekliyor",
+        pausedFormat: "%@ duraklatıldı",
+        maybeWaitingFormat: "%@ bekliyor olabilir",
+        manyWaitingFormat: "%d ajan sizi bekliyor",
+        approveStep: "Bir adımı onaylayın",
+        answerQuestion: "Bir soruyu yanıtlayın",
+        reviewPlan: "Planı gözden geçirin",
+        finishPrompt: "Bir istemi tamamlayın",
+        pickUp: "Kaldığınız yerden devam edin",
+        checkSession: "Oturuma bakın",
+        waitedFormat: "%@ bekliyor",
+        inputAlert: "Bir ajan sizi beklediğinde",
+        inputAfter: "Şu süreden sonra hatırlat",
+        inputRepeat: "Hatırlatmaya devam et",
+        inputInferred: "Bekliyor olabileceğinde de",
+        interruptAlert: "Bir görev yarıda kesildiğinde")
+
+    static let ja = AgentAttentionStrings(
+        waitingFormat: "%@があなたを待っています",
+        pausedFormat: "%@は一時停止中です",
+        maybeWaitingFormat: "%@が待っているかもしれません",
+        manyWaitingFormat: "%d個のエージェントがあなたを待っています",
+        approveStep: "ステップを承認",
+        answerQuestion: "質問に回答",
+        reviewPlan: "プランを確認",
+        finishPrompt: "プロンプトを完了",
+        pickUp: "中断したところから再開",
+        checkSession: "セッションを確認",
+        waitedFormat: "%@待機中",
+        inputAlert: "エージェントがあなたを待っているとき",
+        inputAfter: "リマインドまでの時間",
+        inputRepeat: "繰り返しリマインド",
+        inputInferred: "待っている可能性があるときも",
+        interruptAlert: "タスクが中断されたとき")
+
+    static let ko = AgentAttentionStrings(
+        waitingFormat: "%@이(가) 기다리고 있습니다",
+        pausedFormat: "%@ 일시 중지됨",
+        maybeWaitingFormat: "%@이(가) 기다리고 있을 수 있습니다",
+        manyWaitingFormat: "에이전트 %d개가 기다리고 있습니다",
+        approveStep: "단계 승인",
+        answerQuestion: "질문에 답변",
+        reviewPlan: "계획 검토",
+        finishPrompt: "프롬프트 완료",
+        pickUp: "멈춘 곳에서 이어서",
+        checkSession: "세션 확인",
+        waitedFormat: "%@ 대기 중",
+        inputAlert: "에이전트가 기다릴 때",
+        inputAfter: "알림 시점",
+        inputRepeat: "계속 알림",
+        inputInferred: "기다리고 있을 수 있을 때도",
+        interruptAlert: "작업이 중단되었을 때")
+
+    static let uk = AgentAttentionStrings(
+        waitingFormat: "%@ чекає на вас",
+        pausedFormat: "%@ на паузі",
+        maybeWaitingFormat: "%@, можливо, чекає",
+        manyWaitingFormat: "На вас чекають агенти: %d",
+        approveStep: "Схваліть крок",
+        answerQuestion: "Дайте відповідь на запитання",
+        reviewPlan: "Перегляньте план",
+        finishPrompt: "Завершіть запит",
+        pickUp: "Продовжте з того ж місця",
+        checkSession: "Перегляньте сесію",
+        waitedFormat: "Чекає %@",
+        inputAlert: "Коли агент чекає на вас",
+        inputAfter: "Нагадати через",
+        inputRepeat: "Нагадувати знову",
+        inputInferred: "І коли він, можливо, чекає",
+        interruptAlert: "Коли завдання перервано")
+
+    static let zhHans = AgentAttentionStrings(
+        waitingFormat: "%@ 在等你",
+        pausedFormat: "%@ 已暂停",
+        maybeWaitingFormat: "%@ 可能在等你",
+        manyWaitingFormat: "%d 个智能体在等你",
+        approveStep: "批准一个步骤",
+        answerQuestion: "回答一个问题",
+        reviewPlan: "查看计划",
+        finishPrompt: "完成一个提示",
+        pickUp: "从中断处继续",
+        checkSession: "查看会话",
+        waitedFormat: "已等待 %@",
+        inputAlert: "智能体在等你时",
+        inputAfter: "提醒时间",
+        inputRepeat: "持续提醒",
+        inputInferred: "可能在等你时也提醒",
+        interruptAlert: "任务被中断时")
+
+    static let zhTW = AgentAttentionStrings(
+        waitingFormat: "%@ 在等你",
+        pausedFormat: "%@ 已暫停",
+        maybeWaitingFormat: "%@ 可能在等你",
+        manyWaitingFormat: "%d 個代理在等你",
+        approveStep: "核准一個步驟",
+        answerQuestion: "回答一個問題",
+        reviewPlan: "查看計畫",
+        finishPrompt: "完成一個提示",
+        pickUp: "從中斷處繼續",
+        checkSession: "查看工作階段",
+        waitedFormat: "已等待 %@",
+        inputAlert: "代理在等你時",
+        inputAfter: "提醒時間",
+        inputRepeat: "持續提醒",
+        inputInferred: "可能在等你時也提醒",
+        interruptAlert: "工作被中斷時")
+
+    static let zhHK = AgentAttentionStrings(
+        waitingFormat: "%@ 在等你",
+        pausedFormat: "%@ 已暫停",
+        maybeWaitingFormat: "%@ 可能在等你",
+        manyWaitingFormat: "%d 個代理在等你",
+        approveStep: "批准一個步驟",
+        answerQuestion: "回答一個問題",
+        reviewPlan: "查看計劃",
+        finishPrompt: "完成一個提示",
+        pickUp: "從中斷處繼續",
+        checkSession: "查看工作階段",
+        waitedFormat: "已等待 %@",
+        inputAlert: "代理在等你時",
+        inputAfter: "提醒時間",
+        inputRepeat: "持續提醒",
+        inputInferred: "可能在等你時也提醒",
+        interruptAlert: "工作被中斷時")
 }

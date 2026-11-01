@@ -107,10 +107,12 @@ enum NotchMusicVisibilityTests {
         var keepAwakeStripWing: CGFloat = 44
         func keepAwakeStripWing(in geometry: NotchGeometry) -> CGFloat { keepAwakeStripWing }
         var notchNeedsMonitor = false
+        func addTopBarMonitorNeeds(_ needs: inout MonitorNeeds) {}
         var heldDrag = false
         var pinned = false
         var clipboardPinnedOnly = false
         var openedByHover = false
+        var pointerReachedOpening = false
         var sectionQuery = ""
         var highlightedSection: NotchModule?
         var sectionRow = 0
@@ -151,6 +153,8 @@ enum NotchMusicVisibilityTests {
             defaults.removePersistentDomain(forName: domain)
         }
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        // These checks cover the sections and the floating buttons.
+        defaults.set(NotchNavigationStyle.sideButtons.rawValue, forKey: DefaultsKey.notchNavigationStyle)
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         defaults.set(false, forKey: DefaultsKey.notchTrackChange)

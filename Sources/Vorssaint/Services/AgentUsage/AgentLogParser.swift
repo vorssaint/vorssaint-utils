@@ -19,13 +19,23 @@ enum AgentLogEntry: Equatable {
     case turnBegan(Date)
     /// Model and folder context known before usage is reported.
     case turnContext(model: String, project: String)
+    /// Whether the turn runs in the agent's app or its command line.
+    case turnPlace(AgentSessionPlace)
     /// Work continues; nil when the line was not worth decoding for its time.
     case turnActive(Date?)
     /// A step ended expecting the agent to go on; unless work follows soon,
     /// the agent stopped there and its turn is over.
     case turnSettled(Date)
     case turnEnded(Date?, completed: Bool, duration: TimeInterval?)
+    /// The turn stopped on something only the person can answer; `inferred`
+    /// when the log only suggests it.
+    case turnAwaiting(AgentAwait, Date, inferred: Bool)
     case reset(Date)
+}
+
+/// Why a turn now waits on the person.
+enum AgentAwait: String, Equatable {
+    case permission, question, plan, dialog, interrupted
 }
 
 /// Per-file context carried from line to line.
@@ -53,6 +63,8 @@ struct AgentLogState: Equatable {
     /// The thread whose running totals the lines read now report: history
     /// copied from another thread keeps that thread's, as in its own log.
     var codexTotalsSession = ""
+    /// The thread was started in the Codex app rather than its command line.
+    var codexApp = false
     /// Copilot shutdown counters are cumulative for the life of a session.
     var copilotTotals: [String: AgentTokens] = [:]
     /// Counted requests by model; the empty key holds unresolved attribution.
@@ -68,6 +80,19 @@ struct AgentLogState: Equatable {
     /// Claude's shell commands still waiting for their result, by tool call.
     /// They run on the Mac, so the turn goes on without the network.
     var runningCommands: Set<String> = []
+    /// Claude's questions and plans still waiting for the person, by tool
+    /// call. In memory only, like the commands.
+    var awaitedTools: [String: AgentAwait] = [:]
+    /// Claude's other tool calls still waiting for their result, by call,
+    /// which may wait on an approval the log never mentions.
+    var pendingTools: Set<String> = []
+    /// Codex's tool calls still waiting for their output, by call.
+    var codexPendingCalls: Set<String> = []
+    /// When Codex asks before running a command; "never" means it cannot
+    /// wait on an approval.
+    var codexApprovalPolicy = ""
+    /// The Codex turn posted a question that does not hold it open.
+    var codexAsked = false
 }
 
 /// Per-session turn and model tracking for OpenCode databases.
@@ -119,6 +144,27 @@ enum AgentLogParser {
             guard value < limit, let quote = memchr(base + value, 0x22, limit - value) else { return nil }
             let end = base.distance(to: UnsafeRawPointer(quote))
             return (String(decoding: UnsafeRawBufferPointer(rebasing: bytes[value..<end]), as: UTF8.self), end + 1)
+        }
+    }
+
+    /// Every tool call a tool result line answers. The key is structural, so
+    /// a result quoting it holds it escaped and never matches.
+    static func toolResultIDs(_ line: Data) -> [String] {
+        let key: StaticString = #""tool_use_id":""#
+        return line.withUnsafeBytes { bytes in
+            guard let base = bytes.baseAddress else { return [] }
+            var ids: [String] = []
+            var start = 0
+            while start < bytes.count,
+                  let found = memmem(base + start, bytes.count - start, key.utf8Start, key.utf8CodeUnitCount) {
+                let value = base.distance(to: found) + key.utf8CodeUnitCount
+                let limit = min(bytes.count, value + 128)
+                guard value < limit, let quote = memchr(base + value, 0x22, limit - value) else { break }
+                let end = base.distance(to: UnsafeRawPointer(quote))
+                ids.append(String(decoding: UnsafeRawBufferPointer(rebasing: bytes[value..<end]), as: UTF8.self))
+                start = end + 1
+            }
+            return ids
         }
     }
 
