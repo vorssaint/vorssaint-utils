@@ -619,6 +619,7 @@ extension MouseButtonFeatureStrings {
         captureWheel: "هذا الزر يفتح القائمة الدائرية أصلًا. اختر زرًا آخر، أو حرّره من هناك أولًا.",
         captureExists: "هذا الزر أو الاتجاه موجود في القائمة أدناه.",
         captureHint: "إذا لم يحدث شيء، فقد يكون برنامج الماوس الخاص بك يستخدم هذا الزر بالفعل.",
+        middleButtonName: "الزر الأوسط",
         backButtonName: "الزر الجانبي للخلف",
         forwardButtonName: "الزر الجانبي للأمام",
         otherButtonFormat: "الزر %d",
@@ -634,8 +635,8 @@ extension MouseButtonFeatureStrings {
         spacesEnableCaption: "استمر بالضغط على الزر المختار واسحب: يمينًا أو يسارًا ينتقل مسافة واحدة، وأعلى يفتح “إدارة المهام”، وأسفل يفتح “‏Exposé للتطبيق”. أما النقرة القصيرة فتبقى على وظيفتها المعتادة.",
         spacesPickButton: "اختيار زر",
         spacesShortcutsOffNote: "اختصارات لوحة المفاتيح لـ “إدارة المهام” متوقفة في إعدادات النظام، فلا شيء لهذه الإيماءة أن تطلبه.",
-        spacesCaptureWaiting: "اضغط الآن زرًا إضافيًا.",
-        spacesCaptureUnsupported: "لا يمكن الاستمرار بالضغط على هذا المدخل للسحب. استخدم زرًا إضافيًا.",
+        spacesCaptureWaiting: "اضغط الآن الزر الأوسط أو زرًا إضافيًا.",
+        spacesCaptureUnsupported: "لا يمكن الاستمرار بالضغط على هذا المدخل للسحب. استخدم الزر الأوسط أو زرًا إضافيًا.",
         spacesCaptureExists: "هذا الزر له اختصار أصلًا. اختر زرًا آخر.",
         spacesFollowsDragLabel: "المسافات تتبع السحب",
         spacesFollowsDragCaption: "السحب يمينًا يجلب المسافة التي على اليسار، تمامًا كما تحملها إيماءة لوحة التعقب مع أصابعك.")

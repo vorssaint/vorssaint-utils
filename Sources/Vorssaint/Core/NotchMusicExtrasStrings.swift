@@ -786,6 +786,7 @@ extension FeatureStrings {
             liveEqualizerHint: "ينصت إلى مخرج صوت المشغّل نفسه لتحريك الأشرطة. ويطلب macOS السماح بتسجيل صوت النظام مرة واحدة. ولا يُخزَّن شيء ولا يُرسل. وبدونه تحتفظ الأشرطة بحركتها المعتادة.",
             liveEqualizerUnavailable: "يحتاج macOS 14.4 أو أحدث.",
             shuffle: "خلط",
+            showVolume: "إظهار مستوى الصوت في المشغّل",
             preferredPlayer: "الفتح حين لا يُشغَّل شيء",
             preferredPlayerHint: "يفتح الغلاف وأزرار التشغيل هذا التطبيق. ويفتح “تلقائي” آخر تطبيق موسيقى شغّل شيئًا، ثم Spotify أو Apple Music.",
             openNamedPlayer: "فتح %@",
