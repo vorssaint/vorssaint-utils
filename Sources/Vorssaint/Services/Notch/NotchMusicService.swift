@@ -352,25 +352,41 @@ final class NotchMusicService: ObservableObject {
     }
 
     /// One averaged pixel is all a halo needs, and it costs nothing next to
-    /// decoding the cover itself. Runs on the reader's queue, once per cover.
+    /// decoding the cover itself. A few more pixels say how vivid the cover
+    /// is, give a cover that averages to grey the colour it does have, and
+    /// blur into the field the music bars are cut from.
+    /// Runs on the reader's queue, once per cover.
     private static func artworkTint(of image: NSImage) -> NotchArtworkTint? {
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
-        var pixel = [UInt8](repeating: 0, count: 4)
-        let drawn = pixel.withUnsafeMutableBytes { buffer -> Bool in
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        guard let average = pixels(of: cgImage, side: 1)?.first,
+              let sample = pixels(of: cgImage, side: 12) else { return nil }
+        let tint = NotchArtworkTint.from(red: average.red, green: average.green, blue: average.blue)
+            ?? NotchArtworkTint.accent(in: sample)
+        let vibrance = NotchArtworkTint.vibrance(of: sample)
+        return tint?.with(vibrance: vibrance)
+            .with(field: NotchArtworkTint.field(of: sample, side: 12, vibrance: vibrance))
+    }
+
+    private static func pixels(of image: CGImage, side: Int) -> [(red: Double, green: Double, blue: Double)]? {
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        var bytes = [UInt8](repeating: 0, count: side * side * 4)
+        let drawn = bytes.withUnsafeMutableBytes { buffer -> Bool in
             guard let base = buffer.baseAddress,
-                  let context = CGContext(data: base, width: 1, height: 1, bitsPerComponent: 8,
-                                          bytesPerRow: 4, space: space,
+                  let context = CGContext(data: base, width: side, height: side, bitsPerComponent: 8,
+                                          bytesPerRow: side * 4, space: space,
                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
             else { return false }
             context.interpolationQuality = .medium
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
             return true
         }
         guard drawn else { return nil }
-        return NotchArtworkTint.from(red: Double(pixel[0]) / 255,
-                                     green: Double(pixel[1]) / 255,
-                                     blue: Double(pixel[2]) / 255)
+        return stride(from: 0, to: bytes.count, by: 4).map { offset -> (red: Double, green: Double, blue: Double) in
+            let red = Double(bytes[offset]) / 255
+            let green = Double(bytes[offset + 1]) / 255
+            let blue = Double(bytes[offset + 2]) / 255
+            return (red, green, blue)
+        }
     }
 
     func stop() {

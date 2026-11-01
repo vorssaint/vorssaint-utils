@@ -17,6 +17,11 @@ final class NotchAudioLevelService: ObservableObject {
 
     /// Band levels from 0 to 1 while a player is being read, nil otherwise.
     @Published private(set) var levels: [Double]?
+    /// The player says it is playing but this Mac hears nothing from it: the
+    /// music is going to another device, such as a phone through Spotify
+    /// Connect. The bars then lie flat instead of putting on their usual
+    /// motion, which would read as the sound being shown.
+    @Published private(set) var hearsNothing = false
 
     private var enabled = false
     private var subscription: AnyCancellable?
@@ -46,6 +51,7 @@ final class NotchAudioLevelService: ObservableObject {
     }
 
     func stop() {
+        if hearsNothing { hearsNothing = false }
         stopWork?.cancel(); stopWork = nil
         reader?.stop()
         reader = nil
@@ -72,7 +78,10 @@ final class NotchAudioLevelService: ObservableObject {
         // reader would keep the bars on somebody else's levels.
         stop()
         let identity = NotchMusicIdentity(playback)
-        guard silence.reads(identity) else { return }
+        guard silence.reads(identity) else {
+            hearsNothing = true
+            return
+        }
         readerPID = pid
         read(pid, on: identity)
     }
@@ -127,8 +136,10 @@ final class NotchAudioLevelService: ObservableObject {
         // Paused, the tap hears the player letting go of its audio, and the
         // pause already armed the next play; only a play that stayed silent
         // is written off.
-        if stopWork == nil { silence.giveUp(on: identity) }
+        let playing = stopWork == nil
+        if playing { silence.giveUp(on: identity) }
         stop()
+        if playing { hearsNothing = true }
     }
 
     /// No tap could be created, or the one there lost its device for good.
@@ -745,7 +756,9 @@ private final class NotchAudioRing {
 
 /// A windowed discrete Fourier transform of one block of samples.
 private final class NotchAudioAnalyzer {
-    let size = 1024
+    /// About 45 ms at 44.1 kHz. A shorter block left the lowest band one or
+    /// two bins wide, and the bass bar flickered instead of following the kick.
+    let size = 2048
     let bands: [Range<Int>]
     private let setup: vDSP_DFT_Setup
     private var window: [Float]

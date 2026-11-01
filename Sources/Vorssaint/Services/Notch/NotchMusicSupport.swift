@@ -10,6 +10,125 @@ struct NotchArtworkTint: Equatable {
     let red: Double
     let green: Double
     let blue: Double
+    /// How vivid the cover is, from 0 to 1: how colourful and bright its
+    /// most colourful part is, raised by strong light and dark contrast. Hot
+    /// pink on black is vivid; a pale sky is not. See `vibrance(of:)`.
+    var vibrance: Double = 0
+
+    func with(vibrance: Double) -> NotchArtworkTint {
+        var tint = self
+        tint.vibrance = min(1, max(0, vibrance))
+        return tint
+    }
+
+    /// The cover blurred down to `fieldColumns` by `fieldRows` colours, red,
+    /// green and blue in turn, top row first. The phone's island cuts its
+    /// bars out of the cover blurred this way, not out of one colour: a cover
+    /// red on the left and cyan on the right gives bars that run from red to
+    /// cyan, and the dark foot of a cover darkens the foot of every bar.
+    /// Empty when the cover is too grey to give the bars any colour.
+    var field: [Double] = []
+    static let fieldColumns = 4
+    static let fieldRows = 3
+
+    func with(field: [Double]) -> NotchArtworkTint {
+        var tint = self
+        tint.field = field
+        return tint
+    }
+
+    /// A cover's field from `side` by `side` of its pixels, top row first.
+    /// Each colour is a wide Gaussian average around its point, a fifth of
+    /// the cover across, over the middle four fifths of the cover's width
+    /// and three fifths of its height: the edges of a cover are mostly
+    /// border and lettering. Matched against the phone's bars over a whole
+    /// song, this blur and this crop follow them closely in colour and in light.
+    static func field(of pixels: [(red: Double, green: Double, blue: Double)], side: Int,
+                      vibrance: Double) -> [Double] {
+        guard side > 0, pixels.count == side * side else { return [] }
+        let spread = 0.2
+        var cells: [(red: Double, green: Double, blue: Double)] = []
+        for row in 0..<fieldRows {
+            let y = 0.2 + 0.6 * Double(row) / Double(max(1, fieldRows - 1))
+            for column in 0..<fieldColumns {
+                let x = 0.1 + 0.8 * Double(column) / Double(max(1, fieldColumns - 1))
+                var sum = (red: 0.0, green: 0.0, blue: 0.0), total = 0.0
+                for (index, pixel) in pixels.enumerated() {
+                    let dx = (Double(index % side) + 0.5) / Double(side) - x
+                    let dy = (Double(index / side) + 0.5) / Double(side) - y
+                    let weight = exp(-(dx * dx + dy * dy) / (2 * spread * spread))
+                    sum.red += pixel.red * weight; sum.green += pixel.green * weight; sum.blue += pixel.blue * weight
+                    total += weight
+                }
+                cells.append((sum.red / total, sum.green / total, sum.blue / total))
+            }
+        }
+        return lit(cells, vibrance: vibrance)
+    }
+
+    /// Lifts a field so the bars read on the black island: its brightest
+    /// colour is raised to near full and its darkest kept above a third,
+    /// while the light and dark between them keep their order. A vivid cover
+    /// is given a little more colour, so hot pink stays hot after the blur
+    /// greys it. A field with too little colour anywhere is no field.
+    static func lit(_ cells: [(red: Double, green: Double, blue: Double)], vibrance: Double) -> [Double] {
+        let hsb = cells.map { cell -> (hue: Double, saturation: Double, brightness: Double) in
+            let highest = max(cell.red, cell.green, cell.blue), lowest = min(cell.red, cell.green, cell.blue)
+            let saturation = highest > 0 ? (highest - lowest) / highest : 0
+            var hue = 0.0
+            if highest > lowest {
+                let range = highest - lowest
+                if highest == cell.red { hue = (cell.green - cell.blue) / range }
+                else if highest == cell.green { hue = 2 + (cell.blue - cell.red) / range }
+                else { hue = 4 + (cell.red - cell.green) / range }
+                hue = (hue / 6).truncatingRemainder(dividingBy: 1)
+                if hue < 0 { hue += 1 }
+            }
+            return (hue, saturation, highest)
+        }
+        guard let brightest = hsb.map(\.brightness).max(), brightest > 0,
+              hsb.contains(where: { $0.saturation >= 0.15 && $0.brightness >= 0.1 }) else { return [] }
+        let gain = min(4, 0.92 / brightest)
+        let boost = 1 + 0.4 * min(1, max(0, vibrance))
+        return hsb.flatMap { cell -> [Double] in
+            let brightness = 0.35 + 0.65 * min(1, cell.brightness * gain)
+            let saturation = min(1, cell.saturation * boost)
+            return rgb(hue: cell.hue, saturation: saturation, brightness: brightness)
+        }
+    }
+
+    private static func rgb(hue: Double, saturation: Double, brightness: Double) -> [Double] {
+        let sector = hue * 6, index = Int(sector) % 6, fraction = sector - Double(Int(sector))
+        let p = brightness * (1 - saturation)
+        let q = brightness * (1 - saturation * fraction)
+        let t = brightness * (1 - saturation * (1 - fraction))
+        switch index {
+        case 0: return [brightness, t, p]
+        case 1: return [q, brightness, p]
+        case 2: return [p, brightness, t]
+        case 3: return [p, q, brightness]
+        case 4: return [t, p, brightness]
+        default: return [brightness, p, q]
+        }
+    }
+
+    /// A cover's vividness from a few of its pixels. The colour is the
+    /// average of its most colourful sixth; the contrast is how far its
+    /// pixels spread between light and dark.
+    static func vibrance(of pixels: [(red: Double, green: Double, blue: Double)]) -> Double {
+        guard !pixels.isEmpty else { return 0 }
+        let scores = pixels.map { pixel -> Double in
+            let highest = max(pixel.red, pixel.green, pixel.blue)
+            let lowest = min(pixel.red, pixel.green, pixel.blue)
+            return highest > 0 ? (highest - lowest) / highest * highest : 0
+        }.sorted(by: >)
+        let top = scores.prefix(max(1, pixels.count / 6))
+        let colour = top.reduce(0, +) / Double(top.count)
+        let lights = pixels.map { 0.2126 * $0.red + 0.7152 * $0.green + 0.0722 * $0.blue }
+        let mean = lights.reduce(0, +) / Double(lights.count)
+        let spread = (lights.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(lights.count)).squareRoot()
+        return min(1, max(0, colour * (0.7 + 1.5 * spread)))
+    }
 
     static func from(red: Double, green: Double, blue: Double) -> NotchArtworkTint? {
         let channels = [red, green, blue]
@@ -22,6 +141,27 @@ struct NotchArtworkTint: Equatable {
         // same strength instead of following its own exposure.
         let stretched = channels.map { min(1, max(0, ($0 - lowest) / range * 0.86 + 0.06)) }
         return NotchArtworkTint(red: stretched[0], green: stretched[1], blue: stretched[2])
+    }
+
+    /// The colour a mostly grey cover still has: the most colourful sixth
+    /// of its pixels, averaged. A red jacket on a white slope averages away
+    /// into grey, and the island would show plain white for a cover with
+    /// colour in it. A cover with no colour at all still gives none.
+    static func accent(in pixels: [(red: Double, green: Double, blue: Double)]) -> NotchArtworkTint? {
+        let colourful = pixels.compactMap { pixel -> (score: Double, pixel: (red: Double, green: Double, blue: Double))? in
+            let highest = max(pixel.red, pixel.green, pixel.blue)
+            let lowest = min(pixel.red, pixel.green, pixel.blue)
+            guard highest > 0.15 else { return nil }
+            let saturation = (highest - lowest) / highest
+            guard saturation >= 0.2 else { return nil }
+            return (saturation * highest, pixel)
+        }.sorted { $0.score > $1.score }
+        let picked = colourful.prefix(max(1, pixels.count / 6))
+        guard !picked.isEmpty else { return nil }
+        let count = Double(picked.count)
+        return from(red: picked.map(\.pixel.red).reduce(0, +) / count,
+                    green: picked.map(\.pixel.green).reduce(0, +) / count,
+                    blue: picked.map(\.pixel.blue).reduce(0, +) / count)
     }
 }
 

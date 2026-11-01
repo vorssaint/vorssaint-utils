@@ -722,7 +722,7 @@ struct NotchRestingStrip: View {
                         case .music:
                             if music.playback?.isPlaying == true {
                                 NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 11,
-                                                       tint: music.artworkTint?.color ?? .white)
+                                                       tint: music.artworkTint?.barColor ?? .white, field: music.artworkTint?.field ?? [])
                             }
                         case .battery:
                             if let percent = service.power.chargePercent {

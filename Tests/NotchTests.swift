@@ -3470,6 +3470,48 @@ enum NotchTests {
                && NotchArtworkTint.from(red: 0.5, green: 0.5, blue: 0.55) == nil
                && NotchArtworkTint.from(red: 0, green: 0, blue: 0) == nil,
                "grey and black covers leave the notch without a coloured halo")
+        let slope = Array(repeating: (red: 0.9, green: 0.9, blue: 0.92), count: 130)
+        let jacket = Array(repeating: (red: 0.8, green: 0.15, blue: 0.1), count: 14)
+        let found = NotchArtworkTint.accent(in: slope + jacket)
+        suite.expect(found.map { $0.red > $0.green + 0.3 && $0.red > $0.blue + 0.3 } == true,
+                     "a mostly grey cover takes the colour of what stands out in it")
+        suite.expect(NotchArtworkTint.accent(in: slope) == nil
+                     && NotchArtworkTint.accent(in: Array(repeating: (red: 0.02, green: 0.0, blue: 0.05), count: 144)) == nil,
+                     "a cover with no colour, or only near-black, is not given one")
+        let hotPink = Array(repeating: (red: 1.0, green: 0.1, blue: 0.55), count: 60)
+            + Array(repeating: (red: 0.02, green: 0.02, blue: 0.02), count: 84)
+        let paleSky = Array(repeating: (red: 0.7, green: 0.8, blue: 0.92), count: 144)
+        suite.expect(NotchArtworkTint.vibrance(of: hotPink) > 0.8 && NotchArtworkTint.vibrance(of: paleSky) < 0.35,
+                     "hot pink on black reads as vivid and a pale sky as soft")
+        suite.expect(NotchArtworkTint.vibrance(of: []) == 0
+                     && NotchArtworkTint(red: 1, green: 0, blue: 0).with(vibrance: 3).vibrance == 1,
+                     "vividness stays between nothing and full")
+        // Red on the left, cyan on the right, a dark band along the foot:
+        // the Bailalo cover, as the phone's island laid it over its bars.
+        let split = (0..<144).map { index -> (red: Double, green: Double, blue: Double) in
+            let row = index / 12, column = index % 12
+            if row >= 10 { return (0.08, 0.06, 0.06) }
+            return column < 6 ? (0.85, 0.2, 0.2) : (0.3, 0.85, 0.85)
+        }
+        let field = NotchArtworkTint.field(of: split, side: 12, vibrance: 0.5)
+        let columns = NotchArtworkTint.fieldColumns, rows = NotchArtworkTint.fieldRows
+        func cell(_ column: Int, _ row: Int) -> [Double] {
+            Array(field[((row * columns + column) * 3)..<((row * columns + column) * 3 + 3)])
+        }
+        suite.expect(field.count == columns * rows * 3, "the field holds a colour for each of its points")
+        suite.expect(cell(0, 0)[0] > cell(0, 0)[1] + 0.2 && cell(columns - 1, 0)[1] > cell(columns - 1, 0)[0] + 0.2,
+                     "bars run from the colour on the cover's left to the colour on its right")
+        suite.expect(cell(columns - 1, rows - 1).max()! < cell(columns - 1, 0).max()! - 0.05
+                     && cell(columns - 1, rows - 1).max()! > 0.34,
+                     "a dark foot to the cover darkens the foot of the bars without hiding them")
+        suite.expect(abs(field.max()! - 0.92) < 0.06, "the field is lifted so its brightest colour reads on the black island")
+        suite.expect(NotchArtworkTint.field(of: Array(repeating: (red: 0.5, green: 0.5, blue: 0.52), count: 144),
+                                            side: 12, vibrance: 0).isEmpty
+                     && NotchArtworkTint.field(of: split, side: 11, vibrance: 0).isEmpty,
+                     "a grey cover, or pixels that do not fill the square, give no field")
+        suite.expect(NotchEqualizerView.fieldImage(field).map { $0.width == columns && $0.height == rows } == true
+                     && NotchEqualizerView.fieldImage([0.5]) == nil,
+                     "the bars paint a field as a small image they stretch over the row")
         suite.expect(NotchArtworkTint.from(red: .nan, green: 0.5, blue: 0.2) == nil
                && NotchArtworkTint.from(red: 2, green: 0.5, blue: 0.2) == nil
                && NotchArtworkTint.from(red: -1, green: 0.5, blue: 0.2) == nil,

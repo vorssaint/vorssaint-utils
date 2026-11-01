@@ -12,6 +12,9 @@ struct NotchEqualizerBars: View {
     var barWidth: CGFloat = 2.5
     var height: CGFloat = 14
     var tint: Color = .white
+    /// The cover blurred to a few colours, `NotchArtworkTint.barField`. When
+    /// present the bars are cut out of it instead of the tint's gradient.
+    var field: [Double] = []
     /// Band levels from 0 to 1 read from the player's audio. When present the
     /// bars follow them instead of the stepped synthetic motion.
     var live: [Double]? = nil
@@ -20,7 +23,7 @@ struct NotchEqualizerBars: View {
     var body: some View {
         let count = max(1, bars)
         NotchEqualizerBridge(animates: isPlaying && !reduceMotion, bars: count,
-                             barWidth: barWidth, height: height, tint: NSColor(tint),
+                             barWidth: barWidth, height: height, tint: NSColor(tint), field: field,
                              levels: isPlaying && !reduceMotion ? live : nil)
             .frame(width: CGFloat(count) * barWidth + CGFloat(count - 1) * barWidth * 0.85,
                    height: height)
@@ -40,13 +43,14 @@ private struct NotchEqualizerBridge: NSViewRepresentable {
     let barWidth: CGFloat
     let height: CGFloat
     let tint: NSColor
+    let field: [Double]
     let levels: [Double]?
 
     func makeNSView(context: Context) -> NotchEqualizerView { NotchEqualizerView() }
 
     func updateNSView(_ view: NotchEqualizerView, context: Context) {
         view.configure(animates: animates, bars: bars, barWidth: barWidth, height: height,
-                       tint: tint, levels: levels)
+                       tint: tint, field: field, levels: levels)
     }
 
     static func dismantleNSView(_ view: NotchEqualizerView, coordinator: ()) { view.stop() }
@@ -77,10 +81,60 @@ final class NotchEqualizerView: NSView {
     private static let waveOrigin: CFTimeInterval = CACurrentMediaTime()
     static let holdWaveNotification = Notification.Name("NotchEqualizerHoldWave")
 
+    /// The bars are cut out of one paint that runs across the row: the
+    /// cover's own colours where it has them, else a gradient of the tint.
+    private let paint = CALayer()
+    private let gradient = CAGradientLayer()
+    private let artwork = CALayer()
+    private let barMask = CALayer()
+    private var field: [Double] = []
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
         setAccessibilityElement(false)
+        gradient.startPoint = CGPoint(x: 0, y: 0.5)
+        gradient.endPoint = CGPoint(x: 1, y: 0.5)
+        // The few colours of the field are stretched over the row and
+        // blended between, which is the blur the phone's island shows.
+        artwork.magnificationFilter = .linear
+        paint.addSublayer(gradient)
+        paint.addSublayer(artwork)
+        paint.mask = barMask
+        layer?.addSublayer(paint)
+    }
+
+    /// The field as an image of `fieldColumns` by `fieldRows` pixels, top row
+    /// first, or nil when it does not hold one.
+    static func fieldImage(_ field: [Double]) -> CGImage? {
+        let columns = NotchArtworkTint.fieldColumns, rows = NotchArtworkTint.fieldRows
+        guard field.count == columns * rows * 3, let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        var bytes = [UInt8](repeating: 255, count: columns * rows * 4)
+        for cell in 0..<(columns * rows) {
+            for channel in 0..<3 {
+                bytes[cell * 4 + channel] = UInt8((min(1, max(0, field[cell * 3 + channel])) * 255).rounded())
+            }
+        }
+        return bytes.withUnsafeMutableBytes { buffer -> CGImage? in
+            guard let base = buffer.baseAddress else { return nil }
+            return CGContext(data: base, width: columns, height: rows, bitsPerComponent: 8,
+                             bytesPerRow: columns * 4, space: space,
+                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
+        }
+    }
+
+    /// The bar colour running toward a paler shade of itself across the row,
+    /// the way the phone's island colours its bars, the more so the softer it is. How muted it starts is
+    /// the caller's: see `NotchArtworkTint.barColor`.
+    static func gradientColors(for tint: NSColor) -> [CGColor] {
+        guard let rgb = tint.usingColorSpace(.sRGB) else { return [tint.cgColor, tint.cgColor] }
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        // A soft colour pales a good way across the row; a vivid one keeps
+        // most of its strength, so hot pink does not wash out to pastel.
+        let end = NSColor(hue: hue, saturation: saturation * (0.45 + 0.4 * saturation),
+                          brightness: min(1, brightness + 0.1), alpha: alpha)
+        return [rgb.cgColor, end.cgColor]
     }
 
     required init?(coder: NSCoder) { nil }
@@ -92,7 +146,7 @@ final class NotchEqualizerView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     func configure(animates: Bool, bars count: Int, barWidth: CGFloat, height: CGFloat,
-                   tint: NSColor, levels: [Double]? = nil) {
+                   tint: NSColor, field: [Double] = [], levels: [Double]? = nil) {
         let count = max(1, count)
         self.animates = animates
         self.levels = levels
@@ -104,11 +158,18 @@ final class NotchEqualizerView: NSView {
             bars.forEach { $0.removeFromSuperlayer() }
             bars = (0..<count).map { _ in
                 let bar = CALayer()
-                layer?.addSublayer(bar)
+                bar.backgroundColor = NSColor.white.cgColor
+                barMask.addSublayer(bar)
                 return bar
             }
         }
-        for bar in bars { bar.backgroundColor = tint.cgColor }
+        gradient.colors = Self.gradientColors(for: tint)
+        if field != self.field {
+            self.field = field
+            artwork.contents = Self.fieldImage(field)
+        }
+        artwork.isHidden = artwork.contents == nil
+        gradient.isHidden = !artwork.isHidden
         CATransaction.commit()
         updateBars()
     }
@@ -126,6 +187,10 @@ final class NotchEqualizerView: NSView {
     func refreshMotion() { updateBars() }
 
     func barHeights() -> [CGFloat] { bars.map(\.bounds.height) }
+
+    var barLayers: [CALayer] { bars }
+    var barColors: [CGColor] { gradient.colors as? [CGColor] ?? [] }
+    var showsArtwork: Bool { !artwork.isHidden }
 
     /// Shows `heights` until the window is on screen and the pose is let go.
     /// The island then covers a copy without the bars jumping to their own reading.
@@ -182,29 +247,39 @@ final class NotchEqualizerView: NSView {
             joinedWave = true
         }
         let now = CACurrentMediaTime()
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        for (index, bar) in bars.enumerated() {
-            var resting: CGFloat = moving ? swings[index].low : barWidth
-            // The reader already smooths its levels and sends thirty a
-            // second, so a live bar is set straight onto the layer.
-            if let live {
-                let level = live[NotchAudioLevelSupport.barIndex(index, of: bars.count, bands: live.count)]
-                resting = max(barWidth, height * CGFloat(0.1 + 0.9 * min(1, max(0, level))))
-            } else if swinging {
-                resting = swingHeight(index, at: now)
-            }
-            bar.bounds = CGRect(x: 0, y: 0, width: barWidth, height: resting)
-            bar.position = CGPoint(x: CGFloat(index) * barWidth * 1.85 + barWidth / 2, y: bounds.midY)
-            bar.cornerRadius = barWidth / 2
+        let shaped = live.map { live in
+            bars.indices.map { live[NotchAudioLevelSupport.barIndex($0, of: bars.count, bands: live.count)] }
+        }
+        var heights = bars.indices.map { index -> CGFloat in
+            if let shaped { return max(barWidth, height * CGFloat(shaped[index])) }
+            if swinging { return swingHeight(index, at: now) }
+            return moving ? swings[index].low : barWidth
         }
         // The pose already on the other display wins over a fresh reading,
         // including one made because the window just became visible.
-        if let pinned = pinnedHeights, pinned.count == bars.count, moving {
-            for (index, bar) in bars.enumerated() { bar.bounds.size.height = pinned[index] }
-        } else {
-            pinnedHeights = nil
+        let pinned = pinnedHeights.flatMap { $0.count == bars.count && moving ? $0 : nil }
+        if let pinned { heights = pinned } else { pinnedHeights = nil }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        paint.frame = bounds
+        gradient.frame = paint.bounds
+        artwork.frame = paint.bounds
+        barMask.frame = paint.bounds
+        for (index, bar) in bars.enumerated() {
+            bar.bounds.size.width = barWidth
+            bar.position = CGPoint(x: CGFloat(index) * barWidth * 1.85 + barWidth / 2, y: bounds.midY)
+            bar.cornerRadius = barWidth / 2
         }
+        CATransaction.commit()
+        // Live levels arrive thirty times a second. Each bar glides to its
+        // new height over one interval instead of jumping, so the motion
+        // reads as continuous rather than stepped.
+        let glides = live != nil && pinned == nil
+        CATransaction.begin()
+        CATransaction.setDisableActions(!glides)
+        CATransaction.setAnimationDuration(1 / NotchAudioLevelSupport.updatesPerSecond)
+        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .linear))
+        for (index, bar) in bars.enumerated() { bar.bounds.size.height = heights[index] }
         CATransaction.commit()
         if swinging { clock.start(in: self) } else { clock.stop() }
     }
