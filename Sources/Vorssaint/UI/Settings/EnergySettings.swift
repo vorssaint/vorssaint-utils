@@ -16,6 +16,9 @@ struct EnergySettings: View {
     @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
+    @AppStorage(DefaultsKey.brightnessWarmthEnabled) private var warmthEnabled = false
+    @AppStorage(DefaultsKey.brightnessWarmthLevel) private var warmthLevel = 0.5
+    @AppStorage(DefaultsKey.brightnessWarmthFollowsNightShift) private var warmthFollowsNightShift = true
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeyStep)
@@ -56,6 +59,9 @@ struct EnergySettings: View {
                 if (focus == nil || focus == .brightness), AppFeature.brightness.isAvailable {
                     displaysCard
                         .settingsSectionAnchor(.brightness, cornerRadius: 16)
+                    if brightness.hasBuiltInDisplay {
+                        warmthCard
+                    }
                 }
                 if (focus == nil || focus == .extraBrightness), AppFeature.extraBrightness.isAvailable {
                     extraBrightnessCard
@@ -368,6 +374,50 @@ struct EnergySettings: View {
                     Text(FeatureStrings.recorder(l10n.language).moreOptions)
                         .font(.subheadline.weight(.medium))
                 }
+            }
+        }
+    }
+
+    private var warmthCard: some View {
+        let strings = FeatureStrings.brightness(l10n.language)
+        return SettingsCard {
+            SettingsRow(symbol: "sun.haze", title: strings.warmth) {
+                Toggle(strings.warmth, isOn: $warmthEnabled)
+                    .labelsHidden()
+                    .onChange(of: warmthEnabled) { _, _ in
+                        brightness.syncWithPreferences()
+                    }
+            }
+            if warmthEnabled {
+                VStack(alignment: .leading, spacing: 13) {
+                    Toggle(strings.warmthFollowNightShift, isOn: $warmthFollowsNightShift)
+                        .toggleStyle(TrailingSwitchToggleStyle())
+                        .onChange(of: warmthFollowsNightShift) { _, _ in
+                            brightness.syncWithPreferences()
+                        }
+                    if warmthFollowsNightShift, brightness.nightShiftEnabled != true {
+                        Text(brightness.nightShiftEnabled == nil
+                             ? strings.warmthNightShiftUnavailable : strings.warmthWaiting)
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: 12) {
+                        Text(strings.warmthIntensity)
+                        Slider(value: $warmthLevel, in: 0...1, step: 0.01)
+                            .accessibilityLabel(strings.warmthIntensity)
+                            .onChange(of: warmthLevel) { _, _ in brightness.syncWithPreferences() }
+                        Text("\(Int((warmthLevel * 100).rounded()))%")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 44, alignment: .trailing)
+                    }
+                }
+                .padding(.leading, settingsRowTextInset)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(strings.warmth)
+            }
+            if brightness.warmthFailed {
+                Text(strings.warmthFailed).font(.caption).foregroundStyle(.red)
+                    .padding(.leading, settingsRowTextInset)
             }
         }
     }

@@ -141,11 +141,13 @@ extension AppFeature {
             // brightness keys from a tap. Like Accessibility, the island's own
             // notices are counted under the island.
             let defaults = UserDefaults.standard
-            return defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
+            let answersKeys = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
                 || defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
                 || BrightnessSupport.KeyStep.sanitized(
                     defaults.string(forKey: DefaultsKey.brightnessKeyStep)) != .standard
-                ? .keyboard : .idle
+            if defaults.bool(forKey: DefaultsKey.brightnessControlEnabled), answersKeys { return .keyboard }
+            return defaults.bool(forKey: DefaultsKey.brightnessWarmthEnabled)
+                && defaults.bool(forKey: DefaultsKey.brightnessWarmthFollowsNightShift) ? .periodic : .idle
         case .mouseAcceleration, .spacesOrder, .pastePlain, .soundOutputSwitcher, .audioPriority, .micMute,
              .bluetoothSleep, .keepAwake, .quickLauncher, .quickToggles, .quitApps, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,

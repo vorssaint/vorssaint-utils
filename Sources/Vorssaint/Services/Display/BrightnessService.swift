@@ -45,13 +45,11 @@ struct BrightnessDisplay: Identifiable, Equatable {
 /// external monitors are driven over DDC/CI, the same protocol their own
 /// buttons use, addressed per display through its I2C service.
 ///
-/// Display control stops its screen observer, brightness routes and I2C work
-/// when turned off. Pending restores keep wake and lid observation until they
-/// succeed. Keyboard light state is read when Quick toggles opens or one of
-/// its global shortcuts is pressed.
-/// While display control is on, the standing resources are one screen change
-/// observer and sleep/wake observers, and no standing timers; everything else
-/// happens when a slider moves, a panel opens or the Mac wakes. All I2C work
+/// The color filter can run without display controls, observing only the
+/// built-in display and leaving hardware brightness and DDC alone. Pending
+/// restores keep wake and lid observation until they succeed. Keyboard light
+/// state is read on demand. Night Shift observation exists only while the
+/// enabled color filter follows it. All I2C work
 /// runs on a serial queue with the pacing displays need, and slider drags
 /// coalesce to the newest value per display.
 final class BrightnessService: ObservableObject {
@@ -82,6 +80,12 @@ final class BrightnessService: ObservableObject {
     /// the panel (issue #1589).
     @Published private(set) var softwareDimmingPreferred = Set<CGDirectDisplayID>()
     @Published private(set) var extendedDimmingPreferred = Set<CGDirectDisplayID>()
+    @Published private(set) var warmthFailed = false
+    @Published private(set) var hasBuiltInDisplay = false
+    @Published private(set) var nightShiftEnabled: Bool?
+    private var nightShiftObserver: NightShiftObserver?
+    /// Read by the display work queue under stateLock; published state is UI-only.
+    private var nightShiftState: Bool?
     @Published private(set) var displayControlFailure: DisplayControlFailure?
     @Published private(set) var brightnessOSDSupported = false
     @Published private(set) var keyboardLightEnabled: Bool?
@@ -228,10 +232,14 @@ final class BrightnessService: ObservableObject {
     /// makes a reconnection safe, so the cap only exists so a long session
     /// full of different monitors cannot grow without bound.
     private static let rememberedGammaBaselines = 16
-    /// Displays whose picture is currently scaled by this app. While a display
-    /// is in here its live curve is ours, not its own, so it is never read
-    /// back as a baseline. Touched only on the work queue.
+    /// Displays whose picture has a brightness reduction applied by this app.
+    /// Touched only on the work queue.
     private var dimmedDisplays = Set<CGDirectDisplayID>()
+    /// Curves owned by either dimming or color filtering. Never capture these
+    /// as a baseline. Keep separate from dimmedDisplays so warmth alone does
+    /// not make a brightness read think the picture has been dimmed.
+    private var adjustedGammaDisplays = Set<CGDirectDisplayID>()
+    private var gammaPictureLevels: [CGDirectDisplayID: Double] = [:]
 
     private struct GammaTable {
         var red: [CGGammaValue]
@@ -283,6 +291,12 @@ final class BrightnessService: ObservableObject {
     /// reading during sleep or an input change cannot take its button away.
     private var managedDisabledDisplays: [CGDirectDisplayID: BrightnessDisplay] = [:]
     private var running = false
+    private var controlsWereEnabled = false
+    private var warmthApplyPending = false
+
+    private var displayControlEnabled: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled)
+    }
     /// Permission reset removes only the two Accessibility event taps. The
     /// display routes, disabled-display journal and gamma state stay live so
     /// revoking permission cannot undo a user's current brightness setup.
@@ -312,6 +326,7 @@ final class BrightnessService: ObservableObject {
     private var rebuildingTopology: BrightnessSupport.DisplayTopology?
 
     private init() {
+        hasBuiltInDisplay = Self.currentTopology().online.contains { CGDisplayIsBuiltin($0) != 0 }
         SessionActivity.shared.onChange { [weak self] _ in self?.syncKeyTap() }
         displayBrightnessDecreaseHotkey.onPress = { [weak self] in
             self?.stepDisplayBrightness(delta: -BrightnessSupport.brightnessKeyStep)
@@ -475,16 +490,92 @@ final class BrightnessService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        let controlsChanged = controlsWereEnabled != displayControlEnabled
+        controlsWereEnabled = displayControlEnabled
+        let wasRunning = running
         let wanted = AppFeature.brightness.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled)
+            && BrightnessSupport.displayServiceWanted(
+                controlEnabled: displayControlEnabled,
+                warmthEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.brightnessWarmthEnabled))
         if wanted { start() } else if running { stop() }
+        syncNightShift()
+        if running, wasRunning, controlsChanged {
+            stateLock.lock()
+            pendingLevels = [:]
+            stateLock.unlock()
+            refresh(force: true)
+        }
+        requestWarmthUpdate()
         syncKeyTap()
         syncKeyboardBrightnessHotkeys()
         syncDisplayBrightnessHotkeys()
     }
 
+    private func syncNightShift() {
+        let defaults = UserDefaults.standard
+        let follows = running && defaults.bool(forKey: DefaultsKey.brightnessWarmthEnabled)
+            && defaults.bool(forKey: DefaultsKey.brightnessWarmthFollowsNightShift)
+        if follows {
+            if nightShiftObserver == nil {
+                nightShiftObserver = NightShiftObserver { [weak self] in self?.updateNightShiftState() }
+            }
+        } else {
+            nightShiftObserver = nil
+        }
+        updateNightShiftState()
+    }
+
+    private func updateNightShiftState() {
+        let enabled = nightShiftObserver?.enabled
+        nightShiftEnabled = enabled
+        stateLock.lock()
+        let changed = nightShiftState != enabled
+        nightShiftState = enabled
+        stateLock.unlock()
+        if changed { requestWarmthUpdate() }
+    }
+
+    /// Color changes do not rediscover displays or probe DDC. A queued update
+    /// reads the latest preferences, folding slider changes into one apply.
+    private func requestWarmthUpdate() {
+        guard running else { return }
+        stateLock.lock()
+        let enqueue = !warmthApplyPending
+        warmthApplyPending = true
+        stateLock.unlock()
+        guard enqueue else { return }
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            self.stateLock.lock()
+            self.warmthApplyPending = false
+            // Resolve after any preceding discovery, including initial startup
+            // before the published display list has reached the main thread.
+            let ids = Array(self.routes.keys)
+            self.stateLock.unlock()
+            let succeeded = self.applyWarmth(to: ids)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.running else { return }
+                self.warmthFailed = !succeeded
+            }
+        }
+    }
+
+    /// Work queue only. Dimming and warmth always share the same baseline.
+    private func applyWarmth(to ids: [CGDirectDisplayID]) -> Bool {
+        var succeeded = true
+        for id in ids where CGDisplayIsBuiltin(id) != 0
+            && CGDisplayIsActive(id) != 0 && CGDisplayIsAsleep(id) == 0 {
+            if builtInWarmth > 0 || adjustedGammaDisplays.contains(id) {
+                captureGammaBaselineIfNeeded(id)
+                let picture = displayControlEnabled ? (gammaPictureLevels[id] ?? 1) : 1
+                succeeded = applySoftwareDim(id, value: picture) && succeeded
+            }
+        }
+        return succeeded
+    }
+
     private func syncDisplayBrightnessHotkeys() {
-        let enabled = running && AppFeature.brightness.isAvailable
+        let enabled = running && displayControlEnabled && AppFeature.brightness.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.displayBrightnessShortcutsEnabled)
         let decrease = GlobalShortcutRole.displayBrightnessDecrease.savedShortcut
         let increase = GlobalShortcutRole.displayBrightnessIncrease.savedShortcut
@@ -503,7 +594,7 @@ final class BrightnessService: ObservableObject {
     }
 
     private func stepDisplayBrightness(delta: Double) {
-        guard running, AppFeature.brightness.isAvailable, SessionActivity.shared.isActive,
+        guard running, displayControlEnabled, AppFeature.brightness.isAvailable, SessionActivity.shared.isActive,
               UserDefaults.standard.bool(forKey: DefaultsKey.displayBrightnessShortcutsEnabled)
         else { return }
         let pointer = NSEvent.mouseLocation
@@ -569,6 +660,8 @@ final class BrightnessService: ObservableObject {
         displayBrightnessShortcutRegistrationFailed = false
         guard running else { return }
         running = false
+        nightShiftObserver = nil
+        nightShiftEnabled = nil
         removeFunctionKeyTap()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
@@ -576,6 +669,7 @@ final class BrightnessService: ObservableObject {
         rebuildDebounce?.cancel()
         rebuildDebounce = nil
         stateLock.lock()
+        nightShiftState = nil
         rebuildGeneration += 1
         rebuildingTopology = nil
         routes = [:]
@@ -620,6 +714,7 @@ final class BrightnessService: ObservableObject {
     func refresh(force: Bool = false) {
         guard running, !displayPowerIsSuspended else { return }
         let topology = Self.currentTopology()
+        hasBuiltInDisplay = topology.online.contains { CGDisplayIsBuiltin($0) != 0 }
         let previousDisplays = displays
         stateLock.lock()
         guard BrightnessSupport.shouldQueueRebuild(topology: topology,
@@ -667,7 +762,7 @@ final class BrightnessService: ObservableObject {
     /// that shows the level itself passes `announces: false`.
     func setBrightness(_ value: Double, for id: CGDirectDisplayID,
                        showOSD: Bool = false, smooth: Bool = false, announces: Bool = true) {
-        guard value.isFinite else { return }
+        guard displayControlEnabled, value.isFinite else { return }
         let clamped = min(max(value, 0), 1)
         let shownInNotch = announces ? NotchService.shared.showBrightness(clamped) : false
         if let index = displays.firstIndex(where: { $0.id == id }),
@@ -1087,7 +1182,7 @@ final class BrightnessService: ObservableObject {
     /// Restores only curves this app dimmed, skipping any display number that
     /// now belongs to a different monitor. Runs on the work queue.
     private func restoreAllGamma() {
-        for id in dimmedDisplays {
+        for id in adjustedGammaDisplays {
             guard let baseline = gammaBaselines[id],
                   Self.displayFingerprint(id) == baseline.fingerprint else { continue }
             CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
@@ -1096,6 +1191,8 @@ final class BrightnessService: ObservableObject {
         }
         gammaBaselines = [:]
         dimmedDisplays = []
+        adjustedGammaDisplays = []
+        gammaPictureLevels = [:]
     }
 
     // MARK: - Displays switched off by this app
@@ -1207,7 +1304,8 @@ final class BrightnessService: ObservableObject {
         let keyStep = self.keyStep
         let wantsFinerSteps = keyStep != .standard
         let wanted = SessionActivitySupport.tapShouldRun(
-            featureWanted: (running && (wantsKeyRouting || wantsBrightnessOSD || wantsFinerSteps))
+            featureWanted: (running && displayControlEnabled
+                && (wantsKeyRouting || wantsBrightnessOSD || wantsFinerSteps))
                 || wantsKeyboardLight,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive)
@@ -1216,7 +1314,7 @@ final class BrightnessService: ObservableObject {
         // keystroke tap is only earned when this app answers a brightness key
         // instead of the system: the pointer decides the target, an overlay
         // or the island stands in for the system's own, or a finer step.
-        if wanted, running, BrightnessSupport.answersPlainBrightnessKeys(followsPointer: wantsKeyRouting,
+        if wanted, running, displayControlEnabled, BrightnessSupport.answersPlainBrightnessKeys(followsPointer: wantsKeyRouting,
                                                                           overlayReplacesNative: wantsBrightnessOSD,
                                                                           finerSteps: wantsFinerSteps) {
             let hotKeys = UserDefaults(suiteName: "com.apple.symbolichotkeys")?
@@ -1667,7 +1765,7 @@ final class BrightnessService: ObservableObject {
         guard event.getIntegerValueField(.eventSourceUserData) != BrightnessSupport.systemQuarterStepMarker else {
             return Unmanaged.passUnretained(event)
         }
-        guard running, let press = BrightnessSupport.brightnessKeyEvent(subtype: Int(nsEvent.subtype.rawValue),
+        guard running, displayControlEnabled, let press = BrightnessSupport.brightnessKeyEvent(subtype: Int(nsEvent.subtype.rawValue),
                                                                data1: nsEvent.data1)
         else { return Unmanaged.passUnretained(event) }
         let owner = keyOwnership.owner(
@@ -2042,6 +2140,7 @@ final class BrightnessService: ObservableObject {
         var virtualIDs = Set<CGDirectDisplayID>()
 
         for id in onlineIDs {
+            if !displayControlEnabled && CGDisplayIsBuiltin(id) == 0 { continue }
             let info = Self.displayInfoDictionary(id)
             // Read before the guard below, so the snapshot the panel decides
             // from covers every online display, exactly like the live reading
@@ -2334,6 +2433,9 @@ final class BrightnessService: ObservableObject {
             && newRoutes[id]?.extendedDimming != true {
             _ = applySoftwareDim(id, value: 1)
         }
+        // Compose color and dimming once from the untouched baseline. Never
+        // capture a curve this process already tinted as the new neutral.
+        let warmthSucceeded = applyWarmth(to: built.filter { $0.isBuiltIn && $0.isActive }.map(\.id))
         var resolved: [BrightnessDisplay] = []
         var supportsBrightnessOSD = false
         let stale: Bool
@@ -2393,6 +2495,7 @@ final class BrightnessService: ObservableObject {
             if self.extendedDimmingPreferred != extendedDimmingIDs {
                 self.extendedDimmingPreferred = extendedDimmingIDs
             }
+            self.warmthFailed = !warmthSucceeded
             if self.drawableDisplays != drawableIDs { self.drawableDisplays = drawableIDs }
             if self.brightnessOSDSupported != supportsBrightnessOSD {
                 self.brightnessOSDSupported = supportsBrightnessOSD
@@ -2534,7 +2637,7 @@ final class BrightnessService: ObservableObject {
         // again on every reconnection until it is black. A display this app is
         // not dimming is read again, so a colour profile the user changes, or
         // a warm evening tint, becomes what everything else scales from.
-        if gammaBaselines[id]?.fingerprint == fingerprint, dimmedDisplays.contains(id) { return }
+        if gammaBaselines[id]?.fingerprint == fingerprint, adjustedGammaDisplays.contains(id) { return }
         let capacity = 256
         var red = [CGGammaValue](repeating: 0, count: capacity)
         var green = [CGGammaValue](repeating: 0, count: capacity)
@@ -2556,19 +2659,42 @@ final class BrightnessService: ObservableObject {
     private func applySoftwareDim(_ id: CGDirectDisplayID, value: Double) -> Bool {
         guard let baseline = gammaBaselines[id],
               baseline.fingerprint == Self.displayFingerprint(id) else { return false }
-        if value >= 0.999 {
+        let warmth = CGDisplayIsBuiltin(id) != 0 ? builtInWarmth : 0
+        if value >= 0.999 && warmth == 0 {
             let restored = CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
                                                        baseline.green, baseline.blue) == .success
-            if restored { dimmedDisplays.remove(id) }
+            if restored {
+                dimmedDisplays.remove(id)
+                adjustedGammaDisplays.remove(id)
+                gammaPictureLevels[id] = 1
+            }
             return restored
         }
         let factor = BrightnessSupport.softwareDimFactor(for: value)
-        let red = BrightnessSupport.scaledGammaTable(baseline.red, factor: factor)
-        let green = BrightnessSupport.scaledGammaTable(baseline.green, factor: factor)
-        let blue = BrightnessSupport.scaledGammaTable(baseline.blue, factor: factor)
+        let gains = BrightnessSupport.warmthGains(warmth)
+        let red = BrightnessSupport.scaledGammaTable(baseline.red, factor: factor * gains.red)
+        let green = BrightnessSupport.scaledGammaTable(baseline.green, factor: factor * gains.green)
+        let blue = BrightnessSupport.scaledGammaTable(baseline.blue, factor: factor * gains.blue)
         let applied = CGSetDisplayTransferByTable(id, baseline.count, red, green, blue) == .success
-        if applied { dimmedDisplays.insert(id) }
+        if applied {
+            adjustedGammaDisplays.insert(id)
+            gammaPictureLevels[id] = value
+            if value < 0.999 { dimmedDisplays.insert(id) }
+            else { dimmedDisplays.remove(id) }
+        }
         return applied
+    }
+
+    private var builtInWarmth: Double {
+        let defaults = UserDefaults.standard
+        stateLock.lock()
+        let nightShift = nightShiftState
+        stateLock.unlock()
+        return BrightnessSupport.effectiveWarmth(
+            enabled: defaults.bool(forKey: DefaultsKey.brightnessWarmthEnabled),
+            intensity: defaults.double(forKey: DefaultsKey.brightnessWarmthLevel),
+            followsNightShift: defaults.bool(forKey: DefaultsKey.brightnessWarmthFollowsNightShift),
+            nightShiftEnabled: nightShift)
     }
 
     // MARK: - DDC transactions (work queue)

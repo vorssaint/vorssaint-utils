@@ -2179,6 +2179,11 @@ def main():
           + "var blue: [CGGammaValue] = [1]; var count: UInt32 = 1; var fingerprint: String }\n"
           + "var gammaBaselines: [CGDirectDisplayID: GammaTable] = [:]\n"
           + "var dimmedDisplays = Set<CGDirectDisplayID>()\n"
+          + "var adjustedGammaDisplays = Set<CGDirectDisplayID>()\n"
+          + "var gammaPictureLevels: [CGDirectDisplayID: Double] = [:]\n"
+          + "var running = true\nvar warmthApplyPending = false\nvar warmthFailed = false\n"
+          + "func applyWarmth(to ids: [CGDirectDisplayID]) -> Bool {\n"
+          + "events.append(\"warmth:\\(ids.sorted())\"); return softwareSucceeds\n}\n"
           + "var softwareSucceeds = true\nvar ddcSucceeds = true\nvar events: [String] = []\n"
           + "var forgottenWriteOnlyPaths: [String] = []\nvar refreshes = 0\n"
           + "static func displayFingerprint(_ id: CGDirectDisplayID) -> String { \"display-\\(id)\" }\n"
@@ -2197,6 +2202,7 @@ def main():
           + declaration(brightness, "    func setSoftwareDimmingPreferred(")
           + declaration(brightness, "    func setExtendedDimmingPreferred(")
           + declaration(brightness, "    private func restoreAllGamma(").replace("private func", "func", 1)
+          + declaration(brightness, "    private func requestWarmthUpdate(").replace("private func", "func", 1)
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private func", "func", 1)
           + "}\n}\n")
 

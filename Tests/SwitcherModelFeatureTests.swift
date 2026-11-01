@@ -3107,6 +3107,18 @@ enum SwitcherModelFeatureTests {
             (restoredKeyboardShortcuts?[key] as? NSObject) == (value as? NSObject)
         }, "keyboard brightness opt-in and custom shortcuts survive a settings backup")
 
+        let filterSettings: [String: Any] = [
+            DefaultsKey.brightnessControlEnabled: false,
+            DefaultsKey.brightnessWarmthEnabled: true,
+            DefaultsKey.brightnessWarmthLevel: 0.73,
+            DefaultsKey.brightnessWarmthFollowsNightShift: true,
+        ]
+        let filterBackup = SettingsBackupSupport.payload(appVersion: "test") { filterSettings[$0] }
+        let restoredFilter = SettingsBackupSupport.sanitizedSettings(from: filterBackup)
+        suite.expect(filterSettings.allSatisfy { key, value in
+            (restoredFilter?[key] as? NSObject) == (value as? NSObject)
+        }, "the independent blue light filter survives backup without enabling display controls")
+
         for enabled in [false, true] {
             let displayShortcutSettings: [String: Any] = [
                 DefaultsKey.brightnessControlEnabled: enabled,

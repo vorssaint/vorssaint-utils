@@ -1601,6 +1601,10 @@ enum FeatureCatalogTests {
         suite.expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        suite.expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessWarmthEnabled,
+                                                   DefaultsKey.brightnessKeysEnabled,
+                                                   DefaultsKey.brightnessOSDEnabled]).contains(.brightness),
+               "warmth alone does not activate dormant brightness key permissions")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
                                strings: [DefaultsKey.brightnessKeyStep: "quarter"]).contains(.brightness)
                 && !activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],

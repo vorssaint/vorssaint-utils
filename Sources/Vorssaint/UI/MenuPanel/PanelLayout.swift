@@ -169,7 +169,9 @@ enum PanelLayout {
     /// live panel and its preview in Settings both read.
     static func isVisibleInPanel(_ id: PanelSectionID) -> Bool {
         guard id.isAvailable, isShown(id) else { return false }
-        return id != .brightness || defaults.bool(forKey: DefaultsKey.brightnessControlEnabled)
+        return id != .brightness || BrightnessSupport.displayServiceWanted(
+            controlEnabled: defaults.bool(forKey: DefaultsKey.brightnessControlEnabled),
+            warmthEnabled: defaults.bool(forKey: DefaultsKey.brightnessWarmthEnabled))
     }
 
     static func isCollapsed(_ id: PanelSectionID) -> Bool {

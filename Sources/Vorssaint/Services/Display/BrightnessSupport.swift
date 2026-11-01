@@ -326,6 +326,24 @@ enum BrightnessSupport {
         return table.map { $0 * factor }
     }
 
+    /// A continuous neutral-to-amber filter, independent of brightness.
+    /// Keep red intact, reducing blue more strongly than green. This is an
+    /// intensity control, not a calibrated color-temperature measurement.
+    static func warmthGains(_ intensity: Double) -> (red: Float, green: Float, blue: Float) {
+        let amount = intensity.isFinite ? min(max(intensity, 0), 1) : 0
+        return (1, Float(pow(0.4, amount)), Float(pow(0.02, amount)))
+    }
+
+    static func effectiveWarmth(enabled: Bool, intensity: Double,
+                                followsNightShift: Bool, nightShiftEnabled: Bool?) -> Double {
+        guard enabled, !followsNightShift || nightShiftEnabled == true else { return 0 }
+        return intensity.isFinite ? min(max(intensity, 0), 1) : 0
+    }
+
+    static func displayServiceWanted(controlEnabled: Bool, warmthEnabled: Bool) -> Bool {
+        controlEnabled || warmthEnabled
+    }
+
     /// The gamma scale to put back on a software-dimmed display when the
     /// routes are rebuilt. Only a dim this app applied itself is ours to
     /// restore: the session's remembered level is also filled in from a

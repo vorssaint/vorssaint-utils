@@ -10,8 +10,11 @@ struct BrightnessSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var permissions = Permissions.shared
+    @AppStorage(DefaultsKey.brightnessControlEnabled) private var controlsEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
+    @AppStorage(DefaultsKey.brightnessWarmthEnabled) private var warmthEnabled = false
+    @AppStorage(DefaultsKey.brightnessWarmthFollowsNightShift) private var warmthFollowsNightShift = true
     @State private var optionsExpanded = false
     var collapsible = true
 
@@ -20,25 +23,44 @@ struct BrightnessSection: View {
     var body: some View {
         PanelSection(.brightness, title: strings.pageTitle, collapsible: collapsible) {
             VStack(alignment: .leading, spacing: 10) {
-                if service.displays.isEmpty {
-                    Text(strings.noDisplays)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(service.displays) { display in
-                        row(display)
+                if controlsEnabled {
+                    if service.displays.isEmpty {
+                        Text(strings.noDisplays)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(service.displays) { display in
+                            row(display)
+                        }
+                    }
+                    if let failure = service.displayControlFailure {
+                        Text(displayControlFailureText(failure, strings: strings))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.red)
                     }
                 }
-                if let failure = service.displayControlFailure {
-                    Text(displayControlFailureText(failure, strings: strings))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.red)
+                if service.hasBuiltInDisplay {
+                    if controlsEnabled { Divider() }
+                    Toggle(strings.warmth, isOn: $warmthEnabled)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .help(strings.warmthCaption)
+                        .onChange(of: warmthEnabled) { _, _ in
+                            service.syncWithPreferences()
+                        }
+                    if warmthEnabled, warmthFollowsNightShift, service.nightShiftEnabled != true {
+                        Text(service.nightShiftEnabled == nil
+                             ? strings.warmthNightShiftUnavailable : strings.warmthWaiting)
+                            .font(.system(size: 9.5)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 if service.keyboardLightEnabled != nil {
                     Divider()
                     keyboardLightRow
                 }
-                if service.brightnessOSDSupported {
+                if controlsEnabled, service.brightnessOSDSupported {
                     Divider()
                     Toggle(strings.osdToggle, isOn: $brightnessOSDEnabled)
                         .font(.system(size: 10.5, weight: .medium))
@@ -50,12 +72,14 @@ struct BrightnessSection: View {
                             service.syncWithPreferences()
                         }
                 }
-                if AppFeature.extraBrightness.isAvailable {
+                if controlsEnabled, AppFeature.extraBrightness.isAvailable {
                     Divider()
                     ExtraBrightnessPanelToggle()
                 }
-                Divider()
-                optionsDisclosure
+                if controlsEnabled {
+                    Divider()
+                    optionsDisclosure
+                }
             }
             .panelCard()
             .onAppear {
