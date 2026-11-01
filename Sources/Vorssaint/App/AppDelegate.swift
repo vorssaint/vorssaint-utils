@@ -169,6 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         KeepAwakeManager.shared.recoverIfNeeded {
             KeepAwakeManager.shared.activateOnLaunchIfNeeded()
         }
+        CommandLineTool.startListening()
         FanControlService.recoverIfNeeded()
         SpacesOrderHold.recoverIfNeeded()
         // One binding per feature: only available features are touched, so a

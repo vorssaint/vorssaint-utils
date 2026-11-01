@@ -198,6 +198,24 @@ Or grab the disk image from the [releases page](https://github.com/vorssaint/vor
 
 Builds are signed with an Apple Developer ID and notarized, so macOS opens them without a fuss and your permissions survive updates.
 
+## Command line
+
+Link the `vors` command once. It asks for your password:
+
+```sh
+sudo mkdir -p /usr/local/bin
+sudo ln -sf /Applications/Vorssaint.app/Contents/MacOS/Vorssaint /usr/local/bin/vors
+```
+
+Then control Keep awake from any terminal. Vorssaint opens in the background if it is not running, and the session stays with the app after the command returns.
+
+```sh
+vors keepawake -m 120   # keep awake for 120 minutes, 0 for no end time
+vors keepawake          # start the last used session
+vors keepawake status
+vors keepawake off
+```
+
 ## Uninstall
 
 With Homebrew:
