@@ -37,6 +37,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -160,5 +161,12 @@ extension ClipboardRetentionStrings {
         oneDay: "1 день",
         daysFormat: "%d днів",
         caption: "Старіші елементи видаляються, навіть якщо ліміт не досягнуто. Закріплені елементи зберігаються завжди."
+    )
+    static let ar = ClipboardRetentionStrings(
+        title: "مدة الاحتفاظ بالعناصر",
+        forever: "دائمًا",
+        oneDay: "يوم واحد",
+        daysFormat: "%d ي",
+        caption: "تُزال العناصر الأقدم حتى لو كانت دون الحد. وتبقى العناصر المثبّتة دائمًا."
     )
 }

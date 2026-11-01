@@ -1142,6 +1142,8 @@ extension FeatureStrings {
             hoverPreview: "معاينة عند التمرير",
             hoverExpand: "توسيع عند التمرير",
             hiddenUntilHover: "مخفي حتى التمرير",
+            hiddenShowsActivity: "إظهار النشاط والمؤشرات",
+            hiddenShowsActivityHint: "تظهر أثناء تشغيل نشاط أو ظهور مؤشر، ثم تختفي مجددًا.",
             resting: "في وضع السكون",
             destinations: "أين تُفتح الأشياء",
             separate: "نافذة منفصلة",

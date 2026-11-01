@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -152,5 +153,12 @@ extension AutoQuitDockAppsStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         emptyNote: "沒有可加入的選單列 App。"
+    )
+    static let ar = AutoQuitDockAppsStrings(
+        listTitle: "تطبيقات شريط القوائم التي تُنهى",
+        caption: "تبقى تطبيقات شريط القوائم مفتوحة افتراضيًا. أما التطبيقات التي تحددها هنا فيمكن أن تُنهى بعد إغلاق آخر نافذة لها ما دامت في شريط الأيقونات. وتظل الاستثناءات تُبقيها مفتوحة.",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        emptyNote: "لا توجد تطبيقات شريط قوائم يمكن إضافتها."
     )
 }

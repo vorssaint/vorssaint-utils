@@ -1173,7 +1173,10 @@ def main():
           + "}\nstruct Editor {\n"
           + availability_declaration("Sources/Vorssaint/UI/Settings/RadialMenuSettings.swift",
                                      "    private var availableQuickToggles:").replace("private var", "var", 1)
-          + "}\n}\n")
+          + "}\n}\n"
+          # The panel's root follows the app language's direction, which the
+          # harness has no language for.
+          + "extension View { func appLayoutDirection() -> Self { self } }\n")
     write("OverlayPanelDeclaration.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/UI/OverlayPanel.swift", "class OverlayPanel:"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"

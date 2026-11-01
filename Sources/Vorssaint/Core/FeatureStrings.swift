@@ -3345,7 +3345,8 @@ extension ClipboardFeatureStrings {
         clearRecentConfirmMessage: "تبقى العناصر المثبّتة، وكذلك كل ما يُنسخ بعد هذا. ولا يمكن التراجع عن ذلك.",
         historyLayout: "تخطيط السجل",
         historyLayoutCards: "بطاقات",
-        historyLayoutList: "قائمة")
+        historyLayoutList: "قائمة",
+        showSourceAppIconsInList: "إظهار أيقونات التطبيقات المصدر في عرض القائمة")
 }
 
 extension WindowLayoutFeatureStrings {

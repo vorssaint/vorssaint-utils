@@ -940,5 +940,7 @@ extension AppUpdateStrings {
         excludedApp: "لا يُفحص حتى تُزال هذه القاعدة",
         removeRule: "إزالة",
         rulesHint: "تخطّي إصدار لا يمنع الإصدارات الأحدث. وبعد إزالة استثناء تطبيق، استخدم “التحقق الآن” لتحديثه.",
-        noVisibleUpdates: "لا تحديثات خارج قواعدك")
+        noVisibleUpdates: "لا تحديثات خارج قواعدك",
+        uncomparableVersions: "إصدارات لا تُقارن",
+        uncomparableVersionsNote: "لا يظهر تحديث حين يتعذّر مقارنة إصدار التطبيق نفسه بالكتالوج. تحقق من التحديثات داخل التطبيق نفسه.")
 }
