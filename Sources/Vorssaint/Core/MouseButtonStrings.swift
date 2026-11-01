@@ -272,15 +272,15 @@ extension MouseButtonFeatureStrings {
         panelCaption: "Els botons addicionals i les direccions de la roda lateral premen les combinacions de tecles que triïs.",
         sideWheelLeftName: "Roda lateral cap a l’esquerra",
         sideWheelRightName: "Roda lateral cap a la dreta",
-        spacesEnableLabel: "Canvia d’espai en arrossegar un botó",
-        spacesEnableCaption: "Mantén premut el botó triat i arrossega: cap a l’esquerra o cap a la dreta canvia a l’espai del costat, cap amunt obre el Mission Control i cap avall obre l’App Exposé. Un clic curt continua fent el mateix de sempre.",
+        spacesEnableLabel: "Canvia de Space en arrossegar un botó",
+        spacesEnableCaption: "Mantén premut el botó triat i arrossega: cap a l’esquerra o cap a la dreta canvia al Space del costat, cap amunt obre el Mission Control i cap avall obre l’App Exposé. Un clic curt continua fent el mateix de sempre.",
         spacesPickButton: "Tria un botó",
         spacesShortcutsOffNote: "Les dreceres de teclat del Mission Control estan desactivades a l’app Configuració del Sistema, així que aquest gest no pot fer res.",
         spacesCaptureWaiting: "Ara prem el botó central o un botó addicional.",
         spacesCaptureUnsupported: "Aquesta entrada no es pot mantenir premuda per arrossegar. Fes servir el botó central o un botó addicional.",
         spacesCaptureExists: "Aquest botó ja té una drecera. Tria’n un altre.",
-        spacesFollowsDragLabel: "Els espais segueixen l’arrossegament",
-        spacesFollowsDragCaption: "Si arrossegues cap a la dreta, apareix l’espai de l’esquerra, com quan fas lliscar els dits al trackpad i l’espai els segueix."
+        spacesFollowsDragLabel: "Els Spaces segueixen l’arrossegament",
+        spacesFollowsDragCaption: "Si arrossegues cap a la dreta, apareix el Space de l’esquerra, com quan fas lliscar els dits al trackpad i el Space els segueix."
     )
 
     static let sk = MouseButtonFeatureStrings(
