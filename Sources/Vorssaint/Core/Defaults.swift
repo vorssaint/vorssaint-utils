@@ -193,6 +193,9 @@ enum DefaultsKey {
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
     static let autoQuitDockApps = "autoQuitDockApps"  // [bundle id] menu bar apps explicitly allowed to quit in the Dock
+    static let autoFullscreenEnabled = "autoFullscreenEnabled"  // first window of a launching app enters macOS full screen
+    static let autoFullscreenExceptions = "autoFullscreenExceptions"  // [bundle id] left to open normally
+    static let autoFullscreenBuiltInDisplayOnly = "autoFullscreenBuiltInDisplayOnly"  // skip launches while an external display is connected
     // Quit/close protection: each shortcut owns its full configuration and app list.
     static let quitProtectionQuitEnabled = "quitProtectionQuitEnabled"
     static let quitProtectionQuitMode = "quitProtectionQuitMode"
@@ -369,6 +372,7 @@ enum DefaultsKey {
     static let panelControlDockPreview = "panelControlDockPreview"
     static let panelControlCutPaste = "panelControlCutPaste"
     static let panelControlAutoQuit = "panelControlAutoQuit"
+    static let panelControlAutoFullscreen = "panelControlAutoFullscreen"
     static let panelControlShelf = "panelControlShelf"
     static let panelControlWindowMaximize = "panelControlWindowMaximize"
     static let panelControlKeyDebounce = "panelControlKeyDebounce"
@@ -1377,6 +1381,9 @@ enum Defaults {
         // it's excepted out of the box.
         DefaultsKey.autoQuitExceptions: mandatoryAutoQuitExceptionBundleIDs,
         DefaultsKey.autoQuitDockApps: [String](),
+        DefaultsKey.autoFullscreenEnabled: false,
+        DefaultsKey.autoFullscreenExceptions: [String](),
+        DefaultsKey.autoFullscreenBuiltInDisplayOnly: true,
         DefaultsKey.quitProtectionQuitEnabled: false,
         DefaultsKey.quitProtectionQuitMode: QuitProtectionMode.hold.rawValue,
         DefaultsKey.quitProtectionQuitHoldDurationMs: QuitProtectionSupport.defaultHoldDurationMilliseconds,
@@ -1656,6 +1663,7 @@ enum Defaults {
         DefaultsKey.panelControlDockPreview: true,
         DefaultsKey.panelControlCutPaste: true,
         DefaultsKey.panelControlAutoQuit: true,
+        DefaultsKey.panelControlAutoFullscreen: true,
         DefaultsKey.panelControlShelf: true,
         DefaultsKey.panelControlWindowMaximize: true,
         DefaultsKey.panelControlKeyDebounce: true,

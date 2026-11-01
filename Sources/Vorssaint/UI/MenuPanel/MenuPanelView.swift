@@ -1112,7 +1112,7 @@ struct UtilitiesSection: View {
 }
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
-    case mouseScroll, smoothScroll, linearScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
+    case mouseScroll, smoothScroll, linearScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, autoFullscreen, shelf, windowMaximize, dockPreview, keyDebounce,
          dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
          mouseClickDebounce, notch, spacesOrder
 
@@ -1131,6 +1131,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .switcher: return .switcher
         case .cutPaste: return .finderCutPaste
         case .autoQuit: return .autoQuit
+        case .autoFullscreen: return .autoFullscreen
         case .shelf: return .shelf
         case .windowMaximize: return .windowMaximizer
         case .dockPreview: return .dockPreview
@@ -1157,7 +1158,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
 
     static func category(for item: ControlPanelItem) -> ControlCategory {
         switch item {
-        case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit, .notch,
+        case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit, .autoFullscreen, .notch,
              .spacesOrder:
             return .windows
         case .mouseScroll, .smoothScroll, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
@@ -1193,6 +1194,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.finderCutPasteEnabled) private var cutPasteEnabled = false
     @AppStorage(DefaultsKey.autoQuitEnabled) private var autoQuitEnabled = false
+    @AppStorage(DefaultsKey.autoFullscreenEnabled) private var autoFullscreenEnabled = false
     @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
     @AppStorage(DefaultsKey.windowMaximizeEnabled) private var windowMaximizeEnabled = false
     @AppStorage(DefaultsKey.keyboardDebounceEnabled) private var keyDebounceEnabled = false
@@ -1226,6 +1228,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlDockPreview) private var showDockPreview = true
     @AppStorage(DefaultsKey.panelControlCutPaste) private var showCutPaste = true
     @AppStorage(DefaultsKey.panelControlAutoQuit) private var showAutoQuit = true
+    @AppStorage(DefaultsKey.panelControlAutoFullscreen) private var showAutoFullscreen = true
     @AppStorage(DefaultsKey.panelControlShelf) private var showShelf = true
     @AppStorage(DefaultsKey.panelControlWindowMaximize) private var showWindowMaximize = true
     @AppStorage(DefaultsKey.panelControlKeyDebounce) private var showKeyDebounce = true
@@ -1349,6 +1352,7 @@ struct QuickControlsSection: View {
         case .switcher: return switcherEnabled
         case .cutPaste: return cutPasteEnabled
         case .autoQuit: return autoQuitEnabled
+        case .autoFullscreen: return autoFullscreenEnabled
         case .shelf: return shelfEnabled
         case .windowMaximize: return windowMaximizeEnabled
         case .dockPreview: return dockPreviewEnabled
@@ -1431,6 +1435,7 @@ struct QuickControlsSection: View {
         case .keyDebounce: return showKeyDebounce
         case .cutPaste: return showCutPaste
         case .autoQuit: return showAutoQuit
+        case .autoFullscreen: return showAutoFullscreen
         case .shelf: return showShelf
         case .windowMaximize: return showWindowMaximize
         case .dockPreview: return showDockPreview
@@ -1605,6 +1610,22 @@ struct QuickControlsSection: View {
                            permissionAction: accessibilityPermissionAction(autoQuitEnabled))
                 .onChange(of: autoQuitEnabled) { _, enabled in
                     AutoQuitService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .autoFullscreen:
+            let autoFullscreenText = FeatureStrings.autoFullscreen(l10n.language)
+            PanelToggleRow(title: autoFullscreenText.name,
+                           caption: caption(autoFullscreenText.enableCaption, needsAccessibility: autoFullscreenEnabled),
+                           systemImage: "rectangle.inset.filled",
+                           isOn: $autoFullscreenEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showAutoFullscreen,
+                           needsAttention: autoFullscreenEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(autoFullscreenEnabled))
+                .onChange(of: autoFullscreenEnabled) { _, enabled in
+                    AutoFullscreenService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .shelf:
@@ -1918,6 +1939,7 @@ struct QuickControlsSection: View {
         showSwitcher = true
         showCutPaste = true
         showAutoQuit = true
+        showAutoFullscreen = true
         showShelf = true
         showWindowMaximize = true
         showDockPreview = true
