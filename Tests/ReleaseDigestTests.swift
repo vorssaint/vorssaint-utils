@@ -193,6 +193,8 @@ enum ReleaseDigestTests {
     private static func checkClassifier(_ suite: TestSuite) {
         // Real entries from the 3.4.x notes.
         let cases: [(String, String, [AppFeature])] = [
+            ("Added", "Scroll Zoom supports configurable modifiers.", [.scrollZoom]),
+            ("Fixed", "Pinch Zoom responds to isolated wheel ticks.", [.scrollZoom]),
             ("Added", "The window switcher can limit how many items sit in a row and wraps the rest. Settings → Window switcher → Options → Maximum columns.", [.switcher]),
             ("Fixed", "Dock clicks and Dock Preview act on the right instance when an app runs as several processes.", [.dockPreview, .dockClick]),
             ("Fixed", "Settings → Features no longer jumps or goes blank when a feature is installed or removed while scrolled down.", []),

@@ -184,6 +184,75 @@ enum NotchTests {
                "the player is a small cover beside the camera, the song below it, the timeline and one row of buttons")
     }
 
+    private static func musicVolumeLayoutContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let volumeRow = NotchLayout.levelRowHeight + NotchLayout.rowSpacing
+        for notched in [false, true] {
+            for layout: NotchSize in [.compact, .spacious] {
+                var geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                             cameraWidth: notched ? 210 : 0, layout: layout, silhouette: .capsule)
+                geometry.pageTop = NotchModule.music.pageTop
+                for playing in [false, true] {
+                    let original = geometry.expandedSize(module: .music, musicHasContent: playing)
+                    let disabled = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: false)
+                    let enabled = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: true)
+                    let player = NotchLayout.musicPlayerHeight(band: geometry.musicBandHeight, playing: playing, showVolume: true)
+                    let content = geometry.contentSize(for: enabled)
+                    suite.expect(disabled == original && enabled.width == original.width
+                                 && enabled.height == original.height + volumeRow && content.height == player,
+                                 "optional volume adds one complete row without changing the preset player's width or making it scroll: \(layout), notched \(notched), playing \(playing)")
+                    suite.expect(player == NotchLayout.musicPlayerHeight(band: geometry.musicBandHeight, playing: playing) + volumeRow,
+                                 "the volume row has the same height in the playing and idle player")
+
+                    let extras = geometry.musicExtrasHeight
+                    let opened = geometry.contentSize(for: geometry.expandedSize(module: .music, musicHasContent: playing,
+                                                                                 musicShowsVolume: true, musicExtraHeight: extras))
+                    let split = NotchLayout.musicSplit(height: opened.height, extras: extras, resting: player, keepsPlayer: true)
+                    suite.expect(split.showsPlayer && split.player == player && split.extra == extras - NotchLayout.rowSpacing,
+                                 "opening lyrics or the queue keeps the optional volume row and the list's full height")
+                    for height in stride(from: content.height, through: opened.height, by: 12) {
+                        let growing = NotchLayout.musicSplit(height: height, extras: extras, resting: player, keepsPlayer: true)
+                        suite.expect(growing.showsPlayer && growing.player == player,
+                                     "the optional volume row stays with the player while lyrics or the queue grows")
+                    }
+                }
+            }
+
+            for width in [360.0, 480] {
+                for height in [NotchSize.heightRange.lowerBound, 340, 500] {
+                    var geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                                 cameraWidth: notched ? 210 : 0, layout: .custom,
+                                                 customWidth: width, customHeight: height, silhouette: .capsule)
+                    geometry.pageTop = NotchModule.music.pageTop
+                    for playing in [false, true] {
+                        let player = NotchLayout.musicPlayerHeight(band: geometry.musicBandHeight, playing: playing, showVolume: true)
+                        let closed = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: true)
+                        let opened = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: true,
+                                                           musicExtraHeight: geometry.musicExtrasHeight)
+                        let available = geometry.contentSize(for: opened).height
+                        suite.expect(closed.height <= CGFloat(height) && opened.height <= CGFloat(height)
+                                     && geometry.contentSize(for: closed).height == min(geometry.contentBudget, player),
+                                     "optional volume respects the custom height with and without an open list: \(width) × \(height), notched \(notched)")
+                        let split = NotchLayout.musicSplit(height: available, extras: geometry.musicExtrasHeight,
+                                                           resting: player, keepsPlayer: false)
+                        suite.expect(split.showsPlayer
+                                     ? split.player == player && split.extra >= NotchLayout.musicMinimumExtraHeight
+                                         && split.player + NotchLayout.rowSpacing + split.extra <= available
+                                     : split.extra <= available && available - player - NotchLayout.rowSpacing < NotchLayout.musicMinimumExtraHeight,
+                                     "a short custom island gives lyrics or the queue the player's space before cutting the optional volume row")
+                    }
+                }
+            }
+        }
+        let player = NotchLayout.musicPlayerHeight(band: 36, showVolume: true)
+        let boundary = player + NotchLayout.rowSpacing + NotchLayout.musicMinimumExtraHeight
+        let below = NotchLayout.musicSplit(height: boundary - 1, extras: 216, resting: player, keepsPlayer: false)
+        let fits = NotchLayout.musicSplit(height: boundary, extras: 216, resting: player, keepsPlayer: false)
+        suite.expect(!below.showsPlayer && fits.showsPlayer && fits.player == player
+                     && fits.extra == NotchLayout.musicMinimumExtraHeight,
+                     "a custom island keeps the player and volume exactly when a readable lyrics or queue list fits")
+    }
+
     private static func presentationSpacingContracts(_ suite: TestSuite) {
         let screen = CGRect(x: -1470, y: 80, width: 1470, height: 956)
         for width in [360.0, 480, 560, 720] {
@@ -984,14 +1053,18 @@ enum NotchTests {
             }
         }
         for event in [NotchEvent.volume, .brightness, .keyboardLight] {
+            let widest = NotchNotice(event: event, title: "Level", detail: "100%",
+                                     symbol: "speaker.wave.2", level: 1).preferredWingWidth
             for percent in 0...100 {
                 let notice = NotchNotice(event: event, title: "Level", detail: "\(percent)%",
                                          symbol: "speaker.wave.2", level: Double(percent) / 100)
                 let wing = notice.preferredWingWidth
-                let content = width(notice.detail) + 18 + 8
+                let content = width("100%") + 18 + 8
                 suite.expect(content + NotchNotice.levelInset <= wing && wing < content + NotchNotice.levelInset + 1
                              && notice.inset(wing: wing) == NotchNotice.levelInset,
-                             "a level's wings fit its mark and reading, with no empty black at the end")
+                             "a level's wings fit its mark and widest reading, with no empty black at the end")
+                suite.expect(wing == widest,
+                             "a level's wings hold still as its reading gains or loses a digit")
                 suite.expect(wing - NotchNotice.levelInset >= 40,
                              "the opposite meter remains readable beside the shortest reading")
             }
@@ -1689,6 +1762,7 @@ enum NotchTests {
         NotchMissionControlPollingTests.run(suite)
         activitySelectionContracts(suite)
         railContracts(suite)
+        musicVolumeLayoutContracts(suite)
         presentationSpacingContracts(suite)
         captureControlsLayoutContracts(suite)
         pageTopContracts(suite)
@@ -1710,6 +1784,7 @@ enum NotchTests {
         NotchPanelTests.run { suite.expect($0, $1) }
         NotchHoverTests.run(suite)
         NotchScreenEdgeClickTests.run(suite)
+        NotchClickElsewhereTests.run(suite)
         NotchPresentationRefreshContract.run(suite)
         NotchScreenRefreshContract.run(suite)
         NotchMirrorContract.run(suite)
@@ -2303,7 +2378,19 @@ enum NotchTests {
         suite.expect(key(126) == .move(backwards: true) && key(125) == .move(backwards: false)
                 && key(36) == .paste && key(76) == .paste,
                "the arrow keys and Return drive the list while the search field has the focus")
+        suite.expect(key(45, "n", .control) == key(125) && key(35, "p", .control) == key(126)
+                && key(0, "N", [.control, .capsLock]) == key(125) && key(2, "P", .control) == key(126),
+               "Control-N/P follow the layout's letter and move like the arrows, including with Caps Lock")
+        suite.expect(key(45, "n", .control, composing: true) == nil
+                && key(35, "p", .control, composing: true) == nil,
+               "Control-N/P stay with an input method while it composes")
+        for modifiers: NSEvent.ModifierFlags in [.command, .option, [.control, .shift],
+                                                 [.control, .command], [.control, .option]] {
+            suite.expect(key(45, "n", modifiers) == nil && key(35, "p", modifiers) == nil,
+                   "other shortcuts with N/P do not move the clipboard highlight")
+        }
         suite.expect(key(0, "a") == .reveal && key(0, "Ab") == .reveal && key(0, "ñ") == .reveal && key(40, "ㅎ") == .reveal
+                && key(45, "n") == .reveal && key(35, "p") == .reveal
                 && key(49, " ") == nil && key(48, "\t") == nil && key(51, "\u{7f}") == nil
                 && key(125, "\u{F701}") == .move(backwards: false),
                "a typed letter shows the search field and goes on to it, while a space and control keys stay as they are")
@@ -3543,6 +3630,7 @@ enum NotchTests {
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "the master switch also stops calendar reads")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchCalendarEnabled,
                                                                  DefaultsKey.notchCalendarCountdown,
+                                                                 DefaultsKey.notchCalendarCountdownLead,
                                                                  DefaultsKey.notchCalendarTimeLeft,
                                                                  DefaultsKey.notchCalendarWeekNumbers,
                                                                  AppFeature.notchCalendar.availabilityKey]),
@@ -3591,13 +3679,17 @@ enum NotchTests {
                "an all-day-only calendar has no timed appointment")
         suite.expect(NotchCalendarSupport.nextRefresh(entries, now: now) == now.addingTimeInterval(300),
                "the next refresh chooses the nearest future event boundary")
-        let hour = NotchCalendarSupport.countdownLeadTime
+        let hour = NotchCalendarSupport.countdownLeadTime(in: defaults)
+        suite.expect(hour == 3600 && NotchCalendarSupport.timeLeftLeadTime == 3600,
+                     "a start keeps its hour lead until another is chosen, and an end always has its hour")
         func countdownFor(_ events: [NotchCalendarEvent], at offset: Double = 0, starts: Bool = true,
-                          ends: Bool = false) -> NotchCalendarCountdown? {
-            NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends)
+                          ends: Bool = false, lead: TimeInterval = hour) -> NotchCalendarCountdown? {
+            NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends,
+                                           leadTime: lead)
         }
-        func transition(_ events: [NotchCalendarEvent], starts: Bool = true, ends: Bool = false) -> Date? {
-            NotchCalendarSupport.countdownTransition(events, now: now, starts: starts, ends: ends)
+        func transition(_ events: [NotchCalendarEvent], starts: Bool = true, ends: Bool = false,
+                        lead: TimeInterval = hour) -> Date? {
+            NotchCalendarSupport.countdownTransition(events, now: now, starts: starts, ends: ends, leadTime: lead)
         }
         suite.expect(countdownFor(entries) == NotchCalendarCountdown(event: later, ongoing: false)
                      && countdownFor([allDay, current]) == nil,
@@ -3618,6 +3710,24 @@ enum NotchTests {
         suite.expect(transition([event("future", hour + 600, hour + 900)]) == now.addingTimeInterval(600)
                      && transition([later]) == later.start,
                      "a refresh is scheduled when the hour window opens and when an event starts")
+        let in45 = event("in 45", 45 * 60, 75 * 60)
+        let in90 = event("in 90", 90 * 60, 120 * 60)
+        suite.expect(countdownFor([in45], lead: 1800) == nil && countdownFor([in45])?.event == in45
+                     && countdownFor([in45], lead: 7200)?.event == in45,
+                     "an event 45 minutes away waits for a 30 minute lead and shows with one or two hours")
+        suite.expect(countdownFor([in90], lead: 1800) == nil && countdownFor([in90]) == nil
+                     && countdownFor([in90], lead: 7200)?.event == in90,
+                     "an event 90 minutes away shows only with a two hour lead")
+        suite.expect(transition([in45], lead: 1800) == now.addingTimeInterval(15 * 60)
+                     && countdownFor([in45], at: 15 * 60, lead: 1800)?.event == in45
+                     && transition([in90], lead: 7200) == in90.start,
+                     "a refresh is scheduled when the chosen lead opens, not the hour")
+        defaults.set(0, forKey: DefaultsKey.notchCalendarCountdownLead)
+        let shortest = NotchCalendarSupport.countdownLeadTime(in: defaults)
+        defaults.set(10_000, forKey: DefaultsKey.notchCalendarCountdownLead)
+        suite.expect(shortest == 5 * 60 && NotchCalendarSupport.countdownLeadTime(in: defaults) == 240 * 60,
+                     "a restored or hand-edited lead stays between five minutes and four hours")
+        defaults.removeObject(forKey: DefaultsKey.notchCalendarCountdownLead)
         // A meeting that ends in 30 minutes, 15 minutes before the next one starts.
         let meeting = event("meeting", -1800, 1800)
         let afterGap = event("after gap", 2700, 4500)
@@ -3642,8 +3752,12 @@ enum NotchTests {
                      && countdownFor([long], at: 600, ends: true) == NotchCalendarCountdown(event: long, ongoing: true)
                      && countdownFor([allDay], ends: true) == nil,
                      "time left appears only in the hour before a timed end")
-        suite.expect(!NotchCalendarCountdown(event: later, ongoing: true).isShown(at: now)
-                     && !NotchCalendarCountdown(event: meeting, ongoing: true).isShown(at: meeting.end),
+        suite.expect(countdownFor([meeting], starts: false, ends: true, lead: 900)?.target == meeting.end
+                     && countdownFor([long], starts: false, ends: true, lead: 7200) == nil
+                     && transition([long], starts: false, ends: true, lead: 7200) == now.addingTimeInterval(600),
+                     "the lead before a start leaves time left on its hour")
+        suite.expect(!NotchCalendarCountdown(event: later, ongoing: true).isShown(at: now, leadTime: hour)
+                     && !NotchCalendarCountdown(event: meeting, ongoing: true).isShown(at: meeting.end, leadTime: hour),
                      "an end is never shown before its event begins or once it has passed")
         suite.expect(transition([long], ends: true) == now.addingTimeInterval(600)
                      && transition([afterGap], starts: false, ends: true) == afterGap.start,
@@ -3716,7 +3830,7 @@ enum NotchTests {
     /// Events chosen from their menu in the island, with the countdown for
     /// every event off.
     private static func chosenCountdownContracts(_ suite: TestSuite, defaults: UserDefaults, now: Date) {
-        let hour = NotchCalendarSupport.countdownLeadTime
+        let hour = NotchCalendarSupport.timeLeftLeadTime
         func event(_ key: String, _ start: Double, _ end: Double) -> NotchCalendarEvent {
             NotchCalendarEvent(id: key + ":" + String(start), title: key, calendar: "Personal",
                                start: now.addingTimeInterval(start), end: now.addingTimeInterval(end),
@@ -3735,9 +3849,10 @@ enum NotchTests {
         let other = event("other", 600, 900)
         let unkeyed = event("", 300, 600)
         func countdown(_ events: [NotchCalendarEvent], at offset: Double = 0, starts: Bool = false,
-                       ends: Bool = false, choices: Set<String> = ["chosen"]) -> NotchCalendarCountdown? {
+                       ends: Bool = false, choices: Set<String> = ["chosen"],
+                       lead: TimeInterval = hour) -> NotchCalendarCountdown? {
             NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends,
-                                           chosen: choices)
+                                           chosen: choices, leadTime: lead)
         }
         suite.expect(countdown([other, chosen]) == NotchCalendarCountdown(event: chosen, ongoing: false)
                      && countdown([other, chosen], choices: []) == nil,
@@ -3751,10 +3866,17 @@ enum NotchTests {
                      "a chosen event counts down to its start; time left in it follows its own option")
         let ahead = event("ahead", hour + 1800, hour + 3600)
         suite.expect(NotchCalendarSupport.countdownTransition([ahead], now: now, starts: false, ends: false,
-                                                              chosen: ["ahead"]) == now.addingTimeInterval(1800)
+                                                              chosen: ["ahead"], leadTime: hour)
+                        == now.addingTimeInterval(1800)
                      && NotchCalendarSupport.countdownTransition([ahead], now: now, starts: false, ends: false,
-                                                                 chosen: []) == nil,
-                     "a refresh is scheduled when a chosen event's hour opens, and none for an event not chosen")
+                                                                 chosen: [], leadTime: hour) == nil,
+                     "a refresh is scheduled when a chosen event's lead opens, and none for an event not chosen")
+        suite.expect(countdown([chosen], lead: 900) == nil
+                     && NotchCalendarSupport.countdownTransition([chosen], now: now, starts: false, ends: false,
+                                                                 chosen: ["chosen"], leadTime: 900)
+                        == now.addingTimeInterval(300)
+                     && countdown([ahead], choices: ["ahead"], lead: 7200)?.event == ahead,
+                     "a chosen event follows the lead with the countdown for every event off")
         suite.expect(NotchCalendarSupport.chosenCountdowns(in: defaults).isEmpty, "no event starts chosen")
         NotchCalendarSupport.setCountdown(true, for: chosen, in: defaults)
         NotchCalendarSupport.setCountdown(true, for: unkeyed, in: defaults)

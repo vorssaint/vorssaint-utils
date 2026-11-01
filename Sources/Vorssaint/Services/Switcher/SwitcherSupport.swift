@@ -171,10 +171,11 @@ enum SwitcherLetterAction: Equatable {
     case pinSearch
 }
 
-/// Whether a switcher session lists every app or only the frontmost app's windows.
+/// The normal layout, only the frontmost app's windows, or individual windows across apps.
 enum SwitcherSessionScope: Equatable {
     case allApps
     case frontmostApp
+    case allWindows
 }
 
 /// How a key arriving before the asynchronous window list is ready is owned.
@@ -328,6 +329,19 @@ enum SwitcherGridCard {
     static var fallbackIconSize: CGFloat { 80 * PreviewSizing.switcherScale }
 }
 
+/// The search chip sits above the first card, including in the transparent
+/// icon-row panel. Reserve only the space not already provided by its padding.
+enum SwitcherSearchLayout {
+    static let chipHeight: CGFloat = 28
+    static let edgeInset: CGFloat = 12
+    static let contentGap: CGFloat = 8
+
+    static func topInset(query: String, isPinned: Bool, contentPadding: CGFloat) -> CGFloat {
+        guard !query.isEmpty || isPinned else { return 0 }
+        return max(0, edgeInset + chipHeight + contentGap - contentPadding)
+    }
+}
+
 struct SwitcherIconRowLayout: Equatable {
     let visibleIconCount: Int
     let appRowContentWidth: CGFloat
@@ -455,7 +469,8 @@ struct SwitcherIconRowLayout: Equatable {
                         screenVisibleFrame: CGRect,
                         showsShortcutHints: Bool = true,
                         tileWidth: CGFloat = appTileWidth,
-                        maxColumns userMax: Int? = nil) -> SwitcherIconRowLayout {
+                        maxColumns userMax: Int? = nil,
+                        searchTopInset: CGFloat = 0) -> SwitcherIconRowLayout {
         let appCount = max(1, rawAppCount)
         let windowCount = max(1, rawWindowCount)
         let usableWidth = max(320, screenVisibleFrame.width * 0.96)
@@ -503,6 +518,7 @@ struct SwitcherIconRowLayout: Equatable {
         // the two things above the icons, so either mode fits.
         let aboveIcons = max(previewHeight + previewGap, simpleTitleHeight + simpleTitleGap)
         let rowBudget = screenVisibleFrame.height * 0.85 - aboveIcons - shortcutHintHeight - padding * 2
+            - searchTopInset
         let visibleRows = max(1, min(rows, Int(rowBudget / rowHeight)))
         let height = previewHeight + previewGap + Self.iconAreaHeight(visibleRows: visibleRows)
             + shortcutHintHeight + padding * 2
@@ -562,7 +578,7 @@ enum SwitcherSupport {
     /// The most items a switcher row may hold before wrapping. Ultrawide
     /// displays fit so many per row that the panel spans the whole screen;
     /// a cap keeps it compact and wraps the rest onto more rows.
-    static let maxColumnsRange: ClosedRange<Int> = 2 ... 8
+    static let maxColumnsRange: ClosedRange<Int> = 2 ... 10
 
     /// Nil means Auto: as many as the screen fits, the behavior before the cap.
     static func sanitizedMaxColumns(_ value: Int) -> Int? {
@@ -667,7 +683,7 @@ enum SwitcherSupport {
     static func usesWindowRow(simpleMode: Bool,
                               mergeWindowsByApp: Bool,
                               sessionScope: SwitcherSessionScope) -> Bool {
-        simpleMode && (!mergeWindowsByApp || sessionScope == .frontmostApp)
+        simpleMode && (!mergeWindowsByApp || sessionScope != .allApps)
     }
 
     static func usesAppGroupsForMainShortcut(iconRowLayout: Bool,
@@ -771,6 +787,41 @@ enum SwitcherSupport {
     static func frontmostAppWindows(allItems: [SwitcherItem], frontmostPID: pid_t) -> [SwitcherItem] {
         let appPID = appPID(forFrontmost: frontmostPID, items: allItems)
         return allItems.filter { $0.pid == appPID }
+    }
+
+    static func windowsForSession(_ items: [SwitcherItem], scope: SwitcherSessionScope,
+                                  frontmostPID: pid_t) -> [SwitcherItem] {
+        switch scope {
+        case .allApps: return items
+        case .frontmostApp: return frontmostAppWindows(allItems: items, frontmostPID: frontmostPID)
+        case .allWindows: return items.filter { !$0.isAppEntry }
+        }
+    }
+
+    /// Existing shortcuts win a conflicting imported preference. The new shortcut
+    /// is absent until enabled, so it cannot claim Option-Tab during an upgrade.
+    static func shortcutMatch(event: CGEvent,
+                               appsShortcut: GlobalShortcut,
+                               windowShortcut: GlobalShortcut,
+                               allWindowsShortcut: GlobalShortcut? = nil)
+        -> (shortcut: GlobalShortcut, scope: SwitcherSessionScope, reversed: Bool)? {
+        if appsShortcut.matches(event: event, allowingExtraShift: true) {
+            return (appsShortcut, .allApps,
+                    appsShortcut.shiftIsNavigationModifier && event.flags.contains(.maskShift))
+        }
+        let positional = windowShortcut.matches(event: event, allowingExtraShift: true)
+        if positional || windowShortcut.matchesByCharacter(event: event) {
+            return (windowShortcut, .frontmostApp,
+                    windowNavigationDelta(positionalMatch: positional,
+                                          shiftIsNavigationModifier: windowShortcut.shiftIsNavigationModifier,
+                                          shiftHeld: event.flags.contains(.maskShift)) < 0)
+        }
+        if let allWindowsShortcut,
+           allWindowsShortcut.matches(event: event, allowingExtraShift: true) {
+            return (allWindowsShortcut, .allWindows,
+                    allWindowsShortcut.shiftIsNavigationModifier && event.flags.contains(.maskShift))
+        }
+        return nil
     }
 
     /// Where a window-scoped session starts. The foreground window sits first,
@@ -1090,6 +1141,18 @@ enum SwitcherSupport {
                                            windowSpaces: [UInt64],
                                            isHiddenWithApp: Bool?) -> Bool {
         appIsHidden && !windowSpaces.isEmpty && isHiddenWithApp != false
+    }
+
+    /// Whether a window's title has to be looked up through its remote
+    /// Accessibility element. Only a window parked on a hidden Space needs
+    /// it: the window server titles windows only with Screen Recording, and
+    /// the app's Accessibility list leaves out windows on hidden Spaces, so
+    /// such a window otherwise shows just its app's name.
+    static func looksUpHiddenSpaceTitle(windowServerTitle: String,
+                                        isDescribedByAccessibility: Bool,
+                                        accessibilityGranted: Bool,
+                                        isOnHiddenSpace: Bool) -> Bool {
+        windowServerTitle.isEmpty && !isDescribedByAccessibility && accessibilityGranted && isOnHiddenSpace
     }
 
     /// A partial Accessibility list cannot veto windows on another desktop.
@@ -1800,10 +1863,11 @@ enum SwitcherSupport {
     static func nativeHotkeysToSuppress(takeOverSystemShortcuts: Bool,
                                         appsShortcut: GlobalShortcut,
                                         windowShortcut: GlobalShortcut,
+                                        allWindowsShortcut: GlobalShortcut? = nil,
                                         nativeShortcuts: [SwitcherNativeSymbolicHotKey: GlobalShortcut])
         -> Set<SwitcherNativeSymbolicHotKey> {
         guard takeOverSystemShortcuts else { return [] }
-        let ownedShortcuts = [appsShortcut, windowShortcut]
+        let ownedShortcuts = [appsShortcut, windowShortcut] + [allWindowsShortcut].compactMap { $0 }
         return Set(nativeShortcuts.compactMap { id, nativeShortcut in
             ownedShortcuts.contains { switcherShortcut($0, owns: nativeShortcut) } ? id : nil
         })
@@ -1823,6 +1887,7 @@ enum SwitcherSupport {
                                 secureInputEnabled: Bool,
                                 appsShortcut: GlobalShortcut,
                                 windowShortcut: GlobalShortcut,
+                                allWindowsShortcut: GlobalShortcut? = nil,
                                 liveEntries: [LiveSystemShortcut]) -> Set<Int32> {
         guard !secureInputEnabled else { return [] }
         let nativeShortcuts = Dictionary(
@@ -1833,6 +1898,7 @@ enum SwitcherSupport {
         return Set(nativeHotkeysToSuppress(takeOverSystemShortcuts: takeOverSystemShortcuts,
                                            appsShortcut: appsShortcut,
                                            windowShortcut: windowShortcut,
+                                           allWindowsShortcut: allWindowsShortcut,
                                            nativeShortcuts: nativeShortcuts).map(\.rawValue))
     }
 

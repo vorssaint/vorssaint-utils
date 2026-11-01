@@ -74,12 +74,19 @@ enum SpaceWindowBridge {
     /// Every Space (user desktops and fullscreen Spaces alike) containing the
     /// window. Empty for leftover surfaces, and when the query is unavailable.
     static func spaces(of windowID: CGWindowID) -> [UInt64] {
-        guard connection != 0, let copySpacesForWindows else { return [] }
+        resolvedSpaces(of: windowID) ?? []
+    }
+
+    /// An empty answer confirms a surface belongs to no Space. Nil means the
+    /// query is unavailable or failed for this window; callers deciding whether
+    /// to quit an app must not mistake that uncertainty for a closed window.
+    static func resolvedSpaces(of windowID: CGWindowID) -> [UInt64]? {
+        guard connection != 0, let copySpacesForWindows else { return nil }
         let mask: Int32 = 0x7
         guard let array = copySpacesForWindows(connection, mask,
                                                [NSNumber(value: windowID)] as CFArray)?
             .takeRetainedValue() as? [NSNumber]
-        else { return [] }
+        else { return nil }
         return array.map(\.uint64Value)
     }
 
@@ -299,10 +306,13 @@ enum SpaceWindowBridge {
     }
 
     /// Whether the window server holds the window minimized in the Dock, even
-    /// for an app Accessibility cannot read. False when the window query is
-    /// missing, and before macOS 26, where the tag has not been observed.
-    static func isMinimized(_ windowID: CGWindowID) -> Bool {
-        guard #available(macOS 26.0, *), let tags = windowTags(of: [windowID])?[windowID] else { return false }
+    /// for an app Accessibility cannot read. Nil when the query is unavailable
+    /// or withholds tags, and before macOS 26, where the tag has not been
+    /// observed. A window absent from a successful query no longer exists.
+    static func isMinimized(_ windowID: CGWindowID) -> Bool? {
+        guard #available(macOS 26.0, *), let windows = windowTags(of: [windowID]) else { return nil }
+        guard let tags = windows[windowID] else { return false }
+        guard tags != 0 else { return nil }
         return SpaceHopSupport.isMinimized(windowTags: tags)
     }
 
@@ -408,42 +418,63 @@ enum SpaceWindowBridge {
                                   replacing focusedWindowID: CGWindowID?,
                                   while isCurrent: @escaping () -> Bool,
                                   completion: @escaping (Bool) -> Void) {
-        guard isCurrent() else {
+        guard isCurrent(), setFrontProcess != nil, processForPID != nil, postEventRecord != nil else {
             completion(false)
             return
         }
         guard let focusedWindowID else {
-            completion(frontWindow(windowID, ownerPID: ownerPID))
+            completion(makeKeyWithoutRaise(windowID, ownerPID: ownerPID))
             return
         }
-        postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: false)
+        guard postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: false) else {
+            completion(false)
+            return
+        }
+        let restoreFocus = {
+            if FocusFollowsMouseSupport.shouldRestoreFocus(
+                to: focusedWindowID,
+                reportedFocusedWindowID: WindowActivator.focusedWindowID(for: ownerPID),
+                appIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier == ownerPID) {
+                postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: true)
+            }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
             guard isCurrent() else {
-                if FocusFollowsMouseSupport.shouldRestoreFocus(
-                    to: focusedWindowID,
-                    reportedFocusedWindowID: WindowActivator.focusedWindowID(for: ownerPID),
-                    appIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier == ownerPID) {
-                    postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: true)
-                }
+                restoreFocus()
                 completion(false)
                 return
             }
-            postFocusRecord(windowID, ownerPID: ownerPID, gained: true)
-            completion(frontWindow(windowID, ownerPID: ownerPID))
+            let succeeded = makeKeyWithoutRaise(windowID, ownerPID: ownerPID)
+            if !succeeded { restoreFocus() }
+            completion(succeeded)
         }
     }
 
-    private static func postFocusRecord(_ windowID: CGWindowID, ownerPID: pid_t, gained: Bool) {
-        guard let processForPID, let postEventRecord else { return }
+    /// Activate the process without ordering any of its windows, then give
+    /// this window keyboard focus. frontWindow's user-generated activation
+    /// and mouse press can raise the window even without an AXRaise action.
+    /// Failure must not fall back to that path when the user disabled raising.
+    private static func makeKeyWithoutRaise(_ windowID: CGWindowID, ownerPID: pid_t) -> Bool {
+        guard let setFrontProcess, let processForPID, postEventRecord != nil else { return false }
         var psn = ProcessSerialNumber()
-        guard processForPID(ownerPID, &psn) == noErr else { return }
+        guard processForPID(ownerPID, &psn) == noErr else { return false }
+        let noWindows: UInt32 = 0x400 // kCPSNoWindows
+        guard setFrontProcess(&psn, windowID, noWindows) == .success else { return false }
+        return postFocusRecord(windowID, ownerPID: ownerPID, gained: true)
+    }
+
+    @discardableResult
+    private static func postFocusRecord(_ windowID: CGWindowID, ownerPID: pid_t, gained: Bool) -> Bool {
+        guard let processForPID, let postEventRecord else { return false }
+        var psn = ProcessSerialNumber()
+        guard processForPID(ownerPID, &psn) == noErr else { return false }
         var targetID = windowID
         var record = [UInt8](repeating: 0, count: 0x100)
         record[0x04] = 0xf8 // declared record length
         record[0x08] = 0x0d
         record[0x8a] = gained ? 0x01 : 0x02
         withUnsafeBytes(of: &targetID) { record.replaceSubrange(0x3c..<0x3c + $0.count, with: $0) }
-        _ = postEventRecord(&psn, &record)
+        return postEventRecord(&psn, &record) == .success
     }
 
     // MARK: - The user's "move a space" shortcut
