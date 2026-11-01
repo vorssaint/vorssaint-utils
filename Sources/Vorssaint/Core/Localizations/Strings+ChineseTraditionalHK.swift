@@ -1116,6 +1116,8 @@ extension Strings {
         spacesOrderName: "固定桌面空間順序",
         spacesOrderCaption: "避免 macOS 依最近使用情況重新排列桌面空間，讓它們維持你設定的順序。關閉此選項後會恢復先前的設定。為套用變更，Dock 可能會重新啟動一次。",
         quitAppsName: "結束 App",
-        quitAppsCaption: "列出開啟中的 App，可逐一結束、全部結束，或結束最前方 App 以外的所有 App。結束任何 App 前一律會先顯示清單。"
+        quitAppsCaption: "列出開啟中的 App，可逐一結束、全部結束，或結束最前方 App 以外的所有 App。結束任何 App 前一律會先顯示清單。",
+        dockClickNewWindow: "中鍵點按 Dock 圖示開啟新視窗",
+        dockClickNewWindowCaption: "中鍵點按 App 的 Dock 圖示即可開啟該 App 的新視窗，即使已有視窗開啟。"
     )
 }

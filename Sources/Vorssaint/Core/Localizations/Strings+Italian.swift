@@ -1115,6 +1115,8 @@ extension Strings {
         spacesOrderName: "Mantieni gli Spazi in ordine fisso",
         spacesOrderCaption: "Impedisce a macOS di riordinare gli Spazi in base all’uso più recente, così restano nell’ordine che hai scelto. L’impostazione precedente torna quando disattivi questa opzione. Il Dock potrebbe riavviarsi una volta per applicare la modifica.",
         quitAppsName: "Esci dalle app",
-        quitAppsCaption: "Elenca le app aperte per uscirne una alla volta, tutte insieme o tutte tranne quella in primo piano. Mostra sempre l’elenco prima di chiudere qualcosa."
+        quitAppsCaption: "Elenca le app aperte per uscirne una alla volta, tutte insieme o tutte tranne quella in primo piano. Mostra sempre l’elenco prima di chiudere qualcosa.",
+        dockClickNewWindow: "Clic centrale sul Dock per una nuova finestra",
+        dockClickNewWindowCaption: "Apre una nuova finestra dell’app quando fai clic centrale sulla sua icona nel Dock, anche se una finestra è già aperta."
     )
 }

@@ -1115,6 +1115,8 @@ extension Strings {
         spacesOrderName: "固定空间顺序",
         spacesOrderCaption: "阻止 macOS 按最近使用情况重新排列空间，让它们保持你设定的顺序。关闭此选项后会恢复之前的设置。为应用更改，Dock 可能会重新启动一次。",
         quitAppsName: "退出应用",
-        quitAppsCaption: "列出打开的应用，可逐个退出、全部退出，或退出最前面应用以外的所有应用。退出任何应用前都会先显示列表。"
+        quitAppsCaption: "列出打开的应用，可逐个退出、全部退出，或退出最前面应用以外的所有应用。退出任何应用前都会先显示列表。",
+        dockClickNewWindow: "中键点按程序坞图标打开新窗口",
+        dockClickNewWindowCaption: "中键点按应用的程序坞图标即可打开该应用的新窗口，即使已有窗口打开。"
     )
 }

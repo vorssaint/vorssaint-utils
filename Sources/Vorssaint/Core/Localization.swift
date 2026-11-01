@@ -1322,6 +1322,8 @@ struct Strings {
     let spacesOrderCaption: String
     let quitAppsName: String
     let quitAppsCaption: String
+    let dockClickNewWindow: String
+    let dockClickNewWindowCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -2438,7 +2440,9 @@ extension Strings {
         spacesOrderName: "Manter os Espaços em ordem fixa",
         spacesOrderCaption: "Impede que o macOS reorganize os Espaços pelo uso mais recente, para que fiquem na ordem que você definiu. A configuração anterior volta ao desligar esta opção. O Dock pode reiniciar uma vez para aplicar a mudança.",
         quitAppsName: "Encerrar apps",
-        quitAppsCaption: "Lista seus apps abertos para encerrar um por um, todos de uma vez ou todos exceto o da frente. Sempre mostra a lista antes de encerrar qualquer um."
+        quitAppsCaption: "Lista seus apps abertos para encerrar um por um, todos de uma vez ou todos exceto o da frente. Sempre mostra a lista antes de encerrar qualquer um.",
+        dockClickNewWindow: "Clicar com o botão do meio no Dock abre nova janela",
+        dockClickNewWindowCaption: "Clique com o botão do meio no ícone de qualquer app no Dock para abrir uma nova janela, mesmo que já exista uma aberta. O clique normal continua fazendo o que as opções acima definem."
     )
 }
 
@@ -3556,6 +3560,8 @@ extension Strings {
         spacesOrderName: "Keep Spaces in a fixed order",
         spacesOrderCaption: "Stops macOS from rearranging Spaces by most recent use, so they stay in the order you set. Your previous setting returns when this is turned off. The Dock may restart once to apply the change.",
         quitAppsName: "Quit apps",
-        quitAppsCaption: "Lists your open apps to quit one by one, all at once, or all but the one in front. Always shows the list before anything quits."
+        quitAppsCaption: "Lists your open apps to quit one by one, all at once, or all but the one in front. Always shows the list before anything quits.",
+        dockClickNewWindow: "Middle-click the Dock icon to open a new window",
+        dockClickNewWindowCaption: "Middle-click any app’s Dock icon to open a new window, even when one is already open. A regular click keeps doing what the options above set."
     )
 }

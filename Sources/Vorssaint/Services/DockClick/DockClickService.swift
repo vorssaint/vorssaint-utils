@@ -28,7 +28,9 @@ final class DockClickService {
     /// the down so the press turns back into a native Dock drag.
     private struct PendingClick {
         let pid: pid_t
-        let app: NSRunningApplication
+        let app: NSRunningApplication?
+        let bundleURL: URL?
+        let button: CGMouseButton
         let origin: CGPoint
         let action: DockClickAction
         let unminimized: [AXUIElement]
@@ -68,9 +70,10 @@ final class DockClickService {
         let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
         let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
         let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
+        let newWindowEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickNewWindow)
         if SessionActivitySupport.tapShouldRun(
             featureWanted: AppFeature.dockClick.isAvailable
-                && (minimizeEnabled || hideEnabled || cycleEnabled),
+                && (minimizeEnabled || hideEnabled || cycleEnabled || newWindowEnabled),
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive) {
             start()
@@ -92,7 +95,10 @@ final class DockClickService {
             options: .defaultTap,
             eventsOfInterest: CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
                 | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
-                | CGEventMask(1 << CGEventType.leftMouseUp.rawValue),
+                | CGEventMask(1 << CGEventType.leftMouseUp.rawValue)
+                | CGEventMask(1 << CGEventType.otherMouseDown.rawValue)
+                | CGEventMask(1 << CGEventType.otherMouseDragged.rawValue)
+                | CGEventMask(1 << CGEventType.otherMouseUp.rawValue),
             callback: { _, type, event, userInfo in
                 guard let userInfo else { return Unmanaged.passUnretained(event) }
                 let service = Unmanaged<DockClickService>.fromOpaque(userInfo).takeUnretainedValue()
@@ -139,12 +145,21 @@ final class DockClickService {
         if event.getIntegerValueField(.eventSourceUserData) == Self.syntheticEventMarker {
             return Unmanaged.passUnretained(event)
         }
+        if type == .otherMouseDown || type == .otherMouseDragged || type == .otherMouseUp {
+            guard event.getIntegerValueField(.mouseEventButtonNumber) == 2 else {
+                return Unmanaged.passUnretained(event)
+            }
+        }
         switch type {
         case .leftMouseDragged:
-            return handleDragged(event)
+            return handleDragged(event, button: .left)
+        case .otherMouseDragged:
+            return handleDragged(event, button: .center)
         case .leftMouseUp:
-            return handleUp(event)
-        case .leftMouseDown:
+            return handleUp(event, button: .left)
+        case .otherMouseUp:
+            return handleUp(event, button: .center)
+        case .leftMouseDown, .otherMouseDown:
             break
         default:
             return Unmanaged.passUnretained(event)
@@ -157,6 +172,22 @@ final class DockClickService {
         // Modifier clicks keep the Dock's native shortcuts (⌘ reveal, ⌥ hide…).
         guard event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty
         else { return Unmanaged.passUnretained(event) }
+
+        let isMiddleClick = type == .otherMouseDown
+        let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
+        let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
+        let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
+        let newWindowEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickNewWindow)
+        if isMiddleClick {
+            guard DockClickSupport.middleClickAction(hasModifiers: false,
+                                                     newWindowEnabled: newWindowEnabled) == .newWindow else {
+                return Unmanaged.passUnretained(event)
+            }
+        } else {
+            guard cycleEnabled || minimizeEnabled || hideEnabled else {
+                return Unmanaged.passUnretained(event)
+            }
+        }
 
         let point = event.location
         guard Self.insideDockStrip(point) else {
@@ -200,8 +231,20 @@ final class DockClickService {
             return Unmanaged.passUnretained(event)
         }
 
-        let hit = dockApplication(at: point)
-        guard let app = hit,
+        guard let target = dockTileTarget(at: point) else {
+            return Unmanaged.passUnretained(event)
+        }
+        if isMiddleClick, case .unlaunchedApp(let url) = target {
+            let bundleID = Bundle(url: url)?.bundleIdentifier
+            guard !DockClickSupport.isOwnBundleIdentifier(bundleID) else {
+                return Unmanaged.passUnretained(event)
+            }
+            pendingClick = PendingClick(pid: 0, app: nil, bundleURL: url, button: .center,
+                                        origin: point, action: .newWindow,
+                                        unminimized: [], minimized: [], priorRecord: nil)
+            return nil
+        }
+        guard case .running(let app) = target,
               app.processIdentifier != getpid(),
               !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
         else { return Unmanaged.passUnretained(event) }
@@ -214,9 +257,13 @@ final class DockClickService {
                                                        elapsed: record.map { now - $0.time })
         if decision == .swallow { return nil }
 
-        let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
-        let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
-        let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
+        if isMiddleClick {
+            pendingClick = PendingClick(pid: pid, app: app, bundleURL: app.bundleURL, button: .center,
+                                        origin: point, action: .newWindow,
+                                        unminimized: [], minimized: [], priorRecord: record)
+            return nil
+        }
+
         // Launcher-style apps can misreport isActive; the workspace's idea of
         // the frontmost app is the tiebreaker.
         let frontmost = !app.isHidden && (app.isActive
@@ -283,7 +330,8 @@ final class DockClickService {
         // the action only commits when the button lifts without moving: the
         // press may still turn out to be the start of an icon drag.
         guard action != .passThrough else { return Unmanaged.passUnretained(event) }
-        pendingClick = PendingClick(pid: pid, app: app, origin: point, action: action,
+        pendingClick = PendingClick(pid: pid, app: app, bundleURL: app.bundleURL, button: .left,
+                                    origin: point, action: action,
                                     unminimized: windows.unminimized,
                                     minimized: windows.minimized,
                                     priorRecord: record)
@@ -294,12 +342,15 @@ final class DockClickService {
     /// icon drag, so the swallowed down is replayed (marked, letting it
     /// through) and the Dock takes over; jitter below the slop stays part of
     /// the pending click.
-    private func handleDragged(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard let pending = pendingClick else { return Unmanaged.passUnretained(event) }
+    private func handleDragged(_ event: CGEvent, button: CGMouseButton) -> Unmanaged<CGEvent>? {
+        guard let pending = pendingClick, pending.button == button else {
+            return Unmanaged.passUnretained(event)
+        }
         let point = event.location
         if DockClickSupport.isDragMovement(from: pending.origin, to: point) {
             pendingClick = nil
-            guard let down = CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState),
+            guard button == .left,
+                  let down = CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState),
                                      mouseType: .leftMouseDown,
                                      mouseCursorPosition: point,
                                      mouseButton: .left) else { return nil }
@@ -311,8 +362,10 @@ final class DockClickService {
 
     /// A clean release commits the pending action; the up is swallowed like
     /// the down was, so the Dock never sees half a click.
-    private func handleUp(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard let pending = pendingClick else { return Unmanaged.passUnretained(event) }
+    private func handleUp(_ event: CGEvent, button: CGMouseButton) -> Unmanaged<CGEvent>? {
+        guard let pending = pendingClick, pending.button == button else {
+            return Unmanaged.passUnretained(event)
+        }
         pendingClick = nil
         commit(pending)
         return nil
@@ -386,7 +439,22 @@ final class DockClickService {
             lastAction[pid] = ActionRecord(kind: .hide, time: now, targets: [])
             DispatchQueue.main.async {
                 DockPreviewService.shared.dockClickWasHandled()
-                _ = pending.app.hide()
+                _ = pending.app?.hide()
+            }
+        case .newWindow:
+            if pid > 0 {
+                lastAction[pid] = ActionRecord(kind: .newWindow, time: now, targets: [])
+            }
+            let bundleURL = pending.bundleURL
+            let clickPoint = pending.origin
+            DispatchQueue.main.async {
+                DockPreviewService.shared.dockClickWasHandled()
+                if pid == 0, let bundleURL {
+                    NSWorkspace.shared.openApplication(at: bundleURL,
+                                                       configuration: NSWorkspace.OpenConfiguration())
+                } else if pid > 0 {
+                    Self.postNewWindow(pid: pid, clickPoint: clickPoint)
+                }
             }
         case .passThrough:
             break
@@ -603,6 +671,147 @@ final class DockClickService {
         }
     }
 
+    // MARK: - New Window (middle-click)
+
+    /// Triggers the target application's "New Window" command via its menu bar
+    /// (or `⌘N` fallback) while keeping the user on the current Space.
+    private static func postNewWindow(pid: pid_t, clickPoint: CGPoint) {
+        let beforeWindows = allWindowIDs(pid: pid)
+        let wasFrontmost = NSRunningApplication(processIdentifier: pid)?.isActive == true
+        if !wasFrontmost {
+            // Activate the process without switching Spaces or ordering its existing windows (kCPSNoWindows).
+            // A regular app.activate() would trigger macOS's AppleSpacesSwitchOnActivate and jump desktops.
+            if !SpaceWindowBridge.activateProcessWithoutSpaceSwitch(pid: pid) {
+                activate(pid: pid)
+            }
+        }
+        DispatchQueue.global(qos: .userInteractive).async {
+            if !wasFrontmost {
+                for _ in 0 ..< 8 {
+                    if NSRunningApplication(processIdentifier: pid)?.isActive == true {
+                        break
+                    }
+                    Thread.sleep(forTimeInterval: 0.015)
+                }
+            }
+            switch handleNewWindowMenu(pid: pid) {
+            case .performed, .shortcutUnsafe:
+                break
+            case .unavailable:
+                DispatchQueue.main.async {
+                    guard NSRunningApplication(processIdentifier: pid)?.isActive == true else { return }
+                    postNewWindowShortcut()
+                }
+            }
+
+            // Bring the newly opened window onto the current Space so that macOS
+            // Space-switching never drags the user to another desktop (issue with multi-space apps).
+            var newlyCreatedID: CGWindowID?
+            for _ in 0 ..< 12 {
+                Thread.sleep(forTimeInterval: 0.035)
+                let currentFrontToBack = onScreenWindowIDs(pid: pid)
+                if let candidate = DockClickSupport.newlyOpenedWindowID(before: beforeWindows,
+                                                                        afterFrontToBack: currentFrontToBack) {
+                    newlyCreatedID = candidate
+                    break
+                }
+            }
+
+            if let targetID = newlyCreatedID {
+                DispatchQueue.main.async {
+                    SpaceWindowBridge.moveToVisibleSpace(targetID, near: clickPoint)
+                    SpaceWindowBridge.frontWindow(targetID, ownerPID: pid)
+                }
+            }
+        }
+    }
+
+    /// Walks the app's menu bar from left to right (skipping the Apple menu) to
+    /// find and press its "New Window" item (`newWindow:` / `newWindowForTab:`
+    /// identifier, or plain `⌘N`). Also checks one level of submenu so apps like
+    /// Terminal (`Shell → New Window → Basic ⌘N`) are matched.
+    private static func handleNewWindowMenu(pid: pid_t) -> MinimizeMenuOutcome {
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, 0.35)
+        guard let menuBar = elementAttribute(appElement, kAXMenuBarAttribute as String),
+              let topLevel = elementArray(menuBar, kAXChildrenAttribute as String)
+        else { return .unavailable }
+
+        var verifiedNewWindow: AXUIElement?
+        var plainNew: AXUIElement?
+        var visited = 0
+
+        func inspectItem(_ item: AXUIElement) {
+            let identifier = stringAttribute(item, kAXIdentifierAttribute as String)
+            if DockClickSupport.isVerifiedNewWindow(identifier: identifier), verifiedNewWindow == nil {
+                verifiedNewWindow = item
+            }
+            let commandCharacter = stringAttribute(item, "AXMenuItemCmdChar")
+            let modifiers = intAttribute(item, "AXMenuItemCmdModifiers")
+            if DockClickSupport.isPlainNewCommand(commandCharacter: commandCharacter, modifiers: modifiers),
+               plainNew == nil {
+                plainNew = item
+            }
+        }
+
+        outer: for barItem in topLevel.dropFirst() {
+            guard let menus = elementArray(barItem, kAXChildrenAttribute as String) else { continue }
+            for menu in menus {
+                guard let items = elementArray(menu, kAXChildrenAttribute as String) else { continue }
+                for item in items {
+                    guard visited < minimizeMenuItemBudget else { break outer }
+                    visited += 1
+                    inspectItem(item)
+                    if verifiedNewWindow != nil { break outer }
+                    if let submenus = elementArray(item, kAXChildrenAttribute as String) {
+                        for submenu in submenus {
+                            guard let subitems = elementArray(submenu, kAXChildrenAttribute as String) else { continue }
+                            for subitem in subitems {
+                                guard visited < minimizeMenuItemBudget else { break outer }
+                                visited += 1
+                                inspectItem(subitem)
+                                if verifiedNewWindow != nil { break outer }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if let verifiedNewWindow {
+            guard boolAttribute(verifiedNewWindow, kAXEnabledAttribute as String) != false else {
+                return .shortcutUnsafe
+            }
+            if AXUIElementPerformAction(verifiedNewWindow, kAXPressAction as CFString) == .success {
+                return .performed
+            }
+        }
+        if let plainNew,
+           boolAttribute(plainNew, kAXEnabledAttribute as String) != false {
+            if AXUIElementPerformAction(plainNew, kAXPressAction as CFString) == .success {
+                return .performed
+            }
+        }
+        return .unavailable
+    }
+
+    private static func postNewWindowShortcut() {
+        let source = CGEventSource(stateID: .hidSystemState)
+        let sequence: [(key: Int, down: Bool, flags: CGEventFlags)] = [
+            (kVK_Command, true, [.maskCommand]),
+            (kVK_ANSI_N, true, [.maskCommand]),
+            (kVK_ANSI_N, false, [.maskCommand]),
+            (kVK_Command, false, []),
+        ]
+        for step in sequence {
+            guard let event = CGEvent(keyboardEventSource: source,
+                                      virtualKey: CGKeyCode(step.key),
+                                      keyDown: step.down) else { continue }
+            event.flags = step.flags
+            event.post(tap: .cghidEventTap)
+        }
+    }
+
     private static func setMinimized(_ minimized: Bool, windows: [AXUIElement]) {
         let value: CFBoolean = minimized ? kCFBooleanTrue : kCFBooleanFalse
         for window in windows {
@@ -808,6 +1017,11 @@ final class DockClickService {
 
     // MARK: - Dock hit test
 
+    private enum DockTileTarget {
+        case running(NSRunningApplication)
+        case unlaunchedApp(URL)
+    }
+
     /// Resolves which Dock app icon a click landed on by walking the Dock's
     /// item list and matching along the Dock's LONG axis only. Position-based
     /// AX hit-testing is useless here: macOS reports the Dock strip's AX
@@ -818,7 +1032,7 @@ final class DockClickService {
     /// The tile's place in that list is carried into the resolution: several
     /// tiles can name one bundle, one per process of an app that runs as
     /// several.
-    private func dockApplication(at point: CGPoint) -> NSRunningApplication? {
+    private func dockTileTarget(at point: CGPoint) -> DockTileTarget? {
         guard let dockPID = dockProcessID() else { return nil }
         let dockElement = AXUIElementCreateApplication(dockPID)
         AXUIElementSetMessagingTimeout(dockElement, 0.35)
@@ -835,13 +1049,21 @@ final class DockClickService {
                     ? (point.x >= frame.minX && point.x <= frame.maxX)
                     : (point.y >= frame.minY && point.y <= frame.maxY)
                 guard hit, let url = Self.urlAttribute(item) else { continue }
+                let bundlePath = url.standardizedFileURL.path
                 // Which tile was hit, not just which bundle it names, decides
                 // the process the click acts on: an app running as several
                 // processes gets a tile each and every one carries the same URL,
                 // while everything this service does afterwards is keyed by pid.
-                return DockTileResolver.application(forTileAt: index,
-                                                    in: items,
-                                                    bundlePath: url.standardizedFileURL.path)
+                if let app = DockTileResolver.application(forTileAt: index,
+                                                          in: items,
+                                                          bundlePath: bundlePath) {
+                    return .running(app)
+                }
+                if !DockTileResolver.hasRunningInstances(bundlePath: bundlePath),
+                   Self.stringAttribute(item, kAXSubroleAttribute as String) == "AXApplicationDockItem" {
+                    return .unlaunchedApp(url)
+                }
+                return nil
             }
         }
         return nil
@@ -949,6 +1171,17 @@ final class DockClickService {
                   let number = entry[kCGWindowNumber as String] as? CGWindowID else { return nil }
             return number
         }
+    }
+
+    /// All window IDs owned by the process across every Space, including off-screen and other desktops.
+    private static func allWindowIDs(pid: pid_t) -> Set<CGWindowID> {
+        guard let info = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements],
+                                                    kCGNullWindowID) as? [[String: Any]] else { return [] }
+        return Set(info.compactMap { entry -> CGWindowID? in
+            guard entry[kCGWindowOwnerPID as String] as? pid_t == pid,
+                  let number = entry[kCGWindowNumber as String] as? CGWindowID else { return nil }
+            return number
+        })
     }
 
     /// Whether the window server lists any normal on-screen window for the

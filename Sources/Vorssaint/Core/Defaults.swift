@@ -136,6 +136,7 @@ enum DefaultsKey {
     static let dockClickMinimize = "dockClickMinimize"    // click the active app's Dock icon to minimize its windows
     static let dockClickHide = "dockClickHide"            // click the active app's Dock icon to hide the app
     static let dockClickCycleWindows = "dockClickCycleWindows" // click the active app's Dock icon to cycle through its windows
+    static let dockClickNewWindow = "dockClickNewWindow"  // middle-click an app's Dock icon to open a new window
     static let spacesOrderEnabled = "spacesOrderEnabled" // keeps macOS from rearranging Spaces by recent use (Dock mru-spaces)
     static let spacesOrderRestore = "spacesOrderRestore" // local recovery; never backed up: "absent" or "on", the mru-spaces state to put back, or "off" when there was nothing to put back
     static let spacesOrderRestartPending = "spacesOrderRestartPending" // local recovery; never backed up: "<Dock pid> <fixed|rearranging> <absent|on|off>…", the Dock process that owes the restart reading a written mru-spaces, what it runs and the values written under it
@@ -350,6 +351,7 @@ enum DefaultsKey {
     static let panelControlDockClick = "panelControlDockClick"
     static let panelControlDockClickHide = "panelControlDockClickHide"
     static let panelControlDockClickCycle = "panelControlDockClickCycle"
+    static let panelControlDockClickNewWindow = "panelControlDockClickNewWindow"
     static let panelControlMiddleClick = "panelControlMiddleClick"
     static let panelControlTextSnippets = "panelControlTextSnippets"
     static let panelControlSuperKey = "panelControlSuperKey"
@@ -1306,6 +1308,7 @@ enum Defaults {
         DefaultsKey.dockClickMinimize: false,
         DefaultsKey.dockClickHide: false,
         DefaultsKey.dockClickCycleWindows: false,
+        DefaultsKey.dockClickNewWindow: false,
         DefaultsKey.spacesOrderEnabled: false,
         DefaultsKey.middleClickEnabled: false,
         DefaultsKey.middleClickTapFingers: 0,
@@ -1617,6 +1620,7 @@ enum Defaults {
         DefaultsKey.panelControlDockClick: true,
         DefaultsKey.panelControlDockClickHide: true,
         DefaultsKey.panelControlDockClickCycle: true,
+        DefaultsKey.panelControlDockClickNewWindow: true,
         DefaultsKey.panelControlMiddleClick: true,
         DefaultsKey.panelControlTextSnippets: true,
         DefaultsKey.panelControlSuperKey: true,

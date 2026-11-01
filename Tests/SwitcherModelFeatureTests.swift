@@ -1880,6 +1880,9 @@ enum SwitcherModelFeatureTests {
                "Dock Preview closes a window normally, waits after an accepted quit, and falls back after refusal")
         suite.expect(registeredDefaults[DefaultsKey.dockClickHide] as? Bool == false,
                "hiding the active app from its Dock icon is opt-in")
+        suite.expect(registeredDefaults[DefaultsKey.dockClickNewWindow] as? Bool == false
+                && registeredDefaults[DefaultsKey.panelControlDockClickNewWindow] as? Bool == true,
+               "opening a new window on Dock middle-click is opt-in and visible in Quick Controls by default")
         suite.expect(DockPreviewSupport.sanitizedBackgroundOpacity(0.7) == 0.7,
                "a Dock Preview background opacity inside the range is kept")
         // A card is dragged for the same reason whatever state its window is in:
@@ -4454,6 +4457,28 @@ enum SwitcherModelFeatureTests {
                                                         modifiers: 2,
                                                         identifier: nil),
                "dock click never guesses when an Option-Command-M action has no identifier")
+        suite.expect(DockClickSupport.middleClickAction(hasModifiers: false, newWindowEnabled: true) == .newWindow
+                && DockClickSupport.middleClickAction(hasModifiers: false, newWindowEnabled: false) == .passThrough
+                && DockClickSupport.middleClickAction(hasModifiers: true, newWindowEnabled: true) == .passThrough,
+               "middle-clicking a Dock icon opens a new window only when enabled and unmodified")
+        suite.expect(DockClickSupport.repeatDecision(lastAction: .newWindow, elapsed: 0.1) == .swallow
+                && DockClickSupport.repeatDecision(lastAction: .newWindow, elapsed: 0.5) == .deriveFromState,
+               "Dock middle-click swallows bounce clicks within the debounce gap and opens another window afterwards")
+        suite.expect(DockClickSupport.isVerifiedNewWindow(identifier: "newWindow:")
+                && DockClickSupport.isVerifiedNewWindow(identifier: "newWindowForTab:")
+                && !DockClickSupport.isVerifiedNewWindow(identifier: "newDocument:")
+                && !DockClickSupport.isVerifiedNewWindow(identifier: nil),
+               "Dock new-window menu check recognizes standard AppKit new-window identifiers")
+        suite.expect(DockClickSupport.isPlainNewCommand(commandCharacter: "N", modifiers: 0)
+                && DockClickSupport.isPlainNewCommand(commandCharacter: "n", modifiers: 0)
+                && !DockClickSupport.isPlainNewCommand(commandCharacter: "N", modifiers: 1)
+                && !DockClickSupport.isPlainNewCommand(commandCharacter: "T", modifiers: 0)
+                && !DockClickSupport.isPlainNewCommand(commandCharacter: nil, modifiers: 0),
+               "Dock new-window fallback matches only an unmodified Command-N menu item")
+        suite.expect(DockClickSupport.newlyOpenedWindowID(before: [10, 20], afterFrontToBack: [30, 20, 10]) == 30
+                && DockClickSupport.newlyOpenedWindowID(before: [10, 20], afterFrontToBack: [20, 10]) == nil
+                && DockClickSupport.newlyOpenedWindowID(before: [], afterFrontToBack: [50]) == 50,
+               "Dock middle-click identifies the newly created window on the front of the screen")
 
         // Bottom Dock reserving ~70 pt: only the reserved strip counts, so a
         // click on a preview panel floating just above the Dock passes through.

@@ -99,6 +99,10 @@ enum DockTileResolver {
 
     /// Every live, regular process running this exact bundle. Only regular apps
     /// get a tile, so this filter matches the tile set the ordinal counts.
+    static func hasRunningInstances(bundlePath: String) -> Bool {
+        !runningInstances(bundlePath: bundlePath).isEmpty
+    }
+
     private static func runningInstances(bundlePath: String) -> [NSRunningApplication] {
         NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isTerminated

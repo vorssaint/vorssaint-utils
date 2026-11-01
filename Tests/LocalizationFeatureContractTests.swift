@@ -37,6 +37,9 @@ enum LocalizationFeatureContractTests {
                    "the installed-package grouping choice is labeled (\(language.rawValue))")
             suite.expect(strings.micMuteCaption.contains("Siri"),
                    "Mic Mute explains the Siri coverage limit (\(language.rawValue))")
+            suite.expect(!strings.dockClickNewWindow.isEmpty
+                   && !strings.dockClickNewWindowCaption.isEmpty,
+                   "Dock middle-click new window option and caption are localized (\(language.rawValue))")
         }
         suite.expect(Strings.enUS.micMutedHUD == "Mic Mute on"
                 && Strings.enUS.micUnmutedHUD == "Mic Mute off",
