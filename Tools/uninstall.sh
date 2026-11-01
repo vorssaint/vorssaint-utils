@@ -198,7 +198,9 @@ rm -rf "$HOME/Library/HTTPStorages/$BUNDLE" "$HOME/Library/HTTPStorages/$BUNDLE.
 # ordinary case, and prints an error over a successful uninstall.
 rm -f "$HOME/Library/Preferences/ByHost/$BUNDLE".*.plist(N)
 
-# The link the README sets up, and only that: another tool may own the name.
+# The links the README sets up, and only those: another tool may own the name.
+BREW_LINK="/opt/homebrew/bin/vors"
+[[ "$(readlink "$BREW_LINK" 2>/dev/null)" == "$APP/"* ]] && rm -f "$BREW_LINK"
 CLI_LINK="/usr/local/bin/vors"
 if [[ "$(readlink "$CLI_LINK" 2>/dev/null)" == "$APP/"* ]]; then
     echo "▸ Removing the vors command (asks for your admin password)…"

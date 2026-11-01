@@ -200,14 +200,22 @@ Builds are signed with an Apple Developer ID and notarized, so macOS opens them 
 
 ## Command line
 
-Link the `vors` command once. It asks for your password:
+The `vors` command is not set up by installing or building the app. Enable it once by linking it into a folder on your `PATH`.
+
+With Homebrew:
+
+```sh
+ln -sf /Applications/Vorssaint.app/Contents/MacOS/Vorssaint "$(brew --prefix)/bin/vors"
+```
+
+Without Homebrew, which asks for your password:
 
 ```sh
 sudo mkdir -p /usr/local/bin
 sudo ln -sf /Applications/Vorssaint.app/Contents/MacOS/Vorssaint /usr/local/bin/vors
 ```
 
-Then control Keep awake from any terminal. Vorssaint opens in the background if it is not running, and the session stays with the app after the command returns.
+Then control Keep awake from any new terminal window. Vorssaint opens in the background if it is not running, and the session stays with the app after the command returns.
 
 ```sh
 vors keepawake -m 120   # keep awake for 120 minutes, 0 for no end time
@@ -215,6 +223,10 @@ vors keepawake          # start the last used session
 vors keepawake status
 vors keepawake off
 ```
+
+If `vors` says the running Vorssaint did not answer, an older copy is still open. Quit it and try again.
+
+To remove the command, delete the link with `rm "$(which vors)"`.
 
 ## Uninstall
 

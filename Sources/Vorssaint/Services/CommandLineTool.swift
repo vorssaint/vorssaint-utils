@@ -46,7 +46,7 @@ enum CommandLineTool {
             NSWorkspace.shared.openApplication(at: app.bundleURL, configuration: configuration)
         }
         guard let answer = ask(action, bundleIdentifier: bundleIdentifier) else {
-            failCommand("Vorssaint did not answer")
+            failCommand("the running Vorssaint did not answer. If it is an older version, quit it and try again")
         }
         guard answer.isAvailable else { failCommand("Keep awake is uninstalled in the Features hub") }
         if !answer.isActive, action != .off, action != .status { failCommand("Keep awake did not start") }
