@@ -2873,6 +2873,7 @@ enum PointerInputFeatureTests {
                "each feature keeps its own list, never a key shared with another")
         suite.expect(MouseExceptionScope.smoothScroll.feature == .smoothScroll
                 && MouseExceptionScope.linearScroll.feature == .linearScroll
+                && MouseExceptionScope.scrollSpeed.feature == .scrollSpeed
                 && MouseExceptionScope.scrollDirection.feature == .scrollInverter
                 && MouseExceptionScope.focusFollowsMouse.feature == .focusFollowsMouse
                 && MouseExceptionScope.navigation.feature == .mouseNavigation

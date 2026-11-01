@@ -94,10 +94,15 @@ final class ScrollInverter: ObservableObject {
                 postPinch(phase: 4, magnification: 0, at: pinchLocation)
             }
         }
-        if SessionActivitySupport.tapShouldRun(featureWanted: direction.isEnabled || Self.linearScrollWanted,
-                                               accessibilityGranted: Permissions.shared.accessibility,
-                                               sessionIsActive: SessionActivity.shared.isActive) {
-            ScrollWheelTarget.shared.setEnabled(direction.horizontalModifier != nil || direction.zoom.isEnabled)
+        if SessionActivitySupport.tapShouldRun(
+            featureWanted: direction.isEnabled || Self.linearScrollWanted || Self.scrollSpeedWanted,
+            accessibilityGranted: Permissions.shared.accessibility,
+            sessionIsActive: SessionActivity.shared.isActive
+        ) {
+            ScrollWheelTarget.shared.setEnabled(
+                direction.horizontalModifier != nil
+                    || direction.zoom.isEnabled
+                    || ScrollSpeedPreferences().isEnabled)
             start()
         } else {
             stop()
@@ -116,12 +121,20 @@ final class ScrollInverter: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.linearScrollEnabled)
     }
 
+    /// Modifier-held speed likewise keeps the tap alive when direction and
+    /// linear scrolling are both off or uninstalled.
+    private static var scrollSpeedWanted: Bool {
+        AppFeature.scrollSpeed.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.scrollSpeedEnabled)
+    }
+
     /// Each list's source apps are tracked only while its feature is one the
     /// tap is up for, so a list left behind by the other feature costs nothing.
     private func setSourceTracking(_ running: Bool) {
         let exceptions = MouseAppExceptions.shared
         exceptions.setSourceTracking(running && ScrollDirectionPreferences().isEnabled, for: .scrollDirection)
         exceptions.setSourceTracking(running && Self.linearScrollWanted, for: .linearScroll)
+        exceptions.setSourceTracking(running && Self.scrollSpeedWanted, for: .scrollSpeed)
     }
 
     private func start() {
@@ -280,15 +293,24 @@ final class ScrollInverter: ObservableObject {
             // Our panels decline zoom but still use their ordinary wheel path.
             if !ScrollWheelTarget.shared.contains(event.location) { return Unmanaged.passUnretained(event) }
         }
-        // Control-wheel is native zoom. Only the explicit Control-to-horizontal
-        // shortcut turns it into scrolling; a direction exception or one of
-        // our own windows leaves it as zoom too.
-        let controlRedirects = directionApplies
-            && direction.horizontalModifier == .control
-            && event.flags.intersection([.maskShift, .maskAlternate, .maskControl, .maskCommand]) == .maskControl
-            && ScrollWheelSupport.isVerticalOnly(event)
-            && !ScrollWheelTarget.shared.contains(event.location)
-        let nativeZoom = event.flags.contains(.maskControl) && !controlRedirects
+        let targetsOwnWindow = ScrollWheelTarget.shared.contains(event.location)
+        let speed = ScrollSpeedPreferences(defaults: defaults)
+        let speedExcepted = MouseAppExceptions.shared.excludesPointerTarget(
+            .scrollSpeed, at: event.location, sourceProcessID: sourceProcessID)
+        // Control-wheel is native zoom. Only an explicit Control shortcut for
+        // horizontal redirection or speed turns it into scrolling; a direction
+        // exception or one of our own windows leaves it as zoom too.
+        let controlClaimsScroll = event.flags.intersection(
+            [.maskShift, .maskAlternate, .maskControl, .maskCommand]) == .maskControl
+            && !targetsOwnWindow
+            && ((directionApplies
+                    && direction.horizontalModifier == .control
+                    && ScrollWheelSupport.isVerticalOnly(event))
+                || (!speedExcepted
+                    && speed.factor(for: event,
+                                    horizontalModifier: direction.horizontalModifier,
+                                    targetsOwnWindow: false) != nil))
+        let nativeZoom = event.flags.contains(.maskControl) && !controlClaimsScroll
         if let linesPerNotch = nativeZoom ? nil : ScrollWheelSupport.linearLinesPerNotch(
             defaults: defaults,
             isAvailable: AppFeature.linearScroll.isAvailable,
@@ -337,6 +359,17 @@ final class ScrollInverter: ObservableObject {
             linearCarryHorizontal = 0
         }
 
+        // Speed multiplies after the linear cap so each notch travels farther,
+        // and before redirection so a later shared-modifier policy can still
+        // stand down. Zoom already consumed matching ticks above.
+        if !nativeZoom, !speedExcepted {
+            ScrollWheelSupport.applyScrollSpeed(
+                to: event, isContinuous: traits.isContinuous,
+                preferences: speed,
+                horizontalModifier: direction.horizontalModifier,
+                targetsOwnWindow: targetsOwnWindow)
+        }
+
         // The direction features read their own availability here: linear
         // scrolling may be what keeps this tap alive, so the tap running says
         // nothing about whether the wheel should be turned or redirected.
@@ -346,7 +379,7 @@ final class ScrollInverter: ObservableObject {
                 invertVertical: direction.invertVertical,
                 invertHorizontal: direction.invertHorizontal,
                 horizontalModifier: direction.horizontalModifier,
-                targetsOwnWindow: ScrollWheelTarget.shared.contains(event.location)
+                targetsOwnWindow: targetsOwnWindow
             )
         }
         return Unmanaged.passUnretained(event)
