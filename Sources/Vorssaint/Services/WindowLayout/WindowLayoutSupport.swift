@@ -34,7 +34,9 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case topLeftSixth, topCenterSixth, topRightSixth
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
-    case maximize, marginMaximize, fullScreen, center
+    case topLeftTwoThirds, topRightTwoThirds, bottomLeftTwoThirds, bottomRightTwoThirds
+    case maximize, marginMaximize, maximizeHeight, fullScreen, center
+    case makeSmaller, makeLarger
     case previousDisplay, nextDisplay, restore
 
     var id: String { rawValue }
@@ -48,7 +50,9 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .topLeftSixth, .topCenterSixth, .topRightSixth,
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
-        .maximize, .marginMaximize, .fullScreen, .center, .restore,
+        .topLeftTwoThirds, .topRightTwoThirds, .bottomLeftTwoThirds, .bottomRightTwoThirds,
+        .maximize, .marginMaximize, .maximizeHeight, .fullScreen, .center, .restore,
+        .makeSmaller, .makeLarger,
         .previousDisplay, .nextDisplay,
     ]
 
@@ -112,6 +116,13 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftMiddleQuarter: return 68
         case .rightMiddleQuarter: return 69
         case .rightQuarter: return 70
+        case .topLeftTwoThirds: return 71
+        case .topRightTwoThirds: return 72
+        case .bottomLeftTwoThirds: return 73
+        case .bottomRightTwoThirds: return 74
+        case .maximizeHeight: return 75
+        case .makeSmaller: return 76
+        case .makeLarger: return 77
         }
     }
 
@@ -131,6 +142,13 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .topRight: return DefaultsKey.windowLayoutShortcutTopRight
         case .bottomLeft: return DefaultsKey.windowLayoutShortcutBottomLeft
         case .bottomRight: return DefaultsKey.windowLayoutShortcutBottomRight
+        case .topLeftTwoThirds: return DefaultsKey.windowLayoutShortcutTopLeftTwoThirds
+        case .topRightTwoThirds: return DefaultsKey.windowLayoutShortcutTopRightTwoThirds
+        case .bottomLeftTwoThirds: return DefaultsKey.windowLayoutShortcutBottomLeftTwoThirds
+        case .bottomRightTwoThirds: return DefaultsKey.windowLayoutShortcutBottomRightTwoThirds
+        case .maximizeHeight: return DefaultsKey.windowLayoutShortcutMaximizeHeight
+        case .makeSmaller: return DefaultsKey.windowLayoutShortcutMakeSmaller
+        case .makeLarger: return DefaultsKey.windowLayoutShortcutMakeLarger
         case .maximize: return DefaultsKey.windowLayoutShortcutMaximize
         case .marginMaximize: return DefaultsKey.windowLayoutShortcutMarginMaximize
         case .fullScreen: return DefaultsKey.windowLayoutShortcutFullScreen
@@ -193,7 +211,9 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
                 .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
                 .topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter,
                 .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
-                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds:
+                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .centerTwoThirds,
+                .topLeftTwoThirds, .topRightTwoThirds, .bottomLeftTwoThirds, .bottomRightTwoThirds,
+                .maximizeHeight, .makeSmaller, .makeLarger:
             // New actions must never claim a system-wide combination unasked.
             return nil
         }
@@ -246,6 +266,13 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .topRight: return text.topRight
         case .bottomLeft: return text.bottomLeft
         case .bottomRight: return text.bottomRight
+        case .topLeftTwoThirds: return text.topLeftTwoThirds
+        case .topRightTwoThirds: return text.topRightTwoThirds
+        case .bottomLeftTwoThirds: return text.bottomLeftTwoThirds
+        case .bottomRightTwoThirds: return text.bottomRightTwoThirds
+        case .maximizeHeight: return text.maximizeHeight
+        case .makeSmaller: return text.makeSmaller
+        case .makeLarger: return text.makeLarger
         case .maximize: return text.maximize
         case .marginMaximize: return text.marginMaximize
         case .fullScreen: return text.fullScreen
@@ -307,13 +334,16 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .upperMiddleQuarter: return "rectangle.tophalf.inset.filled"
         case .lowerMiddleQuarter: return "rectangle.bottomhalf.inset.filled"
         case .bottomQuarter: return "rectangle.bottomthird.inset.filled"
-        case .topLeftSixth, .topLeft: return "arrow.up.left"
+        case .topLeftSixth, .topLeft, .topLeftTwoThirds: return "arrow.up.left"
         case .topCenterSixth: return "arrow.up"
-        case .topRightSixth, .topRight: return "arrow.up.right"
-        case .bottomLeftSixth, .bottomLeft: return "arrow.down.left"
+        case .topRightSixth, .topRight, .topRightTwoThirds: return "arrow.up.right"
+        case .bottomLeftSixth, .bottomLeft, .bottomLeftTwoThirds: return "arrow.down.left"
         case .bottomCenterSixth: return "arrow.down"
-        case .bottomRightSixth, .bottomRight: return "arrow.down.right"
+        case .bottomRightSixth, .bottomRight, .bottomRightTwoThirds: return "arrow.down.right"
         case .maximize: return "arrow.up.left.and.arrow.down.right"
+        case .maximizeHeight: return "arrow.up.and.down"
+        case .makeSmaller: return "minus.rectangle"
+        case .makeLarger: return "plus.rectangle"
         case .marginMaximize: return "rectangle.inset.filled"
         case .fullScreen: return "rectangle.fill"
         case .center: return "scope"
@@ -360,6 +390,14 @@ enum WindowLayoutSideRepeat {
     static var cyclesThirds: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutSideRepeatCyclesThirds)
     }
+
+    /// Whether every half and corner cycles through its sizes on a repeat,
+    /// the way Rectangle does, instead of only Left and Right. Top twice then
+    /// stays a size cycle rather than maximizing, and a repeated half no
+    /// longer crosses to the next display.
+    static var cyclesAll: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutRepeatCyclesAll)
+    }
 }
 
 enum WindowLayoutGeometry {
@@ -376,27 +414,48 @@ enum WindowLayoutGeometry {
                                 current _: CGRect,
                                 visibleFrame _: CGRect,
                                 previousAction: WindowLayoutAction? = nil,
-                                sideRepeatCyclesThirds: Bool = false) -> WindowLayoutAction {
-        if action == .topHalf, previousAction == .topHalf {
+                                sideRepeatCyclesThirds: Bool = false,
+                                repeatCyclesAll: Bool = false) -> WindowLayoutAction {
+        if action == .topHalf, previousAction == .topHalf, !repeatCyclesAll {
             return .maximize
         }
-        if sideRepeatCyclesThirds, let next = sideCycleAction(for: action, previousAction: previousAction) {
+        if sideRepeatCyclesThirds,
+           let next = sideCycleAction(for: action, previousAction: previousAction,
+                                      includesAll: repeatCyclesAll) {
             return next
         }
         return action
+    }
+
+    /// The pressable actions with a size cycle once every half and corner
+    /// cycles: halves go half, two thirds, third along their axis; corners
+    /// keep half the height and cycle the width the same way.
+    static func sizeCycle(for action: WindowLayoutAction, includesAll: Bool) -> [WindowLayoutAction]? {
+        switch action {
+        case .leftHalf: return [.leftHalf, .leftTwoThirds, .leftThird]
+        case .rightHalf: return [.rightHalf, .rightTwoThirds, .rightThird]
+        default: break
+        }
+        guard includesAll else { return nil }
+        switch action {
+        case .topHalf: return [.topHalf, .topTwoThirds, .topThird]
+        case .bottomHalf: return [.bottomHalf, .bottomTwoThirds, .bottomThird]
+        case .centerHalf: return [.centerHalf, .centerTwoThirds, .centerThird]
+        case .topLeft: return [.topLeft, .topLeftTwoThirds, .topLeftSixth]
+        case .topRight: return [.topRight, .topRightTwoThirds, .topRightSixth]
+        case .bottomLeft: return [.bottomLeft, .bottomLeftTwoThirds, .bottomLeftSixth]
+        case .bottomRight: return [.bottomRight, .bottomRightTwoThirds, .bottomRightSixth]
+        default: return nil
+        }
     }
 
     /// The window size cycle for a repeated side action: half, then
     /// two thirds, then one third, then back to the half. Only sizes reached
     /// from the same side count, so a left after a right third starts over.
     static func sideCycleAction(for action: WindowLayoutAction,
-                                previousAction: WindowLayoutAction?) -> WindowLayoutAction? {
-        let cycle: [WindowLayoutAction]
-        switch action {
-        case .leftHalf: cycle = [.leftHalf, .leftTwoThirds, .leftThird]
-        case .rightHalf: cycle = [.rightHalf, .rightTwoThirds, .rightThird]
-        default: return nil
-        }
+                                previousAction: WindowLayoutAction?,
+                                includesAll: Bool = false) -> WindowLayoutAction? {
+        guard let cycle = sizeCycle(for: action, includesAll: includesAll) else { return nil }
         guard let previousAction, let index = cycle.firstIndex(of: previousAction) else { return nil }
         return cycle[(index + 1) % cycle.count]
     }
@@ -406,7 +465,9 @@ enum WindowLayoutGeometry {
     /// so a two thirds shortcut or a pointer snap is never read back for the
     /// cycle and the next side press starts again at the half.
     static func sideCyclePress(for action: WindowLayoutAction,
-                               cyclesThirds: Bool) -> WindowLayoutAction? {
+                               cyclesThirds: Bool,
+                               cyclesAll: Bool = false) -> WindowLayoutAction? {
+        if cyclesAll, sizeCycle(for: action, includesAll: true) != nil { return action }
         guard cyclesThirds, action == .leftHalf || action == .rightHalf else { return nil }
         return action
     }
@@ -460,9 +521,11 @@ enum WindowLayoutGeometry {
     static func displayCrossing(
         for action: WindowLayoutAction,
         previousAction: WindowLayoutAction?,
-        sideRepeatCyclesThirds: Bool = false
+        sideRepeatCyclesThirds: Bool = false,
+        repeatCyclesAll: Bool = false
     ) -> (action: WindowLayoutAction, direction: DisplayDirection)? {
         guard action == previousAction else { return nil }
+        if repeatCyclesAll { return nil }
         if sideRepeatCyclesThirds, action == .leftHalf || action == .rightHalf { return nil }
         switch action {
         case .leftHalf: return (.rightHalf, .left)
@@ -544,7 +607,8 @@ enum WindowLayoutGeometry {
         // actions that return the current frame.
         let frame: CGRect
         switch action {
-        case .marginMaximize, .center, .restore, .previousDisplay, .nextDisplay, .fullScreen:
+        case .marginMaximize, .center, .restore, .previousDisplay, .nextDisplay, .fullScreen,
+                .makeSmaller, .makeLarger:
             frame = visibleFrame
         default:
             frame = screenGapFrame(visibleFrame, screenGap: screenGap)
@@ -576,8 +640,8 @@ enum WindowLayoutGeometry {
                                      windowGap: CGFloat) -> CGRect {
         guard windowGap > 0 else { return rect }
         switch action {
-        case .maximize, .marginMaximize, .fullScreen, .center, .restore,
-                .previousDisplay, .nextDisplay:
+        case .maximize, .marginMaximize, .maximizeHeight, .fullScreen, .center, .restore,
+                .makeSmaller, .makeLarger, .previousDisplay, .nextDisplay:
             return rect
         default:
             break
@@ -718,6 +782,27 @@ enum WindowLayoutGeometry {
         case .bottomRight:
             return CGRect(x: visibleFrame.midX, y: visibleFrame.minY,
                           width: halfWidth, height: halfHeight).integral
+        case .topLeftTwoThirds:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.midY,
+                          width: twoThirdsWidth, height: halfHeight).integral
+        case .topRightTwoThirds:
+            return CGRect(x: visibleFrame.maxX - twoThirdsWidth, y: visibleFrame.midY,
+                          width: twoThirdsWidth, height: halfHeight).integral
+        case .bottomLeftTwoThirds:
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
+                          width: twoThirdsWidth, height: halfHeight).integral
+        case .bottomRightTwoThirds:
+            return CGRect(x: visibleFrame.maxX - twoThirdsWidth, y: visibleFrame.minY,
+                          width: twoThirdsWidth, height: halfHeight).integral
+        case .maximizeHeight:
+            let width = min(current.width, visibleFrame.width)
+            let x = min(max(current.minX, visibleFrame.minX), visibleFrame.maxX - width)
+            return CGRect(x: x, y: visibleFrame.minY,
+                          width: width, height: visibleFrame.height).integral
+        case .makeSmaller:
+            return resizedRect(current, by: -resizeStep, visibleFrame: visibleFrame).integral
+        case .makeLarger:
+            return resizedRect(current, by: resizeStep, visibleFrame: visibleFrame).integral
         case .maximize:
             return visibleFrame.integral
         case .marginMaximize:
@@ -741,13 +826,53 @@ enum WindowLayoutGeometry {
         }
     }
 
+    /// Points Make Smaller and Make Larger add to or take off each dimension.
+    static let resizeStep: CGFloat = 30
+
+    /// Grows or shrinks a window around its center by `step` on each axis,
+    /// as Rectangle does. An edge already against the visible frame stays
+    /// pinned there, so a half keeps its side and a full-height window keeps
+    /// its height. A window filling the display still shrinks, and one that
+    /// would fall under a quarter of the display on either axis keeps its size.
+    static func resizedRect(_ current: CGRect, by step: CGFloat, visibleFrame: CGRect) -> CGRect {
+        let edgeTolerance: CGFloat = 5
+        let atMinX = abs(current.minX - visibleFrame.minX) <= edgeTolerance
+        let atMaxX = abs(current.maxX - visibleFrame.maxX) <= edgeTolerance
+        let atMinY = abs(current.minY - visibleFrame.minY) <= edgeTolerance
+        let atMaxY = abs(current.maxY - visibleFrame.maxY) <= edgeTolerance
+        let shrinkingFull = step < 0 && atMinX && atMaxX && atMinY && atMaxY
+
+        var rect = current
+        rect.size.width += step
+        rect.origin.x -= floor(step / 2)
+        rect.size.height += step
+        rect.origin.y -= floor(step / 2)
+        if !shrinkingFull {
+            if atMaxX { rect.origin.x = visibleFrame.maxX - rect.width }
+            if atMinX, atMaxX { rect.size.width = visibleFrame.width }
+            if atMinX { rect.origin.x = visibleFrame.minX }
+            if atMaxY { rect.origin.y = visibleFrame.maxY - rect.height }
+            if atMinY, atMaxY { rect.size.height = visibleFrame.height }
+            if atMinY { rect.origin.y = visibleFrame.minY }
+        }
+        rect.size.width = min(rect.width, visibleFrame.width)
+        rect.size.height = min(rect.height, visibleFrame.height)
+        if step < 0, rect.width < visibleFrame.width / 4 || rect.height < visibleFrame.height / 4 {
+            return current
+        }
+        rect.origin.x = min(max(rect.minX, visibleFrame.minX), visibleFrame.maxX - rect.width)
+        rect.origin.y = min(max(rect.minY, visibleFrame.minY), visibleFrame.maxY - rect.height)
+        return rect
+    }
+
     static func anchoredRect(for action: WindowLayoutAction,
                              targetRect: CGRect,
                              actualSize: CGSize,
                              visibleFrame: CGRect) -> CGRect {
         guard action != .maximize, action != .restore,
               action != .previousDisplay, action != .nextDisplay,
-              action != .fullScreen else { return targetRect.integral }
+              action != .fullScreen, action != .makeSmaller, action != .makeLarger
+        else { return targetRect.integral }
 
         let size = CGSize(width: max(1, actualSize.width),
                           height: max(1, actualSize.height))
@@ -796,22 +921,26 @@ enum WindowLayoutGeometry {
         case .bottomRightSixth:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.minY
-        case .topLeft:
+        case .topLeft, .topLeftTwoThirds:
             origin.x = targetRect.minX
             origin.y = targetRect.maxY - size.height
-        case .topRight:
+        case .topRight, .topRightTwoThirds:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.maxY - size.height
-        case .bottomLeft:
+        case .bottomLeft, .bottomLeftTwoThirds:
             origin.x = targetRect.minX
             origin.y = targetRect.minY
-        case .bottomRight:
+        case .bottomRight, .bottomRightTwoThirds:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.minY
+        case .maximizeHeight:
+            origin.x = targetRect.minX
+            origin.y = targetRect.maxY - size.height
         case .marginMaximize, .center:
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.midY - size.height / 2
-        case .maximize, .previousDisplay, .nextDisplay, .restore, .fullScreen:
+        case .maximize, .previousDisplay, .nextDisplay, .restore, .fullScreen,
+                .makeSmaller, .makeLarger:
             break
         }
 
@@ -899,22 +1028,30 @@ enum WindowLayoutGeometry {
             return abs(actualRect.maxX - targetRect.maxX) <= anchorTolerance
                 && abs(actualRect.minY - targetRect.minY) <= anchorTolerance
                 && overlap > 0.35
-        case .topLeft:
+        case .topLeft, .topLeftTwoThirds:
             return abs(actualRect.minX - targetRect.minX) <= anchorTolerance
                 && abs(actualRect.maxY - targetRect.maxY) <= anchorTolerance
                 && overlap > 0.35
-        case .topRight:
+        case .topRight, .topRightTwoThirds:
             return abs(actualRect.maxX - targetRect.maxX) <= anchorTolerance
                 && abs(actualRect.maxY - targetRect.maxY) <= anchorTolerance
                 && overlap > 0.35
-        case .bottomLeft:
+        case .bottomLeft, .bottomLeftTwoThirds:
             return abs(actualRect.minX - targetRect.minX) <= anchorTolerance
                 && abs(actualRect.minY - targetRect.minY) <= anchorTolerance
                 && overlap > 0.35
-        case .bottomRight:
+        case .bottomRight, .bottomRightTwoThirds:
             return abs(actualRect.maxX - targetRect.maxX) <= anchorTolerance
                 && abs(actualRect.minY - targetRect.minY) <= anchorTolerance
                 && overlap > 0.35
+        case .maximizeHeight:
+            return abs(actualRect.maxY - targetRect.maxY) <= anchorTolerance
+                && fullHeight
+                && overlap > 0.45
+        case .makeSmaller, .makeLarger:
+            return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
+                && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
+                && overlap > 0.82
         case .maximize:
             return overlap > 0.90
         case .marginMaximize:

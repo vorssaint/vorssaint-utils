@@ -47,9 +47,13 @@ struct PanelWindowLayoutView: View {
                 .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
             ])
-            actionGroup(title: text.corners, actions: [.topLeft, .topRight, .bottomLeft, .bottomRight])
+            actionGroup(title: text.corners, actions: [
+                .topLeft, .topRight, .bottomLeft, .bottomRight,
+                .topLeftTwoThirds, .topRightTwoThirds, .bottomLeftTwoThirds, .bottomRightTwoThirds,
+            ])
             actionGroup(title: text.other, actions: [
-                .maximize, .marginMaximize, .fullScreen, .center, .previousDisplay, .nextDisplay, .restore,
+                .maximize, .marginMaximize, .maximizeHeight, .fullScreen, .center,
+                .makeSmaller, .makeLarger, .previousDisplay, .nextDisplay, .restore,
             ])
             if let message = resultMessage {
                 Label(message, systemImage: resultSymbol)
