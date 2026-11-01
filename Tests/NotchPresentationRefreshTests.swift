@@ -177,6 +177,7 @@ enum NotchPresentationRefreshContract {
         var captureContentHeight: CGFloat?
         var captureFallback: (() -> Void)?
         var captureClose: (() -> Void)?
+        var captureDismiss: (() -> Void)?
         var captureHover: ((Bool) -> Void)?
         var captureClosesOnCollapse = false
         var routesCaptures = true

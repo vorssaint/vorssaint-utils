@@ -8,6 +8,9 @@ import Foundation
 struct NetworkCounters: Equatable {
     var received: UInt64 = 0
     var sent: UInt64 = 0
+    /// The interfaces summed. Another set reads as other counters, so a
+    /// change of connection never shows as a burst of traffic.
+    var interfaces: Set<String> = []
 }
 
 /// Detects the macOS failure mode where outbound interface counters keep moving
@@ -500,11 +503,29 @@ enum MetricFormat {
     /// Whether an interface counts toward "real" network throughput. Loopback and
     /// virtual interfaces (AirDrop, VPN tunnels, bridges, etc.) are excluded so a
     /// VPN does not double-count the traffic already seen on the physical NIC.
+    /// `feth` interfaces come in pairs that each see the other's traffic the
+    /// other way round, so summing both made download and upload equal (#3429).
     static func includeNetworkInterface(_ name: String) -> Bool {
         guard !name.isEmpty else { return false }
         let excluded = ["lo", "gif", "stf", "awdl", "llw", "nan", "utun", "bridge",
-                        "ap", "anpi", "p2p", "XHC", "vmenet", "tap", "tun"]
+                        "ap", "anpi", "p2p", "XHC", "vmenet", "tap", "tun", "feth"]
         return !excluded.contains { name.hasPrefix($0) }
+    }
+
+    /// The interfaces whose counters make up the reading. A bridge the system
+    /// routes through is the connection itself, as when a virtual network
+    /// carries all traffic and the Wi-Fi sits idle, so then the primary
+    /// interfaces are counted instead: leaving the bridge out would leave
+    /// nothing, and adding its members would count the same traffic twice.
+    /// A VPN tunnel as primary keeps the usual rule, which counts the
+    /// physical interface underneath it.
+    static func countedNetworkInterfaces(_ names: [String], primaries: [String]) -> Set<String> {
+        let available = Set(names)
+        let routed = primaries.filter { available.contains($0) }
+        guard routed.contains(where: { $0.hasPrefix("bridge") }) else {
+            return available.filter(includeNetworkInterface)
+        }
+        return Set(routed.filter { $0.hasPrefix("bridge") || includeNetworkInterface($0) })
     }
 }
 
