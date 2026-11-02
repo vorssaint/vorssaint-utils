@@ -46,6 +46,7 @@ struct MetricsTests {
             ("app-management", {
                 AppManagementFeatureTests.run(suite)
                 DiskImageHomebrewTests.run(suite)
+                LargeFileSupportTests.run(suite)
             }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),
             ("media", { MediaFeatureTests.run(suite) }),

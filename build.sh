@@ -574,6 +574,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Display/BrightnessSupport.swift
         Sources/Vorssaint/Services/Display/LidDimmingSupport.swift
         Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift
+        Sources/Vorssaint/Services/Cleaner/LargeFileSupport.swift
         Sources/Vorssaint/Services/Cleaner/CleanerPolicy.swift
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift

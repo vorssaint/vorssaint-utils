@@ -14,45 +14,51 @@ struct CleanerSettings: View {
     @State private var tool = Tool.system
 
     private enum Tool: String {
-        case system, whatsApp
+        case system, largeFiles, whatsApp
     }
 
     /// A panel surface can ask for a specific tool; the hint is one-shot.
     private func consumeToolHint() {
         guard let hint = router.cleanerTool else { return }
         router.cleanerTool = nil
-        guard whatsAppEnabled, let wanted = Tool(rawValue: hint) else { return }
+        guard let wanted = Tool(rawValue: hint) else { return }
+        guard wanted != .whatsApp || whatsAppEnabled else { return }
         tool = wanted
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            if whatsAppEnabled {
-                Picker("", selection: $tool) {
-                    Label(l10n.s.cleanerName, systemImage: "sparkles")
-                        .tag(Tool.system)
+            Picker("", selection: $tool) {
+                Label(l10n.s.cleanerName, systemImage: "sparkles")
+                    .tag(Tool.system)
+                Label(l10n.s.largeFilesName, systemImage: "doc.badge.clock")
+                    .tag(Tool.largeFiles)
+                if whatsAppEnabled {
                     Label(FeatureStrings.whatsAppDownloads(l10n.language).title,
                           systemImage: "arrow.down.doc")
                         .tag(Tool.whatsApp)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 440)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 14)
-
-                Divider()
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 440)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
 
-            if whatsAppEnabled, tool == .whatsApp {
+            Divider()
+
+            switch tool {
+            case .whatsApp where whatsAppEnabled:
                 WhatsAppDownloadsSettings()
-            } else {
+            case .largeFiles:
+                LargeFilesView()
+            default:
                 CleanerView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
-            if !whatsAppEnabled { tool = .system }
+            if !whatsAppEnabled, tool == .whatsApp { tool = .system }
             consumeToolHint()
         }
         .onChange(of: router.cleanerTool) { _, _ in consumeToolHint() }

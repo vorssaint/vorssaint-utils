@@ -500,6 +500,16 @@ struct Strings {
     let uninstallerSortName: String
     let uninstallerSortSize: String
     let uninstallerSortLastUsed: String
+    let largeFilesName: String
+    let largeFilesIntro: String
+    let largeFilesScan: String
+    let largeFilesMinSize: String
+    let largeFilesOlderThan: String
+    let largeFilesAnyAge: String
+    let largeFilesDaysFormat: String
+    let largeFilesOneYear: String
+    let largeFilesNone: String
+    let largeFilesMoveToTrash: String
     let uninstallerPickerEmpty: String
     let uninstallerEmptyNote: String
     let uninstallerFDANote: String
@@ -1661,6 +1671,16 @@ extension Strings {
         uninstallerSortName: "Nome",
         uninstallerSortSize: "Tamanho",
         uninstallerSortLastUsed: "Último uso",
+        largeFilesName: "Arquivos grandes",
+        largeFilesIntro: "Encontre arquivos grandes na sua pasta pessoal. Nada vem selecionado, e os arquivos removidos vão para a Lixeira.",
+        largeFilesScan: "Encontrar arquivos grandes",
+        largeFilesMinSize: "Maiores que",
+        largeFilesOlderThan: "Não abertos há",
+        largeFilesAnyAge: "Qualquer época",
+        largeFilesDaysFormat: "%d dias",
+        largeFilesOneYear: "1 ano",
+        largeFilesNone: "Nenhum arquivo grande encontrado",
+        largeFilesMoveToTrash: "Mover para a Lixeira",
         uninstallerPickerEmpty: "Nenhum app encontrado",
         uninstallerEmptyNote: "Nada é removido sem a sua confirmação.",
         uninstallerFDANote: "Conceda Acesso Total ao Disco para uma análise mais completa.",
@@ -2786,6 +2806,16 @@ extension Strings {
         uninstallerSortName: "Name",
         uninstallerSortSize: "Size",
         uninstallerSortLastUsed: "Last used",
+        largeFilesName: "Large files",
+        largeFilesIntro: "Find big files in your home folder. Nothing is selected until you choose, and removed files go to the Trash.",
+        largeFilesScan: "Find large files",
+        largeFilesMinSize: "Larger than",
+        largeFilesOlderThan: "Not opened in",
+        largeFilesAnyAge: "Any time",
+        largeFilesDaysFormat: "%d days",
+        largeFilesOneYear: "1 year",
+        largeFilesNone: "No large files found",
+        largeFilesMoveToTrash: "Move to Trash",
         uninstallerPickerEmpty: "No apps found",
         uninstallerEmptyNote: "Nothing is removed without your confirmation.",
         uninstallerFDANote: "Grant Full Disk Access for a more thorough scan.",
