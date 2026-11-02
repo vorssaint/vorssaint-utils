@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 
 typealias AgentUsageProductionLogReader = AgentLogReader
@@ -78,6 +79,8 @@ enum AgentUsageReadTests {
         var events: [AgentUsageEvent] = []
         var savedMark: Int?
         var progressMark: Int { 0 }
+        var wakeObserver: Any?
+        var agyGraceUntil = Date.distantPast
         func saveProgress() {}
         func startTimer() {}
         func loadPrices() {}

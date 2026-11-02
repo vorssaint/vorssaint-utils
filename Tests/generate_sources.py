@@ -2478,7 +2478,7 @@ def main():
                         "    private func settleArchive(").replace("private func", "func", 1)
           + "}\n}\n")
 
-    write("AgentUsageRead.swift", "import Foundation\n"
+    write("AgentUsageRead.swift", "import AppKit\nimport Foundation\n"
           + "extension AgentUsageReadTests {\nfinal class Host: Fixture {\n"
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
                     .replace("private func", "func", 1)

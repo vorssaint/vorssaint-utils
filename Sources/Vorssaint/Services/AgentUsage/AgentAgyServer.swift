@@ -11,9 +11,45 @@ enum AgentAgyServer {
 
     static let timeout: TimeInterval = 15
     /// Refresh interval when AI page is visible.
-    static let freshness: TimeInterval = 60
+    static let freshness: TimeInterval = 5 * 60
     /// Background refresh interval.
-    static let backgroundFreshness: TimeInterval = 5 * 60
+    static let backgroundFreshness: TimeInterval = 15 * 60
+    /// Maximum backoff interval after probe failures.
+    static let maxBackoff: TimeInterval = 60 * 60
+    /// Grace period after wake or reconnect before probes can start.
+    static let wakeGrace: TimeInterval = 120
+
+    static let sandboxProfile = """
+(version 1)
+(allow default)
+(deny appleevent-send)
+(deny process-exec (literal "/usr/bin/open") (literal "/usr/bin/osascript") (subpath "/Applications") (subpath "/System/Applications"))
+"""
+
+    static func interval(pageVisible: Bool, failures: Int) -> TimeInterval {
+        let base = pageVisible ? freshness : backgroundFreshness
+        let clampedFailures = max(0, min(failures, 6))
+        let multiplier = Double(1 << clampedFailures)
+        return min(base * multiplier, maxBackoff)
+    }
+
+    static func isDue(now: Date, attempted: Date, pageVisible: Bool, failures: Int, graceUntil: Date) -> Bool {
+        guard now >= graceUntil else { return false }
+        return now.timeIntervalSince(attempted) >= interval(pageVisible: pageVisible, failures: failures)
+    }
+
+    static func launch(executable: URL, sandboxExec: String = "/usr/bin/sandbox-exec") -> Result<(url: URL, arguments: [String]), Failure> {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: sandboxExec, isDirectory: &isDir),
+              !isDir.boolValue,
+              FileManager.default.isExecutableFile(atPath: sandboxExec) else {
+            return .failure(.failed("sandbox-exec unavailable"))
+        }
+        return .success((
+            url: URL(fileURLWithPath: sandboxExec),
+            arguments: ["-p", sandboxProfile, executable.path, "-p", "/usage", "--output-format", "json"]
+        ))
+    }
 
     static func executable(home: URL, searchPath: String? = nil) -> URL? {
         var candidates: [String] = [
@@ -73,14 +109,22 @@ enum AgentAgyServer {
             }
         }
 
-        func run(executable: URL, home: URL, timeout: TimeInterval = AgentAgyServer.timeout) -> Result<AgentLimits, Failure> {
+        func run(executable: URL, home: URL, timeout: TimeInterval = AgentAgyServer.timeout, sandboxExec: String = "/usr/bin/sandbox-exec") -> Result<AgentLimits, Failure> {
             let isCancelled = lock.withLock { cancelled }
             guard !isCancelled else { return .failure(.failed("Cancelled")) }
 
+            let plan: (url: URL, arguments: [String])
+            switch AgentAgyServer.launch(executable: executable, sandboxExec: sandboxExec) {
+            case .failure(let failure):
+                return .failure(failure)
+            case .success(let launchPlan):
+                plan = launchPlan
+            }
+
             let proc = Process()
             let pipe = Pipe()
-            proc.executableURL = executable
-            proc.arguments = ["-p", "/usage", "--output-format", "json"]
+            proc.executableURL = plan.url
+            proc.arguments = plan.arguments
 
             var environment = ProcessInfo.processInfo.environment
             environment["AGY_CLI_DISABLE_AUTO_UPDATE"] = "true"

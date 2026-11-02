@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Combine
 import Foundation
 import Network
@@ -82,6 +83,9 @@ final class AgentUsageService: ObservableObject {
     private let agyAccountQueue = DispatchQueue(label: "com.vorssaint.agy-limits", qos: .utility)
     private var agyRequest: AgentAgyServer.Request?
     private var agyAttempted = Date.distantPast
+    private var agyFailures = 0
+    private var agyGraceUntil = Date.distantPast
+    private var wakeObserver: Any?
     /// Whether the Mac has a network, as the reading queue last heard.
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
@@ -202,10 +206,16 @@ final class AgentUsageService: ObservableObject {
         settleArchive(keeping: keeps && NotchAgentSupport.isEnabled())
         guard running else { return }
         running = false
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
+        }
         cancelClaudeLimits()
         cancelAgyLimits()
         claudeAccountAttempted = .distantPast
         agyAttempted = .distantPast
+        agyFailures = 0
+        agyGraceUntil = .distantPast
         claudeAccountFailure = nil
         agyFailure = nil
         claudeAccountUnreachable = 0
@@ -301,6 +311,15 @@ final class AgentUsageService: ObservableObject {
     private func start(session: Int, providers: Set<AgentProvider>, cancellation: Cancellation,
                        claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) {
         startTimer()
+        if wakeObserver == nil {
+            wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didWakeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.agyGraceUntil = Date().addingTimeInterval(AgentAgyServer.wakeGrace)
+            }
+        }
         queue.async { [self] in
             readerSession = session
             readerCancellation = cancellation
@@ -925,6 +944,7 @@ final class AgentUsageService: ObservableObject {
     private func networkChanged(online: Bool) {
         guard online != self.online else { return }
         self.online = online
+        agyGraceUntil = Date().addingTimeInterval(AgentAgyServer.wakeGrace)
         if online { claudeAccountUnreachable = 0 }
     }
 
@@ -932,6 +952,10 @@ final class AgentUsageService: ObservableObject {
 
     func refreshAgyLimits(now: Date = Date(), pageShows: Bool = false, force: Bool = false) {
         guard force || agyLimitsDue(at: now, pageShows: pageShows) else { return }
+        if force {
+            agyFailures = 0
+            agyGraceUntil = .distantPast
+        }
         agyAttempted = now
         agyChecking = true
         let request = AgentAgyServer.Request()
@@ -953,8 +977,15 @@ final class AgentUsageService: ObservableObject {
                 switch result {
                 case .failure(let failure):
                     self.agyFailure = failure
+                    switch failure {
+                    case .timeout, .failed:
+                        self.agyFailures += 1
+                    case .missing:
+                        break
+                    }
                 case .success(let limits):
                     self.agyFailure = nil
+                    self.agyFailures = 0
                     self.queue.async {
                         guard self.readerSession == session, self.enabled.contains(.agy) else { return }
                         self.store.setLimits(limits)
@@ -977,8 +1008,10 @@ final class AgentUsageService: ObservableObject {
     private func agyLimitsDue(at now: Date, pageShows: Bool) -> Bool {
         guard running, !paused, online, providers.contains(.agy), agyRequest == nil,
               NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
-        let freshness = (pageVisible || pageShows) ? AgentAgyServer.freshness : AgentAgyServer.backgroundFreshness
-        return now.timeIntervalSince(agyAttempted) >= freshness
+        return AgentAgyServer.isDue(now: now, attempted: agyAttempted,
+                                    pageVisible: pageVisible || pageShows,
+                                    failures: agyFailures,
+                                    graceUntil: agyGraceUntil)
     }
 
     // MARK: Prices
