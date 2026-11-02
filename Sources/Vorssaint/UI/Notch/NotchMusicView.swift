@@ -26,6 +26,12 @@ struct NotchMusicView: View {
     private var showsLyrics: Bool { lyricsEnabled && AppFeature.notchLyrics.isAvailable }
     private var showsQueue: Bool { queueEnabled && AppFeature.notchQueue.isAvailable }
     private var showsVolume: Bool { showVolume && AppFeature.mixer.isAvailable }
+    /// A verse can only move playback when the song is reachable: the seek
+    /// permission alone is not enough without a command context or while
+    /// another command is already in flight.
+    private func canSeekVerses(_ playback: NotchPlayback) -> Bool {
+        service.canSeek && playback.commandContext != nil && !service.commandPending
+    }
     private var openExtra: MusicExtra? {
         guard service.playback != nil else { return nil }
         switch extra {
@@ -72,7 +78,7 @@ struct NotchMusicView: View {
             if let openExtra, let playback = service.playback {
                 Group {
                     switch openExtra {
-                    case .lyrics: NotchLyricsView(playback: playback)
+                    case .lyrics: NotchLyricsView(playback: playback, canSeek: canSeekVerses(playback))
                     case .queue: NotchQueueView(playback: playback)
                     }
                 }
