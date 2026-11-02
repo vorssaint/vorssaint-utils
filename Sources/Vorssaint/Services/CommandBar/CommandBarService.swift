@@ -888,6 +888,29 @@ final class CommandBarService: ObservableObject {
             NSSound.beep()
             return
         }
+        dispatch(entry, argument: nil, key: key)
+    }
+
+    /// Runs the row a `vorssaint://` link names, through the same path as the
+    /// row's own shortcut. A link works while the bar is closed or its
+    /// shortcut is off. With the Command Bar uninstalled in the features hub
+    /// its rows are gone, so a link beeps and runs nothing.
+    func runExternalRow(withStableKey key: String, argument: Int?) {
+        guard AppFeature.commandBar.isAvailable else {
+            DeepLinkSupport.log.error("deep link \(key, privacy: .private) needs the Command Bar, which is uninstalled")
+            NSSound.beep()
+            return
+        }
+        guard let entry = freshFullEntry(forStableKey: key) else {
+            DeepLinkSupport.log.error("no row answers deep link \(key, privacy: .private)")
+            NSSound.beep()
+            return
+        }
+        dispatch(entry, argument: argument, key: key)
+    }
+
+    /// What a row shortcut and a deep link do once the row is found.
+    private func dispatch(_ entry: CommandBarEntry, argument: Int?, key: String) {
         // A script marked to run directly does its work at once, with no
         // argument and nothing on screen. Direct execution bypasses result
         // filtering. Do nothing when the row is hidden or Links is disabled.
@@ -897,11 +920,16 @@ final class CommandBarService: ObservableObject {
             CommandBarCatalog.runScriptDirectly(link)
             return
         }
+        // A link's number answers only the numeric prompt. A row that also
+        // confirms, or whose switch is off, still gets the bar, whose run(_)
+        // asks in the bar's own order.
+        let answeredByArgument = entry.numericRange != nil && argument != nil
+            && entry.confirmationPrompt == nil && entry.trouble == nil
         // A row that would confirm, ask for input, or keep the field visible
         // needs a real presentation just as it does when chosen from the bar.
         // Emptying the Trash on one keypress with nothing asked is not a
         // shortcut, it is an accident with a name.
-        guard !entry.needsPrompt, !entry.keepsBarOpen else {
+        guard answeredByArgument || (!entry.needsPrompt && !entry.keepsBarOpen) else {
             show(promptingFor: key)
             return
         }
@@ -923,7 +951,13 @@ final class CommandBarService: ObservableObject {
             running.hide()
             return
         }
+        // The bar closes before the row runs, so text typed into it is not
+        // learned as the way to reach this row, with or without a number.
         if isVisible { hide() }
+        if answeredByArgument, let range = entry.numericRange, let argument {
+            finish(entry, value: min(max(argument, range.lowerBound), range.upperBound))
+            return
+        }
         finish(entry, value: nil)
     }
 

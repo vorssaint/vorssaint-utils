@@ -2518,6 +2518,24 @@ def main():
           + f'#sourceLocation(file: {json.dumps(checks)}, line: 1)\n'
           + (ROOT / checks).read_text() + "\n#sourceLocation()\n")
 
+    # A deep link runs its row through the shortcut's own body, and a link that
+    # launches the app waits for startup. Both run here exactly as written.
+    bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"
+    delegate = "Sources/Vorssaint/App/AppDelegate.swift"
+    waiting_links = next(line for line in (ROOT / delegate).read_text().splitlines()
+                         if line.startswith("    private var deepLinksBeforeLaunch"))
+    write("DeepLinkDispatch.swift", "import AppKit\n"
+          + "extension DeepLinkTests {\nfinal class Bar: BarFixture {\n"
+          + declaration(bar, "    func runExternalRow(").replace(
+              "AppFeature.commandBar.isAvailable", "AppFeature.commandBar.isAvailable(in: DeepLinkTests.defaults)")
+          + declaration(bar, "    private func dispatch(").replace("private func", "func", 1)
+          + "}\nfinal class Delegate: DelegateFixture {\n"
+          + waiting_links.replace("private var", "var", 1) + "\n"
+          + "".join(declaration(delegate, prefix).replace("private func", "func", 1) for prefix in [
+              "    func application(_ application: NSApplication, open urls:",
+              "    private func runDeepLinksFromLaunch()", "    private func handleDeepLink("])
+          + "}\n}\n")
+
 
 if __name__ == "__main__":
     main()
