@@ -168,14 +168,14 @@ enum NotchLockScreenTests {
                      "a song paused before locking stays off; one paused on the lock screen stays to be resumed")
 
         var countdown = NotchTimerSession()
-        countdown.start(mode: .timer, minutes: 5, now: 100)
+        countdown.start(mode: .timer, seconds: 5 * 60, now: 100)
         suite.expect(!NotchLockScreenSupport.timerFinished(countdown, at: 399)
                      && NotchLockScreenSupport.timerFinished(countdown, at: 400),
                      "a countdown that runs out while locked reads as finished")
         countdown.pause(at: 200)
         suite.expect(!NotchLockScreenSupport.timerFinished(countdown, at: 10_000), "a paused countdown never finishes")
         var stopwatch = NotchTimerSession()
-        stopwatch.start(mode: .stopwatch, minutes: 0, now: 100)
+        stopwatch.start(mode: .stopwatch, seconds: 0, now: 100)
         suite.expect(!NotchLockScreenSupport.timerFinished(stopwatch, at: 100_000), "a stopwatch never finishes")
 
         let stamps: [(TimeInterval, String)] = [

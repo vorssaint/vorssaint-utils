@@ -649,7 +649,7 @@ enum NotchPresentationRefreshContract {
         for _ in 0..<1000 { service.refreshPresentation() }
         suite.expect(invalidations == resizes, "unchanged presentations do not repeatedly invalidate SwiftUI layout")
 
-        service.session.start(mode: .timer, minutes: 15, now: 0)
+        service.session.start(mode: .timer, seconds: 15 * 60, now: 0)
         service.refreshPresentation()
         let activeSize = contentSize
         let beforeModeChange = invalidations

@@ -11,13 +11,13 @@ enum NotchTimerPhase: String { case timer, focus, shortBreak, longBreak, stopwat
 enum NotchTimerRulerScale {
     static let spacing = 14.0
 
-    static func moving(_ value: Double, by points: Double) -> Double {
-        guard value.isFinite, points.isFinite else { return 1 }
-        return min(180, max(1, value - points / spacing))
+    static func moving(_ value: Double, by points: Double, range: ClosedRange<Int> = 1...180) -> Double {
+        guard value.isFinite, points.isFinite else { return Double(range.lowerBound) }
+        return min(Double(range.upperBound), max(Double(range.lowerBound), value - points / spacing))
     }
 
-    static func minute(_ value: Double) -> Int {
-        Int(moving(value, by: 0).rounded())
+    static func minute(_ value: Double, range: ClosedRange<Int> = 1...180) -> Int {
+        Int(moving(value, by: 0, range: range).rounded())
     }
 
     static func offset(of minute: Int, selected: Int) -> Double {
@@ -26,12 +26,12 @@ enum NotchTimerRulerScale {
 
     /// Keep the ruler filled near either end instead of centering a short
     /// duration over an empty half. The inset fits the hour labels as well.
-    static func selectionX(selected: Int, width: Double) -> Double {
+    static func selectionX(selected: Int, width: Double, range: ClosedRange<Int> = 1...180) -> Double {
         guard width.isFinite, width > 0 else { return 0 }
         let inset = min(24, width / 2)
-        let selected = min(180, max(1, selected))
-        let leading = Double(selected - 1) * spacing
-        let trailing = Double(180 - selected) * spacing
+        let selected = min(range.upperBound, max(range.lowerBound, selected))
+        let leading = Double(selected - range.lowerBound) * spacing
+        let trailing = Double(range.upperBound - selected) * spacing
         if leading + trailing <= width - 2 * inset {
             return (width - leading - trailing) / 2 + leading
         }
@@ -123,7 +123,7 @@ struct NotchTimerSession: Equatable {
         return pausedReading ?? (completed || countsUp ? 0 : duration)
     }
 
-    mutating func start(mode: NotchTimerMode, minutes: Int, now: TimeInterval,
+    mutating func start(mode: NotchTimerMode, seconds: Int, now: TimeInterval,
                         configuration: NotchPomodoroConfiguration = NotchPomodoroConfiguration()) {
         guard !hasSession, now.isFinite else { return }
         self.mode = mode
@@ -132,7 +132,7 @@ struct NotchTimerSession: Equatable {
         switch mode {
         case .timer:
             phase = .timer
-            duration = Double(NotchTimerSupport.timerMinutes(minutes)) * 60
+            duration = Double(min(Int(NotchTimerSupport.timerLimit), max(1, seconds)))
             anchor = now + duration
         case .pomodoro:
             phase = .focus
@@ -244,12 +244,27 @@ enum NotchTimerSupport {
         static let padding: CGFloat = 10
     }
 
-    static let timerLimit: TimeInterval = 180 * 60
+    static let timerLimit: TimeInterval = 86_399
     /// A stopwatch keeps counting; its clock saturates at the widest reading
     /// the surface fits, two hour digits.
     static let stopwatchLimit: TimeInterval = 100 * 3600 - 1
 
-    static func timerMinutes(_ value: Int) -> Int { min(180, max(1, value)) }
+    /// Stored minutes retain existing timer preferences; seconds add precision.
+    static func durationSeconds(minutes: Int, seconds: Int) -> Int {
+        min(1439, max(0, minutes)) * 60 + min(59, max(0, seconds))
+    }
+
+    static func component(_ text: String, maximum: Int) -> Int? {
+        guard text.count <= String(maximum).count else { return nil }
+        var value = 0
+        for character in text {
+            guard character.unicodeScalars.count == 1,
+                  let scalar = character.unicodeScalars.first, CharacterSet.decimalDigits.contains(scalar),
+                  let digit = character.wholeNumberValue else { return nil }
+            value = value * 10 + digit
+        }
+        return value <= maximum ? value : nil
+    }
 
     static func savedMode(in defaults: UserDefaults = .standard) -> NotchTimerMode {
         NotchTimerMode(rawValue: defaults.string(forKey: DefaultsKey.notchTimerMode) ?? "") ?? .timer

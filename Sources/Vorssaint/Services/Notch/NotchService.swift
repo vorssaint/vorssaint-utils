@@ -3908,11 +3908,12 @@ final class NotchService: ObservableObject {
                 return launcher.handlePanelKey(event, flow: flow)
             }
             if event.type == .keyDown, event.window === self.panel, event.keyCode == 53 {
-                // A level being typed in the mixer cancels on Escape by
+                // A level or timer duration being typed cancels on Escape by
                 // itself, and the scratchpad's find bar closes on it; the
                 // next one steps back.
                 if let editor = self.panel?.firstResponder as? NSTextView, editor.isFieldEditor,
-                   (editor.delegate as AnyObject?) is MixerPercentNativeTextField { return event }
+                   ((editor.delegate as AnyObject?) is MixerPercentNativeTextField
+                    || (editor.delegate as AnyObject?) is NotchTimerNumberNativeField) { return event }
                 if PlainTextEditor.findBarHasKeyboard(in: self.panel) { return event }
                 self.stepBack()
                 return nil
