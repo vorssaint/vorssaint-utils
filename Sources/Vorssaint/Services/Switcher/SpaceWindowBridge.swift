@@ -185,12 +185,51 @@ enum SpaceWindowBridge {
         return unsafeBitCast(symbol, to: MoveWindowsToSpaceFunction.self)
     }()
 
+    private static var moveOperationClass: AnyClass? {
+        guard let cls = NSClassFromString("SLSBridgedMoveWindowsToManagedSpaceOperation"),
+              class_getInstanceMethod(cls, NSSelectorFromString("initWithWindows:spaceID:")) != nil,
+              class_getInstanceMethod(cls, NSSelectorFromString("performWithWMBridgeDelegate")) != nil
+        else { return nil }
+        return cls
+    }
+
+    static var canRequestMoves: Bool {
+        moveOperationClass != nil
+    }
+
+    static func requestMove(_ windowID: CGWindowID, toSpace space: UInt64) -> Bool {
+        typealias Alloc = @convention(c) (AnyClass, Selector) -> OpaquePointer?
+        typealias Initialize = @convention(c) (OpaquePointer, Selector, CFArray, UInt64) -> OpaquePointer?
+        typealias Perform = @convention(c) (OpaquePointer, Selector) -> Void
+        let allocSelector = NSSelectorFromString("alloc")
+        let initSelector = NSSelectorFromString("initWithWindows:spaceID:")
+        let performSelector = NSSelectorFromString("performWithWMBridgeDelegate")
+        guard let operationClass = moveOperationClass,
+              let allocMethod = class_getClassMethod(operationClass, allocSelector),
+              let initMethod = class_getInstanceMethod(operationClass, initSelector),
+              let performMethod = class_getInstanceMethod(operationClass, performSelector),
+              let allocated = unsafeBitCast(method_getImplementation(allocMethod), to: Alloc.self)(
+                operationClass, allocSelector)
+        else { return false }
+        let windows = [NSNumber(value: windowID)] as CFArray
+        guard let operation = unsafeBitCast(method_getImplementation(initMethod), to: Initialize.self)(
+            allocated, initSelector, windows, space)
+        else { return false }
+        defer { Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(operation)).release() }
+        unsafeBitCast(method_getImplementation(performMethod), to: Perform.self)(operation, performSelector)
+        return true
+    }
+
     /// The Space showing on the display under `pointer`, an AppKit screen
     /// point. Nil when the Space queries are unavailable, so callers can carry
     /// on without moving anything rather than guessing at a destination.
     static func visibleSpace(near pointer: CGPoint) -> UInt64? {
         guard let topology = topology() else { return nil }
         let screen = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) } ?? NSScreen.main
+        return visibleSpace(on: screen, in: topology)
+    }
+
+    static func visibleSpace(on screen: NSScreen?, in topology: Topology) -> UInt64? {
         if let number = (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
             .uint32Value,
            let display = topology.displays.first(where: { $0.displayID == number }) {
