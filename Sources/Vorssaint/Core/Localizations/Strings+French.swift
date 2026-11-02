@@ -326,7 +326,7 @@ extension Strings {
         uninstallerPickerSearch: "Rechercher des apps",
         uninstallerSelectAll: "Tout sélectionner",
         uninstallerSelectNone: "Tout désélectionner",
-        uninstallerLastUsedFormat: "Dernière utilisation : %@",
+        uninstallerLastUsedFormat: "Dernière utilisation\u{00A0}: %@",
         uninstallerNeverUsed: "Aucune utilisation récente enregistrée",
         uninstallerSortName: "Nom",
         uninstallerSortSize: "Taille",
