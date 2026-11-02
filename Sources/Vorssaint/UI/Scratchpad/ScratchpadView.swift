@@ -318,6 +318,7 @@ struct ScratchpadView: View {
                 MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(service.text),
                                 baseSize: textSize,
                                 taskStates: (done: text.taskDone, notDone: text.taskNotDone),
+                                completedLabel: text.completedTasks,
                                 onToggleTask: { service.toggleTask(box: $0) })
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -581,6 +582,9 @@ struct MarkdownPreview: NSViewRepresentable {
     var baseSize: CGFloat = PlainTextEditor.defaultFontSize
     /// How a task's checkbox tells VoiceOver it is done or not.
     let taskStates: (done: String, notDone: String)
+    /// The line that heads the tasks already done, which stay out of the way
+    /// until it is opened.
+    var completedLabel = "Completed"
     /// Called with the text offset of the box whose checkbox is clicked; the
     /// owner edits the text, and the preview follows from it.
     var onToggleTask: ((Int) -> Void)?
@@ -602,6 +606,8 @@ struct MarkdownPreview: NSViewRepresentable {
         textView.textContainer?.containerSize = NSSize(width: scroll.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
         scroll.documentView = textView
         textView.onToggleTask = onToggleTask
+        textView.onToggleCompleted = { [weak coordinator = context.coordinator] in coordinator?.toggleCompleted() }
+        context.coordinator.textView = textView
         textView.delegate = context.coordinator
         textView.drawsBackground = false
         textView.isEditable = false
@@ -609,7 +615,7 @@ struct MarkdownPreview: NSViewRepresentable {
         textView.isRichText = true
         textView.textContainerInset = NSSize(width: 7, height: 2)
         textView.linkTextAttributes = [.foregroundColor: NSColor.controlAccentColor]
-        context.coordinator.show(blocks, base: baseSize, taskStates: taskStates, in: textView)
+        context.coordinator.show(blocks, base: baseSize, taskStates: taskStates, label: completedLabel, in: textView)
         return scroll
     }
 
@@ -617,7 +623,7 @@ struct MarkdownPreview: NSViewRepresentable {
         guard let textView = nsView.documentView as? NSTextView else { return }
         context.coordinator.onToggleTask = onToggleTask
         (textView as? TaskPreviewTextView)?.onToggleTask = onToggleTask
-        context.coordinator.show(blocks, base: baseSize, taskStates: taskStates, in: textView)
+        context.coordinator.show(blocks, base: baseSize, taskStates: taskStates, label: completedLabel, in: textView)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -632,6 +638,30 @@ struct MarkdownPreview: NSViewRepresentable {
     private struct ListLevel {
         let column: CGFloat
         let indented: Bool
+    }
+
+    fileprivate static func rendered(_ blocks: [ScratchpadMarkdownBlock], base: CGFloat,
+                                     taskStates: (done: String, notDone: String),
+                                     label: String, completedOpen: Bool) -> NSAttributedString {
+        let (open, done) = ScratchpadSupport.splitCompleted(blocks)
+        let result = NSMutableAttributedString(attributedString: rendered(open, base: base, taskStates: taskStates))
+        guard !done.isEmpty else { return result }
+        if result.length > 0 { result.append(NSAttributedString(string: "\n\n")) }
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 2
+        result.append(NSAttributedString(
+            string: "\(completedOpen ? "\u{25BE}" : "\u{25B8}") \(label) (\(done.count))",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: base - 1, weight: .medium),
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .paragraphStyle: paragraph,
+                .link: URL(string: "\(ScratchpadSupport.completedScheme)://toggle") as Any
+            ]))
+        if completedOpen {
+            result.append(NSAttributedString(string: "\n"))
+            result.append(rendered(done, base: base, taskStates: taskStates))
+        }
+        return result
     }
 
     private static func rendered(_ blocks: [ScratchpadMarkdownBlock],
@@ -817,18 +847,33 @@ struct MarkdownPreview: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var onToggleTask: ((Int) -> Void)?
+        weak var textView: NSTextView?
+        /// Opened only by a click, so the reading always starts with them closed.
+        private var completedOpen = false
         /// What the reading was last drawn from. Every render makes new
         /// checkbox attachments, and two attachments never compare equal, so
         /// the drawn text cannot tell an unchanged reading from a new one;
         /// replacing it on every view update would drop its selection.
-        private var shown: (blocks: [ScratchpadMarkdownBlock], base: CGFloat, done: String, notDone: String)?
+        private var shown: (blocks: [ScratchpadMarkdownBlock], base: CGFloat, done: String, notDone: String,
+                            label: String, completedOpen: Bool)?
 
         func show(_ blocks: [ScratchpadMarkdownBlock], base: CGFloat,
-                  taskStates: (done: String, notDone: String), in textView: NSTextView) {
-            if let shown, shown.blocks == blocks, shown.base == base,
-               shown.done == taskStates.done, shown.notDone == taskStates.notDone { return }
-            shown = (blocks, base, taskStates.done, taskStates.notDone)
-            textView.textStorage?.setAttributedString(MarkdownPreview.rendered(blocks, base: base, taskStates: taskStates))
+                  taskStates: (done: String, notDone: String), label: String = "Completed",
+                  in textView: NSTextView) {
+            if let shown, shown.blocks == blocks, shown.base == base, shown.done == taskStates.done,
+               shown.notDone == taskStates.notDone, shown.label == label,
+               shown.completedOpen == completedOpen { return }
+            shown = (blocks, base, taskStates.done, taskStates.notDone, label, completedOpen)
+            textView.textStorage?.setAttributedString(MarkdownPreview.rendered(
+                blocks, base: base, taskStates: taskStates, label: label, completedOpen: completedOpen))
+        }
+
+        func toggleCompleted() {
+            completedOpen.toggle()
+            if let shown, let textView {
+                show(shown.blocks, base: shown.base, taskStates: (shown.done, shown.notDone),
+                     label: shown.label, in: textView)
+            }
         }
 
         func textView(_ textView: NSTextView,
@@ -837,6 +882,10 @@ struct MarkdownPreview: NSViewRepresentable {
             guard let url = link as? URL else { return false }
             if url.scheme == ScratchpadSupport.taskScheme {
                 if let box = url.host.flatMap(Int.init) { onToggleTask?(box) }
+                return true
+            }
+            if url.scheme == ScratchpadSupport.completedScheme {
+                toggleCompleted()
                 return true
             }
             return NSWorkspace.shared.open(url)
@@ -875,6 +924,7 @@ final class TaskBoxAttachment: NSTextAttachment {
 /// pointer over one becomes a hand, as over any button of the island.
 final class TaskPreviewTextView: NSTextView {
     var onToggleTask: ((Int) -> Void)?
+    var onToggleCompleted: (() -> Void)?
     private var pointerArea: NSTrackingArea?
     /// Kept while their boxes stay, so the one VoiceOver is on lives on.
     private var boxElements: [Int: BoxElement] = [:]
@@ -938,8 +988,10 @@ final class TaskPreviewTextView: NSTextView {
         } + boxes
     }
 
-    /// The text offset of the box whose checkbox is under `point`.
-    private func taskBox(at point: NSPoint) -> Int? {
+    private enum Control { case task(Int), completed }
+
+    /// The checkbox, or the line of completed tasks, under `point`.
+    private func control(at point: NSPoint) -> Control? {
         guard let layout = layoutManager, let container = textContainer, let storage = textStorage,
               storage.length > 0 else { return nil }
         let origin = textContainerOrigin
@@ -949,16 +1001,17 @@ final class TaskPreviewTextView: NSTextView {
               layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).contains(inContainer)
         else { return nil }
         let character = layout.characterIndexForGlyph(at: glyph)
-        guard let url = storage.attribute(.link, at: character, effectiveRange: nil) as? URL,
-              url.scheme == ScratchpadSupport.taskScheme else { return nil }
-        return url.host.flatMap(Int.init)
+        guard let url = storage.attribute(.link, at: character, effectiveRange: nil) as? URL else { return nil }
+        if url.scheme == ScratchpadSupport.completedScheme { return .completed }
+        guard url.scheme == ScratchpadSupport.taskScheme, let box = url.host.flatMap(Int.init) else { return nil }
+        return .task(box)
     }
 
     override func mouseDown(with event: NSEvent) {
-        if let box = taskBox(at: convert(event.locationInWindow, from: nil)) {
-            onToggleTask?(box)
-        } else {
-            super.mouseDown(with: event)
+        switch control(at: convert(event.locationInWindow, from: nil)) {
+        case .task(let box): onToggleTask?(box)
+        case .completed: onToggleCompleted?()
+        case nil: super.mouseDown(with: event)
         }
     }
 
@@ -966,7 +1019,7 @@ final class TaskPreviewTextView: NSTextView {
     /// text, past any cursor rect, so the pointer is set here instead, as the
     /// pointer moves and when it enters.
     private func pointer(for event: NSEvent) -> Bool {
-        guard taskBox(at: convert(event.locationInWindow, from: nil)) != nil else { return false }
+        guard control(at: convert(event.locationInWindow, from: nil)) != nil else { return false }
         NSCursor.pointingHand.set()
         return true
     }

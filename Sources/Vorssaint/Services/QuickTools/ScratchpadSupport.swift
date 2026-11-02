@@ -388,6 +388,20 @@ enum ScratchpadSupport {
     }
 
     static let taskScheme = "vorssaint-task"
+    /// The link on the line that opens and closes the completed tasks.
+    static let completedScheme = "vorssaint-completed"
+
+    /// The tasks already done, which the formatted reading sets aside, and the
+    /// rest of the document, which keeps its order.
+    static func splitCompleted(_ blocks: [ScratchpadMarkdownBlock])
+        -> (open: [ScratchpadMarkdownBlock], done: [ScratchpadMarkdownBlock]) {
+        var open: [ScratchpadMarkdownBlock] = []
+        var done: [ScratchpadMarkdownBlock] = []
+        for block in blocks {
+            if case .taskListItem(_, true, _) = block.kind { done.append(block) } else { open.append(block) }
+        }
+        return (open, done)
+    }
 
     /// The edit that checks or unchecks the box whose `[` sits at UTF-16
     /// offset `box`, or nil when the text holds no box there any more.
