@@ -2510,17 +2510,28 @@ final class WindowLayoutService: ObservableObject {
         // No cap here: on the system-wide element a timeout is the default for
         // every question this process asks, whoever asks it (#938).
         var rawElement: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &rawElement) == .success,
-              let element = rawElement
-        else { return nil }
-        AXUIElementSetMessagingTimeout(element, 0.25)
-
-        let window: AXUIElement?
-        if role(of: element) == (kAXWindowRole as String) {
-            window = element
-        } else {
-            window = windowAttribute(element, kAXWindowAttribute as String)
-                ?? windowAttribute(element, kAXTopLevelUIElementAttribute as String)
+        var window: AXUIElement?
+        if AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &rawElement) == .success,
+           let element = rawElement {
+            AXUIElementSetMessagingTimeout(element, 0.25)
+            if role(of: element) == (kAXWindowRole as String) {
+                window = element
+            } else {
+                window = windowAttribute(element, kAXWindowAttribute as String)
+                    ?? windowAttribute(element, kAXTopLevelUIElementAttribute as String)
+            }
+        }
+        if window == nil {
+            // Custom-drawn content may expose no AX child at the press point.
+            // Resolve the exact click receiver, never a focused or covered window.
+            guard let windowID = WindowServerSupport.receivingWindow(at: point),
+                  let pid = WindowServerSupport.ownerProcessID(ofWindowID: windowID),
+                  pid != ProcessInfo.processInfo.processIdentifier,
+                  let app = NSRunningApplication(processIdentifier: pid),
+                  !app.isTerminated, app.activationPolicy == .regular else { return nil }
+            let axApp = AXUIElementCreateApplication(pid)
+            AXUIElementSetMessagingTimeout(axApp, 0.25)
+            window = AXWindowResolver.element(for: windowID, in: axApp)
         }
         guard let window else { return nil }
         AXUIElementSetMessagingTimeout(window, 0.25)
@@ -2537,7 +2548,8 @@ final class WindowLayoutService: ObservableObject {
               app.activationPolicy == .regular,
               let frame = frame(of: window),
               frame.size.width > 80,
-              frame.size.height > 80
+              frame.size.height > 80,
+              CGRect(origin: frame.origin, size: frame.size).contains(point)
         else { return nil }
         return WindowGestureTarget(window: window, app: app, frame: frame)
     }
