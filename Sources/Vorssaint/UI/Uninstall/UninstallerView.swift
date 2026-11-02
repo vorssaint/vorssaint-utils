@@ -108,7 +108,7 @@ struct UninstallerView: View {
         }
         .padding(28)
         .sheet(isPresented: $showingAppPicker) {
-            AppPickerView(emptyNote: l10n.s.uninstallerPickerHiddenNote) {
+            AppPickerView(emptyNote: l10n.s.uninstallerPickerHiddenNote, showsUsage: true) {
                 showingAppPicker = false
             } onSelect: { url in
                 showingAppPicker = false
@@ -152,8 +152,18 @@ struct UninstallerView: View {
                 ForEach(AppUninstaller.Category.allCases, id: \.self) { category in
                     let group = uninstaller.items.filter { $0.category == category }
                     if !group.isEmpty {
-                        Section(label(for: category)) {
+                        Section {
                             ForEach(group) { item in row(item) }
+                        } header: {
+                            HStack {
+                                Text(label(for: category))
+                                Spacer()
+                                Button(group.allSatisfy(\.include) ? l10n.s.uninstallerSelectNone : l10n.s.uninstallerSelectAll) {
+                                    uninstaller.selectAll(!group.allSatisfy(\.include), in: category)
+                                }
+                                .buttonStyle(.link)
+                                .font(.caption)
+                            }
                         }
                     }
                 }
@@ -236,6 +246,9 @@ struct UninstallerView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            Button(allSelected ? l10n.s.uninstallerSelectNone : l10n.s.uninstallerSelectAll) {
+                uninstaller.selectAll(!allSelected)
+            }
             Button(l10n.s.uninstallerCancel) { uninstaller.reset() }
                 .disabled(uninstaller.isRemovingWithHomebrew)
             Button(removeButtonTitle) {
@@ -252,6 +265,8 @@ struct UninstallerView: View {
         }
         .padding(16)
     }
+
+    private var allSelected: Bool { uninstaller.items.allSatisfy(\.include) }
 
     private var removeButtonTitle: String {
         uninstaller.selectedHomebrewPackage == nil ? l10n.s.uninstallerRemove : l10n.s.homebrewUninstall

@@ -237,6 +237,15 @@ final class AppUninstaller: ObservableObject {
         items[index].include = include
     }
 
+    /// Ticks or clears every item, or only those of one category (the section
+    /// buttons). Like setInclude, it does nothing while a removal runs.
+    func selectAll(_ include: Bool, in category: Category? = nil) {
+        guard !isRemoving else { return }
+        for index in items.indices where category == nil || items[index].category == category {
+            items[index].include = include
+        }
+    }
+
     func retryHomebrewCheck() {
         guard phase == .results, homebrewCheckFailed, let target else { return }
         select(appURL: target.url)

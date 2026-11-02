@@ -123,7 +123,7 @@ struct PanelUninstallerView: View {
     }
 
     private var appPickerState: some View {
-        AppPickerView(compact: true, emptyNote: l10n.s.uninstallerPickerHiddenNote) {
+        AppPickerView(compact: true, emptyNote: l10n.s.uninstallerPickerHiddenNote, showsUsage: true) {
             showingAppPicker = false
         } onSelect: { url in
             showingAppPicker = false
@@ -247,9 +247,18 @@ struct PanelUninstallerView: View {
     private func categoryGroup(_ group: [AppUninstaller.Leftover],
                                category: AppUninstaller.Category) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label(for: category).uppercased())
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.tertiary)
+            HStack {
+                Text(label(for: category).uppercased())
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                Button(group.allSatisfy(\.include) ? l10n.s.uninstallerSelectNone : l10n.s.uninstallerSelectAll) {
+                    uninstaller.selectAll(!group.allSatisfy(\.include), in: category)
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 9.5))
+                .foregroundStyle(Color.accentColor)
+            }
             ForEach(group) { item in
                 row(item)
             }
@@ -306,6 +315,12 @@ struct PanelUninstallerView: View {
                 Text(String(format: l10n.s.uninstallerSelectedFormat,
                             uninstaller.items.filter(\.include).count, uninstaller.items.count))
                     .font(.system(size: 11, weight: .medium))
+                Button(allSelected ? l10n.s.uninstallerSelectNone : l10n.s.uninstallerSelectAll) {
+                    uninstaller.selectAll(!allSelected)
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 10.5))
+                .foregroundStyle(Color.accentColor)
                 Spacer()
                 Text(Self.byteString(uninstaller.selectedSize))
                     .font(.system(size: 10))
@@ -338,6 +353,8 @@ struct PanelUninstallerView: View {
             }
         }
     }
+
+    private var allSelected: Bool { uninstaller.items.allSatisfy(\.include) }
 
     private var removeButtonTitle: String {
         uninstaller.selectedHomebrewPackage == nil ? l10n.s.uninstallerRemove : l10n.s.homebrewUninstall

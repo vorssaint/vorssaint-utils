@@ -10,6 +10,7 @@ struct AppPickerView: View {
     @State private var query = ""
     @State private var isLoading = false
     @State private var isBrowsingApplications = false
+    @State private var sortOrder = AppListSort.name
 
     var compact = false
     var canBrowseApplications = false
@@ -21,6 +22,9 @@ struct AppPickerView: View {
     /// What a list that leaves some apps out says when nothing shows, so a
     /// missing app reads as a rule rather than a fault.
     var emptyNote: String? = nil
+    /// Shows each app's size and, on hover, when it was last opened. Measuring
+    /// reads every bundle, so only the uninstaller asks for it.
+    var showsUsage = false
     var loadApps: () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }
     var onCancel: () -> Void
     var onSelect: (URL) -> Void
@@ -30,6 +34,7 @@ struct AppPickerView: View {
          canBrowseApplications: Bool = false,
          acceptsExecutables: Bool = false,
          emptyNote: String? = nil,
+         showsUsage: Bool = false,
          onCancel: @escaping () -> Void,
          onSelect: @escaping (URL) -> Void,
          onSelectApp: ((InstalledApps.InstalledApp) -> Void)? = nil,
@@ -38,6 +43,7 @@ struct AppPickerView: View {
         self.canBrowseApplications = canBrowseApplications
         self.acceptsExecutables = acceptsExecutables
         self.emptyNote = emptyNote
+        self.showsUsage = showsUsage
         self.onCancel = onCancel
         self.onSelect = onSelect
         self.onSelectApp = onSelectApp
@@ -46,8 +52,9 @@ struct AppPickerView: View {
 
     private var filteredApps: [InstalledApps.InstalledApp] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return apps }
-        return apps.filter { app in
+        let sorted = showsUsage ? AppListSort.sorted(apps, by: sortOrder) : apps
+        guard !trimmed.isEmpty else { return sorted }
+        return sorted.filter { app in
             app.name.localizedCaseInsensitiveContains(trimmed)
                 || (app.bundleID?.localizedCaseInsensitiveContains(trimmed) ?? false)
                 || (app.identity?.localizedCaseInsensitiveContains(trimmed) ?? false)
@@ -60,6 +67,16 @@ struct AppPickerView: View {
             TextField(l10n.s.uninstallerPickerSearch, text: $query)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: compact ? 11 : 13))
+            if showsUsage {
+                Picker("", selection: $sortOrder) {
+                    Text(l10n.s.uninstallerSortName).tag(AppListSort.name)
+                    Text(l10n.s.uninstallerSortSize).tag(AppListSort.size)
+                    Text(l10n.s.uninstallerSortLastUsed).tag(AppListSort.lastUsed)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(compact ? .small : .regular)
+            }
             appList
         }
         .padding(compact ? 10 : 18)
@@ -135,7 +152,7 @@ struct AppPickerView: View {
                                 onSelect(app.url)
                             }
                         } label: {
-                            AppPickerRow(app: app, compact: compact)
+                            AppPickerRow(app: app, compact: compact, showsUsage: showsUsage)
                         }
                         .buttonStyle(.plain)
                     }
@@ -154,14 +171,48 @@ struct AppPickerView: View {
             DispatchQueue.main.async {
                 apps = loaded
                 isLoading = false
+                if showsUsage { measureUsage(of: loaded) }
             }
+        }
+    }
+
+    /// Fills in sizes and last-used dates after the list is already on screen,
+    /// a few apps at a time, so a big Applications folder never holds it up.
+    private func measureUsage(of loaded: [InstalledApps.InstalledApp]) {
+        DispatchQueue.global(qos: .utility).async {
+            var batch: [String: (size: Int64, lastUsed: Date?)] = [:]
+            func publish() {
+                let chunk = batch
+                batch = [:]
+                DispatchQueue.main.async {
+                    for index in apps.indices {
+                        guard let usage = chunk[apps[index].id] else { continue }
+                        apps[index].size = usage.size
+                        apps[index].lastUsed = usage.lastUsed
+                    }
+                }
+            }
+            for app in loaded {
+                batch[app.id] = InstalledApps.usage(of: app.url)
+                if batch.count >= 8 { publish() }
+            }
+            publish()
         }
     }
 }
 
 private struct AppPickerRow: View {
+    @ObservedObject private var l10n = L10n.shared
     let app: InstalledApps.InstalledApp
     var compact: Bool
+    var showsUsage = false
+
+    private var lastUsedHelp: String {
+        guard showsUsage, app.size != nil else { return "" }
+        guard let lastUsed = app.lastUsed else { return l10n.s.uninstallerNeverUsed }
+        return String(format: l10n.s.uninstallerLastUsedFormat,
+                      lastUsed.formatted(date: .abbreviated, time: .shortened))
+    }
 
     var body: some View {
         HStack(spacing: compact ? 7 : 10) {
@@ -180,13 +231,49 @@ private struct AppPickerRow: View {
                     .truncationMode(location == nil ? .middle : .head)
             }
             Spacer(minLength: 0)
+            if showsUsage {
+                if let size = app.size {
+                    Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+                        .font(.system(size: compact ? 10 : 11.5))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                } else {
+                    ProgressView().controlSize(.mini)
+                }
+            }
         }
         .contentShape(Rectangle())
         .padding(.horizontal, compact ? 5 : 8)
         .padding(.vertical, compact ? 5 : 7)
+        .help(lastUsedHelp)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(Color.primary.opacity(0.001))
+        }
+    }
+}
+
+/// How the uninstaller's app list is ordered. Size puts the biggest first;
+/// last used puts the apps opened longest ago (or never) first, so the ones
+/// nobody needs are at the top. Apps still being measured always sit last.
+enum AppListSort: Hashable {
+    case name, size, lastUsed
+
+    static func sorted(_ apps: [InstalledApps.InstalledApp], by order: AppListSort) -> [InstalledApps.InstalledApp] {
+        switch order {
+        case .name:
+            return apps
+        case .size:
+            return apps.sorted { ($0.size ?? -1) > ($1.size ?? -1) }
+        case .lastUsed:
+            return apps.sorted { lhs, rhs in
+                switch (lhs.size, rhs.size) {
+                case (nil, nil): return false
+                case (nil, _): return false
+                case (_, nil): return true
+                default: return (lhs.lastUsed ?? .distantPast) < (rhs.lastUsed ?? .distantPast)
+                }
+            }
         }
     }
 }
