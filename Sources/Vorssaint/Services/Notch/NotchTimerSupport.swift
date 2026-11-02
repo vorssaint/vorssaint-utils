@@ -8,6 +8,23 @@ import Foundation
 enum NotchTimerMode: String, CaseIterable { case timer, pomodoro, stopwatch }
 enum NotchTimerPhase: String { case timer, focus, shortBreak, longBreak, stopwatch }
 
+enum NotchTimerSoundDuration: Int, CaseIterable, Identifiable {
+    case fiveSeconds = 5
+    case tenSeconds = 10
+    case thirtySeconds = 30
+    case oneMinute = 60
+    case fiveMinutes = 300
+
+    static let defaultValue = Self.fiveMinutes.rawValue
+    var id: Int { rawValue }
+
+    static func normalized(_ value: Int) -> Self {
+        Self(rawValue: value) ?? .fiveMinutes
+    }
+
+    var duration: Duration { .seconds(Int64(rawValue)) }
+}
+
 enum NotchTimerRulerScale {
     static let spacing = 14.0
 
@@ -196,6 +213,12 @@ enum NotchTimerSupport {
 
     static func isSoundEnabled(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: DefaultsKey.notchTimerSoundEnabled) as? Bool ?? true
+    }
+
+    static func soundDuration(in defaults: UserDefaults = .standard) -> Duration {
+        let stored = defaults.object(forKey: DefaultsKey.notchTimerSoundDuration) as? Int
+            ?? NotchTimerSoundDuration.defaultValue
+        return NotchTimerSoundDuration.normalized(stored).duration
     }
 
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
