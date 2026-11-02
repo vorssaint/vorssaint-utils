@@ -220,6 +220,8 @@ enum DefaultsKey {
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
     static let brightnessKeyStep = "brightnessKeyStep" // BrightnessSupport.KeyStep raw value
+    static let nightDimEnabled = "nightDimEnabled" // tone the light end of every display down
+    static let nightDimAmount = "nightDimAmount" // Int percent of white's light taken away
     static let displayBrightnessShortcutsEnabled = "displayBrightnessShortcutsEnabled"
     static let displayBrightnessDecreaseShortcut = "displayBrightnessDecreaseShortcut"
     static let displayBrightnessIncreaseShortcut = "displayBrightnessIncreaseShortcut"
@@ -829,6 +831,7 @@ enum DefaultsKey {
     // Travels with the controls so old backups migrate and later choices survive.
     static let notchScratchpadControlHidden = "notchScratchpadControlHidden"
     static let notchKeyboardLightControlHidden = "notchKeyboardLightControlHidden"
+    static let notchNightDimControlHidden = "notchNightDimControlHidden"
     static let notchControlOrder = "notchControlOrder"
     static let notchSize = "notchSize"
     static let notchOutlineEnabled = "notchOutlineEnabled"
@@ -1378,6 +1381,8 @@ enum Defaults {
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
         DefaultsKey.brightnessKeyStep: BrightnessSupport.KeyStep.standard.rawValue,
+        DefaultsKey.nightDimEnabled: false,
+        DefaultsKey.nightDimAmount: BrightnessSupport.nightDimDefaultAmount,
         DefaultsKey.displayBrightnessShortcutsEnabled: false,
         DefaultsKey.displayBrightnessDecreaseShortcut: "shift+command:27",
         DefaultsKey.displayBrightnessIncreaseShortcut: "shift+command:24",
@@ -1443,6 +1448,7 @@ enum Defaults {
         DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,
         DefaultsKey.notchScratchpadControlHidden: false,
         DefaultsKey.notchKeyboardLightControlHidden: false,
+        DefaultsKey.notchNightDimControlHidden: false,
         DefaultsKey.notchControlOrder: "",
         DefaultsKey.notchSize: NotchSize.spacious.rawValue,
         DefaultsKey.notchOutlineEnabled: false,
@@ -2038,6 +2044,7 @@ enum Defaults {
         recheckBrightnessDDCWriteOnlyPaths(in: defaults)
         hideScratchpadControlOnce(in: defaults)
         hideKeyboardLightControlOnce(in: defaults)
+        hideNightDimControlOnce(in: defaults)
         // The "all apps" output choice now lasts one session; a saved one
         // would move apps that chose their own output after every launch.
         defaults.removeObject(forKey: DefaultsKey.mixerUniversalOutputDevice)
@@ -2093,6 +2100,7 @@ enum Defaults {
         }
         let automaticKeys: Set<String> = [DefaultsKey.notchScratchpadControlHidden,
                                           DefaultsKey.notchKeyboardLightControlHidden,
+                                          DefaultsKey.notchNightDimControlHidden,
                                           DefaultsKey.notchHidesMenuBarIcon,
                                           DefaultsKey.notchAgentsOptInMigrated]
         let wasConfigured = saved.keys.contains {
@@ -2154,6 +2162,17 @@ enum Defaults {
         var hidden = saved.split(separator: ",").map(String.init)
         guard !hidden.contains(NotchControlItem.keyboardLight.rawValue) else { return }
         hidden.append(NotchControlItem.keyboardLight.rawValue)
+        defaults.set(hidden.joined(separator: ","), forKey: DefaultsKey.notchHiddenControls)
+    }
+
+    /// The night dimming level joined the hidden controls the same way.
+    static func hideNightDimControlOnce(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.notchNightDimControlHidden) else { return }
+        defaults.set(true, forKey: DefaultsKey.notchNightDimControlHidden)
+        guard let saved = defaults.string(forKey: DefaultsKey.notchHiddenControls) else { return }
+        var hidden = saved.split(separator: ",").map(String.init)
+        guard !hidden.contains(NotchControlItem.nightDim.rawValue) else { return }
+        hidden.append(NotchControlItem.nightDim.rawValue)
         defaults.set(hidden.joined(separator: ","), forKey: DefaultsKey.notchHiddenControls)
     }
 

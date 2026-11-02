@@ -1893,6 +1893,10 @@ final class NotchService: ObservableObject {
         case .control(let item):
             switch item {
             case .keepAwake: KeepAwakeManager.shared.toggle()
+            case .nightDim:
+                let defaults = UserDefaults.standard
+                defaults.set(!defaults.bool(forKey: DefaultsKey.nightDimEnabled), forKey: DefaultsKey.nightDimEnabled)
+                BrightnessService.shared.syncWithPreferences()
             case .microphone: MicMuteService.shared.toggle()
             case .screenshot: perform { ScreenshotService.shared.capture() }
             case .recording: perform { ScreenRecorderService.shared.toggle() }

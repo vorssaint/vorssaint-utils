@@ -2179,6 +2179,8 @@ def main():
           + "var blue: [CGGammaValue] = [1]; var count: UInt32 = 1; var fingerprint: String }\n"
           + "var gammaBaselines: [CGDirectDisplayID: GammaTable] = [:]\n"
           + "var dimmedDisplays = Set<CGDirectDisplayID>()\n"
+          + "var gammaDimFactors: [CGDirectDisplayID: Float] = [:]\n"
+          + "var nightDimmedDisplays = Set<CGDirectDisplayID>()\n"
           + "var softwareSucceeds = true\nvar ddcSucceeds = true\nvar events: [String] = []\n"
           + "var forgottenWriteOnlyPaths: [String] = []\nvar refreshes = 0\n"
           + "static func displayFingerprint(_ id: CGDirectDisplayID) -> String { \"display-\\(id)\" }\n"

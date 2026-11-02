@@ -20,6 +20,9 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeyStep)
     private var brightnessKeyStep = BrightnessSupport.KeyStep.standard.rawValue
+    @AppStorage(DefaultsKey.nightDimEnabled) private var nightDimEnabled = false
+    @AppStorage(DefaultsKey.nightDimAmount)
+    private var nightDimAmount = BrightnessSupport.nightDimDefaultAmount
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.bluetoothSleepEnabled) private var bluetoothSleepEnabled = false
@@ -322,6 +325,27 @@ struct EnergySettings: View {
                         .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                Divider()
+                SettingsRow(symbol: "moon", title: strings.nightDimToggle,
+                            caption: strings.nightDimCaption) {
+                    Toggle(strings.nightDimToggle, isOn: $nightDimEnabled)
+                        .labelsHidden()
+                        .onChange(of: nightDimEnabled) { _, _ in
+                            BrightnessService.shared.syncWithPreferences()
+                        }
+                }
+                if nightDimEnabled {
+                    HStack(spacing: 12) {
+                        Text(strings.nightDimAmount)
+                        Slider(value: nightDimAmountBinding,
+                               in: 10...(BrightnessSupport.nightDimMaximum * 100), step: 5)
+                        Text("\(nightDimAmount)%")
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .trailing)
+                    }
+                    .padding(.leading, settingsRowTextInset)
+                }
                 DisclosureGroup(isExpanded: $brightnessOptionsExpanded) {
                     VStack(alignment: .leading, spacing: 13) {
                         SettingsRow(symbol: "cursorarrow.rays", title: strings.keysToggle,
@@ -382,6 +406,14 @@ struct EnergySettings: View {
             if step != .standard { Permissions.shared.requestAccessibility() }
             BrightnessService.shared.syncWithPreferences()
         }
+    }
+
+    private var nightDimAmountBinding: Binding<Double> {
+        Binding(get: { Double(nightDimAmount) },
+                set: { newValue in
+                    nightDimAmount = Int(newValue)
+                    BrightnessService.shared.syncWithPreferences()
+                })
     }
 
     private func displayRow(_ display: BrightnessDisplay) -> some View {

@@ -1285,12 +1285,16 @@ enum NotchControlSetupRequirement: Equatable {
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
-    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
-    static let defaultHidden = "keyboardLight,microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
+    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, nightDim, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
+    static let defaultHidden = "keyboardLight,nightDim,microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
     var id: String { rawValue }
 
     /// A level draws as a slider in the card row; everything else is a tile.
-    var isLevel: Bool { self == .volume || self == .brightness || self == .keyboardLight }
+    var isLevel: Bool { self == .volume || self == .brightness || self == .keyboardLight || self == .nightDim }
+
+    /// Night dimming is a level for its amount, and a switch on its own as
+    /// a quick action; the other levels only open the page they are on.
+    var offersQuickAction: Bool { !isLevel || self == .nightDim }
 
     /// Whether this Mac has a keyboard light. Only the brightness service can
     /// ask the hardware, so launch points this at it before anything reads
@@ -1303,6 +1307,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .volume: return "speaker.wave.2.fill"
         case .brightness: return "sun.max.fill"
         case .keyboardLight: return "light.max"
+        case .nightDim: return "moon"
         case .keepAwake: return "cup.and.saucer"
         case .microphone: return "mic.fill"
         case .screenshot: return "camera.viewfinder"
@@ -1322,7 +1327,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
     var setupRequirement: NotchControlSetupRequirement {
         switch self {
         case .volume: return .feature(.mixer)
-        case .brightness, .keyboardLight: return .feature(.brightness)
+        case .brightness, .keyboardLight, .nightDim: return .feature(.brightness)
         case .keepAwake: return .feature(.keepAwake)
         case .microphone: return .feature(.micMute)
         case .screenshot: return .feature(.screenshot)
@@ -1342,7 +1347,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         switch self {
         case .volume: return AppFeature.mixer.isAvailable(in: defaults)
         case .mixer: return AppFeature.mixer.isAvailable(in: defaults) && NotchSupport.modules(in: defaults).contains(.mixer)
-        case .brightness: return AppFeature.brightness.isAvailable(in: defaults)
+        case .brightness, .nightDim: return AppFeature.brightness.isAvailable(in: defaults)
         case .keyboardLight: return AppFeature.brightness.isAvailable(in: defaults) && Self.keyboardLightIsSupported()
         case .keepAwake: return AppFeature.keepAwake.isAvailable(in: defaults)
         case .microphone: return AppFeature.micMute.isAvailable(in: defaults)
@@ -1391,7 +1396,7 @@ enum NotchQuickAction: Hashable, Identifiable {
 
     static var optionalActions: [Self] {
         [.explore, .settings, .pin] + NotchModule.allCases.map(Self.module)
-            + NotchControlItem.allCases.filter { !$0.isLevel }.map(Self.control)
+            + NotchControlItem.allCases.filter(\.offersQuickAction).map(Self.control)
     }
 
     func isAvailable(in defaults: UserDefaults = .standard) -> Bool {

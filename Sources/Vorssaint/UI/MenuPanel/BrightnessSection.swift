@@ -12,6 +12,7 @@ struct BrightnessSection: View {
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
+    @AppStorage(DefaultsKey.nightDimEnabled) private var nightDimEnabled = false
     @State private var optionsExpanded = false
     var collapsible = true
 
@@ -50,6 +51,13 @@ struct BrightnessSection: View {
                             service.syncWithPreferences()
                         }
                 }
+                Divider()
+                Toggle(strings.nightDimToggle, isOn: $nightDimEnabled)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .help(strings.nightDimCaption)
+                    .onChange(of: nightDimEnabled) { _, _ in service.syncWithPreferences() }
                 if AppFeature.extraBrightness.isAvailable {
                     Divider()
                     ExtraBrightnessPanelToggle()

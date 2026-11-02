@@ -403,7 +403,7 @@ struct NotchSettings: View {
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
         switch module {
         case .controls:
-            let primary = [NotchControlItem.music, .volume, .brightness, .keyboardLight]
+            let primary = [NotchControlItem.music, .volume, .brightness, .keyboardLight, .nightDim]
             HStack(spacing: 10) {
                 ForEach(primary) { item in
                     toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),

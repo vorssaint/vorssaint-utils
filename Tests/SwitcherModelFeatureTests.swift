@@ -329,6 +329,17 @@ enum SwitcherModelFeatureTests {
             suite.expect(migrationDefaults.string(forKey: DefaultsKey.notchHiddenControls) == "microphone,panel",
                    "showing the keyboard light level afterwards is kept")
             migrationDefaults.removeObject(forKey: DefaultsKey.notchKeyboardLightControlHidden)
+            migrationDefaults.set("microphone,panel", forKey: DefaultsKey.notchHiddenControls)
+            Defaults.hideNightDimControlOnce(in: migrationDefaults)
+            suite.expect(migrationDefaults.string(forKey: DefaultsKey.notchHiddenControls)
+                   == "microphone,panel,nightDim"
+                   && migrationDefaults.bool(forKey: DefaultsKey.notchNightDimControlHidden),
+                   "a hidden-controls list saved before the night dimming level existed hides it once")
+            migrationDefaults.set("microphone,panel", forKey: DefaultsKey.notchHiddenControls)
+            Defaults.hideNightDimControlOnce(in: migrationDefaults)
+            suite.expect(migrationDefaults.string(forKey: DefaultsKey.notchHiddenControls) == "microphone,panel",
+                   "showing the night dimming level afterwards is kept")
+            migrationDefaults.removeObject(forKey: DefaultsKey.notchNightDimControlHidden)
             migrationDefaults.removeObject(forKey: DefaultsKey.notchHiddenControls)
             let hiddenControlsKey = DefaultsKey.notchHiddenControls
             let scratchpadMigrationKey = DefaultsKey.notchScratchpadControlHidden

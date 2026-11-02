@@ -2856,6 +2856,39 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.scaledGammaTable(untouched, factor: 1.0) == untouched,
                "factor one returns the exact original table for bit-exact restores")
 
+        suite.expect(BrightnessSupport.nightDimShoulder(amount: 0) == nil
+                && BrightnessSupport.nightDimShoulder(amount: -1) == nil,
+               "night dimming at zero leaves the curve alone")
+        if let shoulder = BrightnessSupport.nightDimShoulder(amount: 0.35) {
+            suite.expect(abs(pow(Double(shoulder.apply(1)), 2.2) - 0.65) < 0.001,
+                   "night dimming takes the chosen share of light out of pure white")
+            suite.expect(shoulder.apply(0) == 0 && abs(shoulder.apply(0.1) - 0.1) < 0.002,
+                   "night dimming leaves black and the shadows where they were")
+            suite.expect(0.5 - shoulder.apply(0.5) < (1 - shoulder.apply(1)) / 2,
+                   "mid-tones lose less than half of what white loses")
+            let ramp = (0...255).map { shoulder.apply(Float($0) / 255) }
+            suite.expect(zip(ramp, ramp.dropFirst()).allSatisfy { $0 < $1 },
+                   "night dimming never swaps or merges two shades")
+            suite.expect(BrightnessSupport.nightDimmedGammaTable([0.2, 1.0], shoulder: shoulder,
+                                                                factor: 0.5)
+                    == [shoulder.apply(0.2) * 0.5, shoulder.apply(1) * 0.5],
+                   "a software dim scales the night-dimmed curve, not the original")
+        } else {
+            suite.expect(false, "night dimming at 35% builds a curve")
+        }
+        if let strongest = BrightnessSupport.nightDimShoulder(amount: 5) {
+            suite.expect(abs(pow(Double(strongest.apply(1)), 2.2) - 0.4) < 0.001,
+                   "night dimming is capped")
+            suite.expect(strongest.apply(1) - strongest.apply(0.75) > 0.08
+                    && strongest.apply(0.75) - strongest.apply(0.5) > 0.12,
+                   "at the strongest setting light tones stay apart instead of washing into one grey")
+        } else {
+            suite.expect(false, "an oversized amount is capped, not dropped")
+        }
+        suite.expect(BrightnessSupport.nightDimmedGammaTable(untouched, shoulder: nil, factor: 1)
+                == untouched,
+               "no night dimming and no software dim restores the exact original table")
+
         // Brightness keys arrive as system-defined auxiliary control events;
         // data1 packs key code, press state and the repeat bit.
         func brightnessData1(keyCode: Int, state: Int, repeated: Bool = false) -> Int {

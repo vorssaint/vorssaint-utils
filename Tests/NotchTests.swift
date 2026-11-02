@@ -2271,9 +2271,12 @@ enum NotchTests {
         defaults.set(true, forKey: AppFeature.mixer.availabilityKey)
         suite.expect(NotchControlItem.allCases.filter { $0.setupRequirement == .none } == [.panel],
                      "every unavailable island control with a setup path has a navigation target")
-        suite.expect(NotchControlItem.allCases.filter(\.isLevel) == [.volume, .brightness, .keyboardLight]
+        suite.expect(NotchControlItem.allCases.filter(\.isLevel) == [.volume, .brightness, .keyboardLight, .nightDim]
                      && !NotchQuickAction.optionalActions.contains(.control(.keyboardLight)),
                      "levels draw as sliders in the card row and are not offered as shortcuts")
+        suite.expect(NotchQuickAction.optionalActions.contains(.control(.nightDim))
+                     && NotchControlItem.allCases.filter { $0.isLevel && $0.offersQuickAction } == [.nightDim],
+                     "night dimming sets its amount as a level and still switches as a quick action")
         let savedHiddenControls = defaults.string(forKey: DefaultsKey.notchHiddenControls)
         let savedBrightness = defaults.object(forKey: AppFeature.brightness.availabilityKey)
         defaults.set(true, forKey: AppFeature.brightness.availabilityKey)

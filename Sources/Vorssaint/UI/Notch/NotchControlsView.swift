@@ -55,6 +55,8 @@ struct NotchControlsView: View {
             NotchAudioControls(notch: service)
         } else if item == .keyboardLight {
             NotchKeyboardLightControls()
+        } else if item == .nightDim {
+            NotchNightDimControls()
         } else if brightnessEnabled {
             NotchBrightnessControls()
         } else {
@@ -112,7 +114,7 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), action: service.openScratchpad)
         case .timer: NotchTimerTile(service: service)
         case .calendar: NotchCalendarTile(service: service)
-        case .volume, .brightness, .keyboardLight, .music: EmptyView()
+        case .volume, .brightness, .keyboardLight, .nightDim, .music: EmptyView()
         }
     }
 }
@@ -124,6 +126,7 @@ extension NotchControlItem {
         case .brightness: return FeatureStrings.notch(l10n.language).brightness
         case .keyboardLight: return FeatureStrings.brightness(l10n.language).keyboardLight
         case .keepAwake: return l10n.s.keepAwakeTitle
+        case .nightDim: return FeatureStrings.brightness(l10n.language).nightDimToggle
         case .microphone: return l10n.s.micMuteName
         case .screenshot: return FeatureStrings.recentCaptures(l10n.language).screenshot
         case .recording: return FeatureStrings.recorder(l10n.language).pageTitle
@@ -380,6 +383,56 @@ private struct NotchKeyboardLightControls: View {
                 .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
                 .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
         }
+    }
+}
+
+/// Night dimming as a level: the moon switches it, the slider sets how far
+/// white comes down. Moving the slider while it is off turns it on, since
+/// the amount is only felt with it on.
+private struct NotchNightDimControls: View {
+    @AppStorage(DefaultsKey.nightDimEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.nightDimAmount) private var amount = BrightnessSupport.nightDimDefaultAmount
+    @ObservedObject private var l10n = L10n.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var title: String { FeatureStrings.brightness(l10n.language).nightDimToggle }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            glyph
+            NotchLevelSlider(value: Binding(get: { Double(amount) }, set: { set(amount: $0) }),
+                             label: title, range: 10...(BrightnessSupport.nightDimMaximum * 100),
+                             tint: enabled ? .white : .white.opacity(0.35), trackThickness: 8,
+                             valueLabel: "\(amount)%")
+                .frame(height: 24)
+        }
+        .frame(height: 28)
+        .help(title)
+    }
+
+    private var glyph: some View {
+        Button {
+            enabled.toggle()
+            BrightnessService.shared.syncWithPreferences()
+        } label: {
+            Image(systemName: enabled ? "moon.fill" : "moon")
+                .font(.system(size: 12, weight: .medium))
+                .contentTransition(.symbolEffect(.replace))
+                .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: enabled)
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 6))
+        .accessibilityLabel(title)
+        .accessibilityValue(enabled ? "\(amount)%" : "")
+    }
+
+    /// The Settings slider's steps of five, so both show the same amount.
+    private func set(amount value: Double) {
+        let stepped = Int((value / 5).rounded()) * 5
+        guard stepped != amount || !enabled else { return }
+        amount = stepped
+        enabled = true
+        BrightnessService.shared.syncWithPreferences()
     }
 }
 
