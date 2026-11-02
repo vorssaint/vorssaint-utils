@@ -192,6 +192,15 @@ enum VirtualOutputHAL {
         guard let mask = VirtualOutputSupport.inputMask(streamCount: count, source: source) else { return false }
         return setStreamUsage(device, ioProc: ioProc, scope: kAudioObjectPropertyScopeInput, enabled: mask)
     }
+    /// Startup diagnostics only; never called by a rendering callback. Do not
+    /// include device names, UIDs, PCM or transport capabilities in logs.
+    static func outputFormatSummary(_ device: AudioObjectID) -> String {
+        objects(device, kAudioDevicePropertyStreams, scope: kAudioObjectPropertyScopeOutput).map { stream in
+            var format = AudioStreamBasicDescription()
+            guard read(stream, kAudioStreamPropertyVirtualFormat, into: &format) else { return "output format unreadable" }
+            return "format=\(format.mFormatID) flags=\(String(format: "0x%08X", format.mFormatFlags)) bits=\(format.mBitsPerChannel) channels=\(format.mChannelsPerFrame) bytesPerFrame=\(format.mBytesPerFrame) rate=\(format.mSampleRate)"
+        }.joined(separator: "; ")
+    }
     static func floatFormats(_ device: AudioObjectID, scope: AudioObjectPropertyScope) -> Bool {
         let streams = objects(device, kAudioDevicePropertyStreams, scope: scope)
         guard !streams.isEmpty else { return false }

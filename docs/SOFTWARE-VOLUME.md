@@ -41,6 +41,18 @@ For removal without launching the app, quit Vorssaint and run `./Tools/uninstall
 - `swiftc Sources/Vorssaint/Services/QuickTools/MicMuteSupport.swift Sources/Vorssaint/Services/Audio/VirtualOutputSupport.swift Tests/SoftwareVolume/BridgeTests.swift -o build/software-volume-bridge-tests && build/software-volume-bridge-tests`: hardware-first policy, restore policy, microphone/channel isolation and progress checks.
 - `./build.sh --test`, built app `--selftest`, and `codesign --verify --deep --strict` on app/driver.
 
+### Startup diagnostics
+
+The `software-volume` log category records the exact failed setup stage and any available OSStatus, including its printable four-character code. Startup also records output stream format fields. These diagnostics contain no PCM, session capabilities, device names or UIDs, and no logging runs in the rendering callback. GUI errors remain localized.
+
+After reproducing a failed start, collect the recent local entries with:
+
+```sh
+/usr/bin/log show --last 10m --style compact --predicate 'subsystem == "com.vorssaint.utils" AND category == "software-volume"'
+```
+
+The bridge records whether physical IO actually started. Failed start/privacy preflight destroys only the registered callback; only successfully started IO is stopped. This avoids an invalid stop during failed startup. It does not establish the cause of the LG HDMI failure reported in PR #3656, or prove recovery of that device. The reporter's exact diagnostic and hardware retest remain necessary. The reported SDK27.2 selftest now passes on the reporter's M4 Pro.
+
 Third-party source, pin and modifications are recorded in `ThirdParty/BlackHole/UPSTREAM.md` with its GPL license. This is a local build, not an official release.
 
 ## License and release packaging

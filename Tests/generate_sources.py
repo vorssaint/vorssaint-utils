@@ -948,6 +948,23 @@ def main():
           + declaration("Sources/Vorssaint/Services/Audio/AudioPriorityService.swift", "    private func loadPreferences()").replace("private func", "func", 1)
           + "}\n")
     virtual_service = "Sources/Vorssaint/Services/Audio/VirtualOutputService.swift"
+    output_bridge = "Sources/Vorssaint/Services/Audio/VirtualOutputBridge.swift"
+    lifecycle = declaration(output_bridge, "final class VirtualOutputBridge {")
+    for name in ("Storage", "Pump"):
+        boundary = re.sub(r"^#sourceLocation.*\n", "", declaration(output_bridge, "    private final class " + name + " {"), flags=re.M).rstrip() + "\n"
+        if boundary not in lifecycle:
+            raise ValueError("Expected output bridge boundary " + name)
+        lifecycle = lifecycle.replace(boundary, "    private typealias " + name + " = SoftwareVolumeBridgeLifecycleTests." + name + "\n")
+    lifecycle = lifecycle.replace("final class VirtualOutputBridge {", "final class Bridge {")
+    lifecycle = lifecycle.replace("VirtualOutputHAL.", "HAL.").replace("Thread.sleep(", "Clock.sleep(")
+    lifecycle = lifecycle.replace('subsystem: "com.vorssaint.utils"', 'subsystem: "com.vorssaint.tests"')
+    for original, replacement in [("AudioDeviceCreateIOProcIDWithBlock", "HAL.create"),
+                                  ("AudioDeviceStart", "HAL.start"), ("AudioDeviceStop", "HAL.stop"),
+                                  ("AudioDeviceDestroyIOProcID", "HAL.destroy"),
+                                  ("vs_playback_render", "HAL.render"), ("vs_playback_healthy", "HAL.healthy")]:
+        lifecycle = lifecycle.replace(original + "(", replacement + "(")
+    write("SoftwareVolumeBridgeLifecycle.swift", "import CoreAudio\nimport Foundation\nimport Darwin\nimport os\nimport SoftwareVolumePCM\n"
+          + "extension SoftwareVolumeBridgeLifecycleTests {\n" + lifecycle + "\n}\n")
     write("SoftwareVolumeStartup.swift", "import CoreAudio\nimport Foundation\n"
           + "extension SoftwareVolumeStartupTests.Host {\n"
           + declaration(virtual_service, "    private func replaceBridge(").replace("private func", "func", 1)

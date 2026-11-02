@@ -59,6 +59,7 @@ struct MetricsTests {
                 SoundOutputSwitchContract.run(suite)
                 MixerUniversalRoutingContract.run(suite)
                 SoftwareVolumeStartupTests.run(suite)
+                SoftwareVolumeBridgeLifecycleTests.run(suite)
                 AirPlayRingBufferContract.run(suite)
                 AirPlayRouteContract.run(suite)
                 AirPlayMixLimiterContract.run(suite)

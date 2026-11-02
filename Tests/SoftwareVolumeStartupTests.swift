@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import CoreAudio
 import Foundation
+import os
 
 /// Runs the production replacement/remembering bodies without opening audio IO.
 /// The bridge boundary records the controls available at its first callback.
@@ -37,10 +38,7 @@ enum SoftwareVolumeStartupTests {
         let physicalUID: String
         let progress = Progress()
         final class Progress { var cycles: Int64 = 1 }
-        struct Failure: Error {
-            let issue: VirtualOutputSupport.Issue
-            init(_ message: String, issue: VirtualOutputSupport.Issue = .setupFailed) { self.issue = issue }
-        }
+        typealias Failure = SoftwareVolumeBridgeLifecycleTests.Bridge.Failure
         init(virtual: AudioObjectID, physicalUID: String) throws {
             self.physicalUID = physicalUID
             Self.firstCallbacks.append(.init(uid: physicalUID, level: HAL.level, muted: HAL.muted))
@@ -57,6 +55,7 @@ enum SoftwareVolumeStartupTests {
         }
     }
     final class Host {
+        static let log = Logger(subsystem: "com.vorssaint.tests", category: "startup")
         typealias VirtualOutputHAL = HAL
         typealias VirtualOutputBridge = Bridge
         typealias UserDefaults = Preferences

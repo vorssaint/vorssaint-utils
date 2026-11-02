@@ -8,6 +8,7 @@ import os
 
 /// Output-only playback. PCM property calls never execute on the audio thread.
 final class VirtualOutputBridge {
+    private static let log = Logger(subsystem: "com.vorssaint.utils", category: "software-volume")
     final class Progress {
         private var count: Int64 = 0
         var cycles: Int64 { OSAtomicAdd64Barrier(0, &count) }
@@ -87,6 +88,7 @@ final class VirtualOutputBridge {
     let progress = Progress()
     let physicalUID: String
     private var ioProc: AudioDeviceIOProcID?
+    private var ioStarted = false
     private var physical = AudioObjectID(0)
     private var rate: Float64 = 0
     private var inputLayout: [UInt32] = []
@@ -106,21 +108,27 @@ final class VirtualOutputBridge {
             throw Failure("Physical output is unavailable", issue: .outputUnavailable)
         }
         self.physical = physical
-        guard VirtualOutputHAL.write(virtual, kAudioDevicePropertyNominalSampleRate, value: rate) == noErr else {
-            throw Failure("Could not match the virtual output sample rate")
+        let rateStatus = VirtualOutputHAL.write(virtual, kAudioDevicePropertyNominalSampleRate, value: rate)
+        guard rateStatus == noErr else {
+            throw Failure("Could not match the virtual output sample rate", status: rateStatus)
         }
         var virtualRate: Float64 = 0
         for _ in 0..<30 {
             _ = VirtualOutputHAL.read(virtual, kAudioDevicePropertyNominalSampleRate, into: &virtualRate)
             if virtualRate == rate { break }; Thread.sleep(forTimeInterval: 0.1)
         }
-        guard virtualRate == rate, VirtualOutputHAL.floatFormats(physical, scope: kAudioObjectPropertyScopeOutput) else {
+        guard virtualRate == rate else {
+            throw Failure("Virtual sample rate did not settle: requested \(rate), actual \(virtualRate)")
+        }
+        let formats = VirtualOutputHAL.outputFormatSummary(physical)
+        Self.log.notice("Preparing output bridge: sampleRate=\(self.rate, privacy: .public) \(formats, privacy: .public)")
+        guard VirtualOutputHAL.floatFormats(physical, scope: kAudioObjectPropertyScopeOutput) else {
             throw Failure("Physical output format is unsupported")
         }
         var physicalFrames: UInt32 = 0
         guard VirtualOutputHAL.read(physical, kAudioDevicePropertyBufferFrameSize, into: &physicalFrames),
               physicalFrames > 0, physicalFrames <= UInt32(VS_PACKET_FRAMES) else {
-            throw Failure("Physical output callback size is unsupported")
+            throw Failure("Physical output callback size is unsupported: \(physicalFrames) frames")
         }
         inputLayout = VirtualOutputHAL.channels(physical, scope: kAudioObjectPropertyScopeInput)
         outputLayout = VirtualOutputHAL.channels(physical, scope: kAudioObjectPropertyScopeOutput)
@@ -129,14 +137,18 @@ final class VirtualOutputBridge {
             let storage = try Storage(rate: rate); self.storage = storage
             pump = try Pump(device: virtual, rate: rate, storage: storage)
             let progress = progress
-            guard AudioDeviceCreateIOProcIDWithBlock(&ioProc, physical, nil, { _, _, _, output, _ in
+            let creationStatus = AudioDeviceCreateIOProcIDWithBlock(&ioProc, physical, nil, { _, _, _, output, _ in
                 _ = vs_playback_render(storage.pointer, output)
                 if vs_playback_healthy(storage.pointer) != 0 { progress.advance() }
-            }) == noErr, let ioProc else { throw Failure("Could not create output callback") }
+            })
+            guard creationStatus == noErr else { throw Failure("Could not create output callback", status: creationStatus) }
+            guard let ioProc else { throw Failure("Output callback creation returned no IOProc") }
             guard VirtualOutputHAL.isolatePhysicalOutputInput(physical, ioProc: ioProc) else {
                 throw Failure("Could not verify physical input isolation", issue: .privacyUnverified)
             }
-            guard AudioDeviceStart(physical, ioProc) == noErr else { throw Failure("Could not start physical output") }
+            let startStatus = AudioDeviceStart(physical, ioProc)
+            guard startStatus == noErr else { throw Failure("Could not start physical output", status: startStatus) }
+            ioStarted = true
             for _ in 0..<20 {
                 if progress.cycles > 0 { return }; Thread.sleep(forTimeInterval: 0.05)
             }
@@ -154,15 +166,36 @@ final class VirtualOutputBridge {
     }
     func stop() {
         pump?.stop(); pump = nil
-        if let ioProc { AudioDeviceStop(physical, ioProc); AudioDeviceDestroyIOProcID(physical, ioProc) }
+        if let ioProc {
+            if ioStarted {
+                let status = AudioDeviceStop(physical, ioProc)
+                if status != noErr {
+                    let message = Failure("Could not stop physical output", status: status).localizedDescription
+                    Self.log.error("\(message, privacy: .public)")
+                }
+            }
+            let status = AudioDeviceDestroyIOProcID(physical, ioProc)
+            if status != noErr {
+                let message = Failure("Could not destroy output callback", status: status).localizedDescription
+                Self.log.error("\(message, privacy: .public)")
+            }
+        }
+        ioStarted = false
         ioProc = nil; storage = nil
     }
     deinit { stop() }
     struct Failure: LocalizedError {
         let errorDescription: String?
         let issue: VirtualOutputSupport.Issue
-        init(_ message: String, issue: VirtualOutputSupport.Issue = .setupFailed) {
-            errorDescription = message; self.issue = issue
+        init(_ message: String, issue: VirtualOutputSupport.Issue = .setupFailed, status: OSStatus? = nil) {
+            if let status {
+                let code = UInt32(bitPattern: status)
+                let bytes = [24, 16, 8, 0].map { UInt8(truncatingIfNeeded: code >> $0) }
+                let printable = bytes.allSatisfy { (32...126).contains($0) }
+                let detail = printable ? "'\(String(bytes: bytes, encoding: .ascii)!)'" : String(format: "0x%08X", code)
+                errorDescription = "\(message) (OSStatus \(status), \(detail))"
+            } else { errorDescription = message }
+            self.issue = issue
         }
     }
 }

@@ -3,11 +3,13 @@
 import AppKit
 import Combine
 import CoreAudio
+import os
 
 /// Owns one virtual-output session. HAL calls and bridge construction serialize
 /// off-main; only published presentation state is changed on the main queue.
 final class VirtualOutputService: ObservableObject {
     static let shared = VirtualOutputService()
+    private static let log = Logger(subsystem: "com.vorssaint.utils", category: "software-volume")
     @Published private(set) var isActive = false
     @Published private(set) var isStarting = false
     @Published private(set) var componentReady = false
@@ -251,6 +253,8 @@ final class VirtualOutputService: ObservableObject {
         bridge?.stop(); bridge = nil
         let ownerStatus = VirtualOutputHAL.write(virtual, VirtualOutputSupport.ownerSelector, value: kCFBooleanTrue!)
         guard ownerStatus == noErr else {
+            let message = VirtualOutputBridge.Failure("Could not claim output transport", status: ownerStatus).localizedDescription
+            Self.log.error("\(message, privacy: .public)")
             deactivate(); suspended = true
             publish(error: ownerStatus == kAudioDevicePermissionsError ? .privacyUnverified : .inUse)
             return
@@ -267,11 +271,21 @@ final class VirtualOutputService: ObservableObject {
             }
             let muted: UInt32 = level == 0 ? 1 : 0
             var actualMuted: UInt32 = 0
-            guard VirtualOutputHAL.write(virtual, kAudioDevicePropertyMute, value: muted, scope: kAudioObjectPropertyScopeOutput) == noErr,
-                  VirtualOutputHAL.read(virtual, kAudioDevicePropertyMute, into: &actualMuted, scope: kAudioObjectPropertyScopeOutput),
-                  actualMuted == muted,
-                  let actualLevel = VirtualOutputHAL.outputLevel(virtual), abs(actualLevel - level) < 0.0001 else {
-                throw VirtualOutputBridge.Failure("Could not verify native master volume and mute")
+            let muteStatus = VirtualOutputHAL.write(virtual, kAudioDevicePropertyMute, value: muted, scope: kAudioObjectPropertyScopeOutput)
+            guard muteStatus == noErr else {
+                throw VirtualOutputBridge.Failure("Could not initialize native master mute", status: muteStatus)
+            }
+            guard VirtualOutputHAL.read(virtual, kAudioDevicePropertyMute, into: &actualMuted, scope: kAudioObjectPropertyScopeOutput) else {
+                throw VirtualOutputBridge.Failure("Could not read back native master mute")
+            }
+            guard actualMuted == muted else {
+                throw VirtualOutputBridge.Failure("Native master mute mismatch: expected \(muted), actual \(actualMuted)")
+            }
+            guard let actualLevel = VirtualOutputHAL.outputLevel(virtual) else {
+                throw VirtualOutputBridge.Failure("Could not read back native master volume")
+            }
+            guard abs(actualLevel - level) < 0.0001 else {
+                throw VirtualOutputBridge.Failure("Native master volume mismatch: expected \(level), actual \(actualLevel)")
             }
             let next = try VirtualOutputBridge(virtual: virtual, physicalUID: physicalUID)
             bridge = next
@@ -292,6 +306,8 @@ final class VirtualOutputService: ObservableObject {
             timer.resume()
             publish()
         } catch {
+            let message = (error as? VirtualOutputBridge.Failure)?.errorDescription ?? "Unexpected output setup failure"
+            Self.log.error("Software volume setup failed: \(message, privacy: .public)")
             deactivate(); suspended = true
             publish(error: (error as? VirtualOutputBridge.Failure)?.issue ?? .setupFailed)
         }
