@@ -222,7 +222,17 @@ final class ScreenshotService: ObservableObject {
     }
 
     func captureScrolling() {
-        startCapture(.scrolling)
+        ScreenCaptureService.shared.capture(initial: .scrolling)
+    }
+
+    var hasActiveScrollingCapture: Bool { scrollingTask != nil }
+
+    @discardableResult
+    func finishScrollingCaptureIfActive() -> Bool {
+        guard scrollingTask != nil else { return false }
+        QuickToolHUD.markScrollingCaptureFinishing()
+        scrollingFinishSignal?.request()
+        return true
     }
 
     func captureFullScreen() {

@@ -14,6 +14,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     case recording
     case text
     case color
+    case scrolling
 
     var shortcutKey: String {
         switch self {
@@ -21,6 +22,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return "2"
         case .text: return "3"
         case .color: return "4"
+        case .scrolling: return "5"
         }
     }
 
@@ -31,7 +33,7 @@ enum ScreenCaptureTool: String, CaseIterable {
 
     var feature: AppFeature {
         switch self {
-        case .screenshot: return .screenshot
+        case .screenshot, .scrolling: return .screenshot
         case .recording: return .screenRecorder
         case .text: return .screenOCR
         case .color: return .colorPicker
@@ -57,6 +59,9 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .screenshot:
             return DedicatedShortcut(role: .screenshot,
                                      enabledKey: DefaultsKey.screenshotShortcutEnabled)
+        case .scrolling:
+            return DedicatedShortcut(role: .screenshotScrolling,
+                                     enabledKey: DefaultsKey.screenshotScrollingShortcutEnabled)
         case .recording:
             return DedicatedShortcut(role: .screenRecorder,
                                      enabledKey: DefaultsKey.recorderShortcutEnabled)
@@ -72,6 +77,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     var showCaptureMenuOnShortcutKey: String {
         switch self {
         case .screenshot: return DefaultsKey.screenshotShowCaptureMenuOnShortcut
+        case .scrolling: return DefaultsKey.screenshotScrollingShowCaptureMenuOnShortcut
         case .recording: return DefaultsKey.recorderShowCaptureMenuOnShortcut
         case .text: return DefaultsKey.screenOCRShowCaptureMenuOnShortcut
         case .color: return DefaultsKey.colorPickerShowCaptureMenuOnShortcut
@@ -92,6 +98,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     var systemImageName: String {
         switch self {
         case .screenshot: return "camera.viewfinder"
+        case .scrolling: return "rectangle.stack"
         case .recording: return "record.circle"
         case .text: return "text.viewfinder"
         case .color: return "eyedropper"
@@ -106,6 +113,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     func settingsTitle(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
         case .screenshot: return FeatureStrings.screenshot(language).pageTitle
+        case .scrolling: return FeatureStrings.screenshot(language).scrollingCaptureTitle
         case .recording: return FeatureStrings.recorder(language).pageTitle
         case .text: return strings.ocrName
         case .color: return strings.colorPickerName
@@ -151,11 +159,11 @@ enum ScreenshotSupport {
                                      screenshotHideVorssaintWindows: Bool)
         -> UnifiedCapturePolicy {
         UnifiedCapturePolicy(
-            freeze: tool == .screenshot ? screenshotFreeze : true,
+            freeze: tool == .scrolling ? false : tool == .screenshot ? screenshotFreeze : true,
             includePointer: tool == .screenshot && screenshotIncludePointer,
             hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
             keepsContentWindowsOut: tool == .recording || screenshotHideVorssaintWindows,
-            usesGeometry: tool == .recording)
+            usesGeometry: tool == .recording || tool == .scrolling)
     }
 
     static func captureAvailabilityChanged(activeTools: [ScreenCaptureTool],

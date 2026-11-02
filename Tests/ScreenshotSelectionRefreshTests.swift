@@ -154,9 +154,7 @@ enum ScreenshotSelectionRefreshContract {
                 RecorderSupport.Region), color(NSColor), failed, cancelled
         }
         var activeTool: ScreenCaptureTool?
-        var activeMode: Mode {
-            activeTool == .recording ? .geometry : activeTool == .color ? .color : .image
-        }
+        let baseMode = Mode.image
         var isPickingColor: Bool { activeMode == .color }
         final class Options {
             var offersRepeatLastRegion = false
@@ -181,6 +179,7 @@ enum ScreenshotSelectionRefreshContract {
         }
         init(_ tool: ScreenCaptureTool) {
             activeTool = tool
+            scrollingCaptureEnabled = tool == .scrolling
             let d = ReviewDefaults.current
             let p = ScreenshotSupport.unifiedCapturePolicy(
                 for: tool, screenshotFreeze: d.bool(forKey: "freeze"),
@@ -248,6 +247,30 @@ enum ScreenshotSelectionRefreshContract {
         ScreenshotCaptureEngine.requests = []
         let previousRegion = Chooser.lastRegion
         defer { Chooser.lastRegion = previousRegion }
+        let scrollTool = Chooser(.scrolling)
+        expect(scrollTool.activeMode == .geometry && !scrollTool.freeze
+               && scrollTool.scrollingCaptureEnabled && !scrollTool.acceptsWindowClick,
+               "the fifth tool selects a live scrolling area without a window click")
+        let scrollRect = CGRect(x: 5, y: 10, width: 60, height: 70)
+        scrollTool.confirmRegion(scrollRect, on: scrollTool.panels[0])
+        if case .scrollingRegion(let region) = scrollTool.outcome {
+            expect(region.viewRect == scrollRect && region.windowID == nil,
+                   "scrolling geometry reaches the stitcher with the selected area")
+        } else { expect(false, "scrolling selection routes to stitching rather than recording") }
+        let changing = Chooser(.screenshot)
+        changing.select(.scrolling)
+        expect(changing.scrollingCaptureEnabled && !changing.freeze,
+               "switching to scrolling clears the frozen screenshot source")
+        changing.select(.screenshot)
+        await drain()
+        // Finish the screenshot source refresh before leaving this fixture.
+        for index in ScreenshotCaptureEngine.requests.indices {
+            ScreenshotCaptureEngine.complete(index, displays: [1, 2])
+        }
+        await drain()
+        ScreenshotCaptureEngine.requests = []
+        expect(!changing.scrollingCaptureEnabled && changing.freeze,
+               "switching back restores ordinary screenshot selection")
         let color = Chooser(.color)
         color.confirmSelectionWithKeyboard()
         if case .color(let picked) = color.outcome {

@@ -1936,6 +1936,7 @@ def main():
     write("ScreenshotSelectionRefresh.swift", "import Foundation\nimport AppKit\nimport SwiftUI\n"
           + "extension ScreenshotSelectionRefreshContract.Chooser {\n"
           + declaration(selection, "    fileprivate func setSelectionInProgress(").replace("fileprivate func", "func", 1)
+          + declaration(selection, "    private var activeMode:").replace("private var", "var", 1)
           + declaration(selection, "    fileprivate var acceptsCaptureInput:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    fileprivate var offersFullScreenCapture:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    fileprivate var acceptsWindowClick:").replace("fileprivate var", "var", 1)
