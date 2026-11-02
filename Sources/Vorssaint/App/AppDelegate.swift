@@ -2770,12 +2770,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             }
             markWhatsNewSeen()
             // Done, Escape and the window's close button all arrive here.
-            // The stable invitation follows the changelog before older tours.
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                if !AppInfo.isBeta, self.showSupportUpdateIntroIfNeeded() { return }
-                self.presentUpdateIntros()
-            }
+            // Finish any pending feature tour before the stable invitation.
+            DispatchQueue.main.async { [weak self] in self?.presentUpdateIntros() }
             return
         }
         if window === updatePreviewWindow {

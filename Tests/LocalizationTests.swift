@@ -68,10 +68,8 @@ enum LocalizationTests {
         suite.expect(diskEnglish == ["Disk display", "Used percentage", "Available space", "Used space"],
                      "disk picker uses a dedicated label and complete option names")
         for (language, strings) in languages {
-            suite.expect(strings.verticalZoom == strings.zoomSection,
-                         "the vertical-wheel action is named Zoom in \(language.rawValue)")
             suite.expect(!strings.zoomControlNote.isEmpty,
-                         "Zoom explains screen-zoom overlap and window activation in \(language.rawValue)")
+                         "Pinch Zoom explains screen-zoom overlap in \(language.rawValue)")
             if language != .enUS {
                 suite.expect(strings.zoomControlNote != Strings.enUS.zoomControlNote,
                              "the Zoom warning is translated in \(language.rawValue)")

@@ -227,7 +227,7 @@ enum SettingsDirectory {
                                                            s.invertHorizontalScroll]),
                                         (.scrollHorizontal, [s.scrollHorizontalName,
                                                             s.scrollHorizontalModifierLabel]),
-                                        (.scrollZoom, [s.zoomSection, s.verticalZoom, s.pinchZoom]),
+                                        (.scrollZoom, [s.zoomSection, s.pinchZoom]),
                                         (.middleClick, [s.middleClickTapPicker]),
                                         (.focusFollowsMouse, [s.focusFollowsMouseName,
                                                               s.focusFollowsMouseDelay,
