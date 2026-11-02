@@ -2197,8 +2197,10 @@ enum SwitcherModelFeatureTests {
                "adding the Finder selection with the shelf shortcut is opt-in and travels with settings backups")
         suite.expect((registeredDefaults[DefaultsKey.shelfAutomaticExclusions] as? [String])?.isEmpty == true,
                "shelf automatic exclusions start empty")
-        suite.expect(registeredDefaults[DefaultsKey.mouseNavigationEnabled] as? Bool == false,
-               "mouse side-button navigation is opt-in")
+        suite.expect(registeredDefaults[DefaultsKey.mouseNavigationEnabled] as? Bool == false
+                && registeredDefaults[DefaultsKey.mouseNavigationSwipeEnabled] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mouseNavigationSwipeEnabled),
+               "mouse side-button navigation and its trackpad swipe option are opt-in and travel with settings backups")
         suite.expect(registeredDefaults[DefaultsKey.mouseAccelerationDisabled] as? Bool == false
                 && registeredDefaults[DefaultsKey.panelControlMouseAcceleration] as? Bool == true,
                "mouse acceleration control is opt-in and visible in the panel when installed")

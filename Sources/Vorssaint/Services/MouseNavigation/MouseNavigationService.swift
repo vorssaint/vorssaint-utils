@@ -240,6 +240,10 @@ final class MouseNavigationService: ObservableObject {
                 return Unmanaged.passUnretained(event)
             }
             passThroughButtons.remove(buttonNumber)
+            if UserDefaults.standard.bool(forKey: DefaultsKey.mouseNavigationSwipeEnabled) {
+                postTrackpadSwipe(direction, at: event.location)
+                return nil
+            }
             let pressedFor = NSWorkspace.shared.frontmostApplication?.processIdentifier
             // The press itself goes to the window under the pointer, which can
             // belong to an app behind the one in front. One window server
@@ -476,5 +480,16 @@ final class MouseNavigationService: ObservableObject {
         up.flags = flags
         down.post(tap: .cgSessionEventTap)
         up.post(tap: .cgSessionEventTap)
+    }
+
+    private func postTrackpadSwipe(_ direction: MouseNavigationDirection, at point: CGPoint) {
+        GestureEvent.post(subtype: GestureEvent.swipeSubtype,
+                          phase: Int64(CGGesturePhase.began.rawValue),
+                          at: point)
+        GestureEvent.post(subtype: GestureEvent.swipeSubtype,
+                          phase: Int64(CGGesturePhase.ended.rawValue),
+                          at: point) {
+            $0.setIntegerValueField(CGEventField(rawValue: 115)!, value: direction.trackpadSwipeDirection)
+        }
     }
 }

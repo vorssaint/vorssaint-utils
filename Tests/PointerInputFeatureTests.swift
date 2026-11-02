@@ -440,6 +440,22 @@ enum PointerInputFeatureTests {
                "a blank key equivalent is not something to look for in a menu")
         suite.expect(MouseNavigationDirection.allCases.count == 2,
                "the side buttons navigate in exactly two directions")
+        let swipePoint = CGPoint(x: 120, y: 240)
+        let backSwipe = GestureEvent.make(subtype: GestureEvent.swipeSubtype, phase: 4, at: swipePoint) {
+            $0.setIntegerValueField(CGEventField(rawValue: 115)!,
+                                    value: MouseNavigationDirection.back.trackpadSwipeDirection)
+        }
+        let forwardSwipe = GestureEvent.make(subtype: GestureEvent.swipeSubtype, phase: 4, at: swipePoint) {
+            $0.setIntegerValueField(CGEventField(rawValue: 115)!,
+                                    value: MouseNavigationDirection.forward.trackpadSwipeDirection)
+        }
+        suite.expect(backSwipe?.type.rawValue == 29
+            && backSwipe?.location == swipePoint
+            && backSwipe?.getIntegerValueField(CGEventField(rawValue: 110)!) == 0x10
+            && backSwipe?.getIntegerValueField(CGEventField(rawValue: 132)!) == 4
+            && backSwipe?.getIntegerValueField(CGEventField(rawValue: 115)!) == 4
+            && forwardSwipe?.getIntegerValueField(CGEventField(rawValue: 115)!) == 8,
+               "synthetic trackpad swipe events carry the gesture type, subtype, phase, location and direction")
         suite.expect(MouseNavigationSupport.sanitizedCommandCharacter("\t") == nil,
                "a control character is never a key to look for in a menu")
         // Menus spell their shortcut key in upper case whatever the app wrote,

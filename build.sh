@@ -526,6 +526,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SessionActivitySupport.swift
         Sources/Vorssaint/Services/EventTimestamp.swift
         Sources/Vorssaint/Services/OwnKeyEvent.swift
+        Sources/Vorssaint/Services/GestureEvent.swift
         Sources/Vorssaint/Services/ScrollWheelSupport.swift
         Sources/Vorssaint/Services/HorizontalWheelScrolling.swift
         Sources/Vorssaint/Services/SmoothScrollSupport.swift
