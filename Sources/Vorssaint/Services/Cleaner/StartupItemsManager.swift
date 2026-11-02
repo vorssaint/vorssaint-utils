@@ -52,12 +52,17 @@ final class StartupItemsManager: ObservableObject {
                 ? StartupItemSupport.enableCommands(uid: uid, label: item.label, plistPath: item.plistURL.path)
                 : StartupItemSupport.disableCommands(uid: uid, label: item.label)
             // The first call records the choice; the second starts or stops
-            // the job now. A job that was not loaded makes the second one
-            // report an error, which is expected, so only the first counts.
+            // the job now. If recording fails nothing else runs, so the job
+            // is never left stopped without the choice being saved. A job
+            // that was not loaded makes the second call report an error,
+            // which is expected, so only the first counts.
             var recorded = false
             for (index, arguments) in commands.enumerated() {
                 let result = Self.launchctl(arguments)
-                if index == 0 { recorded = result.status == 0 }
+                if index == 0 {
+                    recorded = result.status == 0
+                    if !recorded { break }
+                }
             }
             let found = Self.load()
             DispatchQueue.main.async {
@@ -72,7 +77,7 @@ final class StartupItemsManager: ObservableObject {
 
     private static func load() -> [Item] {
         let uid = getuid()
-        let disabled = StartupItemSupport.disabledLabels(
+        let overrides = StartupItemSupport.overrides(
             fromPrintDisabled: launchctl(["print-disabled", "gui/\(uid)"]).output)
         let home = NSHomeDirectory()
         let folders: [(String, Bool)] = [("\(home)/Library/LaunchAgents", true),
@@ -87,7 +92,7 @@ final class StartupItemsManager: ObservableObject {
                       let entry = StartupItemSupport.entry(from: dictionary) else { continue }
                 result.append(Item(label: entry.label, program: entry.program, runAtLoad: entry.runAtLoad,
                                    plistURL: url, isUserAgent: isUser,
-                                   isEnabled: !entry.plistDisabled && !disabled.contains(entry.label)))
+                                   isEnabled: !(overrides[entry.label] ?? entry.plistDisabled)))
             }
         }
         return result.sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }

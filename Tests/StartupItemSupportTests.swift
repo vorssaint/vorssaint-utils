@@ -48,9 +48,10 @@ enum StartupItemSupportTests {
             "com.vendor.legacyoff" => false
         }
         """
-        suite.expect(StartupItemSupport.disabledLabels(fromPrintDisabled: printed)
-                     == ["com.vendor.off", "com.vendor.legacy"],
-                     "launchctl's disabled list is read in both wordings")
+        suite.expect(StartupItemSupport.overrides(fromPrintDisabled: printed)
+                     == ["com.vendor.off": true, "com.vendor.on": false,
+                         "com.vendor.legacy": true, "com.vendor.legacyoff": false],
+                     "launchctl's override list is read in both wordings, enabled entries included")
 
         suite.expect(StartupItemSupport.disableCommands(uid: 501, label: "com.vendor.helper")
                      == [["disable", "gui/501/com.vendor.helper"], ["bootout", "gui/501/com.vendor.helper"]]

@@ -116,7 +116,7 @@ final class LargeFileFinder: ObservableObject {
                                       .contentAccessDateKey]
         guard let walker = FileManager.default.enumerator(
             at: home, includingPropertiesForKeys: keys,
-            options: [.skipsPackageDescendants], errorHandler: { _, _ in true }) else { return [] }
+            options: [.skipsPackageDescendants, .skipsHiddenFiles], errorHandler: { _, _ in true }) else { return [] }
         var found: [Item] = []
         let now = Date()
         for case let url as URL in walker {

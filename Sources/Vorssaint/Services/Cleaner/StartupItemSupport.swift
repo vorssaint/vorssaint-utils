@@ -42,18 +42,22 @@ enum StartupItemSupport {
                      plistDisabled: (plist["Disabled"] as? Bool) ?? false)
     }
 
-    /// Labels that launchctl's override database marks as disabled, read from
-    /// the output of `launchctl print-disabled gui/<uid>`.
-    static func disabledLabels(fromPrintDisabled output: String) -> Set<String> {
-        var disabled = Set<String>()
+    /// What launchctl's override database says for each label it lists (true
+    /// means disabled), read from `launchctl print-disabled gui/<uid>`. An
+    /// explicit "enabled" entry matters: it beats a Disabled key in the plist.
+    static func overrides(fromPrintDisabled output: String) -> [String: Bool] {
+        var disabled: [String: Bool] = [:]
         for line in output.split(separator: "\n") {
             let text = String(line)
             guard let open = text.firstIndex(of: "\""),
                   let close = text[text.index(after: open)...].firstIndex(of: "\"") else { continue }
             let label = String(text[text.index(after: open)..<close])
             let state = text[text.index(after: close)...].lowercased()
-            if state.contains("=>"), state.contains("disabled") || state.contains("true") {
-                disabled.insert(label)
+            guard state.contains("=>") else { continue }
+            if state.contains("disabled") || state.contains("true") {
+                disabled[label] = true
+            } else if state.contains("enabled") || state.contains("false") {
+                disabled[label] = false
             }
         }
         return disabled

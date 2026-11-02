@@ -163,7 +163,7 @@ final class DuplicateFileFinder: ObservableObject {
                                       .fileSizeKey, .contentModificationDateKey, .fileResourceIdentifierKey]
         guard let walker = FileManager.default.enumerator(
             at: home, includingPropertiesForKeys: keys,
-            options: [.skipsPackageDescendants], errorHandler: { _, _ in true }) else { return [] }
+            options: [.skipsPackageDescendants, .skipsHiddenFiles], errorHandler: { _, _ in true }) else { return [] }
 
         // Step 1: bucket by exact size. Hard links to the same data are one
         // file, not a duplicate, so each file identity is counted once.

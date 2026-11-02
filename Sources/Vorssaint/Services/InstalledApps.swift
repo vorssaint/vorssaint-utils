@@ -40,6 +40,10 @@ enum InstalledApps {
     /// bundle, so call it off the main thread. `lastUsed` is nil when Spotlight
     /// has no record of the app being opened.
     static func usage(of url: URL) -> (size: Int64, lastUsed: Date?) {
+        usageCacheLock.lock()
+        let cached = usageCache[url.path]
+        usageCacheLock.unlock()
+        if let cached, Date().timeIntervalSince(cached.measured) < 600 { return (cached.size, cached.lastUsed) }
         var total: Int64 = 0
         let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
         func allocated(_ item: URL) -> Int64 {
@@ -62,8 +66,16 @@ enum InstalledApps {
            let value = MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date {
             lastUsed = value
         }
+        usageCacheLock.lock()
+        usageCache[url.path] = (total, lastUsed, Date())
+        usageCacheLock.unlock()
         return (total, lastUsed)
     }
+
+    /// Measured sizes kept for ten minutes, so reopening a picker does not
+    /// walk every app again.
+    private static let usageCacheLock = NSLock()
+    private static var usageCache: [String: (size: Int64, lastUsed: Date?, measured: Date)] = [:]
 
     static func url(for bundleID: String) -> URL? {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)

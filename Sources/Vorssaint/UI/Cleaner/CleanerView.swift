@@ -71,7 +71,11 @@ struct CleanerSettings: View {
         }
         .onChange(of: router.cleanerTool) { _, _ in consumeToolHint() }
         .onChange(of: whatsAppEnabled) { _, enabled in
-            tool = enabled ? .whatsApp : .system
+            if enabled {
+                tool = .whatsApp
+            } else if tool == .whatsApp {
+                tool = .system
+            }
             WhatsAppDownloadScheduler.shared.syncWithPreferences()
             WhatsAppDownloadOrganizer.shared.syncWithPreferences()
             if !enabled {
