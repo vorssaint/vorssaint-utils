@@ -30,6 +30,7 @@ enum NotchAgentTests {
         liveTurns(suite)
         reading(suite)
         AgentUsageReadTests.run(suite)
+        AgentSyncedLogTests.run(suite)
         AgentUsagePollingTests.run(suite)
         AgentUsageArchiveTests.run(suite)
         AgentUsageArchiveSettleTests.run(suite)

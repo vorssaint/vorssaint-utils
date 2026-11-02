@@ -303,7 +303,7 @@ enum AgentUsageArchiveTests {
             ("AgentLiveSession", labels(sampleTurn),
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost", "place"]),
             ("AgentLogCursor", labels(cursor),
-             ["path", "provider", "parent", "openCode", "offset", "identity", "pending", "discarding",
+             ["path", "provider", "history", "parent", "openCode", "offset", "identity", "pending", "discarding",
               "state", "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),

@@ -158,6 +158,18 @@ enum NotchAgentSupport {
         }
     }
 
+    /// The folders of logs synced from other computers, as saved.
+    static func syncedLogFolders(in defaults: UserDefaults = .standard) -> [String] {
+        parseSyncedFolders(defaults.string(forKey: DefaultsKey.notchAgentsSyncedFolders) ?? "")
+    }
+
+    static func parseSyncedFolders(_ saved: String) -> [String] {
+        var seen = Set<String>()
+        return saved.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
     static func key(for provider: AgentProvider) -> String {
         switch provider {
         case .claude: return DefaultsKey.notchAgentsClaude

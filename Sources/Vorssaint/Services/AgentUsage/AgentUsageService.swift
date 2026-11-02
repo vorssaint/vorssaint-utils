@@ -64,6 +64,9 @@ final class AgentUsageService: ObservableObject {
     private var cancellation = Cancellation()
     private var timer: Timer?
     private var providers: [AgentProvider] = []
+    /// Folders holding logs synced from other computers, as read when
+    /// reading started.
+    private var syncedFolders: [String] = []
     private var pricesInFlight = false
     private var pricesAttempted = Date.distantPast
     private var pricesFailed = false
@@ -88,6 +91,8 @@ final class AgentUsageService: ObservableObject {
     private var readerSession = -1
     private var readerCancellation: Cancellation?
     private var enabled: Set<AgentProvider> = []
+    /// The roots of the synced folders, for the agents read.
+    private var syncedRoots: [AgentLogRoot] = []
     private var store = AgentUsageStore()
     /// Every day's spending, kept after its logs are gone. Loaded on first use.
     private lazy var ledger = AgentUsageLedger()
@@ -143,17 +148,22 @@ final class AgentUsageService: ObservableObject {
         CodexProfileLimitsService.shared.synchronize()
         guard NotchAgentSupport.isEnabled() else { stop(); return }
         let wanted = NotchAgentSupport.providers()
+        let folders = NotchAgentSupport.syncedLogFolders()
         // An agent turned off is no longer read at all, and one turned on is
         // read from its start: both take a fresh reading, which would not
         // resume progress saved for the old set, so it goes at once. Codex
         // accounts keep their checks: they read no log.
         if running, wanted != providers { stop(keepingProgress: false, pausingAccounts: false) }
+        // A synced folder added or removed keeps the progress: the next
+        // reading resumes it, reads the new folder and lets the old one go.
+        if running, folders != syncedFolders { stop(keepingProgress: true, pausingAccounts: false) }
         if !running {
             running = true
             session += 1
             cancellation = Cancellation()
             providers = wanted
-            start(session: session, providers: Set(wanted), cancellation: cancellation)
+            syncedFolders = folders
+            start(session: session, providers: Set(wanted), synced: folders, cancellation: cancellation)
         } else if paused {
             resume()
         }
@@ -196,7 +206,7 @@ final class AgentUsageService: ObservableObject {
             // What came due while the island was away is told once, a moment
             // after it comes back.
             attentionSchedule.hold(until: Date().addingTimeInterval(AgentAttentionPolicy.resumeSettle))
-            watch(AgentLogRoot.all(home: home).filter { enabled.contains($0.provider) })
+            watch(logRoots)
             filesChanged([], rescan: true)
             startPolling()
             // Time went by meanwhile: a window or the day may have moved on.
@@ -226,6 +236,7 @@ final class AgentUsageService: ObservableObject {
         timer?.invalidate()
         timer = nil
         providers = []
+        syncedFolders = []
         pricesInFlight = false
         pricesSaved = nil
         snapshot = AgentUsageSnapshot()
@@ -242,6 +253,7 @@ final class AgentUsageService: ObservableObject {
             claudeCacheWatcher?.stop()
             claudeCacheWatcher = nil
             watchedRoots = []
+            syncedRoots = []
             network?.cancel()
             network = nil
             offlineSince = nil
@@ -366,20 +378,24 @@ final class AgentUsageService: ObservableObject {
         self.timer = timer
     }
 
-    private func start(session: Int, providers: Set<AgentProvider>, cancellation: Cancellation) {
+    private func start(session: Int, providers: Set<AgentProvider>, synced folders: [String],
+                       cancellation: Cancellation) {
         startTimer()
         observeFrontmost()
         queue.async { [self] in
             readerSession = session
             readerCancellation = cancellation
             enabled = providers
+            syncedRoots = AgentLogRoot.synced(folders).filter { providers.contains($0.provider) }
             store = AgentUsageStore()
             cursors.removeAll()
             // Prices first, so the first read is already priced.
             loadPrices()
-            // Keep the loading state until all initial history has been read.
+            // Keep the loading state until the logs agents write here have
+            // been read. Compressed and synced logs are history only, read
+            // once the page shows.
             let horizon = Date().addingTimeInterval(-Self.horizon)
-            let roots = AgentLogRoot.all(home: home).filter { providers.contains($0.provider) }
+            let roots = logRoots
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
             if let saved = AgentUsageArchive.load(), saved.providers == providers {
@@ -388,7 +404,8 @@ final class AgentUsageService: ObservableObject {
                 // What the resume took back leaves the disk at the next save.
                 if resumed.unchanged { savedMark = progressMark }
             }
-            for file in files {
+            let history = files.filter { isHistory($0.path) }
+            for file in files where !isHistory(file.path) {
                 // A stop while reading leaves the rest for the next start.
                 guard !cancellation.isCancelled else { return }
                 read(file.path, provider: file.provider)
@@ -418,7 +435,41 @@ final class AgentUsageService: ObservableObject {
             watchNetwork()
             publish()
             saveProgress()
+            readHistory(history[...], session: session)
         }
+    }
+
+    /// The logs read from where they are now: the agents' own folders and
+    /// the synced ones, for the agents switched on. Runs on `queue`.
+    private var logRoots: [AgentLogRoot] {
+        AgentLogRoot.all(home: home).filter { enabled.contains($0.provider) } + syncedRoots
+    }
+
+    /// A log only counted, never followed: compressed, or synced from
+    /// another computer. Runs on `queue`.
+    private func isHistory(_ path: String) -> Bool {
+        path.hasSuffix(".zst") || syncedRoots.contains { $0.accepts(path) }
+    }
+
+    /// Reads history logs a slice of time at a time, so the agents' live
+    /// logs and the page keep up meanwhile. Gigabytes of compressed logs
+    /// take a while to decode. Runs on `queue`.
+    private func readHistory(_ files: ArraySlice<(path: String, provider: AgentProvider)>, session: Int) {
+        guard readerSession == session, let cancellation = readerCancellation else { return }
+        var rest = files
+        var changed = false
+        let started = Date()
+        while let file = rest.first, Date().timeIntervalSince(started) < 0.5 {
+            guard !cancellation.isCancelled else { return }
+            rest = rest.dropFirst()
+            if read(file.path, provider: file.provider) { changed = true }
+        }
+        if changed { schedulePublish() }
+        guard rest.isEmpty else {
+            queue.async { [self] in readHistory(rest, session: session) }
+            return
+        }
+        saveProgress()
     }
 
     /// Saves progress, or removes it once the section is off, even what an
@@ -578,12 +629,12 @@ final class AgentUsageService: ObservableObject {
     @discardableResult
     private func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool = false) -> Bool {
         guard store.showsClaudeTurn || store.awaitsClaude else { return false }
-        let folders = roots.filter { $0.provider == .claude }
+        let folders = roots.filter { $0.provider == .claude && !$0.synced }
             .map { $0.url.deletingLastPathComponent().appending(path: "sessions", directoryHint: .isDirectory) }
         let registry = AgentSessionRegistry.read(folders)
         let closed = store.closeEndedTurns(registry, atLaunch: atLaunch)
         var logs: [String: String] = [:]
-        for cursor in cursors.values where cursor.provider == .claude && cursor.parent == nil {
+        for cursor in cursors.values where cursor.provider == .claude && cursor.parent == nil && !cursor.history {
             logs[AgentUsageStore.session(of: cursor.path)] = cursor.path
         }
         store.applyClaudeStatuses(registry, files: logs, now: Date())
@@ -667,18 +718,23 @@ final class AgentUsageService: ObservableObject {
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
+        // Set on each read: a cursor resumed from saved progress does not know.
+        cursor.history = isHistory(path)
         var changed = false
         let now = Date()
         let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
-            let entries = provider.reader.parse(line, state: &cursor.state, now: now)
+            var entries = provider.reader.parse(line, state: &cursor.state, now: now)
+            // A history log gives its usage alone: no turn, wait or limit of
+            // its own is current on this Mac.
+            if cursor.history { entries = entries.filter(\.isUsage) }
             guard !entries.isEmpty else { return }
             changed = true
             let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
             let turnFile = provider == .opencode && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
             let tracksTurns = isSubagent ? false : cursor.tracksTurns
-            let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)"
+            let parent = cursor.history ? nil : isSubagent ? "\(path)#\(cursor.state.parentSession)"
                 : cursor.parent ?? cursor.codexParent(among: cursors)
             let finished = store.apply(entries, file: turnFile, provider: provider, tracksTurns: tracksTurns,
                                        parent: parent, modified: cursor.modified, now: now)
@@ -692,7 +748,10 @@ final class AgentUsageService: ObservableObject {
             AgentLogReader.readCopilotHistory(cursor, shouldContinue: { !cancellation.isCancelled }, line: consume)
         } else {
             AgentLogReader.readAppended(cursor, since: now.addingTimeInterval(-Self.horizon),
-                                        shouldContinue: { !cancellation.isCancelled }, line: consume)
+                                        shouldContinue: { !cancellation.isCancelled },
+                                        including: cursor.history && provider == .codex
+                                            ? AgentLogReader.codexHistoryLine : nil,
+                                        line: consume)
         }
         return changed
     }
@@ -706,7 +765,10 @@ final class AgentUsageService: ObservableObject {
                 self?.filesChanged(paths, rescan: rescan)
             }
         }
-        if existing.isEmpty { watcher?.stop() } else { watcher?.start(existing.map(\.url.path)) }
+        // A synced folder stands for two agents but is watched once.
+        var seen = Set<String>()
+        let paths = existing.map(\.url.path).filter { seen.insert($0).inserted }
+        if existing.isEmpty { watcher?.stop() } else { watcher?.start(paths) }
     }
 
     private func filesChanged(_ paths: [String], rescan: Bool) {
@@ -761,7 +823,7 @@ final class AgentUsageService: ObservableObject {
             // A folder that appears later, like a first Codex session, is
             // picked up without a restart.
             if now.timeIntervalSince(lastRootCheck) > 300 {
-                let roots = AgentLogRoot.all(home: home).filter { enabled.contains($0.provider) }
+                let roots = logRoots
                 if roots.filter(\.exists) != watchedRoots {
                     for file in AgentLogReader.discover(roots, since: now.addingTimeInterval(-Self.horizon)) {
                         if read(file.path, provider: file.provider) { changed = true }

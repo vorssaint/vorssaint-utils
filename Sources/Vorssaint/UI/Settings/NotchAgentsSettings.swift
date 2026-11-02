@@ -65,6 +65,7 @@ struct NotchAgentsSettingsControls: View {
             if claude { ClaudeSeatsSettings() }
             if codex { CodexAccountsSettings() }
             NotchLimitVisibilitySettings(claude: claude, codex: codex)
+            if claude || codex { AgentSyncedFoldersSettings() }
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))

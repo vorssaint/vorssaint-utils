@@ -585,6 +585,9 @@ final class AgentUsageStore {
 struct AgentLogRoot: Equatable {
     let provider: AgentProvider
     let url: URL
+    /// A folder another computer's logs are synced to: what they hold counts
+    /// as usage, but never as a session running on this Mac.
+    var synced = false
 
     /// Canonical, because file events report real paths: a folder kept as a
     /// link elsewhere, as dotfile setups do, would otherwise never match.
@@ -594,6 +597,27 @@ struct AgentLogRoot: Equatable {
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
+    }
+
+    /// The roots of folders holding logs synced from other computers. Each
+    /// folder is searched for Claude Code's and Codex's logs alike, which
+    /// their names tell apart, so one folder can hold both agents' logs.
+    static func synced(_ folders: [String]) -> [AgentLogRoot] {
+        var seen = Set<String>()
+        return folders.flatMap { folder -> [AgentLogRoot] in
+            // Only a full path names a folder; a blank one is not this one.
+            let path = (folder.trimmingCharacters(in: .whitespaces) as NSString).expandingTildeInPath
+            guard path.hasPrefix("/") else { return [] }
+            let url = canonical(URL(fileURLWithPath: path, isDirectory: true))
+            guard url.path != "/", seen.insert(url.path).inserted else { return [] }
+            return [AgentLogRoot(provider: .claude, url: url, synced: true),
+                    AgentLogRoot(provider: .codex, url: url, synced: true)]
+        }
+    }
+
+    /// Codex names each session's log after its rollout.
+    static func isCodexLog(_ path: String) -> Bool {
+        (path as NSString).lastPathComponent.hasPrefix("rollout-")
     }
 
     /// The path the file system reports for `url`; the path as given while
@@ -614,7 +638,10 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
-        guard path.hasSuffix(".jsonl") else { return false }
+        // Codex compresses the logs of sessions it is done with.
+        let compressed = provider == .codex && path.hasSuffix(".jsonl.zst")
+        guard path.hasSuffix(".jsonl") || compressed else { return false }
+        if synced { return Self.isCodexLog(path) == (provider == .codex) }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
@@ -688,10 +715,17 @@ struct AgentSessionRegistry: Equatable {
 final class AgentLogCursor {
     let path: String
     let provider: AgentProvider
+    /// A log only counted, never followed as work going on: one Codex
+    /// compressed once its session was over, or one synced from another
+    /// computer. The service decides, since only it knows the folders.
+    var history = false
     /// Subagents report to a turn another file tracks.
     var tracksTurns: Bool {
-        provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
+        guard !history else { return false }
+        return provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
     }
+    /// A log Codex compressed: written once, and read whole.
+    var compressed: Bool { path.hasSuffix(".zst") }
     /// The session log a Claude subagent works for.
     let parent: String?
     /// Replies still being written and the rows read last, for a database.
@@ -828,7 +862,14 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
-        return path.hasSuffix(".jsonl")
+        return path.hasSuffix(".jsonl") || path.hasSuffix(".jsonl.zst")
+    }
+
+    /// A history log's lines worth handing over: Codex's response items
+    /// only follow a turn, and they make up most of its bytes.
+    static func codexHistoryLine(_ buffer: Data, range: Range<Int>) -> Bool {
+        let head = buffer[range.lowerBound..<min(range.upperBound, range.lowerBound + 200)]
+        return AgentLogParser.firstType(Data(head))?.name != "response_item"
     }
 
     /// A hash of the log's first and last few kilobytes before `offset`, and
@@ -896,7 +937,7 @@ enum AgentLogReader {
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
-            for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
+            for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") || url.path.hasSuffix(".jsonl.zst") {
                 include(url, from: root)
             }
         }
@@ -922,6 +963,14 @@ enum AgentLogReader {
         let identity = UInt64(info.st_ino)
         cursor.modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
                                 + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
+        if cursor.compressed {
+            // Read whole, once: its offset is its size once read.
+            guard identity != cursor.identity || size != cursor.offset else { return }
+            cursor.startOver(identity: identity)
+            defer { cursor.fingerprintRead() }
+            readCompressed(cursor, size: size, shouldContinue: shouldContinue, including: including, line: line)
+            return
+        }
         if identity != cursor.identity || size < cursor.offset
             || (size > cursor.offset && !cursor.holdsWhatWasRead) {
             cursor.startOver(identity: identity)
@@ -942,6 +991,29 @@ enum AgentLogReader {
             }
             guard read else { break }
         }
+    }
+
+    /// Decodes a compressed log from its start and hands over every line.
+    /// Once done, the offset is the file's size, so it is read again only
+    /// when it changes. A damaged log gives what it could and is left alone
+    /// until then; a read stopped midway starts over next time.
+    private static func readCompressed(_ cursor: AgentLogCursor, size: UInt64, shouldContinue: () -> Bool,
+                                       including: ((Data, Range<Int>) -> Bool)?, line: (Data) -> Void) {
+        let finished: Bool
+        do {
+            finished = try AgentZstd.decode(file: cursor.path, piece: chunkSize, shouldContinue: shouldContinue) { piece in
+                autoreleasepool { split(Data(piece), cursor: cursor, including: including, line: line) }
+            }
+        } catch {
+            finished = true
+        }
+        let last = cursor.discarding ? Data() : cursor.pending
+        cursor.pending = Data()
+        cursor.discarding = false
+        guard finished else { return }
+        // The last line, when the log does not end with a line break.
+        if !last.isEmpty, last.count <= maximumLine, including?(last, 0..<last.count) != false { line(last) }
+        cursor.offset = size
     }
 
     /// Skip unrelated payloads before copying a line. Only top-level event

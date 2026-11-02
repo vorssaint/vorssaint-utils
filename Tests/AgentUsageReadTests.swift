@@ -18,6 +18,9 @@ enum AgentUsageReadTests {
         static func copilotHistoryLine(_ buffer: Data, range: Range<Int>) -> Bool {
             AgentUsageProductionLogReader.copilotHistoryLine(buffer, range: range)
         }
+        static func codexHistoryLine(_ buffer: Data, range: Range<Int>) -> Bool {
+            AgentUsageProductionLogReader.codexHistoryLine(buffer, range: range)
+        }
         static func readCopilotHistory(_ cursor: AgentLogCursor, shouldContinue: () -> Bool,
                                        line: (Data) -> Void) {
             AgentUsageProductionLogReader.readCopilotHistory(cursor, shouldContinue: shouldContinue) {
@@ -65,6 +68,7 @@ enum AgentUsageReadTests {
         var home = FileManager.default.temporaryDirectory
         var readerSession = 1
         var watchedRoots: [AgentLogRoot] = []
+        var syncedRoots: [AgentLogRoot] = []
         var readerCancellation: Cancellation? = Cancellation()
         var cursors: [String: AgentLogCursor] = [:]
         var store = AgentUsageStore()
@@ -445,7 +449,7 @@ enum AgentUsageReadTests {
             AgentLogReader.beforeLine = {
                 readings.append((host.snapshot.loaded, host.publications.count, host.store.records.count))
             }
-            host.start(session: index + 1, providers: [provider], cancellation: Cancellation())
+            host.start(session: index + 1, providers: [provider], synced: [], cancellation: Cancellation())
             suite.expect(!readings.isEmpty && readings.allSatisfy { !$0.loaded && $0.publications == 0 },
                          "\(provider) startup stays in Reading usage until the entire history pass finishes")
             suite.expect(readings.contains { $0.records > 0 },
@@ -465,19 +469,19 @@ enum AgentUsageReadTests {
                 cancelledDuringRead = true
             }
         }
-        cancelled.start(session: 1, providers: [.copilot], cancellation: cancellation)
+        cancelled.start(session: 1, providers: [.copilot], synced: [], cancellation: cancellation)
         suite.expect(cancelledDuringRead && !cancelled.snapshot.loaded && cancelled.publications.isEmpty,
                      "cancelling during the initial pass never publishes partial history as loaded")
         AgentLogReader.beforeLine = nil
         let stopped = Host()
         stopped.home = folder
-        stopped.start(session: 2, providers: [.copilot], cancellation: cancellation)
+        stopped.start(session: 2, providers: [.copilot], synced: [], cancellation: cancellation)
         suite.expect(!stopped.snapshot.loaded && stopped.publications.isEmpty && stopped.store.records.isEmpty,
                      "an already cancelled startup cannot publish an empty loaded snapshot")
 
         let empty = Host()
         empty.home = folder.appending(path: "empty-home")
-        empty.start(session: 1, providers: Set(AgentProvider.allCases), cancellation: Cancellation())
+        empty.start(session: 1, providers: Set(AgentProvider.allCases), synced: [], cancellation: Cancellation())
         suite.expect(empty.publications.count == 1 && empty.snapshot.loaded && empty.snapshot.seen.isEmpty,
                      "a completed pass with genuinely no history leaves the loading state")
     }
