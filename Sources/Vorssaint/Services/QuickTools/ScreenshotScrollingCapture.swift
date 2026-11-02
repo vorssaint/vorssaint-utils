@@ -33,6 +33,32 @@ enum ScreenshotScrollingCapture {
         case failed
     }
 
+    enum AutoScrollAction: Equatable { case wait, scroll, finish }
+
+    /// The capture loop drives scrolling only after observing its previous
+    /// attempt. No independent timer can keep scrolling after cancellation.
+    struct AutoScrollState {
+        private var waitingSince: TimeInterval?
+        private var attemptedAt: TimeInterval?
+        private var heightBeforeAttempt = 0
+        private var attemptsWithoutProgress = 0
+
+        mutating func next(now: TimeInterval, height: Int, settled: Bool) -> AutoScrollAction {
+            if waitingSince == nil { waitingSince = now }
+            if let attemptedAt {
+                let elapsed = now - attemptedAt
+                guard elapsed >= 0.55, settled || elapsed >= 1.5 else { return .wait }
+                attemptsWithoutProgress = height > heightBeforeAttempt ? 0 : attemptsWithoutProgress + 1
+                if attemptsWithoutProgress >= 3 { return .finish }
+            } else if !settled, now - (waitingSince ?? now) < 1.5 {
+                return .wait
+            }
+            attemptedAt = now
+            heightBeforeAttempt = height
+            return .scroll
+        }
+    }
+
     private static let sampleInterval: TimeInterval = 0.09
     private static let settleInterval: TimeInterval = 0.22
     private static let finishGraceInterval: TimeInterval = 0.85
@@ -42,6 +68,7 @@ enum ScreenshotScrollingCapture {
                         hideVorssaintWindows: Bool,
                         protectedWindowIDs: Set<CGWindowID>,
                         finishSignal: FinishSignal,
+                        autoScroll: (@MainActor () -> Bool)? = nil,
                         onProgress: @escaping @MainActor (Int) -> Void) async -> Result {
         do {
             guard let source = await ScreenshotCaptureEngine.prepareDisplayRegion(
@@ -69,6 +96,7 @@ enum ScreenshotScrollingCapture {
             var lastCaptureAt = ProcessInfo.processInfo.systemUptime
             var scrollPending = false
             var finishRequestedAt: TimeInterval?
+            var automatic = AutoScrollState()
             await onProgress(totalHeight)
 
             while true {
@@ -236,6 +264,21 @@ enum ScreenshotScrollingCapture {
                 }
 
                 scrollPending = !frameIsStable || lastCaptureAt - lastChangedAt < settleInterval
+                if let autoScroll, finishRequestedAt == nil {
+                    switch automatic.next(now: lastCaptureAt, height: totalHeight, settled: !scrollPending) {
+                    case .wait:
+                        break
+                    case .finish:
+                        return completedByUser(slices: slices, footerSlice: footerSlice,
+                                               region: region, hasUnmatchedContent: hasUnmatchedContent)
+                    case .scroll:
+                        try Task.checkCancellation()
+                        guard await autoScroll() else {
+                            return completed(slices: slices, footerSlice: footerSlice,
+                                             region: region, result: .partial)
+                        }
+                    }
+                }
             }
         } catch is CancellationError {
             return .cancelled

@@ -585,9 +585,39 @@ enum ScreenshotSupport {
         }) {
             return .unmatched
         }
+        // An animated banner can supply a perfect overlap while most of the
+        // document stays in place. Compare both explanations over the same
+        // rows. Blank rows support neither, so sparse text still counts.
+        let evidence = scrollingMotionEvidence(previous: previous, current: current,
+                                                advance: best.advance, reversed: best.reversed,
+                                                columns: best.contentColumns)
+        if evidence.stationary > evidence.moving { return .end }
+        guard evidence.moving > 0 else { return .unmatched }
         return .advanced(overlap: height - best.advance,
                          direction: best.reversed ? .backward : .forward,
                          contentColumns: best.contentColumns)
+    }
+
+    private static func scrollingMotionEvidence(previous: ScrollingSample,
+                                                current: ScrollingSample,
+                                                advance: Int, reversed: Bool,
+                                                columns: Range<Int>) -> (moving: Int, stationary: Int) {
+        var moving = 0, stationary = 0
+        for row in 0..<(previous.height - advance) {
+            let previousRow = reversed ? row : row + advance
+            let currentRow = reversed ? row + advance : row
+            var aligned = 0, shifted = 0
+            for column in columns {
+                let pixel = Int(current.pixels[currentRow * current.width + column])
+                aligned += abs(Int(previous.pixels[currentRow * previous.width + column]) - pixel)
+                shifted += abs(Int(previous.pixels[previousRow * previous.width + column]) - pixel)
+            }
+            let alignedError = Double(aligned) / Double(columns.count)
+            let shiftedError = Double(shifted) / Double(columns.count)
+            if shiftedError <= 8 && alignedError > shiftedError + 1.5 { moving += 1 }
+            if alignedError <= 1.5 && shiftedError > alignedError + 1.5 { stationary += 1 }
+        }
+        return (moving, stationary)
     }
 
     /// A fixed footer stays at the same viewport rows while the page behind it

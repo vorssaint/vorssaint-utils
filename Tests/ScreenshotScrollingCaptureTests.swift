@@ -6,6 +6,27 @@ import AppKit
 /// Runs the production capture loop and pixel stitching with an isolated image
 /// source. No screen permissions, global input or application windows are used.
 enum ScreenshotScrollingCaptureTests {
+    /// Keep real wheel events, but intercept delivery and window-server reads.
+    final class AutomaticScroller {
+        let windowID: CGWindowID = 31
+        let processID: pid_t = 42
+        let bounds = CGRect(x: -200, y: 100, width: 400, height: 500)
+        let point = CGPoint(x: -150, y: 220)
+        let step: Int32 = 80
+        var access = true
+        var targetPID: pid_t = 42
+        var targetBounds = CGRect(x: -200, y: 100, width: 400, height: 500)
+        var posted: [(CGEvent, CGEventTapLocation)] = []
+        var directPosts: [CGEvent] = []
+
+        func CGPreflightPostEventAccess() -> Bool { access }
+        func CGWindowListCopyWindowInfo(_ options: CGWindowListOption, _ id: CGWindowID) -> CFArray? {
+            [[kCGWindowOwnerPID as String: targetPID,
+              kCGWindowBounds as String: targetBounds.dictionaryRepresentation]] as CFArray
+        }
+        func record(_ event: CGEvent, tap: CGEventTapLocation) { posted.append((event, tap)) }
+    }
+
     enum RecorderSupport {
         struct Region {
             let displayID: CGDirectDisplayID = 1
@@ -34,11 +55,27 @@ enum ScreenshotScrollingCaptureTests {
             let images: [CGImage?]
             let finish: ScreenshotScrollingCapture.FinishSignal
             var calls = 0
-            init(_ images: [CGImage?], finish: ScreenshotScrollingCapture.FinishSignal) {
+            var automaticIndex: Int?
+            var scrolls = 0
+            var animateBeforeFirstScroll = false
+            init(_ images: [CGImage?], finish: ScreenshotScrollingCapture.FinishSignal,
+                 automatic: Bool = false) {
                 self.images = images
                 self.finish = finish
+                automaticIndex = automatic ? 0 : nil
+            }
+            func scroll() -> Bool {
+                scrolls += 1
+                automaticIndex = min((automaticIndex ?? 0) + 1, images.count - 1)
+                return true
             }
             func image() async -> CGImage? {
+                if animateBeforeFirstScroll, scrolls == 0 {
+                    calls += 1
+                    return ScreenshotScrollingCaptureTests.stationaryPage(
+                        animationOffset: calls.isMultiple(of: 2) ? 0 : 12)
+                }
+                if let automaticIndex { return images[automaticIndex] }
                 let index = min(calls, images.count - 1)
                 calls += 1
                 if calls >= images.count { finish.request() }
@@ -90,6 +127,24 @@ enum ScreenshotScrollingCaptureTests {
                        bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
                        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
                        provider: CGDataProvider(data: data)!, decode: nil,
+                       shouldInterpolate: false, intent: .defaultIntent)!
+    }
+
+    /// The document does not move. Only an animated banner changes rows.
+    static func stationaryPage(animationOffset: Int) -> CGImage {
+        let width = 32, height = 120
+        let document = frame(offset: 0, seed: 91)
+        let animation = frame(offset: animationOffset, seed: 91)
+        var bytes = Array(document.dataProvider!.data! as Data)
+        let animated = Array(animation.dataProvider!.data! as Data)
+        for row in 30..<66 {
+            bytes.replaceSubrange(row * width..<(row + 1) * width,
+                                  with: animated[row * width..<(row + 1) * width])
+        }
+        return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8,
+                       bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
+                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+                       provider: CGDataProvider(data: Data(bytes) as CFData)!, decode: nil,
                        shouldInterpolate: false, intent: .defaultIntent)!
     }
 
@@ -191,6 +246,107 @@ enum ScreenshotScrollingCaptureTests {
                          "scrolling session resolves its capture configuration only once")
             return result
         }
+        if case .success(let capture) = await capture([
+            stationaryPage(animationOffset: 0), stationaryPage(animationOffset: 12),
+            stationaryPage(animationOffset: 24), stationaryPage(animationOffset: 36)
+        ]) {
+            suite.expect(capture.image.height == 120,
+                         "a stationary page with an animated banner never adds empty capture rows")
+        } else { suite.expect(false, "stationary content remains a complete single viewport") }
+        if let event = AutomaticScroller.scrollEvent(
+            processID: 42, point: CGPoint(x: -150, y: 220), step: 80) {
+            suite.expect(event.location == CGPoint(x: -150, y: 220),
+                         "automatic scroll retains the selected point: \(event.location)")
+            suite.expect(event.flags.isEmpty,
+                         "automatic scroll clears modifiers: \(event.flags.rawValue)")
+            let expectedFields: [(CGEventField, Int64)] = [
+                (.scrollWheelEventPointDeltaAxis1, -80),
+                (.eventTargetUnixProcessID, 42),
+                (.eventSourceUserData, ScrollWheelSupport.syntheticTag),
+                (.eventSourceUnixProcessID, Int64(ProcessInfo.processInfo.processIdentifier))
+            ]
+            for (field, expected) in expectedFields {
+                let actual = event.getIntegerValueField(field)
+                suite.expect(actual == expected,
+                             "automatic scroll field \(field.rawValue): got \(actual), expected \(expected)")
+            }
+        } else { suite.expect(false, "an automatic downward scroll event can be prepared without posting it") }
+        let delivery = AutomaticScroller()
+        suite.expect(delivery.scroll() && delivery.posted.count == 1
+                     && delivery.posted.first?.1 == .cgSessionEventTap && delivery.directPosts.isEmpty,
+                     "automatic scrolling enters the session stream so macOS routes it to a window")
+        delivery.posted = []
+        delivery.access = false
+        suite.expect(!delivery.scroll() && delivery.posted.isEmpty,
+                     "automatic scrolling stops when input permission is lost")
+        delivery.access = true
+        delivery.targetBounds.origin.x += 1
+        suite.expect(!delivery.scroll() && delivery.posted.isEmpty,
+                     "automatic scrolling stops when its selected window moves")
+        var automatic = ScreenshotScrollingCapture.AutoScrollState()
+        suite.expect(automatic.next(now: 0, height: 120, settled: false) == .wait
+                     && automatic.next(now: 0.25, height: 120, settled: true) == .scroll
+                     && automatic.next(now: 0.4, height: 120, settled: true) == .wait
+                     && automatic.next(now: 0.9, height: 162, settled: true) == .scroll,
+                     "automatic capture observes each scroll and waits for overlapping frames")
+        suite.expect(automatic.next(now: 1.5, height: 162, settled: true) == .scroll
+                     && automatic.next(now: 2.1, height: 162, settled: true) == .scroll
+                     && automatic.next(now: 2.7, height: 162, settled: true) == .finish,
+                     "three attempts without new content stop automatic scrolling")
+        var animatedBottom = ScreenshotScrollingCapture.AutoScrollState()
+        suite.expect(animatedBottom.next(now: 0, height: 120, settled: true) == .scroll
+                     && animatedBottom.next(now: 1, height: 120, settled: false) == .wait
+                     && animatedBottom.next(now: 1.6, height: 120, settled: false) == .scroll
+                     && animatedBottom.next(now: 3.2, height: 120, settled: false) == .scroll
+                     && animatedBottom.next(now: 4.8, height: 120, settled: false) == .finish,
+                     "an animated element cannot keep automatic scrolling alive indefinitely")
+        var animatedStart = ScreenshotScrollingCapture.AutoScrollState()
+        suite.expect(animatedStart.next(now: 0, height: 120, settled: false) == .wait
+                     && animatedStart.next(now: 1, height: 120, settled: false) == .wait
+                     && animatedStart.next(now: 1.6, height: 120, settled: false) == .scroll,
+                     "automatic scrolling starts even when the page never becomes still")
+        for alreadyAtBottom in [false, true] {
+            let signal = ScreenshotScrollingCapture.FinishSignal()
+            let frames = alreadyAtBottom
+                ? [0, 12, 24, 36].map { stationaryPage(animationOffset: $0) }
+                : [0, 42, 72].map { frame(offset: $0) }
+            let source = ScreenshotCaptureEngine.Source(frames, finish: signal, automatic: true)
+            ScreenshotCaptureEngine.source = source
+            var heights: [Int] = []
+            let result = await ScreenshotScrollingCapture.capture(
+                region: region, includePointer: false, hideVorssaintWindows: true,
+                protectedWindowIDs: [], finishSignal: signal,
+                autoScroll: { source.scroll() }, onProgress: { heights.append($0) })
+            if case .success(let capture) = result {
+                suite.expect(capture.image.height == (alreadyAtBottom ? 120 : 192)
+                             && heights == (alreadyAtBottom ? [120] : [120, 162, 192])
+                             && source.scrolls == (alreadyAtBottom ? 3 : 5)
+                             && !signal.isRequested,
+                             "automatic capture stops at the bottom without inflating the pixel count or pressing Done")
+            } else { suite.expect(false, "automatic capture completes on its own at the document bottom") }
+        }
+        let animatedSignal = ScreenshotScrollingCapture.FinishSignal()
+        let animatedSource = ScreenshotCaptureEngine.Source(
+            [stationaryPage(animationOffset: 0)], finish: animatedSignal, automatic: true)
+        animatedSource.animateBeforeFirstScroll = true
+        ScreenshotCaptureEngine.source = animatedSource
+        let animatedResult = await ScreenshotScrollingCapture.capture(
+            region: region, includePointer: false, hideVorssaintWindows: true,
+            protectedWindowIDs: [], finishSignal: animatedSignal,
+            autoScroll: { animatedSource.scroll() }, onProgress: { _ in })
+        if case .success(let capture) = animatedResult {
+            suite.expect(capture.image.height == 120 && animatedSource.scrolls == 3,
+                         "an animated starting viewport still scrolls and finishes without false pixel growth")
+        } else { suite.expect(false, "an animated starting viewport completes without pressing Done") }
+        let stopSignal = ScreenshotScrollingCapture.FinishSignal()
+        let stopSource = ScreenshotCaptureEngine.Source([frame(offset: 0)], finish: stopSignal, automatic: true)
+        ScreenshotCaptureEngine.source = stopSource
+        var sent = 0
+        _ = await ScreenshotScrollingCapture.capture(
+            region: region, includePointer: false, hideVorssaintWindows: true,
+            protectedWindowIDs: [], finishSignal: stopSignal,
+            autoScroll: { sent += 1; stopSignal.request(); return true }, onProgress: { _ in })
+        suite.expect(sent == 1, "Done immediately stops sending automatic scroll events")
         let terminal = terminalDocument()
         let terminalFrames = stride(from: 0, through: 120, by: 15).map { line in
             terminal.cropping(to: CGRect(x: 0, y: line * 28,

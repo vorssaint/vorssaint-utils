@@ -16,6 +16,7 @@ struct ScreenshotCaptureSettings: View {
     private var lastCaptureShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotClipboardShortcutEnabled)
     private var clipboardShortcutEnabled = false
+    @AppStorage(DefaultsKey.screenshotScrollingAutoScroll) private var autoScroll = false
     @AppStorage(DefaultsKey.screenshotFreeze) private var freeze = true
     @AppStorage(DefaultsKey.screenshotHideVorssaintWindows) private var hideVorssaintWindows = true
     @AppStorage(DefaultsKey.screenshotSaveFolder) private var saveFolder = ""
@@ -72,6 +73,15 @@ struct ScreenshotCaptureSettings: View {
                 Text(tool == .scrolling ? strings.scrollingCaptureCaption : strings.panelCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if tool == .scrolling {
+                    Toggle(strings.scrollingAutoScrollToggle, isOn: $autoScroll)
+                    Text(strings.scrollingAutoScrollCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if autoScroll, !permissions.accessibility {
+                        PermissionRow(kind: .accessibility)
+                    }
+                }
                 Toggle(strings.fullScreenShortcutTitle, isOn: $fullScreenShortcutEnabled)
                     .onChange(of: fullScreenShortcutEnabled) { _, _ in
                         ScreenshotService.shared.syncWithPreferences()

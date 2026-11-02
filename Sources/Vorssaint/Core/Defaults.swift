@@ -668,6 +668,7 @@ enum DefaultsKey {
     // Screenshot capture and editor.
     static let screenshotShortcutEnabled = "screenshotShortcutEnabled"
     static let screenshotShortcut = "screenshotShortcut"
+    static let screenshotScrollingAutoScroll = "screenshotScrollingAutoScroll"
     static let screenshotScrollingShortcutEnabled = "screenshotScrollingShortcutEnabled"
     static let screenshotScrollingShortcut = "screenshotScrollingShortcut"
     static let screenshotScrollingShowCaptureMenuOnShortcut = "screenshotScrollingShowCaptureMenuOnShortcut"
@@ -1892,6 +1893,7 @@ enum Defaults {
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,
         DefaultsKey.colorPickerShowCaptureMenuOnShortcut: true,
+        DefaultsKey.screenshotScrollingAutoScroll: false,
         DefaultsKey.screenshotScrollingShortcutEnabled: false,
         DefaultsKey.screenshotScrollingShortcut: GlobalShortcut.screenshotScrollingDefault.storageValue,
         DefaultsKey.screenshotScrollingShowCaptureMenuOnShortcut: true,

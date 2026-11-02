@@ -303,6 +303,9 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutPreviousDisplay)
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutMarginMaximize),
                "window layout choices travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.screenshotScrollingAutoScroll)
+                && Defaults.registeredDefaults[DefaultsKey.screenshotScrollingAutoScroll] as? Bool == false,
+               "automatic scrolling is optional and travels with the screenshot settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.screenshotFreeze)
                 && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcut)

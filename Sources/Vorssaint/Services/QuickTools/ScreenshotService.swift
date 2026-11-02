@@ -49,6 +49,7 @@ final class ScreenshotService: ObservableObject {
     private var scrollingTask: Task<Void, Never>?
     private var scrollingCaptureID: UUID?
     private var scrollingFinishSignal: ScreenshotScrollingCapture.FinishSignal?
+    private let scrollingRegionGuide = CaptureRegionGuide()
 
     private enum CaptureMode {
         case standard
@@ -73,6 +74,9 @@ final class ScreenshotService: ObservableObject {
             ids.insert(CGWindowID(number))
         }
         if let number = QuickToolHUD.currentScrollingWindowNumber, number > 0 {
+            ids.insert(CGWindowID(number))
+        }
+        if let number = scrollingRegionGuide.windowNumber, number > 0 {
             ids.insert(CGWindowID(number))
         }
         return ids
@@ -200,6 +204,7 @@ final class ScreenshotService: ObservableObject {
         scrollingTask = nil
         scrollingCaptureID = nil
         scrollingFinishSignal = nil
+        scrollingRegionGuide.hide()
         QuickToolHUD.dismissScrollingCapture()
         session?.cancel()
         session = nil
@@ -382,10 +387,22 @@ final class ScreenshotService: ObservableObject {
 
     private func captureScrolling(_ region: RecorderSupport.Region) {
         guard scrollingTask == nil else { return }
+        let automatic = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotScrollingAutoScroll)
+        if automatic, !Permissions.shared.accessibility {
+            Permissions.shared.requestAccessibility()
+            return
+        }
+        let scroller = automatic ? ScreenshotAutomaticScroller(
+            region: region, protectedWindowIDs: protectedWindowIDs) : nil
+        if automatic, scroller == nil {
+            QuickToolHUD.show(icon: "rectangle.stack", message: strings.captureFailed)
+            return
+        }
         let finishSignal = ScreenshotScrollingCapture.FinishSignal()
         scrollingFinishSignal = finishSignal
+        scrollingRegionGuide.show(for: region)
         QuickToolHUD.showScrollingCapture(
-            message: strings.scrollingCaptureProgressHUD,
+            message: automatic ? strings.scrollingAutoScrollProgressHUD : strings.scrollingCaptureProgressHUD,
             finishTitle: strings.done,
             cancelTitle: strings.cancel,
             onFinish: { finishSignal.request() },
@@ -404,6 +421,7 @@ final class ScreenshotService: ObservableObject {
                 hideVorssaintWindows: hideWindows,
                 protectedWindowIDs: protectedIDs,
                 finishSignal: finishSignal,
+                autoScroll: scroller.map { target in { @MainActor in target.scroll() } },
                 onProgress: { height in
                     QuickToolHUD.updateScrollingCapture(height: height)
                 })
@@ -411,6 +429,7 @@ final class ScreenshotService: ObservableObject {
             self.scrollingCaptureID = nil
             self.scrollingTask = nil
             self.scrollingFinishSignal = nil
+            self.scrollingRegionGuide.hide()
             QuickToolHUD.dismissScrollingCapture()
             switch result {
             case .success(let capture):
