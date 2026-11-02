@@ -912,6 +912,9 @@ enum DefaultsKey {
     static let notchAgentsLockHiddenProfiles = "notchAgentsLockHiddenProfiles"
     static let notchAgentsOpenCode = "notchAgentsOpenCode"
     static let notchAgentsCopilot = "notchAgentsCopilot"
+    /// Folders holding Claude Code and Codex logs synced from other
+    /// computers, one path a line, whose usage counts with this Mac's.
+    static let notchAgentsSyncedFolders = "notchAgentsSyncedFolders"
     static let notchAgentsCardOrder = "notchAgentsCardOrder"
     static let notchAgentsHiddenCards = "notchAgentsHiddenCards"
     static let notchAgentsPeriod = "notchAgentsPeriod"
@@ -1560,6 +1563,7 @@ enum Defaults {
         DefaultsKey.notchAgentsLockHiddenProfiles: "",
         DefaultsKey.notchAgentsOpenCode: true,
         DefaultsKey.notchAgentsCopilot: true,
+        DefaultsKey.notchAgentsSyncedFolders: "",
         DefaultsKey.notchAgentsCardOrder: "",
         DefaultsKey.notchAgentsHiddenCards: NotchAgentSupport.defaultHiddenCards,
         DefaultsKey.notchAgentsPeriod: AgentPeriod.today.rawValue,

@@ -33,6 +33,16 @@ enum AgentLogEntry: Equatable {
     case reset(Date)
 }
 
+extension AgentLogEntry {
+    /// What a log only counted, never followed, still gives.
+    var isUsage: Bool {
+        switch self {
+        case .usage, .usageModel: return true
+        default: return false
+        }
+    }
+}
+
 /// Why a turn now waits on the person.
 enum AgentAwait: String, Equatable {
     case permission, question, plan, dialog, interrupted
@@ -283,9 +293,14 @@ enum AgentLogParser {
     /// the repository still belongs to that repository.
     static func projectName(_ path: String) -> String {
         var path = path
+        // A log synced from a Windows computer names its folder as C:\code\app.
+        let windows = path.hasPrefix("\\\\") || path.dropFirst().hasPrefix(":\\") || path.dropFirst().hasPrefix(":/")
+        if windows { path = path.replacingOccurrences(of: "\\", with: "/") }
         if let range = path.range(of: "/.claude/worktrees/") { path = String(path[..<range.lowerBound]) }
         while path.count > 1, path.hasSuffix("/") { path.removeLast() }
-        return native((path as NSString).lastPathComponent)
+        let name = (path as NSString).lastPathComponent
+        // A drive's root names no project.
+        return windows && name.hasSuffix(":") ? "" : native(name)
     }
 
     /// Text decoded from a line arrives bridged from Foundation, and every
