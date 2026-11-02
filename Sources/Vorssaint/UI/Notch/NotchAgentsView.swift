@@ -594,10 +594,10 @@ private struct NotchAgentAgyLimitsCard: View {
                 NotchAgentCardHeader(title: AgentProvider.agy.displayName, symbol: AgentProvider.agy.symbol,
                                      tint: AgentProvider.agy.tint, provider: .agy) {
                     HStack(spacing: 4) {
-                        if isPaid { NotchAgentChip(text: "Paid", tint: AgentProvider.agy.tint) }
                         if checking {
                             ProgressView().controlSize(.mini).scaleEffect(0.65).frame(width: 12, height: 12)
                         }
+                        if isPaid { NotchAgentChip(text: "Paid", tint: AgentProvider.agy.tint) }
                         if !snapshot.working(.agy).isEmpty { NotchAgentPulse(tint: AgentProvider.agy.tint, size: 5) }
                     }
                 }
