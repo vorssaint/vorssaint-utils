@@ -27,6 +27,20 @@ extension AgentProvider {
         case .codex: CodexReader()
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
+        case .cursor: CursorReader()
+        case .grok: GrokReader()
         }
     }
+}
+
+/// Cursor and Grok Bot keep their allowances on the account, not in a local
+/// session log. The readers exist so every provider still has one.
+struct CursorReader: AgentHarnessReader {
+    var provider: AgentProvider { .cursor }
+    func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] { [] }
+}
+
+struct GrokReader: AgentHarnessReader {
+    var provider: AgentProvider { .grok }
+    func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] { [] }
 }

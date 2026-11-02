@@ -12,6 +12,8 @@ extension AgentProvider {
         case .codex: return Color(red: 0.49, green: 0.60, blue: 1.0)
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
+        case .cursor: return Color(red: 0.20, green: 0.45, blue: 0.95)
+        case .grok: return Color(red: 0.93, green: 0.42, blue: 0.18)
         }
     }
 }
@@ -375,6 +377,8 @@ private extension AgentProvider {
         case .codex: return AgentCodexServer.appIdentifiers
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
+        case .cursor: return ["com.todesktop.230313mzl4w4u92"]
+        case .grok: return ["com.anysphere.sand"]
         }
     }
 
@@ -390,6 +394,8 @@ private extension AgentProvider {
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
         case .opencode: return []
         case .copilot: return []
+        case .cursor: return []
+        case .grok: return []
         }
     }
 }
