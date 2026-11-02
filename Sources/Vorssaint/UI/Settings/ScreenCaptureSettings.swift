@@ -60,11 +60,8 @@ struct ScreenCaptureSettings: View {
     private var toolSelection: Binding<ScreenCaptureTool> {
         Binding(get: { currentTool }, set: { tool in
             guard availableTools.contains(tool), tool != currentTool else { return }
-            let changesFeature = tool.feature != currentTool.feature
             selectedTool = tool
-            if changesFeature {
-                router.request(tool.feature.settingsDestination, sidebarFeature: tool.feature)
-            }
+            router.request(tool.settingsDestination, sidebarFeature: tool.feature)
         })
     }
 
@@ -91,9 +88,7 @@ struct ScreenCaptureSettings: View {
             if let anchor = router.destination.sectionAnchor,
                let requestedTool = anchor.screenCaptureTool,
                availableTools.contains(requestedTool) {
-                if selectedTool.feature != requestedTool.feature {
-                    selectedTool = requestedTool
-                }
+                selectedTool = requestedTool
             } else if router.destination.sectionAnchor == nil,
                       let first = availableTools.first {
                 selectedTool = first
@@ -134,6 +129,7 @@ private extension SettingsSectionAnchor {
     var screenCaptureTool: ScreenCaptureTool? {
         switch self {
         case .screenshot: return .screenshot
+        case .screenshotScrolling: return .scrolling
         case .screenRecorder: return .recording
         case .screenOCR: return .text
         case .colorPicker: return .color

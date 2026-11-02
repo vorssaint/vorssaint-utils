@@ -16,6 +16,12 @@ enum ScreenCaptureTool: String, CaseIterable {
     case color
     case scrolling
 
+    var settingsDestination: FeatureSettingsDestination {
+        self == .scrolling
+            ? FeatureSettingsDestination(.screenshot, sectionAnchor: .screenshotScrolling)
+            : feature.settingsDestination
+    }
+
     var shortcutKey: String {
         switch self {
         case .screenshot: return "1"

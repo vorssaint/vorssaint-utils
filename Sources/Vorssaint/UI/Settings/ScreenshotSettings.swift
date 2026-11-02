@@ -118,7 +118,7 @@ struct ScreenshotCaptureSettings: View {
             } header: {
                 Text(tool.settingsTitle(l10n.s, language: l10n.language))
             }
-            .settingsFormSectionAnchor(.screenshot)
+            .settingsFormSectionAnchor(tool == .scrolling ? .screenshotScrolling : .screenshot)
 
             Section {
                 if tool != .scrolling {
