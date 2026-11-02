@@ -34,6 +34,7 @@ struct MouseSettings: View {
         ScrollWheelSupport.defaultLinesPerNotch
     @AppStorage(DefaultsKey.smoothScrollResponse) private var smoothScrollResponse =
         SmoothScrollSupport.defaultResponse
+    @AppStorage(DefaultsKey.mouseNavigationReverseButtons) private var mouseNavigationReverseButtons = false
     @AppStorage(DefaultsKey.smoothScrollCoast) private var smoothScrollCoast =
         SmoothScrollSupport.defaultCoast
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
@@ -474,7 +475,11 @@ struct MouseSettings: View {
                 activeBadge(l10n.s.mouseNavigationActiveNow)
             }
             if mouseNavigationEnabled {
-                MouseExceptionsList(scope: .navigation)
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle(l10n.s.mouseNavigationReverseButtons, isOn: $mouseNavigationReverseButtons)
+                    MouseExceptionsList(scope: .navigation)
+                }
+                .padding(.leading, settingsRowTextInset)
             }
         }
     }

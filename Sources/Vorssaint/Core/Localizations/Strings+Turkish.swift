@@ -173,6 +173,7 @@ extension Strings {
         smoothScrollName: "Akıcı kaydırma",
         smoothScrollCaption: "Fare tekerleğinin her adımını kısa ve yumuşak bir kaymaya dönüştürür. İzleme dörtgeni değişmez.",
         smoothScrollStepLabel: "Kaydırma hızı",
+        mouseNavigationReverseButtons: "Düğmeleri tersine çevir",
         mouseNavigationSection: "Gezinme",
         mouseNavigationEnable: "Geri ve İleri için yan düğmeleri kullan",
         mouseNavigationCaption: "Farenin Geri ve İleri düğmelerini Finder, tarayıcılar ve uyumlu uygulamalarda gezinme komutlarına dönüştürür.",

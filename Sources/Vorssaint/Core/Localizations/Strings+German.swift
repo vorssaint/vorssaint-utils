@@ -173,6 +173,7 @@ extension Strings {
         smoothScrollName: "Sanftes Scrollen",
         smoothScrollCaption: "Verwandelt jeden Rastschritt des Mausrads in ein kurzes, sanftes Gleiten. Das Trackpad bleibt unverändert.",
         smoothScrollStepLabel: "Scrollgeschwindigkeit",
+        mouseNavigationReverseButtons: "Tasten vertauschen",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Seitentasten für Zurück und Vor verwenden",
         mouseNavigationCaption: "Wandelt die Maus-Tasten Zurück und Vor in Navigationsbefehle für Finder, Browser und kompatible Apps um.",

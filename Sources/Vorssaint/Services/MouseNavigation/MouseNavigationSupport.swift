@@ -28,10 +28,10 @@ enum MouseNavigationSupport {
     static let backButtonNumber: Int64 = 3
     static let forwardButtonNumber: Int64 = 4
 
-    static func direction(forButtonNumber buttonNumber: Int64) -> MouseNavigationDirection? {
+    static func direction(forButtonNumber buttonNumber: Int64, reverseButtons: Bool = false) -> MouseNavigationDirection? {
         switch buttonNumber {
-        case backButtonNumber: return .back
-        case forwardButtonNumber: return .forward
+        case backButtonNumber: return reverseButtons ? .forward : .back
+        case forwardButtonNumber: return reverseButtons ? .back : .forward
         default: return nil
         }
     }
