@@ -907,6 +907,78 @@ enum ClipboardFeatureTests {
                                                                 triggerIsEnabled: false),
                "a queued clear is invalidated when its setting changes before pasteboard access")
 
+        // MARK: Copy on select gestures
+
+        let copyPress = CGPoint(x: 100, y: 100)
+        var copyGesture = CopyOnSelectGesture()
+        copyGesture.press(at: copyPress)
+        copyGesture.drag(to: CGPoint(x: 140, y: 102))
+        suite.expect(copyGesture.release(at: CGPoint(x: 140, y: 102), clickCount: 1),
+               "dragging across text finishes a selection")
+        copyGesture.press(at: copyPress)
+        suite.expect(copyGesture.release(at: CGPoint(x: 140, y: 100), clickCount: 0),
+               "a release away from the press is a drag even when no drag event arrived")
+        copyGesture.press(at: copyPress)
+        copyGesture.drag(to: CGPoint(x: 101, y: 103))
+        suite.expect(!copyGesture.release(at: CGPoint(x: 101, y: 103), clickCount: 1),
+               "a click that wobbles a few points selects nothing")
+        copyGesture.press(at: copyPress)
+        copyGesture.drag(to: CGPoint(x: 101, y: 130))
+        suite.expect(copyGesture.release(at: CGPoint(x: 101, y: 130), clickCount: 1),
+               "a vertical drag over several lines finishes a selection")
+        copyGesture.press(at: copyPress)
+        suite.expect(!copyGesture.release(at: copyPress, clickCount: 1),
+               "a single click finishes no selection")
+        copyGesture.press(at: copyPress)
+        suite.expect(copyGesture.release(at: copyPress, clickCount: 2),
+               "a double click selects a word")
+        copyGesture.press(at: copyPress)
+        suite.expect(copyGesture.release(at: copyPress, clickCount: 3),
+               "a triple click selects a line")
+        copyGesture.press(at: copyPress)
+        copyGesture.drag(to: CGPoint(x: 200, y: 100))
+        copyGesture.drag(to: copyPress)
+        suite.expect(copyGesture.release(at: copyPress, clickCount: 1),
+               "dragging back to where it started still counts as a drag")
+        copyGesture.press(at: copyPress)
+        copyGesture.drag(to: CGPoint(x: 200, y: 100))
+        _ = copyGesture.release(at: CGPoint(x: 200, y: 100), clickCount: 1)
+        copyGesture.press(at: copyPress)
+        suite.expect(!copyGesture.release(at: copyPress, clickCount: 1),
+               "a drag does not carry over to the click after it")
+        var strayRelease = CopyOnSelectGesture()
+        suite.expect(!strayRelease.release(at: copyPress, clickCount: 2),
+               "a release whose press was never seen is not a selection")
+
+        suite.expect(CopyOnSelectSupport.shouldCopy(selected: "hello", pasteboardText: nil)
+               && CopyOnSelectSupport.shouldCopy(selected: "hello", pasteboardText: "world")
+               && CopyOnSelectSupport.shouldCopy(selected: "  hello  ", pasteboardText: nil),
+               "selected text replaces what the pasteboard holds, untrimmed")
+        suite.expect(!CopyOnSelectSupport.shouldCopy(selected: "hello", pasteboardText: "hello"),
+               "text the pasteboard already holds is not written again")
+        suite.expect(!CopyOnSelectSupport.shouldCopy(selected: "", pasteboardText: "keep")
+               && !CopyOnSelectSupport.shouldCopy(selected: "  \n\t ", pasteboardText: "keep"),
+               "an empty or whitespace-only selection leaves the pasteboard alone")
+        suite.expect(CopyOnSelectSupport.shouldSendCopyShortcut(readText: nil, sawTextCursor: true)
+               && CopyOnSelectSupport.shouldSendCopyShortcut(readText: "", sawTextCursor: true),
+               "an app that reports no text gets the shortcut when the gesture crossed text")
+        suite.expect(!CopyOnSelectSupport.shouldSendCopyShortcut(readText: nil, sawTextCursor: false)
+               && !CopyOnSelectSupport.shouldSendCopyShortcut(readText: "", sawTextCursor: false),
+               "a drag on a scroll bar, a divider or a file sends nothing, since the shortcut can copy what was never selected")
+        suite.expect(!CopyOnSelectSupport.shouldSendCopyShortcut(readText: "hello", sawTextCursor: true),
+               "text that could be read is written directly, with no shortcut")
+        suite.expect(!CopyOnSelectSupport.isNewSelection("old", lastCopied: "old", sawTextCursor: false),
+               "a scroll bar drag does not copy again a selection still standing, over something copied since")
+        suite.expect(CopyOnSelectSupport.isNewSelection("old", lastCopied: "old", sawTextCursor: true),
+               "selecting the same text again on purpose copies it again")
+        suite.expect(CopyOnSelectSupport.isNewSelection("new", lastCopied: "old", sawTextCursor: false)
+               && CopyOnSelectSupport.isNewSelection("new", lastCopied: nil, sawTextCursor: false),
+               "new text copies in an app that does not draw the standard text cursor")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardCopyOnSelect] as? Bool == false,
+               "copy on select stays off until someone turns it on")
+        suite.expect(!AppFeature.clipboardHistory.enabledKeys.contains(DefaultsKey.clipboardCopyOnSelect),
+               "installing the clipboard feature turns on history, never copy on select")
+
         let featureTitles: [(AppLanguage, String, String, String, String)] = [
             (.enUS, "Clipboard", "Window layout", "Utilities", "Alerts"),
             (.ptBR, "Clipboard", "Layout de janelas", "Utilitários", "Alertas"),
@@ -949,6 +1021,11 @@ enum ClipboardFeatureTests {
                    && !clipboardStrings.autoClearOnScreenLock.isEmpty
                    && !clipboardStrings.autoClearCaption.isEmpty,
                    "\(language.rawValue) clipboard auto clear labels are localized")
+            suite.expect(!clipboardStrings.copyOnSelect.isEmpty
+                         && !clipboardStrings.copyOnSelectCaption.isEmpty
+                         && (language == .enUS || clipboardStrings.copyOnSelect
+                             != FeatureStrings.clipboard(.enUS).copyOnSelect),
+                         "\(language.rawValue) clipboard copy on select labels are localized")
             suite.expect(!clipboardStrings.historyLayout.isEmpty
                    && !clipboardStrings.historyLayoutCards.isEmpty
                    && !clipboardStrings.historyLayoutList.isEmpty
