@@ -326,6 +326,49 @@ enum BrightnessSupport {
         return table.map { $0 * factor }
     }
 
+    /// Night dimming takes light out of a picture in proportion to how light
+    /// it already is: white loses the most, mid-tones a little, shadows next
+    /// to nothing. A plain dim would take the whole picture down evenly, and a
+    /// curve that left everything below a knee alone had to squeeze every
+    /// light tone into a sliver above it, which flattened them into one
+    /// washed-out grey.
+    struct HighlightShoulder: Equatable {
+        /// Where full white lands, in the same encoded units as the table.
+        let white: Float
+
+        /// `x - (1 - white) * x²`: untouched at black, white at `white`, and
+        /// still rising at the top as long as white stays at or above half,
+        /// so no two shades merge or swap.
+        func apply(_ value: Float) -> Float {
+            let value = min(max(value, 0), 1)
+            return value - (1 - white) * value * value
+        }
+    }
+
+    /// The most light night dimming may take from white. Past this the light
+    /// tones crowd together too much to read.
+    static let nightDimMaximum = 0.6
+    static let nightDimDefaultAmount = 35
+
+    /// The curve that takes `amount` (0 to 1) of the light out of pure white.
+    /// The table holds gamma-encoded values, so the cut in light is converted
+    /// through the display's 2.2 power curve: 35% less light lands white at
+    /// about 82% of the encoded range. Nil when there is nothing to take away.
+    static func nightDimShoulder(amount: Double) -> HighlightShoulder? {
+        let amount = min(max(amount, 0), nightDimMaximum)
+        guard amount > 0.001 else { return nil }
+        return HighlightShoulder(white: Float(pow(1 - amount, 1 / 2.2)))
+    }
+
+    /// A display's curve with night dimming and a software dim applied in
+    /// that order, so a dimmed screen keeps the same shape, only lower. No
+    /// shoulder and factor one returns the input untouched.
+    static func nightDimmedGammaTable(_ table: [Float], shoulder: HighlightShoulder?,
+                                      factor: Float) -> [Float] {
+        guard let shoulder else { return scaledGammaTable(table, factor: factor) }
+        return scaledGammaTable(table.map(shoulder.apply), factor: factor)
+    }
+
     /// The gamma scale to put back on a software-dimmed display when the
     /// routes are rebuilt. Only a dim this app applied itself is ours to
     /// restore: the session's remembered level is also filled in from a

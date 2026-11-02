@@ -232,6 +232,18 @@ final class BrightnessService: ObservableObject {
     /// is in here its live curve is ours, not its own, so it is never read
     /// back as a baseline. Touched only on the work queue.
     private var dimmedDisplays = Set<CGDirectDisplayID>()
+    /// The scale each software-dimmed display is at, so night dimming can be
+    /// redrawn underneath it. Touched only on the work queue.
+    private var gammaDimFactors: [CGDirectDisplayID: Float] = [:]
+    /// The night dimming curve every display is drawn with, nil when off.
+    /// Touched only on the work queue.
+    private var nightShoulder: BrightnessSupport.HighlightShoulder?
+    /// Displays whose live curve carries night dimming. Like a dimmed
+    /// display, its live curve is ours and is never read back as a
+    /// baseline. Touched only on the work queue.
+    private var nightDimmedDisplays = Set<CGDirectDisplayID>()
+    /// The night dimming last handed to the work queue. Main thread.
+    private var requestedNightShoulder: BrightnessSupport.HighlightShoulder?
 
     private struct GammaTable {
         var red: [CGGammaValue]
@@ -481,6 +493,25 @@ final class BrightnessService: ObservableObject {
         syncKeyTap()
         syncKeyboardBrightnessHotkeys()
         syncDisplayBrightnessHotkeys()
+        syncNightDimming()
+    }
+
+    /// Hands the saved night dimming to the work queue when it changed. It
+    /// rides on this service because both draw on the same gamma curve: one
+    /// owner is what keeps them from undoing each other.
+    private func syncNightDimming() {
+        let defaults = UserDefaults.standard
+        let shoulder = running && defaults.bool(forKey: DefaultsKey.nightDimEnabled)
+            ? BrightnessSupport.nightDimShoulder(
+                amount: Double(defaults.integer(forKey: DefaultsKey.nightDimAmount)) / 100)
+            : nil
+        guard shoulder != requestedNightShoulder else { return }
+        requestedNightShoulder = shoulder
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            self.nightShoulder = shoulder
+            for id in Self.currentTopology().active { self.drawNightDim(id) }
+        }
     }
 
     private func syncDisplayBrightnessHotkeys() {
@@ -1087,7 +1118,7 @@ final class BrightnessService: ObservableObject {
     /// Restores only curves this app dimmed, skipping any display number that
     /// now belongs to a different monitor. Runs on the work queue.
     private func restoreAllGamma() {
-        for id in dimmedDisplays {
+        for id in dimmedDisplays.union(nightDimmedDisplays) {
             guard let baseline = gammaBaselines[id],
                   Self.displayFingerprint(id) == baseline.fingerprint else { continue }
             CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
@@ -1096,6 +1127,8 @@ final class BrightnessService: ObservableObject {
         }
         gammaBaselines = [:]
         dimmedDisplays = []
+        gammaDimFactors = [:]
+        nightDimmedDisplays = []
     }
 
     // MARK: - Displays switched off by this app
@@ -2334,6 +2367,9 @@ final class BrightnessService: ObservableObject {
             && newRoutes[id]?.extendedDimming != true {
             _ = applySoftwareDim(id, value: 1)
         }
+        // Wake and reconfiguration put every curve back behind our back,
+        // including on displays this service only night-dims.
+        for id in activeTopology { drawNightDim(id) }
         var resolved: [BrightnessDisplay] = []
         var supportsBrightnessOSD = false
         let stale: Bool
@@ -2534,7 +2570,8 @@ final class BrightnessService: ObservableObject {
         // again on every reconnection until it is black. A display this app is
         // not dimming is read again, so a colour profile the user changes, or
         // a warm evening tint, becomes what everything else scales from.
-        if gammaBaselines[id]?.fingerprint == fingerprint, dimmedDisplays.contains(id) { return }
+        if gammaBaselines[id]?.fingerprint == fingerprint,
+           dimmedDisplays.contains(id) || nightDimmedDisplays.contains(id) { return }
         let capacity = 256
         var red = [CGGammaValue](repeating: 0, count: capacity)
         var green = [CGGammaValue](repeating: 0, count: capacity)
@@ -2556,19 +2593,43 @@ final class BrightnessService: ObservableObject {
     private func applySoftwareDim(_ id: CGDirectDisplayID, value: Double) -> Bool {
         guard let baseline = gammaBaselines[id],
               baseline.fingerprint == Self.displayFingerprint(id) else { return false }
-        if value >= 0.999 {
-            let restored = CGSetDisplayTransferByTable(id, baseline.count, baseline.red,
-                                                       baseline.green, baseline.blue) == .success
-            if restored { dimmedDisplays.remove(id) }
-            return restored
+        let restoring = value >= 0.999
+        let factor = restoring ? 1 : BrightnessSupport.softwareDimFactor(for: value)
+        guard writeGamma(id, baseline: baseline, factor: factor) else { return false }
+        if restoring {
+            dimmedDisplays.remove(id)
+            gammaDimFactors.removeValue(forKey: id)
+        } else {
+            dimmedDisplays.insert(id)
+            gammaDimFactors[id] = factor
         }
-        let factor = BrightnessSupport.softwareDimFactor(for: value)
-        let red = BrightnessSupport.scaledGammaTable(baseline.red, factor: factor)
-        let green = BrightnessSupport.scaledGammaTable(baseline.green, factor: factor)
-        let blue = BrightnessSupport.scaledGammaTable(baseline.blue, factor: factor)
-        let applied = CGSetDisplayTransferByTable(id, baseline.count, red, green, blue) == .success
-        if applied { dimmedDisplays.insert(id) }
-        return applied
+        return true
+    }
+
+    /// Draws night dimming on a display, under any software dim it has, or
+    /// takes it back off. A display this app never touched is left alone
+    /// when night dimming is off.
+    private func drawNightDim(_ id: CGDirectDisplayID) {
+        guard nightShoulder != nil || nightDimmedDisplays.contains(id) else { return }
+        captureGammaBaselineIfNeeded(id)
+        guard let baseline = gammaBaselines[id],
+              baseline.fingerprint == Self.displayFingerprint(id) else { return }
+        writeGamma(id, baseline: baseline, factor: gammaDimFactors[id] ?? 1)
+    }
+
+    /// The one place a display's curve is written: its untouched curve, with
+    /// night dimming and then the software dim on top.
+    @discardableResult
+    private func writeGamma(_ id: CGDirectDisplayID, baseline: GammaTable, factor: Float) -> Bool {
+        let shoulder = nightShoulder
+        func curve(_ table: [CGGammaValue]) -> [CGGammaValue] {
+            BrightnessSupport.nightDimmedGammaTable(table, shoulder: shoulder, factor: factor)
+        }
+        guard CGSetDisplayTransferByTable(id, baseline.count, curve(baseline.red),
+                                          curve(baseline.green), curve(baseline.blue)) == .success
+        else { return false }
+        if shoulder == nil { nightDimmedDisplays.remove(id) } else { nightDimmedDisplays.insert(id) }
+        return true
     }
 
     // MARK: - DDC transactions (work queue)

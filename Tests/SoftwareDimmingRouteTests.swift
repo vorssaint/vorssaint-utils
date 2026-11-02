@@ -153,6 +153,19 @@ enum SoftwareDimmingRouteTests {
                 && restoration.gammaBaselines.isEmpty && restoration.dimmedDisplays.isEmpty,
                "stopping restores only curves this app dimmed on the same monitor")
 
+        let nightDimmed = Context.Service()
+        nightDimmed.gammaBaselines = [
+            display: Context.Service.GammaTable(fingerprint: "display-7"),
+            8: Context.Service.GammaTable(fingerprint: "display-8"),
+        ]
+        nightDimmed.dimmedDisplays = [display]
+        nightDimmed.gammaDimFactors = [display: 0.5]
+        nightDimmed.nightDimmedDisplays = [display, 8]
+        nightDimmed.restoreAllGamma()
+        expect(nightDimmed.events.sorted() == ["restore:7", "restore:8"]
+                && nightDimmed.nightDimmedDisplays.isEmpty && nightDimmed.gammaDimFactors.isEmpty,
+               "stopping also restores a display that only carries night dimming")
+
         Context.reset()
         let combined = Context.Service()
         combined.routes[display] = Context.Route(ddcPathKey: path, lastDDCValue: 50)
