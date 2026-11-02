@@ -300,6 +300,11 @@ enum ScratchpadMarkTests {
         expect(tasks.map(\.checked) == [false, true, false, false] && tasks.map(\.box) == [2, 14, 35, 72]
                && tasks.map(\.text) == ["first", "done", "nested", "quoted"],
                "task items read as checkboxes at their box in the text, with the marker off their text, and code and ordered items are not tasks")
+        let split = ScratchpadSupport.splitCompleted(ScratchpadSupport.markdownPreview(source))
+        expect(split.done.count == 1 && split.done.allSatisfy {
+                   if case .taskListItem(_, true, _) = $0.kind { return true } else { return false } }
+               && split.open.count == ScratchpadSupport.markdownPreview(source).count - 1,
+               "the completed tasks are set aside and everything else keeps its order")
         expect(ScratchpadSupport.markdownPreview(source).contains {
                    $0.kind == .unorderedListItem(depth: 1) && String($0.text.characters) == "plain" },
                "a list item without a checkbox stays a bullet")
