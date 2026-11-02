@@ -14,7 +14,7 @@ struct CleanerSettings: View {
     @State private var tool = Tool.system
 
     private enum Tool: String {
-        case system, largeFiles, whatsApp
+        case system, largeFiles, duplicates, startup, whatsApp
     }
 
     /// A panel surface can ask for a specific tool; the hint is one-shot.
@@ -33,6 +33,10 @@ struct CleanerSettings: View {
                     .tag(Tool.system)
                 Label(l10n.s.largeFilesName, systemImage: "doc.badge.clock")
                     .tag(Tool.largeFiles)
+                Label(l10n.s.duplicatesName, systemImage: "doc.on.doc")
+                    .tag(Tool.duplicates)
+                Label(l10n.s.startupName, systemImage: "power")
+                    .tag(Tool.startup)
                 if whatsAppEnabled {
                     Label(FeatureStrings.whatsAppDownloads(l10n.language).title,
                           systemImage: "arrow.down.doc")
@@ -41,7 +45,7 @@ struct CleanerSettings: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(maxWidth: 440)
+            .frame(maxWidth: 600)
             .padding(.horizontal, 24)
             .padding(.vertical, 14)
 
@@ -52,6 +56,10 @@ struct CleanerSettings: View {
                 WhatsAppDownloadsSettings()
             case .largeFiles:
                 LargeFilesView()
+            case .duplicates:
+                DuplicatesView()
+            case .startup:
+                StartupItemsView()
             default:
                 CleanerView()
             }

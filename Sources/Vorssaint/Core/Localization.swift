@@ -510,6 +510,21 @@ struct Strings {
     let largeFilesOneYear: String
     let largeFilesNone: String
     let largeFilesMoveToTrash: String
+    let duplicatesName: String
+    let duplicatesIntro: String
+    let duplicatesScan: String
+    let duplicatesNone: String
+    let duplicatesKeepNote: String
+    let duplicatesCopiesFormat: String
+    let duplicatesSelectExtras: String
+    let startupName: String
+    let startupIntro: String
+    let startupYours: String
+    let startupShared: String
+    let startupNone: String
+    let startupRefresh: String
+    let startupLocked: String
+    let startupFailed: String
     let uninstallerPickerEmpty: String
     let uninstallerEmptyNote: String
     let uninstallerFDANote: String
@@ -1681,6 +1696,21 @@ extension Strings {
         largeFilesOneYear: "1 ano",
         largeFilesNone: "Nenhum arquivo grande encontrado",
         largeFilesMoveToTrash: "Mover para a Lixeira",
+        duplicatesName: "Duplicados",
+        duplicatesIntro: "Encontre arquivos idênticos na sua pasta pessoal. Uma cópia de cada arquivo sempre fica, e as cópias removidas vão para a Lixeira.",
+        duplicatesScan: "Encontrar duplicados",
+        duplicatesNone: "Nenhum arquivo duplicado encontrado",
+        duplicatesKeepNote: "Uma cópia de cada arquivo sempre fica.",
+        duplicatesCopiesFormat: "%d cópias",
+        duplicatesSelectExtras: "Selecionar cópias extras",
+        startupName: "Inicialização",
+        startupIntro: "Ajudantes que iniciam com o seu Mac. Desative os que você não precisa; você pode reativá-los quando quiser.",
+        startupYours: "Seus ajudantes de login",
+        startupShared: "Compartilhados com todos os usuários (somente leitura)",
+        startupNone: "Nenhum ajudante de inicialização encontrado",
+        startupRefresh: "Atualizar",
+        startupLocked: "Faz parte do macOS ou do Vorssaint, então não pode ser alterado aqui",
+        startupFailed: "Não foi possível alterar",
         uninstallerPickerEmpty: "Nenhum app encontrado",
         uninstallerEmptyNote: "Nada é removido sem a sua confirmação.",
         uninstallerFDANote: "Conceda Acesso Total ao Disco para uma análise mais completa.",
@@ -2816,6 +2846,21 @@ extension Strings {
         largeFilesOneYear: "1 year",
         largeFilesNone: "No large files found",
         largeFilesMoveToTrash: "Move to Trash",
+        duplicatesName: "Duplicates",
+        duplicatesIntro: "Find identical files in your home folder. One copy of each file always stays, and removed copies go to the Trash.",
+        duplicatesScan: "Find duplicates",
+        duplicatesNone: "No duplicate files found",
+        duplicatesKeepNote: "One copy of each file always stays.",
+        duplicatesCopiesFormat: "%d copies",
+        duplicatesSelectExtras: "Select extra copies",
+        startupName: "Startup",
+        startupIntro: "Helpers that start with your Mac. Switch off the ones you do not need; you can switch them back on any time.",
+        startupYours: "Your login helpers",
+        startupShared: "Shared with all users (view only)",
+        startupNone: "No startup helpers found",
+        startupRefresh: "Refresh",
+        startupLocked: "Part of macOS or Vorssaint, so it cannot be changed here",
+        startupFailed: "Could not change",
         uninstallerPickerEmpty: "No apps found",
         uninstallerEmptyNote: "Nothing is removed without your confirmation.",
         uninstallerFDANote: "Grant Full Disk Access for a more thorough scan.",

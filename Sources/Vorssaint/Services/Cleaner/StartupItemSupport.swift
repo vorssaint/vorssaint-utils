@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+
+/// Pure rules for the startup items list. Only per-user launch agents can be
+/// switched; macOS's own entries and this app's are shown but locked. Labels
+/// reach launchctl as separate arguments, never through a shell, and only
+/// after passing a strict character check.
+enum StartupItemSupport {
+    struct Entry: Equatable {
+        let label: String
+        let program: String
+        let runAtLoad: Bool
+        let plistDisabled: Bool
+    }
+
+    /// A label that is safe to hand to launchctl as part of a service target.
+    static func isValidLabel(_ label: String) -> Bool {
+        guard !label.isEmpty, label.count <= 200 else { return false }
+        return label.unicodeScalars.allSatisfy { scalar in
+            (scalar.value < 128) && (CharacterSet.alphanumerics.contains(scalar) || "._-+".unicodeScalars.contains(scalar))
+        }
+    }
+
+    /// Entries that belong to macOS or to this app are never switched here.
+    static func isLocked(_ label: String) -> Bool {
+        let lowered = label.lowercased()
+        return lowered.hasPrefix("com.apple.") || lowered.hasPrefix("com.vorssaint")
+    }
+
+    /// Reads one launch agent plist. Returns nil for anything without a
+    /// usable label.
+    static func entry(from plist: [String: Any]) -> Entry? {
+        guard let label = plist["Label"] as? String, !label.isEmpty else { return nil }
+        var program = (plist["Program"] as? String) ?? ""
+        if program.isEmpty, let arguments = plist["ProgramArguments"] as? [String], let first = arguments.first {
+            program = first
+        }
+        return Entry(label: label, program: program,
+                     runAtLoad: (plist["RunAtLoad"] as? Bool) ?? false,
+                     plistDisabled: (plist["Disabled"] as? Bool) ?? false)
+    }
+
+    /// Labels that launchctl's override database marks as disabled, read from
+    /// the output of `launchctl print-disabled gui/<uid>`.
+    static func disabledLabels(fromPrintDisabled output: String) -> Set<String> {
+        var disabled = Set<String>()
+        for line in output.split(separator: "\n") {
+            let text = String(line)
+            guard let open = text.firstIndex(of: "\""),
+                  let close = text[text.index(after: open)...].firstIndex(of: "\"") else { continue }
+            let label = String(text[text.index(after: open)..<close])
+            let state = text[text.index(after: close)...].lowercased()
+            if state.contains("=>"), state.contains("disabled") || state.contains("true") {
+                disabled.insert(label)
+            }
+        }
+        return disabled
+    }
+
+    /// The launchctl calls that turn a user agent off, in order. Disabling
+    /// persists across logins; booting out stops it now.
+    static func disableCommands(uid: UInt32, label: String) -> [[String]] {
+        [["disable", "gui/\(uid)/\(label)"], ["bootout", "gui/\(uid)/\(label)"]]
+    }
+
+    /// The calls that turn it back on and start it.
+    static func enableCommands(uid: UInt32, label: String, plistPath: String) -> [[String]] {
+        [["enable", "gui/\(uid)/\(label)"], ["bootstrap", "gui/\(uid)", plistPath]]
+    }
+}
