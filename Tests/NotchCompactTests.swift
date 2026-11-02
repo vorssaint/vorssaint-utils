@@ -487,22 +487,22 @@ enum NotchCompactTests {
         }
         let strings = FeatureStrings.scratchpad(L10n.shared.language)
         let shown = storage.string as NSString
-        suite.expect(boxes.count == 3
-                     && shown.range(of: "done").location < shown.range(of: "open").location
-                     && shown.range(of: "open").location < shown.range(of: "new").location,
-                     "the reading draws each task's checklist circle, with done tasks in place")
+        suite.expect(boxes.count == 2 && shown.range(of: "done").location == NSNotFound
+                     && shown.range(of: "open").location < shown.range(of: "new").location
+                     && shown.range(of: strings.completedTasks).location != NSNotFound,
+                     "the reading draws each open task's checklist circle and sets the done ones behind a closed Completed line")
         // The text view alone would offer each box as a link named by the
         // attachment's object replacement character.
         let children = reading.accessibilityChildren() ?? []
         let checks = children.compactMap { $0 as? NSAccessibilityElement }.filter { $0.accessibilityRole() == .checkBox }
-        suite.expect(checks.map { $0.accessibilityLabel() } == ["done", "open", "new"]
-                     && checks.map { ($0.accessibilityValue() as? NSNumber)?.boolValue } == [true, false, false]
+        suite.expect(checks.map { $0.accessibilityLabel() } == ["open", "new"]
+                     && checks.map { ($0.accessibilityValue() as? NSNumber)?.boolValue } == [false, false]
                      && checks.map { $0.accessibilityValueDescription() }
-                         == [strings.taskDone, strings.taskNotDone, strings.taskNotDone]
+                         == [strings.taskNotDone, strings.taskNotDone]
                      && !children.contains {
                          ($0 as? NSAccessibilityElement)?.accessibilityURL()?.scheme == ScratchpadSupport.taskScheme },
                      "VoiceOver meets each box as a checkbox named by its task and said done or not done, not as a bare link")
-        guard boxes.count == 3, let link = boxes[1] else {
+        guard boxes.count == 2, let link = boxes[0] else {
             suite.expect(false, "each checkbox in the reading carries its task's link")
             return
         }
@@ -562,7 +562,7 @@ enum NotchCompactTests {
                          taskStates: states, in: view)
         coordinator.show(ScratchpadSupport.markdownPreview("- [x] call ann\n- [x] buy milk"), base: 15,
                          taskStates: states, in: view)
-        coordinator.show(ScratchpadSupport.markdownPreview("- [x] call ann\n- [x] buy milk"), base: 15,
+        coordinator.show(ScratchpadSupport.markdownPreview("- [ ] call ann\n- [ ] buy milk"), base: 15,
                          taskStates: (done: "Hecha", notDone: "Pendiente"), in: view)
         suite.expect(renders == 4, "a changed note, size or language draws the reading again")
         var pressed: [Int] = []

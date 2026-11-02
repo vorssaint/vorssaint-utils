@@ -70,6 +70,7 @@ struct NotchScratchpadView: View {
                             MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(pad.text),
                                             baseSize: textSize,
                                             taskStates: (done: text.taskDone, notDone: text.taskNotDone),
+                                            completedLabel: text.completedTasks,
                                             onToggleTask: { pad.toggleTask(box: $0, through: editor.view) })
                         } else if pad.text.isEmpty {
                             Text(text.placeholder)
