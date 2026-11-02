@@ -402,7 +402,14 @@ struct EnergySettings: View {
                     }
                     HStack(spacing: 12) {
                         Text(strings.warmthIntensity)
-                        Slider(value: $warmthLevel, in: 0...1, step: 0.01)
+                        // Continuous, with the level kept at whole percent: a
+                        // stepped slider draws a tick under every step, and a
+                        // hundred of them read as a dashed line. The filter is
+                        // applied as gamma tables, so the rounding also keeps
+                        // a drag from sending more updates than a step would.
+                        Slider(value: Binding(get: { warmthLevel },
+                                              set: { warmthLevel = ($0 * 100).rounded() / 100 }),
+                               in: 0...1)
                             .accessibilityLabel(strings.warmthIntensity)
                             .onChange(of: warmthLevel) { _, _ in brightness.syncWithPreferences() }
                         Text("\(Int((warmthLevel * 100).rounded()))%")
