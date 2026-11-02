@@ -123,7 +123,7 @@ struct PanelUninstallerView: View {
     }
 
     private var appPickerState: some View {
-        AppPickerView(compact: true, emptyNote: l10n.s.uninstallerPickerHiddenNote) {
+        AppPickerView(compact: true, emptyNote: l10n.s.uninstallerPickerHiddenNote, showsUsage: true) {
             showingAppPicker = false
         } onSelect: { url in
             showingAppPicker = false

@@ -139,7 +139,7 @@ struct UninstallerView: View {
         }
         .padding(28)
         .sheet(isPresented: $showingAppPicker) {
-            AppPickerView(emptyNote: l10n.s.uninstallerPickerHiddenNote) {
+            AppPickerView(emptyNote: l10n.s.uninstallerPickerHiddenNote, showsUsage: true) {
                 showingAppPicker = false
             } onSelect: { url in
                 showingAppPicker = false
