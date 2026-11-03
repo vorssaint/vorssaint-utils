@@ -270,7 +270,7 @@ struct NotchCalendarView: View {
                                                           NSWorkspace.shared.open(url)
                                                       }
                                                   },
-                                                  openDetails: { openCalendar(showing: event) })
+                                                  openInCalendar: { openCalendar(showing: event) })
                             .id(event.id)
                         }
                     }
@@ -381,7 +381,7 @@ private struct NotchCalendarEventRow: View {
     let countdown: Bool?
     let choose: (Bool) -> Void
     let join: () -> Void
-    let openDetails: () -> Void
+    let openInCalendar: () -> Void
     @Environment(\.colorSchemeContrast) private var contrast
 
     private var ongoing: Bool { !event.allDay && event.start <= now && event.end > now }
@@ -394,13 +394,13 @@ private struct NotchCalendarEventRow: View {
 
     var body: some View {
         Button {
-            if canJoin { join() } else { openDetails() }
+            if canJoin { join() } else { openInCalendar() }
         } label: { card }
             .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
             .help(canJoin ? text.join : text.openCalendar)
             .accessibilityHint(canJoin ? text.join : text.openCalendar)
             .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose,
-                                           canJoin: canJoin, join: join, openDetails: openDetails))
+                                           canJoin: canJoin, join: join, openInCalendar: openInCalendar))
     }
 
     private var card: some View {
@@ -468,41 +468,40 @@ private struct NotchCalendarEventRow: View {
     }
 }
 
-/// Join / event details, plus Add/Remove Countdown when the global countdown is off.
+/// Join / Open Calendar, plus Add/Remove Countdown when the global countdown is off.
 private struct NotchCountdownChoice: ViewModifier {
     let chosen: Bool?
     let text: NotchCalendarStrings
     let choose: (Bool) -> Void
     var canJoin = false
     var join: () -> Void = {}
-    var openDetails: () -> Void = {}
+    var openInCalendar: () -> Void = {}
 
     func body(content: Content) -> some View {
         content
             .contextMenu {
-                if canJoin {
-                    Button(text.join, action: join)
-                    Button(text.eventDetails, action: openDetails)
-                }
+                if canJoin { Button(text.join, action: join) }
+                Button(text.openCalendar, action: openInCalendar)
                 if let chosen {
                     Button(chosen ? text.removeCountdown : text.addCountdown) { choose(!chosen) }
                 }
             }
             .accessibilityAction(named: canJoin ? text.join : text.openCalendar) {
-                if canJoin { join() } else { openDetails() }
+                if canJoin { join() } else { openInCalendar() }
             }
-            .modifier(JoinDetailsAction(canJoin: canJoin, title: text.eventDetails, openDetails: openDetails))
+            .modifier(OpenCalendarAction(canJoin: canJoin, title: text.openCalendar, open: openInCalendar))
             .modifier(ChooseAction(chosen: chosen, text: text, choose: choose))
     }
 
-    private struct JoinDetailsAction: ViewModifier {
+    /// Extra VoiceOver path to Calendar.app when the default action is Join.
+    private struct OpenCalendarAction: ViewModifier {
         let canJoin: Bool
         let title: String
-        let openDetails: () -> Void
+        let open: () -> Void
 
         @ViewBuilder func body(content: Content) -> some View {
             if canJoin {
-                content.accessibilityAction(named: title, openDetails)
+                content.accessibilityAction(named: title, open)
             } else {
                 content
             }

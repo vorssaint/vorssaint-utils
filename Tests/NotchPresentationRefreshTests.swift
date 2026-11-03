@@ -288,7 +288,6 @@ enum NotchPresentationRefreshContract {
         func toggle() { expanded.toggle() }
         var countdownOpenings = 0
         func openCountdownEvent() { countdownOpenings += 1; expanded = true }
-        func activateCountdownEvent() { openCountdownEvent() }
         func collapse() { expanded = false }
         var edgeClicksEnabled = false
         func syncScreenEdgeClicks() { edgeClicksEnabled = true }

@@ -55,7 +55,6 @@ enum NotchScreenEdgeClickTests {
         var compactActivity: NotchCompactActivity?
         var openings = 0, countdownOpenings = 0
         func openCountdownEvent() { countdownOpenings += 1; expanded = true }
-        func activateCountdownEvent() { openCountdownEvent() }
     }
 
     static func run(_ suite: TestSuite) {

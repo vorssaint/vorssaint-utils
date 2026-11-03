@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
-- Dynamic Island calendar countdowns can open Zoom, Teams or Google Meet links from the event, with Coming up and Starting now notices in the lead window. Settings → Dynamic Island → Content → Calendar.
+- Dynamic Island calendar agenda rows with a Zoom, Teams or Google Meet link join the call on click; Open Calendar stays in the context menu. Countdown strips still open the island, with Coming up and Starting now notices in the lead window.
 
 ## [3.4.3] - 2026-10-29
 

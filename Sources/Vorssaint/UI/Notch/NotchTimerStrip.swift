@@ -39,7 +39,7 @@ struct NotchTimerStrip: View {
     var body: some View {
         HStack(spacing: 0) {
             Button {
-                if companion == .calendar { service.activateCountdownEvent() }
+                if companion == .calendar { service.openCountdownEvent() }
                 else { service.openActivity(companion?.module ?? .timer) }
             } label: {
                 Group {

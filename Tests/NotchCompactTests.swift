@@ -245,7 +245,7 @@ enum NotchCompactTests {
                                                                            isNext: true,
                                                                            text: FeatureStrings.notchCalendar(language),
                                                                            countdown: chosen, choose: { _ in },
-                                                                           join: {}, openDetails: {})
+                                                                           join: {}, openInCalendar: {})
                         .environment(\.locale, Locale(identifier: language.rawValue))
                         .frame(width: width))
                     host.layoutSubtreeIfNeeded()

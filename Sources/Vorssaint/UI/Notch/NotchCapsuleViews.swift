@@ -638,16 +638,8 @@ struct NotchCapsuleCalendarStrip: View {
                 .accessibilityLabel("\(phaseLabel): \(title)")
                 .accessibilityValue(NotchCalendarSupport.countdownAccessibilityText(
                     until: countdown.target, now: context.date, locale: l10n.language.formattingLocale()))
-                .accessibilityHint(countdown.event.joinURL == nil
-                                   ? FeatureStrings.notch(l10n.language).open : text.join)
+                .accessibilityHint(FeatureStrings.notch(l10n.language).open)
                 .help(title)
-                .contextMenu {
-                    if countdown.event.joinURL != nil {
-                        Button(text.join) { service.joinCountdownCall() }
-                    }
-                    Button(text.eventDetails) { service.openCountdownEvent() }
-                }
-                .accessibilityAction(named: text.eventDetails) { service.openCountdownEvent() }
             }
             .accessibilityIdentifier("notch.calendarCountdown")
         }

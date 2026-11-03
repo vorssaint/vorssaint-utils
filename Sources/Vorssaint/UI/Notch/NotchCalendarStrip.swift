@@ -36,7 +36,7 @@ struct NotchCalendarStrip: View {
                         paired(countdown, companion: companion, title: displayTitle, remaining: remaining,
                                phase: phase, now: context.date)
                     } else {
-                        Button { service.activateCountdownEvent() } label: {
+                        Button { service.openCountdownEvent() } label: {
                             Group {
                                 if usesFullRow {
                                     fullRow(countdown, title: displayTitle, remaining: remaining, phase: phase)
@@ -48,8 +48,6 @@ struct NotchCalendarStrip: View {
                                    height: geometry.compactActivityContentHeight)
                             .contentShape(Rectangle())
                         }
-                        .contextMenu { eventDetailsMenu }
-                        .accessibilityAction(named: text.eventDetails) { service.openCountdownEvent() }
                         .modifier(countdownAccessibility(countdown, title: displayTitle, phase: phase,
                                                          now: context.date))
                     }
@@ -62,12 +60,6 @@ struct NotchCalendarStrip: View {
         }
     }
 
-    @ViewBuilder private var eventDetailsMenu: some View {
-        if calendar.countdown?.event.joinURL != nil {
-            Button(text.join) { service.joinCountdownCall() }
-        }
-        Button(text.eventDetails) { service.openCountdownEvent() }
-    }
 
     private func countdownAccessibility(_ countdown: NotchCalendarCountdown, title: String,
                                         phase: NotchCalendarCountdownPhase,
@@ -79,12 +71,11 @@ struct NotchCalendarStrip: View {
             case .coming: return text.coming
             }
         }()
-        let hint = countdown.event.joinURL == nil ? FeatureStrings.notch(l10n.language).open : text.join
         return NotchCountdownAccessibility(label: "\(phaseLabel): \(title)",
                                            value: NotchCalendarSupport.countdownAccessibilityText(
                                                until: countdown.target, now: now,
                                                locale: l10n.language.formattingLocale()),
-                                           hint: hint, help: title)
+                                           hint: FeatureStrings.notch(l10n.language).open, help: title)
     }
 
     private func fullRow(_ countdown: NotchCalendarCountdown, title: String, remaining: String,
@@ -168,15 +159,13 @@ struct NotchCalendarStrip: View {
             .accessibilityLabel(NotchCompanionMark.label(companion, language: l10n.language))
             .accessibilityHint(FeatureStrings.notch(l10n.language).open)
             Color.clear.frame(width: geometry.compactActivityCameraGap)
-            Button { service.activateCountdownEvent() } label: {
+            Button { service.openCountdownEvent() } label: {
                 Self.clockMark(countdown, remaining: remaining, phase: phase)
                     .padding(.trailing, footer ? rowInset : geometry.compactActivityEdgeInset(boxHeight: 9, radius: 0))
                     .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
                            alignment: .trailing)
                     .contentShape(Rectangle())
             }
-            .contextMenu { eventDetailsMenu }
-            .accessibilityAction(named: text.eventDetails) { service.openCountdownEvent() }
             .modifier(countdownAccessibility(countdown, title: title, phase: phase, now: now))
         }
     }
