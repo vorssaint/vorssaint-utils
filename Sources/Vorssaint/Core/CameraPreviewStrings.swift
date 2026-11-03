@@ -35,6 +35,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -230,4 +231,15 @@ extension CameraPreviewFeatureStrings {
         permName: "الكاميرا",
         permExplain: "يعرض الكاميرا في نافذة المعاينة فقط، لتتحقق من مظهرك قبل المكالمة. لا يُسجَّل أي شيء ولا يغادر أي شيء الـ Mac."
     )
+
+    static let fa = CameraPreviewFeatureStrings(
+        pageTitle: "پیش‌نمایش دوربین",
+        hubDescription: "آینه‌ای شناور با دوربین شما باز می‌کند",
+        panelCaption: "پیش از تماس ببینید چه شکلی هستید",
+        openButton: "باز کردن پیش‌نمایش",
+        cameraMenuLabel: "دوربین",
+        deniedMessage: "دسترسی دوربین برای Vorssaint در تنظیمات سیستم خاموش است.",
+        noCameraMessage: "دوربینی شناسایی نشد",
+        permName: "دوربین",
+        permExplain: "دوربین شما را فقط در پنجرهٔ پیش‌نمایش نشان می‌دهد تا پیش از تماس ببینید چه شکلی هستید. چیزی ضبط نمی‌شود و از مک شما خارج نمی‌شود.")
 }

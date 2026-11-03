@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -127,4 +128,9 @@ extension BatteryTimeFeatureStrings {
         systemEstimate: "تقدير النظام",
         calculating: "جارٍ الحساب…"
     )
+
+    static let fa = BatteryTimeFeatureStrings(
+        title: "زمان باقی‌ماندهٔ باتری",
+        systemEstimate: "برآورد سیستم",
+        calculating: "در حال محاسبه…")
 }

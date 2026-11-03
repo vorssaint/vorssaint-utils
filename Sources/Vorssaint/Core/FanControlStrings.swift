@@ -68,6 +68,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -806,4 +807,49 @@ extension FanControlFeatureStrings {
         hottestGPU: "أسخن نقطة في بطاقة الرسوم",
         helperUnavailable: "وحدة التحكم المحمية بالمراوح غير متاحة. اسمح لـ Vorssaint في “عناصر تسجيل الدخول” ثم حاول مجددًا.",
         resumeAfterRestart: "الاستئناف بعد إعادة التشغيل أو الإسبات")
+
+    static let fa = FanControlFeatureStrings(
+        title: "کنترل فن",
+        hubDescription: "فن‌ها را دستی یا با منحنی دما کنترل کنید و همزمان RPM لحظه‌ای و هدف را ببینید",
+        showInPanel: "نمایش کنترل فن در پنل",
+        settingsCaption: "سرعت‌های دستی فن و منحنی‌های دما را به پنل نوار منو اضافه می‌کند.",
+        fanNameFormat: "فن %d",
+        rpmFormat: "%d RPM",
+        allowControl: "اجازهٔ کنترل فن",
+        approvalCaption: "در آیتم‌های ورود اجازه دهید Vorssaint از کنترل‌کنندهٔ محافظت‌شدهٔ فن استفاده کند.",
+        openSettings: "باز کردن تنظیمات سیستم",
+        noFans: "این مک فن قابل‌کنترل ندارد.",
+        unsupported: "کنترل فن در این مک در دسترس نیست.",
+        alreadyControlled: "فرایند دیگری فن‌ها را کنترل می‌کند. ابتدا آن را به کنترل سیستم برگردانید.",
+        failed: "فن‌ها به کنترل سیستم برگشتند، زیرا کنترل درخواستی قابل تأیید نبود.",
+        safetyCaption: "کنترل تا زمانی که به سیستم برنگردید فعال می‌ماند. اگر برنامه قطع شود، مک به خواب برود، خواندن حسگر ناموفق شود یا فشار گرمایی بالا برود، خودکار برمی‌گردد.",
+        safetyStopped: "به کنترل سیستم برگشت، زیرا کنترل فن قطع شد.",
+        menuBarTitle: "سرعت فن",
+        systemControl: "سیستم",
+        manualControl: "دستی",
+        customCurve: "منحنی",
+        mode: "حالت کنترل",
+        coolingIntensity: "سرعت فن",
+        currentRPMFormat: "فعلی %d RPM",
+        targetRPMFormat: "هدف %d RPM",
+        applyManual: "اعمال کنترل دستی",
+        applyCurve: "اعمال منحنی فن",
+        returnToSystem: "استفاده از کنترل سیستم",
+        temperatureUnavailable: "حسگر دمای انتخاب‌شده پاسخ نداد. کنترل فن به سیستم برگشت.",
+        curveUnavailable: "یک حسگر دمای انتخاب‌شده در این مک در دسترس نیست.",
+        sensor: "حسگر دما",
+        temperature: "دما",
+        fanSpeed: "سرعت فن",
+        addPoint: "افزودن نقطه",
+        addSensor: "افزودن حسگر",
+        removePoint: "حذف نقطه",
+        removeSensor: "حذف حسگر",
+        curveGraph: "منحنی دما و سرعت فن",
+        averageSoC: "میانگین SoC",
+        hottestSoC: "داغ‌ترین SoC",
+        averageCPU: "میانگین CPU",
+        hottestCPU: "داغ‌ترین CPU",
+        hottestGPU: "داغ‌ترین GPU",
+        helperUnavailable: "کنترل‌کنندهٔ محافظت‌شدهٔ فن در دسترس نیست. در آیتم‌های ورود به Vorssaint اجازه دهید و دوباره امتحان کنید.",
+        resumeAfterRestart: "ادامه پس از راه‌اندازی دوباره یا خواب")
 }

@@ -112,6 +112,7 @@ enum CommandBarSystemSettingsSupport {
         case .zhHK: return "zh_HK"
         case .uk: return "uk"
         case .ar: return "ar"
+        case .fa: return "fa"
         }
     }
 }

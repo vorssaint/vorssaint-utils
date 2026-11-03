@@ -72,6 +72,10 @@ struct MixerScreenSharingStrings {
             allowVolumeControl: "السماح بالتحكم في مستوى الصوت",
             protectedCaption: "التحكم في مستوى الصوت متوقف لتجنب الصدى عند مشاركة الصوت.",
             sharingWarning: "أوقف التحكم في مستوى الصوت قبل مشاركة الصوت لتجنب الصدى.")
+        case .fa: return .init(
+            allowVolumeControl: "اجازهٔ کنترل صدا",
+            protectedCaption: "کنترل صدا برای جلوگیری از پژواک هنگام هم‌رسانی صدا خاموش است.",
+            sharingWarning: "پیش از هم‌رسانی صدا، کنترل صدا را خاموش کنید تا پژواک ایجاد نشود.")
         }
     }
 }

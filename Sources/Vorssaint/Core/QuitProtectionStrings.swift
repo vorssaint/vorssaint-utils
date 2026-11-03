@@ -73,6 +73,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -633,6 +634,40 @@ extension QuitProtectionStrings {
         extraCloseHUDFormat: "استخدم %@ للإغلاق",
         cancelHint: "Esc للإلغاء",
         releaseHint: "أفلِت للتأكيد",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control")
+
+    static let fa = QuitProtectionStrings(
+        name: "محافظت از خروج و بستن",
+        description: "⌘Q و ⌘W را از فشردن اتفاقی محافظت می‌کند",
+        intro: "هر میان‌بر را مستقل پیکربندی کنید. کنش اصلی فقط پس از تأیید انتخاب‌شده عبور می‌کند.",
+        enabled: "محافظت از این میان‌بر",
+        enabledCaption: "میان‌بُرهای Command دیگر عادی کار می‌کنند.",
+        mode: "حالت تأیید",
+        hold: "نگه داشتن برای تأیید",
+        doublePress: "فشار دوبار",
+        extraModifier: "نیاز به کلید تغییردهندهٔ اضافی",
+        holdDuration: "مدت نگه داشتن",
+        doublePressInterval: "فاصلهٔ فشار دوبار",
+        modifier: "کلید تغییردهندهٔ اضافی",
+        appScope: "برنامه‌ها",
+        allApps: "همهٔ برنامه‌ها",
+        selectedOnly: "فقط برنامه‌های انتخاب‌شده",
+        allExceptSelected: "همه به‌جز برنامه‌های انتخاب‌شده",
+        exceptions: "برنامه‌های انتخاب‌شده",
+        noExceptions: "برنامه‌ای انتخاب نشده",
+        addApp: "افزودن برنامه…",
+        feedback: "نمایش بازخورد دیداری",
+        accessibilityCaption: "محافظت از دسترس‌پذیری استفاده می‌کند تا فقط ⌘Q و ⌘W را به‌صورت سراسری زیر نظر بگیرد.",
+        holdQuitHUDFormat: "برای خروج %@ را نگه دارید",
+        holdCloseHUDFormat: "برای بستن %@ را نگه دارید",
+        doubleQuitHUDFormat: "برای خروج %@ را دوباره بزنید",
+        doubleCloseHUDFormat: "برای بستن %@ را دوباره بزنید",
+        extraQuitHUDFormat: "برای خروج از %@ استفاده کنید",
+        extraCloseHUDFormat: "برای بستن از %@ استفاده کنید",
+        cancelHint: "Esc لغو می‌کند",
+        releaseHint: "برای تأیید رها کنید",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control")

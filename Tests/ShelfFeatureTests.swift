@@ -918,7 +918,7 @@ enum ShelfFeatureTests {
                && AppLanguage.uk.countAgreement == .byLastDigits
                && AppLanguage.sk.countAgreement == .byWholeNumber
                && AppLanguage.ar.countAgreement == .byLastTwoDigits,
-               "Russian, Slovak, Ukrainian and Arabic are the four languages of the sixteen that ask for the middle form, each by its own rule")
+               "Russian, Slovak, Ukrainian and Arabic are the four languages of the seventeen that ask for the middle form, each by its own rule")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",

@@ -54,6 +54,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -569,4 +570,35 @@ extension FeedbackStrings {
         commandSubtitle: "إرسال ملاحظة",
         diagnosticsChannelLabel: "قناة التحديث"
     )
+
+    static let fa = FeedbackStrings(
+        sectionTitle: "بازخورد",
+        sectionCaption: "گزارش اشکال یا ایدهٔ قابلیت را مستقیم برای فردی که Vorssaint را نگه‌داری می‌کند بفرستید.",
+        openButton: "ارسال بازخورد",
+        windowTitle: "ارسال بازخورد",
+        bugTitle: "اشکال",
+        featureTitle: "ایدهٔ قابلیت",
+        messageLabel: "چه چیزی را می‌خواهید به اشتراک بگذارید؟",
+        bugPlaceholder: "بگویید چه شد و چه انتظاری داشتید.",
+        featurePlaceholder: "ایده را شرح دهید و بگویید چگونه کمک می‌کند.",
+        charactersFormat: "%d از 2000 نویسه",
+        includeDiagnostics: "شامل جزئیات فنی",
+        includeDiagnosticsCaption: "فقط جزئیات فنی نشان‌داده‌شده در زیر را اضافه می‌کند. گزارش‌ها را شامل نمی‌شود.",
+        whatSentTitle: "چه چیزی ارسال می‌شود",
+        whatSentBasic: "دستهٔ انتخابی شما و متن بالا.",
+        whatSentDiagnostics: "جزئیات فنی فهرست‌شده در زیر.",
+        privacyNote: "نام، حساب، ایمیل، شناسهٔ دستگاه، گزارش‌ها، اسکرین‌شات‌ها، فایل‌ها یا محتوای کلیپ‌بورد شامل نمی‌شوند. IP عمومی شما موقتاً برای محافظت در برابر سوءاستفاده پردازش می‌شود و به بازخورد ضمیمه نمی‌شود.",
+        retentionNote: "پس از تحویل، متن در کانال‌های پشتیبانی خصوصی می‌ماند تا مالک سرویس آن را پاک کند. نسخهٔ تحویل‌نشده پس از 7 روز برای همیشه پاک می‌شود.",
+        sendButton: "ارسال بازخورد",
+        sending: "در حال ارسال…",
+        sentTitle: "بازخورد ارسال شد",
+        sentCaption: "ممنون. هیچ اطلاعات تماسی ارسال نشد، پس پاسخ مستقیمی دریافت نخواهید کرد.",
+        unavailableError: "اتصال برقرار نشد. اتصال اینترنت خود را بررسی کنید و دوباره امتحان کنید.",
+        rateLimitError: "ارسال‌های بیش از حد از این شبکه. لطفاً بعداً دوباره امتحان کنید.",
+        genericError: "اکنون ارسال بازخورد ممکن نشد.",
+        done: "انجام شد",
+        commandBug: "گزارش اشکال",
+        commandFeature: "پیشنهاد قابلیت",
+        commandSubtitle: "ارسال بازخورد",
+        diagnosticsChannelLabel: "کانال به‌روزرسانی")
 }

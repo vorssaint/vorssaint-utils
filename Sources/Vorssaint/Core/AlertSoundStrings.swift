@@ -99,7 +99,7 @@ enum AlertSoundStrings {
 
         // Apple's AlertSounds localization data keeps the English
         // display names for these locales.
-        case .ja, .ko, .zhHans, .zhTW, .zhHK:
+        case .ja, .ko, .zhHans, .zhTW, .zhHK, .fa:
             return english
         }
     }

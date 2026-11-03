@@ -37,6 +37,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -249,4 +250,16 @@ extension SettingsPageStrings {
         switcherLayoutIcons: "أيقونات كبيرة",
         switcherLayoutSimple: "قائمة بسيطة"
     )
+
+    static let fa = SettingsPageStrings(
+        energyDescription: "مک را بیدار نگه دارید، نمایشگرهایتان را کنترل کنید و باتری ذخیره کنید.",
+        monitorDescription: "آنچه نوار منو و پنل دربارهٔ مک شما نشان می‌دهند، و زمان هشدار دادن به شما.",
+        mouseDescription: "به چرخ، دکمه‌های کناری و ترک‌پد کارهای تازه بدهید.",
+        switcherDescription: "بین برنامه‌ها و پنجره‌ها به شیوهٔ خودتان جابه‌جا شوید.",
+        dockTitle: "داک",
+        dockDescription: "پنجره‌های یک برنامه را از نماد داکش ببینید و انتخاب کنید کلیک روی آن چه بکند.",
+        switcherLayoutWindows: "پیش‌نمایش پنجره‌ها",
+        switcherLayoutWindowsCaption: "یک پیش‌نمایش برای هر پنجره، از جمله پنجره‌های کوچک‌شده.",
+        switcherLayoutIcons: "نمادهای بزرگ",
+        switcherLayoutSimple: "فهرست ساده")
 }

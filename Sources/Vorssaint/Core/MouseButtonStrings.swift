@@ -62,6 +62,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -640,4 +641,39 @@ extension MouseButtonFeatureStrings {
         spacesCaptureExists: "هذا الزر له اختصار أصلًا. اختر زرًا آخر.",
         spacesFollowsDragLabel: "المسافات تتبع السحب",
         spacesFollowsDragCaption: "السحب يمينًا يجلب المسافة التي على اليسار، تمامًا كما تحملها إيماءة لوحة التعقب مع أصابعك.")
+
+    static let fa = MouseButtonFeatureStrings(
+        pageTitle: "میان‌بُرهای دکمه‌های ماوس",
+        hubDescription: "دکمه‌های اضافی و جهت‌های چرخ کناری ترکیب کلیدی را که انتخاب می‌کنید فشار می‌دهند.",
+        enableLabel: "استفاده از دکمه‌های اضافی به‌عنوان میان‌بر",
+        enableCaption: "هر دکمهٔ اضافی یا جهت چرخ کناری می‌تواند به‌جای شما یک ترکیب کلید بزند. تا وقتی میان‌بر دارد، کاری را که قبلاً می‌کرد دیگر نمی‌کند.",
+        addButton: "افزودن دکمه یا چرخ کناری",
+        captureWaiting: "اکنون یک دکمهٔ اضافی را فشار دهید یا چرخ کناری را حرکت دهید.",
+        captureCancel: "لغو",
+        captureBlind: "Vorssaint اکنون نمی‌تواند ماوس را زیر نظر بگیرد.",
+        captureUnsupported: "این ورودی نمی‌تواند میان‌بر بگیرد. یک دکمهٔ اضافی یا یک جهت چرخ کناری به کار ببرید.",
+        captureWheel: "آن دکمه از قبل منوی حلقوی را باز می‌کند. دکمهٔ دیگری انتخاب کنید، یا ابتدا آن را آنجا آزاد کنید.",
+        captureExists: "آن دکمه یا جهت از قبل در فهرست زیر هست.",
+        captureHint: "اگر اتفاقی نیفتاد، ممکن است نرم‌افزار خود ماوس شما از قبل از آن کنترل استفاده کند.",
+        middleButtonName: "دکمهٔ وسط",
+        backButtonName: "دکمهٔ کناری عقب",
+        forwardButtonName: "دکمهٔ کناری جلو",
+        otherButtonFormat: "دکمهٔ %d",
+        setShortcutButton: "تعیین میان‌بر",
+        removeButton: "حذف",
+        emptyCaption: "هنوز میان‌بری نیست. یک دکمه یا جهت چرخ کناری اضافه کنید.",
+        rowWheelNote: "این دکمه اکنون منوی حلقوی را باز می‌کند، پس میان‌بر منتظر می‌ماند.",
+        manageButton: "تنظیم…",
+        panelCaption: "دکمه‌های اضافی و جهت‌های چرخ کناری ترکیب کلیدهایی را که انتخاب می‌کنید فشار می‌دهند.",
+        sideWheelLeftName: "چرخ کناری به چپ",
+        sideWheelRightName: "چرخ کناری به راست",
+        spacesEnableLabel: "تعویض Spaceها با کشیدن یک دکمه",
+        spacesEnableCaption: "دکمهٔ انتخاب‌شده را نگه دارید و بکشید: چپ یا راست یک Space جابه‌جا می‌کند، بالا Mission Control را باز می‌کند، پایین App Exposé را باز می‌کند. یک کلیک کوتاه همچنان کاری را که همیشه می‌کرد می‌کند.",
+        spacesPickButton: "انتخاب یک دکمه",
+        spacesShortcutsOffNote: "میان‌بُرهای صفحه‌کلید Mission Control در تنظیمات سیستم خاموش‌اند، پس این ژست چیزی برای درخواست ندارد.",
+        spacesCaptureWaiting: "اکنون دکمهٔ وسط یا یک دکمهٔ اضافی را فشار دهید.",
+        spacesCaptureUnsupported: "این ورودی را نمی‌توان برای کشیدن نگه داشت. از دکمهٔ وسط یا یک دکمهٔ اضافی استفاده کنید.",
+        spacesCaptureExists: "آن دکمه از قبل میان‌بر دارد. دکمهٔ دیگری انتخاب کنید.",
+        spacesFollowsDragLabel: "Spaceها دنبال کشیدن می‌آیند",
+        spacesFollowsDragCaption: "کشیدن به راست، Space سمت چپ را می‌آورد، همان‌طور که کشیدن با ترک‌پد آن را با انگشتانتان می‌آورد.")
 }

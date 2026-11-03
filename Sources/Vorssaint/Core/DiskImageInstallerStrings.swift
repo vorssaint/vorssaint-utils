@@ -45,6 +45,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -415,4 +416,26 @@ extension DiskImageInstallerStrings {
         revealAppOption: "إظهار التطبيق المثبّت في فايندر",
         installedKeptDownloadBodyFormat: "%@ جاهز في %@. أُخرجت صورة القرص وأُبقي على ملف تنزيلها.",
         installingFormat: "جارٍ تثبيت %@…")
+
+    static let fa = DiskImageInstallerStrings(
+        title: "نصب‌کنندهٔ دیسک‌ایمیج",
+        hubDescription: "تنها برنامهٔ داخل یک دیسک‌ایمیج را نصب کنید و دانلود را پاک‌سازی کنید",
+        useUserApplications: "نصب در پوشهٔ Applications داخل پوشهٔ خانگی شما",
+        applicationsFolder: "پوشهٔ Applications",
+        userApplicationsFolder: "پوشهٔ Applications داخل پوشهٔ خانگی شما",
+        promptTitle: "این برنامه نصب شود؟",
+        promptBodyFormat: "%@ در %@ کپی می‌شود و دیسک‌ایمیج بیرون داده می‌شود.",
+        installButton: "نصب",
+        installedTitle: "برنامه نصب شد",
+        installedBodyFormat: "%@ در %@ آماده است. دیسک‌ایمیج بیرون داده شد و دانلودش به سطل زباله رفت.",
+        installedKeepingMountBodyFormat: "%@ در %@ نصب شد، اما دیسک‌ایمیج بیرون داده نشد. دانلودش نگه داشته شد.",
+        installedKeepingDownloadBodyFormat: "%@ در %@ نصب شد و دیسک‌ایمیج بیرون داده شد، اما دانلودش به سطل زباله نرفت.",
+        failedTitle: "نصب نشد",
+        failedBody: "چیزی تغییر نکرد. همچنان می‌توانید برنامه را به Applications بکشید.",
+        verificationFailedBody: "این مک نتوانست برنامه را تأیید کند، پس چیزی نصب نشد.",
+        alreadyInstalledBodyFormat: "%@ از قبل در Applications است.",
+        trashDownloadOption: "انتقال دانلود به سطل زباله",
+        revealAppOption: "نمایش برنامهٔ نصب‌شده در Finder",
+        installedKeptDownloadBodyFormat: "%@ در %@ آماده است. دیسک‌ایمیج بیرون داده شد و دانلودش نگه داشته شد.",
+        installingFormat: "در حال نصب %@…")
 }

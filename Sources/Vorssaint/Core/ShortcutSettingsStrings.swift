@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -127,4 +128,9 @@ extension ShortcutSettingsStrings {
         inactive: "غير مفعّل",
         superKeyAlternativeFormat: "أو %@"
     )
+
+    static let fa = ShortcutSettingsStrings(
+        active: "فعال",
+        inactive: "غیرفعال",
+        superKeyAlternativeFormat: "یا %@")
 }

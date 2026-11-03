@@ -80,6 +80,7 @@ struct MediaImageConverterStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -1041,5 +1042,64 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "الصور المحفوظة: %d",
         batchPartialFormat: "المحفوظة: %d، والفاشلة: %d",
         batchSummaryHeaderFormat: "المحفوظة: %d، والفاشلة: %d",
+        batchSummaryItemFormat: "%@ -> %@")
+
+    static let fa = MediaImageConverterStrings(
+        filesSelectedFormat: "%d فایل انتخاب شد",
+        profile: "نمایه",
+        noProfile: "بدون نمایه",
+        profileName: "نام نمایه",
+        saveAsNew: "ذخیرهٔ جدید",
+        updateProfile: "به‌روزرسانی",
+        deleteProfile: "حذف نمایه",
+        profileModified: "تغییریافته",
+        profileDefaultNameFormat: "نمایهٔ %d",
+        presetWeb: "وب",
+        presetSocial: "شبکه‌های اجتماعی",
+        presetDocs: "اسناد",
+        resize: "تغییر اندازه",
+        resizeNone: "بدون تغییر",
+        resizeMax: "بلندترین ضلع",
+        resizeWidth: "عرض",
+        resizeHeight: "ارتفاع",
+        resizeExact: "دلخواه",
+        exactStretch: "کشیده",
+        exactFit: "جا شدن",
+        exactFill: "پر کردن",
+        height: "ارتفاع",
+        watermark: "واترمارک",
+        watermarkOff: "خاموش",
+        watermarkText: "متن",
+        watermarkLogo: "لوگو",
+        watermarkBoth: "متن + لوگو",
+        watermarkTextPlaceholder: "متن واترمارک",
+        noLogo: "بدون لوگو",
+        chooseLogo: "انتخاب لوگو",
+        position: "جایگاه",
+        topLeft: "بالا چپ",
+        topRight: "بالا راست",
+        center: "وسط",
+        bottomLeft: "پایین چپ",
+        bottomRight: "پایین راست",
+        opacity: "کدری",
+        margin: "حاشیه",
+        scale: "مقیاس",
+        rename: "تغییر نام",
+        preview: "پیش‌نمایش",
+        outputName: "خروجی",
+        background: "پس‌زمینه",
+        backgroundTransparent: "شفاف",
+        backgroundWhite: "سفید",
+        backgroundBlack: "سیاه",
+        preserveDate: "حفظ تاریخ اصلاح اصلی",
+        saveInSubfolder: "ذخیره در زیرپوشهٔ “Converted”",
+        moreOptions: "گزینه‌های بیشتر",
+        tooLarge: "این ابعاد برای پردازش ایمن بسیار بزرگ‌اند. اندازهٔ کوچک‌تری انتخاب کنید.",
+        copySummary: "کپی خلاصه",
+        savedBytesFormat: "%@ صرفه‌جویی",
+        grewBytesFormat: "%@ بزرگ‌تر",
+        batchSavedFormat: "%d تصویر ذخیره شد",
+        batchPartialFormat: "%d ذخیره شد، %d ناموفق",
+        batchSummaryHeaderFormat: "%d ذخیره شد، %d ناموفق",
         batchSummaryItemFormat: "%@ -> %@")
 }

@@ -22,6 +22,7 @@ struct GraphScaleStrings {
         case .zhTW: return .init(title: "顯示圖表上限")
         case .zhHK: return .init(title: "顯示圖表上限")
         case .ar: return .init(title: "إظهار مقياس الرسوم البيانية")
+        case .fa: return .init(title: "نمایش مقیاس نمودار")
         }
     }
 }

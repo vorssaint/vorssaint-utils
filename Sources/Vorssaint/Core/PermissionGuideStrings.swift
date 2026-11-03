@@ -42,6 +42,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -254,4 +255,16 @@ extension PermissionGuideStrings {
         staleHint: "مفعّل أصلًا في تلك القائمة؟ ذلك المدخل يخص نسخة أقدم من التطبيق. ابدأ من جديد لاستبداله.",
         startOver: "البدء من جديد",
         relaunch: "أعِد التشغيل للتطبيق")
+
+    static let fa = PermissionGuideStrings(
+        title: "یک گام مانده",
+        stepOpen: "macOS تنظیمات سیستم را روی فهرست درست باز کرد.",
+        stepToggle: "Vorssaint را در آن فهرست روشن کنید.",
+        stepReturn: "برگردید. این کارت خودش متوجه می‌شود.",
+        waiting: "در انتظار مجوز…",
+        granted: "مجوز داده شد!",
+        closeHelp: "بستن",
+        staleHint: "از قبل در آن فهرست روشن است؟ آن مورد به نسخهٔ قبلی برنامه تعلق دارد. برای جایگزینی از نو شروع کنید.",
+        startOver: "از نو شروع کنید",
+        relaunch: "راه‌اندازی دوباره برای اعمال")
 }

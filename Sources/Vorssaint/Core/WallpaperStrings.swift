@@ -50,6 +50,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -468,4 +469,29 @@ extension WallpaperFeatureStrings {
         previousPage: "السابق",
         nextPage: "التالي"
     )
+
+    static let fa = WallpaperFeatureStrings(
+        pageTitle: "تصویر زمینه",
+        hubDescription: "بدون باز کردن تنظیمات سیستم یک تصویر زمینهٔ ثابت انتخاب کنید",
+        panelDescription: "بدون باز کردن تنظیمات سیستم یک تصویر زمینهٔ ثابت انتخاب کنید.",
+        filterAll: "همه",
+        filterOwn: "تصاویر شما",
+        filterApple: "Apple",
+        applyAllDisplays: "نمایش در همهٔ Spaceها",
+        addImage: "افزودن تصویر",
+        addFolder: "افزودن پوشه",
+        removeAdded: "حذف",
+        doneRemoving: "انجام شد",
+        sourceUnavailable: "در دسترس نیست",
+        addImagePrompt: "تصاویری را انتخاب کنید که در فهرست تصویر زمینهٔ Vorssaint بمانند",
+        addFolderPrompt: "پوشه‌ای از تصاویر را انتخاب کنید که در فهرست تصویر زمینهٔ Vorssaint بماند",
+        openSystemSettings: "باز کردن تنظیمات تصویر زمینه",
+        emptyAll: "تصویر زمینه‌ای پیدا نشد",
+        emptyOwn: "هنوز تصویری اضافه نشده",
+        emptyApple: "تصویر ثابتی از Apple پیدا نشد",
+        downloading: "در حال دانلود…",
+        downloadFailed: "تصویر زمینه دانلود نشد",
+        applyFailed: "تصویر زمینه تنظیم نشد",
+        previousPage: "قبلی",
+        nextPage: "بعدی")
 }

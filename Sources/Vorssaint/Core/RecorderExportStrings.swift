@@ -77,6 +77,10 @@ extension FeatureStrings {
             return RecorderExportStrings(
                 speed: "سرعة التصدير", custom: "سرعة مخصصة", duration: "مدة التصدير",
                 previewNote: "ينطبق على الفيديو وGIF والروابط المشتركة. وتبقى معاينة التحرير بسرعة ×1، ولا يتغير التسجيل الأصلي.")
+        case .fa:
+            return RecorderExportStrings(
+                speed: "سرعت خروجی", custom: "سرعت دلخواه", duration: "مدت خروجی",
+                previewNote: "برای ویدیو، GIF و پیوندهای هم‌رسانی‌شده اعمال می‌شود. پیش‌نمایش ویرایش روی 1× می‌ماند؛ ضبط اصلی تغییر نمی‌کند.")
         }
     }
 }

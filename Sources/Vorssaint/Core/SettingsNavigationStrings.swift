@@ -55,6 +55,8 @@ struct SettingsNavigationStrings {
                         showSidebar: "顯示側邊欄", hideSidebar: "隱藏側邊欄")
         case .ar: return Self(go: "انتقال", back: "رجوع", forward: "تقدّم",
                               showSidebar: "إظهار الشريط الجانبي", hideSidebar: "إخفاء الشريط الجانبي")
+        case .fa: return Self(go: "رفتن", back: "عقب", forward: "جلو",
+                              showSidebar: "نمایش نوار کناری", hideSidebar: "پنهان کردن نوار کناری")
         }
     }
 }

@@ -53,6 +53,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -521,4 +522,32 @@ extension GeneralSettingsStrings {
         sectionControls: "مفاتيح مزايا الماوس ولوحة المفاتيح والنوافذ.",
         sectionToggles: "إجراءات بنقرة واحدة مثل الوضع الداكن وكتم الميكروفون."
     )
+
+    static let fa = GeneralSettingsStrings(
+        pageDescription: "چگونه Vorssaint شروع می‌شود، چه ظاهری دارد و پنل نوار منویش چه چیزی نشان می‌دهد.",
+        appearanceCaption: "برای پنجره‌ها و پنل‌های خود Vorssaint اعمال می‌شود، نه کل مک.",
+        launchAtLoginCaption: "هر بار که مک را روشن می‌کنید خودش باز می‌شود.",
+        liquidGlassCaption: "پنل‌های شفاف و شیشه‌مانند.",
+        liquidGlassOtherWindows: "پنجره‌ها و پنل‌های دیگر",
+        panelIntro: "برای باز کردن پنل روی نماد Vorssaint در نوار منو کلیک کنید. زبانه‌های آن با این ترتیب ظاهر می‌شوند.",
+        panelReorderHint: "برای تغییر ترتیب بکشید. هر چه لازم ندارید را خاموش کنید.",
+        menuBarIconTitle: "نماد نوار منو",
+        menuBarIconCaption: "نمادی را که Vorssaint در نوار منو نشان می‌دهد انتخاب کنید.",
+        menuBarIconOther: "نماد دیگر",
+        menuBarIconOtherCaption: "نام هر SF Symbol را تایپ کنید. برای استفاده از نماد Vorssaint خالی بگذارید.",
+        menuBarIconUnknown: "این مک نمادی با آن نام ندارد.",
+        menuBarIconReset: "استفاده از نماد Vorssaint",
+        iconMissingTitle: "نماد را پیدا نمی‌کنید؟",
+        iconMissingCaption: "نوار منوی شلوغ می‌تواند آن را پنهان کند، به‌ویژه در مک‌های دارای ناچ.",
+        sectionKeepAwake: "مک شما را هر مدتی که بخواهید بیدار نگه می‌دارد.",
+        sectionDisplays: "روشنایی نمایشگرهای شما.",
+        sectionMixer: "صدای هر برنامه، با یک لغزندهٔ مستقل.",
+        sectionSystem: "پردازنده، گرافیک و حافظه در یک نگاه.",
+        sectionNetwork: "سرعت اینترنت و برنامه‌هایی که از آن استفاده می‌کنند.",
+        sectionDisks: "فضای آزاد و فعالیت دیسک.",
+        sectionPower: "باتری، شارژ و مصرف توان.",
+        sectionFanControl: "سرعت فن‌ها و منحنی فن دلخواه شما.",
+        sectionUtilities: "اسکرین‌شات، پاک‌کننده، به‌روزرسانی‌ها و ابزارهای دیگر.",
+        sectionControls: "کلیدهای ماوس، صفحه‌کلید و قابلیت‌های پنجره.",
+        sectionToggles: "کنش‌های تک‌کلیکی مانند حالت تاریک و بی‌صدا کردن میکروفون.")
 }

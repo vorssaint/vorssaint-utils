@@ -237,6 +237,20 @@ extension FeatureStrings {
                 skipPreviewCheckbox: "عدم إظهار الجديد قبل التحديث",
                 showPreviewToggle: "إظهار الجديد قبل التحديث",
                 showPreviewCaption: "يظل ما تغيّر في مزاياك يظهر بعد كل تحديث.")
+        case .fa:
+            return WhatsNewStrings(
+                updatedFromFormat: "به‌روزرسانی از %@",
+                newFeatures: "قابلیت‌های جدید",
+                yourFeatures: "قابلیت‌های شما",
+                notInstalled: "نصب‌نشده",
+                kindNew: "جدید",
+                kindChanged: "تغییریافته",
+                kindFixed: "رفع‌شده",
+                updated: "به‌روزرسانی‌شده",
+                chooseFeatureHint: "قابلیتی را انتخاب کنید تا ببینید چه چیزی در آن تغییر کرده است.",
+                skipPreviewCheckbox: "پیش از به‌روزرسانی تازه‌ها را نشان نده",
+                showPreviewToggle: "نمایش تازه‌ها پیش از به‌روزرسانی",
+                showPreviewCaption: "آنچه در قابلیت‌های شما تغییر کرده همچنان پس از هر به‌روزرسانی ظاهر می‌شود.")
         }
     }
 }

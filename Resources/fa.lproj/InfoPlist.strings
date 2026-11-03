@@ -1,0 +1,26 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint از خودکارسازی برای انتقال فایل‌ها، بردن موارد به سطل زباله، باز کردن فرمان‌های درخواستی و کنترل پخش در برنامه‌های رسانهٔ شما استفاده می‌کند.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint از صدای هر برنامه برای تنظیم میزان صدای آن در میکسر، برای حرکت دادن نوارهای موسیقی Dynamic Island و برای گنجاندن صدای مک در ضبط‌های صفحه‌ای که شما آغاز می‌کنید استفاده می‌کند. چیزی مک شما را ترک نمی‌کند.";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint از بلوتوث فقط برای خواندن سطح باتری لوازم جانبی متصل استفاده می‌کند. چیزی مک شما را ترک نمی‌کند.";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Vorssaint میکروفون شما را فقط وقتی ضبط می‌کند که آن را برای ضبط صفحه روشن کنید. صدا روی مک شما می‌ماند، مگر اینکه ساختن پیوند موقت را انتخاب کنید.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint دوربین شما را فقط در پنجرهٔ پیش‌نمایشی که باز می‌کنید نشان می‌دهد، تا پیش از تماس ببینید چه شکلی هستید. چیزی ضبط نمی‌شود و از مک شما خارج نمی‌شود.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint فراداده‌های محلی Downloads را فقط برای بررسی، سازمان‌دهی یا بردن فایل‌های WhatsApp تأییدشده‌ای که انتخاب می‌کنید به سطل زباله بررسی می‌کند. پاک‌کننده نیز وقتی اسکرین‌شات‌ها را اینجا ذخیره می‌کنید، اسکرین‌شات‌های فراموش‌شده را جست‌وجو می‌کند.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint فایل‌های WhatsApp تأییدشده را در پوشهٔ مقصدی که صراحتاً انتخاب می‌کنید سازمان‌دهی می‌کند. پاک‌کننده نیز وقتی اسکرین‌شات‌ها را اینجا ذخیره می‌کنید، اسکرین‌شات‌های فراموش‌شده را جست‌وجو می‌کند.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint فایل‌های WhatsApp تأییدشده را در پوشهٔ مقصدی که صراحتاً انتخاب می‌کنید سازمان‌دهی می‌کند. پاک‌کننده نیز وقتی اسکرین‌شات‌ها را اینجا ذخیره می‌کنید، اسکرین‌شات‌های فراموش‌شده را جست‌وجو می‌کند.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint فایل‌های WhatsApp تأییدشده را در پوشهٔ مقصدی که صراحتاً انتخاب می‌کنید سازمان‌دهی می‌کند. پاک‌کننده نیز وقتی اسکرین‌شات‌ها را اینجا ذخیره می‌کنید، اسکرین‌شات‌های فراموش‌شده را جست‌وجو می‌کند.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint فایل‌های WhatsApp تأییدشده را در پوشهٔ مقصدی که صراحتاً انتخاب می‌کنید سازمان‌دهی می‌کند. پاک‌کننده نیز وقتی اسکرین‌شات‌ها را اینجا ذخیره می‌کنید، اسکرین‌شات‌های فراموش‌شده را جست‌وجو می‌کند.";
+
+/* macOS Calendar permission prompt. */
+"NSCalendarsFullAccessUsageDescription" = "قرارهای پیش‌روی شما را در ناچ نشان می‌دهد. رویدادهای تقویم روی این مک می‌مانند.";

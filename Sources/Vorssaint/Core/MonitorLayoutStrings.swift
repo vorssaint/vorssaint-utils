@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -114,4 +115,8 @@ extension MonitorLayoutFeatureStrings {
         shared: "القراءات والتنبيهات",
         networkSpeedUnit: "وحدة سرعة الشبكة"
     )
+
+    static let fa = MonitorLayoutFeatureStrings(
+        shared: "خوانش‌ها و هشدارها",
+        networkSpeedUnit: "واحد سرعت شبکه")
 }

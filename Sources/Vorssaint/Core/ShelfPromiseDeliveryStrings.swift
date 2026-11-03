@@ -117,6 +117,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "الرف ممتلئ",
                 fullBody: "أكمل المرفق حفظه لكن لم تبقَ مساحة على الرف.",
                 okButton: "موافق")
+        case .fa:
+            return .init(
+                failedTitle: "پیوست اضافه نشد",
+                failedBody: "ذخیرهٔ فایل در قفسه هرگز تمام نشد.",
+                fullTitle: "قفسه پر است",
+                fullBody: "ذخیرهٔ پیوست تمام شد اما جایی در قفسه نمانده است.",
+                okButton: "تأیید")
         }
     }
 }

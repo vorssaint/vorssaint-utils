@@ -77,6 +77,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -943,4 +944,57 @@ extension AppUpdateStrings {
         noVisibleUpdates: "لا تحديثات خارج قواعدك",
         uncomparableVersions: "إصدارات لا تُقارن",
         uncomparableVersionsNote: "لا يظهر تحديث حين يتعذّر مقارنة إصدار التطبيق نفسه بالكتالوج. تحقق من التحديثات داخل التطبيق نفسه.")
+
+    static let fa = AppUpdateStrings(
+        pageTitle: "به‌روزرسانی برنامه‌ها",
+        hubDescription: "به‌روزرسانی‌های برنامه‌هایی را که دارید پیدا و نصب کنید",
+        caption: "نسخه‌های جدیدتر برنامه‌های این مک را پیدا می‌کند و کمک می‌کند هر به‌روزرسانی را از منبع اصلی‌اش تمام کنید.",
+        panelCaption: "ببینید کدام برنامه‌ها نسخهٔ جدیدتری دارند",
+        checkNow: "اکنون بررسی کن",
+        checking: "در حال بررسی",
+        lastCheckFormat: "آخرین بررسی %@",
+        neverChecked: "هنوز بررسی نشده",
+        upToDate: "به‌روزرسانی‌ای پیدا نشد",
+        partialUpToDate: "در این بررسی ناقص به‌روزرسانی‌ای پیدا نشد",
+        coverageNote: "منابع اصلی برنامه‌های نصب‌شده و یک فهرست عمومی را بررسی می‌کند. به‌روزرسانی‌ها از منبع اصلی‌شان نصب می‌شوند.",
+        selectAll: "انتخاب همه",
+        clearSelection: "پاک کردن",
+        updateSelectedFormat: "به‌روزرسانی %d",
+        updateOne: "به‌روزرسانی",
+        openAppStore: "باز کردن App Store",
+        appStoreBadge: "App Store",
+        storeHint: "App Store را باز می‌کند، جایی که این به‌روزرسانی نصب می‌شود",
+        frequencyLabel: "بررسی در پس‌زمینه",
+        frequencyOff: "خاموش",
+        frequencyDaily: "هر روز",
+        frequencyWeekly: "هر هفته",
+        nextCheckFormat: "بررسی بعدی %@",
+        notifyToggle: "وقتی برنامه‌ای به‌روزرسانی دارد خبرم کن",
+        includeStoreToggle: "شامل برنامه‌های App Store",
+        includeStoreCaption: "نسخه‌های فروشگاه را با منطقهٔ این مک بررسی می‌کند. Apple این به‌روزرسانی‌ها را نصب می‌کند.",
+        packageMissing: "Homebrew نصب نیست، پس هنوز نمی‌توان برنامه‌ها را از اینجا به‌روزرسانی کرد.",
+        notificationBodyFormat: "برنامه‌های دارای نسخهٔ جدیدتر: %@",
+        notificationBodyOne: "یک برنامه نسخهٔ جدیدتری دارد.",
+        showInPanel: "نمایش در پنل",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "منابع",
+        includeHomebrewToggle: "شامل برنامه‌های Homebrew",
+        onlineBadge: "آنلاین",
+        openApp: "باز کردن",
+        openAppHint: "برنامه را باز می‌کند تا به‌روزرسان خودش کار را تمام کند",
+        includeOnlineToggle: "شامل سایر برنامه‌های نصب‌شده",
+        includeOnlineCaption: "در صورت پشتیبانی مستقیم از توسعه‌دهندگان برنامه‌ها بررسی می‌کند، سپس از یک فهرست عمومی استفاده می‌کند. به‌روزرسان خود برنامه به‌روزرسانی را نصب می‌کند.",
+        incompleteCheck: "بررسی ناقص",
+        onlineUnavailable: "بررسی آنلاین کامل نشد. نتایج دیگر همچنان نشان داده می‌شوند.",
+        skipVersionFormat: "رد کردن نسخهٔ %@",
+        excludeApp: "این برنامه را بررسی نکن",
+        rulesTitle: "استثناهای به‌روزرسانی",
+        addException: "افزودن برنامه‌ای که نباید بررسی شود",
+        skippedVersionFormat: "نسخهٔ %@ رد شد",
+        excludedApp: "تا زمانی که این قاعده حذف نشود بررسی نمی‌شود",
+        removeRule: "حذف",
+        rulesHint: "رد کردن یک نسخه همچنان اجازهٔ انتشارهای جدیدتر را می‌دهد. پس از حذف استثنای یک برنامه، برای تازه‌سازی آن از “اکنون بررسی کن” استفاده کنید.",
+        noVisibleUpdates: "به‌روزرسانی‌ای خارج از قواعد شما نیست",
+        uncomparableVersions: "نسخه‌های مقایسه‌نشده",
+        uncomparableVersionsNote: "وقتی نسخهٔ خود برنامه با فهرست قابل مقایسه نباشد، به‌روزرسانی‌ای نشان داده نمی‌شود. به‌روزرسانی‌ها را در خود برنامه بررسی کنید.")
 }
