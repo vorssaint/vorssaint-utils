@@ -44,8 +44,9 @@ final class RecorderGIFWriter {
         guard (1...100).contains(fps), framesPerChunk > 0 else { throw Failure.invalidFrame }
         self.fps = fps
         chunkLength = framesPerChunk
-        guard FileManager.default.createFile(atPath: url.path, contents: nil,
-                                            attributes: [.posixPermissions: 0o600]) else {
+        // The scratch folder is private. The file keeps the ordinary mode, so
+        // the saved copy can be shared like any other export.
+        guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
             throw CocoaError(.fileWriteUnknown)
         }
         file = try FileHandle(forWritingTo: url)

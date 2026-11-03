@@ -79,6 +79,9 @@ final class ClipboardHistoryService: ObservableObject {
     /// skips it until the editor lets go; the next trim then applies as usual.
     var editingEntryID: UUID?
     private var lastChangeCount = 0
+    /// Only an explicitly temporary write can make the previous clipboard's
+    /// return silent. Ordinary copies never establish a pending restore.
+    private var pendingRestore: (previous: ClipboardHistoryEntry, at: Date)?
     /// The poll reads the pasteboard off the main thread: while a password
     /// prompt is up the pasteboard server can take seconds to answer, and a
     /// blocked main thread stalls every event tap with it, so typing freezes
@@ -677,6 +680,7 @@ final class ClipboardHistoryService: ObservableObject {
         isRunning = false
         ClipboardIgnoredApps.shared.setHistoryRunning(false)
         captureState.invalidate()
+        pendingRestore = nil
         // Otherwise the last known copy keeps showing in the menu bar preview
         // for the moment between history starting to watch again and the
         // baseline check actually answering, instead of going blank right
@@ -686,6 +690,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     /// What the background pasteboard read hands back to the main thread.
     private enum CapturedContent {
+        case transient
         case files([String])
         case image((data: Data, width: Int, height: Int))
         case text(String)
@@ -748,17 +753,43 @@ final class ClipboardHistoryService: ObservableObject {
                 read: result.changeCount, since: sinceChangeCount, last: self.lastChangeCount
             ) else { return }
             self.lastChangeCount = accepted
+            // A restarted pasteboard server cannot finish an old restore.
+            let advanced = result.changeCount > sinceChangeCount
+            let previous = advanced ? self.latestPasteboardEntry : nil
+            let pending = advanced ? self.pendingRestore : nil
+            self.pendingRestore = nil
             // The pasteboard changed to something this check is about to
             // decide not to record (an ignored app, a concealed/secret copy,
             // or an image with the images toggle off): the menu bar preview
             // must not keep advertising the previous entry as still current.
             // A recording path below sets this back.
             self.latestPasteboardEntry = nil
+            if case .transient? = result.content {
+                // A temporary write can span several polls or replacements.
+                // Keep the first deadline instead of extending it indefinitely.
+                self.pendingRestore = previous.map { (previous: $0, at: Date()) } ?? pending
+                return
+            }
             guard !source.excluded, let content = result.content else { return }
             // A copy out of the history's own panel, such as text selected in
             // the preview, is of an entry already there, and its app stays.
             let keepsSource = source.fromHistoryPanel
+            if let pending, let restored = self.matchingEntry(for: content),
+               restored.id == pending.previous.id,
+               ClipboardHistoryPasteRestore.isWithinWindow(capturedAt: pending.at, now: Date()) {
+                // A restored entry still faces today's capture preferences.
+                if case .text(let raw) = content {
+                    let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters,
+                          !(UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText)
+                            && self.looksSensitive(text)) else { return }
+                }
+                self.touch([restored.id])
+                self.latestPasteboardEntry = self.entries.first { $0.id == restored.id }
+                return
+            }
             switch content {
+            case .transient: break
             case .files(let paths): self.promoteFiles(paths, source: source.bundleID, keepsSource: keepsSource)
             case .image(let image): self.promoteImage(image, source: source.bundleID, keepsSource: keepsSource)
             case .text(let text): self.promote(text, source: source.bundleID, keepsSource: keepsSource)
@@ -773,7 +804,10 @@ final class ClipboardHistoryService: ObservableObject {
     /// promoteFiles use to recognize a re-copy of something already saved.
     private func matchingEntry(for content: CapturedContent) -> ClipboardHistoryEntry? {
         switch content {
+        case .transient: return nil
         case .text(let text):
+            // Saved the way promote saves it, without the surrounding space.
+            let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
             return entries.first(where: { $0.kind == .text && $0.text == text })
         case .image(let image):
             let hash = Self.sha256Hex(image.data)
@@ -791,9 +825,11 @@ final class ClipboardHistoryService: ObservableObject {
         // what the apps that keep passwords do when they hand one over. Said
         // that plainly by the app itself, it is taken at its word and the
         // content is never even read, whatever the other options say.
-        if ClipboardHistorySensitiveText.isConcealed((pasteboard.types ?? []).map(\.rawValue)) {
-            return nil
-        }
+        // Content its app is about to take back, which is how a dictation
+        // app types, is no copy either, and is left unread the same way.
+        let types = (pasteboard.types ?? []).map(\.rawValue)
+        if ClipboardHistorySensitiveText.isConcealed(types) { return nil }
+        if ClipboardHistorySensitiveText.isTransient(types) { return .transient }
         // Files first: a Finder copy also carries name strings, and a browser
         // image copy also carries URL text, so richer content wins over its
         // own textual fallbacks.
@@ -1624,13 +1660,13 @@ final class ClipboardHistoryService: ObservableObject {
 /// (UserDefaults would balloon with base64), named by UUID and swept against
 /// the live entry list after every save.
 enum ClipboardImageStore {
-    /// Explicit limits: NSCache only sheds under system memory pressure, so
-    /// without them a history full of screenshots quietly holds every decoded
-    /// thumbnail at once.
+    /// Advisory limits for decoded thumbnails retained between panel uses.
+    /// Visible rows retain their own images; an evicted preview is decoded
+    /// again from disk when needed.
     private static let thumbnails: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 120
-        cache.totalCostLimit = 48 * 1024 * 1024
+        cache.totalCostLimit = 32 * 1024 * 1024
         return cache
     }()
 

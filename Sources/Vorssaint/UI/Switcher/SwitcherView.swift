@@ -15,6 +15,34 @@ private enum SwitcherIconStyle {
     static let thumbnailBackground = Color.primary.opacity(0.055)
 }
 
+/// A panel of the icon row. Those panels float on the desktop on their own
+/// instead of sitting inside one backdrop like the window grid, so each one
+/// draws its own: Liquid Glass when the app's setting asks for it, the solid
+/// surface otherwise.
+private struct SwitcherIconRowSurface: View {
+    let cornerRadius: CGFloat
+    let fill: Color
+    var stroke: Color = SwitcherIconStyle.stroke
+    var contrast: HUDBackdrop.Contrast = .standard
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
+
+    var body: some View {
+        if HUDBackdrop.drawsLiquidGlass(enabled: liquidGlassEnabled, reduceTransparency: reduceTransparency) {
+            // The backdrop draws its own edge.
+            HUDBackdrop(cornerRadius: cornerRadius, contrast: contrast)
+        } else {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(fill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(stroke, lineWidth: 1)
+                )
+        }
+    }
+}
+
 private struct SwitcherHiddenAppBadge: ViewModifier {
     let isHidden: Bool
     let size: CGFloat
@@ -74,6 +102,7 @@ struct SwitcherView: View {
             }
         }
         .padding(SwitcherGrid.padding)
+        .padding(.top, switcher.searchTopInset)
         .background(HUDBackdrop(cornerRadius: 24))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(alignment: .topTrailing) {
@@ -113,8 +142,9 @@ struct SwitcherView: View {
 
     private var iconRowPanel: some View {
         iconRowSwitcher
+            .padding(.top, switcher.searchTopInset)
             .frame(width: iconRowPanelSize.width,
-                   height: iconRowPanelSize.height,
+                   height: iconRowPanelSize.height + switcher.searchTopInset,
                    alignment: .center)
             .overlay(alignment: .topTrailing) {
                 searchChip
@@ -127,26 +157,25 @@ struct SwitcherView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 10, weight: .bold))
+                    .fixedSize()
                 Text(switcher.searchQuery.isEmpty ? l10n.s.switcherSearchPin : switcher.searchQuery)
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(maxWidth: 180)
+                    .frame(minWidth: 0, maxWidth: 180)
                 Text("\(switcher.windows.count)/\(switcher.totalWindowCount)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .fixedSize()
             }
             .foregroundStyle(.primary)
             .padding(.horizontal, 9)
-            .padding(.vertical, 6)
+            .frame(height: SwitcherSearchLayout.chipHeight)
             .background(
-                Capsule(style: .continuous)
-                    // The label is `.primary`, so the chip under it has to turn
-                    // over with the theme too: a fixed dark capsule left black
-                    // text on a dark fill in the light appearance.
-                    .fill(Color.primary.opacity(0.12))
+                SwitcherIconRowSurface(cornerRadius: SwitcherSearchLayout.chipHeight / 2,
+                                       fill: SwitcherIconStyle.surfaceRaised,
+                                       contrast: .high)
             )
-            .padding(12)
+            .padding(SwitcherSearchLayout.edgeInset)
         }
     }
 
@@ -237,7 +266,10 @@ struct SwitcherView: View {
         let windowShortcut = GlobalShortcut(storageValue: switcherWindowShortcutStorage) ?? .switcherWindowDefault
         let hints = SwitcherSupport.shortcutHints(for: shortcut, windowShortcut: windowShortcut)
         return HStack(spacing: 12) {
-            if usesWindowRow {
+            if switcher.sessionScope == .allWindows {
+                shortcutHint(label: FeatureStrings.switcherShortcuts(l10n.language).allWindows,
+                             value: (switcher.sessionShortcut ?? GlobalShortcutRole.switcherAllWindows.savedShortcut).displayString)
+            } else if usesWindowRow {
                 shortcutHint(label: l10n.s.switcherShortcutHintWindows, value: hints.apps)
             } else {
                 shortcutHint(label: l10n.s.switcherShortcutHintApps, value: hints.apps)
@@ -251,12 +283,8 @@ struct SwitcherView: View {
         .frame(width: min(SwitcherIconRowLayout.hintBarWidth, iconRowContentWidth),
                height: SwitcherIconRowLayout.hintHeight)
         .background(
-            Capsule(style: .continuous)
-                .fill(SwitcherIconStyle.surfaceRaised)
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
+            SwitcherIconRowSurface(cornerRadius: SwitcherIconRowLayout.hintHeight / 2,
+                                   fill: SwitcherIconStyle.surfaceRaised)
         )
     }
 
@@ -359,12 +387,9 @@ struct SwitcherView: View {
                 .frame(width: switcher.iconRowLayout.previewSurfaceWidth,
                        height: SwitcherIconRowLayout.previewHeight)
                 .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(SwitcherIconStyle.surfaceRaised)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(minimalPreviews ? Color.clear : SwitcherIconStyle.stroke, lineWidth: 1)
+                    SwitcherIconRowSurface(cornerRadius: 18,
+                                           fill: SwitcherIconStyle.surfaceRaised,
+                                           stroke: minimalPreviews ? Color.clear : SwitcherIconStyle.stroke)
                 )
                 .shadow(color: Color.black.opacity(0.24), radius: 10, x: 0, y: 5)
                 .offset(x: placement.leading)
@@ -452,12 +477,7 @@ struct SwitcherView: View {
                    height: SwitcherIconRowLayout.simpleTitleHeight,
                    alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .fill(SwitcherIconStyle.surfaceRaised)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
+                SwitcherIconRowSurface(cornerRadius: 15, fill: SwitcherIconStyle.surfaceRaised)
             )
             .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 4)
         }
@@ -467,12 +487,7 @@ struct SwitcherView: View {
         iconRow
             .padding(.horizontal, SwitcherIconRowLayout.rowHorizontalPadding)
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(SwitcherIconStyle.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
+                SwitcherIconRowSurface(cornerRadius: 22, fill: SwitcherIconStyle.surface)
             )
             .shadow(color: Color.black.opacity(0.22), radius: 10, x: 0, y: 5)
             .frame(width: switcher.iconRowLayout.appRowSurfaceWidth,

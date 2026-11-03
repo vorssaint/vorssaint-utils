@@ -177,6 +177,7 @@ enum NotchPresentationRefreshContract {
         var captureContentHeight: CGFloat?
         var captureFallback: (() -> Void)?
         var captureClose: (() -> Void)?
+        var captureDismiss: (() -> Void)?
         var captureHover: ((Bool) -> Void)?
         var captureClosesOnCollapse = false
         var routesCaptures = true
@@ -277,6 +278,7 @@ enum NotchPresentationRefreshContract {
         func syncHiddenHoverMonitoring() {}
         func schedulePointerFollow() {}
         func syncMirrors() {}
+        var mirrorHeldForArrival: CGDirectDisplayID?
         func finishMusicDeparture() {
             musicDepartureWork?.cancel(); musicDepartureWork = nil
             departingMusic = nil
@@ -510,6 +512,15 @@ enum NotchPresentationRefreshContract {
         fullscreen.refreshPresentation()
         suite.expect(fullscreen.panel?.isVisible == true && fullscreen.acceptsSystemFeedback,
                      "leaving fullscreen restores ordinary content and feedback routing")
+        let relocatingCapture = Service()
+        relocatingCapture.captureControls = CaptureOptions()
+        relocatingCapture.captureSelectionInProgress = true
+        relocatingCapture.mirrorHeldForArrival = 2
+        relocatingCapture.panel?.isVisible = false
+        relocatingCapture.refreshPresentation(animated: false)
+        suite.expect(relocatingCapture.windowHost?.hideAnimations == [false]
+                     && relocatingCapture.panel?.isVisible == false && !relocatingCapture.edgeClicksEnabled,
+                     "selection during a relocation hides through the host, so a pending arrival cannot reveal controls")
         let countdown = Service()
         countdown.expanded = false
         countdown.compactActivityIsVisible = true
@@ -801,6 +812,23 @@ enum NotchPresentationRefreshContract {
         suite.expect(unseen.panel?.isVisible == true && NotificationCenter.default.restYields == 0,
                      "an activity bringing a hidden island into view finds no companion there to fade out")
         suite.expect(unseen.canHostMascotVisit(), "an activity in view leaves the companion room to visit")
+        // Beside a simulated cutout it draws the activity only once the menus
+        // leave it room, and waits out of sight for the pointer again when
+        // they take that room back.
+        let roomless = Service()
+        roomless.hiddenShowsActivity = true
+        roomless.expanded = false
+        roomless.geometry = NotchGeometry(screen: roomless.geometry.screen, safeAreaTop: 0, cameraWidth: 0)
+        roomless.compactActivityIsVisible = true
+        roomless.refreshPresentation()
+        suite.expect(roomless.panel?.isVisible == false && roomless.hiddenUntilHover,
+                     "with no room beside a simulated cutout, a hidden island set to show activity waits for the pointer")
+        roomless.applyMenuSpace(64)
+        suite.expect(roomless.panel?.isVisible == true && !roomless.hiddenUntilHover,
+                     "room from the menus brings a waiting activity into view")
+        roomless.applyMenuSpace(nil)
+        suite.expect(roomless.panel?.isVisible == false && roomless.hiddenUntilHover,
+                     "losing that room hides the activity and waits for the pointer again")
         UserDefaults.standard.hides = false
         let physical = Service()
         physical.expanded = false

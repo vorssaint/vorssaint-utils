@@ -136,11 +136,10 @@ enum ScreenshotScrollingCapture {
                     guard overlap > 0, overlap < current.height else { return .failed }
                     let establishingContent = contentSampleColumns == nil
                     if establishingContent {
-                        guard let pixelColumns = ScreenshotSupport.scrollingPixelRange(
-                            sampleColumns: matchedColumns,
-                            sampleWidth: currentSample.width,
-                            imageWidth: current.width)
-                        else { return .failed }
+                        // Matching may use only the narrow text at one edge of
+                        // a Terminal. It is evidence of movement, not the bounds
+                        // of the selected image; keep every selected column.
+                        let pixelColumns = 0..<current.width
                         let fixedBottomRows = ScreenshotSupport.scrollingFixedBottomRows(
                             previous: previousSample,
                             current: currentSample,
@@ -328,10 +327,11 @@ enum ScreenshotScrollingCapture {
     }
 
     private static func sample(_ image: CGImage) -> ScreenshotSupport.ScrollingSample? {
-        // Width can be reduced safely, but vertical rows stay one-for-one with
-        // the source. Resizing both axes turns an integer scroll into a
-        // fractional row offset and destroys an otherwise exact overlap.
-        let width = min(32, image.width)
+        // Keep native vertical rows for exact offsets and enough horizontal
+        // detail to distinguish digits in a wide Terminal. A 32-column thumbnail
+        // can make different digits look identical; the matcher selects a few
+        // informative columns from this wider sample to bound its work.
+        let width = min(256, image.width)
         let height = image.height
         guard width > 0, height > 0 else { return nil }
         var pixels = [UInt8](repeating: 0, count: width * height)

@@ -24,8 +24,13 @@ enum SpaceHopSupport {
     /// window where the user is already looking. With one there, activating
     /// just raises that window, so waiting for a travel that cannot happen is
     /// pure delay and the hop asks for the move immediately (issue #422).
-    static func firstStage(appHasWindowOnVisibleSpace: Bool) -> FirstStage {
-        appHasWindowOnVisibleSpace ? .moveASpace : .waitForActivationTravel
+    /// An accepted Accessibility raise gets a chance to travel directly to the
+    /// target Space. Arrival still has to be verified; success is only an
+    /// acknowledgement of the request (issue #2210).
+    static func firstStage(appHasWindowOnVisibleSpace: Bool,
+                           directRaiseSucceeded: Bool = false) -> FirstStage {
+        if directRaiseSucceeded { return .waitForActivationTravel }
+        return appHasWindowOnVisibleSpace ? .moveASpace : .waitForActivationTravel
     }
 
     /// Whether an arrival pulse should run the focus pass again (issue #1733).
@@ -84,6 +89,15 @@ enum SpaceHopSupport {
     static func isHiddenWithApp(windowTags: UInt64) -> Bool {
         let hiddenWithAppTag: UInt64 = 1 << 39
         return windowTags & hiddenWithAppTag != 0
+    }
+
+    /// Minimizing a window into the Dock tags it from the start of the
+    /// animation until it is restored. A window its app closed or hid never
+    /// gets the tag, though both leave it off screen on the Space in front
+    /// (measured on macOS 27, issue #3249).
+    static func isMinimized(windowTags: UInt64) -> Bool {
+        let minimizedTag: UInt64 = 1 << 60
+        return windowTags & minimizedTag != 0
     }
 
     /// The windows a window query's answer tags as hidden with their app. A

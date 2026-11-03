@@ -24,11 +24,16 @@ enum NotchHoverTests {
     enum UserDefaults {
         static var standard = Preferences()
         struct Preferences {
-            var enabled = true, expands = true, hides = false
+            var enabled = true, expands = true, hides = false, fullscreenHover = false
             var delay = NotchSupport.defaultHoverDelay
             var closeDelay = NotchSupport.defaultCloseDelay
             func bool(forKey key: String) -> Bool {
-                key == DefaultsKey.notchHideUntilHover ? hides : key == DefaultsKey.notchOpenOnHover ? enabled : expands
+                switch key {
+                case DefaultsKey.notchHideUntilHover: return hides
+                case DefaultsKey.notchOpenOnHover: return enabled
+                case DefaultsKey.notchHoverInFullscreen: return fullscreenHover
+                default: return expands
+                }
             }
             func double(forKey key: String) -> Double { delay }
         }
@@ -278,7 +283,71 @@ enum NotchHoverTests {
                              "the compact activity returns to its original size on exit")
             }
         }
+        for physical in [false, true] {
+            for hides in [false, true] {
+                for expands in [false, true] {
+                    let hiddenFullscreen = fixture(physical: physical)
+                    UserDefaults.standard.hides = hides
+                    UserDefaults.standard.expands = expands
+                    hiddenFullscreen.hiddenInFullscreen = true
+                    hiddenFullscreen.windowHost?.visible = physical
+                    hiddenFullscreen.syncHiddenHoverMonitoring()
+                    hiddenFullscreen.hover(true)
+                    DispatchQueue.main.advance(0.26)
+                    suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty
+                                 && hiddenFullscreen.hoverWork == nil && !hiddenFullscreen.peeking
+                                 && hiddenFullscreen.openings == 0,
+                                 "fullscreen hiding blocks hover unless separately enabled, on every display and opening mode")
+                    hiddenFullscreen.hiddenInFullscreen = false
+                    hiddenFullscreen.windowHost?.visible = !hides
+                    hiddenFullscreen.syncHiddenHoverMonitoring()
+                    hiddenFullscreen.hover(true)
+                    DispatchQueue.main.advance(0.26)
+                    suite.expect(expands ? hiddenFullscreen.openings == 1 : hiddenFullscreen.peeking,
+                                 "leaving fullscreen restores the selected hover mode without changing its preferences")
+                }
+            }
+            let cancelledFullscreen = fixture(physical: physical)
+            UserDefaults.standard.fullscreenHover = true
+            cancelledFullscreen.hiddenInFullscreen = true
+            cancelledFullscreen.windowHost?.visible = physical
+            cancelledFullscreen.syncHiddenHoverMonitoring()
+            cancelledFullscreen.hover(true)
+            suite.expect(cancelledFullscreen.hoverWork != nil,
+                         "fullscreen hover waits for its configured deadline")
+            UserDefaults.standard.fullscreenHover = false
+            cancelledFullscreen.syncHiddenHoverMonitoring()
+            DispatchQueue.main.advance(0.26)
+            suite.expect(cancelledFullscreen.openings == 0 && !cancelledFullscreen.peeking
+                         && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                         "turning off fullscreen hover stops observers and prevents a pending reveal")
+
+            let fullscreenOnly = fixture(physical: physical)
+            UserDefaults.standard.enabled = false
+            UserDefaults.standard.fullscreenHover = true
+            fullscreenOnly.hiddenInFullscreen = true
+            fullscreenOnly.windowHost?.visible = physical
+            fullscreenOnly.syncHiddenHoverMonitoring()
+            fullscreenOnly.hover(true)
+            DispatchQueue.main.advance(0.26)
+            suite.expect(fullscreenOnly.openings == 1 && fullscreenOnly.openedByHover,
+                         "fullscreen-only hover opens independently of click-to-open outside fullscreen")
+            leave(fullscreenOnly)
+            DispatchQueue.main.advance(UserDefaults.standard.closeDelay + 0.01)
+            suite.expect(!fullscreenOnly.expanded,
+                         "a fullscreen-only hover opening closes when the pointer leaves")
+            fullscreenOnly.hiddenInFullscreen = false
+            fullscreenOnly.windowHost?.visible = true
+            fullscreenOnly.syncHiddenHoverMonitoring()
+            NSEvent.mouseLocation = CGPoint(x: fullscreenOnly.geometry.screen.midX, y: fullscreenOnly.geometry.screen.maxY)
+            fullscreenOnly.hover(true)
+            DispatchQueue.main.advance(0.26)
+            suite.expect(fullscreenOnly.openings == 1 && !fullscreenOnly.peeking
+                         && !UserDefaults.standard.enabled && !UserDefaults.standard.hides,
+                         "fullscreen-only hover leaves click-to-open and visibility unchanged on the desktop")
+        }
         let fullscreen = fixture(physical: true)
+        UserDefaults.standard.fullscreenHover = true
         fullscreen.hiddenInFullscreen = true
         fullscreen.compactActivity = .music
         UserDefaults.standard.hides = true
@@ -296,6 +365,7 @@ enum NotchHoverTests {
         // the hover set to open it follows the pointer over its place instead.
         for expands in [true, false] {
             let simulatedFullscreen = fixture()
+            UserDefaults.standard.fullscreenHover = true
             UserDefaults.standard.expands = expands
             simulatedFullscreen.hiddenInFullscreen = true
             simulatedFullscreen.windowHost?.visible = false
@@ -327,6 +397,7 @@ enum NotchHoverTests {
                      && !clickFullscreen.peeking && clickFullscreen.openings == 0,
                      "a simulated cutout hidden in full screen waits for a shortcut when it opens on click")
         let leavingFullscreen = fixture()
+        UserDefaults.standard.fullscreenHover = true
         leavingFullscreen.hiddenInFullscreen = true
         leavingFullscreen.windowHost?.visible = false
         leavingFullscreen.syncHiddenHoverMonitoring()
@@ -339,6 +410,7 @@ enum NotchHoverTests {
         // dismissal while the pointer moves elsewhere, and hears only the
         // pointer reaching the hidden island's place or leaving it.
         let heldFullscreen = fixture()
+        UserDefaults.standard.fullscreenHover = true
         var heldPreviewHovered: [Bool] = []
         heldFullscreen.captureHover = { heldPreviewHovered.append($0) }
         heldFullscreen.hiddenInFullscreen = true
@@ -745,6 +817,36 @@ enum NotchHoverTests {
             follow(to: CGPoint(x: closed.geometry.screen.midX, y: closed.geometry.screen.midY))
             suite.expect(heard == [true, false],
                          "a capture paused over the open island resumes once it hides and the pointer moves away")
+        }
+        // Set to show activity, a hidden island beside a simulated cutout
+        // draws one only with room from the menus. With none it stays out of
+        // sight, so it keeps following the pointer to open where it waits.
+        for silhouette in [NotchSilhouette.notch, .capsule] {
+            for room in [64, nil] as [CGFloat?] {
+                let waiting = fixture()
+                UserDefaults.standard.hides = true
+                waiting.hiddenShowsActivity = true
+                waiting.geometry = NotchGeometry(screen: waiting.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                                 menuBarHeight: 22, compactSideRoom: room, silhouette: silhouette)
+                waiting.compactActivity = .timer
+                waiting.compactActivities = [.timer]
+                waiting.windowHost?.visible = room != nil
+                waiting.updateBounds()
+                waiting.syncHiddenHoverMonitoring()
+                guard room == nil else {
+                    suite.expect(!waiting.hiddenUntilHover && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                                 "with room beside a simulated cutout, a hidden island set to show activity shows it")
+                    continue
+                }
+                suite.expect(waiting.hiddenUntilHover && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                             "with no room beside a simulated cutout, a hidden island set to show activity waits out of sight")
+                let place = waiting.geometry.frame(for: waiting.geometry.collapsed)
+                follow(to: CGPoint(x: place.midX, y: place.minY - 200))
+                follow(to: CGPoint(x: place.midX, y: place.maxY - 1))
+                DispatchQueue.main.advance(0.26)
+                suite.expect(waiting.openings == 1 && waiting.openedByHover,
+                             "with no room beside a simulated cutout, a hidden island set to show activity still opens under the pointer")
+            }
         }
         // Opening or peeking on hover ends the closed island's follow at once,
         // so the next move cannot tell a page or preview the pointer left.
