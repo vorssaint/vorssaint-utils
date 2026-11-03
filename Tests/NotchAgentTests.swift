@@ -2738,7 +2738,8 @@ enum NotchAgentTests {
             for focus in NotchAgentLimitFocus.allCases {
                 let empty = AgentUsageSnapshot()
                 let sample = NotchAgentSupport.stripSampleSnapshot(empty, provider: provider, focus: focus, now: now)
-                let used = focus == .session ? 0.32 : 0.57
+                let isSession = focus == .session || focus == .geminiSession || focus == .claudeGptSession || focus == .gemini || focus == .claudeGpt
+                let used = isSession ? 0.32 : 0.57
                 suite.expect(NotchAgentSupport.stripReading(sample, readout: .limit, display: .used, focus: focus, now: now)
                                 == AgentFormat.percent(used),
                              "\(provider.rawValue) settings preview illustrates the selected \(focus.rawValue) limit without account data")

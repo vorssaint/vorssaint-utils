@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- Antigravity quota probes drain output safely and cancel timed out processes; background readings stay fresh across two polling intervals.
 - Antigravity account limits probe checks every five minutes while the page is visible and every fifteen minutes in the background, backs off exponentially on failure up to an hour, waits two minutes after wake or reconnect, and runs sandboxed to prevent interactive browser logins.
 
 ## [3.4.3] - 2026-10-29

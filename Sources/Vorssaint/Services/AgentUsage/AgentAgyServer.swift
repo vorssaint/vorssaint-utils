@@ -14,6 +14,7 @@ enum AgentAgyServer {
     static let freshness: TimeInterval = 5 * 60
     /// Background refresh interval.
     static let backgroundFreshness: TimeInterval = 15 * 60
+    static let accountStaleness: TimeInterval = 30 * 60
     /// Maximum backoff interval after probe failures.
     static let maxBackoff: TimeInterval = 60 * 60
     /// Grace period after wake or reconnect before probes can start.
@@ -96,22 +97,14 @@ enum AgentAgyServer {
     }
 
     final class Request {
-        private let lock = NSLock()
-        private var process: Process?
-        private var cancelled = false
+        private let cancellation = BoundedProcessCancellation()
 
         func cancel() {
-            lock.withLock {
-                cancelled = true
-                if let process, process.isRunning {
-                    process.terminate()
-                }
-            }
+            cancellation.cancel()
         }
 
         func run(executable: URL, home: URL, timeout: TimeInterval = AgentAgyServer.timeout, sandboxExec: String = "/usr/bin/sandbox-exec") -> Result<AgentLimits, Failure> {
-            let isCancelled = lock.withLock { cancelled }
-            guard !isCancelled else { return .failure(.failed("Cancelled")) }
+            guard !cancellation.isCancelled else { return .failure(.failed("Cancelled")) }
 
             let plan: (url: URL, arguments: [String])
             switch AgentAgyServer.launch(executable: executable, sandboxExec: sandboxExec) {
@@ -121,41 +114,20 @@ enum AgentAgyServer {
                 plan = launchPlan
             }
 
-            let proc = Process()
-            let pipe = Pipe()
-            proc.executableURL = plan.url
-            proc.arguments = plan.arguments
-
             var environment = ProcessInfo.processInfo.environment
             environment["AGY_CLI_DISABLE_AUTO_UPDATE"] = "true"
             environment["HOME"] = home.path
             let currentPath = environment["PATH"] ?? ""
             let extraPaths = [home.appending(path: ".local/bin").path, "/opt/homebrew/bin", "/usr/local/bin"]
             environment["PATH"] = (extraPaths + [currentPath]).joined(separator: ":")
-            proc.environment = environment
-            proc.currentDirectoryURL = home
-            proc.standardOutput = pipe
-            proc.standardError = FileHandle.nullDevice
-
-            lock.withLock { self.process = proc }
-            defer { lock.withLock { self.process = nil } }
-
-            do {
-                try proc.run()
-            } catch {
-                return .failure(.failed(error.localizedDescription))
-            }
-
-            let deadline = DispatchTime.now() + timeout
-            let exited = DispatchSemaphore(value: 0)
-            proc.terminationHandler = { _ in exited.signal() }
-
-            if exited.wait(timeout: deadline) == .timedOut {
-                if proc.isRunning { proc.terminate() }
-                return .failure(.timeout)
-            }
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let result = BoundedProcessRunner.run(plan.url.path, plan.arguments,
+                                                 timeout: timeout, maxOutputBytes: 1_048_576,
+                                                 environment: environment, cancellation: cancellation,
+                                                 currentDirectory: home, captureStandardError: false)
+            if cancellation.isCancelled { return .failure(.failed("Cancelled")) }
+            if result.timedOut { return .failure(.timeout) }
+            guard result.status == 0 else { return .failure(.failed("agy exited with status \(result.status)")) }
+            let data = result.output
             guard !data.isEmpty else { return .failure(.failed("Empty output from agy")) }
 
             let decoder = JSONDecoder()

@@ -427,7 +427,8 @@ enum NotchAgentSupport {
     static func limitsAreStale(_ limits: AgentLimits?, provider: AgentProvider, account: Bool, now: Date) -> Bool {
         guard let limits else { return false }
         let age = now.timeIntervalSince(limits.observedAt)
-        if account || provider == .agy { return age >= accountStaleness }
+        if provider == .agy { return age >= AgentAgyServer.accountStaleness }
+        if account { return age >= accountStaleness }
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 
