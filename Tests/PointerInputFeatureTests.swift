@@ -2886,10 +2886,11 @@ enum PointerInputFeatureTests {
                 && MouseExceptionScope.navigation.feature == .mouseNavigation
                 && MouseExceptionScope.buttonShortcuts.feature == .mouseButtonShortcuts
                 && MouseExceptionScope.middleClick.feature == .middleClick
-                && MouseExceptionScope.superKey.feature == .superKey,
-               "each list knows the feature that owns it, so it hides with that feature")
+                 && MouseExceptionScope.superKey.feature == .superKey
+                 && MouseExceptionScope.fnLock.feature == .fnLock,
+                "each list knows the feature that owns it, so it hides with that feature")
         suite.expect(MouseExceptionScope.allCases.allSatisfy { $0.feature.group == .mouseKeyboard },
-               "every exception list belongs to a mouse-and-keyboard feature")
+                "every exception list belongs to a mouse-and-keyboard feature")
         suite.expect(Defaults.sanitizedBundleIdentifierList(["  com.example.a  ", "", "com.example.a", "com.example.b"])
                 == ["com.example.a", "com.example.b"],
                "the exception list drops blanks, spaces and repeats")
