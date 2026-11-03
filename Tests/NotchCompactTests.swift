@@ -244,7 +244,8 @@ enum NotchCompactTests {
                     let host = NSHostingView(rootView: NotchCalendarEventRow(event: event, day: day, now: day,
                                                                            isNext: true,
                                                                            text: FeatureStrings.notchCalendar(language),
-                                                                           countdown: chosen, choose: { _ in }, open: {})
+                                                                           countdown: chosen, choose: { _ in },
+                                                                           join: {}, openDetails: {})
                         .environment(\.locale, Locale(identifier: language.rawValue))
                         .frame(width: width))
                     host.layoutSubtreeIfNeeded()

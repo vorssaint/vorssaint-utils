@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Dynamic Island calendar countdowns can open Zoom, Teams or Google Meet links from the event, with Coming up and Starting now notices in the lead window. Settings → Dynamic Island → Content → Calendar → Time before event (default 10 minutes; 10 added to the presets).
+
 ## [3.4.3] - 2026-10-29
 
 ### Summary

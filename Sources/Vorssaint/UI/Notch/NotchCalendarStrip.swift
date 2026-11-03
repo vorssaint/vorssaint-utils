@@ -30,24 +30,28 @@ struct NotchCalendarStrip: View {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let displayTitle = Self.displayTitle(countdown.event, untitled: text.untitled)
                 let remaining = NotchCalendarSupport.countdownText(until: countdown.target, now: context.date)
+                let phase = countdown.phase(at: context.date)
                 Group {
                     if let companion = service.compactCompanion, geometry.compactActivityWingWidth > 0 {
                         paired(countdown, companion: companion, title: displayTitle, remaining: remaining,
-                               now: context.date)
+                               phase: phase, now: context.date)
                     } else {
-                        Button { service.openCountdownEvent() } label: {
+                        Button { service.activateCountdownEvent() } label: {
                             Group {
                                 if usesFullRow {
-                                    fullRow(countdown, title: displayTitle, remaining: remaining)
+                                    fullRow(countdown, title: displayTitle, remaining: remaining, phase: phase)
                                 } else {
-                                    wings(countdown, title: displayTitle, remaining: remaining)
+                                    wings(countdown, title: displayTitle, remaining: remaining, phase: phase)
                                 }
                             }
                             .frame(width: geometry.compactActivitySize.width - geometry.compactActivityHorizontalPadding * 2,
                                    height: geometry.compactActivityContentHeight)
                             .contentShape(Rectangle())
                         }
-                        .modifier(countdownAccessibility(countdown, title: displayTitle, now: context.date))
+                        .contextMenu { eventDetailsMenu }
+                        .accessibilityAction(named: text.eventDetails) { service.openCountdownEvent() }
+                        .modifier(countdownAccessibility(countdown, title: displayTitle, phase: phase,
+                                                         now: context.date))
                     }
                 }
                 .buttonStyle(.plain)
@@ -58,35 +62,66 @@ struct NotchCalendarStrip: View {
         }
     }
 
-    private func countdownAccessibility(_ countdown: NotchCalendarCountdown, title: String,
-                                        now: Date) -> NotchCountdownAccessibility {
-        NotchCountdownAccessibility(label: "\(countdown.ongoing ? text.ongoing : text.next): \(title)",
-                                    value: NotchCalendarSupport.countdownAccessibilityText(
-                                        until: countdown.target, now: now, locale: l10n.language.formattingLocale()),
-                                    hint: FeatureStrings.notch(l10n.language).open, help: title)
+    @ViewBuilder private var eventDetailsMenu: some View {
+        if calendar.countdown?.event.joinURL != nil {
+            Button(text.join) { service.joinCountdownCall() }
+        }
+        Button(text.eventDetails) { service.openCountdownEvent() }
     }
 
-    private func fullRow(_ countdown: NotchCalendarCountdown, title: String, remaining: String) -> some View {
+    private func countdownAccessibility(_ countdown: NotchCalendarCountdown, title: String,
+                                        phase: NotchCalendarCountdownPhase,
+                                        now: Date) -> NotchCountdownAccessibility {
+        let phaseLabel: String = {
+            switch phase {
+            case .ongoing: return text.ongoing
+            case .starting: return text.starting
+            case .coming: return text.coming
+            }
+        }()
+        let hint = countdown.event.joinURL == nil ? FeatureStrings.notch(l10n.language).open : text.join
+        return NotchCountdownAccessibility(label: "\(phaseLabel): \(title)",
+                                           value: NotchCalendarSupport.countdownAccessibilityText(
+                                               until: countdown.target, now: now,
+                                               locale: l10n.language.formattingLocale()),
+                                           hint: hint, help: title)
+    }
+
+    private func fullRow(_ countdown: NotchCalendarCountdown, title: String, remaining: String,
+                         phase: NotchCalendarCountdownPhase) -> some View {
         // The row below the camera ends in the island's deep lower corners;
         // a fixed margin left the dot and the clock on their curve.
         HStack(spacing: 6) {
             Self.dot(countdown.event)
+            if countdown.event.joinURL != nil {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Self.clockColor(phase))
+                    .accessibilityHidden(true)
+            }
             Text(title)
                 .font(.system(size: 11, weight: .semibold))
                 .lineLimit(1).truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Self.clock(remaining, ongoing: countdown.ongoing)
+            Self.clock(remaining, phase: phase)
         }
         .padding(.horizontal, rowInset)
     }
 
     private var rowInset: CGFloat { max(10, geometry.compactActivityEdgeInset(boxHeight: 9, radius: 0)) }
 
-    private func wings(_ countdown: NotchCalendarCountdown, title: String, remaining: String) -> some View {
+    private func wings(_ countdown: NotchCalendarCountdown, title: String, remaining: String,
+                       phase: NotchCalendarCountdownPhase) -> some View {
         let inset = geometry.compactActivityEdgeInset(boxHeight: 9, radius: 0)
         return HStack(spacing: 0) {
             HStack(spacing: NotchCalendarSupport.stripTitleSpacing) {
                 Self.dot(countdown.event)
+                if countdown.event.joinURL != nil {
+                    Image(systemName: "video.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Self.clockColor(phase))
+                        .accessibilityHidden(true)
+                }
                 Text(title)
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1).truncationMode(.tail)
@@ -99,13 +134,13 @@ struct NotchCalendarStrip: View {
             // mostly empty; a wing narrowed by the menus keeps just the clock.
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: NotchCalendarSupport.stripClockSpacing) {
-                    Self.clock(remaining, ongoing: countdown.ongoing)
+                    Self.clock(remaining, phase: phase)
                     Text(NotchCalendarSupport.timeText(countdown, locale: l10n.language.formattingLocale()))
                         .font(.system(size: 11, weight: .medium)).monospacedDigit()
                         .foregroundStyle(.white.opacity(0.55))
                         .fixedSize()
                 }
-                Self.clock(remaining, ongoing: countdown.ongoing)
+                Self.clock(remaining, phase: phase)
             }
             .padding(.trailing, inset)
             .frame(width: geometry.compactActivityWingWidth, alignment: .leading)
@@ -115,7 +150,7 @@ struct NotchCalendarStrip: View {
     /// Both sides sit at the ends, as a timer's pair does, and each opens
     /// its own page. Below a crowded notch the row splits the same way.
     private func paired(_ countdown: NotchCalendarCountdown, companion: NotchCompactActivity, title: String,
-                        remaining: String, now: Date) -> some View {
+                        remaining: String, phase: NotchCalendarCountdownPhase, now: Date) -> some View {
         let footer = geometry.compactActivityUsesFooter
         let markInset = NotchCompanionMark.inset(companion, geometry: geometry)
         return HStack(spacing: 0) {
@@ -133,14 +168,16 @@ struct NotchCalendarStrip: View {
             .accessibilityLabel(NotchCompanionMark.label(companion, language: l10n.language))
             .accessibilityHint(FeatureStrings.notch(l10n.language).open)
             Color.clear.frame(width: geometry.compactActivityCameraGap)
-            Button { service.openCountdownEvent() } label: {
-                Self.clockMark(countdown, remaining: remaining)
+            Button { service.activateCountdownEvent() } label: {
+                Self.clockMark(countdown, remaining: remaining, phase: phase)
                     .padding(.trailing, footer ? rowInset : geometry.compactActivityEdgeInset(boxHeight: 9, radius: 0))
                     .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
                            alignment: .trailing)
                     .contentShape(Rectangle())
             }
-            .modifier(countdownAccessibility(countdown, title: title, now: now))
+            .contextMenu { eventDetailsMenu }
+            .accessibilityAction(named: text.eventDetails) { service.openCountdownEvent() }
+            .modifier(countdownAccessibility(countdown, title: title, phase: phase, now: now))
         }
     }
 
@@ -150,10 +187,12 @@ struct NotchCalendarStrip: View {
     }
 
     /// The event's dot and its clock, as the island draws them beside another activity.
-    static func clockMark(_ countdown: NotchCalendarCountdown, remaining: String) -> some View {
-        HStack(spacing: NotchCalendarSupport.stripClockSpacing) {
+    static func clockMark(_ countdown: NotchCalendarCountdown, remaining: String,
+                          phase: NotchCalendarCountdownPhase? = nil) -> some View {
+        let phase = phase ?? (countdown.ongoing ? .ongoing : .coming)
+        return HStack(spacing: NotchCalendarSupport.stripClockSpacing) {
             dot(countdown.event)
-            clock(remaining, ongoing: countdown.ongoing)
+            clock(remaining, phase: phase)
         }
     }
 
@@ -164,13 +203,21 @@ struct NotchCalendarStrip: View {
             .accessibilityHidden(true)
     }
 
+    private static func clockColor(_ phase: NotchCalendarCountdownPhase) -> Color {
+        switch phase {
+        case .ongoing: return .mint
+        case .starting: return .orange
+        case .coming: return .white
+        }
+    }
+
     /// Time left in an event under way takes the agenda's "happening now"
-    /// color, so it never reads as a wait for the next one.
-    private static func clock(_ remaining: String, ongoing: Bool) -> some View {
+    /// color; the final minute before a start reads urgent orange.
+    private static func clock(_ remaining: String, phase: NotchCalendarCountdownPhase) -> some View {
         Text(remaining)
             .font(.system(size: 13, weight: .medium)).monospacedDigit()
             .lineLimit(1).minimumScaleFactor(0.8)
-            .foregroundStyle(ongoing ? Color.mint : Color.white)
+            .foregroundStyle(clockColor(phase))
             .modifier(NotchRollingDigits(value: remaining, countsDown: true, everySecond: false))
     }
 }

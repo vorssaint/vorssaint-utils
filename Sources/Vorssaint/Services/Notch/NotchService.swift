@@ -1414,6 +1414,34 @@ final class NotchService: ObservableObject {
         if !expanded || selected != .calendar || showingSections || showingAppPanel { calendar.revealing = nil }
     }
 
+    /// Joins the countdown event's video call when a Zoom, Teams or Meet link
+    /// is present; otherwise opens the event's details in the island.
+    func activateCountdownEvent() {
+        if joinCountdownCall() { return }
+        openCountdownEvent()
+    }
+
+    /// Opens the conference URL for the countdown event. Returns false when
+    /// there is no join link so the caller can fall back to details.
+    @discardableResult
+    func joinCountdownCall() -> Bool {
+        guard let url = NotchCalendarService.shared.countdown?.event.joinURL else { return false }
+        return NSWorkspace.shared.open(url)
+    }
+
+    /// Brief notice when a countdown enters its lead window or final minute.
+    @discardableResult
+    func showCalendarCountdownNotice(_ countdown: NotchCalendarCountdown,
+                                     phase: NotchCalendarCountdownPhase) -> Bool {
+        let text = FeatureStrings.notchCalendar(L10n.shared.language)
+        let title = phase == .starting ? text.starting : text.coming
+        let trimmed = countdown.event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = trimmed.isEmpty ? text.untitled : trimmed
+        let symbol = countdown.event.joinURL == nil ? "calendar" : "video.fill"
+        let mascot: NotchMascotReaction? = phase == .starting ? .bounce : nil
+        return show(NotchNotice(event: .calendar, title: title, detail: detail, symbol: symbol, mascot: mascot))
+    }
+
     func open(_ module: NotchModule? = nil, pinned: Bool = false, takeFocus: Bool = true,
               appPanel: Bool = false, metric: MetricDetailKind? = nil, feedback: Bool = true, sections: Bool = false) {
         guard NotchSupport.isEnabled(), !suspended else { return }
@@ -2754,7 +2782,7 @@ final class NotchService: ObservableObject {
                 // The capsule's button covers its music bars too, which play or pause there.
                 else if self.geometry.floats, self.musicStripShowsControl { self.toggleMusicStripSong() }
                 else if !self.expanded, self.compactActivity == .calendar {
-                    self.openCountdownEvent()
+                    self.activateCountdownEvent()
                 } else { self.toggle() }
             })
         // A move between displays brings the window back on the next turn, once
@@ -3306,7 +3334,7 @@ final class NotchService: ObservableObject {
             guard let self, self.running, !self.suspended, self.canFollowPointer,
                   let screen = NSScreen.screens.first(where: { $0.notchDisplayID == id }) else { return }
             self.move(to: screen)
-            if self.compactActivity == .calendar { self.openCountdownEvent() } else { self.open() }
+            if self.compactActivity == .calendar { self.activateCountdownEvent() } else { self.open() }
         }
     }
 
@@ -3366,7 +3394,7 @@ final class NotchService: ObservableObject {
             guard let pressed = pressedArea,
                   NotchSupport.screenEdgeArea(pressed, contains: point) || NotchSupport.screenEdgeArea(area, contains: point),
                   windowHost?.containsDestination(point) == true else { return }
-            if compactActivity == .calendar { openCountdownEvent() } else { open() }
+            if compactActivity == .calendar { activateCountdownEvent() } else { open() }
         case .leftMouseDragged:
             // A press at the screen's edge reports a drag at once, often without
             // moving. Only a drag that leaves the island cancels the click.

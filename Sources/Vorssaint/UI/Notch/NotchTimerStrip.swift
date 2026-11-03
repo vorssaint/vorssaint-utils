@@ -39,7 +39,7 @@ struct NotchTimerStrip: View {
     var body: some View {
         HStack(spacing: 0) {
             Button {
-                if companion == .calendar { service.openCountdownEvent() }
+                if companion == .calendar { service.activateCountdownEvent() }
                 else { service.openActivity(companion?.module ?? .timer) }
             } label: {
                 Group {
@@ -130,7 +130,8 @@ struct NotchCompanionMark: View {
             if let countdown = calendar.countdown {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     NotchCalendarStrip.clockMark(countdown, remaining: NotchCalendarSupport.countdownText(
-                        until: countdown.target, now: context.date))
+                        until: countdown.target, now: context.date),
+                                                 phase: countdown.phase(at: context.date))
                 }
             }
         case .music:
@@ -189,8 +190,14 @@ struct NotchCompanionMark: View {
         case .calendar:
             let text = FeatureStrings.notchCalendar(language)
             guard let countdown = NotchCalendarService.shared.countdown else { return text.title }
-            return "\(countdown.ongoing ? text.ongoing : text.next): "
-                + NotchCalendarStrip.displayTitle(countdown.event, untitled: text.untitled)
+            let phase: String = {
+                switch countdown.phase(at: Date()) {
+                case .ongoing: return text.ongoing
+                case .starting: return text.starting
+                case .coming: return text.coming
+                }
+            }()
+            return "\(phase): " + NotchCalendarStrip.displayTitle(countdown.event, untitled: text.untitled)
         case .music:
             let playback = NotchMusicService.shared.playback
             let title = playback?.track.title ?? FeatureStrings.radialMenu(language).mediaNowPlaying

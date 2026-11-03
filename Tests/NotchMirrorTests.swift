@@ -122,6 +122,7 @@ enum NotchMirrorContract {
         func collapse() { collapses += 1; expanded = false; peeking = false }
         func open() { opened += 1; expanded = true }
         func openCountdownEvent() { countdownOpenings += 1; expanded = true }
+        func activateCountdownEvent() { openCountdownEvent() }
         func move(to screen: NSScreen) { displayID = screen.notchDisplayID; moves.append(screen.notchDisplayID) }
     }
 
