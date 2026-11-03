@@ -1660,13 +1660,13 @@ final class ClipboardHistoryService: ObservableObject {
 /// (UserDefaults would balloon with base64), named by UUID and swept against
 /// the live entry list after every save.
 enum ClipboardImageStore {
-    /// Explicit limits: NSCache only sheds under system memory pressure, so
-    /// without them a history full of screenshots quietly holds every decoded
-    /// thumbnail at once.
+    /// Advisory limits for decoded thumbnails retained between panel uses.
+    /// Visible rows retain their own images; an evicted preview is decoded
+    /// again from disk when needed.
     private static let thumbnails: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 120
-        cache.totalCostLimit = 48 * 1024 * 1024
+        cache.totalCostLimit = 32 * 1024 * 1024
         return cache
     }()
 

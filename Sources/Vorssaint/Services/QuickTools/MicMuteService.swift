@@ -5,16 +5,15 @@ import AppKit
 import CoreAudio
 import Foundation
 
-/// Global microphone mute: one click or shortcut cuts every microphone the Mac
-/// has, in any app. Muting only the system default is not enough, because an
-/// app can be pointed at a device of its own (a headset picked inside a call
-/// app keeps recording while the Mac's default sits muted), so the mute is
-/// applied device by device. Each device uses its own mute switch when it has
-/// one, else its input volume drops to zero and the saved level comes back on
-/// unmute. A device that arrives while muted is muted as it appears, the mute
-/// is re-asserted when the default input changes, and the state survives app
-/// relaunches via the persisted flag. A device this app silenced stays its to
-/// release even while unplugged: it gets its level back when it returns.
+/// Applies each available microphone's mute control, falling back to zero
+/// input volume. Apps can select their own input, so this covers devices beyond
+/// the system default. These controls are not a privacy lock: Siri and some
+/// voice-processing paths may ignore them, even when the properties read muted.
+/// No captured audio is inspected, and the published state reports this
+/// feature's state, not proof that every app receives silence.
+/// Device/default-input changes reapply the request, and the state survives
+/// relaunches. A device this app changed stays its to restore even while
+/// unplugged: it gets its saved level back when it returns.
 final class MicMuteService: ObservableObject {
     static let shared = MicMuteService()
 
@@ -226,25 +225,26 @@ final class MicMuteService: ObservableObject {
     /// Main thread. Publishes one sweep.
     private func finish(_ outcome: MuteOutcome, muted: Bool, announce: Bool, generation: Int) {
         guard generation == applyGeneration else { return }
-        guard outcome.applied else {
+        if outcome.applied {
+            if isMuted != muted { isMuted = muted }
+            UserDefaults.standard.set(muted, forKey: DefaultsKey.micMuteActive)
+            syncListeners()
+        } else {
             // Nothing was reached, so the request is dropped as it always was:
             // the published state stays what it is, and so does the wanted one.
             wantsMute = isMuted
             inputVolumeLock.withLock { inputVolumeBlocked = isMuted }
-            return
         }
-        if isMuted != muted { isMuted = muted }
-        UserDefaults.standard.set(muted, forKey: DefaultsKey.micMuteActive)
-        syncListeners()
         guard announce else { return }
-        // A partial result keeps the floating confirmation: the whole
-        // sentence matters, and it is longer than the island's wings.
+        // Report a known failure even when no device could be changed. The
+        // whole sentence matters, and it is longer than the island's wings.
         if outcome.failed {
             NotchService.shared.retractMicrophoneNotice()
             QuickToolHUD.show(icon: "exclamationmark.triangle",
                               message: muted ? L10n.shared.s.micMutePartialHUD : L10n.shared.s.micUnmutePartialHUD)
             return
         }
+        guard outcome.applied else { return }
         // With Dynamic Island on, the switch reports there like the volume,
         // and the companion hushes or perks up, in its notice or where it is.
         let shownInIsland = NotchService.shared.showMicrophone(muted: muted)
@@ -408,7 +408,8 @@ final class MicMuteService: ObservableObject {
         return outcome
     }
 
-    /// True when no audio can come out of the device right now.
+    /// The device controls report mute or a near-zero input level. This does
+    /// not prove silence in clients that bypass these controls, such as Siri.
     private static func isSilenced(_ device: AudioDeviceID) -> Bool {
         if muteSwitchValue(of: device) == 1 { return true }
         guard let volume = inputVolume(of: device) else { return false }

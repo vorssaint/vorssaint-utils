@@ -353,15 +353,23 @@ enum AppManagementFeatureTests {
                                                    engaged: false, disengagedTicks: 1) == 1.10,
                "grace never lifts a factor that had no boost to protect")
         suite.expect(ExtraBrightnessSupport.canReuseSpaceWindows(
-                   sameDisplay: true, overlayOnActiveSpace: true, triggerOnActiveSpace: true),
+                   sameDisplay: true, inOwnSpace: false, overlayOnActiveSpace: true, triggerOnActiveSpace: true),
                "fullscreen handoff keeps the live overlay pair when both windows followed")
         suite.expect(!ExtraBrightnessSupport.canReuseSpaceWindows(
-                   sameDisplay: false, overlayOnActiveSpace: true, triggerOnActiveSpace: true)
+                   sameDisplay: false, inOwnSpace: false, overlayOnActiveSpace: true, triggerOnActiveSpace: true)
                && !ExtraBrightnessSupport.canReuseSpaceWindows(
-                   sameDisplay: true, overlayOnActiveSpace: false, triggerOnActiveSpace: true)
+                   sameDisplay: true, inOwnSpace: false, overlayOnActiveSpace: false, triggerOnActiveSpace: true)
                && !ExtraBrightnessSupport.canReuseSpaceWindows(
-                   sameDisplay: true, overlayOnActiveSpace: true, triggerOnActiveSpace: false),
+                   sameDisplay: true, inOwnSpace: false, overlayOnActiveSpace: true, triggerOnActiveSpace: false),
                "display changes and incomplete Space handoffs still rebuild the overlay pair")
+        // AppKit never reports windows of the overlay's own Space as on the
+        // active Space; rebuilding on that blinked the boost on every switch.
+        suite.expect(ExtraBrightnessSupport.canReuseSpaceWindows(
+                   sameDisplay: true, inOwnSpace: true, overlayOnActiveSpace: false, triggerOnActiveSpace: false),
+               "the overlay's own Space keeps the live windows across desktop switches")
+        suite.expect(!ExtraBrightnessSupport.canReuseSpaceWindows(
+                   sameDisplay: false, inOwnSpace: true, overlayOnActiveSpace: false, triggerOnActiveSpace: false),
+               "a different display still rebuilds the overlay in its own Space")
         for ebScreen in [CGRect(x: 0, y: 0, width: 1512, height: 982),
                          CGRect(x: 0, y: 0, width: 1728, height: 1117),
                          CGRect(x: -1800, y: 140, width: 1800, height: 1169)] {
@@ -378,9 +386,7 @@ enum AppManagementFeatureTests {
                    "the extra brightness overlay windows tile \(ebScreen) on whole points")
             // AppKit reports a window above the main menu whose frame contains
             // the screen's safe area (the screen below the camera housing) as a
-            // full screen window, which left only the wallpaper in Mission
-            // Control's desktop thumbnails (#3292). A generous 64 pt housing
-            // covers every notch.
+            // full screen window. A generous 64 pt housing covers every notch.
             let ebSafeArea = CGRect(x: ebScreen.minX, y: ebScreen.minY,
                                     width: ebScreen.width, height: ebScreen.height - 64)
             suite.expect(!ebFrames.contains { $0.contains(ebSafeArea) },
@@ -1025,6 +1031,8 @@ enum AppManagementFeatureTests {
             encoding: .utf8)) ?? ""
         let removeSelectedBody = sourceBody(of: appUninstallerSource, from: "func removeSelected()",
                                             to: "func removeSelectedWithHomebrew(")
+        suite.expect(removeSelectedBody.contains("guard canRemoveSelected, selectedHomebrewPackage == nil else { return }"),
+               "ordinary removal enforces the tested verification gate and cannot bypass a managed package")
         suite.expect(removeSelectedBody.contains("let knownApplications = mayClaimSharedData"),
                "a removal builds the known-application roster only when it may claim shared data")
         let finishHomebrewBody = sourceBody(of: appUninstallerSource,
@@ -1300,6 +1308,8 @@ enum AppManagementFeatureTests {
                "Media image profiles start empty")
         suite.expect((registeredDefaults[DefaultsKey.autoQuitExceptions] as? [String]) == Defaults.mandatoryAutoQuitExceptionBundleIDs,
                "Finder and Phone stay in the default auto-quit exception list")
+        suite.expect(registeredDefaults[DefaultsKey.autoQuitDockApps] as? [String] == [],
+               "no menu bar app opts into Quit on close by default")
         suite.expect(Defaults.mandatoryAutoQuitExceptionBundleIDs.contains(Defaults.finderBundleIdentifier)
                 && Defaults.mandatoryAutoQuitExceptionBundleIDs.contains(Defaults.phoneBundleIdentifier),
                "Quit on close never terminates Finder or Phone (Continuity calls)")
@@ -1372,6 +1382,11 @@ enum AppManagementFeatureTests {
         suite.expect(Defaults.sanitizedAutoQuitExceptions(["com.example.One", Defaults.finderBundleIdentifier])
                == [Defaults.finderBundleIdentifier, Defaults.phoneBundleIdentifier, "com.example.One"],
                "Finder and Phone are mandatory in the auto-quit exception list")
+        suite.expect(Defaults.sanitizedAutoQuitDockApps([
+            " com.example.One ", "", "\n", "com.example.One", "com.example.Two",
+            Defaults.finderBundleIdentifier, " \(Defaults.phoneBundleIdentifier) ",
+        ]) == ["com.example.One", "com.example.Two"],
+               "menu bar opt-ins are trimmed and deduplicated without permitting mandatory exceptions")
         suite.expect(AutoQuitSupport.isExcepted(bundleIdentifier: "com.example.direct",
                                           bundleURL: nil,
                                           exceptions: ["com.example.direct"]),
@@ -1394,7 +1409,7 @@ enum AppManagementFeatureTests {
                                                  withIntermediateDirectories: true)
         NSDictionary(dictionary: ["CFBundleIdentifier": "com.example.container"])
             .write(to: outerApp.appendingPathComponent("Contents/Info.plist"), atomically: true)
-        NSDictionary(dictionary: ["CFBundleIdentifier": "com.example.window-host"])
+        NSDictionary(dictionary: ["CFBundleIdentifier": "com.example.window-host", "LSUIElement": true])
             .write(to: nestedApp.appendingPathComponent("Contents/Info.plist"), atomically: true)
         suite.expect(AutoQuitSupport.isExcepted(bundleIdentifier: "com.example.window-host",
                                           bundleURL: nestedApp,
@@ -1423,16 +1438,139 @@ enum AppManagementFeatureTests {
             NSDictionary(dictionary: info).write(to: url.appendingPathComponent("Contents/Info.plist"), atomically: true)
             return url
         }
-        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("MenuBar", ["LSUIElement": true])),
+        let menuBarApp = agentBundle("MenuBar", ["LSUIElement": true])
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: menuBarApp, isInDock: false),
                "AutoQuit leaves a menu bar app running when its settings window closes")
-        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("MenuBarString", ["LSUIElement": "1"])),
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: menuBarApp, isInDock: true),
+               "AutoQuit protects an unselected menu bar app while it is still in the Dock")
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: menuBarApp, isInDock: true,
+                                                      allowsMenuBarQuit: true),
+               "an explicit opt-in removes the menu bar exemption only while the app is in the Dock")
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: menuBarApp, isInDock: false,
+                                                     allowsMenuBarQuit: true),
+               "an opted-in menu bar app is protected again after it leaves the Dock")
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("MenuBarString", ["LSUIElement": "1"]),
+                                                     isInDock: false),
                "AutoQuit reads a string LSUIElement the way Launch Services does")
-        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Daemon", ["LSBackgroundOnly": true])),
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("DockMenuBarString", ["LSUIElement": "1"]),
+                                                      isInDock: true, allowsMenuBarQuit: true),
+               "a string-valued menu bar declaration accepts an explicit Dock opt-in")
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Daemon", ["LSBackgroundOnly": true]),
+                                                     isInDock: false),
                "AutoQuit leaves a background-only app running")
-        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Regular", ["LSUIElement": false])),
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("DockDaemon", ["LSBackgroundOnly": true]),
+                                                     isInDock: true, allowsMenuBarQuit: true),
+               "AutoQuit preserves the background-only exemption even with a Dock opt-in")
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("DockDaemonString", ["LSBackgroundOnly": "1"]),
+                                                     isInDock: true, allowsMenuBarQuit: true),
+               "AutoQuit preserves string-valued background-only declarations in the Dock")
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("BothFlags", ["LSUIElement": true,
+                                                                                       "LSBackgroundOnly": true]),
+                                                     isInDock: true, allowsMenuBarQuit: true),
+               "background-only protection takes precedence over the optional Dock icon")
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Regular", ["LSUIElement": false]),
+                                                      isInDock: false),
                "AutoQuit still quits a regular app when its last window closes")
-        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: nil),
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: nil, isInDock: false),
                "AutoQuit treats a process without a bundle as a regular app")
+        suite.expect(AutoQuitSupport.canAllowMenuBarQuit(bundleURL: menuBarApp)
+                && AutoQuitSupport.canAllowMenuBarQuit(bundleURL: agentBundle("PickerMenuBarString", ["LSUIElement": "1"])),
+               "the menu bar opt-in picker accepts boolean and string agent declarations")
+        suite.expect(!AutoQuitSupport.canAllowMenuBarQuit(bundleURL: nil)
+                && !AutoQuitSupport.canAllowMenuBarQuit(bundleURL: agentBundle("PickerRegular", [:]))
+                && !AutoQuitSupport.canAllowMenuBarQuit(bundleURL: agentBundle("PickerFalseAgent", ["LSUIElement": false]))
+                && !AutoQuitSupport.canAllowMenuBarQuit(bundleURL: agentBundle("PickerDaemon", ["LSBackgroundOnly": true]))
+                && !AutoQuitSupport.canAllowMenuBarQuit(bundleURL: agentBundle("PickerBothFlags", ["LSUIElement": true,
+                                                                                                          "LSBackgroundOnly": "1"])),
+               "the menu bar opt-in picker excludes unidentified, regular and background-only apps")
+
+        let menuBarID = "com.example.menu-bar"
+        func menuBarIsExempt(isInDock: Bool = true,
+                             exceptions: [String] = [],
+                             dockApps: [String] = []) -> Bool {
+            AutoQuitSupport.isQuitExempt(bundleIdentifier: menuBarID,
+                                         bundleURL: menuBarApp,
+                                         isInDock: isInDock,
+                                         exceptions: exceptions,
+                                         dockApps: dockApps)
+        }
+        // The production decision must protect an unselected app throughout
+        // a delayed return to the menu bar, including when watching begins
+        // with its settings window already open and its Dock icon present.
+        suite.expect([true, true, true, false].allSatisfy { menuBarIsExempt(isInDock: $0) },
+               "an unselected menu bar app stays protected regardless of when it drops its Dock icon")
+        suite.expect(!menuBarIsExempt(dockApps: [menuBarID]),
+               "the production decision permits a selected menu bar app that remains in the Dock")
+        suite.expect(menuBarIsExempt(isInDock: false, dockApps: [menuBarID]),
+               "the production decision rechecks a selected app's current Dock policy")
+        suite.expect(menuBarIsExempt(dockApps: ["com.example.other", menuBarID + ".helper"]),
+               "a menu bar opt-in matches the exact app identifier, not another app or a prefix")
+        var selectedDockApps = [menuBarID]
+        let exemptBeforeRemoval = menuBarIsExempt(dockApps: selectedDockApps)
+        selectedDockApps.removeAll()
+        suite.expect(!exemptBeforeRemoval && menuBarIsExempt(dockApps: selectedDockApps),
+               "removing a Dock opt-in restores protection on the next decision")
+        suite.expect(menuBarIsExempt(exceptions: [menuBarID], dockApps: [menuBarID]),
+               "an explicit keep-running exception takes precedence over a Dock opt-in")
+        suite.expect(AutoQuitSupport.isQuitExempt(bundleIdentifier: nil,
+                                                 bundleURL: menuBarApp,
+                                                 isInDock: true,
+                                                 exceptions: [],
+                                                 dockApps: [menuBarID]),
+               "a menu bar app without a known identifier cannot inherit another app's opt-in")
+        for bundleID in Defaults.mandatoryAutoQuitExceptionBundleIDs {
+            suite.expect(AutoQuitSupport.isQuitExempt(bundleIdentifier: bundleID,
+                                                     bundleURL: nil,
+                                                     isInDock: true,
+                                                     exceptions: [],
+                                                     dockApps: [bundleID]),
+                   "a raw Dock opt-in never bypasses mandatory protection for \(bundleID)")
+        }
+        suite.expect(AutoQuitSupport.isQuitExempt(bundleIdentifier: "com.example.window-host",
+                                                 bundleURL: nestedApp,
+                                                 isInDock: true,
+                                                 exceptions: [],
+                                                 dockApps: ["com.example.container"]),
+               "opting in an outer app does not opt in its menu bar helper")
+        suite.expect(!AutoQuitSupport.isQuitExempt(bundleIdentifier: "com.example.window-host",
+                                                  bundleURL: nestedApp,
+                                                  isInDock: true,
+                                                  exceptions: [],
+                                                  dockApps: ["com.example.window-host"]),
+               "a menu bar helper can be opted in by its own exact identifier")
+        suite.expect(AutoQuitSupport.isQuitExempt(bundleIdentifier: "com.example.window-host",
+                                                 bundleURL: nestedApp,
+                                                 isInDock: true,
+                                                 exceptions: ["com.example.container"],
+                                                 dockApps: ["com.example.window-host"]),
+               "an outer app's keep-running exception still protects an opted-in helper")
+        let guestAppID = "com.parallels.winapp.0123456789abcdef.guest"
+        suite.expect(AutoQuitSupport.isQuitExempt(bundleIdentifier: guestAppID,
+                                                 bundleURL: menuBarApp,
+                                                 isInDock: true,
+                                                 exceptions: ["com.parallels.desktop.console"],
+                                                 dockApps: [guestAppID]),
+               "a guest-window host exception still protects an opted-in guest app")
+        suite.expect(AutoQuitSupport.isQuitExempt(bundleIdentifier: guestAppID,
+                                                 bundleURL: menuBarApp,
+                                                 isInDock: true,
+                                                 exceptions: [],
+                                                 dockApps: ["com.parallels.desktop.console"]),
+               "opting in a guest-window host does not opt in its generated menu bar apps")
+        let regularApp = agentBundle("RegularDecision", [:])
+        suite.expect([false, true].allSatisfy {
+            !AutoQuitSupport.isQuitExempt(bundleIdentifier: "com.example.regular",
+                                          bundleURL: regularApp,
+                                          isInDock: $0,
+                                          exceptions: [],
+                                          dockApps: [])
+        }, "apps without a background declaration remain eligible with or without a Dock icon")
+        suite.expect(AutoQuitSupport.isQuitExempt(bundleIdentifier: "com.example.daemon",
+                                                 bundleURL: agentBundle("DaemonDecision", ["LSBackgroundOnly": true]),
+                                                 isInDock: true,
+                                                 exceptions: [],
+                                                 dockApps: ["com.example.daemon"]),
+               "the production decision preserves background-only protection for an opted-in app")
         try? FileManager.default.removeItem(at: outerApp.deletingLastPathComponent())
         suite.expect(!AutoQuitSupport.shouldScheduleWindowCheck(for: .appDeactivated,
                                                           hasRecentCloseRequest: false),
@@ -1558,14 +1696,16 @@ enum AppManagementFeatureTests {
         let minimizedBody = ((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift",
             encoding: .utf8)) ?? "")
-            .components(separatedBy: "static func isMinimized(_ windowID: CGWindowID) -> Bool {\n")
+            .components(separatedBy: "static func isMinimized(_ windowID: CGWindowID) -> Bool? {\n")
             .dropFirst().first?
             .components(separatedBy: "\n    }\n").first?
             .components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
         suite.expect(minimizedBody == [
-            "guard #available(macOS 26.0, *), let tags = windowTags(of: [windowID])?[windowID] else { return false }",
+            "guard #available(macOS 26.0, *), let windows = windowTags(of: [windowID]) else { return nil }",
+            "guard let tags = windows[windowID] else { return false }",
+            "guard tags != 0 else { return nil }",
             "return SpaceHopSupport.isMinimized(windowTags: tags)"],
-               "the bridge reads a minimized window through the tested filter, only from macOS 26")
+               "the bridge preserves unknown minimized states and reads available tags through the tested filter")
         suite.expect(AutoQuitSupport.shouldQuitAfterWindowCheck(hadWindows: true,
                                                           appIsTerminated: false,
                                                           appIsExcepted: false,
@@ -1615,25 +1755,26 @@ enum AppManagementFeatureTests {
                                                            hasUserFacingWindow: true),
                "AutoQuit keeps apps with user-facing windows running")
         suite.expect(AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [4],
-                                                            visibleSpaces: [3],
-                                                            hasTitle: true),
+                                                            visibleSpaces: [3]),
                "a window parked on another Space keeps its app running")
         suite.expect(!AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [3],
-                                                             visibleSpaces: [3],
-                                                             hasTitle: true),
+                                                             visibleSpaces: [3]),
                "a window the app hid on the Space in front does not keep it running")
-        suite.expect(AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [],
-                                                            visibleSpaces: [3],
-                                                            hasTitle: true),
-               "a window with no Space answer falls back to the title rule")
         suite.expect(!AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [],
-                                                             visibleSpaces: nil,
-                                                             hasTitle: false),
-               "an untitled off-screen window never keeps an app running")
+                                                             visibleSpaces: [3])
+                && !AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [],
+                                                                 visibleSpaces: nil),
+               "a confirmed surface without a Space lets its app quit even when topology is unavailable (#2696)")
+        suite.expect(AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: nil,
+                                                                visibleSpaces: [3])
+                && AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: nil,
+                                                                visibleSpaces: nil),
+               "a failed window Space query never proves that an off-screen window was closed")
         suite.expect(AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [3],
-                                                            visibleSpaces: nil,
-                                                            hasTitle: true),
-               "without Spaces to compare, the old cautious rule stands")
+                                                            visibleSpaces: nil)
+                && AutoQuitSupport.offscreenWindowKeepsAppAlive(windowSpaces: [3],
+                                                                visibleSpaces: []),
+               "an assigned window keeps its app running when visible Spaces are unknown")
 
         func windowRole(layer: Int = 0,
                         alpha: Double = 1,
@@ -1713,6 +1854,7 @@ enum AppManagementFeatureTests {
                              beforeQuit: Bool = true,
                              drawingForApp: Set<pid_t> = [],
                              minimizedWindows: Set<CGWindowID> = [],
+                             unknownMinimizedWindows: Set<CGWindowID> = [],
                              windowSpaces: [CGWindowID: [UInt64]] = [:],
                              visibleSpaces: Set<UInt64>? = [3])
             -> (keepsApp: Bool, drawLookups: [pid_t], spaceLookups: Int) {
@@ -1723,9 +1865,9 @@ enum AppManagementFeatureTests {
                 pid: appPID,
                 countsEverythingShown: beforeQuit,
                 processDrawsForApp: { drawLookups.append($0); return drawingForApp.contains($0) },
-                windowIsMinimized: { minimizedWindows.contains($0) },
+                windowIsMinimized: { unknownMinimizedWindows.contains($0) ? nil : minimizedWindows.contains($0) },
                 visibleSpaces: { spaceLookups += 1; return visibleSpaces },
-                windowSpaces: { windowSpaces[$0] ?? [] })
+                windowSpaces: { windowSpaces[$0] })
             return (keepsApp, drawLookups, spaceLookups)
         }
         let ownWindowCheck = windowListCheck([listedWindow()])
@@ -1756,6 +1898,37 @@ enum AppManagementFeatureTests {
                "another app's normal window on another Space never keeps this app running")
         suite.expect(windowListCheck([listedWindow(id: 7, isOnScreen: false)], windowSpaces: [7: [4]]).keepsApp,
                "the app's own window on another Space keeps it running")
+        // Mail and Xcode can retain normal-sized off-screen surfaces after
+        // their last window closes (#2696). A successful empty Space answer
+        // must not be confused with an unanswered query or depend on a title.
+        for title in ["Document", ""] {
+            let residuals = [(420.0, 632.0), (1018.0, 600.0), (800.0, 800.0), (500.0, 500.0)]
+                .enumerated().map { index, size in
+                    listedWindow(id: CGWindowID(index + 10), width: size.0, height: size.1,
+                                 isOnScreen: false, title: title)
+                }
+            let noSpaces: [CGWindowID: [UInt64]] = [10: [], 11: [], 12: [], 13: []]
+            suite.expect(!windowListCheck(residuals, windowSpaces: noSpaces).keepsApp
+                    && !windowListCheck(residuals, windowSpaces: noSpaces, visibleSpaces: nil).keepsApp,
+                   "closed surfaces with no Space do not keep their app running, title: '\(title)' (#2696)")
+            suite.expect(windowListCheck(residuals, windowSpaces: [10: [], 11: [], 12: []]).keepsApp,
+                   "one failed Space query among confirmed leftovers keeps the app running, title: '\(title)'")
+            suite.expect(windowListCheck(residuals, windowSpaces: [10: [], 11: [], 12: [], 13: [4]]).keepsApp,
+                   "one real window on another Space among leftovers keeps the app running, title: '\(title)'")
+            suite.expect(windowListCheck(residuals, minimizedWindows: [13], windowSpaces: noSpaces).keepsApp,
+                   "a minimized window keeps the app running even with an empty Space answer, title: '\(title)'")
+            suite.expect(windowListCheck(residuals, unknownMinimizedWindows: [13], windowSpaces: noSpaces).keepsApp,
+                   "an unknown minimized state prevents discarding a surface with no Space, title: '\(title)'")
+        }
+        var windowWithoutTitle = listedWindow(id: 7, isOnScreen: false)
+        windowWithoutTitle.removeValue(forKey: kCGWindowName as String)
+        suite.expect(windowListCheck([windowWithoutTitle]).keepsApp
+                && windowListCheck([windowWithoutTitle], windowSpaces: [7: [4]]).keepsApp
+                && windowListCheck([windowWithoutTitle], windowSpaces: [7: [4]], visibleSpaces: nil).keepsApp,
+               "unavailable window titles never turn an unknown or parked window into a closed one")
+        suite.expect(windowListCheck([windowWithoutTitle], unknownMinimizedWindows: [7],
+                                     windowSpaces: [7: [3]]).keepsApp,
+               "unavailable minimized tags protect a window on the current Space when AX cannot see it")
         let hiddenWindowsCheck = windowListCheck([
             listedWindow(id: 7, isOnScreen: false),
             listedWindow(id: 8, isOnScreen: false),
@@ -1899,7 +2072,7 @@ enum AppManagementFeatureTests {
             "processDrawsForApp: { Self.process($0, drawsFor: pid) },",
             "windowIsMinimized: { SpaceWindowBridge.isMinimized($0) },",
             "visibleSpaces: { SpaceWindowBridge.topology()?.visibleSpaces },",
-            "windowSpaces: { SpaceWindowBridge.spaces(of: $0) })",
+            "windowSpaces: { SpaceWindowBridge.resolvedSpaces(of: $0) })",
             "guard ResponsibleProcess.owner(of: processID) == appPID else { return false }",
             "return NSRunningApplication(processIdentifier: processID)?.activationPolicy != .regular",
         ]

@@ -1896,7 +1896,8 @@ final class CommandBarService: ObservableObject {
         // Quitting an app is a rare, heavy verb: its rows only join the list
         // when the person actually asked to quit something, so they never
         // double the length of an ordinary app search.
-        if CommandBarSearch.matchesVerb(trimmed, in: bar.quitFormat) {
+        if CommandBarSearch.matchesVerb(trimmed, in: [bar.quitFormat,
+                                                      FeatureStrings.commandBar(.enUS).quitFormat]) {
             pool.append(contentsOf: quitEntries)
         }
         // Menu commands are a deep list; below two letters it would bury
@@ -1988,8 +1989,7 @@ final class CommandBarService: ObservableObject {
         if let scriptAnswer { result.append(scriptAnswer) }
         for index in ranked {
             let entry = pool[index]
-            if entry.id.hasPrefix("answer."),
-               firstToken.count < 3 || !CommandBarSearch.normalized(entry.title).hasPrefix(firstToken) {
+            if entry.id.hasPrefix("answer."), !entry.matchesAnswerName(firstToken) {
                 continue
             }
             if let kind = Self.kindLimits.first(where: { entry.id.hasPrefix($0.prefix) }) {
@@ -2424,7 +2424,7 @@ final class CommandBarService: ObservableObject {
     /// itself with `.confirm`.
     private func confirmUninstallReview(entryID: String) {
         let uninstaller = AppUninstaller.shared
-        guard uninstaller.phase == .results, !uninstaller.isRemoving else { return }
+        guard uninstaller.canRemoveSelected else { return }
         if let confirmation = uninstaller.homebrewRemovalConfirmation {
             pendingHomebrewRemoval = confirmation
             mode = .uninstallHomebrewConfirm(entryID: entryID)

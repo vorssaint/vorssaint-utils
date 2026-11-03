@@ -93,7 +93,7 @@ struct TextSnippetsSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                ForEach(snippets) { snippet in
+                ForEach(TextSnippetSupport.sortedForDisplay(snippets)) { snippet in
                     SnippetRow(snippet: snippet,
                                modeLabel: snippet.expansion == .immediate
                                    ? text.expansionImmediate
