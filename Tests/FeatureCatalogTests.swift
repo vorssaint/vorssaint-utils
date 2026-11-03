@@ -1763,6 +1763,26 @@ enum FeatureCatalogTests {
                     == role.defaultShortcut.storageValue,
                    "display shortcut defaults match their registered preferences")
         }
+        suite.expect(GlobalShortcutRole.cleaningMode.storageKey == DefaultsKey.cleaningModeShortcut
+                && GlobalShortcutRole.cleaningMode.defaultShortcut == .cleaningModeDefault
+                && GlobalShortcutRole.cleaningMode.requiredEnableKeys == [DefaultsKey.cleaningModeShortcutEnabled]
+                && GlobalShortcutRole.cleaningMode.feature == .cleaningMode
+                && GlobalShortcutRole.cleaningMode.title(.enUS) == Strings.enUS.cleaningMenuItem,
+               "the cleaning mode shortcut role is wired to its own keys, feature and title")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.cleaningModeShortcutEnabled] as? Bool == false
+                && (Defaults.registeredDefaults[DefaultsKey.cleaningModeShortcut] as? String)
+                    == GlobalShortcut.cleaningModeDefault.storageValue,
+               "the cleaning mode shortcut starts off at its registered default combination")
+        for disabled in [DefaultsKey.cleaningModeShortcutEnabled] {
+            suite.expect(!GlobalShortcutRole.activeRoles(isOn: { $0 != disabled }).contains(.cleaningMode),
+                   "the cleaning mode shortcut reserves no combination before opt-in")
+        }
+        suite.expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true },
+                    isAvailable: { $0 != .cleaningMode }).contains(.cleaningMode),
+               "uninstalling cleaning mode also removes its shortcut")
+        suite.expect(SettingsBackupSupport.exportKeys().isSuperset(
+                of: [DefaultsKey.cleaningModeShortcut, DefaultsKey.cleaningModeShortcutEnabled]),
+               "the cleaning mode shortcut and opt-in travel in settings backups")
         suite.expect(BrightnessSupport.shortcutDisplay(followsPointer: true, pointerDisplay: 2,
                    primaryDisplay: 1, eligible: [1, 2]) == 2,
                "display shortcuts follow the pointer onto an external monitor")
