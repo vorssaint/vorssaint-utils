@@ -11,6 +11,10 @@ struct AppPickerView: View {
     @State private var isLoading = false
     @State private var isBrowsingApplications = false
     @State private var sortOrder = AppListSort.name
+    @State private var usageCancellation = CleanerSupport.ScanCancellation()
+    /// Whether the picker is on screen, so a list that finishes loading after
+    /// it was closed does not start measuring for nobody.
+    @State private var isOnScreen = false
 
     var compact = false
     var canBrowseApplications = false
@@ -81,7 +85,14 @@ struct AppPickerView: View {
         }
         .padding(compact ? 10 : 18)
         .frame(width: compact ? nil : 520, height: compact ? nil : 560)
-        .onAppear { loadAppsIfNeeded() }
+        .onAppear {
+            isOnScreen = true
+            loadAppsIfNeeded()
+        }
+        .onDisappear {
+            isOnScreen = false
+            usageCancellation.cancel()
+        }
         .fileImporter(isPresented: $isBrowsingApplications,
                       allowedContentTypes: acceptsExecutables
                           ? [.applicationBundle, .executable, .unixExecutable]
@@ -164,14 +175,20 @@ struct AppPickerView: View {
     }
 
     private func loadAppsIfNeeded() {
-        guard apps.isEmpty, !isLoading else { return }
+        guard !isLoading else { return }
+        if !apps.isEmpty {
+            // Coming back to a list whose measuring was stopped: finish it.
+            let unmeasured = apps.filter { $0.size == nil }
+            if showsUsage, !unmeasured.isEmpty { measureUsage(of: unmeasured) }
+            return
+        }
         isLoading = true
         DispatchQueue.global(qos: .userInitiated).async {
             let loaded = loadApps()
             DispatchQueue.main.async {
                 apps = loaded
                 isLoading = false
-                if showsUsage { measureUsage(of: loaded) }
+                if showsUsage, isOnScreen { measureUsage(of: loaded) }
             }
         }
     }
@@ -179,6 +196,9 @@ struct AppPickerView: View {
     /// Fills in sizes and last-used dates after the list is already on screen,
     /// a few apps at a time, so a big Applications folder never holds it up.
     private func measureUsage(of loaded: [InstalledApps.InstalledApp]) {
+        usageCancellation.cancel()
+        usageCancellation = CleanerSupport.ScanCancellation()
+        let cancellation = usageCancellation
         DispatchQueue.global(qos: .utility).async {
             var batch: [String: (size: Int64, lastUsed: Date?)] = [:]
             func publish() {
@@ -193,6 +213,7 @@ struct AppPickerView: View {
                 }
             }
             for app in loaded {
+                if cancellation.isCancelled { return }
                 batch[app.id] = InstalledApps.usage(of: app.url)
                 if batch.count >= 8 { publish() }
             }
@@ -259,19 +280,29 @@ private struct AppPickerRow: View {
 enum AppListSort: Hashable {
     case name, size, lastUsed
 
+    /// Ties always fall back to the name, so rows never swap places at random.
+    private static func byName(_ lhs: InstalledApps.InstalledApp, _ rhs: InstalledApps.InstalledApp) -> Bool {
+        lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
+
     static func sorted(_ apps: [InstalledApps.InstalledApp], by order: AppListSort) -> [InstalledApps.InstalledApp] {
         switch order {
         case .name:
             return apps
         case .size:
-            return apps.sorted { ($0.size ?? -1) > ($1.size ?? -1) }
+            return apps.sorted { lhs, rhs in
+                let (a, b) = (lhs.size ?? -1, rhs.size ?? -1)
+                return a != b ? a > b : byName(lhs, rhs)
+            }
         case .lastUsed:
             return apps.sorted { lhs, rhs in
                 switch (lhs.size, rhs.size) {
-                case (nil, nil): return false
+                case (nil, nil): return byName(lhs, rhs)
                 case (nil, _): return false
                 case (_, nil): return true
-                default: return (lhs.lastUsed ?? .distantPast) < (rhs.lastUsed ?? .distantPast)
+                default:
+                    let (a, b) = (lhs.lastUsed ?? .distantPast, rhs.lastUsed ?? .distantPast)
+                    return a != b ? a < b : byName(lhs, rhs)
                 }
             }
         }
