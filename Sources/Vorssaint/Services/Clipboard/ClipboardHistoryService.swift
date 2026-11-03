@@ -28,6 +28,9 @@ final class ClipboardHistoryService: ObservableObject {
             // The result array holds full entry texts, so a cleared or edited
             // history's content must not linger in it until the next search.
             filterCache = nil
+            if !quickBatchEntryIDs.isEmpty || quickSelectionID != nil || quickKeyboardSelection.isActive {
+                reconcileQuickSelection()
+            }
             // Keeps latestPasteboardEntry from outliving the entry it points
             // to: removing it, clearing recent/all, or trimming to a smaller
             // limit must stop the preview from claiming stale content is
@@ -50,10 +53,15 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var isRunning = false
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var quickBatchEntryIDs: Set<UUID> = []
+    private var quickKeyboardSelection = ClipboardKeyboardSelection()
+    private(set) var quickListNavigationActive = false
+    var quickKeyboardSelectionActive: Bool { quickKeyboardSelection.isActive }
     @Published var quickQuery = "" {
         didSet {
             if quickQuery != oldValue {
-                resetQuickSelection()
+                quickKeyboardSelection.endSegment()
+                quickListNavigationActive = false
+                reconcileQuickSelection()
             }
         }
     }
@@ -68,7 +76,15 @@ final class ClipboardHistoryService: ObservableObject {
     )
     /// Read again on every opening, so the window's frame and its content
     /// always agree, even if the setting changes while it is open.
-    @Published private(set) var quickLayout = ClipboardHistoryLayout.current()
+    @Published private(set) var quickLayout = ClipboardHistoryLayout.current() {
+        didSet {
+            if quickLayout != oldValue {
+                quickKeyboardSelection.endSegment()
+                quickListNavigationActive = false
+                reconcileQuickSelection()
+            }
+        }
+    }
 
     private var timer: Timer?
     /// Entries age out with nothing new copied, so the retention window is
@@ -103,6 +119,7 @@ final class ClipboardHistoryService: ObservableObject {
     private var hotKeyHandler: EventHandlerRef?
     private var registeredShortcut: GlobalShortcut?
     private var pasteTargetApp: NSRunningApplication?
+    var batchPasteTarget: NSRunningApplication? { pasteTargetApp }
     private var promptedForAccessibility = false
     /// Writes coalesce per mutation cycle; the JSON encode and the disk write
     /// stay off the main thread (a full history of long texts is real work),
@@ -312,22 +329,24 @@ final class ClipboardHistoryService: ObservableObject {
     func togglePin(_ entry: ClipboardHistoryEntry) {
         guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
         let previousEntries = entries
-        // entries.remove(at:) below drops the entry for a moment before it is
-        // reinserted, and entries' own didSet reconciles latestPasteboardEntry
-        // against whatever is there right then — so if this is the entry it
-        // points to, that intermediate absence nils it out and nothing here
-        // sets it back, since a pin change is not a new promoted copy.
-        // Restored by looking it up again once the move actually lands.
         let previousPasteboardEntry = latestPasteboardEntry
-        var updated = entries.remove(at: index)
+        let previousSelection = quickBatchEntryIDs
+        let previousFocus = quickSelectionID
+        let previousVisibility = quickSelectionIsVisible
+        let previousRange = quickKeyboardSelection
+        var reordered = entries
+        var updated = reordered.remove(at: index)
         let pinning = !updated.isPinned
         if updated.isPinned {
             updated = ClipboardHistoryEditing.unpinned(updated)
-            entries.insert(updated, at: firstRecentIndex)
+            let recentIndex = reordered.firstIndex { !$0.isPinned } ?? reordered.endIndex
+            reordered.insert(updated, at: recentIndex)
         } else {
             updated.pinnedAt = Date()
-            entries.insert(updated, at: 0)
+            reordered.insert(updated, at: 0)
         }
+        // Publish the complete move so observers never see a missing UUID.
+        entries = reordered
         normalizeEntryOrder()
         trimToLimit()
         let reverted: Bool
@@ -337,6 +356,10 @@ final class ClipboardHistoryService: ObservableObject {
             reverted = false
         } else {
             entries = previousEntries
+            quickBatchEntryIDs = previousSelection
+            quickSelectionID = previousFocus
+            quickSelectionIsVisible = previousVisibility
+            quickKeyboardSelection = previousRange
             reverted = true
         }
         if let current = previousPasteboardEntry, current.id == entry.id {
@@ -436,32 +459,28 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func toggleQuickBatchSelection(_ entry: ClipboardHistoryEntry) {
+        quickKeyboardSelection.setAnchor(entry.id)
+        quickListNavigationActive = false
         quickSelectionID = entry.id
-        var selected = quickBatchEntryIDs
-        if selected.contains(entry.id) {
-            selected.remove(entry.id)
-        } else {
-            selected.insert(entry.id)
-        }
-        quickBatchEntryIDs = selected
+        quickSelectionIsVisible = true
+        quickBatchEntryIDs = quickBatchEntryIDs.symmetricDifference([entry.id])
     }
 
     /// Finder-style shift-click: selects everything between the last row the
     /// user touched and the clicked one.
-    func extendQuickBatchSelection(to entry: ClipboardHistoryEntry) {
-        let matches = filteredQuickEntries
-        guard let target = matches.firstIndex(where: { $0.id == entry.id }) else { return }
-        let anchor = selectedQuickIndex(in: matches)
-        let ids = ClipboardHistoryBatch.rangeSelectionIDs(allIDs: matches.map(\.id),
-                                                          anchor: anchor,
-                                                          target: target)
-        quickBatchEntryIDs = quickBatchEntryIDs.union(ids)
-        quickSelectionID = entry.id
-        quickSelectionIsVisible = true
+    func extendQuickBatchSelection(to entry: ClipboardHistoryEntry, additive: Bool = false) {
+        quickBatchEntryIDs = quickKeyboardSelection.selectRange(
+            visibleIDs: filteredQuickEntries.map(\.id), currentID: selectedQuickEntryID,
+            selectedIDs: quickBatchEntryIDs, targetID: entry.id, additive: additive)
+        quickSelectionID = quickKeyboardSelection.focusID
+        quickSelectionIsVisible = quickSelectionID != nil
+        quickListNavigationActive = false
     }
 
     /// Selects every visible result, so "search, select all, copy" works.
     func selectAllQuickEntries() {
+        quickKeyboardSelection.reset()
+        quickListNavigationActive = false
         let visible = filteredQuickEntries.map(\.id)
         guard !visible.isEmpty else { return }
         quickBatchEntryIDs = quickBatchEntryIDs.union(visible)
@@ -473,6 +492,7 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func clearQuickBatchSelection() {
+        quickKeyboardSelection.reset()
         quickBatchEntryIDs = []
     }
 
@@ -564,19 +584,79 @@ final class ClipboardHistoryService: ObservableObject {
     private(set) var keyboardSelectionPointer: NSPoint?
 
     func moveQuickSelection(_ delta: Int) {
-        // Out of the way while the keys drive, back at the first real move.
+        navigateQuickSelection(.skip(delta))
+    }
+
+    /// Both range changes and skips publish the focus separately from the batch.
+    func navigateQuickSelection(_ action: ClipboardKeyboardNavigation.Action) {
         NSCursor.setHiddenUntilMouseMoves(true)
         keyboardSelectionPointer = NSEvent.mouseLocation
-        let matches = filteredQuickEntries
-        guard !matches.isEmpty else {
-            quickSelectionID = nil
-            quickSelectionIsVisible = false
+        let ids = filteredQuickEntries.map(\.id)
+        let currentID = quickSelectionIsVisible ? selectedQuickEntryID : nil
+        switch action {
+        case .extend(let step):
+            quickBatchEntryIDs = quickKeyboardSelection.extend(
+                visibleIDs: ids, currentID: currentID,
+                selectedIDs: quickBatchEntryIDs, step: step)
+        case .toggle(let step):
+            quickBatchEntryIDs = quickKeyboardSelection.toggle(
+                visibleIDs: ids, currentID: currentID,
+                selectedIDs: quickBatchEntryIDs, step: step)
+        case .skip(let step):
+            _ = quickKeyboardSelection.skip(visibleIDs: ids, currentID: currentID, step: step)
+        }
+        quickSelectionID = quickKeyboardSelection.focusID
+        quickSelectionIsVisible = quickSelectionID != nil
+        quickListNavigationActive = quickSelectionIsVisible
+    }
+
+    func quickNavigationAction(keyCode: UInt16, flags: AppKit.NSEvent.ModifierFlags,
+                               searchHasSelection: Bool) -> ClipboardKeyboardNavigation.Action? {
+        if searchHasSelection { quickListNavigationActive = false }
+        // After a text selection collapses, plain arrows can re-enter list
+        // navigation. Modified arrows still require existing list ownership.
+        let modifiers = flags.intersection([.command, .shift, .option, .control])
+        let canResumeNavigation = quickKeyboardSelection.isActive && modifiers.isEmpty && !searchHasSelection
+        return ClipboardKeyboardNavigation.action(
+            keyCode: keyCode, flags: flags,
+            sideArrowsMoveSelection: quickLayout.sideArrowsMoveSelection,
+            interactionActive: quickKeyboardSelection.isActive,
+            hasMarkedText: false, isEditingBody: false,
+            searchIsEmpty: quickQuery.isEmpty, searchHasSelection: searchHasSelection,
+            listNavigationActive: quickListNavigationActive || canResumeNavigation)
+    }
+
+    func batchEntries(selectedIDs: Set<UUID>) -> [ClipboardHistoryEntry] {
+        entries.filter { selectedIDs.contains($0.id) }
+    }
+
+    /// Callers capture the batch and target before dismissing their own surface.
+    /// This operation deliberately has no window or permission-prompt side effects.
+    func activateBatch(_ selectedEntries: [ClipboardHistoryEntry], paste: Bool,
+                       target: NSRunningApplication?, completion: @escaping (Bool) -> Void) {
+        guard !selectedEntries.isEmpty, !paste || target?.isTerminated == false else {
+            NSSound.beep()
+            completion(false)
             return
         }
-        let current = selectedQuickIndex(in: matches)
-        let index = quickSelectionIsVisible ? min(max(current + delta, 0), matches.count - 1) : current
-        quickSelectionID = matches[index].id
-        quickSelectionIsVisible = true
+        copy(selectedEntries) { [weak self] copied in
+            guard copied else {
+                NSSound.beep()
+                completion(false)
+                return
+            }
+            if paste {
+                guard target?.isTerminated == false else {
+                    NSSound.beep()
+                    completion(false)
+                    return
+                }
+                // A revoked grant keeps the completed copy; the island never
+                // turns its copy fallback into an Accessibility prompt.
+                if AXIsProcessTrusted() { self?.pasteIntoPreviousApp(target) }
+            }
+            completion(true)
+        }
     }
 
     /// The window leaves the screen at once; the paste waits for the write,
@@ -888,7 +968,6 @@ final class ClipboardHistoryService: ObservableObject {
                               keepsSource: Bool) {
         let hash = Self.sha256Hex(image.data)
         if let existing = entries.first(where: { $0.kind == .image && $0.imageHash == hash }) {
-            entries.removeAll { $0.id == existing.id }
             insertPromoted(ClipboardHistoryEntry(id: existing.id,
                                                  text: "",
                                                  copiedAt: Date(),
@@ -915,7 +994,6 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func promoteFiles(_ paths: [String], source: String?, keepsSource: Bool) {
         let existing = entries.first(where: { $0.kind == .files && $0.filePaths == paths })
-        entries.removeAll { $0.kind == .files && $0.filePaths == paths }
         if let existing {
             insertPromoted(ClipboardHistoryEntry(id: existing.id,
                                                  text: "",
@@ -966,7 +1044,6 @@ final class ClipboardHistoryService: ObservableObject {
         }
 
         let existing = entries.first(where: { $0.kind == .text && $0.text == text })
-        entries.removeAll { $0.kind == .text && $0.text == text }
         if let existing {
             insertPromoted(ClipboardHistoryEntry(id: existing.id,
                                                  text: text,
@@ -1010,11 +1087,10 @@ final class ClipboardHistoryService: ObservableObject {
     private func insertPromoted(_ entry: ClipboardHistoryEntry, source: String?) {
         var entry = entry
         entry.sourceBundleID = source
-        if entry.isPinned {
-            entries.insert(entry, at: 0)
-        } else {
-            entries.insert(entry, at: firstRecentIndex)
-        }
+        var promoted = entries.filter { !$0.matchesContent(of: entry) }
+        let index = entry.isPinned ? 0 : (promoted.firstIndex { !$0.isPinned } ?? promoted.endIndex)
+        promoted.insert(entry, at: index)
+        entries = promoted
         latestPasteboardEntry = entry
         capturedEntry.send(entry)
     }
@@ -1331,6 +1407,10 @@ final class ClipboardHistoryService: ObservableObject {
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            guard !app.isTerminated else {
+                NSSound.beep()
+                return
+            }
             Self.postPasteShortcut()
         }
     }
@@ -1466,9 +1546,16 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func installKeyMonitor(for panel: NSPanel) {
         removeKeyMonitor()
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self, weak panel] event in
+            guard let self else { return event }
+            // Modifier release ends the session even while a dialog owns focus.
+            if event.type == .flagsChanged {
+                self.quickKeyboardSelection.modifiersChanged(event.modifierFlags)
+                return event
+            }
             // An open confirmation owns Return and Escape.
-            guard let self, let panel, event.window === panel, panel.attachedSheet == nil else { return event }
+            guard let panel, event.window === panel else { return event }
+            guard panel.attachedSheet == nil else { return event }
             // A multiline editor owns its normal editing keys, and any field
             // still composing owns them too. Outside composition the search
             // box keeps the list's shortcuts, as does the read-only preview:
@@ -1537,6 +1624,20 @@ final class ClipboardHistoryService: ObservableObject {
                event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete) {
                 self.removeSelectedQuickEntries()
                 return nil
+            }
+            let searchEditor = (panel.firstResponder as? NSTextView).flatMap { $0.isFieldEditor ? $0 : nil }
+            if let action = self.quickNavigationAction(
+                keyCode: event.keyCode, flags: event.modifierFlags,
+                searchHasSelection: (searchEditor?.selectedRange().length ?? 0) > 0) {
+                self.navigateQuickSelection(action)
+                return nil
+            }
+            // A declined range/skip chord belongs to text editing. Do not let
+            // the legacy up/down navigator reclaim it below.
+            if modifiers == [.command, .shift] || modifiers == [.shift] || modifiers == [.command]
+                || (searchEditor?.selectedRange().length ?? 0) > 0,
+               [UInt16(kVK_UpArrow), UInt16(kVK_DownArrow), UInt16(kVK_LeftArrow), UInt16(kVK_RightArrow)].contains(event.keyCode) {
+                return event
             }
             if let step = ClipboardHistoryNavigation.step(keyCode: event.keyCode, modifiers: modifiers,
                                                           key: key, layout: self.quickLayout) {
@@ -1612,15 +1713,13 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     private func resetQuickSelection() {
+        quickListNavigationActive = false
         quickSelectionID = nil
         quickSelectionIsVisible = false
     }
 
     private var quickBatchEntries: [ClipboardHistoryEntry] {
-        let allIDs = entries.map(\.id)
-        let indexes = ClipboardHistoryBatch.orderedSelectedIndexes(allIDs: allIDs,
-                                                                  selectedIDs: quickBatchEntryIDs)
-        return indexes.map { entries[$0] }
+        batchEntries(selectedIDs: quickBatchEntryIDs)
     }
 
     private func quickEntriesForPrimaryAction() -> [ClipboardHistoryEntry] {
@@ -1628,6 +1727,19 @@ final class ClipboardHistoryService: ObservableObject {
         if !batch.isEmpty { return batch }
         guard let entry = selectedQuickEntry else { return [] }
         return [entry]
+    }
+
+/// Keep selection identity across filtering, capture, reordering and expiry.
+    private func reconcileQuickSelection() {
+        let previousSelection = quickBatchEntryIDs
+        pruneQuickBatchSelection()
+        if previousSelection != quickBatchEntryIDs { quickKeyboardSelection.endSegment() }
+        let ids = filteredQuickEntries.map(\.id)
+        _ = quickKeyboardSelection.invalidate(visibleIDs: ids)
+        if !ids.contains(where: { $0 == quickSelectionID }) {
+            quickSelectionID = ids.first
+        }
+        if quickSelectionID == nil { quickSelectionIsVisible = false }
     }
 
     private func pruneQuickBatchSelection() {

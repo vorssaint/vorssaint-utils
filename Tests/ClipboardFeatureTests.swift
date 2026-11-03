@@ -86,6 +86,7 @@ enum ClipboardFeatureTests {
     }
 
     static func run(_ suite: TestSuite) {
+        ClipboardKeyboardSelectionTests.run(suite)
         ClipboardSensitiveTextPreferenceTests.run(suite)
         ClipboardPreviewContract.run(suite)
         ClipboardCaptureRestoreTests.run(suite)
@@ -1603,7 +1604,7 @@ enum ClipboardFeatureTests {
         suite.expect(hideBody.contains("panel.endSheet(sheet)")
                      && (hideBody.range(of: "endSheet")?.lowerBound ?? hideBody.endIndex)
                         < (hideBody.range(of: "orderOut")?.lowerBound ?? hideBody.startIndex)
-                     && historySource.contains("event.window === panel, panel.attachedSheet == nil"),
+                     && historySource.contains("guard panel.attachedSheet == nil else { return event }"),
                "the history window ends an open confirmation before hiding and leaves its keys to it")
         suite.expect((hideBody.range(of: "captureIfChanged(historyPanelClosing: true)")?.lowerBound ?? hideBody.endIndex)
                         < (hideBody.range(of: "orderOut")?.lowerBound ?? hideBody.startIndex),
@@ -1638,11 +1639,191 @@ enum ClipboardFeatureTests {
     }
 }
 
+enum ClipboardKeyboardSelectionTests {
+    static func run(_ suite: TestSuite) {
+        ranges(suite)
+        toggles(suite)
+        sessions(suite)
+        mouse(suite)
+        lifecycle(suite)
+        routing(suite)
+    }
+
+    private static func ranges(_ suite: TestSuite) {
+        let a = UUID(), b = UUID(), c = UUID(), d = UUID(), e = UUID()
+        let ids = [a, b, c, d, e]
+        var state = ClipboardKeyboardSelection()
+        var selected: Set<UUID> = [b]
+        for (step, expected): (Int, Set<UUID>) in [
+            (1, [b, c]), (1, [b, c, d]), (-1, [b, c]), (-1, [b]), (-1, [a, b])
+        ] {
+            selected = state.extend(visibleIDs: ids, currentID: state.focusID ?? b,
+                                    selectedIDs: selected, step: step)
+            suite.expect(selected == expected, "T01-T03: fixed-anchor range expands, shrinks and crosses")
+        }
+        state.reset()
+        selected = state.extend(visibleIDs: ids, currentID: b, selectedIDs: [b, e], step: 2)
+        suite.expect(selected == [b, c, d, e], "T05: range keeps the discontiguous base")
+        selected = state.extend(visibleIDs: ids, currentID: d, selectedIDs: selected, step: -1)
+        suite.expect(selected == [b, c, e], "T05: shrinking restores the original outside selection")
+        state.reset()
+        selected = state.extend(visibleIDs: ids, currentID: nil, selectedIDs: [], step: 1)
+        suite.expect(selected == [a] && state.focusID == a, "first range key selects only the revealed first item")
+        for _ in 0..<8 {
+            selected = state.extend(visibleIDs: ids, currentID: state.focusID, selectedIDs: selected, step: 1)
+        }
+        suite.expect(selected == Set(ids) && state.focusID == e, "T16: range repeats clamp without wrapping")
+        state.reset()
+        suite.expect(state.extend(visibleIDs: ids, currentID: e, selectedIDs: [a], step: 1) == [a],
+                     "an unmoved boundary never adds an unselected current item")
+        state.reset()
+        suite.expect(state.extend(visibleIDs: [], currentID: nil, selectedIDs: [], step: 1).isEmpty
+                     && state.focusID == nil && !state.isActive, "empty lists never establish a range")
+    }
+
+    private static func toggles(_ suite: TestSuite) {
+        let a = UUID(), b = UUID(), c = UUID(), d = UUID(), e = UUID()
+        let ids = [a, b, c, d, e]
+        var state = ClipboardKeyboardSelection()
+        var selected: Set<UUID> = []
+        selected = state.toggle(visibleIDs: ids, currentID: a, selectedIDs: selected, step: 1)
+        suite.expect(selected == [a, b] && state.focusID == b,
+                     "Cmd-Shift includes anchor A on the first effective move")
+        selected = state.toggle(visibleIDs: ids, currentID: b, selectedIDs: selected, step: 1)
+        suite.expect(selected == [a, b, c], "Cmd-Shift A-C processes the complete inclusive range")
+        selected = state.toggle(visibleIDs: ids, currentID: c, selectedIDs: selected, step: -1)
+        suite.expect(selected == [a, b], "retreating to B restores C to its original unselected state")
+
+        state.reset()
+        selected = [a, b, c]
+        selected = state.toggle(visibleIDs: ids, currentID: a, selectedIDs: selected, step: 2)
+        suite.expect(selected.isEmpty, "inverting selected A-C also cancels the selected anchor A")
+        selected = state.toggle(visibleIDs: ids, currentID: c, selectedIDs: selected, step: -1)
+        suite.expect(selected == [c], "retreat restores a previously selected C from the session snapshot")
+
+        state.reset()
+        selected = [b, c, e]
+        for (step, expected): (Int, Set<UUID>) in [
+            (1, [e]), (1, [d, e]), (-1, [e]), (-1, [c, e]), (-1, [a, c, e])
+        ] {
+            selected = state.toggle(visibleIDs: ids, currentID: state.focusID ?? b,
+                                    selectedIDs: selected, step: step)
+            suite.expect(selected == expected,
+                         "range inversion keeps anchor B and restores the mixed base when crossing it")
+        }
+        state.reset()
+        for _ in 0..<12 {
+            selected = state.toggle(visibleIDs: ids, currentID: e, selectedIDs: [a, c], step: 1)
+            suite.expect(selected == [a, c] && state.focusID == e,
+                         "boundary repeats without displacement do not start or repeat inversion")
+        }
+        state.reset()
+        selected = state.toggle(visibleIDs: ids, currentID: nil, selectedIDs: [b], step: 1)
+        suite.expect(selected == [a, b] && state.focusID == a,
+                     "first inversion key reveals and includes the anchor without skipping it")
+        state.reset()
+        suite.expect(state.toggle(visibleIDs: [], currentID: nil, selectedIDs: [], step: 1).isEmpty,
+                     "empty lists never start inversion")
+    }
+
+    private static func sessions(_ suite: TestSuite) {
+        let a = UUID(), b = UUID(), c = UUID(), d = UUID()
+        let ids = [a, b, c, d]
+        var state = ClipboardKeyboardSelection()
+        var selected = state.extend(visibleIDs: ids, currentID: b, selectedIDs: [b], step: 2)
+        state.modifiersChanged([])
+        suite.expect(!state.isActive && selected == [b, c, d] && state.focusID == d,
+                     "T04: releasing Shift ends the session without changing selection or focus")
+        selected = state.extend(visibleIDs: ids, currentID: d, selectedIDs: selected, step: -1)
+        suite.expect(selected == [b, c, d], "a fresh range snapshots the selection after modifier release")
+        selected = state.toggle(visibleIDs: ids, currentID: c, selectedIDs: selected, step: -1)
+        suite.expect(selected == [d], "switching to inversion includes its new anchor C and target B")
+        state.modifiersChanged([.shift])
+        suite.expect(!state.isActive, "T13: releasing Command ends toggle while Shift stays held")
+        selected = state.extend(visibleIDs: ids, currentID: b, selectedIDs: selected, step: -1)
+        suite.expect(selected == [a, b, d], "T13: Shift after range inversion uses the latest base")
+        _ = state.skip(visibleIDs: ids, currentID: a, step: 1)
+        suite.expect(!state.isActive && state.focusID == b, "ordinary navigation ends the session")
+        selected = state.extend(visibleIDs: ids, currentID: b, selectedIDs: [], step: 1)
+        suite.expect(selected == [b, c], "a new range includes the navigated origin")
+        state.modifiersChanged([.shift, .option])
+        suite.expect(!state.isActive, "extra shortcut modifiers end the active range")
+    }
+
+    private static func mouse(_ suite: TestSuite) {
+        let a = UUID(), b = UUID(), c = UUID(), d = UUID(), e = UUID()
+        let ids = [a, b, c, d, e]
+        var state = ClipboardKeyboardSelection()
+        state.setAnchor(b)
+        var selected = state.selectRange(visibleIDs: ids, currentID: b, selectedIDs: [b], targetID: d)
+        state.modifiersChanged([])
+        selected = state.selectRange(visibleIDs: ids, currentID: d, selectedIDs: selected, targetID: c)
+        suite.expect(selected == [b, c] && state.focusID == c, "T15: consecutive mouse ranges retain their fixed anchor and shrink")
+        selected = state.extend(visibleIDs: ids, currentID: c, selectedIDs: selected, step: -1)
+        suite.expect(selected == [b], "keyboard range can shrink the preceding mouse range")
+        state.setAnchor(b)
+        selected = state.selectRange(visibleIDs: ids, currentID: b, selectedIDs: [b, e], targetID: d, additive: true)
+        suite.expect(selected == [b, c, d, e], "Cmd-Shift-click adds the whole range while preserving outside items")
+        state.setAnchor(a)
+        selected = state.extend(visibleIDs: ids, currentID: a, selectedIDs: [e], step: 1)
+        suite.expect(selected == [a, b, e], "a clicked unselected origin becomes the next inclusive range anchor")
+    }
+
+    private static func lifecycle(_ suite: TestSuite) {
+        let a = UUID(), b = UUID(), c = UUID(), x = UUID()
+        let ids = [a, b, c]
+        for changed in [[b, a, c], [a, c], [x, a, b, c], []] {
+            var state = ClipboardKeyboardSelection()
+            _ = state.extend(visibleIDs: ids, currentID: a, selectedIDs: [], step: 1)
+            suite.expect(state.invalidate(visibleIDs: changed) && !state.isActive,
+                         "T09-T14: visible order changes end old ranges")
+            suite.expect(!state.invalidate(visibleIDs: changed), "repeated unchanged lists do not invalidate again")
+            let selected = state.extend(visibleIDs: changed, currentID: state.focusID, selectedIDs: [c], step: 1)
+            suite.expect(!selected.contains(x) || state.focusID == x,
+                         "reconciliation never selects inserted items through an obsolete index")
+        }
+        var state = ClipboardKeyboardSelection()
+        _ = state.extend(visibleIDs: ids, currentID: a, selectedIDs: [], step: 1)
+        suite.expect(!state.invalidate(visibleIDs: ids) && state.isActive,
+                     "same-order metadata changes keep a live range")
+    }
+
+    private static func routing(_ suite: TestSuite) {
+        func action(_ key: Int, _ flags: NSEvent.ModifierFlags, side: Bool = false,
+                    active: Bool = false, marked: Bool = false, editing: Bool = false,
+                    empty: Bool = true, selection: Bool = false, navigating: Bool = false) -> ClipboardKeyboardNavigation.Action? {
+            ClipboardKeyboardNavigation.action(keyCode: UInt16(key), flags: flags,
+                sideArrowsMoveSelection: side, interactionActive: active, hasMarkedText: marked,
+                isEditingBody: editing, searchIsEmpty: empty, searchHasSelection: selection,
+                listNavigationActive: navigating)
+        }
+        for (key, step) in [(kVK_UpArrow, -1), (kVK_DownArrow, 1), (kVK_LeftArrow, -1), (kVK_RightArrow, 1)] {
+            let vertical = key == kVK_UpArrow || key == kVK_DownArrow
+            suite.expect(action(key, [.shift], side: true) == .extend(step), "T11: card arrows support Shift ranges")
+            suite.expect(action(key, [.command, .shift], side: true) == .toggle(step), "card Cmd-Shift arrows toggle")
+            suite.expect(action(key, [.shift]) == (vertical ? .extend(step) : nil), "list side arrows stay with text")
+            suite.expect(action(key, [.command]) == (vertical ? .skip(step) : nil), "Cmd arrows navigate before any selection")
+            for flags: NSEvent.ModifierFlags in [[.shift], [.command, .shift], [.command], []] {
+                suite.expect(action(key, flags, side: true, active: true, marked: true) == nil, "T10: IME owns arrows")
+                suite.expect(action(key, flags, side: true, active: true, editing: true) == nil, "body editing owns arrows")
+                suite.expect(action(key, flags, side: true, active: true, empty: false) == nil, "nonempty search owns arrows before navigation")
+                suite.expect(action(key, flags, side: true, active: true, empty: false, selection: true, navigating: true) == nil,
+                             "search text selection keeps modified arrows")
+            }
+        }
+        for flags: NSEvent.ModifierFlags in [[.option], [.control], [.shift, .option], [.command, .shift, .option], [.command, .shift, .control]] {
+            suite.expect(action(kVK_DownArrow, flags, active: true) == nil, "extra modifiers do not enter selection")
+        }
+        suite.expect(action(kVK_DownArrow, [.shift, .capsLock, .function]) == .extend(1), "non-shortcut state does not block ranges")
+        suite.expect(action(kVK_DownArrow, [.command, .shift], empty: false, navigating: true) == .toggle(1),
+                     "result navigation permits toggling after search")
+    }
+}
+
 /// History mutations run their production observer without touching the system
 /// pasteboard. A saved-text edit must not claim that the clipboard changed.
 enum ClipboardPreviewContract {
     class Fixture {
-        func pruneQuickBatchSelection() {}
         var latestPasteboardEntry: ClipboardHistoryEntry?
         var entriesStamp = 0
         var searchCache = ClipboardHistorySearchCache()
@@ -1655,7 +1836,6 @@ enum ClipboardPreviewContract {
         var encodedHistoryByteLimit = ClipboardHistoryEditing.maxEncodedHistoryBytes
         func trimToLimit() {}
         func save() {}
-        var quickQuery = ""
         var quickSelectionID: UUID?
         var quickSelectionIsVisible = false
         var quickBatchEntryIDs: Set<UUID> = []

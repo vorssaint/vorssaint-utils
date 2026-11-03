@@ -501,8 +501,16 @@ def main():
                        if line.startswith("    private var pendingRestore:")]
     if len(pending_restore) != 1:
         raise ValueError("Expected one pending clipboard restore declaration")
+    clipboard_selection_state = ("var quickKeyboardSelection = ClipboardKeyboardSelection()\nvar quickListNavigationActive = false\n"
+        + declaration(clipboard, "    @Published var quickQuery")
+        + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
+            "    func clearQuickBatchSelection(", "    private func resetQuickSelection(",
+            "    private func reconcileQuickSelection(", "    private func pruneQuickBatchSelection("]))
     write("ClipboardCaptureRestore.swift", "import AppKit\nimport Foundation\nimport Combine\n"
           + "extension ClipboardCaptureRestoreTests {\nfinal class Service: Fixture {\n"
+          + clipboard_selection_state
+          + declaration(clipboard, "    func filteredEntries(")
+          + declaration(clipboard, "    var filteredQuickEntries:")
           + pending_restore[0].replace("private ", "", 1)
           + declaration(clipboard, "    @Published private(set) var entries:")
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
@@ -513,8 +521,10 @@ def main():
               "    private func insertPromoted("])
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
-    write("ClipboardPreview.swift", "import Foundation\nimport Combine\n"
+    write("ClipboardPreview.swift", "import AppKit\nimport Foundation\nimport Combine\n"
           + "extension ClipboardPreviewContract {\nfinal class Service: Fixture {\n"
+          + declaration(clipboard, "    @Published private(set) var quickLayout").replace("private(set) ", "")
+          + clipboard_selection_state
           + declaration(clipboard, "    @Published private(set) var entries:")
           + declaration(clipboard, "    func updateText(")
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
@@ -524,6 +534,9 @@ def main():
               "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
               "    func moveQuickSelection(", "    func removeSelectedQuickEntries(",
               "    private var quickBatchEntries:", "    private func quickEntriesForPrimaryAction(",
+              "    func batchEntries(", "    var selectedQuickEntryID:", "    func navigateQuickSelection(",
+              "    func quickNavigationAction(", "    func extendQuickBatchSelection(",
+              "    func toggleQuickBatchSelection(",
               "    private func selectedQuickIndex(", "    private func promote(",
               "    private func insertPromoted("])
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
@@ -633,6 +646,17 @@ def main():
           + "extension ClipboardFeatureTests.QuickPasteHost {\n"
           + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
                         "    private func pasteIntoPreviousApp(").replace("private func", "func", 1)
+          + "}\n")
+    write("ClipboardKeyboardIntegration.swift", "import AppKit\nimport Carbon\nimport Foundation\n"
+          + "extension ClipboardKeyboardIntegrationTests.Host {\n"
+          + "".join(declaration(clipboard, prefix).replace("private func", "func", 1)
+                    .replace("if AXIsProcessTrusted()", "if self?.AXIsProcessTrusted() == true") for prefix in [
+              "    private func pasteIntoPreviousApp(", "    func navigateQuickSelection(",
+              "    func batchEntries(", "    func activateBatch(",
+              "    private func installKeyMonitor(", "    func quickNavigationAction("])
+          + "}\n"
+          + "extension ClipboardKeyboardIntegrationTests.Monitor {\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchClipboardView.swift", "    final class Coordinator {")
           + "}\n")
     write("ClipboardPanelPlacement.swift", "import AppKit\n"
           + "extension ClipboardFeatureTests.PanelPlacementHost {\n"
@@ -1697,6 +1721,8 @@ def main():
           + "var hoveredID: UUID?\nvar expandedID: UUID?\n"
           + "var dwell: (id: UUID, task: Task<Void, Never>)?\nvar closing: (id: UUID, task: Task<Void, Never>)?\n"
           + "var entries: [ClipboardHistoryEntry] = []\nvar highlightedID: UUID?\nvar keysMoved = false\n"
+          + "var selectedIDs: Set<UUID> = []\nvar keyboardSelection = ClipboardKeyboardSelection()\n"
+          + "let history = BatchHistory()\nlet permissions = BatchPermissions()\nlet service = BatchService()\nvar copiedID: UUID?\n"
           + "var query = \"\"\nvar searchOpen = false\nvar searching = false\nvar activated: [UUID] = []\n"
           + "func activate(_ entry: ClipboardHistoryEntry) { activated.append(entry.id) }\n"
           # The list the page scrolls, which only records where it was asked to go.
@@ -1705,11 +1731,20 @@ def main():
           + "func scrollTo(_ id: UUID, anchor: UnitPoint? = nil) { scrolls.append((id, anchor)) }\n}\n"
           + "".join(declaration(clipboard_view, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func appeared()", "    private func queryChanged(",
+              "    private var showsSelection:", "    private func toggleSelection(",
+              "    private func resetSelection()", "    private func visibleEntriesChanged()",
+              "    private func selectionContextChanged()",
+              "    private func disappeared()", "    private func activateSelection()",
               "    private var comfortable: Bool {", "    private var rowHeight: CGFloat {", "    private func hover(",
               "    private func openSearch()", "    private func closeSearch()", "    private func handleKey(",
               "    private func openText(", "    private func searchHighlight(", "    private func follow(",
               "    private func thumbnail<"])
-          + "}\n}\n")
+          + "}\n}\n"
+          + "extension NotchClipboardPageTests.BatchHistory {\n"
+          + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift", "    func batchEntries(")
+          + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift", "    func activateBatch(")
+              .replace("AXIsProcessTrusted()", "self?.accessibilityTrusted == true")
+          + "}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"
           + "extension MediaWorkspaceLayoutTests {\n"
