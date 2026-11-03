@@ -22,7 +22,7 @@ enum ScrollHorizontalModifierTests {
             let minus = MouseNavigationKeys.keyStroke(for: "-", layout: layout, command: true)
             suite.expect(plus?.keyCode == CGKeyCode(kVK_ANSI_Equal) && plus?.needsShift == true
                          && minus?.keyCode == CGKeyCode(kVK_ANSI_Minus) && minus?.needsShift == false,
-                         "\(id) resolves the keys actually used by Command zoom, without changing the current layout")
+                         "\(id) resolves the keys actually used by Command shortcuts, without changing the current layout")
         }
     }
 
@@ -72,10 +72,9 @@ enum ScrollHorizontalModifierTests {
         commandKeyboardLayouts(suite)
         suite.expect(MouseNavigationKeys.keyStroke(for: "+")?.keyCode != CGKeyCode(kVK_ANSI_KeypadPlus)
                         && MouseNavigationKeys.keyStroke(for: "-")?.keyCode != CGKeyCode(kVK_ANSI_KeypadMinus),
-                     "keyboard Zoom uses main keyboard shortcuts rather than numeric keypad shortcuts")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.verticalZoomModifier] as? String == "command"
-                        && Defaults.registeredDefaults[DefaultsKey.pinchZoomModifier] as? String == "control",
-                     "Zoom defaults to Command and Pinch to Control")
+                     "keyboard shortcut lookup uses main keys rather than numeric keypad keys")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.pinchZoomModifier] as? String == "control",
+                     "Pinch defaults to Control")
         suite.expect(ScrollZoomModifier(rawValue: "shift") == nil
                         && ScrollZoomModifier(storageValue: "shift") == .none,
                      "Shift is unavailable and a saved Shift assignment becomes None")
@@ -106,11 +105,8 @@ enum ScrollHorizontalModifierTests {
                      "the selected modifier zooms from horizontal wheel movement")
         let horizontalPinch = ScrollZoomPreferences(isAvailable: true,
             boolFor: { $0 == DefaultsKey.pinchZoomEnabled }, stringFor: { _ in "control" })
-        let verticalOnlyZoom = ScrollZoomPreferences(isAvailable: true,
-            boolFor: { $0 == DefaultsKey.verticalZoomEnabled }, stringFor: { _ in "control" })
-        suite.expect(horizontalPinch.action(for: zoomWheel)?.effect == .pinch
-                        && verticalOnlyZoom.action(for: zoomWheel) == nil,
-                     "Pinch retains horizontal-wheel support without a separate horizontal Zoom action")
+        suite.expect(horizontalPinch.action(for: zoomWheel)?.axis == .horizontal,
+                     "Pinch retains horizontal-wheel support")
         zoomWheel.flags = [.maskControl, .maskShift]
         suite.expect(ScrollWheelSupport.zoomDelta(zoomWheel, modifier: .control, axis: .horizontal) == nil,
                      "other shortcut modifiers leave scrolling alone")
@@ -119,23 +115,7 @@ enum ScrollHorizontalModifierTests {
                 && ScrollWheelSupport.zoomDelta(9, axis: .horizontal,
                                                  invertVertical: false, invertHorizontal: true) == -9,
                      "zoom follows the selected axis's inverted scroll direction")
-        var limiter = ScrollZoomStepLimiter()
-        suite.expect(limiter.allows(1, at: 1_000_000_000)
-                && !limiter.allows(1, at: 1_050_000_000)
-                && limiter.allows(-1, at: 1_060_000_000)
-                && limiter.allows(-1, at: 1_160_000_000),
-                     "one wheel burst sends one keyboard zoom step while a reversal responds immediately")
-        limiter.reset()
-        suite.expect(limiter.allows(1, at: 1_170_000_000),
-                     "a changed zoom modifier starts a fresh step")
-        keyboardZoomTarget(suite)
         pinchPreferenceTransition(suite)
-        let conflicting = ScrollZoomPreferences(isAvailable: true,
-                                                 boolFor: { _ in true },
-                                                 stringFor: { _ in ScrollZoomModifier.control.rawValue })
-        suite.expect(conflicting.verticalZoom == .control
-                && conflicting.pinchZoom == nil,
-                     "duplicate modifiers never produce overlapping zoom actions")
         ownWindowGestures(suite)
         ownWindowTargetCache(suite)
         sidewaysStrips(suite)
@@ -267,20 +247,19 @@ enum ScrollHorizontalModifierTests {
         suite.expect(AppFeature.scrollHorizontal.settingsDestination
             == AppFeature.scrollInverter.settingsDestination,
                      "both direction features open the same scroll settings section")
-        suite.expect(AppFeature.scrollZoom.enabledKeys == [DefaultsKey.verticalZoomEnabled,
-                                                            DefaultsKey.pinchZoomEnabled]
+        suite.expect(AppFeature.scrollZoom.enabledKeys == [DefaultsKey.pinchZoomEnabled]
                 && AppFeature.scrollZoom.settingsDestination.sectionAnchor == .scrollZoom,
                      "scroll zoom is an independently configurable feature")
         let installedZoom = ScrollDirectionPreferences(
             isAvailable: { $0 == .scrollZoom },
-            boolFor: { $0 == DefaultsKey.verticalZoomEnabled },
+            boolFor: { $0 == DefaultsKey.pinchZoomEnabled },
             stringFor: { _ in ScrollZoomModifier.control.rawValue }
         )
-        suite.expect(installedZoom.isEnabled && installedZoom.zoom.verticalZoom == .control,
+        suite.expect(installedZoom.isEnabled && installedZoom.zoom.pinchZoom == .control,
                      "scroll zoom runs only while its feature is installed")
         let removedZoom = ScrollDirectionPreferences(
             isAvailable: { _ in false },
-            boolFor: { $0 == DefaultsKey.verticalZoomEnabled },
+            boolFor: { $0 == DefaultsKey.pinchZoomEnabled },
             stringFor: { _ in ScrollZoomModifier.control.rawValue }
         )
         suite.expect(!removedZoom.isEnabled && !removedZoom.zoom.isEnabled,
@@ -288,18 +267,18 @@ enum ScrollHorizontalModifierTests {
         for modifier in ScrollZoomModifier.allCases.compactMap(\.modifier) {
             let preferences = ScrollZoomPreferences(
                 isAvailable: true,
-                boolFor: { $0 == DefaultsKey.verticalZoomEnabled },
-                stringFor: { $0 == DefaultsKey.verticalZoomModifier ? modifier.rawValue : ScrollZoomModifier.none.rawValue }
+                boolFor: { $0 == DefaultsKey.pinchZoomEnabled },
+                stringFor: { $0 == DefaultsKey.pinchZoomModifier ? modifier.rawValue : ScrollZoomModifier.none.rawValue }
             )
             let event = wheel(flags: modifier.flag, line: 1, point: 10, fixed: 1)
             let action = preferences.action(for: event)
-            suite.expect(action?.effect == .zoom && action?.axis == .vertical && action?.modifier == modifier,
+            suite.expect(action?.axis == .vertical && action?.modifier == modifier,
                          "vertical Zoom accepts a wheel with \(modifier.rawValue) and no other zoom keys")
         }
         let optionZoom = ScrollZoomPreferences(
             isAvailable: true,
-            boolFor: { $0 == DefaultsKey.verticalZoomEnabled },
-            stringFor: { $0 == DefaultsKey.verticalZoomModifier ? ScrollZoomModifier.option.rawValue : ScrollZoomModifier.none.rawValue }
+            boolFor: { $0 == DefaultsKey.pinchZoomEnabled },
+            stringFor: { $0 == DefaultsKey.pinchZoomModifier ? ScrollZoomModifier.option.rawValue : ScrollZoomModifier.none.rawValue }
         )
         let commandPinch = ScrollZoomPreferences(
             isAvailable: true,
@@ -571,41 +550,6 @@ enum ScrollHorizontalModifierTests {
         onLookup = nil
         suite.expect(!cache.contains(right) && lookups == 28,
                      "continuous invalidation leaves no stale cache and recovers on the next tick")
-    }
-
-    private static func keyboardZoomTarget(_ suite: TestSuite) {
-        let point = CGPoint(x: 100, y: 100)
-        let browser = window(2, pid: 20)
-        let editor = window(3, pid: 30, frame: CGRect(x: 50, y: 50, width: 100, height: 100))
-        func snapshot(_ windows: [[String: Any]], clickThrough: Set<CGWindowID> = []) -> ScrollZoomTargetSnapshot {
-            .init(windows: ScrollWheelTargetCache.windows(in: windows, ownProcessID: 10,
-                                                          clickThroughWindowIDs: clickThrough),
-                  modifier: .control, resolvedAt: 10)
-        }
-        for level in [0, 3, 25, 1_000] {
-            let ownPanel = window(1, pid: 10, layer: level)
-            suite.expect(snapshot([ownPanel, browser]).target(at: point, modifier: .control, now: 10) == nil,
-                         "own panels at every level block keyboard Zoom to the app behind them")
-            suite.expect(snapshot([ownPanel, browser], clickThrough: [1])
-                            .target(at: point, modifier: .control, now: 10)?.pid == 20,
-                         "click-through own panels still allow the external target")
-        }
-        let overlapping = snapshot([editor, browser])
-        suite.expect(overlapping.target(at: CGPoint(x: 20, y: 20), modifier: .control, now: 10)?.pid == 20
-                        && overlapping.target(at: point, modifier: .control, now: 10.1)?.pid == 30,
-                     "moving inside a large window onto a smaller overlapping window re-hit-tests front to back")
-        suite.expect(overlapping.target(at: point, modifier: .control, now: 10.499)?.pid == 30
-                        && overlapping.target(at: point, modifier: .control, now: 10.5) == nil,
-                     "stationary Zoom targets expire at half a second without extending freshness on hits")
-        suite.expect(overlapping.target(at: point, modifier: .shift, now: 10) == nil
-                        && overlapping.target(at: point, modifier: .control, now: 9) == nil,
-                     "modifier changes and clock rollback reject cached Zoom targets")
-        suite.expect(snapshot([window(5, pid: 40, layer: 3), browser])
-                        .target(at: point, modifier: .control, now: 10) == nil,
-                     "floating windows are not bypassed to zoom an app behind them")
-        suite.expect(snapshot([window(6, pid: 10, alpha: 0), browser])
-                        .target(at: point, modifier: .control, now: 10)?.pid == 20,
-                     "transparent panels do not block the hovered application")
     }
 
     private static func pinchPreferenceTransition(_ suite: TestSuite) {
