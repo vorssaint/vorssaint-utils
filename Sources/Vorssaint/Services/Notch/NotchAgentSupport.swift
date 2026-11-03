@@ -627,10 +627,10 @@ enum NotchAgentSupport {
     /// sessions, the slots side by side or one above the other.
     static let seatsBaseHeight: CGFloat = 92
     static let stackedSeatsBaseHeight: CGFloat = 144
-    /// A row of seats, each with a line under its meter for a note, and one
-    /// seat where they stack.
-    static let seatRowHeight: CGFloat = 104
-    static let stackedSeatHeight: CGFloat = 108
+    /// A row of seats, each with its session's and its week's meters and a
+    /// line under them for a note, and one seat where they stack.
+    static let seatRowHeight: CGFloat = 130
+    static let stackedSeatHeight: CGFloat = 134
     /// The API key's figures take a line of their own where seats stack.
     static let stackedAPILineHeight: CGFloat = 20
     /// The API key's half of Claude's card on its own.
