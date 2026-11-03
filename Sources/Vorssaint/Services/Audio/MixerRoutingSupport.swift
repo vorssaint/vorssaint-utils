@@ -170,6 +170,7 @@ enum MixerRoutingSupport {
     }
 
     static let systemDefaultSelectionID = "__system_default__"
+    static let combineAllOutputsSelectionID = "__vorssaint_combine_all_outputs__"
     static let finderBundleIdentifier = "com.apple.finder"
 
     private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
@@ -434,6 +435,14 @@ enum MixerRoutingSupport {
     /// mentions AirPlay must never be mistaken for this entry.
     static func isAirPlaySentinel(_ uid: String) -> Bool {
         uid == AirPlayRouteManager.airPlaySentinelUID
+    }
+
+    static func isEligibleForCombinedOutput(uid: String, canBeDefault: Bool) -> Bool {
+        guard canBeDefault,
+              uid != AirPlayRouteManager.airPlaySentinelUID,
+              uid != combineAllOutputsSelectionID,
+              !uid.isEmpty else { return false }
+        return true
     }
 
     /// Whether an app keeps the AirPlay stream from pausing for silence: it

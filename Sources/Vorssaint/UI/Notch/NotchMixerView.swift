@@ -307,14 +307,21 @@ private struct NotchOutputDeviceMenu: View {
     var inBand = false
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
+    private var activeOutputUID: String? {
+        if mixer.isCombinedOutputActive {
+            return MixerRoutingSupport.combineAllOutputsSelectionID
+        }
+        return mixer.currentOutputDeviceUID
+    }
+
     private var deviceName: String {
-        mixer.outputDevices.first(where: { $0.uid == mixer.currentOutputDeviceUID })?.name ?? l10n.s.mixerOutputUnavailable
+        mixer.outputDevices.first(where: { $0.uid == activeOutputUID })?.name ?? l10n.s.mixerOutputUnavailable
     }
 
     private var current: String { mixer.outputSwitchError ?? deviceName }
     private var items: [NotchMenuItem] {
         mixer.outputDevices.filter(\.canBeDefaultOutput).map { device in
-            NotchMenuItem(title: device.name, checked: device.uid == mixer.currentOutputDeviceUID) {
+            NotchMenuItem(title: device.name, checked: device.uid == activeOutputUID) {
                 _ = mixer.setUniversalOutputDeviceUID(device.uid)
             }
         }

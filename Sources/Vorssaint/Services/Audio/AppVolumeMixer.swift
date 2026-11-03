@@ -93,6 +93,10 @@ final class AppVolumeMixer: ObservableObject {
     /// Apps kept out of the list (issue #300), including the Finder when its
     /// own toggle hides it, so the panel can offer to bring any of them back.
     @Published private(set) var hiddenApps: [MixerHiddenApp] = []
+    @Published private(set) var isCombinedOutputActive: Bool = false
+    @Published private(set) var combinedSelectedDeviceUIDs: Set<String> = []
+    @Published private(set) var combinedSubDeviceVolumes: [String: Double] = [:]
+    @Published private(set) var combinedSubDeviceMutes: [String: Bool] = [:]
 
     private var engines: [String: any GainEngine] = [:]
     /// Arbitrates the engine builds running off-main: it suppresses duplicate
@@ -215,7 +219,11 @@ final class AppVolumeMixer: ObservableObject {
     private var nativeOutputKeyLifetime: UUID?
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
 
-    private init() {}
+    private init() {
+        if let saved = UserDefaults.standard.stringArray(forKey: DefaultsKey.mixerCombinedOutputSelectedDeviceUIDs) {
+            combinedSelectedDeviceUIDs = Set(saved)
+        }
+    }
 
     // MARK: - Lifecycle
 
@@ -238,6 +246,12 @@ final class AppVolumeMixer: ObservableObject {
     /// matching app produces sound — no panel interaction needed.
     func start() {
         stopped = false
+        if combinedSelectedDeviceUIDs.isEmpty {
+            let eligible = eligibleCombinedOutputDevices().map(\.uid)
+            if eligible.count >= 2 {
+                combinedSelectedDeviceUIDs = Set(eligible)
+            }
+        }
         processMonitoringEnabled = AppFeature.mixer.isAvailable
         if processMonitoringEnabled {
             publishHiddenApps()
@@ -537,6 +551,11 @@ final class AppVolumeMixer: ObservableObject {
     /// a write intended for the previous output.
     func requestOutputAdjustment(volume: Double? = nil, muted: Bool? = nil,
                                  completion: @escaping (Bool) -> Void = { _ in }) {
+        if isCombinedOutputActive {
+            applyCombinedOutputAdjustment(volume: volume, muted: muted)
+            completion(true)
+            return
+        }
         enqueueOutputAdjustment(volume: volume, muted: muted) { completion($0.handled) }
     }
 
@@ -589,6 +608,17 @@ final class AppVolumeMixer: ObservableObject {
     /// starting point for the next press. `level` receives zero while muted.
     func requestOutputStep(level: @escaping (Double) -> Double,
                            completion: @escaping (OutputKeyResult) -> Void = { _ in }) {
+        if isCombinedOutputActive {
+            let current = (systemOutputMuted == true) ? 0.0 : (systemOutputVolume ?? 1.0)
+            let next = level(current)
+            guard next.isFinite else {
+                completion(.fallback)
+                return
+            }
+            applyCombinedOutputAdjustment(volume: next)
+            completion(.applied)
+            return
+        }
         enqueueOutputKey(OutputStep(level: level, completion: completion),
                          isAvailable: systemOutputVolume != nil)
     }
@@ -597,6 +627,12 @@ final class AppVolumeMixer: ObservableObject {
     /// toggles the state the output reports now. A following volume key waits
     /// for that toggle and then reads the resulting audible level.
     func requestOutputMuteToggle(completion: @escaping (OutputKeyResult) -> Void = { _ in }) {
+        if isCombinedOutputActive {
+            let nextMuted = !(systemOutputMuted ?? false)
+            applyCombinedOutputAdjustment(muted: nextMuted)
+            completion(.applied)
+            return
+        }
         enqueueOutputKey(OutputStep(level: nil, completion: completion),
                          isAvailable: systemOutputMuted != nil)
     }
@@ -690,6 +726,11 @@ final class AppVolumeMixer: ObservableObject {
 
     private func applyOutputControls(volume: Double?, muted: Bool?) {
         guard !hasCurrentOutputAdjustment else { return }
+        if isCombinedOutputActive {
+            if systemOutputVolume == nil { systemOutputVolume = 1.0 }
+            if systemOutputMuted == nil { systemOutputMuted = false }
+            return
+        }
         if systemOutputVolume != volume { systemOutputVolume = volume }
         if systemOutputMuted != muted { systemOutputMuted = muted }
     }
@@ -1110,7 +1151,235 @@ final class AppVolumeMixer: ObservableObject {
 
     @discardableResult
     func setUniversalOutputDeviceUID(_ uid: String) -> Bool {
-        setDefaultOutputDeviceUID(uid)
+        if uid == MixerRoutingSupport.combineAllOutputsSelectionID {
+            let subUIDs = activeCombinedSubDeviceUIDs()
+            guard subUIDs.count >= 2,
+                  let aggID = CombinedAudioOutputManager.shared.createOrUpdateMultiOutputDevice(
+                    subDeviceUIDs: subUIDs,
+                    masterUID: currentOutputDeviceUID) else {
+                outputSwitchError = L10n.shared.s.mixerOutputUnavailable
+                refreshApps()
+                return false
+            }
+
+            let status = Self.setDefaultDevice(aggID, selector: kAudioHardwarePropertyDefaultOutputDevice)
+            guard status == noErr else {
+                outputSwitchError = "OSStatus \(status)"
+                CombinedAudioOutputManager.shared.destroyDevice()
+                isCombinedOutputActive = false
+                refreshApps()
+                return false
+            }
+
+            outputSwitchError = nil
+            refresh.discardInFlight()
+            let savedOutputUIDs = savedOutputDeviceUIDs()
+            let preferences = MixerRoutingSupport.preferencesAfterUniversalOutputSwitch(
+                outputDeviceUIDs: savedOutputUIDs,
+                volumes: savedVolumes(),
+                switchSucceeded: true)
+            persistOutputDeviceUIDs(preferences.outputDeviceUIDs)
+            sessionRoutes.removeAll()
+            currentOutputDeviceUID = MixerRoutingSupport.combineAllOutputsSelectionID
+            isCombinedOutputActive = true
+            initializeCombinedVolumeState(activeUIDs: subUIDs)
+            builds.invalidateAll()
+            refreshApps()
+            return true
+        }
+
+        let wasCombined = isCombinedOutputActive
+        let result = setDefaultOutputDeviceUID(uid)
+        if result && wasCombined {
+            isCombinedOutputActive = false
+            CombinedAudioOutputManager.shared.destroyDevice()
+        }
+        return result
+    }
+
+    @discardableResult
+    func setCombinedOutputEnabled(_ enabled: Bool) -> Bool {
+        if enabled {
+            return setUniversalOutputDeviceUID(MixerRoutingSupport.combineAllOutputsSelectionID)
+        } else {
+            let eligible = eligibleCombinedOutputDevices()
+            if let targetUID = (eligible.first(where: { $0.priorityTier == .builtIn }) ?? eligible.first)?.uid {
+                return setUniversalOutputDeviceUID(targetUID)
+            } else {
+                if isCombinedOutputActive {
+                    isCombinedOutputActive = false
+                    CombinedAudioOutputManager.shared.destroyDevice()
+                    refreshApps()
+                }
+                return false
+            }
+        }
+    }
+
+    func eligibleCombinedOutputDevices() -> [MixerOutputDevice] {
+        outputDevices.filter {
+            MixerRoutingSupport.isEligibleForCombinedOutput(uid: $0.uid, canBeDefault: $0.canBeDefaultOutput)
+        }
+    }
+
+    func activeCombinedSubDeviceUIDs() -> [String] {
+        let eligible = eligibleCombinedOutputDevices().map(\.uid)
+        if combinedSelectedDeviceUIDs.isEmpty {
+            return eligible
+        }
+        let selected = eligible.filter { combinedSelectedDeviceUIDs.contains($0) }
+        return selected.count >= 2 ? selected : eligible
+    }
+
+    func toggleCombinedDeviceSelection(uid: String) {
+        let eligible = eligibleCombinedOutputDevices().map(\.uid)
+        var updated = combinedSelectedDeviceUIDs
+        if updated.isEmpty {
+            updated = Set(eligible)
+        }
+
+        if updated.contains(uid) {
+            let remaining = updated.subtracting([uid]).intersection(eligible)
+            guard remaining.count >= 2 else { return }
+            updated.remove(uid)
+        } else {
+            updated.insert(uid)
+        }
+
+        combinedSelectedDeviceUIDs = updated
+        UserDefaults.standard.set(Array(updated).sorted(), forKey: DefaultsKey.mixerCombinedOutputSelectedDeviceUIDs)
+
+        if isCombinedOutputActive {
+            reconcileCombinedOutputDevices()
+        }
+    }
+
+    func reconcileCombinedOutputDevices() {
+        guard isCombinedOutputActive else { return }
+        let subUIDs = activeCombinedSubDeviceUIDs()
+        let currentSubDevices = Set(Self.subDeviceUIDs(of: CombinedAudioOutputManager.shared.activeAggregateID))
+        if Set(subUIDs) != currentSubDevices {
+            if subUIDs.count >= 2 {
+                if let newAggID = CombinedAudioOutputManager.shared.createOrUpdateMultiOutputDevice(
+                    subDeviceUIDs: subUIDs,
+                    masterUID: currentOutputDeviceUID) {
+                    _ = Self.setDefaultDevice(newAggID, selector: kAudioHardwarePropertyDefaultOutputDevice)
+                    initializeCombinedVolumeState(activeUIDs: subUIDs)
+                }
+            } else {
+                isCombinedOutputActive = false
+                CombinedAudioOutputManager.shared.destroyDevice()
+                if let fallback = eligibleCombinedOutputDevices().first?.uid {
+                    setUniversalOutputDeviceUID(fallback)
+                }
+            }
+        }
+        refreshApps()
+    }
+
+    func initializeCombinedVolumeState(activeUIDs: [String]) {
+        if combinedSelectedDeviceUIDs.isEmpty {
+            combinedSelectedDeviceUIDs = Set(activeUIDs)
+            UserDefaults.standard.set(Array(combinedSelectedDeviceUIDs).sorted(),
+                                      forKey: DefaultsKey.mixerCombinedOutputSelectedDeviceUIDs)
+        }
+        for uid in activeUIDs {
+            if combinedSubDeviceVolumes[uid] == nil {
+                if let devID = Self.deviceID(forUID: uid),
+                   let hwVol = Self.outputVolume(for: devID) {
+                    combinedSubDeviceVolumes[uid] = Double(hwVol)
+                } else {
+                    combinedSubDeviceVolumes[uid] = 1.0
+                }
+            }
+            if combinedSubDeviceMutes[uid] == nil {
+                if let devID = Self.deviceID(forUID: uid),
+                   let hwMute = Self.outputMuted(for: devID) {
+                    combinedSubDeviceMutes[uid] = hwMute
+                } else {
+                    combinedSubDeviceMutes[uid] = false
+                }
+            }
+            if let devID = Self.deviceID(forUID: uid) {
+                if let vol = combinedSubDeviceVolumes[uid], Self.hasSettableOutputVolume(for: devID) {
+                    _ = Self.setOutputVolume(Float32(vol), for: devID)
+                }
+                if let mute = combinedSubDeviceMutes[uid] {
+                    _ = Self.setOutputMuted(mute, for: devID)
+                }
+            }
+        }
+        let primaryUID = activeUIDs.first ?? ""
+        systemOutputVolume = combinedSubDeviceVolumes[primaryUID] ?? 1.0
+        systemOutputMuted = combinedSubDeviceMutes[primaryUID] ?? false
+    }
+
+    func setCombinedSubDeviceVolume(_ volume: Double, for uid: String) {
+        let clamped = min(max(volume, 0), 1)
+        combinedSubDeviceVolumes[uid] = clamped
+        let isMuted = (clamped <= 0.001)
+        combinedSubDeviceMutes[uid] = isMuted
+        if let deviceID = Self.deviceID(forUID: uid) {
+            if Self.hasSettableOutputVolume(for: deviceID) {
+                _ = Self.setOutputVolume(Float32(clamped), for: deviceID)
+            }
+            _ = Self.setOutputMuted(isMuted, for: deviceID)
+        }
+    }
+
+    func toggleCombinedSubDeviceMute(for uid: String) {
+        let currentMute = combinedSubDeviceMutes[uid] ?? false
+        let newMute = !currentMute
+        combinedSubDeviceMutes[uid] = newMute
+        if let deviceID = Self.deviceID(forUID: uid) {
+            _ = Self.setOutputMuted(newMute, for: deviceID)
+        }
+    }
+
+    private func applyCombinedOutputAdjustment(volume: Double? = nil,
+                                               muted: Bool? = nil) {
+        let oldVolume = systemOutputVolume ?? 1.0
+        var newVolume = oldVolume
+        if let volume {
+            let clamped = min(max(volume, 0), 1)
+            newVolume = clamped
+            systemOutputVolume = clamped
+            let isMuted = (clamped <= 0.001)
+            systemOutputMuted = isMuted
+        }
+        if let muted {
+            systemOutputMuted = muted
+        }
+
+        let activeUIDs = activeCombinedSubDeviceUIDs()
+        let delta = newVolume - oldVolume
+
+        for uid in activeUIDs {
+            if volume != nil {
+                let currentSubVol = combinedSubDeviceVolumes[uid] ?? oldVolume
+                let updatedSubVol: Double
+                if oldVolume > 0.001 {
+                    updatedSubVol = min(max(currentSubVol * (newVolume / oldVolume), 0), 1)
+                } else {
+                    updatedSubVol = min(max(currentSubVol + delta, 0), 1)
+                }
+                combinedSubDeviceVolumes[uid] = updatedSubVol
+                let subMuted = (systemOutputMuted == true) || (updatedSubVol <= 0.001)
+                combinedSubDeviceMutes[uid] = subMuted
+
+                if let deviceID = Self.deviceID(forUID: uid) {
+                    if Self.hasSettableOutputVolume(for: deviceID) {
+                        _ = Self.setOutputVolume(Float32(updatedSubVol), for: deviceID)
+                    }
+                    _ = Self.setOutputMuted(subMuted, for: deviceID)
+                }
+            } else if let muted {
+                combinedSubDeviceMutes[uid] = muted
+                if let deviceID = Self.deviceID(forUID: uid) {
+                    _ = Self.setOutputMuted(muted, for: deviceID)
+                }
+            }
+        }
     }
 
     /// Priority changes only the normal system default. Unlike the manual
@@ -1641,6 +1910,14 @@ final class AppVolumeMixer: ObservableObject {
         if snapshot.outputDevices != outputDevices {
             outputDevices = snapshot.outputDevices
         }
+        if combinedSelectedDeviceUIDs.isEmpty {
+            let eligible = snapshot.outputDevices
+                .filter { MixerRoutingSupport.isEligibleForCombinedOutput(uid: $0.uid, canBeDefault: $0.canBeDefaultOutput) }
+                .map(\.uid)
+            if eligible.count >= 2 {
+                combinedSelectedDeviceUIDs = Set(eligible)
+            }
+        }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
         applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
 
@@ -2145,6 +2422,9 @@ final class AppVolumeMixer: ObservableObject {
 
     fileprivate func reconcileAudioConfigurationChanges() {
         guard listenerInstalled, !stopped else { return }
+        if isCombinedOutputActive {
+            reconcileCombinedOutputDevices()
+        }
         reconcileEngines(with: apps)
     }
 
@@ -2533,11 +2813,27 @@ final class AppVolumeMixer: ObservableObject {
                                              audioObjectID: 0))
         }
 
-        return devices.sorted { lhs, rhs in
+        var sortedDevices = devices.sorted { lhs, rhs in
             MixerRoutingSupport.deviceDisplayOrderedBefore(
                 isDefault: lhs.isDefault, name: lhs.name, uid: lhs.uid,
                 otherIsDefault: rhs.isDefault, otherName: rhs.name, otherUID: rhs.uid)
         }
+
+        let eligible = sortedDevices.filter { MixerRoutingSupport.isEligibleForCombinedOutput(uid: $0.uid, canBeDefault: $0.canBeDefaultOutput) }
+        if eligible.count >= 2 {
+            let isCombinedCurrent = CombinedAudioOutputManager.isCombinedOutputUID(defaultUID)
+            sortedDevices.insert(MixerOutputDevice(id: MixerRoutingSupport.combineAllOutputsSelectionID,
+                                                   uid: MixerRoutingSupport.combineAllOutputsSelectionID,
+                                                   name: CombinedAudioOutputManager.combinedOutputName,
+                                                   isDefault: isCombinedCurrent,
+                                                   isHeadphones: false,
+                                                   canBeDefaultOutput: true,
+                                                   canBeDefaultSystemOutput: true,
+                                                   priorityTier: .hardware,
+                                                   audioObjectID: CombinedAudioOutputManager.shared.activeAggregateID), at: 0)
+        }
+
+        return sortedDevices
     }
 
     private static func outputDataSourceName(for deviceID: AudioObjectID) -> String? {
