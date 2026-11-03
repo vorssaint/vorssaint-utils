@@ -2163,6 +2163,7 @@ def main():
           + "extension SoftwareDimmingRouteContract {\n"
           + "final class Row {\nvar display = Display()\nvar chosen = false\nvar compact = false\n"
           + declaration(brightness_row, "    private var offered:").replace("private var", "var", 1)
+          + declaration(brightness_row, "    private var pictureDimmingOffered:").replace("private var", "var", 1)
           + "}\n}\n")
 
     brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"

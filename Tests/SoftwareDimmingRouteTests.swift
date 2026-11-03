@@ -214,6 +214,39 @@ enum SoftwareDimmingRouteTests {
         row.display.isActive = false
         expect(!row.offered, "not even a chosen display offers the control while it is switched off")
 
+        // Leaving DDC by hand on a monitor that answers reads (issue #3621).
+        let readable = Context.Row()
+        readable.display.readable = true
+        expect(readable.pictureDimmingOffered,
+               "a readable DDC monitor can be moved to the picture route in Settings")
+        expect(readable.offered,
+               "extra dimming stays available beside it, so neither choice replaces the other")
+        readable.compact = true
+        expect(!readable.pictureDimmingOffered,
+               "the compact panel does not gain a choice most monitors never need")
+        readable.compact = false
+        readable.chosen = true
+        expect(!readable.pictureDimmingOffered && readable.offered,
+               "once a choice is on, the one button that can turn it off is all the row shows")
+        readable.chosen = false
+        readable.display.readable = false
+        expect(!readable.pictureDimmingOffered,
+               "a write-only path already offers the same choice through the main button")
+        readable.display.readable = true
+        readable.display.method = .software
+        expect(!readable.pictureDimmingOffered,
+               "a display already on the picture route is not offered it again")
+        readable.display.method = .ddc
+        readable.display.canChooseDimming = false
+        expect(!readable.pictureDimmingOffered,
+               "a display with no stable connection path cannot save the choice")
+        readable.display.canChooseDimming = true
+        readable.display.isActive = false
+        expect(!readable.pictureDimmingOffered, "a switched-off display has nothing to dim")
+        readable.display.isActive = true
+        readable.display.isBuiltIn = true
+        expect(!readable.pictureDimmingOffered, "the built-in display never routes over DDC")
+
         // A display the rebuild has not routed yet has no path to record the
         // choice against, so nothing is written and no screen is touched.
         Context.reset()
