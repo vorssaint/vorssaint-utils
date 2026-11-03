@@ -113,7 +113,7 @@ struct KeepAwakeIconPicker: View {
             tintValue = tint.rawValue
         } label: {
             ZStack {
-                if let color = tintColor(tint) {
+                if let color = tint.color {
                     Circle()
                         .fill(color)
                         .frame(width: compact ? 12 : 14, height: compact ? 12 : 14)
@@ -145,16 +145,5 @@ struct KeepAwakeIconPicker: View {
         .buttonStyle(.plain)
         .help(tint.title(l10n.s))
         .accessibilityLabel(tint.title(l10n.s))
-    }
-
-    private func tintColor(_ tint: KeepAwakeIconTint) -> Color? {
-        switch tint {
-        case .orange: return .orange
-        case .green: return .green
-        case .blue: return .blue
-        case .purple: return .purple
-        case .pink: return .pink
-        case .none: return nil
-        }
     }
 }
