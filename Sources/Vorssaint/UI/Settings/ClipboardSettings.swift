@@ -256,7 +256,7 @@ struct ClipboardSettings: View {
                 }
             }
             .onChange(of: copySoundName) { _, name in
-                ClipboardHistoryService.playCopySound(named: name)
+                NSSound(named: name)?.play()
             }
             .disabled(!enabled || !copySound)
         }

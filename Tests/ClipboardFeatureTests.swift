@@ -1669,6 +1669,7 @@ enum ClipboardPreviewContract {
                 func bool(forKey key: String) -> Bool {
                     key == DefaultsKey.clipboardHistoryFilterSensitiveText && skipSensitive
                 }
+                func string(forKey key: String) -> String? { nil }
             }
             static var standard = Preferences()
         }
