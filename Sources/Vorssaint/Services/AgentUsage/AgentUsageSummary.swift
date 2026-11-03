@@ -7,13 +7,19 @@ enum AgentPeriod: String, CaseIterable, Identifiable {
     case today, week, month, allTime
 
     var id: String { rawValue }
-    var days: Int {
+    /// Nil means the period has no age cutoff.
+    var days: Int? {
         switch self {
         case .today: return 1
         case .week: return 7
         case .month: return 30
-        case .allTime: return Int.max
+        case .allTime: return nil
         }
+    }
+
+    func contains(day: Int, lastDay: Int) -> Bool {
+        guard let days else { return true }
+        return day > lastDay - days
     }
 }
 
@@ -106,12 +112,12 @@ struct AgentUsageSnapshot: Equatable {
     /// At most thirty bars across the complete history, preserving provider totals.
     func trendBuckets(_ period: AgentPeriod) -> [AgentBucket] {
         if period == .today { return hours }
-        if period != .allTime { return Array(days.suffix(period.days)) }
-        let history = Array(days.drop(while: { $0.total.requests == 0 }))
-        let stride = max(1, (history.count + 29) / 30)
+        if let count = period.days { return Array(days.suffix(count)) }
+        let history = Array(days.drop(while: { $0.byProvider.isEmpty }))
+        let daysPerBar = max(1, (history.count + 29) / 30)
         var result: [AgentBucket] = []
         for index in history.indices {
-            if index % stride == 0 { result.append(AgentBucket(start: history[index].start)) }
+            if index % daysPerBar == 0 { result.append(AgentBucket(start: history[index].start)) }
             for (provider, total) in history[index].byProvider {
                 result[result.count - 1].byProvider[provider, default: AgentTotals()] += total
             }
@@ -178,7 +184,7 @@ enum AgentUsageSummary {
                 names[record.model] = name
             }
             let modelID = record.provider.rawValue + ":" + name
-            for period in AgentPeriod.allCases where day > lastDay - period.days {
+            for period in AgentPeriod.allCases where period.contains(day: day, lastDay: lastDay) {
                 periods[period, default: AgentPeriodUsage()].total.add(record)
                 periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
                 models[period, default: [:]][modelID, default: AgentShare(
@@ -414,7 +420,7 @@ final class AgentUsageSummaryCache {
         let name = names[record.model] ?? AgentPricing.displayName(record.model)
         names[record.model] = name
         let modelID = record.provider.rawValue + ":" + name
-        for period in AgentPeriod.allCases where day > starts.count - 1 - period.days {
+        for period in AgentPeriod.allCases where period.contains(day: day, lastDay: starts.count - 1) {
             history!.periods[period]!.total += delta
             history!.periods[period]!.byProvider[record.provider, default: AgentTotals()] += delta
             models[period, default: [:]][modelID, default: AgentShare(

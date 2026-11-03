@@ -708,11 +708,13 @@ private struct NotchAgentTrendCard: View {
     }
 
     private func caption(byCost: Bool) -> String {
-        if let hovered, let bucket = buckets.first(where: { $0.start == hovered }) {
+        let buckets = self.buckets
+        if let hovered, let index = buckets.firstIndex(where: { $0.start == hovered }) {
+            let bucket = buckets[index]
             // A pointed-at bar reads its tokens beside its cost.
             let tokens = byCost ? " · " + value(bucket.total, byCost: false) : ""
             var span = label(bucket.start, long: true)
-            if period == .allTime, let index = buckets.firstIndex(where: { $0.start == bucket.start }) {
+            if period == .allTime {
                 let end = index + 1 < buckets.count
                     ? Calendar.current.date(byAdding: .day, value: -1, to: buckets[index + 1].start) ?? bucket.start
                     : snapshot.now

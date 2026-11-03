@@ -121,6 +121,19 @@ enum AgentUsageSummaryCacheTests {
         records[1].cost = 6
         suite.expect(snapshot().usage(.allTime).total.cost == 7, "historical corrections update all-time totals once")
         suite.expect(result.trendBuckets(.month).count == 30, "month trend keeps thirty daily bars")
+        let checkpoint = AgentUsageRecord(provider: .copilot, date: old.date, model: "m", project: "checkpoint",
+            session: "s", requests: 0, tokens: AgentTokens(input: 25), cost: 2, savings: 0)
+        let checkpointSnapshot = AgentUsageSummary.snapshot(records: [checkpoint], limits: [:], live: [], plans: [:],
+            providers: [.copilot], now: now, calendar: calendar)
+        let checkpointBars = checkpointSnapshot.trendBuckets(.allTime)
+        suite.expect(checkpointBars.reduce(0) { $0 + $1.total.tokens.total } == 25
+                        && checkpointBars.reduce(0) { $0 + $1.total.cost } == 2,
+                     "all-time trend retains token checkpoints with no additional requests")
+        suite.expect(checkpointBars.first?.start == calendar.startOfDay(for: old.date),
+                     "all-time trend starts at the first recorded usage, including zero-request checkpoints")
+        let empty = AgentUsageSummary.snapshot(records: [], limits: [:], live: [], plans: [:],
+            providers: [.claude], now: now, calendar: calendar)
+        suite.expect(empty.trendBuckets(.allTime).isEmpty, "all-time trend is empty when no history is available")
     }
 
     private static func storeIntegration(_ suite: TestSuite, now: Date, calendar: Calendar) {
