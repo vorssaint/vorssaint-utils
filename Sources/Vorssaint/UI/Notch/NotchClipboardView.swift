@@ -265,20 +265,13 @@ struct NotchClipboardView: View {
     }
 
     private var selectionBar: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 8) {
-                Button(String(format: permissions.accessibility ? text.pasteSelectedFormat : text.copySelectedFormat,
-                              selectedIDs.count), action: activateSelection)
-                Spacer(minLength: 0)
-                Button(text.clearSelection, action: resetSelection)
-            }
-            .controlSize(.small)
-            Text(text.clipboardRangeSelectionHint)
-                .font(.system(size: 9.5))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .help(text.clipboardRangeSelectionHint)
+        HStack(spacing: 8) {
+            Button(String(format: permissions.accessibility ? text.pasteSelectedFormat : text.copySelectedFormat,
+                          selectedIDs.count), action: activateSelection)
+            Spacer(minLength: 0)
+            Button(text.clearSelection, action: resetSelection)
         }
+        .controlSize(.small)
         .padding(.top, 6)
     }
 
