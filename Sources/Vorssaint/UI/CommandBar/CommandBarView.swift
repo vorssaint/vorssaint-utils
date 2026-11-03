@@ -1306,9 +1306,10 @@ private struct CommandBarMascot: View {
     }
 }
 
-/// Lets a found file be dragged out of the bar. The drop target decides what
-/// happens: Finder moves within a volume, copies with Option, and other apps
-/// take the file as an attachment.
+/// Lets a found file be dragged out of the bar as a copy. The drag carries
+/// the file's URL, not its contents: Finder then copies it under its own name
+/// (numbering a clash itself) and SwiftUI keeps no copy of the data in its
+/// drag cache, while other apps still take the file as an attachment.
 private struct FileRowDragModifier: ViewModifier {
     let path: String?
 
@@ -1316,7 +1317,7 @@ private struct FileRowDragModifier: ViewModifier {
     func body(content: Content) -> some View {
         if let path {
             content.onDrag {
-                NSItemProvider(contentsOf: URL(fileURLWithPath: path)) ?? NSItemProvider()
+                NSItemProvider(object: URL(fileURLWithPath: path) as NSURL)
             }
         } else {
             content
