@@ -3796,7 +3796,7 @@ enum PointerInputFeatureTests {
                          "Sources/Vorssaint/Services/Snippets/TextSnippetService.swift",
                          "Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift",
                          "Sources/Vorssaint/Services/DockClick/DockClickService.swift",
-                         "Sources/Vorssaint/Services/Display/BrightnessService.swift"] {
+                         "Sources/Vorssaint/Services/FunctionKeyTap.swift"] {
             let source = (try? String(contentsOfFile: tapOwner, encoding: .utf8)) ?? ""
             suite.expect(!source.isEmpty, "\(tapOwner) reads back for its session-switch check")
             let code = source.components(separatedBy: "\n")
