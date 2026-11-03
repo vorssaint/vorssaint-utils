@@ -23,6 +23,53 @@ struct PanelMediaView: View {
     }
 }
 
+/// Fit the media workspace below the enclosing panel's section title, leaving
+/// the whole workspace as the only scrolling region.
+private struct MediaPanelViewport: NSViewRepresentable {
+    var onHeightChange: (CGFloat) -> Void
+
+    func makeNSView(context: Context) -> ViewportView { ViewportView() }
+    func updateNSView(_ view: ViewportView, context: Context) {
+        view.onHeightChange = onHeightChange
+        view.measure()
+    }
+
+    final class ViewportView: NSView {
+        var onHeightChange: ((CGFloat) -> Void)?
+        private weak var clip: NSClipView?
+        private var observer: NSObjectProtocol?
+        private var reportedHeight: CGFloat?
+
+        deinit {
+            if let observer { NotificationCenter.default.removeObserver(observer) }
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override func viewDidMoveToSuperview() { super.viewDidMoveToSuperview(); measure() }
+        override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); measure() }
+        override func layout() { super.layout(); measure() }
+
+        func measure() {
+            guard let scroll = enclosingScrollView, let document = scroll.documentView else { return }
+            if clip !== scroll.contentView {
+                if let observer { NotificationCenter.default.removeObserver(observer) }
+                clip = scroll.contentView
+                scroll.contentView.postsFrameChangedNotifications = true
+                observer = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification,
+                    object: scroll.contentView, queue: .main) { [weak self] _ in
+                    DispatchQueue.main.async { self?.measure() }
+                }
+            }
+            let rect = convert(bounds, to: document)
+            let top = document.isFlipped ? rect.minY - document.bounds.minY : document.bounds.maxY - rect.maxY
+            let height = floor(scroll.contentView.bounds.height - top)
+            guard height.isFinite, height > 0, height != reportedHeight else { return }
+            reportedHeight = height
+            DispatchQueue.main.async { [weak self] in self?.onHeightChange?(height) }
+        }
+    }
+}
+
 private enum MediaCompressionLevel: String, CaseIterable, Identifiable {
     case low, medium, high
 
@@ -120,6 +167,7 @@ struct MediaWorkspaceView: View {
     @State private var videoImportGeneration = 0
     @State private var profileName = ""
     @State private var imageMoreOptionsExpanded = false
+    @State private var viewportHeight: CGFloat?
     @State private var isImportingVideo = false
     /// Read once per chosen file. Loading it in the body meant decoding the
     /// logo from disk on every redraw, so dragging the opacity slider was
@@ -240,28 +288,22 @@ struct MediaWorkspaceView: View {
     }
 
     private var layout: some View {
-        Group {
-            if let onContentHeightChange {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: compact ? 10 : 14) {
-                        header
-                        toolPicker
-                        content.padding(.trailing, 1)
-                    }
-                    .fixedSize(horizontal: false, vertical: true)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                        onContentHeightChange($0)
-                    }
-                }
-            } else {
-                VStack(alignment: .leading, spacing: compact ? 10 : 14) {
-                    header
-                    toolPicker
-                    ScrollView {
-                        content.padding(.trailing, 1)
-                    }
-                    .frame(maxHeight: compact ? 430 : .infinity)
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: compact ? 10 : 14) {
+                header
+                toolPicker
+                content.padding(.trailing, 1)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                onContentHeightChange?($0)
+            }
+        }
+        .frame(maxHeight: compact && onContentHeightChange == nil && viewportHeight == nil ? 430 : .infinity)
+        .frame(height: compact && onContentHeightChange == nil ? viewportHeight : nil, alignment: .top)
+        .background {
+            if compact && onContentHeightChange == nil {
+                MediaPanelViewport { viewportHeight = $0 }
             }
         }
     }

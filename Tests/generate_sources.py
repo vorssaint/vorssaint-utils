@@ -1712,11 +1712,14 @@ def main():
           + "}\n}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"
+          + declaration(media_workspace, "private struct MediaPanelViewport:")
           + "extension MediaWorkspaceLayoutTests {\n"
           + "struct Workspace: View {\nlet compact = true\n@ObservedObject var fixture: Fixture\n"
+          + "@State private var viewportHeight: CGFloat?\n"
           + "let onContentHeightChange: ((CGFloat) -> Void)?\n"
           + "var header: some View { Color.clear.frame(height: 22) }\n"
-          + "var toolPicker: some View { Color.clear.frame(height: 24) }\n"
+          + "var toolPicker: some View { Color.clear.frame(height: 24)\n"
+          + ".onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { fixture.pickerFrame = $0 } }\n"
           + "var content: some View { Color.clear.frame(height: fixture.height) }\n"
           + "var body: some View { layout }\n"
           + declaration(media_workspace, "    private var layout:")
