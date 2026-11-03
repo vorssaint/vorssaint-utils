@@ -244,6 +244,8 @@ extension Strings {
         switcherWindowlessAppsFinder: "僅 Finder",
         switcherWindowlessAppsAll: "所有 App",
         switcherWindowlessAppsLockedFormat: "開啟「%@」時，會保留所有運行中 App 的入口。如需選擇，請關閉此選項。",
+        switcherWindowlessAppsMixedOrder: "與其他 App 混合排列",
+        switcherWindowlessAppsMixedOrderCaption: "將沒有開啟視窗的 App 按最近使用次序與其他 App 一併排列，而不會獨立分區顯示。",
         switcherNoOpenWindow: "沒有開啟視窗",
         switcherOtherDesktop: "其他桌面",
         dockPreviewName: "Dock Preview",

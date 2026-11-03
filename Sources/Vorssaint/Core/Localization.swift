@@ -409,6 +409,8 @@ struct Strings {
     let switcherWindowlessAppsFinder: String
     let switcherWindowlessAppsAll: String
     let switcherWindowlessAppsLockedFormat: String
+    let switcherWindowlessAppsMixedOrder: String
+    let switcherWindowlessAppsMixedOrderCaption: String
     let switcherNoOpenWindow: String
     let switcherOtherDesktop: String
     let dockPreviewName: String
@@ -1566,6 +1568,8 @@ extension Strings {
         switcherWindowlessAppsFinder: "Só o Finder",
         switcherWindowlessAppsAll: "Todos os apps",
         switcherWindowlessAppsLockedFormat: "Todos os apps abertos continuam acessíveis enquanto “%@” estiver ativado. Desative para escolher.",
+        switcherWindowlessAppsMixedOrder: "Misturar com os outros apps",
+        switcherWindowlessAppsMixedOrderCaption: "Lista os apps sem janelas abertas na ordem de uso recente, junto com os outros apps, em vez de em uma seção separada.",
         switcherNoOpenWindow: "Sem janela aberta",
         switcherOtherDesktop: "Outra Mesa",
         dockPreviewName: "Dock Preview",
@@ -2684,6 +2688,8 @@ extension Strings {
         switcherWindowlessAppsFinder: "Finder only",
         switcherWindowlessAppsAll: "All apps",
         switcherWindowlessAppsLockedFormat: "All running apps stay reachable while “%@” is on. Turn it off to choose.",
+        switcherWindowlessAppsMixedOrder: "Mix with the other apps",
+        switcherWindowlessAppsMixedOrderCaption: "Lists apps without open windows in recent-use order among the other apps, instead of in a separate section.",
         switcherNoOpenWindow: "No open window",
         switcherOtherDesktop: "Other desktop",
         dockPreviewName: "Dock Preview",

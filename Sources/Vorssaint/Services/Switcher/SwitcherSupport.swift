@@ -1802,7 +1802,14 @@ enum SwitcherSupport {
         return groups
     }
 
-    static func windowlessAppDividerPIDs(items: [SwitcherItem]) -> Set<pid_t> {
+    /// The apps after which the row draws its windowless-app divider: every
+    /// group whose neighbor on the other side is of the other kind. The
+    /// divider is presentation only — the recent-use order already interleaves
+    /// these entries — so a mixed-order choice empties the set entirely
+    /// (issue #3659) and nothing else about the row changes.
+    static func windowlessAppDividerPIDs(items: [SwitcherItem],
+                                         windowlessAppsMixedOrder: Bool = false) -> Set<pid_t> {
+        guard !windowlessAppsMixedOrder else { return [] }
         let groups = appGroups(items: items)
         let windowedPIDs = Set(items.filter { !$0.isAppEntry }.map(\.pid))
         var dividers: Set<pid_t> = []

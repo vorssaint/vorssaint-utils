@@ -244,6 +244,8 @@ extension Strings {
         switcherWindowlessAppsFinder: "Finder만",
         switcherWindowlessAppsAll: "모든 앱",
         switcherWindowlessAppsLockedFormat: "‘%@’ 옵션이 켜져 있는 동안에는 실행 중인 모든 앱에 계속 접근할 수 있습니다. 직접 고르려면 이 옵션을 꺼 주세요.",
+        switcherWindowlessAppsMixedOrder: "다른 앱과 섞어서 표시",
+        switcherWindowlessAppsMixedOrderCaption: "열려 있는 윈도우가 없는 앱을 별도 구간 대신 마지막 사용 순서대로 다른 앱과 함께 표시합니다.",
         switcherNoOpenWindow: "열린 윈도우 없음",
         switcherOtherDesktop: "다른 데스크탑",
         dockPreviewName: "Dock 미리보기",
