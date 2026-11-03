@@ -76,6 +76,7 @@ struct NotchCapsuleNoticeView: View {
         // A warning reads as one in any agent's color; other AI notices wear it.
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
         case .timer: return .orange
+        case .calendar: return notice.mascot == .bounce ? .orange : .white
         default: return .white
         }
     }
@@ -589,6 +590,14 @@ struct NotchCapsuleCalendarStrip: View {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let title = CapsuleLayout.calendarTitle(countdown, language: l10n.language)
                 let remaining = NotchCalendarSupport.countdownText(until: countdown.target, now: context.date)
+                let phase = countdown.phase(at: context.date)
+                let phaseLabel: String = {
+                    switch phase {
+                    case .ongoing: return text.ongoing
+                    case .starting: return text.starting
+                    case .coming: return text.coming
+                    }
+                }()
                 NotchCapsuleRow(size: size, geometry: geometry,
                                 leading: companion == .music ? CapsuleLayout.artworkInset(geometry) : CapsuleLayout.endPadding) {
                     if let companion {
@@ -601,18 +610,24 @@ struct NotchCapsuleCalendarStrip: View {
                     } else {
                         HStack(spacing: CapsuleLayout.spacing) {
                             Self.dot(countdown.event)
+                            if countdown.event.joinURL != nil {
+                                Image(systemName: "video.fill")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Self.clockColor(phase))
+                                    .accessibilityHidden(true)
+                            }
                             Text(title).capsuleTitle().truncationMode(.tail)
                             // The time left keeps its place; the start or end time
                             // beside it gives way first when the bar is short.
                             ViewThatFits(in: .horizontal) {
                                 HStack(spacing: CapsuleLayout.markSpacing) {
-                                    Self.clock(remaining, ongoing: countdown.ongoing)
+                                    Self.clock(remaining, phase: phase)
                                     Text(NotchCalendarSupport.timeText(countdown, locale: l10n.language.formattingLocale()))
                                         .font(Font(CapsuleLayout.smallFont as CTFont))
                                         .foregroundStyle(.white.opacity(0.55))
                                         .lineLimit(1).fixedSize()
                                 }
-                                Self.clock(remaining, ongoing: countdown.ongoing)
+                                Self.clock(remaining, phase: phase)
                             }
                             .padding(.leading, CapsuleLayout.groupSpacing - CapsuleLayout.spacing)
                             .layoutPriority(1)
@@ -620,7 +635,7 @@ struct NotchCapsuleCalendarStrip: View {
                     }
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(countdown.ongoing ? text.ongoing : text.next): \(title)")
+                .accessibilityLabel("\(phaseLabel): \(title)")
                 .accessibilityValue(NotchCalendarSupport.countdownAccessibilityText(
                     until: countdown.target, now: context.date, locale: l10n.language.formattingLocale()))
                 .accessibilityHint(FeatureStrings.notch(l10n.language).open)
@@ -632,9 +647,10 @@ struct NotchCapsuleCalendarStrip: View {
 
     /// The event's dot and its countdown, as a pair shows the event.
     static func clockMark(_ countdown: NotchCalendarCountdown, now: Date) -> some View {
-        HStack(spacing: CapsuleLayout.markSpacing) {
+        let phase = countdown.phase(at: now)
+        return HStack(spacing: CapsuleLayout.markSpacing) {
             dot(countdown.event)
-            clock(NotchCalendarSupport.countdownText(until: countdown.target, now: now), ongoing: countdown.ongoing)
+            clock(NotchCalendarSupport.countdownText(until: countdown.target, now: now), phase: phase)
         }
     }
 
@@ -644,13 +660,21 @@ struct NotchCapsuleCalendarStrip: View {
             .overlay { Circle().strokeBorder(.white.opacity(0.5), lineWidth: 0.5) }
     }
 
+    private static func clockColor(_ phase: NotchCalendarCountdownPhase) -> Color {
+        switch phase {
+        case .ongoing: return .mint
+        case .starting: return .orange
+        case .coming: return .white
+        }
+    }
+
     /// Time left in an event under way takes the agenda's "happening now"
-    /// color, so it never reads as a wait for the next one.
-    private static func clock(_ remaining: String, ongoing: Bool) -> some View {
+    /// color; the final minute before a start reads urgent orange.
+    private static func clock(_ remaining: String, phase: NotchCalendarCountdownPhase) -> some View {
         Text(remaining)
             .font(Font(CapsuleLayout.readingFont as CTFont))
             .lineLimit(1).fixedSize()
-            .foregroundStyle(ongoing ? Color.mint : Color.white)
+            .foregroundStyle(clockColor(phase))
             .modifier(NotchRollingDigits(value: remaining, countsDown: true, everySecond: false))
     }
 }

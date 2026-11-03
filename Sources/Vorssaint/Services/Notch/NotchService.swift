@@ -1414,6 +1414,19 @@ final class NotchService: ObservableObject {
         if !expanded || selected != .calendar || showingSections || showingAppPanel { calendar.revealing = nil }
     }
 
+    /// Brief notice when a countdown enters its lead window or final minute.
+    @discardableResult
+    func showCalendarCountdownNotice(_ countdown: NotchCalendarCountdown,
+                                     phase: NotchCalendarCountdownPhase) -> Bool {
+        let text = FeatureStrings.notchCalendar(L10n.shared.language)
+        let title = phase == .starting ? text.starting : text.coming
+        let trimmed = countdown.event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = trimmed.isEmpty ? text.untitled : trimmed
+        let symbol = countdown.event.joinURL == nil ? "calendar" : "video.fill"
+        let mascot: NotchMascotReaction? = phase == .starting ? .bounce : nil
+        return show(NotchNotice(event: .calendar, title: title, detail: detail, symbol: symbol, mascot: mascot))
+    }
+
     func open(_ module: NotchModule? = nil, pinned: Bool = false, takeFocus: Bool = true,
               appPanel: Bool = false, metric: MetricDetailKind? = nil, feedback: Bool = true, sections: Bool = false) {
         guard NotchSupport.isEnabled(), !suspended else { return }

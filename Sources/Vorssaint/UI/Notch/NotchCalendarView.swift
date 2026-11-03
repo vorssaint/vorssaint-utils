@@ -264,9 +264,13 @@ struct NotchCalendarView: View {
                             NotchCalendarEventRow(event: event, day: group.day, now: now,
                                                   isNext: event.id == next?.id, text: text,
                                                   countdown: countdownChoice(event, now: now),
-                                                  choose: { calendar.setCountdown($0, for: event) }) {
-                                openCalendar(showing: event)
-                            }
+                                                  choose: { calendar.setCountdown($0, for: event) },
+                                                  join: {
+                                                      if let url = event.joinURL {
+                                                          NSWorkspace.shared.open(url)
+                                                      }
+                                                  },
+                                                  openInCalendar: { openCalendar(showing: event) })
                             .id(event.id)
                         }
                     }
@@ -376,26 +380,35 @@ private struct NotchCalendarEventRow: View {
     /// Whether the event counts down on its own; nil when it cannot.
     let countdown: Bool?
     let choose: (Bool) -> Void
-    let open: () -> Void
+    let join: () -> Void
+    let openInCalendar: () -> Void
     @Environment(\.colorSchemeContrast) private var contrast
 
     private var ongoing: Bool { !event.allDay && event.start <= now && event.end > now }
     private var ended: Bool { event.end <= now }
+    private var canJoin: Bool { event.joinURL != nil }
+    private var startingSoon: Bool {
+        !event.allDay && !ongoing && event.start > now
+            && event.start.timeIntervalSince(now) <= NotchCalendarSupport.startingLeadTime
+    }
 
     var body: some View {
-        Button(action: open) { card }
+        Button {
+            if canJoin { join() } else { openInCalendar() }
+        } label: { card }
             .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
-            .help(text.openCalendar)
-            .accessibilityHint(text.openCalendar)
-            .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))
+            .help(canJoin ? text.join : text.openCalendar)
+            .accessibilityHint(canJoin ? text.join : text.openCalendar)
+            .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose,
+                                           canJoin: canJoin, join: join, openInCalendar: openInCalendar))
     }
 
     private var card: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if ongoing || isNext {
-                Text(ongoing ? text.ongoing : text.next)
+            if ongoing || startingSoon || isNext {
+                Text(ongoing ? text.ongoing : startingSoon ? text.starting : text.next)
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(ongoing ? .mint : .white.opacity(0.7))
+                    .foregroundStyle(ongoing ? .mint : startingSoon ? .orange : .white.opacity(0.7))
                     .lineLimit(1)
             }
             Text(event.title.isEmpty ? text.untitled : event.title)
@@ -426,7 +439,12 @@ private struct NotchCalendarEventRow: View {
             .foregroundStyle(.white.opacity(0.75))
             Text(event.calendar)
                 .font(.system(size: 10)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
-            if !event.location.isEmpty {
+            if canJoin {
+                Label(text.join, systemImage: "video.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+            }
+            if !event.location.isEmpty, !NotchCalendarSupport.locationIsJoinURL(event) {
                 Label(event.location, systemImage: "mappin")
                     .font(.system(size: 10)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
             }
@@ -450,21 +468,59 @@ private struct NotchCalendarEventRow: View {
     }
 }
 
-/// A timed event yet to start offers its own countdown from its menu, and
-/// to VoiceOver as an action, while the countdown for every event is off.
+/// Join / Open Calendar, plus Add/Remove Countdown when the global countdown is off.
 private struct NotchCountdownChoice: ViewModifier {
     let chosen: Bool?
     let text: NotchCalendarStrings
     let choose: (Bool) -> Void
+    var canJoin = false
+    var join: () -> Void = {}
+    var openInCalendar: () -> Void = {}
 
-    @ViewBuilder func body(content: Content) -> some View {
-        if let chosen {
-            let title = chosen ? text.removeCountdown : text.addCountdown
-            content
-                .contextMenu { Button(title) { choose(!chosen) } }
-                .accessibilityAction(named: Text(title)) { choose(!chosen) }
-        } else {
-            content
+    func body(content: Content) -> some View {
+        content
+            .contextMenu {
+                if canJoin { Button(text.join, action: join) }
+                Button(text.openCalendar, action: openInCalendar)
+                if let chosen {
+                    Button(chosen ? text.removeCountdown : text.addCountdown) { choose(!chosen) }
+                }
+            }
+            .accessibilityAction(named: canJoin ? text.join : text.openCalendar) {
+                if canJoin { join() } else { openInCalendar() }
+            }
+            .modifier(OpenCalendarAction(canJoin: canJoin, title: text.openCalendar, open: openInCalendar))
+            .modifier(ChooseAction(chosen: chosen, text: text, choose: choose))
+    }
+
+    /// Extra VoiceOver path to Calendar.app when the default action is Join.
+    private struct OpenCalendarAction: ViewModifier {
+        let canJoin: Bool
+        let title: String
+        let open: () -> Void
+
+        @ViewBuilder func body(content: Content) -> some View {
+            if canJoin {
+                content.accessibilityAction(named: title, open)
+            } else {
+                content
+            }
+        }
+    }
+
+    private struct ChooseAction: ViewModifier {
+        let chosen: Bool?
+        let text: NotchCalendarStrings
+        let choose: (Bool) -> Void
+
+        @ViewBuilder func body(content: Content) -> some View {
+            if let chosen {
+                content.accessibilityAction(named: chosen ? text.removeCountdown : text.addCountdown) {
+                    choose(!chosen)
+                }
+            } else {
+                content
+            }
         }
     }
 }
