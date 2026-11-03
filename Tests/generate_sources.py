@@ -1718,8 +1718,7 @@ def main():
           + "@State private var viewportHeight: CGFloat?\n"
           + "let onContentHeightChange: ((CGFloat) -> Void)?\n"
           + "var header: some View { Color.clear.frame(height: 22) }\n"
-          + "var toolPicker: some View { Color.clear.frame(height: 24)\n"
-          + ".onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { fixture.pickerFrame = $0 } }\n"
+          + "var toolPicker: some View { Color.clear.frame(height: 24).background(PickerMarker(fixture: fixture)) }\n"
           + "var content: some View { Color.clear.frame(height: fixture.height) }\n"
           + "var body: some View { layout }\n"
           + declaration(media_workspace, "    private var layout:")
