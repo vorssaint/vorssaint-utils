@@ -74,6 +74,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -860,6 +861,54 @@ extension ScratchpadFeatureStrings {
         markLink: "رابط",
         formatMarks: "التنسيق",
         textSize: "حجم النص")
+
+    static let fa = ScratchpadFeatureStrings(
+        pageTitle: "Scratchpad",
+        hubDescription: "پدهای شناور برای یادداشت‌های کوتاه‌مدت",
+        panelCaption: "یادداشت‌های سریع در زبانه‌های جدا",
+        openButton: "باز کردن Scratchpad",
+        placeholder: "هر چیزی تایپ کنید. خودش ذخیره می‌شود.",
+        copyAll: "کپی همه",
+        copied: "کپی شد",
+        exportAction: "ذخیره به‌صورت فایل",
+        exportFailed: "فایل ذخیره نشد",
+        loadFailed: "یادداشت‌های شما باز نشدند. بدون تغییر ماندند.",
+        saveFailed: "یادداشت‌های شما ذخیره نشدند. پیش از خروج جای دیگری کپی‌شان کنید.",
+        clearAction: "پاک کردن",
+        retentionTitle: "پاک شدن خودکار",
+        retentionNever: "هرگز",
+        retentionDay: "پس از یک روز بی‌استفاده",
+        retentionWeek: "پس از یک هفته بی‌استفاده",
+        retentionMonth: "پس از یک ماه بی‌استفاده",
+        retentionCaption: "وقتی متن این مدت بدون ویرایش بماند، پد خودش خالی می‌شود.",
+        closeOnClickOutside: "بستن با کلیک بیرون از پد",
+        keepOpen: "باز نگه داشتن",
+        backgroundOpacity: "پس‌زمینهٔ پد",
+        backgroundTranslucent: "نیمه‌شفاف",
+        backgroundOpaque: "مات",
+        newPad: "Scratchpad جدید",
+        padActions: "کنش‌های Scratchpad",
+        renamePad: "تغییر نام Scratchpad",
+        closePad: "بستن Scratchpad",
+        saveName: "ذخیره",
+        cancel: "لغو",
+        deletePadMessageFormat: "“%@” و هر چه در آن است حذف شود؟",
+        padLimitFormat: "می‌توانید تا %d Scratchpad نگه دارید",
+        previewFormatting: "نمایش قالب‌بندی",
+        editText: "ویرایش متن",
+        taskDone: "انجام شد",
+        taskNotDone: "انجام نشده",
+        markBold: "پررنگ",
+        markItalic: "کج",
+        markStrikethrough: "خط‌خورده",
+        markHeading: "عنوان",
+        markBullet: "فهرست نقطه‌ای",
+        markNumbered: "فهرست شماره‌دار",
+        markQuote: "نقل‌قول",
+        markCode: "کد",
+        markLink: "پیوند",
+        formatMarks: "قالب‌بندی",
+        textSize: "اندازهٔ متن")
 }
 
 extension ScratchpadFeatureStrings {

@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -161,4 +162,11 @@ extension AutoQuitDockAppsStrings {
         removeButton: "إزالة",
         emptyNote: "لا توجد تطبيقات شريط قوائم يمكن إضافتها."
     )
+
+    static let fa = AutoQuitDockAppsStrings(
+        listTitle: "برنامه‌های نوار منو که بسته می‌شوند",
+        caption: "برنامه‌های نوار منو به‌طور پیش‌فرض باز می‌مانند. برنامه‌هایی که اینجا انتخاب می‌کنید می‌توانند پس از بسته شدن آخرین پنجره‌شان، تا وقتی در داک هستند، بسته شوند. استثناها همچنان آن‌ها را باز نگه می‌دارند.",
+        addButton: "افزودن برنامه…",
+        removeButton: "حذف",
+        emptyNote: "برنامهٔ نوار منویی برای افزودن در دسترس نیست.")
 }

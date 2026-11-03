@@ -21,6 +21,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .ar: return .ar
+        case .fa: return .fa
         case .uk: return .uk
         }
     }
@@ -42,6 +43,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .ar: return .ar
+        case .fa: return .fa
         case .uk: return .uk
         }
     }
@@ -63,6 +65,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .ar: return .ar
+        case .fa: return .fa
         case .uk: return .uk
         }
     }
@@ -84,6 +87,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .ar: return .ar
+        case .fa: return .fa
         case .uk: return .uk
         }
     }
@@ -106,6 +110,7 @@ enum FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 
@@ -3214,6 +3219,14 @@ extension SettingsCategoryStrings {
         app: "التطبيق",
         appManagement: "إدارة التطبيقات"
     )
+
+    static let fa = SettingsCategoryStrings(
+        essentials: "ضروری‌ها",
+        windowsControls: "کنترل پنجره",
+        files: "فایل‌ها",
+        utilities: "ابزارها",
+        app: "برنامه",
+        appManagement: "مدیریت برنامه")
 }
 
 extension ClipboardFeatureStrings {
@@ -3347,6 +3360,71 @@ extension ClipboardFeatureStrings {
         historyLayoutCards: "بطاقات",
         historyLayoutList: "قائمة",
         showSourceAppIconsInList: "إظهار أيقونات التطبيقات المصدر في عرض القائمة")
+
+    static let fa = ClipboardFeatureStrings(
+        title: "کلیپ‌بورد",
+        enable: "ذخیرهٔ تاریخچهٔ کلیپ‌بورد",
+        caption: "متن کپی‌شده را نگه می‌دارد تا بعداً دوباره استفاده کنید. همه‌چیز محلی می‌ماند و هر زمان قابل پاک شدن است.",
+        localNote: "همه‌چیز روی همین مک می‌ماند. موارد بسیار بزرگ نادیده گرفته می‌شوند.",
+        skipSensitive: "رد کردن متن‌های به‌ظاهر حساس",
+        skipSensitiveCaption: "ممکن است متن عادیِ شبیه گذرواژه یا توکن را رد کند. محتوایی که برنامهٔ مبدأ آن را محرمانه علامت زده باشد همیشه کنار گذاشته می‌شود.",
+        limit: "حد",
+        limitUnlimited: "نامحدود",
+        showInPanel: "نمایش در پنل",
+        shortcut: "میان‌بر تاریخچه",
+        shortcutCaption: "پنجره‌ای سریع با جست‌وجو، موارد سنجاق‌شده و میان‌بُرهای ⌘1 تا ⌘9 برای چسباندن در برنامهٔ قبلی باز می‌کند.",
+        shortcutHint: "روی یک ردیف کلیک کنید تا در برنامهٔ قبلی چسبانده شود. ⌘-کلیک چند مورد را انتخاب می‌کند؛ ⌘C بدون چسباندن کپی می‌کند.",
+        clickRowShortcut: "کلیک روی ردیف",
+        commandClickShortcut: "⌘ کلیک",
+        pinned: "سنجاق‌شده",
+        recent: "اخیر",
+        pin: "سنجاق کردن",
+        unpin: "برداشتن سنجاق",
+        clearRecent: "پاک کردن بدون سنجاق",
+        clearRecentKeywords: "پاک کردن اخیر",
+        empty: "متن ذخیره‌شده‌ای نیست",
+        disabled: "برای شروع ذخیرهٔ متن کپی‌شده، تاریخچه را فعال کنید.",
+        search: "جست‌وجوی متن کپی‌شده",
+        copy: "کپی",
+        copied: "کپی شد",
+        delete: "حذف مورد",
+        selectMultiple: "افزودن به دسته",
+        unselectMultiple: "برداشتن از دسته",
+        selectShortcutAction: "انتخاب",
+        pasteSelectedFormat: "چسباندن %d",
+        copySelectedFormat: "کپی %d",
+        clearSelection: "پاک کردن انتخاب",
+        moveUp: "بالا بردن",
+        moveDown: "پایین بردن",
+        noResults: "نتیجه‌ای نیست",
+        active: "در حال ذخیرهٔ متن جدید",
+        includeImagesFiles: "تصاویر و فایل‌های کپی‌شده را هم ذخیره کن",
+        includeImagesFilesCaption: "تصاویر به تاریخچه می‌پیوندند و فایل‌ها به‌صورت پیوند به محلشان به خاطر سپرده می‌شوند. مثل هر مورد متنی سنجاق و چسبانده‌شان کنید.",
+        imageEntryLabel: "تصویر",
+        fileCountFormat: "%d فایل",
+        pasteImageAsFile: "چسباندن تصاویر کپی‌شده به‌صورت فایل",
+        pasteImageAsFileCaption: "وقتی Finder فعال است، ⌘V تصویر کپی‌شده را به‌صورت PNG در پوشهٔ فعلی ذخیره می‌کند.",
+        previewLabel: "پیش‌نمایش",
+        edit: "ویرایش",
+        cancel: "لغو",
+        save: "ذخیره",
+        autoClearEnable: "پاک کردن خودکار کلیپ‌بورد با تأخیر",
+        autoClearSecondsSuffix: "ثانیه",
+        autoClearOnSleep: "پاک کردن کلیپ‌بورد هنگام خواب رایانه",
+        autoClearOnDisplaySleep: "پاک کردن کلیپ‌بورد هنگام خواب نمایشگر",
+        autoClearOnScreenLock: "پاک کردن کلیپ‌بورد هنگام قفل صفحه",
+        autoClearCaption: "فقط کلیپ‌بورد سیستم را پاک می‌کند. مواردی که از قبل ذخیره شده‌اند در تاریخچه می‌مانند.",
+        deleteSelectedFormat: "حذف %d",
+        menuBarPreview: "نمایش آخرین کپی در نوار منو",
+        menuBarPreviewCaption: "پیش‌نمایشی کوتاه از آخرین کپی شما را کنار نماد نشان می‌دهد. برای باز کردن تاریخچه روی آن کلیک کنید.",
+        menuBarPreviewLength: "طول پیش‌نمایش",
+        menuBarPreviewLengthSuffix: "نویسه",
+        clearRecentConfirmFormat: "موارد بدون سنجاق پاک شوند (%d)؟",
+        clearRecentConfirmMessage: "موارد سنجاق‌شده و هر چه پس از این کپی شود می‌ماند. این کار قابل واگرد نیست.",
+        historyLayout: "چیدمان تاریخچه",
+        historyLayoutCards: "کارت‌ها",
+        historyLayoutList: "فهرست",
+        showSourceAppIconsInList: "نمایش نماد برنامهٔ مبدأ در نمای فهرست")
 }
 
 extension WindowLayoutFeatureStrings {
@@ -3534,6 +3612,98 @@ extension WindowLayoutFeatureStrings {
         gapMedium: "متوسط",
         gapLarge: "كبير",
         gapExtraLarge: "كبير جدًا")
+
+    static let fa = WindowLayoutFeatureStrings(
+        title: "چیدمان پنجره",
+        caption: "پنجره‌ها را در بخش‌های صفحه بچینید یا با ترک‌پد یا ماوس جابه‌جا و اندازه‌شان را تغییر دهید.",
+        showInPanel: "نمایش در پنل",
+        gestureSection: "کشیدن پنجره",
+        gestureEnable: "جابه‌جایی و تغییر اندازه با کشیدن",
+        gestureCaption: "روی ترک‌پد یا ماوس، کلیدهای تغییردهندهٔ نشان‌داده‌شده را نگه دارید و از هر جای داخل یک پنجره بکشید.",
+        gestureModifiers: "کلیدهای جابه‌جایی",
+        gestureMove: "برای جابه‌جایی بکشید",
+        gestureResize: "Shift را اضافه کنید و برای تغییر اندازه بکشید",
+        gestureResizeHint: "نقطهٔ شروع نزدیک‌ترین لبه یا گوشه را انتخاب می‌کند. روی ماوس، کشیدن با دکمهٔ راست هم اندازه را تغییر می‌دهد.",
+        gestureRaiseWindow: "آوردن پنجرهٔ کشیده‌شده به جلو",
+        shortcuts: "میان‌بُرها",
+        shortcutsCaption: "با میان‌بُرهای سراسری پنجرهٔ فعال را بدون باز کردن پنل بچینید.",
+        permissionCaption: "از دسترس‌پذیری فقط برای جابه‌جایی و تغییر اندازهٔ پنجره‌ها استفاده می‌کند.",
+        noWindow: "پنجرهٔ فعالی پیدا نشد.",
+        missingPermission: "برای جابه‌جایی پنجره‌ها دسترس‌پذیری را بدهید.",
+        failed: "این پنجره جابه‌جا نشد.",
+        done: "پنجره چیده شد.",
+        restored: "پنجره بازگردانده شد.",
+        noRestore: "چیدمان قبلی برای بازگردانی نیست.",
+        target: "پنجرهٔ فعال",
+        halves: "نیم‌ها",
+        thirds: "یک‌سوم‌ها",
+        quarterRows: "ردیف‌های یک‌چهارم",
+        quarterColumns: "ستون‌های یک‌چهارم",
+        sixths: "یک‌ششم‌ها",
+        corners: "گوشه‌ها",
+        other: "کنش‌ها",
+        leftHalf: "چپ",
+        rightHalf: "راست",
+        topHalf: "بالا",
+        bottomHalf: "پایین",
+        centerHalf: "نیمهٔ وسط",
+        leftThird: "یک‌سوم چپ",
+        centerThird: "یک‌سوم وسط",
+        rightThird: "یک‌سوم راست",
+        leftTwoThirds: "دوسوم چپ",
+        rightTwoThirds: "دوسوم راست",
+        centerTwoThirds: "دوسوم وسط",
+        topThird: "یک‌سوم بالا",
+        middleThird: "یک‌سوم میانی",
+        bottomThird: "یک‌سوم پایین",
+        topTwoThirds: "دوسوم بالا",
+        bottomTwoThirds: "دوسوم پایین",
+        topQuarter: "یک‌چهارم بالا",
+        upperMiddleQuarter: "یک‌چهارم میانیِ بالا",
+        lowerMiddleQuarter: "یک‌چهارم میانیِ پایین",
+        bottomQuarter: "یک‌چهارم پایین",
+        leftQuarter: "یک‌چهارم چپ",
+        leftMiddleQuarter: "یک‌چهارم میانیِ چپ",
+        rightMiddleQuarter: "یک‌چهارم میانیِ راست",
+        rightQuarter: "یک‌چهارم راست",
+        topLeftSixth: "یک‌ششم بالا چپ",
+        topCenterSixth: "یک‌ششم بالا وسط",
+        topRightSixth: "یک‌ششم بالا راست",
+        bottomLeftSixth: "یک‌ششم پایین چپ",
+        bottomCenterSixth: "یک‌ششم پایین وسط",
+        bottomRightSixth: "یک‌ششم پایین راست",
+        topLeft: "بالا چپ",
+        topRight: "بالا راست",
+        bottomLeft: "پایین چپ",
+        bottomRight: "پایین راست",
+        maximize: "بزرگ کردن",
+        center: "وسط",
+        nextDisplay: "نمایشگر بعدی",
+        restore: "بازگرداندن",
+        fullScreen: "تمام‌صفحه",
+        previousDisplay: "نمایشگر قبلی",
+        edgeSnapEnable: "چسباندن پنجره‌ها به لبه‌های صفحه",
+        edgeSnapCaption: "این را روشن کنید و نوار عنوان یک پنجره را به ناحیهٔ برجستهٔ زیر بکشید. پنجره‌ای که با نگه داشتن کلیدهای تغییردهنده جابه‌جا می‌شود هم می‌چسبد. روی یک ناحیه کلیک کنید تا انتخاب کنید پنجره کجا برود.",
+        edgeSnapSystemConflict: "macOS از همین لبه‌ها استفاده می‌کند. کاشی‌کاری پنجره را در Desktop & Dock خاموش کنید تا Vorssaint بتواند آن را به دست بگیرد.",
+        edgeSnapOpenSystemSettings: "باز کردن Desktop & Dock",
+        edgeSnapWaitingForSystem: "در Vorssaint فعال است. به‌محض خاموش شدن کاشی‌کاری macOS شروع به کار می‌کند.",
+        edgeSnapUseCorner: "استفاده از این گوشه",
+        edgeSnapUseEdge: "استفاده از این لبه",
+        edgeSnapAreasOnEdge: "نواحی این لبه",
+        marginMaximize: "بزرگ کردن با حاشیه",
+        marginPerEdge: "حاشیه برای هر لبه",
+        gapsSection: "فاصله‌ها",
+        gapsCaption: "فاصله بین پنجره‌های چسبیده، و بین پنجره‌ها و لبهٔ صفحه.",
+        windowGap: "فاصلهٔ پنجره",
+        screenGap: "فاصلهٔ صفحه",
+        sideRepeatCycle: "تکرار چپ یا راست برای چرخش بین اندازه‌ها",
+        sideRepeatCycleCaption: "نیم، سپس دوسوم، سپس یک‌سوم روی همان نمایشگر. وقتی خاموش است و بیش از یک نمایشگر دارید، تکرار پنجره را به نمایشگر بعدی در همان سو می‌برد.",
+        gapNone: "هیچ",
+        gapTiny: "بسیار کم",
+        gapSmall: "کم",
+        gapMedium: "متوسط",
+        gapLarge: "زیاد",
+        gapExtraLarge: "بسیار زیاد")
 }
 
 extension MonitorAlertFeatureStrings {
@@ -3606,6 +3776,40 @@ extension MonitorAlertFeatureStrings {
         batteryTemperatureTitle: "بطارية ساخنة",
         batteryTemperatureBodyFormat: "بلغت البطارية %@."
     )
+
+    static let fa = MonitorAlertFeatureStrings(
+        section: "هشدارها",
+        caption: "هشدارها وقتی به حدهای انتخاب‌شده برسند فعال می‌شوند. هشدارهای مصرف و دمای CPU جهش‌های کوتاه‌تر از حدود 12 ثانیه را نادیده می‌گیرند. تنظیم تکرار فقط تکرار همان هشدار را محدود می‌کند.",
+        notificationsDenied: "اعلان‌های Vorssaint در تنظیمات سیستم خاموش‌اند، پس هشدارها نمی‌توانند ظاهر شوند.",
+        cpu: "CPU زیاد",
+        cpuTemperature: "دمای زیاد CPU",
+        memory: "فشار بحرانی حافظه",
+        disk: "فضای کم دیسک",
+        battery: "باتری کم",
+        cpuThreshold: "CPU بالاتر از",
+        cpuTemperatureThreshold: "دما بالاتر از",
+        diskThreshold: "فضای آزاد کمتر از",
+        batteryThreshold: "باتری کمتر از",
+        cooldown: "تکرار همان هشدار پس از",
+        cooldown2: "2 دقیقه",
+        cooldown5: "5 دقیقه",
+        cooldown15: "15 دقیقه",
+        cooldown30: "30 دقیقه",
+        cooldown60: "1 ساعت",
+        cpuTitle: "CPU زیاد",
+        cpuBodyFormat: "CPU چند ثانیه بالاتر از %d%% ماند.",
+        cpuTemperatureTitle: "CPU داغ",
+        cpuTemperatureBodyFormat: "CPU به %@ رسید.",
+        memoryTitle: "حافظهٔ بحرانی",
+        memoryBody: "فشار حافظه به سطح بحرانی رسید.",
+        diskTitle: "فضای کم دیسک",
+        diskBodyFormat: "%@ کمتر از %d%% فضای آزاد دارد.",
+        batteryTitle: "باتری کم",
+        batteryBodyFormat: "باتری روی %d%% است.",
+        batteryTemperature: "دمای زیاد باتری",
+        batteryTemperatureThreshold: "دما بالاتر از",
+        batteryTemperatureTitle: "باتری داغ",
+        batteryTemperatureBodyFormat: "باتری به %@ رسید.")
 }
 
 extension MixerFeatureStrings {
@@ -3623,4 +3827,6 @@ extension MixerFeatureStrings {
     )
 
     static let ar = MixerFeatureStrings(hideInactiveApps: "إخفاء التطبيقات غير النشطة", pin: "التثبيت في الأعلى", unpin: "إلغاء التثبيت", moveUp: "تحريك لأعلى", moveDown: "تحريك لأسفل", pinFirst: "التثبيت في المقدمة", moveLeft: "تحريك لليسار", moveRight: "تحريك لليمين", arrange: "استمر بالضغط على Command واسحب لإعادة الترتيب", actions: "الإجراءات")
+
+    static let fa = MixerFeatureStrings(hideInactiveApps: "پنهان کردن برنامه‌های غیرفعال", pin: "سنجاق در بالا", unpin: "برداشتن سنجاق", moveUp: "انتقال به بالا", moveDown: "انتقال به پایین", pinFirst: "سنجاق در ابتدا", moveLeft: "انتقال به چپ", moveRight: "انتقال به راست", arrange: "Command را نگه دارید و بکشید تا ترتیب تغییر کند", actions: "کنش‌ها")
 }

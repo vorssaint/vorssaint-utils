@@ -38,6 +38,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -169,4 +170,11 @@ extension ClipboardRetentionStrings {
         daysFormat: "%d ي",
         caption: "تُزال العناصر الأقدم حتى لو كانت دون الحد. وتبقى العناصر المثبّتة دائمًا."
     )
+
+    static let fa = ClipboardRetentionStrings(
+        title: "مدت نگه داشتن موارد",
+        forever: "برای همیشه",
+        oneDay: "1 روز",
+        daysFormat: "%d روز",
+        caption: "موارد قدیمی‌تر حتی زیر حد هم حذف می‌شوند. موارد سنجاق‌شده همیشه می‌مانند.")
 }

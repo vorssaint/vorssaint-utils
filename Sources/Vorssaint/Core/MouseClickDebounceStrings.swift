@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -161,4 +162,11 @@ extension MouseClickDebounceStrings {
         windowLabel: "نافذة التصفية",
         windowCaption: "تُعامل النقرة المتكررة داخل هذه الفترة كنقرة مكررة غير مقصودة."
     )
+
+    static let fa = MouseClickDebounceStrings(
+        title: "فیلتر کلیک اضافه",
+        caption: "کلیک‌های اضافیِ سریع از دکمه‌های فرسودهٔ ماوس را بدون کند کردن کلیک‌های عادی نادیده می‌گیرد.",
+        moreOptions: "گزینه‌های بیشتر",
+        windowLabel: "بازهٔ فیلتر",
+        windowCaption: "کلیک تکراری درون این بازه، تکرار اتفاقی به‌شمار می‌آید.")
 }

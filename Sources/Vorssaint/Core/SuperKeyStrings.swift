@@ -56,6 +56,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -447,4 +448,27 @@ extension SuperKeyStrings {
         mappingForeignMapping: "يستخدم تعيين مفاتيح تطبيق آخر المفتاح المحدد. أزِل التعيين من داخل ذلك التطبيق: إنهاؤه وحده لا يكفي.",
         mappingSystemRefused: "رفض macOS تعيين المفتاح. أعِد توصيل لوحة المفاتيح أو أعِد تشغيل الـ Mac، ثم فعّل هذا مجددًا.",
         keyboardTapRefused: "لم يسمح macOS لـ Vorssaint بمراقبة لوحة المفاتيح. أوقف Vorssaint ثم أعد تفعيله من إعدادات النظام › الخصوصية والأمن › تسهيلات الاستخدام، ثم شغّل هذا الخيار مرة أخرى.")
+
+    static let fa = SuperKeyStrings(
+        pageTitle: "کلید برتر",
+        hubDescription: "یک کلید را به ترکیب کلید تغییردهنده‌ای که انتخاب می‌کنید تبدیل می‌کند.",
+        enableToggle: "استفاده از این کلید به‌عنوان کلید برتر",
+        enableCaption: "آن را نگه دارید و هر کلیدی را بزنید. یک یا چند کلید تغییردهنده را در زیر انتخاب کنید.",
+        modifierKeysNote: "این کلید را روی کنش پیش‌فرضش در تنظیمات سیستم › صفحه‌کلید › کلیدهای تغییردهنده نگه دارید.",
+        sourceKey: "کلید نگه‌داشتنی",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "%@ راست",
+        holdHint: "نگه دارید",
+        soloSection: "یک ضربهٔ تنها",
+        soloCaption: "کاری که یک ضربهٔ سریع وقتی هیچ کلید دیگری فشرده نمی‌شود انجام می‌دهد.",
+        soloNothing: "هیچ‌چیز",
+        soloCapsLock: "روشن و خاموش کردن حروف بزرگ",
+        soloEscape: "فشردن Escape",
+        activeNow: "هم‌اکنون در کار",
+        panelCaptionFormat: "%1$@ نقش %2$@ را دارد.",
+        manageButton: "تنظیم…",
+        soloInputSource: "تعویض منبع ورودی؛ برای Caps Lock نگه دارید",
+        mappingForeignMapping: "نگاشت کلید برنامهٔ دیگری از کلید انتخاب‌شده استفاده می‌کند. آن را در همان برنامه حذف کنید: بستن برنامه کافی نیست.",
+        mappingSystemRefused: "macOS نگاشت کلید را رد کرد. صفحه‌کلید را دوباره وصل کنید یا مک را دوباره راه‌اندازی کنید، سپس این را دوباره روشن کنید.",
+        keyboardTapRefused: "macOS به Vorssaint اجازه نداد صفحه‌کلید را زیر نظر بگیرد. Vorssaint را در تنظیمات سیستم › حریم خصوصی و امنیت › دسترس‌پذیری خاموش و روشن کنید، سپس این را دوباره روشن کنید.")
 }

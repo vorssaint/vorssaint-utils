@@ -42,6 +42,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -76,4 +77,6 @@ extension PortManagerFeatureStrings {
     static let zhTW = PortManagerFeatureStrings(title: "連接埠管理器", filter: "依連接埠、程序或 PID 篩選", openFormat: "%d 個開啟", empty: "找不到監聽中的連接埠", emptyHint: "請嘗試重新整理或變更搜尋條件。", listeningCaption: "您的監聽中連接埠", kill: "結束", forceKill: "強制結束", loadFailed: "無法讀取監聽中的連接埠。請嘗試重新整理。", refresh: "重新整理", copyPort: "複製連接埠", copyAddress: "複製位址:連接埠", terminateFormat: "要結束 %@ 嗎？", terminateMessageFormat: "結束 PID %2$d 將關閉連接埠 %1$d。", hubDescription: "檢視使用中的監聽連接埠，並在已安裝「結束處理程序」時結束使用它們的程序", allInterfaces: "所有介面", allInterfacesHelp: "正在所有網路介面上監聽，同一網路中的其他裝置可能可以連線。")
     static let zhHK = PortManagerFeatureStrings(title: "連接埠管理員", filter: "按連接埠、程序或 PID 篩選", openFormat: "%d 個開啟", empty: "找不到監聽中的連接埠", emptyHint: "請嘗試重新整理或變更搜尋條件。", listeningCaption: "您的監聽中連接埠", kill: "結束", forceKill: "強制結束", loadFailed: "無法讀取監聽中的連接埠。請嘗試重新整理。", refresh: "重新整理", copyPort: "複製連接埠", copyAddress: "複製位址:連接埠", terminateFormat: "要結束 %@ 嗎？", terminateMessageFormat: "結束 PID %2$d 會關閉連接埠 %1$d。", hubDescription: "檢視使用中的監聽連接埠，並在已安裝「結束處理程序」時結束使用它們的程序", allInterfaces: "所有介面", allInterfacesHelp: "正在所有網絡介面上監聽，同一網絡中的其他裝置可能可以連線。")
     static let ar = PortManagerFeatureStrings(title: "مدير المنافذ", filter: "التصفية حسب المنفذ أو العملية أو المعرّف", openFormat: "المفتوحة: %d", empty: "لم يتم العثور على منافذ مُنصتة", emptyHint: "جرّب التحديث أو تغيير بحثك.", listeningCaption: "منافذك المُنصتة", kill: "إنهاء", forceKill: "إنهاء إجباري", loadFailed: "تعذّرت قراءة المنافذ المُنصتة. جرّب التحديث.", refresh: "تحديث", copyPort: "نسخ المنفذ", copyAddress: "نسخ العنوان:المنفذ", terminateFormat: "إنهاء %@؟", terminateMessageFormat: "يُغلق هذا المنفذ %d، بإنهاء العملية %d.", hubDescription: "اعرض المنافذ المُنصتة النشطة، وأنهِ العمليات التي تستخدمها إن كانت “إنهاء العمليات” مثبّتة", allInterfaces: "كل الواجهات", allInterfacesHelp: "يُنصت على كل واجهات الشبكة، لذا قد تتمكن أجهزة أخرى على الشبكة من الاتصال.")
+
+    static let fa = PortManagerFeatureStrings(title: "مدیر پورت", filter: "فیلتر بر اساس پورت، فرایند یا PID", openFormat: "%d باز", empty: "پورتی در حال گوش دادن پیدا نشد", emptyHint: "تازه‌سازی یا تغییر جست‌وجو را امتحان کنید.", listeningCaption: "پورت‌های در حال گوش دادن شما", kill: "بستن", forceKill: "بستن اجباری", loadFailed: "پورت‌های در حال گوش دادن خوانده نشدند. تازه‌سازی را امتحان کنید.", refresh: "تازه‌سازی", copyPort: "کپی پورت", copyAddress: "کپی نشانی:پورت", terminateFormat: "%@ پایان داده شود؟", terminateMessageFormat: "این کار پورت %d را با پایان دادن به PID %d می‌بندد.", hubDescription: "پورت‌های فعالِ در حال گوش دادن را ببینید و، با نصب بودن “بستن فرایند”، فرایندهایی را که از آن‌ها استفاده می‌کنند پایان دهید", allInterfaces: "همهٔ رابط‌ها", allInterfacesHelp: "روی هر رابط شبکه گوش می‌دهد، پس ممکن است دستگاه‌های دیگر شبکه بتوانند وصل شوند.")
 }

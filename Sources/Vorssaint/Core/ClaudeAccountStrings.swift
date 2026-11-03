@@ -116,6 +116,13 @@ extension FeatureStrings {
             unknownAccount: "لم يُتعرف على أي حساب في هذا الملف الشخصي.",
             noLimits: "لم يُرجع Claude Code حدودًا لهذا الحساب بعد.",
             signInHelp: "كيف تسجّل الدخول إلى حساب Claude آخر")
+        case .fa: return ClaudeAccountStrings(
+            title: "حساب Claude", defaultAccount: "حساب پیش‌فرض", chooseFolder: "انتخاب پوشهٔ حساب…",
+            explanation: "نمایه‌ای را انتخاب کنید که از قبل در Claude Code وارد شده است. میزان استفاده از نشست‌های آن نمایه می‌آید و Claude Code محدودیت‌های حساب آن را بررسی می‌کند. تغییر این انتخاب حساب را در برنامه‌های دیگر شما عوض نمی‌کند.",
+            invalidFolder: "پوشهٔ یک نمایهٔ موجود Claude Code را انتخاب کنید که متعلق به شماست و فایل .claude.json خودش را دارد. پوشه نباید برای دیگران قابل‌نوشتن باشد و فایل نباید پیوند باشد.",
+            unknownAccount: "هیچ حسابی در این نمایه شناسایی نشد.",
+            noLimits: "Claude Code هنوز محدودیتی برای این حساب برنگردانده است.",
+            signInHelp: "چگونه به حساب Claude دیگری وارد شوید")
         }
     }
 }

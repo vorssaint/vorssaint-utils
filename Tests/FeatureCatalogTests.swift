@@ -1979,6 +1979,7 @@ enum FeatureCatalogTests {
                 case .zhTW: return .zhTW
                 case .zhHK: return .zhHK
                 case .ar: return .ar
+                case .fa: return .fa
                 }
             }()
             suite.expect(!strings.obPurposeTitle.isEmpty && !strings.obPurposeBody.isEmpty

@@ -63,6 +63,7 @@ struct WhatsAppDownloadStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -544,6 +545,19 @@ extension WhatsAppDownloadStrings {
                 localNote: "تُفحص البيانات الوصفية المحلية فقط. ولا يقرأ Vorssaint المحادثات ولا محتويات الملفات.",
                 notificationFormat: "الملفات المنقولة إلى المهملات: %1$d (%2$@). والفاشلة: %3$d.",
                 scanFailed: "تعذّر فحص مجلد التنزيلات. تحقق من “الملفات والمجلدات” في إعدادات النظام.", manageButton: "إدارة…")
+        case .fa:
+            return OperationalStrings(
+                automaticCaption: "روزی یک بار بررسی می‌کند و فایل‌های مطابقی را که از حد شما قدیمی‌ترند به سطل زباله می‌برد.",
+                retentionCaption: "فایل‌هایی که اخیراً ویرایش شده‌اند دوباره منتظر کل مدت می‌مانند.",
+                manualIntro: "هر زمان پویش کنید. انتخاب اولیه از نوع‌ها و حد سن شما پیروی می‌کند؛ می‌توانید هر فایل تأییدشده را بررسی کنید.",
+                resultsFormat: "%1$d فایل تأییدشده · %2$@", selectRules: "انتخاب بر اساس قواعد من",
+                cleanSelectedFormat: "انتقال %1$d به سطل زباله · %2$@",
+                lastRunFormat: "آخرین پاک‌سازی %@: %d فایل · %@ · %d ناموفق",
+                nextRunFormat: "بررسی خودکار بعدی %@.",
+                firstMessageFormat: "%d فایل موجود از قبل با قواعد شما مطابقت دارند. انتخاب کنید خودکارسازی بتواند آن‌ها را مدیریت کند یا فقط دانلودهای آینده را.",
+                localNote: "فقط فراداده‌های محلی فایل‌ها بررسی می‌شود. Vorssaint هرگز گفت‌وگوها یا محتوای فایل‌ها را نمی‌خواند.",
+                notificationFormat: "%1$d فایل (%2$@) به سطل زباله رفت. %3$d ناموفق.",
+                scanFailed: "Downloads پویش نشد. “فایل‌ها و پوشه‌ها” را در تنظیمات سیستم بررسی کنید.", manageButton: "مدیریت…")
         }
     }
 
@@ -629,4 +643,18 @@ extension WhatsAppDownloadStrings {
         activity: "النشاط", never: "لم يُجرَ أي تنظيف بعد.", future: "التنزيلات المستقبلية فقط",
         existing: "تضمين الملفات الحالية", firstTitle: "ماذا نفعل بالملفات الحالية؟",
         trash: "تُنقل الملفات إلى المهملات ويمكن استعادتها قبل إفراغها.", notificationTitle: "تنظيف WhatsApp")
+
+    static let fa = translated(language: .fa,
+        title: "دانلودهای WhatsApp", hub: "فایل‌های WhatsApp در Downloads را زیر کنترل نگه می‌دارد",
+        intro: "فایل‌هایی را پیدا می‌کند که macOS تأیید می‌کند از WhatsApp آمده‌اند. محتوای فایل‌ها و گفت‌وگوها هرگز خوانده نمی‌شود.",
+        automatic: "پاک‌سازی خودکار", folder: "پوشهٔ زیر نظر",
+        accessReady: "Downloads در دسترس است",
+        accessDenied: "Vorssaint نمی‌تواند به Downloads دسترسی پیدا کند. در «فایل‌ها و پوشه‌ها» اجازه دهید.",
+        types: "نوع‌های فایل", all: "همه", image: "تصاویر", video: "ویدیوها", audio: "صدا و پیام‌های صوتی",
+        document: "اسناد", archive: "بایگانی‌ها", other: "سایر", retention: "نگه داشتن به مدت", days: "%d روز",
+        noFiles: "فایل تأییدشدهٔ WhatsApp در Downloads پیدا نشد.", keep: "نگه داشتن", manage: "مدیریت دوباره",
+        activity: "فعالیت", never: "هنوز پاک‌سازی‌ای اجرا نشده است.", future: "فقط دانلودهای آینده",
+        existing: "شامل فایل‌های موجود", firstTitle: "با فایل‌های موجود چه کنیم؟",
+        trash: "فایل‌ها به سطل زباله می‌روند و تا وقتی آن را خالی نکنید قابل بازیابی می‌مانند.",
+        notificationTitle: "پاک‌سازی WhatsApp")
 }

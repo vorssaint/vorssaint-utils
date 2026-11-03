@@ -7,7 +7,7 @@ enum LocalizationTests {
     static let languages: [(AppLanguage, Strings)] = [
         (.enUS, .enUS), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
         (.sk, .sk), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
-        (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK), (.ar, .ar),
+        (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK), (.ar, .ar), (.fa, .fa),
     ]
 
     static func fields(_ value: Any) -> [String: String] {
@@ -55,6 +55,9 @@ enum LocalizationTests {
         suite.expect(clock(.ar, "en_US").contains("11:05") && clock(.ar, "ar_SA@numbers=latn").contains("11:05"),
                      "Arabic keeps the Western digits the system uses, like the counts beside them")
         suite.expect(clock(.ar, "ar_SA").contains("١١:٠٥"), "Arabic-Indic digits chosen for the Mac are kept")
+        suite.expect(clock(.fa, "en_US").contains("11:05") && clock(.fa, "fa_IR@numbers=latn").contains("23:05"),
+                     "Persian keeps the Western digits the system uses, like the counts beside them")
+        suite.expect(clock(.fa, "fa_IR").contains("۲۳:۰۵"), "Persian digits chosen for the Mac are kept")
     }
 
     static func run(_ suite: TestSuite) {
@@ -70,8 +73,8 @@ enum LocalizationTests {
         let diskEnglish = diskPickerText(.enUS)
         suite.expect(diskEnglish == ["Disk display", "Used percentage", "Available space", "Used space"],
                      "disk picker uses a dedicated label and complete option names")
-        suite.expect(AppLanguage.allCases.filter(\.isRightToLeft) == [.ar],
-                     "Arabic is the only right-to-left interface language")
+        suite.expect(AppLanguage.allCases.filter(\.isRightToLeft) == [.ar, .fa],
+                     "Arabic and Persian are the right-to-left interface languages")
         let additional: [(String, (AppLanguage) -> Any)] = [
             ("imageConverter", { MediaImageConverterStrings.localized($0) }),
             ("directionalLayout", { WindowDirectionalStrings.localized($0) }),
@@ -106,6 +109,20 @@ enum LocalizationTests {
                     suite.expect(invariant.contains(word),
                                  "Arabic \(name) puts a bare number in front of “\(word)”")
                 }
+            }
+        }
+        // Persian shares a script with Arabic but not its letters: Persian writes
+        // ی and ک where Arabic has ي and ك, and has no ة or ى. One of them in a
+        // Persian string is Arabic text that slipped in, and it reads as a typo
+        // to a Persian reader. Each catalog is read, nested ones too.
+        let persian = [("strings", Strings.fa as Any)] + (factories + additional).map { ($0.0, $0.1(.fa)) }
+        let arabicLetters = Set("\u{064A}\u{0643}\u{0629}\u{0649}")
+        for (catalog, value) in persian {
+            for (name, text) in texts(value, path: catalog) {
+                suite.expect(!text.contains { arabicLetters.contains($0) },
+                             "Persian \(name) uses an Arabic-only letter")
+                suite.expect(!text.contains("  ") && !text.hasPrefix("\u{200C}") && !text.hasSuffix("\u{200C}"),
+                             "Persian \(name) has stray spacing")
             }
         }
         for (language, strings) in languages {

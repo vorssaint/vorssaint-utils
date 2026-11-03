@@ -528,6 +528,36 @@ extension FeatureStrings {
             lowBattery: "بطارية منخفضة",
             keepAwakeActivity: "إظهار “الإبقاء مستيقظًا” في الجزيرة المغلقة",
             keepAwakeActivityHint: "تظهر الجلسة الجارية بجانب الكاميرا مع ما تبقّى من وقتها، أو ∞ إن كانت بلا نهاية.")
+        case .fa: return NotchActivityStrings(
+            timer: "زمان‌سنج",
+            timerDescription: "زمان‌سنج‌ها، کرنومتر و جلسه‌های کار متمرکز در Dynamic Island.",
+            pomodoro: "پومودورو",
+            stopwatch: "کرنومتر",
+            focus: "تمرکز",
+            shortBreak: "استراحت کوتاه",
+            longBreak: "استراحت بلند",
+            pomodoroHint: "هر مرحله را وقتی آماده بودید شروع کنید. چرخه پس از آخرین جلسهٔ تمرکز پایان می‌یابد.",
+            totalSessions: "مجموع جلسه‌ها",
+            longBreakInterval: "جلسه‌ها بین استراحت‌های بلند",
+            sessionProgress: "جلسهٔ %d از %d",
+            pomodoroFinished: "پومودورو کامل شد",
+            minutes: "دقیقه",
+            start: "شروع",
+            resume: "ادامه",
+            finished: "زمان تمام شد",
+            soundEnabled: "پخش صدا وقتی زمان تمام شد",
+            hideTimerCountdown: "پنهان کردن شمارش معکوس زمان‌سنج",
+            camera: "آینهٔ دوربین",
+            cameraUnavailable: "دوربین راه‌اندازی نشد. دوباره باز کردنش را امتحان کنید.",
+            cameraHint: "اینجا آینه‌ای زنده باز کنید. با ترک این نما دوربین متوقف می‌شود.",
+            startCamera: "باز کردن دوربین",
+            stopCamera: "توقف دوربین",
+            accessories: "هشدارهای لوازم جانبی",
+            accessoryDescription: "لوازم جانبی متصل را نشان می‌دهد و وقتی باتری‌شان به 20% رسید یک بار هشدار می‌دهد.",
+            connected: "متصل",
+            lowBattery: "باتری کم",
+            keepAwakeActivity: "نمایش “بیدار نگه داشتن” در جزیرهٔ بسته",
+            keepAwakeActivityHint: "نشستِ در حال اجرا کنار دوربین با زمان باقی‌مانده‌اش ظاهر می‌شود، یا ∞ وقتی پایانی ندارد.")
         }
     }
 }

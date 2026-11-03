@@ -3085,6 +3085,7 @@ struct KeepAwakeCard: View {
         case .zhHans: return "电量 \(percent)%。接通电源或调低电量下限即可开始"
         case .zhTW, .zhHK: return "電量 \(percent)%。接上電源或調低電量下限即可開始"
         case .ar: return "البطارية عند \(percent)%. وصّل الشاحن أو اخفض حد البطارية للبدء"
+        case .fa: return "باتری روی \(percent)% است. برای شروع به برق وصل کنید یا حد باتری را پایین بیاورید"
         }
     }
 
@@ -3105,6 +3106,7 @@ struct KeepAwakeCard: View {
         case .zhHans: return "点按一个标签即可开始，再次点按即可停止"
         case .zhTW, .zhHK: return "點按一個標籤即可開始，再次點按即可停止"
         case .ar: return "انقر بطاقة للبدء. وانقرها مجددًا للإيقاف"
+        case .fa: return "برای شروع روی یک تراشه کلیک کنید. برای توقف دوباره کلیک کنید"
         }
     }
 

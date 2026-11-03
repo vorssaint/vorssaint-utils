@@ -62,6 +62,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .ar: return .ar
+        case .fa: return .fa
         case .uk: return .uk
         }
     }
@@ -84,6 +85,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -167,6 +169,10 @@ extension KeepAwakeDisplaySleepStrings {
         allowDisplaySleep: "السماح للشاشة بالسكون",
         allowDisplaySleepCaption: "يُبقي الـ Mac مستيقظًا بينما تتبع الشاشة مؤقّت سكونها المعتاد."
     )
+
+    static let fa = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "اجازهٔ خواب نمایشگر",
+        allowDisplaySleepCaption: "مک را بیدار نگه می‌دارد در حالی که نمایشگر از زمان‌سنج خواب عادی‌اش پیروی می‌کند.")
 }
 
 extension KeepAwakeAutomationStrings {
@@ -519,4 +525,25 @@ extension KeepAwakeAutomationStrings {
         matchAny: "أي",
         matchAll: "الكل",
         automationCaptionAll: "تبدأ فقط عند تحقق كل شرط محدد.")
+
+    static let fa = KeepAwakeAutomationStrings(
+        automationSection: "خودکارسازی",
+        automationCaption: "هر وقت هر شرط انتخاب‌شده فعال باشد شروع می‌شود.",
+        automationOff: "خاموش",
+        externalDisplayToggle: "نمایشگر خارجی",
+        externalDisplayActive: "تا زمانی که نمایشگر خارجی وصل است فعال است",
+        powerToggle: "برق",
+        powerActive: "تا زمانی که به برق وصل است فعال است",
+        runningAppsToggle: "برنامه‌ها",
+        runningAppsActive: "تا زمانی که برنامه‌ای انتخاب‌شده در حال اجراست فعال است",
+        runningAppsListTitle: "برنامه‌های انتخاب‌شده",
+        runningAppsAddButton: "افزودن برنامه…",
+        runningAppsRemoveButton: "حذف",
+        runningAppsListCaption: "بیدار نگه داشتن تا زمانی که هر یک از این برنامه‌ها باز است، حتی در پس‌زمینه، شروع می‌شود.",
+        automationActive: "فعال است، زیرا یک شرط خودکار برقرار است",
+        pauseWhenLockedToggle: "توقف هنگام قفل بودن مک",
+        pauseWhenLockedCaption: "هنگام قفل بودن از قواعد خواب عادی پیروی می‌کند و پس از باز کردن قفل، نشست باقی‌مانده را ادامه می‌دهد.",
+        matchAny: "هر کدام",
+        matchAll: "همه",
+        automationCaptionAll: "فقط وقتی شروع می‌شود که همهٔ شرط‌های انتخاب‌شده فعال باشند.")
 }

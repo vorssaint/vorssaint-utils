@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -144,4 +145,10 @@ extension ClipboardIgnoredAppsStrings {
         removeButton: "إزالة",
         caption: "لا يُحفظ أي شيء تنسخه في هذه التطبيقات ضمن السجل."
     )
+
+    static let fa = ClipboardIgnoredAppsStrings(
+        listTitle: "برنامه‌هایی که نادیده گرفته می‌شوند",
+        addButton: "افزودن برنامه…",
+        removeButton: "حذف",
+        caption: "هر چه در این برنامه‌ها کپی کنید در تاریخچه ذخیره نمی‌شود.")
 }

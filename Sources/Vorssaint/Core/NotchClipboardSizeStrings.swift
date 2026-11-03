@@ -170,6 +170,11 @@ extension FeatureStrings {
             compact: "مضغوط",
             comfortable: "مريح",
             hint: "تعرض العناصر المضغوطة سطرًا أو سطرين، وتتسع حين يستقر المؤشر عليها.")
+        case .fa: return NotchClipboardSizeStrings(
+            entrySize: "اندازهٔ مورد",
+            compact: "فشرده",
+            comfortable: "راحت",
+            hint: "موارد فشرده یک یا دو خط نشان می‌دهند و وقتی اشاره‌گر روی آن‌ها می‌ماند باز می‌شوند.")
         }
     }
 }

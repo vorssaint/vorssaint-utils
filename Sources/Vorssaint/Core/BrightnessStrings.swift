@@ -64,6 +64,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -690,4 +691,42 @@ extension BrightnessFeatureStrings {
         islandPromptTitle: "إظهار السطوع في الجزيرة الديناميكية؟",
         islandPromptMessage: "لا تعرض الجزيرة الديناميكية تغيّرات السطوع إلا وخيار “التحكم في الشاشات” مفعّل في إعدادات الشاشات.",
         islandPromptKeepOff: "إبقاؤه مغلقًا")
+
+    static let fa = BrightnessFeatureStrings(
+        pageTitle: "نمایشگرها",
+        hubDescription: "کنترل روشنایی و توان برای هر نمایشگر",
+        enable: "کنترل نمایشگرها",
+        enableCaption: "کنترل روشنایی و روشن/خاموش برای نمایشگر داخلی و نمایشگرهای خارجی، اینجا و در پنل نوار منو.",
+        externalCaption: "نمایشگرهای خارجی از همان پروتکل دکمه‌های خودشان تنظیم می‌شوند. وقتی اتصال نتواند آن را انتقال دهد، مثل آداپتورهای HDMI، لغزنده به‌جای آن تصویر را کم‌نور می‌کند، پس کنترل روشنایی در هر دو حالت کار می‌کند.",
+        noDisplays: "نمایشگری پیدا نشد.",
+        displayOff: "خاموش",
+        turnOffDisplay: "خاموش کردن نمایشگر",
+        turnOnDisplay: "روشن کردن نمایشگر",
+        lastDisplayCaption: "دست‌کم یک نمایشگر باید روشن بماند.",
+        switchUnavailable: "تعویض نمایشگر در این مک در دسترس نیست.",
+        switchFailed: "این نمایشگر تغییر نکرد.",
+        openLidToEnable: "برای روشن کردن نمایشگر داخلی در را باز کنید.",
+        keysToggle: "کلیدهای روشنایی از اشاره‌گر پیروی می‌کنند",
+        keysCaption: "کلیدهای روشنایی صفحه‌کلید، نمایشگر زیر اشاره‌گر را تغییر می‌دهند.",
+        keyStep: "گام کلیدهای روشنایی",
+        keyStepCaption: "گام‌های کوچک‌تر برای هر بار فشردن کلیدهای روشنایی و میان‌بُرهای روشنایی نمایشگر.",
+        keyStepStandard: "استاندارد",
+        keyStepHalf: "نیم‌گام",
+        keyStepQuarter: "ربع‌گام",
+        osdToggle: "نمایش روشنایی هنگام تنظیم",
+        osdCaption: "هنگام استفاده از کلیدها یا لغزنده‌های روشنایی، درصد روشنایی را نشان می‌دهد.",
+        displayBrightnessShortcuts: "استفاده از میان‌بُرهای روشنایی نمایشگر",
+        displayBrightnessShortcutCaption: "میان‌بُرها نمایشگر اصلی را تنظیم می‌کنند، یا اگر پیروی از اشاره‌گر روشن باشد نمایشگر زیر اشاره‌گر را.",
+        displayBrightnessDecrease: "کم کردن روشنایی نمایشگر",
+        displayBrightnessIncrease: "زیاد کردن روشنایی نمایشگر",
+        keyboardLight: "نور صفحه‌کلید",
+        keyboardLightCaption: "نور پس‌زمینهٔ صفحه‌کلید را روشن یا خاموش می‌کند.",
+        keyboardBrightnessShortcuts: "استفاده از میان‌بُرهای روشنایی صفحه‌کلید",
+        keyboardBrightnessDecrease: "کم کردن روشنایی صفحه‌کلید",
+        keyboardBrightnessIncrease: "زیاد کردن روشنایی صفحه‌کلید",
+        softwareDimming: "کم‌نور کردن تصویر",
+        extendedDimming: "کم‌نوری بیشتر",
+        islandPromptTitle: "روشنایی در Dynamic Island نشان داده شود؟",
+        islandPromptMessage: "Dynamic Island تغییرات روشنایی را فقط وقتی نشان می‌دهد که “کنترل نمایشگرها” در تنظیمات نمایشگرها روشن باشد.",
+        islandPromptKeepOff: "خاموش بماند")
 }

@@ -35,6 +35,7 @@ extension FeatureStrings {
         case .zhHK: return .zhHK
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -246,4 +247,16 @@ extension MenuBarAppearanceStrings {
         mediumFrom: "متوسط ابتداءً من",
         highFrom: "مرتفع ابتداءً من"
     )
+
+    static let fa = MenuBarAppearanceStrings(
+        label: "نمایش مصرف",
+        values: "مقادیر",
+        bars: "نوارها",
+        caption: "نوارها برای مصرف CPU، GPU، حافظه و دیسک اعمال می‌شوند. خوانش‌های دیگر عددی می‌مانند.",
+        customize: "رنگ‌ها و حدهای نوار",
+        normalColor: "رنگ عادی",
+        mediumColor: "رنگ متوسط",
+        highColor: "رنگ زیاد",
+        mediumFrom: "متوسط از",
+        highFrom: "زیاد از")
 }

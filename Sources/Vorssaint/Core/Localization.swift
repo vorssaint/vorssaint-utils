@@ -42,6 +42,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
     case ar = "ar"
+    case fa = "fa"
 
     var id: String { rawValue }
 
@@ -77,6 +78,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .zhTW: return "繁體中文（台灣）"
         case .uk: return "Українська"
         case .ar: return "العربية"
+        case .fa: return "فارسی"
         }
     }
 
@@ -85,7 +87,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     /// every window root reads this and sets the layout direction itself.
     var isRightToLeft: Bool {
         switch self {
-        case .ar: return true
+        case .ar, .fa: return true
         default: return false
         }
     }
@@ -118,7 +120,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         let matches: [(String, AppLanguage)] = [
             ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
             ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
-            ("ar", .ar),
+            ("ar", .ar), ("fa", .fa),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
         return .enUS
@@ -167,6 +169,7 @@ extension Strings {
         case .zhTW: return .zhTW
         case .uk: return .uk
         case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
