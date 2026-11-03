@@ -135,15 +135,14 @@ struct LargeFilesView: View {
 
     private var footer: some View {
         let allSelected = finder.items.allSatisfy(\.include)
-        return HStack {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(String(format: l10n.s.uninstallerSelectedFormat,
-                            finder.items.filter(\.include).count, finder.items.count))
-                    .font(.system(size: 12, weight: .medium))
-                Text(Self.byteString(finder.selectedSize))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
+        let info = VStack(alignment: .leading, spacing: 1) {
+            Text(String(format: l10n.s.uninstallerSelectedFormat,
+                        finder.items.filter(\.include).count, finder.items.count))
+                .font(.system(size: 12, weight: .medium))
+            Text(Self.byteString(finder.selectedSize))
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        let buttons = HStack {
             Button(allSelected ? l10n.s.uninstallerSelectNone : l10n.s.uninstallerSelectAll) {
                 finder.selectAll(!allSelected)
             }
@@ -153,7 +152,12 @@ struct LargeFilesView: View {
                 .tint(.red)
                 .disabled(finder.selectedSize == 0)
         }
-        .padding(16)
+        // In a narrow panel the buttons drop under the counts.
+        return ViewThatFits(in: .horizontal) {
+            HStack { info; Spacer(); buttons }
+            VStack(alignment: .leading, spacing: 8) { info; HStack { Spacer(); buttons } }
+        }
+        .padding(12)
     }
 
     private func done(freed: Int64, failed: Int) -> some View {

@@ -22,6 +22,7 @@ struct StartupItemsView: View {
                 Spacer()
                 Button(l10n.s.startupRefresh) { manager.refresh() }
                     .disabled(manager.isLoading)
+                    .fixedSize()
             }
             .padding(16)
             if let failed = manager.lastFailure {

@@ -82,11 +82,13 @@ struct DuplicatesView: View {
                                      + "  ·  "
                                      + String(format: l10n.s.duplicatesFreesFormat,
                                               Self.byteString(group.size * Int64(group.items.count - 1))))
+                                    .lineLimit(1).truncationMode(.tail)
                                 Spacer()
                                 Button(l10n.s.duplicatesSelectOthers) {
                                     finder.smartSelect(.keepBest, in: group.id)
                                 }
                                 .controlSize(.small)
+                                .fixedSize()
                             }
                         }
                     }
@@ -187,15 +189,15 @@ struct DuplicatesView: View {
     }
 
     private var footer: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(String(format: l10n.s.uninstallerSelectedFormat,
-                            finder.selectedCount, finder.groups.reduce(0) { $0 + $1.items.count }))
-                    .font(.system(size: 12, weight: .medium))
-                Text(Self.byteString(finder.selectedSize) + "  ·  " + l10n.s.duplicatesKeepNote)
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
+        let info = VStack(alignment: .leading, spacing: 1) {
+            Text(String(format: l10n.s.uninstallerSelectedFormat,
+                        finder.selectedCount, finder.groups.reduce(0) { $0 + $1.items.count }))
+                .font(.system(size: 12, weight: .medium))
+            Text(Self.byteString(finder.selectedSize) + "  ·  " + l10n.s.duplicatesKeepNote)
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        let selecting = HStack {
             Menu(l10n.s.duplicatesSmartSelect) {
                 Button(l10n.s.duplicatesKeepBest) { finder.smartSelect(.keepBest) }
                 Button(l10n.s.duplicatesKeepNewest) { finder.smartSelect(.keepNewest) }
@@ -206,13 +208,21 @@ struct DuplicatesView: View {
             .help(l10n.s.duplicatesSkipNote)
             Button(l10n.s.uninstallerSelectNone) { finder.clearSelection() }
                 .disabled(finder.selectedCount == 0)
+        }
+        let acting = HStack {
             Button(l10n.s.uninstallerCancel) { finder.reset() }
             Button(l10n.s.largeFilesMoveToTrash) { finder.trashSelected() }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
                 .disabled(finder.selectedCount == 0)
         }
-        .padding(16)
+        // In a narrow panel the buttons drop under the counts, then onto two rows.
+        return ViewThatFits(in: .horizontal) {
+            HStack { info; Spacer(); selecting; acting }
+            VStack(alignment: .leading, spacing: 8) { info; HStack { selecting; Spacer(); acting } }
+            VStack(alignment: .leading, spacing: 8) { info; selecting; HStack { Spacer(); acting } }
+        }
+        .padding(12)
     }
 
     private func done(freed: Int64, failed: Int) -> some View {
