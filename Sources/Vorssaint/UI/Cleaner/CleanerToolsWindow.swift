@@ -22,6 +22,7 @@ final class CleanerToolsWindowController: NSObject, NSWindowDelegate {
 
     private let selection = CleanerToolsSelection()
     private var window: NSWindow?
+    private var keepsAppRegular = false
 
     private override init() { super.init() }
 
@@ -42,11 +43,22 @@ final class CleanerToolsWindowController: NSObject, NSWindowDelegate {
             self.window = window
         }
         window?.title = L10n.shared.s.cleanerName
+        // A menu bar app only brings a window to the front when it is
+        // temporarily a regular app, the same step the Settings window takes.
+        if !keepsAppRegular {
+            keepsAppRegular = true
+            WindowActivationPolicy.retain()
+        }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+        window?.orderFrontRegardless()
     }
 
     func windowWillClose(_ notification: Notification) {
+        if keepsAppRegular {
+            keepsAppRegular = false
+            WindowActivationPolicy.release()
+        }
         if LargeFileFinder.shared.phase == .scanning { LargeFileFinder.shared.reset() }
         if DuplicateFileFinder.shared.phase == .scanning { DuplicateFileFinder.shared.reset() }
     }

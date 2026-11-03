@@ -1043,7 +1043,10 @@ struct PanelCleanerView: View {
 
     private func toolButton(_ title: String, _ icon: String, _ tool: CleanerExtraTool) -> some View {
         Button {
-            CleanerToolsWindowController.shared.show(tool)
+            // Close the panel first so the window is not left behind it, then
+            // open the window on the next turn of the run loop.
+            appDelegate()?.closePopover(animated: false)
+            DispatchQueue.main.async { CleanerToolsWindowController.shared.show(tool) }
         } label: {
             Label(title, systemImage: icon)
                 .font(.system(size: 11))
