@@ -14,6 +14,19 @@ enum DuplicateFileSupport {
     /// The list stops at this many groups so a huge result stays readable.
     static let maxGroups = 100
 
+    /// Which file on which disk a path points at. Two paths with the same
+    /// identity are hard links to one file. A file number alone is only unique
+    /// on its own disk, so the disk is part of the identity.
+    struct FileIdentity: Hashable {
+        let volume: AnyHashable?
+        let file: AnyHashable
+    }
+
+    static func identity(of values: URLResourceValues) -> FileIdentity? {
+        guard let file = values.fileResourceIdentifier as? AnyHashable else { return nil }
+        return FileIdentity(volume: values.volumeIdentifier as? AnyHashable, file: file)
+    }
+
     /// Whether ticking one more copy would leave the group with no copy left
     /// unticked. `tickedCount` counts copies already ticked, not including
     /// the one being asked about.

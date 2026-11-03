@@ -76,9 +76,12 @@ final class StartupItemsManager: ObservableObject {
             }
             // Switching on must really load the job: a start that failed
             // quietly would leave a switch that reads "on" with nothing running.
+            // Switching off must really stop it: a job still loaded afterwards
+            // is reported, since it keeps running until the next login.
             var succeeded = recorded
-            if enabled && recorded {
-                succeeded = Self.launchctl(["print", "gui/\(uid)/\(item.label)"]).status == 0
+            if recorded {
+                let loaded = Self.launchctl(["print", "gui/\(uid)/\(item.label)"]).status == 0
+                succeeded = (loaded == enabled)
             }
             let found = Self.load()
             DispatchQueue.main.async {
@@ -127,12 +130,22 @@ final class StartupItemsManager: ObservableObject {
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return (-1, "") }
-        // A launchctl call that stalls must not leave the tab loading forever.
-        DispatchQueue.global().asyncAfter(deadline: .now() + 10) {
-            if process.isRunning { process.terminate() }
+        // A launchctl call that stalls must not leave the tab loading forever:
+        // ask it to stop after 10 seconds and force it 2 seconds later. The
+        // watchdog is cancelled as soon as the call finishes normally.
+        let pid = process.processIdentifier
+        let watchdog = DispatchWorkItem {
+            if process.isRunning {
+                process.terminate()
+                DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+                    if process.isRunning { kill(pid, SIGKILL) }
+                }
+            }
         }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 10, execute: watchdog)
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        watchdog.cancel()
         return (process.terminationStatus, String(decoding: data.prefix(1_000_000), as: UTF8.self))
     }
 }

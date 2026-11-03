@@ -47,7 +47,7 @@ final class LargeFileFinder: ObservableObject {
     }
 
     @Published private(set) var phase: Phase = .idle
-    @Published var items: [Item] = []
+    @Published private(set) var items: [Item] = []
     private var cancellation: CleanerSupport.ScanCancellation?
 
     private init() {}
@@ -59,9 +59,16 @@ final class LargeFileFinder: ObservableObject {
         items[index].include = include
     }
 
+    /// Ticks or clears everything. Files in cloud folders, code projects or
+    /// virtual machine folders are never ticked this way, as in the
+    /// duplicates tab; they can still be ticked one by one.
     func selectAll(_ include: Bool) {
         guard phase == .results else { return }
-        for index in items.indices { items[index].include = include }
+        let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        for index in items.indices {
+            let risky = DuplicateFileSupport.placement(of: items[index].url, home: home).risk != nil
+            items[index].include = include && !risky
+        }
     }
 
     func reset() {
@@ -140,11 +147,14 @@ final class LargeFileFinder: ObservableObject {
                              cancel: CleanerSupport.ScanCancellation) -> [Item] {
         let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey,
                                       .totalFileAllocatedSizeKey, .fileAllocatedSizeKey,
-                                      .contentAccessDateKey, .contentModificationDateKey]
+                                      .contentAccessDateKey, .contentModificationDateKey,
+                                      .fileResourceIdentifierKey, .volumeIdentifierKey]
         guard let walker = FileManager.default.enumerator(
             at: home, includingPropertiesForKeys: keys,
             options: [.skipsPackageDescendants, .skipsHiddenFiles], errorHandler: { _, _ in true }) else { return [] }
         var found: [Item] = []
+        // Hard links to one file are listed once, so sizes are not counted twice.
+        var seen = Set<DuplicateFileSupport.FileIdentity>()
         for case let url as URL in walker {
             if cancel.isCancelled { return [] }
             guard let values = try? url.resourceValues(forKeys: Set(keys)) else { continue }
@@ -156,6 +166,9 @@ final class LargeFileFinder: ObservableObject {
             guard values.isRegularFile == true else { continue }
             let size = Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
             guard size >= minimumSize else { continue }
+            if let identity = DuplicateFileSupport.identity(of: values), !seen.insert(identity).inserted {
+                continue
+            }
             found.append(Item(url: url, size: size, lastOpened: values.contentAccessDate,
                               modified: values.contentModificationDate))
         }
@@ -176,7 +189,7 @@ final class LargeFileFinder: ObservableObject {
     }
 
     /// How many of the largest files are checked against the age filter.
-    private static let candidateCap = 2000
+    private static let candidateCap = 10_000
 
     private static func spotlightLastUsed(_ url: URL) -> Date? {
         guard let mdItem = MDItemCreateWithURL(nil, url as CFURL) else { return nil }

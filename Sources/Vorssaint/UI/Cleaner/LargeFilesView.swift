@@ -140,7 +140,9 @@ struct LargeFilesView: View {
     }
 
     private var footer: some View {
-        let allSelected = finder.items.allSatisfy(\.include)
+        // Risky files are never ticked by Select all, so they do not count here.
+        let selectable = finder.items.filter { placementRisk($0) == nil }
+        let allSelected = !selectable.isEmpty && selectable.allSatisfy(\.include)
         let info = VStack(alignment: .leading, spacing: 1) {
             Text(String(format: l10n.s.uninstallerSelectedFormat,
                         finder.items.filter(\.include).count, finder.items.count))

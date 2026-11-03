@@ -94,6 +94,24 @@ enum DuplicateFileSupportTests {
                      && DuplicateFileSupport.indicesToTick(.keepBest, copies: [copy("a/x")], home: home).isEmpty,
                      "when every copy is temporary, or there is only one, nothing is ticked")
 
+        // Two names for one file are one identity; a separate file is another.
+        let fm = FileManager.default
+        let box = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("vorssaint-identity-\(UUID().uuidString)", isDirectory: true)
+        try? fm.createDirectory(at: box, withIntermediateDirectories: true)
+        let first = box.appendingPathComponent("a.bin"), linked = box.appendingPathComponent("b.bin")
+        let other = box.appendingPathComponent("c.bin")
+        try? Data("same".utf8).write(to: first)
+        try? Data("same".utf8).write(to: other)
+        try? fm.linkItem(at: first, to: linked)
+        func identity(_ url: URL) -> DuplicateFileSupport.FileIdentity? {
+            let keys: Set<URLResourceKey> = [.fileResourceIdentifierKey, .volumeIdentifierKey]
+            return (try? url.resourceValues(forKeys: keys)).flatMap { DuplicateFileSupport.identity(of: $0) }
+        }
+        suite.expect(identity(first) != nil && identity(first) == identity(linked) && identity(first) != identity(other),
+                     "hard links share one file identity, and a separate file with equal content does not")
+        try? fm.removeItem(at: box)
+
         struct G { let size: Int64; let copies: Int }
         let ranked = DuplicateFileSupport.ranked([G(size: 10, copies: 2), G(size: 5, copies: 10), G(size: 100, copies: 1)],
                                                  size: { $0.size }, copies: { $0.copies })

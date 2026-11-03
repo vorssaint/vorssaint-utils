@@ -15,8 +15,7 @@ final class CleanerToolsSelection: ObservableObject {
 
 /// A large, resizable window for the lists-heavy Cleaner tools (large files,
 /// duplicates, startup items). The menu panel stays small for the quick system
-/// cleaner and opens this window for the rest. Closing the window stops any
-/// scan it started.
+/// cleaner and opens this window for the rest.
 final class CleanerToolsWindowController: NSObject, NSWindowDelegate {
     static let shared = CleanerToolsWindowController()
 
@@ -49,18 +48,22 @@ final class CleanerToolsWindowController: NSObject, NSWindowDelegate {
             keepsAppRegular = true
             WindowActivationPolicy.retain()
         }
+        if window?.isMiniaturized == true { window?.deminiaturize(nil) }
+        // The window outlives being closed, so a tab that was already showing
+        // would not refresh itself on reopening.
+        if tool == .startup { StartupItemsManager.shared.refresh() }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
         window?.orderFrontRegardless()
     }
 
     func windowWillClose(_ notification: Notification) {
+        // A scan keeps going: the finders are shared with the Settings page,
+        // so closing this window must not cancel a scan started there.
         if keepsAppRegular {
             keepsAppRegular = false
             WindowActivationPolicy.release()
         }
-        if LargeFileFinder.shared.phase == .scanning { LargeFileFinder.shared.reset() }
-        if DuplicateFileFinder.shared.phase == .scanning { DuplicateFileFinder.shared.reset() }
     }
 }
 

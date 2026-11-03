@@ -137,17 +137,16 @@ final class DuplicateFileFinder: ObservableObject {
                 // on disk exactly as scanned, content included: a tool that
                 // overwrites a file but keeps its date must not fool this.
                 guard !chosen.isEmpty,
-                      kept.contains(where: {
-                          Self.matchesScan($0, size: group.size)
-                              && Self.digest(of: $0.url, limit: nil, expectedSize: group.size,
-                                             cancel: CleanerSupport.ScanCancellation()) == group.digest
-                      }) else {
+                      kept.contains(where: { Self.stillHolds($0, in: group) }) else {
                     failed += chosen.count
                     continue
                 }
                 for item in chosen {
+                    // The copy going to the Trash is proven identical too, so
+                    // a file rewritten after the scan with its date restored
+                    // is never removed as if it were still a duplicate.
                     guard LargeFileSupport.mayRemoveResolved(item.url, home: home),
-                          Self.matchesScan(item, size: group.size) else { failed += 1; continue }
+                          Self.stillHolds(item, in: group) else { failed += 1; continue }
                     do {
                         try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)
                         freed += group.size
@@ -164,6 +163,16 @@ final class DuplicateFileFinder: ObservableObject {
     }
 
     // MARK: - Scan
+
+    /// Whether a copy is still on this Mac, unchanged since the scan, and
+    /// still holds the group's content. Cloud placeholders are refused so the
+    /// check never triggers a download.
+    private static func stillHolds(_ item: Item, in group: Group) -> Bool {
+        !isDataless(item.url)
+            && matchesScan(item, size: group.size)
+            && digest(of: item.url, limit: nil, expectedSize: group.size,
+                      cancel: CleanerSupport.ScanCancellation()) == group.digest
+    }
 
     private static func matchesScan(_ item: Item, size: Int64) -> Bool {
         let keys: Set<URLResourceKey> = [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey,
@@ -184,7 +193,8 @@ final class DuplicateFileFinder: ObservableObject {
     private static func findGroups(home: URL, minimumSize: Int64,
                                    cancel: CleanerSupport.ScanCancellation) -> [Group] {
         let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey,
-                                      .fileSizeKey, .contentModificationDateKey, .fileResourceIdentifierKey]
+                                      .fileSizeKey, .contentModificationDateKey, .fileResourceIdentifierKey,
+                                      .volumeIdentifierKey]
         guard let walker = FileManager.default.enumerator(
             at: home, includingPropertiesForKeys: keys,
             options: [.skipsPackageDescendants, .skipsHiddenFiles], errorHandler: { _, _ in true }) else { return [] }
@@ -192,7 +202,7 @@ final class DuplicateFileFinder: ObservableObject {
         // Step 1: bucket by exact size. Hard links to the same data are one
         // file, not a duplicate, so each file identity is counted once.
         var bySize: [Int64: [Candidate]] = [:]
-        var seen = Set<AnyHashable>()
+        var seen = Set<DuplicateFileSupport.FileIdentity>()
         for case let url as URL in walker {
             if cancel.isCancelled { return [] }
             guard let values = try? url.resourceValues(forKeys: Set(keys)) else { continue }
@@ -206,7 +216,7 @@ final class DuplicateFileFinder: ObservableObject {
             // A cloud placeholder reports its full size but holds no data here;
             // reading it would download it, so it is never hashed.
             if isDataless(url) { continue }
-            if let identity = values.fileResourceIdentifier as? AnyHashable, !seen.insert(identity).inserted {
+            if let identity = DuplicateFileSupport.identity(of: values), !seen.insert(identity).inserted {
                 continue
             }
             bySize[size, default: []].append(Candidate(url: url, size: size, modified: values.contentModificationDate))
