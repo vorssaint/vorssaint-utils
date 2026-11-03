@@ -4379,9 +4379,9 @@ final class NotchService: ObservableObject {
                              detail: text.limitRenewed, symbol: "arrow.clockwise", agent: provider, mascot: .celebrate))
             reactMascot(.celebrate)
         case .seatLimitWarning(let email, let limit):
-            let share = AgentFormat.percent(remaining ? limit.remainingFraction : limit.usedFraction)
             show(NotchNotice(event: .agents, title: "\(AgentProvider.claude.displayName) · \(email) · \(window(limit))",
-                             detail: remaining ? text.left(share) : text.usedShare(share),
+                             detail: NotchAgentSupport.limitShare(limit, display: NotchAgentSupport.limitDisplay(),
+                                                                  text: text),
                              symbol: "exclamationmark.triangle.fill", agent: .claude))
         case .seatLimitReset(let email, let limit):
             show(NotchNotice(event: .agents, title: "\(AgentProvider.claude.displayName) · \(email) · \(window(limit))",
