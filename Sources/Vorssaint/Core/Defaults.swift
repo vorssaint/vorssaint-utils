@@ -119,6 +119,7 @@ enum DefaultsKey {
     static let switcherMergeTabs = "switcherMergeTabs"     // show one switcher entry per app (collapse all of an app's windows)
     static let switcherShowWindowlessFinder = "switcherShowWindowlessFinder" // replaced by switcherWindowlessApps, kept so the migration can read it
     static let switcherWindowlessApps = "switcherWindowlessApps" // SwitcherWindowlessApps raw value
+    static let switcherWindowlessAppsMixedOrder = "switcherWindowlessAppsMixedOrder" // list apps with no open windows in recent-use order among the other apps instead of after a divider (issue #3659)
     static let switcherMinimizedPlacement = "switcherMinimizedPlacement"
     static let switcherTreatHiddenAppsLikeMinimized = "switcherTreatHiddenAppsLikeMinimized"
     static let switcherShowFullscreenWindows = "switcherShowFullscreenWindows"
@@ -1318,6 +1319,7 @@ enum Defaults {
         DefaultsKey.switcherMergeTabs: false,
         DefaultsKey.switcherShowWindowlessFinder: true,
         DefaultsKey.switcherWindowlessApps: SwitcherWindowlessApps.fallback.rawValue,
+        DefaultsKey.switcherWindowlessAppsMixedOrder: false,
         DefaultsKey.switcherMinimizedPlacement: WindowSwitchMinimizedPlacement.normal.rawValue,
         DefaultsKey.switcherTreatHiddenAppsLikeMinimized: true,
         DefaultsKey.switcherShowFullscreenWindows: true,
