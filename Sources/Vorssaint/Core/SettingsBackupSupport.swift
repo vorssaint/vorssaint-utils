@@ -188,6 +188,9 @@ enum SettingsBackupSupport {
         // A local watermark file is authority on this Mac, not portable data.
         DefaultsKey.mediaImageWatermarkLogoPath,
         DefaultsKey.simulateUpdate,
+        DefaultsKey.updateLastInstallFailure,
+        DefaultsKey.updateInstallFailure,
+        DefaultsKey.updateInstallAttempt,
         DefaultsKey.updateShowcaseIntroVersion,
         DefaultsKey.updateShowcaseMediaOverride,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated,

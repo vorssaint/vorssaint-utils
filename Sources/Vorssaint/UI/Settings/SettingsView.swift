@@ -648,13 +648,31 @@ struct UpdatesView: View {
 
             statusRow
 
+            if updates.showsInstallFailure, let failure = updates.lastInstallFailure {
+                UpdateFailureDetails(failure: failure,
+                                     text: FeatureStrings.updateFailure(l10n.language),
+                                     currentVersion: AppInfo.version, isBusy: isBusy,
+                                     onRetry: {
+                                         updates.prepareInstallRetry { appDelegate()?.showUpdatePreview() }
+                                     }, onDownload: {
+                                         NSWorkspace.shared.open(failure.releaseURL(repositoryURL: AppInfo.repositoryURL))
+                                     }, onCopy: {
+                                         NSPasteboard.general.clearContents()
+                                         NSPasteboard.general.setString(failure.diagnostics(
+                                             currentVersion: AppInfo.version,
+                                             macOSVersion: ProcessInfo.processInfo.operatingSystemVersionString),
+                                             forType: .string)
+                                     })
+                    .settingsSectionAnchor(.updateFailure)
+            }
+
             HStack {
                 Button(l10n.s.checkNowButton) {
                     updates.check(manual: true)
                 }
                 .disabled(isBusy)
 
-                if case .available = updates.state {
+                if case .available = updates.state, !updates.showsInstallFailure {
                     Button(l10n.s.updateInstallButton) {
                         appDelegate()?.showUpdatePreview()
                     }
@@ -678,9 +696,13 @@ struct UpdatesView: View {
         case .checking:
             label(l10n.s.updateChecking, system: "arrow.triangle.2.circlepath", tint: .secondary)
         case .upToDate:
-            label(l10n.s.updateUpToDate, system: "checkmark.circle.fill", tint: .green)
+            if !updates.showsInstallFailure {
+                label(l10n.s.updateUpToDate, system: "checkmark.circle.fill", tint: .green)
+            }
         case let .available(version):
-            label("\(l10n.s.updateAvailablePrefix) \(version)", system: "arrow.down.circle.fill", tint: .accentColor)
+            if !updates.showsInstallFailure {
+                label("\(l10n.s.updateAvailablePrefix) \(version)", system: "arrow.down.circle.fill", tint: .accentColor)
+            }
         case let .downloading(progress):
             if let progress {
                 label("\(l10n.s.updateDownloading) \(Int(progress * 100))%",

@@ -23,6 +23,49 @@ final class UpdateService: ObservableObject {
 
     @Published private(set) var state: State = .idle
     @Published private(set) var lastChecked: Date?
+    @Published private(set) var lastInstallFailure: UpdateInstallFailure?
+
+    private var failureStore: UpdateFailureStore {
+        UpdateFailureStore(defaults: UserDefaults.standard)
+    }
+
+    var showsInstallFailure: Bool {
+        guard lastInstallFailure != nil else { return false }
+        switch state {
+        case .downloading, .installing: return false
+        default: return true
+        }
+    }
+
+    var showsFailureBanner: Bool {
+        showsInstallFailure && lastInstallFailure?.dismissed == false
+    }
+
+    var showsMenuPanelBanner: Bool {
+        if showsFailureBanner { return true }
+        switch state {
+        case .available, .downloading, .installing: return true
+        default: return false
+        }
+    }
+
+    func dismissFailureBanner() {
+        failureStore.dismiss()
+        lastInstallFailure = failureStore.failure
+    }
+
+    /// Refresh an expired offer before opening the existing release-note preview.
+    /// This never downloads or installs without the normal confirmation flow.
+    func prepareInstallRetry(whenAvailable: @escaping () -> Void) {
+        if case .available = state {
+            whenAvailable()
+        } else {
+            check(manual: true) { [weak self] in
+                guard let self, case .available = self.state else { return }
+                whenAvailable()
+            }
+        }
+    }
     /// Markdown release notes for the available update, shown in the pre-install
     /// preview. Set alongside `.available`; cleared otherwise.
     @Published private(set) var availableNotes: String?
@@ -61,6 +104,7 @@ final class UpdateService: ObservableObject {
 
     /// Called at launch: checks shortly after start and then daily, if enabled.
     func startAutomaticChecks() {
+        lastInstallFailure = failureStore.restore(currentVersion: AppInfo.version)
         consumeInstallResult()
         if AppInfo.isBeta && UserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) == nil {
             UserDefaults.standard.set(true, forKey: DefaultsKey.includeBetaUpdates)
@@ -99,7 +143,7 @@ final class UpdateService: ObservableObject {
 
     // MARK: - Check
 
-    func check(manual: Bool) {
+    func check(manual: Bool, completion: (() -> Void)? = nil) {
         if AppInfo.isDeveloperBuild {
             // No real update target; reflect the simulation default so the
             // notification UI can be exercised locally.
@@ -111,6 +155,7 @@ final class UpdateService: ObservableObject {
                 availableNotes = nil
             }
             lastChecked = Date()
+            completion?()
             return
         }
         if case .checking = state { return }
@@ -130,6 +175,7 @@ final class UpdateService: ObservableObject {
         URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
             guard let self else { return }
             DispatchQueue.main.async {
+                defer { completion?() }
                 self.lastChecked = Date()
                 guard let data, error == nil else {
                     self.availableNotes = nil
@@ -321,6 +367,7 @@ final class UpdateService: ObservableObject {
             abortInstall(dmgPath: dmgPath, offered: offered)
             return
         }
+        failureStore.beginAttempt(installedVersion: AppInfo.version, offeredVersion: expectedVersion)
         try? fm.createDirectory(at: resultURL.deletingLastPathComponent(),
                                 withIntermediateDirectories: true)
         try? fm.removeItem(at: resultURL)
@@ -409,6 +456,7 @@ final class UpdateService: ObservableObject {
     /// Puts the world back as if the install had not been attempted: the
     /// downloaded DMG is discarded and the offer (or idle state) returns.
     private func abortInstall(dmgPath: String, offered: String?) {
+        failureStore.cancelAttempt()
         try? FileManager.default.removeItem(atPath: dmgPath)
         if let offered {
             state = .available(version: offered)
@@ -418,6 +466,7 @@ final class UpdateService: ObservableObject {
     }
 
     private func failInstall(dmgPath: String, message: String) {
+        failureStore.cancelAttempt()
         try? FileManager.default.removeItem(atPath: dmgPath)
         state = .failed(message)
     }
@@ -453,17 +502,13 @@ final class UpdateService: ObservableObject {
         try? FileManager.default.removeItem(at: url.appendingPathExtension("progress"))
         guard let marker = try? String(contentsOf: url, encoding: .utf8) else { return }
         try? FileManager.default.removeItem(at: url)
-        guard let code = UpdateInstallerSupport.installFailureCode(fromMarker: marker) else {
-            // The swap finished: this launch IS the new version, so any
-            // remembered failure no longer applies.
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.updateLastInstallFailure)
-            return
-        }
+        lastInstallFailure = failureStore.consume(marker: marker, currentVersion: AppInfo.version)
+        guard let code = UpdateInstallerSupport.installFailureCode(fromMarker: marker),
+              lastInstallFailure != nil else { return }
         // Remember the failing step so the next attempt can route around it
         // (copy/swap failures retry through the admin prompt), and check
         // again soon so the update offer comes right back instead of
         // looking silently dropped.
-        UserDefaults.standard.set(code, forKey: DefaultsKey.updateLastInstallFailure)
         let s = L10n.shared.s
         Notifier.post(title: s.updateNotifyTitle,
                       body: "\(s.updateInstallFailedBody) (\(code))")

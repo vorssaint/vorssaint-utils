@@ -132,8 +132,8 @@ struct MenuPanelView: View {
         .onChange(of: monitorNeeds) { _, _ in
             syncMonitorSampling()
         }
-        .onChange(of: updates.state) { _, state in
-            if !state.showsMenuPanelBanner {
+        .onChange(of: updates.showsMenuPanelBanner) { _, showsBanner in
+            if !showsBanner {
                 updateBannerHeight = 0
             }
         }
@@ -284,7 +284,7 @@ struct MenuPanelView: View {
     }
 
     private var navigableChromeHeight: CGFloat {
-        let bannerHeight = updates.state.showsMenuPanelBanner
+        let bannerHeight = updates.showsMenuPanelBanner
             ? (max(updateBannerHeight, 48) + 12)
             : 0
         return 180 + bannerHeight
@@ -2589,17 +2589,6 @@ private extension View {
     }
 }
 
-private extension UpdateService.State {
-    var showsMenuPanelBanner: Bool {
-        switch self {
-        case .available, .downloading, .installing:
-            return true
-        default:
-            return false
-        }
-    }
-}
-
 // MARK: - Update banner
 
 /// Discreet "update available" row shown above everything when a newer release
@@ -2609,6 +2598,22 @@ struct UpdateBanner: View {
     @ObservedObject private var updates = UpdateService.shared
 
     var body: some View {
+        if updates.showsFailureBanner {
+            UpdateFailureBanner(text: FeatureStrings.updateFailure(l10n.language),
+                                currentVersion: AppInfo.version,
+                                isBusy: updates.state == .checking,
+                                onRetry: {
+                                    updates.prepareInstallRetry { appDelegate()?.showUpdatePreview() }
+                                }, onDetails: {
+                                    SettingsRouter.shared.request(FeatureSettingsDestination(.about, sectionAnchor: .updateFailure))
+                                    appDelegate()?.openSettingsWindow()
+                                }, onDismiss: { updates.dismissFailureBanner() })
+        } else {
+            updateOffer
+        }
+    }
+
+    @ViewBuilder private var updateOffer: some View {
         switch updates.state {
         case let .available(version):
             let isBeta = UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease ?? false

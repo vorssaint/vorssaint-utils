@@ -1294,6 +1294,16 @@ def main():
           + "}\n"
           + declaration(update_view, "struct NotchUpdateControl:")
           + "}\n")
+    write("UpdateFailureService.swift", "import Foundation\n"
+          + "extension UpdateFailureServiceTests {\nfinal class Service: Fixture {\n"
+          + declaration(update, "    enum State:")
+          + "var state: State = .idle\n"
+          + "\n".join(declaration(update, prefix).replace("    private ", "    ", 1) for prefix in [
+              "    private var failureStore:", "    var showsInstallFailure:",
+              "    var showsFailureBanner:", "    var showsMenuPanelBanner:",
+              "    func dismissFailureBanner(", "    func prepareInstallRetry(",
+              "    private func consumeInstallResult("])
+          + "}\n}\n")
     write("UpdateAdminInstall.swift", "import Foundation\n\nextension UpdateAdminInstallContract {\n"
           + "final class Service: Fixture {\n"
           + declaration(update, "    private func launchAdminInstaller(").replace("private ", "", 1)
