@@ -5,7 +5,7 @@ import Foundation
 
 /// The counters read so far and where reading stopped in each log, kept in
 /// the app's own cache folder so a launch reads only what the agents wrote
-/// since, instead of every log of the last thirteen weeks again. It holds
+/// since, instead of every historical log again. It holds
 /// what the store holds in memory and nothing more: no prompt, reply or tool
 /// output. Removed when the AI section is turned off.
 ///

@@ -60,7 +60,7 @@ enum AgentUsageReadTests {
     }
 
     class Fixture {
-        static let horizon = TimeInterval(AgentUsageSnapshot.dayCount) * 86_400
+        static let historyStart = Date.distantPast
         let queue = Queue()
         var home = FileManager.default.temporaryDirectory
         var readerSession = 1

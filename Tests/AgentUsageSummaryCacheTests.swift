@@ -90,7 +90,37 @@ enum AgentUsageSummaryCacheTests {
         for index in records.indices { records[index].cost = 0.5 }
         cache.invalidate()
         check("repricing rebuilds cost, savings and unpriced totals")
+        allTime(suite, now: now, calendar: calendar)
         storeIntegration(suite, now: now, calendar: calendar)
+    }
+
+    private static func allTime(_ suite: TestSuite, now: Date, calendar: Calendar) {
+        let cache = AgentUsageSummaryCache()
+        var records = [AgentUsageRecord(provider: .claude, date: now, model: "m", project: "recent",
+            session: "s", tokens: AgentTokens(input: 10), cost: 1, savings: 0)]
+        func snapshot() -> AgentUsageSnapshot {
+            cache.snapshot(records: records, limits: [:], live: [], plans: [:],
+                           providers: [.claude], now: now, calendar: calendar)
+        }
+        _ = snapshot()
+        let old = AgentUsageRecord(provider: .claude,
+            date: calendar.date(byAdding: .day, value: -400, to: now)!, model: "m", project: "old",
+            session: "s", tokens: AgentTokens(input: 10), cost: 4, savings: 0)
+        cache.recordChanged(at: records.count, previous: nil)
+        records.append(old)
+        let result = snapshot()
+        suite.expect(result.usage(.allTime).total.cost == 5, "all time includes responses older than 91 days")
+        suite.expect(result.usage(.month).total.cost == 1, "all time does not widen the 30-day filter")
+        suite.expect(result.usage(.allTime).projects.contains { $0.name == "old" }, "all time includes historical projects")
+        suite.expect(result == AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
+            providers: [.claude], now: now, calendar: calendar), "late older history rebuilds the cache correctly")
+        let bars = result.trendBuckets(.allTime)
+        suite.expect(bars.count <= 30 && bars.reduce(0) { $0 + $1.total.cost } == 5,
+                     "all-time trend stays readable without losing historical cost")
+        cache.recordChanged(at: 1, previous: records[1])
+        records[1].cost = 6
+        suite.expect(snapshot().usage(.allTime).total.cost == 7, "historical corrections update all-time totals once")
+        suite.expect(result.trendBuckets(.month).count == 30, "month trend keeps thirty daily bars")
     }
 
     private static func storeIntegration(_ suite: TestSuite, now: Date, calendar: Calendar) {
