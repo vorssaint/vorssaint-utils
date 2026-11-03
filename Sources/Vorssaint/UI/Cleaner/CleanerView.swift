@@ -1003,17 +1003,7 @@ struct CleanerView: View {
 /// shared header and close affordance of the other hosted utilities.
 struct PanelCleanerView: View {
     @ObservedObject private var l10n = L10n.shared
-    @State private var tool = Tool.system
     var onClose: () -> Void
-
-    /// The same tools as the Settings page, minus the WhatsApp tab, which has
-    /// its own card inside the system cleaner here.
-    private enum Tool: Hashable {
-        case system, largeFiles, duplicates, startup
-    }
-
-    /// Room for the lists of the extra tools inside the panel.
-    private let toolHeight: CGFloat = 400
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1037,24 +1027,30 @@ struct PanelCleanerView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(l10n.s.menuClose)
             }
-            Picker("", selection: $tool) {
-                Label(l10n.s.cleanerName, systemImage: "sparkles").tag(Tool.system)
-                Label(l10n.s.largeFilesName, systemImage: "doc.badge.clock").tag(Tool.largeFiles)
-                Label(l10n.s.duplicatesName, systemImage: "doc.on.doc").tag(Tool.duplicates)
-                Label(l10n.s.startupName, systemImage: "power").tag(Tool.startup)
+            // The list-heavy tools need more room than this panel has, so
+            // they open in their own window.
+            HStack(spacing: 6) {
+                toolButton(l10n.s.largeFilesName, "doc.badge.clock", .largeFiles)
+                toolButton(l10n.s.duplicatesName, "doc.on.doc", .duplicates)
+                toolButton(l10n.s.startupName, "power", .startup)
             }
-            .pickerStyle(.segmented)
-            .labelStyle(.iconOnly)
-            .labelsHidden()
-            switch tool {
-            case .system: CleanerView(compact: true)
-            case .largeFiles: LargeFilesView().frame(height: toolHeight)
-            case .duplicates: DuplicatesView().frame(height: toolHeight)
-            case .startup: StartupItemsView().frame(height: toolHeight)
-            }
+            CleanerView(compact: true)
         }
         .padding(2)
         .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
         .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
+    }
+
+    private func toolButton(_ title: String, _ icon: String, _ tool: CleanerExtraTool) -> some View {
+        Button {
+            CleanerToolsWindowController.shared.show(tool)
+        } label: {
+            Label(title, systemImage: icon)
+                .font(.system(size: 11))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity)
+        }
+        .controlSize(.small)
     }
 }

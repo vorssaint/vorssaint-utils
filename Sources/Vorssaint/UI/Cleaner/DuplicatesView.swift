@@ -21,7 +21,6 @@ struct DuplicatesView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onDisappear { if finder.phase == .scanning { finder.reset() } }
     }
 
     private var setup: some View {

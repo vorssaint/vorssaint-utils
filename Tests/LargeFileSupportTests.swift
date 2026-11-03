@@ -47,6 +47,25 @@ enum LargeFileSupportTests {
                      && !LargeFileSupport.mayRemove(home.appendingPathComponent("../other/file.bin"), home: home),
                      "a sibling folder with a similar name or a dot-dot path is refused")
 
+        // A folder swapped for a shortcut after the scan must not redirect a removal.
+        let fm = FileManager.default
+        let sandbox = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("vorssaint-resolve-\(UUID().uuidString)", isDirectory: true)
+        let realHome = sandbox.appendingPathComponent("home", isDirectory: true)
+        let outside = sandbox.appendingPathComponent("outside", isDirectory: true)
+        try? fm.createDirectory(at: realHome.appendingPathComponent("Docs"), withIntermediateDirectories: true)
+        try? fm.createDirectory(at: realHome.appendingPathComponent("Library/Stuff"), withIntermediateDirectories: true)
+        try? fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        try? fm.createSymbolicLink(at: realHome.appendingPathComponent("Movies"), withDestinationURL: outside)
+        try? fm.createSymbolicLink(at: realHome.appendingPathComponent("Shortcut"),
+                                   withDestinationURL: realHome.appendingPathComponent("Library/Stuff"))
+        suite.expect(LargeFileSupport.mayRemoveResolved(realHome.appendingPathComponent("Docs/a.bin"), home: realHome),
+                     "a file in a real folder inside home passes the resolved check")
+        suite.expect(!LargeFileSupport.mayRemoveResolved(realHome.appendingPathComponent("Movies/a.bin"), home: realHome)
+                     && !LargeFileSupport.mayRemoveResolved(realHome.appendingPathComponent("Shortcut/a.bin"), home: realHome),
+                     "a folder that is really a shortcut to outside home, or into Library, is refused")
+        try? fm.removeItem(at: sandbox)
+
         func hint(_ name: String) -> LargeFileSupport.Safety {
             LargeFileSupport.safety(of: home.appendingPathComponent(name))
         }

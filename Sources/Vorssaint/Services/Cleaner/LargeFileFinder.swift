@@ -23,6 +23,9 @@ final class LargeFileFinder: ObservableObject {
         let url: URL
         let size: Int64
         let lastOpened: Date?
+        /// Content modification date at scan time. With the size it proves,
+        /// right before removal, that the file is still the one that was listed.
+        let modified: Date?
         var details = Details()
         var include = false
 
@@ -99,8 +102,8 @@ final class LargeFileFinder: ObservableObject {
             var freed: Int64 = 0
             var failed = 0
             for item in chosen {
-                guard LargeFileSupport.mayRemove(item.url, home: home),
-                      Self.isPlainFile(item.url) else { failed += 1; continue }
+                guard LargeFileSupport.mayRemoveResolved(item.url, home: home),
+                      Self.isPlainFile(item.url), Self.matchesScan(item) else { failed += 1; continue }
                 do {
                     try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)
                     freed += item.size
@@ -117,6 +120,17 @@ final class LargeFileFinder: ObservableObject {
 
     // MARK: - Walk
 
+    /// Whether the file still has the size and date it had when it was listed,
+    /// so a file replaced since the scan is never removed on an old listing.
+    private static func matchesScan(_ item: Item) -> Bool {
+        let keys: Set<URLResourceKey> = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey,
+                                         .contentModificationDateKey]
+        guard let values = try? item.url.resourceValues(forKeys: keys) else { return false }
+        let size = (values.totalFileAllocatedSize ?? values.fileAllocatedSize).map(Int64.init)
+        return DuplicateFileSupport.unchanged(scannedSize: item.size, scannedModified: item.modified,
+                                              currentSize: size, currentModified: values.contentModificationDate)
+    }
+
     private static func isPlainFile(_ url: URL) -> Bool {
         let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
         return values?.isRegularFile == true && values?.isSymbolicLink != true
@@ -126,12 +140,11 @@ final class LargeFileFinder: ObservableObject {
                              cancel: CleanerSupport.ScanCancellation) -> [Item] {
         let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey,
                                       .totalFileAllocatedSizeKey, .fileAllocatedSizeKey,
-                                      .contentAccessDateKey]
+                                      .contentAccessDateKey, .contentModificationDateKey]
         guard let walker = FileManager.default.enumerator(
             at: home, includingPropertiesForKeys: keys,
             options: [.skipsPackageDescendants, .skipsHiddenFiles], errorHandler: { _, _ in true }) else { return [] }
         var found: [Item] = []
-        let now = Date()
         for case let url as URL in walker {
             if cancel.isCancelled { return [] }
             guard let values = try? url.resourceValues(forKeys: Set(keys)) else { continue }
@@ -142,13 +155,32 @@ final class LargeFileFinder: ObservableObject {
             }
             guard values.isRegularFile == true else { continue }
             let size = Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
-            guard LargeFileSupport.qualifies(size: size, lastOpened: values.contentAccessDate,
-                                             minimumSize: minimumSize, olderThanDays: olderThanDays,
-                                             now: now) else { continue }
-            found.append(Item(url: url, size: size, lastOpened: values.contentAccessDate))
+            guard size >= minimumSize else { continue }
+            found.append(Item(url: url, size: size, lastOpened: values.contentAccessDate,
+                              modified: values.contentModificationDate))
         }
+        // The age filter and the date shown must come from the same place, so
+        // the filter runs here on the dates Spotlight reports (falling back to
+        // the access time). Only the largest candidates are looked up.
+        let now = Date()
+        let candidates = found.sorted { $0.size > $1.size }.prefix(candidateCap).compactMap { item -> Item? in
+            if cancel.isCancelled { return nil }
+            let used = spotlightLastUsed(item.url) ?? item.lastOpened
+            guard LargeFileSupport.qualifies(size: item.size, lastOpened: used, minimumSize: minimumSize,
+                                             olderThanDays: olderThanDays, now: now) else { return nil }
+            return Item(url: item.url, size: item.size, lastOpened: used, modified: item.modified)
+        }
+        if cancel.isCancelled { return [] }
         // Only the capped top of the list is looked at in detail.
-        return LargeFileSupport.ranked(found) { $0.size }.map { enrich($0) }
+        return LargeFileSupport.ranked(candidates) { $0.size }.map { enrich($0) }
+    }
+
+    /// How many of the largest files are checked against the age filter.
+    private static let candidateCap = 2000
+
+    private static func spotlightLastUsed(_ url: URL) -> Date? {
+        guard let mdItem = MDItemCreateWithURL(nil, url as CFURL) else { return nil }
+        return MDItemCopyAttribute(mdItem, kMDItemLastUsedDate) as? Date
     }
 
     /// Adds the details and prefers Spotlight's last used date, which is the
@@ -162,14 +194,13 @@ final class LargeFileFinder: ObservableObject {
             details.opensWith = FileManager.default.displayName(atPath: app.path)
                 .replacingOccurrences(of: ".app", with: "")
         }
-        var lastUsed = item.lastOpened
         if let mdItem = MDItemCreateWithURL(nil, item.url as CFURL) {
             details.downloadedFrom = LargeFileSupport.sourceHost(
                 from: MDItemCopyAttribute(mdItem, kMDItemWhereFroms) as? [String])
             details.added = MDItemCopyAttribute(mdItem, kMDItemDateAdded) as? Date
-            if let used = MDItemCopyAttribute(mdItem, kMDItemLastUsedDate) as? Date { lastUsed = used }
         }
-        var enriched = Item(url: item.url, size: item.size, lastOpened: lastUsed)
+        var enriched = Item(url: item.url, size: item.size, lastOpened: item.lastOpened,
+                            modified: item.modified)
         enriched.details = details
         return enriched
     }

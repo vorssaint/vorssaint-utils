@@ -47,6 +47,7 @@ final class StartupItemsManager: ObservableObject {
             DispatchQueue.main.async {
                 self.items = found
                 self.isLoading = false
+                self.lastFailure = nil
             }
         }
     }
@@ -73,11 +74,17 @@ final class StartupItemsManager: ObservableObject {
                     if !recorded { break }
                 }
             }
+            // Switching on must really load the job: a start that failed
+            // quietly would leave a switch that reads "on" with nothing running.
+            var succeeded = recorded
+            if enabled && recorded {
+                succeeded = Self.launchctl(["print", "gui/\(uid)/\(item.label)"]).status == 0
+            }
             let found = Self.load()
             DispatchQueue.main.async {
                 self.items = found
                 self.isLoading = false
-                self.lastFailure = recorded ? nil : item.label
+                self.lastFailure = succeeded ? nil : item.label
             }
         }
     }
@@ -120,6 +127,10 @@ final class StartupItemsManager: ObservableObject {
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return (-1, "") }
+        // A launchctl call that stalls must not leave the tab loading forever.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 10) {
+            if process.isRunning { process.terminate() }
+        }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         return (process.terminationStatus, String(decoding: data.prefix(1_000_000), as: UTF8.self))

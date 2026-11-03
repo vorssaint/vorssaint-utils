@@ -23,7 +23,6 @@ struct LargeFilesView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onDisappear { if finder.phase == .scanning { finder.reset() } }
     }
 
     private var setup: some View {
@@ -108,6 +107,12 @@ struct LargeFilesView: View {
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(safetyColor(item.details.safety))
                     .lineLimit(1)
+                if let risk = placementRisk(item) {
+                    Label(riskText(risk), systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                }
                 Text(summaryLine(item))
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
@@ -130,6 +135,7 @@ struct LargeFilesView: View {
                 .font(.system(size: 11.5)).foregroundStyle(.secondary).monospacedDigit()
         }
         .padding(.vertical, 2)
+        .listRowBackground(placementRisk(item) == nil ? Color.clear : Color.red.opacity(0.08))
         .help(detailsHelp(item))
     }
 
@@ -186,6 +192,20 @@ struct LargeFilesView: View {
         guard let date = item.lastOpened else { return l10n.s.uninstallerNeverUsed }
         return String(format: l10n.s.uninstallerLastUsedFormat,
                       date.formatted(date: .abbreviated, time: time))
+    }
+
+    /// A file in a cloud folder, code project or virtual machine folder is
+    /// risky to remove; the duplicates tab uses the same rules.
+    private func placementRisk(_ item: LargeFileFinder.Item) -> DuplicateFileSupport.Risk? {
+        DuplicateFileSupport.placement(of: item.url, home: URL(fileURLWithPath: NSHomeDirectory())).risk
+    }
+
+    private func riskText(_ risk: DuplicateFileSupport.Risk) -> String {
+        switch risk {
+        case .synced: return l10n.s.duplicatesRiskSynced
+        case .project: return l10n.s.duplicatesRiskProject
+        case .virtualMachine: return l10n.s.duplicatesRiskVM
+        }
     }
 
     private func safetyText(_ safety: LargeFileSupport.Safety) -> String {

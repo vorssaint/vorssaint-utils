@@ -57,6 +57,12 @@ enum DuplicateFileSupportTests {
                      && DuplicateFileSupport.placement(of: at("Projects/a.pdf"), home: home).risk == nil
                      && DuplicateFileSupport.placement(of: URL(fileURLWithPath: "/Volumes/x/a.pdf"), home: home).tiedTo.isEmpty,
                      "Downloads is temporary, Documents is organised, and outside home is unclassified")
+        suite.expect(DuplicateFileSupport.placement(of: at("Dropbox (Personal)/a.pdf"), home: home).risk == .synced
+                     && DuplicateFileSupport.placement(of: at("Box Sync/a.pdf"), home: home).risk == .synced
+                     && DuplicateFileSupport.placement(of: at("Boxes/a.pdf"), home: home).risk == nil
+                     && DuplicateFileSupport.placement(of: at("work/app/venv/lib/x.so"), home: home).risk == .project
+                     && DuplicateFileSupport.placement(of: at("Disks/old.VDI"), home: home).risk == .virtualMachine,
+                     "cloud folder variants, virtual environments and loose VM disks are risky, lookalikes are not")
         suite.expect(DuplicateFileSupport.looksLikeCopy("report copy.pdf")
                      && DuplicateFileSupport.looksLikeCopy("Report Copy 2.pdf")
                      && DuplicateFileSupport.looksLikeCopy("photo (1).jpg")

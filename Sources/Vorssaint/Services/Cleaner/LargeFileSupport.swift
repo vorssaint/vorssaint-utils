@@ -53,6 +53,17 @@ enum LargeFileSupport {
         return !components.contains { $0.hasPrefix(".") }
     }
 
+    /// `mayRemove` again, but on the real location: the folder holding the
+    /// file is resolved through any shortcuts first. A folder swapped for a
+    /// shortcut after the scan cannot redirect a removal outside home or into
+    /// Library.
+    static func mayRemoveResolved(_ url: URL, home: URL) -> Bool {
+        guard mayRemove(url, home: home) else { return false }
+        let real = url.deletingLastPathComponent().resolvingSymlinksInPath()
+            .appendingPathComponent(url.lastPathComponent)
+        return mayRemove(real, home: home.resolvingSymlinksInPath())
+    }
+
     /// How safe a file is to remove, judged from its type alone. This is a hint
     /// for the person choosing, never a reason to tick anything for them.
     enum Safety: Equatable {

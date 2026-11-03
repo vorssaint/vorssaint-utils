@@ -59,10 +59,14 @@ enum DuplicateFileSupport {
         let risk: Risk?
     }
 
-    private static let syncedFolderPrefixes = ["OneDrive", "Google Drive", "Creative Cloud Files", "pCloud"]
-    private static let syncedFolderNames: Set<String> = ["Dropbox", "Box", "MEGA"]
+    /// Cloud folders, matched by name or by name plus a suffix such as
+    /// "Dropbox (Personal)" or "OneDrive - Company".
+    private static let syncedFolderRoots = ["Dropbox", "OneDrive", "Google Drive", "Box", "MEGA",
+                                            "Creative Cloud Files", "pCloud", "iCloud Drive"]
+    private static let vmImageExtensions: Set<String> = ["vdi", "vmdk", "qcow2", "hdd", "vhd", "vhdx"]
     private static let projectFolders: Set<String> = [
         "node_modules", "Pods", "site-packages", "DerivedData", "Carthage",
+        "venv", "vendor", "miniconda3", "anaconda3",
     ]
     private static let machineFolders: Set<String> = [
         "Virtual Machines", "Parallels", "VirtualBox VMs", "VMware Fusion",
@@ -91,8 +95,11 @@ enum DuplicateFileSupport {
         }) {
             risk = .virtualMachine
             tiedTo = machine
-        } else if syncedFolderNames.contains(top) || syncedFolderPrefixes.contains(where: { top.hasPrefix($0) }) {
+        } else if syncedFolderRoots.contains(where: { top == $0 || top.hasPrefix($0 + " ") }) {
             risk = .synced
+        } else if vmImageExtensions.contains(url.pathExtension.lowercased()) {
+            risk = .virtualMachine
+            tiedTo = folders.last ?? top
         }
         return Placement(tiedTo: tiedTo, isTemporary: top == "Downloads" || top == "Desktop",
                          isOrganized: organizedFolders.contains(top), risk: risk)
