@@ -35,6 +35,59 @@ enum DuplicateFileSupportTests {
                                                         currentSize: nil, currentModified: nil),
                      "a copy that changed size or date, or vanished, no longer matches")
 
+        let home = URL(fileURLWithPath: "/Users/someone", isDirectory: true)
+        func at(_ path: String) -> URL { home.appendingPathComponent(path) }
+        func copy(_ path: String, _ date: Date? = nil) -> DuplicateFileSupport.Copy {
+            DuplicateFileSupport.Copy(url: at(path), modified: date)
+        }
+
+        let drop = DuplicateFileSupport.placement(of: at("Dropbox/Work/a.pdf"), home: home)
+        let node = DuplicateFileSupport.placement(of: at("dev/site/node_modules/lib/a.js"), home: home)
+        let vm = DuplicateFileSupport.placement(of: at("Parallels/Win11.pvm/disk.hdd"), home: home)
+        let dl = DuplicateFileSupport.placement(of: at("Downloads/a.pdf"), home: home)
+        suite.expect(drop.risk == .synced && drop.tiedTo == "Dropbox"
+                     && DuplicateFileSupport.placement(of: at("OneDrive - Acme/a.pdf"), home: home).risk == .synced
+                     && DuplicateFileSupport.placement(of: at("Google Drive/a.pdf"), home: home).risk == .synced,
+                     "files inside cloud folders are marked as risky because deleting syncs everywhere")
+        suite.expect(node.risk == .project && node.tiedTo == "site" && vm.risk == .virtualMachine
+                     && vm.tiedTo == "Parallels",
+                     "dependency folders and virtual machine folders are marked risky and name what they belong to")
+        suite.expect(dl.isTemporary && dl.risk == nil && dl.tiedTo == "Downloads"
+                     && DuplicateFileSupport.placement(of: at("Documents/a.pdf"), home: home).isOrganized
+                     && DuplicateFileSupport.placement(of: at("Projects/a.pdf"), home: home).risk == nil
+                     && DuplicateFileSupport.placement(of: URL(fileURLWithPath: "/Volumes/x/a.pdf"), home: home).tiedTo.isEmpty,
+                     "Downloads is temporary, Documents is organised, and outside home is unclassified")
+        suite.expect(DuplicateFileSupport.looksLikeCopy("report copy.pdf")
+                     && DuplicateFileSupport.looksLikeCopy("Report Copy 2.pdf")
+                     && DuplicateFileSupport.looksLikeCopy("photo (1).jpg")
+                     && !DuplicateFileSupport.looksLikeCopy("photocopy.jpg")
+                     && !DuplicateFileSupport.looksLikeCopy("report.pdf"),
+                     "names made by duplicating are recognised without catching ordinary words")
+
+        let tidy = copy("Documents/report.pdf", late)
+        let messy = copy("Downloads/report (1).pdf", early)
+        suite.expect(DuplicateFileSupport.bestIndex(of: [messy, tidy], home: home) == 1
+                     && DuplicateFileSupport.bestIndex(of: [tidy, messy], home: home) == 0,
+                     "the best copy is the tidy one in an organised folder, not the oldest download")
+        suite.expect(DuplicateFileSupport.bestIndex(of: [copy("a/x.bin", late), copy("b/x.bin", early)], home: home) == 1
+                     && DuplicateFileSupport.newestIndex(of: [copy("a", early), copy("b", late), copy("c", nil)]) == 1,
+                     "equal copies fall back to the oldest, and newest picks the latest date")
+
+        let set = [tidy, messy, copy("Desktop/report.pdf", late), copy("Dropbox/report.pdf", late)]
+        suite.expect(DuplicateFileSupport.indicesToTick(.keepBest, copies: set, home: home) == [0, 1, 2],
+                     "the copy in a cloud folder is the one that stays, because it is the risky one to touch")
+        suite.expect(DuplicateFileSupport.indicesToTick(
+                        .keepBest, copies: [copy("Dropbox/a.bin", early), copy("OneDrive/a.bin", late)], home: home).isEmpty,
+                     "a risky copy that is not the keeper is still never ticked for the person")
+        suite.expect(DuplicateFileSupport.indicesToTick(.keep(1), copies: set, home: home) == [0, 2],
+                     "keeping one named copy ticks the others, still skipping risky ones")
+        suite.expect(DuplicateFileSupport.indicesToTick(.temporaryOnly, copies: set, home: home) == [1, 2],
+                     "temporary only ticks the Downloads and Desktop copies")
+        suite.expect(DuplicateFileSupport.indicesToTick(.temporaryOnly,
+                                                        copies: [copy("Downloads/a"), copy("Desktop/a")], home: home).isEmpty
+                     && DuplicateFileSupport.indicesToTick(.keepBest, copies: [copy("a/x")], home: home).isEmpty,
+                     "when every copy is temporary, or there is only one, nothing is ticked")
+
         struct G { let size: Int64; let copies: Int }
         let ranked = DuplicateFileSupport.ranked([G(size: 10, copies: 2), G(size: 5, copies: 10), G(size: 100, copies: 1)],
                                                  size: { $0.size }, copies: { $0.copies })

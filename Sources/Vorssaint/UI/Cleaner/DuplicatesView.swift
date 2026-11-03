@@ -73,10 +73,21 @@ struct DuplicatesView: View {
                 List {
                     ForEach(finder.groups) { group in
                         Section {
-                            ForEach(group.items) { item in row(item) }
+                            let best = bestID(in: group)
+                            ForEach(group.items) { item in row(item, isBest: item.id == best) }
                         } header: {
-                            Text("\(Self.byteString(group.size))  ·  "
-                                 + String(format: l10n.s.duplicatesCopiesFormat, group.items.count))
+                            HStack {
+                                Text("\(Self.byteString(group.size))  ·  "
+                                     + String(format: l10n.s.duplicatesCopiesFormat, group.items.count)
+                                     + "  ·  "
+                                     + String(format: l10n.s.duplicatesFreesFormat,
+                                              Self.byteString(group.size * Int64(group.items.count - 1))))
+                                Spacer()
+                                Button(l10n.s.duplicatesSelectOthers) {
+                                    finder.smartSelect(.keepBest, in: group.id)
+                                }
+                                .controlSize(.small)
+                            }
                         }
                     }
                 }
@@ -87,8 +98,9 @@ struct DuplicatesView: View {
         }
     }
 
-    private func row(_ item: DuplicateFileFinder.Item) -> some View {
-        HStack(spacing: 10) {
+    private func row(_ item: DuplicateFileFinder.Item, isBest: Bool) -> some View {
+        let place = DuplicateFileSupport.placement(of: item.url, home: Self.home)
+        return HStack(spacing: 10) {
             Toggle("", isOn: Binding(
                 get: { currentlyIncluded(item) },
                 set: { finder.setInclude($0, for: item.id) }
@@ -103,8 +115,27 @@ struct DuplicatesView: View {
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1).truncationMode(.head)
+                if let risk = place.risk {
+                    Label(riskText(risk), systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                } else if isBest {
+                    Label(l10n.s.duplicatesBestCopy, systemImage: "star.fill")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.green)
+                        .lineLimit(1)
+                }
             }
             Spacer()
+            Button {
+                finder.keepOnly(item.id)
+            } label: {
+                Image(systemName: "checkmark.shield")
+            }
+            .buttonStyle(.plain)
+            .help(l10n.s.duplicatesKeepThis)
+            .accessibilityLabel(l10n.s.duplicatesKeepThis)
             Button {
                 NSWorkspace.shared.activateFileViewerSelecting([item.url])
             } label: {
@@ -115,6 +146,44 @@ struct DuplicatesView: View {
             .accessibilityLabel(l10n.s.cleanerRevealInFinder)
         }
         .padding(.vertical, 2)
+        .listRowBackground(place.risk == nil ? Color.clear : Color.red.opacity(0.08))
+        .help(detailsHelp(item, place: place))
+        .contextMenu {
+            Button(l10n.s.duplicatesKeepThis) { finder.keepOnly(item.id) }
+        }
+    }
+
+    private static var home: URL { URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true) }
+
+    private func bestID(in group: DuplicateFileFinder.Group) -> UUID? {
+        let copies = group.items.map { DuplicateFileSupport.Copy(url: $0.url, modified: $0.modified) }
+        guard copies.count > 1 else { return nil }
+        return group.items[DuplicateFileSupport.bestIndex(of: copies, home: Self.home)].id
+    }
+
+    private func riskText(_ risk: DuplicateFileSupport.Risk) -> String {
+        switch risk {
+        case .synced: return l10n.s.duplicatesRiskSynced
+        case .project: return l10n.s.duplicatesRiskProject
+        case .virtualMachine: return l10n.s.duplicatesRiskVM
+        }
+    }
+
+    /// The app or folder a copy is tied to, worked out from where it sits.
+    /// System folders use their localised Finder names.
+    private func tiedToName(_ place: DuplicateFileSupport.Placement) -> String? {
+        guard !place.tiedTo.isEmpty else { return nil }
+        if place.isTemporary || place.isOrganized {
+            return FileManager.default.displayName(atPath: Self.home.appendingPathComponent(place.tiedTo).path)
+        }
+        return place.tiedTo
+    }
+
+    private func detailsHelp(_ item: DuplicateFileFinder.Item, place: DuplicateFileSupport.Placement) -> String {
+        var lines = [item.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")]
+        if let name = tiedToName(place) { lines.append(String(format: l10n.s.duplicatesTiedToFormat, name)) }
+        if let risk = place.risk { lines.append(riskText(risk)) }
+        return lines.joined(separator: "\n")
     }
 
     private var footer: some View {
@@ -127,9 +196,16 @@ struct DuplicatesView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button(finder.selectedCount == 0 ? l10n.s.duplicatesSelectExtras : l10n.s.uninstallerSelectNone) {
-                finder.selectExtras(finder.selectedCount == 0)
+            Menu(l10n.s.duplicatesSmartSelect) {
+                Button(l10n.s.duplicatesKeepBest) { finder.smartSelect(.keepBest) }
+                Button(l10n.s.duplicatesKeepNewest) { finder.smartSelect(.keepNewest) }
+                Button(l10n.s.duplicatesKeepOldest) { finder.smartSelect(.keepOldest) }
+                Button(l10n.s.duplicatesTemporaryOnly) { finder.smartSelect(.temporaryOnly) }
             }
+            .fixedSize()
+            .help(l10n.s.duplicatesSkipNote)
+            Button(l10n.s.uninstallerSelectNone) { finder.clearSelection() }
+                .disabled(finder.selectedCount == 0)
             Button(l10n.s.uninstallerCancel) { finder.reset() }
             Button(l10n.s.largeFilesMoveToTrash) { finder.trashSelected() }
                 .buttonStyle(.borderedProminent)

@@ -523,6 +523,20 @@ struct Strings {
     let duplicatesKeepNote: String
     let duplicatesCopiesFormat: String
     let duplicatesSelectExtras: String
+    let duplicatesSelectOthers: String
+    let duplicatesSmartSelect: String
+    let duplicatesKeepBest: String
+    let duplicatesKeepNewest: String
+    let duplicatesKeepOldest: String
+    let duplicatesTemporaryOnly: String
+    let duplicatesKeepThis: String
+    let duplicatesBestCopy: String
+    let duplicatesTiedToFormat: String
+    let duplicatesRiskSynced: String
+    let duplicatesRiskProject: String
+    let duplicatesRiskVM: String
+    let duplicatesFreesFormat: String
+    let duplicatesSkipNote: String
     let startupName: String
     let startupIntro: String
     let startupYours: String
@@ -1718,6 +1732,20 @@ extension Strings {
         duplicatesKeepNote: "Uma cópia de cada arquivo sempre fica.",
         duplicatesCopiesFormat: "%d cópias",
         duplicatesSelectExtras: "Selecionar cópias extras",
+        duplicatesSelectOthers: "Selecionar todos os outros",
+        duplicatesSmartSelect: "Seleção inteligente",
+        duplicatesKeepBest: "Manter a melhor cópia de cada",
+        duplicatesKeepNewest: "Manter a cópia mais recente de cada",
+        duplicatesKeepOldest: "Manter a cópia mais antiga de cada",
+        duplicatesTemporaryOnly: "Só cópias em Downloads ou na Mesa",
+        duplicatesKeepThis: "Manter esta e selecionar as outras",
+        duplicatesBestCopy: "Melhor cópia para manter",
+        duplicatesTiedToFormat: "Ligado a %@",
+        duplicatesRiskSynced: "Arriscado remover, pois sincroniza com seus outros dispositivos",
+        duplicatesRiskProject: "Arriscado remover, pois um projeto de código pode precisar dele",
+        duplicatesRiskVM: "Arriscado remover, pois uma máquina virtual pode precisar dele",
+        duplicatesFreesFormat: "Libera %@",
+        duplicatesSkipNote: "Cópias arriscadas nunca são selecionadas automaticamente",
         startupName: "Inicialização",
         startupIntro: "Ajudantes que iniciam com o seu Mac. Desative os que você não precisa; você pode reativá-los quando quiser.",
         startupYours: "Seus ajudantes de login",
@@ -2877,6 +2905,20 @@ extension Strings {
         duplicatesKeepNote: "One copy of each file always stays.",
         duplicatesCopiesFormat: "%d copies",
         duplicatesSelectExtras: "Select extra copies",
+        duplicatesSelectOthers: "Select all others",
+        duplicatesSmartSelect: "Smart select",
+        duplicatesKeepBest: "Keep the best copy of each",
+        duplicatesKeepNewest: "Keep the newest copy of each",
+        duplicatesKeepOldest: "Keep the oldest copy of each",
+        duplicatesTemporaryOnly: "Only copies in Downloads or Desktop",
+        duplicatesKeepThis: "Keep this one, select the others",
+        duplicatesBestCopy: "Best copy to keep",
+        duplicatesTiedToFormat: "Tied to %@",
+        duplicatesRiskSynced: "Risky to remove, because it syncs to your other devices",
+        duplicatesRiskProject: "Risky to remove, because a code project may need it",
+        duplicatesRiskVM: "Risky to remove, because a virtual machine may need it",
+        duplicatesFreesFormat: "Frees %@",
+        duplicatesSkipNote: "Risky copies are never selected automatically",
         startupName: "Startup",
         startupIntro: "Helpers that start with your Mac. Switch off the ones you do not need; you can switch them back on any time.",
         startupYours: "Your login helpers",

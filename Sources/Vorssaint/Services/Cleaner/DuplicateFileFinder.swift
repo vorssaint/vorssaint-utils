@@ -65,15 +65,31 @@ final class DuplicateFileFinder: ObservableObject {
         }
     }
 
-    /// Ticks every copy except the one that stays by default (the oldest), or
-    /// clears everything.
-    func selectExtras(_ select: Bool) {
+    private static var home: URL { URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true) }
+
+    /// Applies a smart selection to one set, or to every set. Copies in cloud
+    /// folders, code projects or virtual machines are never ticked this way.
+    func smartSelect(_ mode: DuplicateFileSupport.SelectMode, in groupID: UUID? = nil) {
+        guard phase == .results else { return }
+        for g in groups.indices where groupID == nil || groups[g].id == groupID {
+            let copies = groups[g].items.map { DuplicateFileSupport.Copy(url: $0.url, modified: $0.modified) }
+            let ticked = DuplicateFileSupport.indicesToTick(mode, copies: copies, home: Self.home)
+            for i in groups[g].items.indices { groups[g].items[i].include = ticked.contains(i) }
+        }
+    }
+
+    /// Keeps the chosen copy and ticks the other safe ones in its set.
+    func keepOnly(_ id: UUID) {
+        guard phase == .results,
+              let g = groups.firstIndex(where: { $0.items.contains { $0.id == id } }),
+              let i = groups[g].items.firstIndex(where: { $0.id == id }) else { return }
+        smartSelect(.keep(i), in: groups[g].id)
+    }
+
+    func clearSelection() {
         guard phase == .results else { return }
         for g in groups.indices {
-            let keep = DuplicateFileSupport.defaultKeepIndex(modified: groups[g].items.map(\.modified))
-            for i in groups[g].items.indices {
-                groups[g].items[i].include = select && i != keep
-            }
+            for i in groups[g].items.indices { groups[g].items[i].include = false }
         }
     }
 
