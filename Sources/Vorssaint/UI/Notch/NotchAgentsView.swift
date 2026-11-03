@@ -11,6 +11,10 @@ struct NotchAgentsView: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchSettingsPreview) private var preview
     @AppStorage(DefaultsKey.notchAgentsPeriod) private var period = AgentPeriod.today.rawValue
+    @AppStorage(DefaultsKey.notchAgentsDateRange) private var savedDates = ""
+    @State private var editingRange = false
+    @State private var rangeFrom = Date()
+    @State private var rangeThrough = Date()
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
@@ -20,7 +24,19 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
-    private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
+    private var selectedRange: DateInterval? { AgentDateRange.restore(savedDates)?.interval() }
+    private var chosenPeriod: AgentPeriod {
+        let choice = AgentPeriod(rawValue: period) ?? .today
+        return choice == .custom && selectedRange == nil ? .today : choice
+    }
+    private var periodTitle: String {
+        guard chosenPeriod == .custom, let range = selectedRange,
+              let last = Calendar.current.date(byAdding: .day, value: -1, to: range.end) else {
+            return text.period(chosenPeriod)
+        }
+        let style = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(l10n.language.formattingLocale())
+        return range.start.formatted(style) + " – " + last.formatted(style)
+    }
 
     /// The Codex homes the person added, each with a card in the Limits
     /// card's place, so none while that card is hidden.
@@ -48,7 +64,8 @@ struct NotchAgentsView: View {
 
     var body: some View {
         Group {
-            if !usage.snapshot.loaded && codexAccounts.isEmpty {
+            if (!usage.snapshot.loaded && codexAccounts.isEmpty)
+                || (chosenPeriod == .custom && usage.snapshot.customRange != selectedRange) {
                 VStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -79,8 +96,10 @@ struct NotchAgentsView: View {
         .environment(\.locale, l10n.language.formattingLocale())
         .onAppear {
             usage.pageDidAppear(preview: preview)
+            usage.refreshDateRange()
             accounts.pageDidAppear(preview: preview)
         }
+        .onChange(of: savedDates) { _, _ in usage.refreshDateRange() }
         .onDisappear {
             guard !preview else { return }
             usage.pageDidDisappear()
@@ -89,11 +108,51 @@ struct NotchAgentsView: View {
     }
 
     private var periodMenu: some View {
-        NotchMenuButton(title: text.period(chosenPeriod), items: AgentPeriod.allCases.map { option in
-            NotchMenuItem(title: text.period(option), checked: option == chosenPeriod) { period = option.rawValue }
+        NotchMenuButton(title: periodTitle, items: AgentPeriod.allCases.map { option in
+            NotchMenuItem(title: text.period(option), checked: option == chosenPeriod) {
+                if option == .custom {
+                    let calendar = Calendar.current
+                    rangeThrough = selectedRange.flatMap { calendar.date(byAdding: .day, value: -1, to: $0.end) } ?? Date()
+                    rangeFrom = selectedRange?.start ?? calendar.date(byAdding: .day, value: -29, to: rangeThrough) ?? rangeThrough
+                    editingRange = true
+                } else {
+                    period = option.rawValue
+                }
+            }
         }, cornerRadius: 9) {
-            NotchBandMenuLabel(title: text.period(chosenPeriod))
+            NotchBandMenuLabel(title: periodTitle)
         }
+        .help(periodTitle)
+        .popover(isPresented: $editingRange) { rangeEditor }
+    }
+
+    private var rangeEditor: some View {
+        let draft = AgentDateRange(from: rangeFrom, through: rangeThrough)
+        let valid = draft.interval() != nil
+        return VStack(alignment: .leading, spacing: 14) {
+            Text(text.customRange).font(.headline)
+            DatePicker(text.rangeFrom, selection: $rangeFrom, in: ...Date(), displayedComponents: .date)
+            DatePicker(text.rangeThrough, selection: $rangeThrough, in: ...Date(), displayedComponents: .date)
+            if !valid {
+                Text(text.invalidRange).font(.caption).foregroundStyle(.red)
+            }
+            HStack {
+                Button(text.rangeCancel) { editingRange = false }.keyboardShortcut(.cancelAction)
+                Spacer()
+                Button(text.rangeApply) {
+                    guard valid else { return }
+                    savedDates = draft.storageValue
+                    period = AgentPeriod.custom.rawValue
+                    editingRange = false
+                    usage.refreshDateRange()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!valid)
+            }
+        }
+        .padding(16)
+        .frame(width: 310)
+        .environment(\.locale, l10n.language.formattingLocale())
     }
 
     private func grid(_ rows: [[NotchAgentTile]], now: Date) -> some View {
@@ -714,17 +773,26 @@ private struct NotchAgentTrendCard: View {
             // A pointed-at bar reads its tokens beside its cost.
             let tokens = byCost ? " · " + value(bucket.total, byCost: false) : ""
             var span = label(bucket.start, long: true)
-            if period == .allTime {
+            if period == .allTime || period == .custom {
                 let end = index + 1 < buckets.count
                     ? Calendar.current.date(byAdding: .day, value: -1, to: buckets[index + 1].start) ?? bucket.start
-                    : snapshot.now
+                    : period == .custom
+                        ? Calendar.current.date(byAdding: .day, value: -1, to: snapshot.customRange?.end ?? snapshot.now) ?? snapshot.now
+                        : snapshot.now
                 if !Calendar.current.isDate(bucket.start, inSameDayAs: end) {
                     span += " – " + label(end, long: true)
                 }
             }
             return span + " · " + value(bucket.total, byCost: byCost) + tokens
         }
-        return text.period(period) + " · " + value(snapshot.usage(period).total, byCost: byCost)
+        let title: String
+        if period == .custom, let range = snapshot.customRange,
+           let last = Calendar.current.date(byAdding: .day, value: -1, to: range.end) {
+            title = label(range.start, long: true) + " – " + label(last, long: true)
+        } else {
+            title = text.period(period)
+        }
+        return title + " · " + value(snapshot.usage(period).total, byCost: byCost)
     }
 
     private func value(_ totals: AgentTotals, byCost: Bool) -> String {
@@ -733,7 +801,7 @@ private struct NotchAgentTrendCard: View {
 
     private func label(_ date: Date, long: Bool) -> String {
         if period == .today { return date.formatted(.dateTime.hour().locale(locale)) }
-        if period == .allTime { return date.formatted(.dateTime.day().month(.abbreviated).year().locale(locale)) }
+        if period == .allTime || period == .custom { return date.formatted(.dateTime.day().month(.abbreviated).year().locale(locale)) }
         if period == .week, !long { return date.formatted(.dateTime.weekday(.narrow).locale(locale)) }
         return date.formatted(.dateTime.day().month(.abbreviated).locale(locale))
     }

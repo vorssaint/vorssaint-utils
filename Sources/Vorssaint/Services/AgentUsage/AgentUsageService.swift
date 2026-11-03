@@ -149,6 +149,16 @@ final class AgentUsageService: ObservableObject {
         refreshClaudeLimits()
     }
 
+    /// A range changes only the in-memory summary, not the log readers.
+    func refreshDateRange() {
+        guard running, !paused else { return }
+        queue.async { [self] in
+            guard readerSession >= 0 else { return }
+            let range = AgentDateRange.restore(UserDefaults.standard.string(forKey: DefaultsKey.notchAgentsDateRange) ?? "")?.interval()
+            if published.customRange != range { publish() }
+        }
+    }
+
     /// Stops reading while the island is away, as with the display asleep or
     /// the Mac locked, and keeps what was read: reading every log again on the
     /// way back costs far more than the pause saves.
@@ -638,7 +648,8 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        let range = AgentDateRange.restore(UserDefaults.standard.string(forKey: DefaultsKey.notchAgentsDateRange) ?? "")?.interval()
+        let next = store.snapshot(plans: plans, providers: enabled, now: Date(), customRange: range)
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
