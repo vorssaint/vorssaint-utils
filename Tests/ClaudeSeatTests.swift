@@ -108,10 +108,12 @@ enum ClaudeSeatTests {
             "oauthAccount": ["accountUuid": "a", "organizationUuid": "org"],
             "cachedUsageUtilization": ["accountUuid": "a", "fetchedAtMs": now.timeIntervalSince1970 * 1_000 - 30_000,
                                        "utilization": ["five_hour": ["utilization": 64, "resets_at": "2026-10-23T11:30:00Z"],
-                                                       "seven_day": NSNull()]]]
+                                                       "seven_day": ["utilization": 31, "resets_at": "2026-10-27T08:00:00Z"],
+                                                       "seven_day_opus": NSNull()]]]
         let cache = AgentClaudeServer.cache(profile, now: now)
-        suite.expect(cache?.limits.windows.map(\.usedPercent) == [64] && cache?.organization == "org",
-                     "a seat's saved usage reads its session and skips the weeks a Team seat lacks")
+        suite.expect(cache?.limits.windows.map(\.usedPercent) == [64, 31]
+                        && cache?.limits.windows.last?.kind == .weekly && cache?.organization == "org",
+                     "a seat's saved usage reads its session and its week, and skips a week it lacks")
         var other = profile
         other["oauthAccount"] = ["accountUuid": "b", "organizationUuid": "org"]
         suite.expect(AgentClaudeServer.cache(other, now: now) == nil,

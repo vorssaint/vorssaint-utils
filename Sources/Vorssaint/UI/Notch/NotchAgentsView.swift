@@ -1054,9 +1054,9 @@ struct NotchAgentClaudeSeatsCard: View {
     }
 }
 
-/// One seat: its email, its session's meter and renewal, and the Claude
-/// app's work under it this session and this month, or what keeps it from
-/// showing them.
+/// One seat: its email, its session's and its week's meters and renewals,
+/// and the Claude app's work under it this session and this month, or what
+/// keeps it from showing them.
 private struct NotchAgentClaudeSeatColumn: View {
     let seat: ClaudeSeat
     let now: Date
@@ -1072,6 +1072,12 @@ private struct NotchAgentClaudeSeatColumn: View {
 
     private var session: AgentLimitWindow? {
         seat.limits?.windows.first { $0.kind == .session && $0.scope == nil }.map { AgentLimitSupport.current($0, at: now) }
+    }
+
+    /// The week that binds first, where the plan keeps more than one.
+    private var week: AgentLimitWindow? {
+        (seat.limits?.windows ?? []).filter { $0.kind == .weekly }.map { AgentLimitSupport.current($0, at: now) }
+            .max { $0.usedPercent < $1.usedPercent }
     }
 
     private var stale: Bool {
@@ -1099,6 +1105,11 @@ private struct NotchAgentClaudeSeatColumn: View {
                 signIn
             } else {
                 limit
+                if let week {
+                    NotchAgentLimitRow(window: week, provider: provider, now: now, display: display, text: text,
+                                       observedAt: seat.limits?.observedAt)
+                        .opacity(stale ? 0.6 : 1)
+                }
                 if lockScreen == nil, let note {
                     Text(note)
                         .font(.system(size: 9.5))
@@ -1106,7 +1117,11 @@ private struct NotchAgentClaudeSeatColumn: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-                NotchAgentAmountRow(label: places.thisSession, value: seat.sessionValue)
+                // The lock screen shows no sessions, and its widget has room
+                // for the week only in place of this one's amount.
+                if lockScreen == nil {
+                    NotchAgentAmountRow(label: places.thisSession, value: seat.sessionValue)
+                }
                 NotchAgentAmountRow(label: places.thisMonth, value: seat.monthValue)
             }
         }
