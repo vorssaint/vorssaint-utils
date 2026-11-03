@@ -142,7 +142,7 @@ enum ScreenshotImageImportTests {
             }
         }
         class State {
-            var imageImportInProgress = false
+            var imageImportsInProgress: Set<ImageImportSource> = []
             let strings = FeatureStrings.screenshot(.enUS)
         }
     }
@@ -156,21 +156,21 @@ enum ScreenshotImageImportTests {
             Flow.NSAlert.response = response
             var captures = 0
             var sourceFormat: MediaImageFormat?
-            host.importImage({ input }) { capture in
+            host.importImage({ input }, from: .clipboard) { capture in
                 captures += 1
                 sourceFormat = capture.sourceFormat
             }
-            host.importImage({ input }) { capture in
+            host.importImage({ input }, from: .clipboard) { capture in
                 captures += 1
                 sourceFormat = capture.sourceFormat
             }
             suite.expect(lane.queued == 1, "repeated import requests cannot queue concurrent large decodes")
             lane.run()
             let deadline = Date(timeIntervalSinceNow: 2)
-            while host.imageImportInProgress, Date() < deadline {
+            while !host.imageImportsInProgress.isEmpty, Date() < deadline {
                 RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.005))
             }
-            suite.expect(!host.imageImportInProgress && Flow.WindowActivationPolicy.retained == 0,
+            suite.expect(host.imageImportsInProgress.isEmpty && Flow.WindowActivationPolicy.retained == 0,
                          "every large-image choice releases admission and window activation")
             suite.expect(Flow.NSAlert.buttons == [host.strings.editReducedImage, host.strings.cancel],
                          "large images offer only resize-and-edit or cancel")
@@ -190,14 +190,40 @@ enum ScreenshotImageImportTests {
         input.fails = true
         let alerts = Flow.NSAlert.shown
         let errors = Flow.QuickToolHUD.messages.count
-        host.importImage({ input }) { _ in suite.expect(false, "failed decode cannot open an editor") }
+        host.importImage({ input }, from: .clipboard) { _ in suite.expect(false, "failed decode cannot open an editor") }
         lane.run()
         let deadline = Date(timeIntervalSinceNow: 2)
-        while host.imageImportInProgress, Date() < deadline {
+        while !host.imageImportsInProgress.isEmpty, Date() < deadline {
             RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.005))
         }
         suite.expect(Flow.NSAlert.shown == alerts && Flow.QuickToolHUD.messages.count == errors + 1
-            && !host.imageImportInProgress,
+            && host.imageImportsInProgress.isEmpty,
                      "small images skip the dialog and decode failure reports an error without blocking later imports")
+        input.fails = false
+        var clipboardCaptures = 0
+        var fileCaptures = 0
+        var fileReadOnMain = true
+        host.importImage({ input }, from: .clipboard) { _ in clipboardCaptures += 1 }
+        let file = Flow.ScreenshotImageImport()
+        file.requiresSizeChoice = false
+        host.importImage({
+            fileReadOnMain = Thread.isMainThread
+            return file
+        }, from: .file) { _ in fileCaptures += 1 }
+        host.importImage({ file }, from: .file) { _ in fileCaptures += 1 }
+        let fileDeadline = Date(timeIntervalSinceNow: 2)
+        while host.imageImportsInProgress.contains(.file), Date() < fileDeadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.005))
+        }
+        suite.expect(fileCaptures == 1 && file.decodes == 1 && !fileReadOnMain && !file.decodedOnMain
+            && clipboardCaptures == 0 && lane.queued == 1,
+                     "a blocked clipboard import cannot stall local files; repeated file imports still decode once off main")
+        lane.run()
+        let clipboardDeadline = Date(timeIntervalSinceNow: 2)
+        while !host.imageImportsInProgress.isEmpty, Date() < clipboardDeadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.005))
+        }
+        suite.expect(clipboardCaptures == 1 && host.imageImportsInProgress.isEmpty,
+                     "the clipboard import remains on its lane and completes when that lane resumes")
     }
 }

@@ -718,17 +718,20 @@ final class ScreenshotService: ObservableObject {
         openEditor(with: capture)
     }
 
-    private var imageImportInProgress = false
+    private enum ImageImportSource: Hashable {
+        case clipboard, file
+    }
+    private var imageImportsInProgress: Set<ImageImportSource> = []
 
     private func openClipboardImage() {
-        importImage({ ScreenshotImageImport(pasteboard: .general) }) { [weak self] capture in
+        importImage({ ScreenshotImageImport(pasteboard: .general) }, from: .clipboard) { [weak self] capture in
             self?.openEditor(with: capture)
         }
     }
 
     /// Opens a picture from the shelf through the same size choice as the clipboard.
     func editImage(at url: URL) {
-        importImage({ ScreenshotImageImport(url: url) }) { capture in
+        importImage({ ScreenshotImageImport(url: url) }, from: .file) { capture in
             NotchService.shared.perform {
                 ScreenshotService.shared.openEditor(with: capture)
             }
@@ -736,17 +739,17 @@ final class ScreenshotService: ObservableObject {
     }
 
     private func importImage(_ read: @escaping () -> ScreenshotImageImport?,
+                             from source: ImageImportSource,
                              then completion: @escaping (ScreenshotSelectionController.Capture) -> Void) {
-        guard AppFeature.screenshot.isAvailable, !imageImportInProgress else { return }
-        imageImportInProgress = true
-        GeneralPasteboardAccess.shared.async({ autoreleasepool(invoking: read) }) { [weak self] input in
+        guard AppFeature.screenshot.isAvailable, imageImportsInProgress.insert(source).inserted else { return }
+        let imported: (ScreenshotImageImport?) -> Void = { [weak self] input in
             guard let self else { return }
             guard AppFeature.screenshot.isAvailable else {
-                self.imageImportInProgress = false
+                self.imageImportsInProgress.remove(source)
                 return
             }
             guard let input else {
-                self.imageImportInProgress = false
+                self.imageImportsInProgress.remove(source)
                 QuickToolHUD.show(icon: "photo", message: self.strings.imageImportFailed)
                 return
             }
@@ -763,14 +766,14 @@ final class ScreenshotService: ObservableObject {
                 let response = alert.runModal()
                 WindowActivationPolicy.release()
                 guard response == .alertFirstButtonReturn else {
-                    self.imageImportInProgress = false
+                    self.imageImportsInProgress.remove(source)
                     return
                 }
             }
             DispatchQueue.global(qos: .userInitiated).async {
                 let decoded = autoreleasepool { input.decode() }
                 DispatchQueue.main.async {
-                    self.imageImportInProgress = false
+                    self.imageImportsInProgress.remove(source)
                     guard AppFeature.screenshot.isAvailable else { return }
                     guard let decoded else {
                         QuickToolHUD.show(icon: "photo", message: self.strings.imageImportFailed)
@@ -779,6 +782,14 @@ final class ScreenshotService: ObservableObject {
                     completion(.init(image: decoded.image, scale: decoded.scale, anchorRect: .zero,
                                      sourceFormat: input.sourceFormat))
                 }
+            }
+        }
+        if source == .clipboard {
+            GeneralPasteboardAccess.shared.async({ autoreleasepool(invoking: read) }, then: imported)
+        } else {
+            DispatchQueue.global(qos: .userInitiated).async {
+                let input = autoreleasepool(invoking: read)
+                DispatchQueue.main.async { imported(input) }
             }
         }
     }
@@ -1045,12 +1056,14 @@ final class ScreenshotService: ObservableObject {
             downscaleTo1x: downscaleTo1x)
     }
 
-    /// Vends a full-resolution PNG for dragging into a folder or another app.
+    /// Vends a full-resolution image for dragging into a folder or another app.
     /// The temporary write begins only when the person starts the drag.
     static func dragItemProvider(image: CGImage,
                                  scale: CGFloat,
-                                 strings: ScreenshotFeatureStrings) -> NSItemProvider? {
-        guard let url = temporaryExportFile(image: image, scale: scale, strings: strings) else {
+                                 strings: ScreenshotFeatureStrings,
+                                 preferredFormat: MediaImageFormat = .png) -> NSItemProvider? {
+        guard let url = temporaryExportFile(image: image, scale: scale, strings: strings,
+                                           preferredFormat: preferredFormat) else {
             return nil
         }
         guard let provider = NSItemProvider(contentsOf: url) else {

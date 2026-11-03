@@ -1374,7 +1374,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 /// effect: clipboard, files, pins, text recognition and the close-confirm.
 final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     let model: ScreenshotEditorModel
-    private let sourceFormat: MediaImageFormat
+    let sourceFormat: MediaImageFormat
     private var window: NSWindow?
     private var keyMonitor: Any?
     private var scrollMonitor: Any?

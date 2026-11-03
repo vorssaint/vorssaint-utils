@@ -3,10 +3,11 @@
 
 import AppKit
 import ImageIO
+import UniformTypeIdentifiers
 
 enum ScreenshotImageFileTests {
     enum UserDefaults {
-        static let domain = "Vorssaint.ScreenshotImageFileTests.\(UUID().uuidString)"
+        static let domain = "com.vorssaint.tests.screenshot-image-file.\(UUID().uuidString)"
         static let standard = Foundation.UserDefaults(suiteName: domain)!
     }
     final class Service {
@@ -71,10 +72,45 @@ enum ScreenshotImageFileTests {
             let dragSource = CGImageSourceCreateWithURL(dragged as CFURL, nil)
             suite.expect(dragged.pathExtension == "jpg" && dragSource.flatMap(CGImageSourceGetType) as String? == "public.jpeg",
                          "drag files use matching JPEG bytes and extension")
+            checkDrag(Service.dragItemProvider(image: opaque, scale: 2, strings: .enUS,
+                                               preferredFormat: .jpeg), format: .jpeg, suite: suite)
+            checkDrag(Service.dragItemProvider(image: opaque, scale: 2, strings: .enUS),
+                      format: .png, suite: suite)
+            context.clear(CGRect(x: 3, y: 4, width: 1, height: 1))
+            checkDrag(Service.dragItemProvider(image: context.makeImage()!, scale: 2,
+                                               strings: .enUS, preferredFormat: .jpeg),
+                      format: .png, suite: suite)
         } catch {
             suite.expect(false, "file-output fixtures: \(error)")
         }
         transparency(suite)
+    }
+
+    private static func checkDrag(_ provider: NSItemProvider?, format: MediaImageFormat, suite: TestSuite) {
+        guard let provider, provider.hasItemConformingToTypeIdentifier(format.contentType.identifier) else {
+            suite.expect(false, "the drag provider advertises the source format or transparent PNG fallback")
+            return
+        }
+        var finished = false
+        var matches = false
+        provider.loadInPlaceFileRepresentation(forTypeIdentifier: format.contentType.identifier) { url, inPlace, error in
+            let source = url.flatMap { CGImageSourceCreateWithURL($0 as CFURL, nil) }
+            let valid = error == nil && url.flatMap { UTType(filenameExtension: $0.pathExtension) } == format.contentType
+                && source.flatMap(CGImageSourceGetType) as String? == format.contentType.identifier
+            if inPlace, let folder = url?.deletingLastPathComponent(),
+               folder.lastPathComponent.hasPrefix("ScreenshotDrag-") {
+                try? FileManager.default.removeItem(at: folder)
+            }
+            DispatchQueue.main.async {
+                matches = valid
+                finished = true
+            }
+        }
+        let deadline = Date(timeIntervalSinceNow: 2)
+        while !finished, Date() < deadline {
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.005))
+        }
+        suite.expect(finished && matches, "the drag provider delivers matching bytes and extension for \(format.rawValue)")
     }
 
     private static func transparency(_ suite: TestSuite) {

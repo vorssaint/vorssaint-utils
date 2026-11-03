@@ -223,6 +223,8 @@ def main():
                         "    static func clipboardImage(")
           + "}\n")
     write("ScreenshotImageImportFlow.swift", "import AppKit\nextension ScreenshotImageImportTests.Flow {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+                        "    private enum ImageImportSource:").replace("private enum", "enum", 1)
           + "final class Host: State {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
                         "    private func importImage(").replace("private func importImage", "func importImage", 1)
@@ -230,7 +232,8 @@ def main():
     editor = "Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift"
     write("ScreenshotImageFileOutput.swift", "import AppKit\nextension ScreenshotImageFileTests.Service {\n"
           + "".join(declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift", prefix)
-                    for prefix in ["    static func temporaryExportFile(", "    static func saveDestination(",
+                    for prefix in ["    static func dragItemProvider(", "    static func temporaryExportFile(",
+                                   "    static func saveDestination(",
                                    "    private static func fileName("])
           + "}\n")
     write("ScreenshotClipboard.swift", "import AppKit\nextension ScreenshotClipboardTests {\n"
