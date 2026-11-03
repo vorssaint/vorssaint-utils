@@ -510,6 +510,12 @@ struct Strings {
     let largeFilesOneYear: String
     let largeFilesNone: String
     let largeFilesMoveToTrash: String
+    let largeFilesSafeReplaceable: String
+    let largeFilesSafeYours: String
+    let largeFilesSafeCheck: String
+    let largeFilesOpensWithFormat: String
+    let largeFilesDownloadedFromFormat: String
+    let largeFilesAddedFormat: String
     let duplicatesName: String
     let duplicatesIntro: String
     let duplicatesScan: String
@@ -525,6 +531,9 @@ struct Strings {
     let startupRefresh: String
     let startupLocked: String
     let startupFailed: String
+    let startupLeftover: String
+    let startupAtLogin: String
+    let startupOnDemand: String
     let uninstallerPickerEmpty: String
     let uninstallerEmptyNote: String
     let uninstallerFDANote: String
@@ -1696,6 +1705,12 @@ extension Strings {
         largeFilesOneYear: "1 ano",
         largeFilesNone: "Nenhum arquivo grande encontrado",
         largeFilesMoveToTrash: "Mover para a Lixeira",
+        largeFilesSafeReplaceable: "Geralmente pode ser baixado de novo",
+        largeFilesSafeYours: "Seu próprio arquivo, pode ser a única cópia",
+        largeFilesSafeCheck: "Confira antes de remover",
+        largeFilesOpensWithFormat: "Abre com %@",
+        largeFilesDownloadedFromFormat: "Baixado de %@",
+        largeFilesAddedFormat: "Adicionado em %@",
         duplicatesName: "Duplicados",
         duplicatesIntro: "Encontre arquivos idênticos na sua pasta pessoal. Uma cópia de cada arquivo sempre fica, e as cópias removidas vão para a Lixeira.",
         duplicatesScan: "Encontrar duplicados",
@@ -1711,6 +1726,9 @@ extension Strings {
         startupRefresh: "Atualizar",
         startupLocked: "Faz parte do macOS ou do Vorssaint, então não pode ser alterado aqui",
         startupFailed: "Não foi possível alterar",
+        startupLeftover: "App não encontrado, provavelmente um resto",
+        startupAtLogin: "Inicia quando você entra",
+        startupOnDemand: "Inicia só quando necessário",
         uninstallerPickerEmpty: "Nenhum app encontrado",
         uninstallerEmptyNote: "Nada é removido sem a sua confirmação.",
         uninstallerFDANote: "Conceda Acesso Total ao Disco para uma análise mais completa.",
@@ -2846,6 +2864,12 @@ extension Strings {
         largeFilesOneYear: "1 year",
         largeFilesNone: "No large files found",
         largeFilesMoveToTrash: "Move to Trash",
+        largeFilesSafeReplaceable: "Can usually be downloaded again",
+        largeFilesSafeYours: "Your own file, may be the only copy",
+        largeFilesSafeCheck: "Check before removing",
+        largeFilesOpensWithFormat: "Opens with %@",
+        largeFilesDownloadedFromFormat: "Downloaded from %@",
+        largeFilesAddedFormat: "Added %@",
         duplicatesName: "Duplicates",
         duplicatesIntro: "Find identical files in your home folder. One copy of each file always stays, and removed copies go to the Trash.",
         duplicatesScan: "Find duplicates",
@@ -2861,6 +2885,9 @@ extension Strings {
         startupRefresh: "Refresh",
         startupLocked: "Part of macOS or Vorssaint, so it cannot be changed here",
         startupFailed: "Could not change",
+        startupLeftover: "App not found, probably a leftover",
+        startupAtLogin: "Starts when you log in",
+        startupOnDemand: "Starts only when needed",
         uninstallerPickerEmpty: "No apps found",
         uninstallerEmptyNote: "Nothing is removed without your confirmation.",
         uninstallerFDANote: "Grant Full Disk Access for a more thorough scan.",

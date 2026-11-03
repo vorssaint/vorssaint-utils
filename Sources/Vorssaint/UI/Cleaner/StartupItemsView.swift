@@ -60,8 +60,14 @@ struct StartupItemsView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
             .disabled(!item.canToggle || manager.isLoading)
+            Image(nsImage: icon(for: item))
+                .resizable().frame(width: 22, height: 22)
             VStack(alignment: .leading, spacing: 1) {
-                Text(item.label).font(.system(size: 12.5)).lineLimit(1).truncationMode(.middle)
+                Text(item.displayName).font(.system(size: 12.5)).lineLimit(1).truncationMode(.middle)
+                Label(statusText(item.status), systemImage: statusIcon(item.status))
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(item.status == .leftover ? Color.orange : Color.secondary)
+                    .lineLimit(1)
                 Text(item.program)
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
@@ -84,5 +90,38 @@ struct StartupItemsView: View {
             .accessibilityLabel(l10n.s.cleanerRevealInFinder)
         }
         .padding(.vertical, 2)
+        .help(detailsHelp(item))
+    }
+
+    private func statusText(_ status: StartupItemSupport.Status) -> String {
+        switch status {
+        case .leftover: return l10n.s.startupLeftover
+        case .atLogin: return l10n.s.startupAtLogin
+        case .onDemand: return l10n.s.startupOnDemand
+        }
+    }
+
+    private func statusIcon(_ status: StartupItemSupport.Status) -> String {
+        switch status {
+        case .leftover: return "questionmark.app"
+        case .atLogin: return "power"
+        case .onDemand: return "clock"
+        }
+    }
+
+    /// The owning app's icon when there is one, else the program's own icon.
+    private func icon(for item: StartupItemsManager.Item) -> NSImage {
+        let path = StartupItemSupport.owningApp(ofProgram: item.program)?.path ?? item.program
+        return NSWorkspace.shared.icon(forFile: path)
+    }
+
+    /// The technical details kept out of the row, shown when hovering over it.
+    private func detailsHelp(_ item: StartupItemsManager.Item) -> String {
+        var lines = [item.displayName, item.label, item.program, statusText(item.status)]
+        if let added = item.added {
+            lines.append(String(format: l10n.s.largeFilesAddedFormat,
+                                added.formatted(date: .abbreviated, time: .omitted)))
+        }
+        return lines.filter { !$0.isEmpty }.joined(separator: "\n")
     }
 }

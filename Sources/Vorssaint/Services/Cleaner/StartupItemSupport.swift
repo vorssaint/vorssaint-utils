@@ -29,6 +29,46 @@ enum StartupItemSupport {
         return lowered.hasPrefix("com.apple.") || lowered.hasPrefix("com.vorssaint")
     }
 
+    /// The app bundle a program sits inside, if any: the first path part that
+    /// ends in ".app", with the path up to and including it.
+    static func owningApp(ofProgram program: String) -> (name: String, path: String)? {
+        let parts = program.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        guard let index = parts.firstIndex(where: { $0.lowercased().hasSuffix(".app") && $0.count > 4 }) else {
+            return nil
+        }
+        let name = String(parts[index].dropLast(4))
+        let path = "/" + parts[...index].joined(separator: "/")
+        return (name, path)
+    }
+
+    /// The name shown for a row: the owning app, else the program's file name,
+    /// else the raw label as a last resort.
+    static func displayName(program: String, label: String) -> String {
+        if let app = owningApp(ofProgram: program) { return app.name }
+        let file = (program as NSString).lastPathComponent
+        return file.isEmpty ? label : file
+    }
+
+    /// A program can only be called missing when it is an absolute path that
+    /// does not exist. A bare command name is looked up by launchd, so it is
+    /// never judged here.
+    static func isProgramMissing(_ program: String, exists: Bool) -> Bool {
+        program.hasPrefix("/") && !exists
+    }
+
+    /// What the row says about when the entry runs.
+    enum Status: Equatable {
+        /// Its program is gone: most likely left behind by a removed app.
+        case leftover
+        case atLogin
+        case onDemand
+    }
+
+    static func status(programMissing: Bool, runAtLoad: Bool) -> Status {
+        if programMissing { return .leftover }
+        return runAtLoad ? .atLogin : .onDemand
+    }
+
     /// Reads one launch agent plist. Returns nil for anything without a
     /// usable label.
     static func entry(from plist: [String: Any]) -> Entry? {

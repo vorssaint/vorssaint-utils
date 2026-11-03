@@ -104,7 +104,15 @@ struct LargeFilesView: View {
                 .resizable().frame(width: 22, height: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.name).font(.system(size: 12.5)).lineLimit(1).truncationMode(.middle)
-                Text(prettyFolder(item.url))
+                Label(safetyText(item.details.safety), systemImage: safetyIcon(item.details.safety))
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(safetyColor(item.details.safety))
+                    .lineLimit(1)
+                Text(summaryLine(item))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.tail)
+                Text(locationLine(item))
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1).truncationMode(.head)
@@ -122,7 +130,7 @@ struct LargeFilesView: View {
                 .font(.system(size: 11.5)).foregroundStyle(.secondary).monospacedDigit()
         }
         .padding(.vertical, 2)
-        .help(lastOpenedHelp(item))
+        .help(detailsHelp(item))
     }
 
     private var footer: some View {
@@ -170,10 +178,66 @@ struct LargeFilesView: View {
         }
     }
 
-    private func lastOpenedHelp(_ item: LargeFileFinder.Item) -> String {
+    private func lastOpenedText(_ item: LargeFileFinder.Item, time: Date.FormatStyle.TimeStyle) -> String {
         guard let date = item.lastOpened else { return l10n.s.uninstallerNeverUsed }
         return String(format: l10n.s.uninstallerLastUsedFormat,
-                      date.formatted(date: .abbreviated, time: .shortened))
+                      date.formatted(date: .abbreviated, time: time))
+    }
+
+    private func safetyText(_ safety: LargeFileSupport.Safety) -> String {
+        switch safety {
+        case .replaceable: return l10n.s.largeFilesSafeReplaceable
+        case .yours: return l10n.s.largeFilesSafeYours
+        case .check: return l10n.s.largeFilesSafeCheck
+        }
+    }
+
+    private func safetyIcon(_ safety: LargeFileSupport.Safety) -> String {
+        switch safety {
+        case .replaceable: return "arrow.down.circle"
+        case .yours: return "person.crop.circle"
+        case .check: return "exclamationmark.circle"
+        }
+    }
+
+    private func safetyColor(_ safety: LargeFileSupport.Safety) -> Color {
+        switch safety {
+        case .replaceable: return .green
+        case .yours: return .blue
+        case .check: return .orange
+        }
+    }
+
+    /// Kind, the app that opens it and when it was last used, in one line.
+    private func summaryLine(_ item: LargeFileFinder.Item) -> String {
+        var parts: [String] = []
+        if let kind = item.details.kind { parts.append(kind) }
+        if let app = item.details.opensWith { parts.append(String(format: l10n.s.largeFilesOpensWithFormat, app)) }
+        parts.append(lastOpenedText(item, time: .omitted))
+        return parts.joined(separator: " · ")
+    }
+
+    /// The folder it sits in and, for downloads, the website it came from.
+    private func locationLine(_ item: LargeFileFinder.Item) -> String {
+        var parts = [prettyFolder(item.url)]
+        if let host = item.details.downloadedFrom {
+            parts.append(String(format: l10n.s.largeFilesDownloadedFromFormat, host))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Everything known about the file, shown when hovering over its row.
+    private func detailsHelp(_ item: LargeFileFinder.Item) -> String {
+        var lines = [item.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"),
+                     safetyText(item.details.safety), summaryLine(item), lastOpenedText(item, time: .shortened)]
+        if let host = item.details.downloadedFrom {
+            lines.append(String(format: l10n.s.largeFilesDownloadedFromFormat, host))
+        }
+        if let added = item.details.added {
+            lines.append(String(format: l10n.s.largeFilesAddedFormat,
+                                added.formatted(date: .abbreviated, time: .omitted)))
+        }
+        return lines.joined(separator: "\n")
     }
 
     private func prettyFolder(_ url: URL) -> String {

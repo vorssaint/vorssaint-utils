@@ -47,6 +47,28 @@ enum LargeFileSupportTests {
                      && !LargeFileSupport.mayRemove(home.appendingPathComponent("../other/file.bin"), home: home),
                      "a sibling folder with a similar name or a dot-dot path is refused")
 
+        func hint(_ name: String) -> LargeFileSupport.Safety {
+            LargeFileSupport.safety(of: home.appendingPathComponent(name))
+        }
+        suite.expect(hint("Downloads/App.DMG") == .replaceable && hint("a/b.zip") == .replaceable
+                     && hint("Downloads/win.iso") == .replaceable,
+                     "installers and archives are marked as replaceable, whatever the letter case")
+        suite.expect(hint("Movies/trip.mov") == .yours && hint("Documents/report.pdf") == .yours
+                     && hint("Pictures/shot.HEIC") == .yours,
+                     "media and documents are marked as your own files")
+        suite.expect(hint("VMs/disk.vmdk") == .check && hint("Mail/archive.pst") == .check
+                     && hint("data/app.sqlite") == .check && hint("misc/noextension") == .check
+                     && hint("misc/blob.bin") == .check,
+                     "virtual disks, databases, mail stores and unknown types ask for a check")
+
+        suite.expect(LargeFileSupport.sourceHost(from: ["https://dl.example.com/path/file.dmg", "https://example.com/"])
+                     == "dl.example.com"
+                     && LargeFileSupport.sourceHost(from: nil) == nil
+                     && LargeFileSupport.sourceHost(from: []) == nil
+                     && LargeFileSupport.sourceHost(from: ["not a url"]) == nil
+                     && LargeFileSupport.sourceHost(from: ["mailto:someone@example.com"]) == nil,
+                     "the download source is the first website address, and only the host is kept")
+
         let ranked = LargeFileSupport.ranked(Array(0..<(LargeFileSupport.maxResults + 50))) { Int64($0) }
         suite.expect(ranked.count == LargeFileSupport.maxResults
                      && ranked.first == LargeFileSupport.maxResults + 49,

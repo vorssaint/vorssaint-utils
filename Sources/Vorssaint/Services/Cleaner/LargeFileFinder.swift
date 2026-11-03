@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
+import CoreServices
 import Foundation
 
 /// Finds big files in the home folder and moves the ones you tick to the
@@ -21,6 +23,7 @@ final class LargeFileFinder: ObservableObject {
         let url: URL
         let size: Int64
         let lastOpened: Date?
+        var details = Details()
         var include = false
 
         var name: String { url.lastPathComponent }
@@ -28,6 +31,16 @@ final class LargeFileFinder: ObservableObject {
         static func == (lhs: Item, rhs: Item) -> Bool {
             lhs.id == rhs.id && lhs.include == rhs.include
         }
+    }
+
+    /// What helps a person decide: what the file is, which app opens it, where
+    /// it came from and when it was added. All of it is read, never guessed.
+    struct Details: Equatable {
+        var kind: String?
+        var opensWith: String?
+        var downloadedFrom: String?
+        var added: Date?
+        var safety: LargeFileSupport.Safety = .check
     }
 
     @Published private(set) var phase: Phase = .idle
@@ -134,6 +147,30 @@ final class LargeFileFinder: ObservableObject {
                                              now: now) else { continue }
             found.append(Item(url: url, size: size, lastOpened: values.contentAccessDate))
         }
-        return LargeFileSupport.ranked(found) { $0.size }
+        // Only the capped top of the list is looked at in detail.
+        return LargeFileSupport.ranked(found) { $0.size }.map { enrich($0) }
+    }
+
+    /// Adds the details and prefers Spotlight's last used date, which is the
+    /// last time the file was actually opened, over the raw access time.
+    private static func enrich(_ item: Item) -> Item {
+        var details = Details()
+        details.safety = LargeFileSupport.safety(of: item.url)
+        details.kind = (try? item.url.resourceValues(forKeys: [.localizedTypeDescriptionKey]))?
+            .localizedTypeDescription
+        if let app = NSWorkspace.shared.urlForApplication(toOpen: item.url) {
+            details.opensWith = FileManager.default.displayName(atPath: app.path)
+                .replacingOccurrences(of: ".app", with: "")
+        }
+        var lastUsed = item.lastOpened
+        if let mdItem = MDItemCreateWithURL(nil, item.url as CFURL) {
+            details.downloadedFrom = LargeFileSupport.sourceHost(
+                from: MDItemCopyAttribute(mdItem, kMDItemWhereFroms) as? [String])
+            details.added = MDItemCopyAttribute(mdItem, kMDItemDateAdded) as? Date
+            if let used = MDItemCopyAttribute(mdItem, kMDItemLastUsedDate) as? Date { lastUsed = used }
+        }
+        var enriched = Item(url: item.url, size: item.size, lastOpened: lastUsed)
+        enriched.details = details
+        return enriched
     }
 }

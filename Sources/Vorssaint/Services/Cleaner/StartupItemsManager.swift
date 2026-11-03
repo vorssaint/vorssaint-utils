@@ -16,6 +16,15 @@ final class StartupItemsManager: ObservableObject {
         let plistURL: URL
         let isUserAgent: Bool
         var isEnabled: Bool
+        /// The program file no longer exists (see `StartupItemSupport.isProgramMissing`).
+        var programMissing = false
+        /// When the agent file was created, a good guide to when it was installed.
+        var added: Date?
+
+        var displayName: String { StartupItemSupport.displayName(program: program, label: label) }
+        var status: StartupItemSupport.Status {
+            StartupItemSupport.status(programMissing: programMissing, runAtLoad: runAtLoad)
+        }
 
         /// Whether the switch can be used: a user agent with a safe label
         /// that is not part of macOS or this app.
@@ -90,9 +99,13 @@ final class StartupItemsManager: ObservableObject {
             for url in urls where url.pathExtension == "plist" {
                 guard let dictionary = NSDictionary(contentsOf: url) as? [String: Any],
                       let entry = StartupItemSupport.entry(from: dictionary) else { continue }
+                let missing = StartupItemSupport.isProgramMissing(
+                    entry.program, exists: FileManager.default.fileExists(atPath: entry.program))
+                let added = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate
                 result.append(Item(label: entry.label, program: entry.program, runAtLoad: entry.runAtLoad,
                                    plistURL: url, isUserAgent: isUser,
-                                   isEnabled: !(overrides[entry.label] ?? entry.plistDisabled)))
+                                   isEnabled: !(overrides[entry.label] ?? entry.plistDisabled),
+                                   programMissing: missing, added: added))
             }
         }
         return result.sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }

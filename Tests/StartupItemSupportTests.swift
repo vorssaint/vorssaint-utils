@@ -53,6 +53,30 @@ enum StartupItemSupportTests {
                          "com.vendor.legacy": true, "com.vendor.legacyoff": false],
                      "launchctl's override list is read in both wordings, enabled entries included")
 
+        suite.expect(StartupItemSupport.owningApp(ofProgram: "/Applications/Some Tool.app/Contents/MacOS/helper")?.name
+                     == "Some Tool"
+                     && StartupItemSupport.owningApp(ofProgram: "/Applications/Some Tool.app/Contents/MacOS/helper")?.path
+                     == "/Applications/Some Tool.app"
+                     && StartupItemSupport.owningApp(ofProgram: "/usr/local/bin/helper") == nil
+                     && StartupItemSupport.owningApp(ofProgram: "/opt/.app/x") == nil
+                     && StartupItemSupport.owningApp(ofProgram: "") == nil,
+                     "the app a program belongs to is the first .app folder in its path")
+        suite.expect(StartupItemSupport.displayName(program: "/Applications/Foo.app/Contents/MacOS/foo", label: "com.v.foo")
+                     == "Foo"
+                     && StartupItemSupport.displayName(program: "/usr/local/bin/sync-helper", label: "com.v.sync")
+                     == "sync-helper"
+                     && StartupItemSupport.displayName(program: "", label: "com.v.sync") == "com.v.sync",
+                     "a row is named after its app, else its program, else its label")
+        suite.expect(StartupItemSupport.isProgramMissing("/gone/tool", exists: false)
+                     && !StartupItemSupport.isProgramMissing("/here/tool", exists: true)
+                     && !StartupItemSupport.isProgramMissing("sh", exists: false)
+                     && !StartupItemSupport.isProgramMissing("", exists: false),
+                     "only an absolute path that does not exist counts as missing")
+        suite.expect(StartupItemSupport.status(programMissing: true, runAtLoad: true) == .leftover
+                     && StartupItemSupport.status(programMissing: false, runAtLoad: true) == .atLogin
+                     && StartupItemSupport.status(programMissing: false, runAtLoad: false) == .onDemand,
+                     "a missing program is a leftover, otherwise the entry starts at login or on demand")
+
         suite.expect(StartupItemSupport.disableCommands(uid: 501, label: "com.vendor.helper")
                      == [["disable", "gui/501/com.vendor.helper"], ["bootout", "gui/501/com.vendor.helper"]]
                      && StartupItemSupport.enableCommands(uid: 501, label: "com.vendor.helper", plistPath: "/p/a.plist")
