@@ -47,6 +47,9 @@ final class CleaningModeManager: ObservableObject {
     /// Consecutive Escape presses so far (0...unlockThreshold). The
     /// overlay shows this as progress.
     @Published private(set) var unlockProgress = 0
+    /// True when macOS refused this feature's global shortcut (the
+    /// combination belongs to another app), so its settings can say so.
+    @Published private(set) var shortcutRegistrationFailed = false
 
     /// Deliberate Escape presses needed to unlock. Other keys reset the count so
     /// wiping the keyboard cannot complete the gesture accidentally.
@@ -62,6 +65,11 @@ final class CleaningModeManager: ObservableObject {
     private var mouseReleaseGate = CleaningMouseReleaseGate()
     /// Ends a user unlock's wait for a release this tap never sees.
     private var releaseDeadline: DispatchWorkItem?
+    /// The global shortcut that turns Cleaning mode on. While the lock is up
+    /// this tap swallows every key before the system matches hotkeys, so the
+    /// same combination cannot also be the way out — the unlock gesture and
+    /// the overlay button stay the two escapes, on purpose.
+    private let hotkey = QuickToolHotkey(id: 82)
 
     /// The unlock-gesture state machine (pure, unit-tested separately).
     /// The 6s press window forgives hesitant, deliberate presses — at 2s a user
@@ -77,6 +85,7 @@ final class CleaningModeManager: ObservableObject {
                                                     pressWindow: 6.0)
 
     private init() {
+        hotkey.onPress = { [weak self] in self?.toggle() }
         // A switched-away login session cannot keep a filter tap in the input
         // chain. Cleaning is a temporary local state, so leaving the session
         // ends it; suspended features resume only after this session returns.
@@ -93,6 +102,23 @@ final class CleaningModeManager: ObservableObject {
     }
 
     func toggle() { isActive ? deactivate() : activate() }
+
+    /// Applies the shortcut preference. Follows the quick tools' pattern: the
+    /// registration needs no Accessibility, only the lock itself does.
+    func syncWithPreferences() {
+        let enabled = AppFeature.cleaningMode.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.cleaningModeShortcutEnabled)
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.cleaningModeShortcut,
+                                            fallback: .cleaningModeDefault)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.cleaningModeShortcut)
+    }
+
+    /// Releases the global shortcut, the way the other quick tools step aside
+    /// while a shortcut field is listening.
+    func suspend() {
+        hotkey.unregister()
+    }
 
     /// Starts the lock. No-op (and guides the user) when Accessibility is missing,
     /// because without the tap there would be no way to unlock the keyboard.

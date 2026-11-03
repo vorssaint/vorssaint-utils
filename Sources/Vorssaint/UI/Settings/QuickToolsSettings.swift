@@ -13,6 +13,7 @@ struct QuickToolsSettings: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var cameraPreview = CameraPreviewService.shared
     @ObservedObject private var scratchpad = ScratchpadService.shared
+    @ObservedObject private var cleaningMode = CleaningModeManager.shared
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
@@ -26,6 +27,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadTextSize) private var scratchpadTextSize = ScratchpadSupport.defaultTextSize
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
+    @AppStorage(DefaultsKey.cleaningModeShortcutEnabled) private var cleaningShortcutEnabled = false
 
     var body: some View {
         Form {
@@ -328,6 +330,19 @@ struct QuickToolsSettings: View {
                     Text(l10n.s.cleaningKeepScreenVisibleCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Toggle(l10n.s.quickToolShortcutToggle, isOn: $cleaningShortcutEnabled)
+                        .onChange(of: cleaningShortcutEnabled) { _, _ in
+                            CleaningModeManager.shared.syncWithPreferences()
+                        }
+                    ShortcutPreferenceRow(role: .cleaningMode,
+                                          isEnabled: cleaningShortcutEnabled) {
+                        CleaningModeManager.shared.syncWithPreferences()
+                    }
+                    if cleaningShortcutEnabled, cleaningMode.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 } header: {
                     Text(l10n.s.cleaningMenuItem)
                 }
