@@ -3681,11 +3681,11 @@ enum NotchTests {
                "the next refresh chooses the nearest future event boundary")
         let lead = NotchCalendarSupport.countdownLeadTime(in: defaults)
         let hour: TimeInterval = 3600
-        suite.expect(lead == 600 && NotchCalendarSupport.defaultCountdownLeadMinutes == 10
-                     && NotchCalendarSupport.countdownLeadPresets == [10, 15, 30, 60, 120]
+        suite.expect(lead == 3600 && NotchCalendarSupport.defaultCountdownLeadMinutes == 60
+                     && NotchCalendarSupport.countdownLeadPresets == [15, 30, 60, 120]
                      && NotchCalendarSupport.timeLeftLeadTime == 3600
                      && NotchCalendarSupport.startingLeadTime == 60,
-                     "a start defaults to a ten minute lead with presets, and an end always has its hour")
+                     "a start keeps its hour lead until another is chosen, and an end always has its hour")
         func countdownFor(_ events: [NotchCalendarEvent], at offset: Double = 0, starts: Bool = true,
                           ends: Bool = false, lead leadTime: TimeInterval = lead) -> NotchCalendarCountdown? {
             NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends,
@@ -3716,8 +3716,7 @@ enum NotchTests {
                      "a refresh is scheduled when the lead window opens and when the starting minute begins")
         let in45 = event("in 45", 45 * 60, 75 * 60)
         let in90 = event("in 90", 90 * 60, 120 * 60)
-        suite.expect(countdownFor([in45], lead: 1800) == nil && countdownFor([in45]) == nil
-                     && countdownFor([in45], lead: hour)?.event == in45
+        suite.expect(countdownFor([in45], lead: 1800) == nil && countdownFor([in45])?.event == in45
                      && countdownFor([in45], lead: 7200)?.event == in45,
                      "an event 45 minutes away waits for a 30 minute lead and shows with one or two hours")
         suite.expect(countdownFor([in90], lead: 1800) == nil && countdownFor([in90]) == nil
@@ -3826,7 +3825,7 @@ enum NotchTests {
                         .hasPrefix("·")
                      && endText == "→\u{2009}" + meeting.end.formatted(.dateTime.hour().minute().locale(posix)),
                      "the time beside the clock is when the next event starts or when the current one ends")
-        suite.expect(NotchCalendarSupport.countdownText(until: now.addingTimeInterval(lead), now: now) == "10:00"
+        suite.expect(NotchCalendarSupport.countdownText(until: now.addingTimeInterval(lead), now: now) == "60:00"
                      && NotchCalendarSupport.countdownText(until: now.addingTimeInterval(61), now: now) == "1:01"
                      && NotchCalendarSupport.countdownText(until: now, now: now) == "0:00",
                      "the compact clock includes seconds and never shows negative time")

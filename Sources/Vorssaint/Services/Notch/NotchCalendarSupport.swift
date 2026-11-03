@@ -77,8 +77,8 @@ enum NotchCalendarSupport {
 
     /// Minutes before a start the countdown appears; the settings menu
     /// offers the presets, and any stored value is held to the range.
-    static let defaultCountdownLeadMinutes = 10
-    static let countdownLeadPresets = [10, 15, 30, 60, 120]
+    static let defaultCountdownLeadMinutes = 60
+    static let countdownLeadPresets = [15, 30, 60, 120]
     static let countdownLeadRange = 5...240
 
     /// The final minute before a start reads as "starting" on the strip and
