@@ -404,12 +404,16 @@ enum ScreenshotSupport {
     static func scrollingSamplesAreStable(_ previous: ScrollingSample,
                                           _ current: ScrollingSample,
                                           contentColumns: Range<Int>? = nil) -> Bool {
-        previous.isValid && current.isValid
-            && previous.width == current.width
-            && previous.height == current.height
-            && scrollingDifference(previous,
-                                   current,
-                                   columns: contentColumns ?? 0..<previous.width) <= 1.5
+        guard previous.isValid, current.isValid,
+              previous.width == current.width,
+              previous.height == current.height else { return false }
+        let columns = contentColumns ?? 0..<previous.width
+        guard columns.lowerBound >= 0, columns.upperBound <= previous.width,
+              !columns.isEmpty else { return false }
+        // Empty space must not dilute movement in a narrow column of text.
+        return scrollingColumnTiles(in: columns, sampleWidth: previous.width).allSatisfy {
+            scrollingDifference(previous, current, columns: $0) <= 1.5
+        }
     }
 
     /// Finds how many rows two successive views share. The calculation is
@@ -455,6 +459,43 @@ enum ScreenshotSupport {
         }
 
         let tiles = scrollingColumnTiles(in: columns, sampleWidth: previous.width)
+        if previous.width > 32 {
+            // Keep native detail where pixels actually change, instead of
+            // shrinking a wide Terminal until different digits look alike.
+            // Limit the expensive offset search to 32 representative columns.
+            let selected: [(column: Int, bounds: Range<Int>)]
+            if columns.count <= 32 {
+                selected = columns.map { ($0, $0..<($0 + 1)) }
+            } else {
+                let perTile = max(1, 32 / tiles.count)
+                selected = tiles.flatMap { tile in
+                    tile.map { column in
+                        (column: column, difference: scrollingDifference(
+                            previous, current, columns: column..<(column + 1)))
+                    }.sorted {
+                        if $0.difference != $1.difference { return $0.difference > $1.difference }
+                        return $0.column < $1.column
+                    }.prefix(perTile).map(\.column).sorted().map { ($0, tile) }
+                }
+            }
+            func compact(_ sample: ScrollingSample) -> ScrollingSample {
+                var pixels = [UInt8]()
+                pixels.reserveCapacity(selected.count * sample.height)
+                for row in 0..<sample.height {
+                    let start = row * sample.width
+                    for selection in selected { pixels.append(sample.pixels[start + selection.column]) }
+                }
+                return .init(width: selected.count, height: sample.height, pixels: pixels)
+            }
+            let transition = scrollingTransition(previous: compact(previous), current: compact(current))
+            if case .advanced(let overlap, let direction, let matched) = transition {
+                let lower = selected[matched.lowerBound].bounds.lowerBound
+                let upper = selected[matched.upperBound - 1].bounds.upperBound
+                return .advanced(overlap: overlap, direction: direction,
+                                 contentColumns: lower..<upper)
+            }
+            return transition
+        }
         let movingTiles = tiles.filter {
             scrollingDifference(previous, current, columns: $0) > 1.5
         }
@@ -500,9 +541,12 @@ enum ScreenshotSupport {
             if $0.supportingTiles != $1.supportingTiles {
                 return $0.supportingTiles > $1.supportingTiles
             }
+            // Similar digits can pass the row tolerance at a wrong offset.
+            // Prefer the closer pixel match before rewarding a longer overlap,
+            // which otherwise biases sparse text toward a shorter scroll.
+            if $0.difference != $1.difference { return $0.difference < $1.difference }
             if $0.longestRun != $1.longestRun { return $0.longestRun > $1.longestRun }
-            if $0.matchingRows != $1.matchingRows { return $0.matchingRows > $1.matchingRows }
-            return $0.difference < $1.difference
+            return $0.matchingRows > $1.matchingRows
         }
 
         let best = matches[0]
@@ -511,16 +555,20 @@ enum ScreenshotSupport {
             return .unmatched
         }
 
-        // Repeated blank bands can look equally good at several offsets. A
-        // unique match is required instead of guessing and creating a seam.
-        if let rival = matches.dropFirst().first(where: {
-            $0.reversed != best.reversed || abs($0.advance - best.advance) > 2
-        }),
-           rival.contentColumns.count >= best.contentColumns.count - 1,
-           rival.supportingTiles >= best.supportingTiles - 1,
-           rival.longestRun >= best.longestRun - 2,
-           rival.matchingRows >= best.matchingRows - max(3, best.supportingTiles * 3),
-           rival.difference <= best.difference + 0.75 {
+        // Repeated content can match equally well over different lengths.
+        // Require comparable support so a short blank band does not veto a
+        // longer match, but reject any equally precise, substantial rival.
+        // Scale the error margin down for precise matches: an approximate
+        // low-contrast pattern must not veto an exact overlap.
+        let ambiguityTolerance = min(0.75, best.difference)
+        if matches.dropFirst().contains(where: { rival in
+            (rival.reversed != best.reversed || abs(rival.advance - best.advance) > 2)
+                && rival.contentColumns.count >= best.contentColumns.count - 1
+                && rival.supportingTiles >= best.supportingTiles - 1
+                && rival.longestRun >= max(requiredRun, best.longestRun / 2)
+                && rival.matchingRows >= max(requiredRun, best.matchingRows / 2)
+                && rival.difference <= best.difference + ambiguityTolerance
+        }) {
             return .unmatched
         }
         return .advanced(overlap: height - best.advance,
@@ -690,7 +738,10 @@ enum ScreenshotSupport {
                                        columns: Range<Int>,
                                        differences: [Float]) -> ScrollingRowMatch? {
         let width = previous.width
-        let edgeInset = max(2, previous.height / 10)
+        // Trim the shared rows, not the whole viewport. A viewport-sized inset
+        // can erase a valid smaller overlap and strand a long capture on its
+        // last accepted frame, or favor a blank band at the wrong offset.
+        let edgeInset = max(2, (previous.height - advance) / 10)
         let lastRow = previous.height - advance - edgeInset
         guard lastRow > edgeInset,
               columns.lowerBound >= 0,
@@ -708,22 +759,25 @@ enum ScreenshotSupport {
         var longestRun = 0
         var run = 0
         var matchingRows = 0
+        var totalDifference: Float = 0
         let threshold = Float(columns.count * 8)
         rowDifferences.withUnsafeBufferPointer { rows in
             var row = 0
             while row < rowCount {
                 if rows[row] <= threshold {
+                    totalDifference += rows[row]
                     run += 1
                     matchingRows += 1
                     if run > longestRun { longestRun = run }
                 } else {
+                    // Bound the influence of a changing block without treating
+                    // its rows as matches or discarding their error entirely.
+                    totalDifference += threshold
                     run = 0
                 }
                 row += 1
             }
         }
-        var totalDifference: Float = 0
-        vDSP_sve(rowDifferences, 1, &totalDifference, vDSP_Length(rowCount))
         return ScrollingRowMatch(longestRun: longestRun,
                                  matchingRows: matchingRows,
                                  comparedRows: rowCount,
@@ -2566,6 +2620,43 @@ enum ScreenshotSupport {
     static func cardCornerRadius(for imageSize: CGSize, factor: CGFloat) -> CGFloat {
         let clamped = max(0, min(1, factor))
         return (clamped * min(imageSize.width, imageSize.height) * 0.2).rounded()
+    }
+
+    /// The rounding a picture already carries in its alpha, such as a window
+    /// captured with its own corners, in image pixels: how far transparency
+    /// reaches in along each corner's diagonal, read as the radius of the arc
+    /// that meets the diagonal there. The least rounded corner wins, so a
+    /// mark drawn into one corner cannot round the card past the picture. An
+    /// opaque picture reads 0.
+    static func transparentCornerRadius(of image: CGImage) -> CGFloat {
+        let side = min(image.width, image.height, 512) / 2
+        guard side >= 2 else { return 0 }
+        let corners = [(x: 0, y: 0, stepX: 1, stepY: 1),
+                       (x: image.width - side, y: 0, stepX: -1, stepY: 1),
+                       (x: 0, y: image.height - side, stepX: 1, stepY: -1),
+                       (x: image.width - side, y: image.height - side, stepX: -1, stepY: -1)]
+        var reach = Int.max
+        for corner in corners {
+            guard let crop = image.cropping(to: CGRect(x: corner.x, y: corner.y, width: side, height: side)),
+                  let context = CGContext(data: nil, width: side, height: side,
+                                          bitsPerComponent: 8, bytesPerRow: side * 4,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+                  let pixels = context.data
+            else { return 0 }
+            context.draw(crop, in: CGRect(x: 0, y: 0, width: side, height: side))
+            // Rows run top down in the buffer, as in the picture.
+            let startX = corner.stepX > 0 ? 0 : side - 1
+            let startY = corner.stepY > 0 ? 0 : side - 1
+            guard let opaqueAt = (0..<side).first(where: { step in
+                let x = startX + step * corner.stepX
+                let y = startY + step * corner.stepY
+                return pixels.load(fromByteOffset: (y * side + x) * 4 + 3, as: UInt8.self) > 127
+            }) else { return 0 }
+            reach = min(reach, opaqueAt)
+        }
+        // The arc crosses the diagonal at r · (1 − 1/√2) from the corner.
+        return (CGFloat(reach) / (1 - 1 / 2.0.squareRoot())).rounded()
     }
 
     /// Gaussian blur radius in output pixels. Keeping it proportional makes

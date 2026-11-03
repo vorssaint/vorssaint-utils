@@ -59,6 +59,7 @@ enum ReleaseChangeAliases {
 
     static func aliases(for feature: AppFeature) -> [Alias] {
         switch feature {
+        case .instantSpaces: return ["instant spaces", "instant space switch", "instant trackpad swipe"]
         case .switcher: return ["window switcher", "app switcher", "switcher"]
         case .dockPreview: return ["dock preview", "dock previews"]
         case .dockClick: return ["dock clicks", "dock click", "click the dock icon", "dock icon", "dock actions"]
@@ -72,6 +73,7 @@ enum ReleaseChangeAliases {
         case .scrollInverter: return ["scroll inverter", "invert mouse scrolling", "inverted mouse scrolling",
             "invert scrolling", "inverted scrolling", "scroll inversion"]
         case .scrollHorizontal: return ["scroll sideways", "horizontal scrolling"]
+        case .scrollZoom: return ["scroll zoom", "pinch zoom"]
         case .focusFollowsMouse: return ["focus follows mouse", "focus follows the mouse"]
         case .smoothScroll: return ["smooth scrolling", "smooth scroll"]
         case .linearScroll: return ["linear scrolling", "linear scroll"]
@@ -113,6 +115,7 @@ enum ReleaseChangeAliases {
         case .bluetoothSleep: return ["bluetooth on sleep", "bluetooth power", "bluetooth off during sleep"]
         case .quickLauncher: return ["quick panel", "quick launcher"]
         case .quickToggles: return ["quick toggles"]
+        case .quitApps: return ["quit apps", "quit all apps"]
         case .colorPicker: return ["color picker"]
         case .screenOCR: return ["copy text from screen", "screen ocr"]
         case .cleaningMode: return ["cleaning mode"]

@@ -193,6 +193,8 @@ enum ReleaseDigestTests {
     private static func checkClassifier(_ suite: TestSuite) {
         // Real entries from the 3.4.x notes.
         let cases: [(String, String, [AppFeature])] = [
+            ("Added", "Scroll Zoom supports configurable modifiers.", [.scrollZoom]),
+            ("Fixed", "Pinch Zoom responds to isolated wheel ticks.", [.scrollZoom]),
             ("Added", "The window switcher can limit how many items sit in a row and wraps the rest. Settings → Window switcher → Options → Maximum columns.", [.switcher]),
             ("Fixed", "Dock clicks and Dock Preview act on the right instance when an app runs as several processes.", [.dockPreview, .dockClick]),
             ("Fixed", "Settings → Features no longer jumps or goes blank when a feature is installed or removed while scrolled down.", []),
@@ -210,6 +212,13 @@ enum ReleaseDigestTests {
             let found = ReleaseChangeAliases.features(inBullet: text, section: section)
             suite.expect(found == expected, "\"\(text.prefix(48))…\" is about \(expected), got \(found)")
         }
+        suite.expect(ReleaseChangeAliases.features(
+                        inBullet: "Instant Space Switch and Instant Trackpad Swipe honor configured shortcuts.",
+                        section: "Added") == [.instantSpaces],
+                     "keyboard and trackpad changes belong to one Instant Spaces feature")
+        suite.expect(ReleaseChangeAliases.features(
+                        inBullet: "Shortcuts follow System Settings.", section: "Instant Spaces") == [.instantSpaces],
+                     "an Instant Spaces section scopes its changes to the feature")
         suite.expect(ReleaseChangeAliases.features(inBullet: "Downloads keep a calendar of timers.", section: "Fixed").isEmpty,
                      "common words name an island extension only in an island context")
         suite.expect(ReleaseChangeAliases.features(inBullet: "You can watch the wheel notch turn.", section: "Fixed").isEmpty,
