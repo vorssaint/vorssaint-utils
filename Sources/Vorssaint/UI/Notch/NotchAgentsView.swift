@@ -131,8 +131,20 @@ struct NotchAgentsView: View {
         let valid = draft.interval() != nil
         return VStack(alignment: .leading, spacing: 14) {
             Text(text.customRange).font(.headline)
-            DatePicker(text.rangeFrom, selection: $rangeFrom, in: ...Date(), displayedComponents: .date)
-            DatePicker(text.rangeThrough, selection: $rangeThrough, in: ...Date(), displayedComponents: .date)
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 14) {
+                GridRow {
+                    Text(text.rangeFrom)
+                    DatePicker(text.rangeFrom, selection: $rangeFrom, in: ...Date(), displayedComponents: .date)
+                        .labelsHidden()
+                        .fixedSize()
+                }
+                GridRow {
+                    Text(text.rangeThrough)
+                    DatePicker(text.rangeThrough, selection: $rangeThrough, in: ...Date(), displayedComponents: .date)
+                        .labelsHidden()
+                        .fixedSize()
+                }
+            }
             if !valid {
                 Text(text.invalidRange).font(.caption).foregroundStyle(.red)
             }
