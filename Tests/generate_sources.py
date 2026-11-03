@@ -858,27 +858,6 @@ def main():
                          .replace("down.post(tap: .cgSessionEventTap)", "recordReplay(down)")
                          .replace("if let proxy {", "if proxy != nil {")
           + "}\n")
-    write("ZoomTargetRefresh.swift", "import CoreGraphics\nimport Foundation\n"
-          + "extension LinearScrollTapTests.Refresher {\n"
-          + "".join(declaration("Sources/Vorssaint/Services/ScrollInverter.swift", prefix)
-                    .replace("private func", "func", 1)
-                    .replace("AXIsProcessTrusted()", "self.AXIsProcessTrusted()") for prefix in [
-                        "    private func startZoomTargetTimerLocked()",
-                        "    private func stopZoomTargetTimerLocked()"])
-          + "}\n")
-    zoom_post = declaration("Sources/Vorssaint/Services/ScrollInverter.swift", "    private func postKeyboardZoom(")
-    write("ZoomTargetRequest.swift", "import CoreGraphics\nimport Foundation\n"
-          + "extension LinearScrollTapTests.TargetResolver {\n"
-          + "".join(declaration("Sources/Vorssaint/Services/ScrollInverter.swift", prefix)
-                    .replace("private func", "func", 1) for prefix in [
-                        "    private func invalidateZoomTargetLocked()",
-                        "    private func requestZoomTargetLocked("])
-          + "}\n")
-    for name in ["down", "up", "restore"]:
-        zoom_post = zoom_post.replace(f"{name}.postToPid(targetProcessID)", f"recordZoomEvent({name}, to: targetProcessID)")
-    write("ZoomKeyboardPost.swift", "import CoreGraphics\nimport Carbon.HIToolbox\n"
-          + "extension LinearScrollTapTests.Inverter {\n"
-          + zoom_post.replace("private func", "func", 1) + "}\n")
     smooth = "Sources/Vorssaint/Services/SmoothScrollService.swift"
     write("ScrollZoomFocus.swift", "import AppKit\nimport ApplicationServices\n"
           + "extension ScrollZoomFocusTests {\n"

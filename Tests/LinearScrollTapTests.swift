@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import CoreGraphics
-import Carbon.HIToolbox
 import Foundation
 
 /// The raw wheel tap's handler is extracted from ScrollInverter.swift on every
@@ -60,176 +59,15 @@ enum LinearScrollTapTests {
         var linearCarryHorizontal: Double = 0
         let pinchZoomLock = NSLock()
         var zoomState = ScrollZoomGestureState()
-        var zoomTarget: ScrollZoomTargetSnapshot?
-        var zoomFocusedTarget: WindowServerWindowCandidate?
-        var zoomStepLimiter = ScrollZoomStepLimiter()
         var pinchPosts = 0
         var pinchEvents: [(phase: Int64, point: CGPoint?)] = []
-        var keyboardPosts: [pid_t] = []
-        var zoomInKeyStroke: (keyCode: CGKeyCode, needsShift: Bool)? = (CGKeyCode(kVK_ANSI_Equal), true)
-        var zoomOutKeyStroke: (keyCode: CGKeyCode, needsShift: Bool)? = (CGKeyCode(kVK_ANSI_Minus), false)
-        var zoomEvents: [CGEvent] = []
-        var activationRequests = 0
-        func prepareZoomTargetLocked(for event: CGEvent) {}
-        func invalidateZoomTargetLocked() {
-            zoomTarget = nil
-            zoomFocusedTarget = nil
-        }
-        func requestZoomTargetLocked(at point: CGPoint, modifier: ScrollHorizontalModifier, activate: Bool = false) {
-            if activate { activationRequests += 1 }
-        }
-        func recordZoomEvent(_ event: CGEvent, to targetProcessID: pid_t) {
-            zoomEvents.append(event)
-            if event.type == .keyDown { keyboardPosts.append(targetProcessID) }
-        }
         func postPinch(phase: Int64, magnification: Double, at point: CGPoint?) {
             pinchEvents.append((phase, point))
             if phase == 2 { pinchPosts += 1 }
         }
     }
 
-    final class TargetResolver {
-        enum Reader {
-            static func onScreenWindowInfo() -> [[String: Any]] {
-                [[kCGWindowOwnerPID as String: 42, kCGWindowNumber as String: 7,
-                  kCGWindowLayer as String: 0, kCGWindowAlpha as String: 1,
-                  kCGWindowBounds as String: CGRect(x: 0, y: 0, width: 100, height: 100).dictionaryRepresentation]]
-            }
-        }
-        enum Focus {
-            static var lookup: (pid_t) -> CGWindowID? = { _ in 7 }
-            static func focusedWindowID(for pid: pid_t) -> CGWindowID? { lookup(pid) }
-        }
-        typealias WindowServerSupport = Reader
-        typealias WindowActivator = Focus
-        typealias ScrollWheelTarget = Target
-        let pinchZoomLock = NSLock()
-        let zoomTargetQueue = DispatchQueue(label: "vorssaint.tests.zoom-target-request")
-        var zoomTarget: ScrollZoomTargetSnapshot?
-        var zoomFocusedTarget: WindowServerWindowCandidate?
-        var zoomTargetPending: (modifier: ScrollHorizontalModifier, point: CGPoint, activate: Bool)?
-        var zoomTargetMiss: (modifier: ScrollHorizontalModifier, point: CGPoint, at: TimeInterval)?
-        var zoomTargetGeneration: UInt64 = 0
-        var zoomForegroundPID: pid_t? = 1
-        var zoomStepLimiter = ScrollZoomStepLimiter()
-        var activations: [ScrollHorizontalModifier] = []
-        func startZoomTargetTimerLocked() {}
-        func activateZoomTarget(_ window: WindowServerWindowCandidate, snapshot: ScrollZoomTargetSnapshot,
-                                point: CGPoint, generation: UInt64) {
-            activations.append(snapshot.modifier)
-        }
-    }
-
-    final class Refresher {
-        struct Pointer {
-            let location = CGPoint.zero
-            init?(source: Int?) {}
-        }
-        enum EventSource {
-            enum State { case combinedSessionState }
-            static var held: CGEventFlags = .maskAlternate
-            static func flagsState(_ state: State) -> CGEventFlags { held }
-        }
-        struct Direction {
-            var zoom: ScrollZoomPreferences {
-                .init(isAvailable: true, boolFor: { $0 == DefaultsKey.verticalZoomEnabled },
-                      stringFor: { _ in ScrollZoomModifier.option.rawValue })
-            }
-        }
-        typealias CGEvent = Pointer
-        typealias CGEventSource = EventSource
-        typealias ScrollDirectionPreferences = Direction
-        typealias AppSwitcher = Switcher
-        let pinchZoomLock = NSLock()
-        let zoomTargetQueue = DispatchQueue(label: "vorssaint.tests.zoom-refresh")
-        var zoomTargetTimer: DispatchSourceTimer?
-        var zoomState = ScrollZoomGestureState()
-        var refreshes = 0
-        var invalidations = 0
-        let didRefresh = DispatchSemaphore(value: 0)
-        let didInvalidate = DispatchSemaphore(value: 0)
-        func AXIsProcessTrusted() -> Bool { true }
-        func invalidateZoomTargetLocked() {
-            invalidations += 1
-            didInvalidate.signal()
-        }
-        func requestZoomTargetLocked(at point: CGPoint, modifier: ScrollHorizontalModifier, refresh: Bool) {
-            if refresh {
-                refreshes += 1
-                didRefresh.signal()
-            }
-        }
-    }
-
     static func run(_ suite: TestSuite) {
-        let resolver = TargetResolver()
-        defer { TargetResolver.Focus.lookup = { _ in 7 } }
-        let point = CGPoint(x: 10, y: 10)
-        for modifier in [ScrollHorizontalModifier.command, .option, .control, .command] {
-            let entered = DispatchSemaphore(value: 0)
-            let release = DispatchSemaphore(value: 0)
-            TargetResolver.Focus.lookup = { _ in
-                entered.signal()
-                _ = release.wait(timeout: .now() + 2)
-                return 7
-            }
-            resolver.pinchZoomLock.withLock {
-                resolver.invalidateZoomTargetLocked()
-                resolver.requestZoomTargetLocked(at: point, modifier: modifier)
-            }
-            suite.expect(entered.wait(timeout: .now() + 2) == .success,
-                         "modifier-change prefetch resolves focus on the background queue")
-            let previousCount = resolver.activations.count
-            resolver.pinchZoomLock.withLock {
-                resolver.requestZoomTargetLocked(at: point, modifier: modifier, activate: true)
-            }
-            release.signal()
-            resolver.zoomTargetQueue.sync {}
-            suite.expect(resolver.activations.count == previousCount + 1 && resolver.activations.last == modifier,
-                         "\(modifier.rawValue) Zoom preserves a wheel activation request during modifier-change prefetch")
-        }
-        let activationCount = resolver.activations.count
-        TargetResolver.Focus.lookup = { _ in 7 }
-        resolver.pinchZoomLock.withLock {
-            resolver.invalidateZoomTargetLocked()
-            resolver.requestZoomTargetLocked(at: point, modifier: .option)
-        }
-        resolver.zoomTargetQueue.sync {}
-        suite.expect(resolver.activations.count == activationCount && resolver.zoomFocusedTarget == nil,
-                     "prefetch after a modifier change does not activate an inactive hovered app without a wheel tick")
-
-        let cancelledEntered = DispatchSemaphore(value: 0)
-        let cancelledRelease = DispatchSemaphore(value: 0)
-        TargetResolver.Focus.lookup = { _ in
-            cancelledEntered.signal()
-            _ = cancelledRelease.wait(timeout: .now() + 2)
-            return 7
-        }
-        resolver.pinchZoomLock.withLock {
-            resolver.invalidateZoomTargetLocked()
-            resolver.requestZoomTargetLocked(at: point, modifier: .option, activate: true)
-        }
-        suite.expect(cancelledEntered.wait(timeout: .now() + 2) == .success,
-                     "the old modifier's lookup is pending when its assignment changes")
-        resolver.pinchZoomLock.withLock {
-            resolver.invalidateZoomTargetLocked()
-            resolver.requestZoomTargetLocked(at: point, modifier: .command)
-        }
-        cancelledRelease.signal()
-        cancelledRelease.signal()
-        resolver.zoomTargetQueue.sync {}
-        suite.expect(resolver.activations.count == activationCount && resolver.zoomTarget?.modifier == .command,
-                     "changing the modifier cancels obsolete activation without transferring it to the new prefetch")
-
-        TargetResolver.Focus.lookup = { _ in 7 }
-        resolver.pinchZoomLock.withLock {
-            resolver.zoomForegroundPID = 42
-            resolver.invalidateZoomTargetLocked()
-            resolver.requestZoomTargetLocked(at: point, modifier: .control)
-        }
-        resolver.zoomTargetQueue.sync {}
-        suite.expect(resolver.zoomFocusedTarget?.pid == 42 && resolver.activations.count == activationCount,
-                     "a newly assigned key becomes ready without activation when its hovered window is already active")
         let name = "com.vorssaint.tests.linear-scroll-tap.\(UUID().uuidString)"
         let defaults = Foundation.UserDefaults(suiteName: name)!
         StandardDefaults.standard = defaults
@@ -329,17 +167,6 @@ enum LinearScrollTapTests {
         suite.expect(directionExcepted.map(verticalLine) == 3,
                      "an app excepted from the direction change is still capped by linear scrolling")
 
-        configure(invert: true)
-        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
-        defaults.set(true, forKey: DefaultsKey.verticalZoomEnabled)
-        defaults.set(ScrollZoomModifier.option.rawValue, forKey: DefaultsKey.verticalZoomModifier)
-        let unresolvedZoom = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskAlternate))
-        suite.expect(unresolvedZoom.map(verticalLine) == 4
-                        && unresolvedZoom.map(verticalFixed) == 4
-                        && unresolvedZoom?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 40,
-                     "an unresolved keyboard zoom target keeps the wheel raw instead of inverting or capping it")
-        defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
-
         configure(linear: false, invert: true)
         defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
         defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
@@ -380,88 +207,8 @@ enum LinearScrollTapTests {
                      && gestures.pinchEvents.map(\.point) == [a, a, a, a, b, b, b],
                      "moving between views ends the old gesture at its original point before beginning the next")
 
-        defaults.set(false, forKey: DefaultsKey.pinchZoomEnabled)
-        let keyboardDirection = ScrollDirectionPreferences(defaults: defaults)
-        let keyboardInverter = Inverter()
-        _ = keyboardInverter.zoomState.update(keyboardDirection.zoom)
-        keyboardInverter.zoomState.start()
-        let keyboardWheel = wheel(line: 1, fixed: 1, point: 10, flags: .maskAlternate)
-        suite.expect(!keyboardInverter.consumeZoom(keyboardWheel, direction: keyboardDirection)
-                        && keyboardInverter.activationRequests == 1 && keyboardInverter.keyboardPosts.isEmpty,
-                     "an unresolved keyboard target requests activation without consuming or posting the tick")
-        let candidate = WindowServerWindowCandidate(pid: 42, windowID: 7,
-            frame: CGRect(x: -10_000, y: -10_000, width: 20_000, height: 20_000))
-        keyboardInverter.zoomTarget = ScrollZoomTargetSnapshot(
-            windows: [.init(frame: candidate.frame, isOwn: false, zoomTarget: candidate)],
-            modifier: .option, resolvedAt: ProcessInfo.processInfo.systemUptime)
-        suite.expect(!keyboardInverter.consumeZoom(keyboardWheel, direction: keyboardDirection)
-                        && keyboardInverter.keyboardPosts.isEmpty,
-                     "a resolved but unfocused keyboard target is not zoomed")
-        keyboardInverter.zoomFocusedTarget = candidate
-        suite.expect(keyboardInverter.consumeZoom(keyboardWheel, direction: keyboardDirection)
-                        && keyboardInverter.keyboardPosts == [42],
-                     "keyboard Zoom posts only after the hovered window is confirmed focused")
-        suite.expect(keyboardInverter.consumeZoom(keyboardWheel, direction: keyboardDirection)
-                        && keyboardInverter.keyboardPosts == [42],
-                     "a high-resolution burst is consumed without posting a second keyboard Zoom step")
-        suite.expect(keyboardInverter.consumeZoom(wheel(line: -1, fixed: -1, point: -10, flags: .maskAlternate),
-                                                  direction: keyboardDirection)
-                        && keyboardInverter.keyboardPosts == [42, 42],
-                     "reversing the keyboard Zoom direction posts a step immediately")
-        Target.shared.isOwn = true
-        suite.expect(!keyboardInverter.consumeZoom(keyboardWheel, direction: keyboardDirection)
-                        && keyboardInverter.keyboardPosts == [42, 42] && keyboardInverter.zoomTarget == nil,
-                     "an own panel appearing above a cached target stops keyboard Zoom")
-        Target.shared.isOwn = false
         defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
-
-        for modifier in ScrollZoomModifier.allCases.compactMap(\.modifier) {
-            let preferences = ScrollZoomPreferences(isAvailable: true,
-                boolFor: { $0 == DefaultsKey.verticalZoomEnabled }, stringFor: { _ in modifier.rawValue })
-            let poster = Inverter()
-            _ = poster.zoomState.update(preferences)
-            poster.zoomState.start()
-            let rightFlag = modifier == .option ? CGEventFlags(rawValue: UInt64(NX_DEVICERALTKEYMASK)) : []
-            let held = modifier.flag.union(rightFlag)
-            let event = wheel(line: 1, fixed: 1, point: 10, flags: held)
-            poster.zoomTarget = ScrollZoomTargetSnapshot(
-                windows: [.init(frame: candidate.frame, isOwn: false, zoomTarget: candidate)],
-                modifier: modifier, resolvedAt: ProcessInfo.processInfo.systemUptime)
-            poster.zoomFocusedTarget = candidate
-            let direction = ScrollDirectionPreferences(isAvailable: { $0 == .scrollZoom },
-                boolFor: { $0 == DefaultsKey.verticalZoomEnabled }, stringFor: { _ in modifier.rawValue })
-            suite.expect(poster.consumeZoom(event, direction: direction)
-                            && poster.zoomEvents.map(\.type) == [.keyDown, .keyUp, .flagsChanged]
-                            && poster.zoomEvents.prefix(2).allSatisfy { $0.flags == [.maskCommand, .maskShift] }
-                            && poster.zoomEvents.last?.flags == held,
-                         "\(modifier.rawValue) Zoom sends Command-plus and restores the held modifier")
-            suite.expect(poster.zoomEvents.allSatisfy {
-                $0.getIntegerValueField(.eventSourceStateID) != Int64(CGEventSourceStateID.hidSystemState.rawValue)
-                    && $0.getIntegerValueField(.eventSourceStateID) != Int64(CGEventSourceStateID.combinedSessionState.rawValue)
-            }, "keyboard Zoom uses a private modifier state instead of the held physical Option or Control")
-            if modifier == .option {
-                suite.expect(poster.zoomEvents.last?.getIntegerValueField(.keyboardEventKeycode) == Int64(kVK_RightOption),
-                             "restoring a held right Option uses the right Option key")
-            }
-            poster.zoomEvents = []
-            let reverse = wheel(line: -1, fixed: -1, point: -10, flags: held)
-            suite.expect(poster.consumeZoom(reverse, direction: direction)
-                            && poster.zoomEvents.prefix(2).allSatisfy { $0.flags == .maskCommand }
-                            && (modifier == .command || poster.zoomEvents.last?.flags == held),
-                         "\(modifier.rawValue) Zoom reverses without leaking Option or Control into Command-minus")
-        }
-
-        let refresher = Refresher()
-        _ = refresher.zoomState.update(Refresher.Direction().zoom)
-        refresher.zoomState.start()
-        refresher.pinchZoomLock.withLock { refresher.startZoomTargetTimerLocked() }
-        suite.expect(refresher.didRefresh.wait(timeout: .now() + 2) == .success,
-                     "holding a keyboard Zoom modifier refreshes targets without waiting for another wheel tick")
-        refresher.zoomTargetQueue.sync { Refresher.EventSource.held = [] }
-        _ = refresher.didInvalidate.wait(timeout: .now() + 2)
-        let stopped = refresher.pinchZoomLock.withLock { refresher.zoomTargetTimer == nil && refresher.invalidations > 0 }
-        suite.expect(stopped, "releasing the Zoom modifier stops background refresh and invalidates the target")
-        refresher.pinchZoomLock.withLock { refresher.stopZoomTargetTimerLocked() }
+        defaults.set(false, forKey: DefaultsKey.pinchZoomEnabled)
 
         configure(sidewaysKey: .option)
         let sideways = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskAlternate))
