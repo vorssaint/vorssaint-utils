@@ -545,7 +545,12 @@ private struct NotchAgentAgyLimitsCard: View {
     private struct WindowGroup: Identifiable {
         let id: String
         let title: String
-        let windows: [AgentLimitWindow]
+        let rows: [Row]
+
+        struct Row: Identifiable {
+            let id: String
+            let window: AgentLimitWindow?
+        }
     }
 
     private var limits: AgentLimits? {
@@ -576,14 +581,24 @@ private struct NotchAgentAgyLimitsCard: View {
             }
             groups[scope, default: []].append(window)
         }
-        return order.compactMap { scope in
+        return order.compactMap { (scope: String) -> WindowGroup? in
             guard let allInScope = groups[scope], !allInScope.isEmpty else { return nil }
             let session = allInScope.first { $0.kind == .session }
             let weekly = allInScope.first { $0.kind == .weekly }
             let other = allInScope.filter { $0.kind != .session && $0.kind != .weekly }
-            let ordered = ([session, weekly].compactMap { $0 }) + other
-            guard !ordered.isEmpty else { return nil }
-            return WindowGroup(id: scope, title: scope, windows: ordered)
+            let rows: [WindowGroup.Row]
+            if scope == "Gemini 4 Argon", session == nil, let weekly {
+                rows = [
+                    WindowGroup.Row(id: "\(scope).empty", window: nil),
+                    WindowGroup.Row(id: weekly.id, window: weekly)
+                ] + other.map { WindowGroup.Row(id: $0.id, window: $0) }
+            } else {
+                rows = ([session, weekly].compactMap { $0 } + other).map {
+                    WindowGroup.Row(id: $0.id, window: $0)
+                }
+            }
+            guard !rows.isEmpty else { return nil }
+            return WindowGroup(id: scope, title: scope, rows: rows)
         }
     }
 
@@ -623,10 +638,14 @@ private struct NotchAgentAgyLimitsCard: View {
                             .foregroundStyle(.secondary)
                     }
                     VStack(spacing: 5) {
-                        ForEach(group.windows) { window in
-                            NotchAgentLimitRowView(window: window, label: rowLabel(window), provider: .agy,
-                                                   now: now, display: display, text: text,
-                                                   observedAt: limits?.observedAt)
+                        ForEach(group.rows) { row in
+                            if let window = row.window {
+                                NotchAgentLimitRowView(window: window, label: rowLabel(window), provider: .agy,
+                                                       now: now, display: display, text: text,
+                                                       observedAt: limits?.observedAt)
+                            } else {
+                                emptyRow
+                            }
                         }
                     }
                 }
@@ -634,6 +653,17 @@ private struct NotchAgentAgyLimitsCard: View {
             }
         }
         .opacity(stale ? 0.6 : 1)
+    }
+
+    private var emptyRow: some View {
+        let dummy = AgentLimitWindow(id: "agy.placeholder", kind: .session, minutes: 300, scope: nil,
+                                     usedPercent: 0, resetsAt: nil)
+        return NotchAgentLimitRowView(window: dummy, label: rowLabel(dummy), provider: .agy,
+                                      now: now, display: display, text: text,
+                                      observedAt: limits?.observedAt)
+            .hidden()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     private func rowLabel(_ window: AgentLimitWindow) -> String {
