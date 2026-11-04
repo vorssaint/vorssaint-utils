@@ -933,6 +933,7 @@ final class KeepAwakeManager: ObservableObject {
         else { return false }
         return KeepAwakeAutomationSupport.lidSleepIsAllowed(
             systemAllowsSleep: allowsSleep, externalDisplayConnected: hasExternalDisplay(),
+            connectedToPower: SystemInfo.batterySnapshot().map { !$0.isOnBattery },
             assertions: assertions.values.flatMap { $0 })
     }
 
