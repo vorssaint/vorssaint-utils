@@ -12,6 +12,8 @@ struct DockSettings: View {
     @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewCurrentSpaceOnly) private var dockPreviewCurrentSpaceOnly = false
+    @AppStorage(DefaultsKey.dockPreviewPanelPlacement)
+    private var dockPreviewPanelPlacement = DockPreviewPanelPlacement.left.rawValue
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -84,6 +86,15 @@ struct DockSettings: View {
                     }
             }
             if dockPreviewEnabled {
+                SettingsMenuRow(symbol: "rectangle.center.inset.filled",
+                                title: "Alignment",
+                                selection: $dockPreviewPanelPlacement) {
+                    Text("Left").tag(DockPreviewPanelPlacement.left.rawValue)
+                    Text("Center").tag(DockPreviewPanelPlacement.center.rawValue)
+                }
+                .onChange(of: dockPreviewPanelPlacement) { _, _ in
+                    dockPreview.panelPlacementDidChange()
+                }
                 SettingsRow(symbol: "rectangle.3.group", title: l10n.s.switcherCurrentSpaceOnly,
                             caption: l10n.s.dockPreviewCurrentSpaceOnlyCaption) {
                     Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $dockPreviewCurrentSpaceOnly)
