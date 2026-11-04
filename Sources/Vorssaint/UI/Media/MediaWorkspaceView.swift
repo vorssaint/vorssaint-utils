@@ -199,6 +199,9 @@ struct MediaWorkspaceView: View {
 
     var body: some View {
         layout
+        .onPasteCommand(of: [.fileURL, .image, .png, .tiff]) { _ in
+            pasteFromClipboard()
+        }
         .onAppear {
             if !workspace.loadedInitialInputs {
                 workspace.loadedInitialInputs = true
@@ -1408,6 +1411,38 @@ struct MediaWorkspaceView: View {
             }
         }
         return true
+    }
+
+    /// Responds to the system's Paste command (Cmd+V, or Edit > Paste): reads
+    /// the general clipboard off the main thread and feeds compatible content
+    /// into the current tool, materializing a raw image to a temporary file.
+    private func pasteFromClipboard() {
+        ClipboardImportService.shared.fetchSnapshot { result in
+            switch result {
+            case let .compatible(board):
+                defer { board.releaseGlobally() }
+                let urls = ShelfService.shared.fileURLs(from: board)
+                if urls.isEmpty, let imageURL = ClipboardImportService.materializedImageURL(from: board) {
+                    acceptPastedURLs([imageURL])
+                } else {
+                    acceptPastedURLs(urls)
+                }
+            case .empty, .incompatible:
+                media.rejectUnsupportedInput()
+            }
+        }
+    }
+
+    private func acceptPastedURLs(_ urls: [URL]) {
+        let accepted = urls.filter { url in
+            let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
+            return MediaSupport.inputMatchesTool(contentType: contentType, inputTypes: inputTypes)
+        }
+        if accepted.isEmpty || (selectedTool != .imageCompressor && accepted.count != urls.count) {
+            media.rejectUnsupportedInput()
+        } else {
+            setInputs(selectedTool == .imageCompressor ? accepted : Array(accepted.prefix(1)))
+        }
     }
 
     private func setInputs(_ urls: [URL], resetsMedia: Bool = true) {

@@ -1656,7 +1656,7 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    func reportClipboardPasteProblem(_ reason: ClipboardImportFailure) {
+    private func reportClipboardPasteProblem(_ reason: ClipboardImportFailure) {
         let strings = ClipboardImportStrings.localized(L10n.shared.language)
         let body: String
         switch reason {

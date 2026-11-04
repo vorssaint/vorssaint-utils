@@ -1892,19 +1892,6 @@ final class NotchService: ObservableObject {
         return true
     }
 
-    /// The Files page is the media utility's drop surface, so Cmd+V there
-    /// pastes whatever the clipboard carries into the media tool when it is
-    /// optimizable, and into the shelf otherwise — the same split a drop makes.
-    private func handleFilesPasteKey(_ event: NSEvent) -> Bool {
-        guard selected == .files, !showingAppPanel, !showingSections, selectedMetric == nil else { return false }
-        // An editable field (media options, dimensions) keeps its own Cmd+V.
-        guard (panel?.firstResponder as? NSTextView)?.isEditable != true else { return false }
-        let commandOnly = event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command
-        guard commandOnly, event.charactersIgnoringModifiers?.lowercased() == "v" else { return false }
-        pasteIntoFilesFromClipboard()
-        return true
-    }
-
     func activateQuickAction(_ action: NotchQuickAction) {
         guard NotchSupport.isEnabled(), action.isAvailable() else { return }
         switch action {
@@ -2317,33 +2304,6 @@ final class NotchService: ObservableObject {
     func keepFileInteractionOpen(_ active: Bool) {
         fileInteractionActive = active
         hover(false)
-    }
-
-    /// Pastes the general clipboard into the Files module: optimizable media
-    /// opens the media tool, everything else goes to the shelf, mirroring a
-    /// drop onto the island. Feedback only appears when nothing could be used.
-    func pasteIntoFilesFromClipboard() {
-        guard canAcceptFileDrop else { return }
-        open(.files, takeFocus: false)
-        ClipboardImportService.shared.fetchSnapshot { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case let .compatible(board):
-                defer { board.releaseGlobally() }
-                let optimized = NotchFileToolsService.shared.openMediaDrop(board)
-                let accepted = optimized || ShelfService.shared.acceptDrop(pasteboard: board)
-                if accepted {
-                    if !optimized { NotchFileToolsService.shared.hideMedia() }
-                    self.reactMascot(.celebrate, patience: 30)
-                } else {
-                    ShelfService.shared.reportClipboardPasteProblem(.incompatible)
-                }
-            case .empty:
-                ShelfService.shared.reportClipboardPasteProblem(.empty)
-            case .incompatible:
-                ShelfService.shared.reportClipboardPasteProblem(.incompatible)
-            }
-        }
     }
 
     func accept(_ pasteboard: NSPasteboard) -> Bool {
@@ -3971,7 +3931,6 @@ final class NotchService: ObservableObject {
                 if self.handleSectionKey(event) { return nil }
                 if self.handleScratchpadKey(event) { return nil }
                 if self.handleClipboardPasteKey(event) { return nil }
-                if self.handleFilesPasteKey(event) { return nil }
             }
             if event.type == .keyDown, event.window === self.panel, self.selected == .tools, !self.showingAppPanel, !self.showingSections {
                 let launcher = QuickLauncherService.shared

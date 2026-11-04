@@ -77,6 +77,24 @@ final class ClipboardImportService {
         }
     }
 
+    /// Materializes a raw clipboard image into a temporary PNG so file-based
+    /// importers (the media tool) can use it. Nil when the board carries no
+    /// raw image or the write fails. The caller owns the returned file.
+    static func materializedImageURL(from pasteboard: NSPasteboard) -> URL? {
+        guard let image = NSImage(pasteboard: pasteboard) else { return nil }
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return nil }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VorssaintClipboard-\(UUID().uuidString).png", isDirectory: false)
+        do {
+            try png.write(to: url)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
     /// Copies every droppable, already-rendered type off the general
     /// pasteboard into a fresh private board. Copying `data(forType:)` here is
     /// what forces any promised content to render off the main thread; file
