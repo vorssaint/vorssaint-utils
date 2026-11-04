@@ -437,8 +437,9 @@ enum SwitcherModelFeatureTests {
         }
         suite.expect(registeredDefaults[DefaultsKey.switcherIconRowMode] as? Bool == false,
                "App Switcher icon-row mode is optional")
-        suite.expect(registeredDefaults[DefaultsKey.switcherSimpleMode] as? Bool == false,
-               "App Switcher simple mode preserves previews until requested")
+        suite.expect(registeredDefaults[DefaultsKey.switcherSimpleMode] as? Bool
+               == AppInfo.isDeveloperBuild,
+               "App Switcher simple mode defaults on for Developer builds; release keeps previews")
         suite.expect(registeredDefaults[DefaultsKey.switcherShowShortcutHints] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherShowShortcutHints),
                "App Switcher keeps shortcut hints visible by default and carries the choice in backups")

@@ -1280,7 +1280,10 @@ enum Defaults {
         DefaultsKey.switcherAllWindowsShortcut: GlobalShortcut.switcherAllWindowsDefault.storageValue,
         DefaultsKey.switcherAllWindowsShortcutEnabled: false,
         DefaultsKey.switcherIconRowMode: false,
-        DefaultsKey.switcherSimpleMode: false,
+        // Developer builds default to Simple so App Switcher does not warm
+        // window thumbnails (and trip macOS screen-recording prompts) when the
+        // Developer app is used as a daily driver. Release keeps previews on.
+        DefaultsKey.switcherSimpleMode: AppInfo.isDeveloperBuild,
         DefaultsKey.switcherMergeTabs: false,
         DefaultsKey.switcherShowWindowlessFinder: true,
         DefaultsKey.switcherWindowlessApps: SwitcherWindowlessApps.fallback.rawValue,
