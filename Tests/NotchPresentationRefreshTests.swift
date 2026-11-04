@@ -163,6 +163,7 @@ enum NotchPresentationRefreshContract {
         func compactCompanions(of primary: NotchCompactActivity) -> [NotchCompactActivity] { [] }
         var showsCompactActivityPicker = false
         var hiddenInFullscreen = false
+        var revealingFromAppFullscreen = false
         /// Hidden until hover and set to show activity, as Settings has it.
         var hiddenShowsActivity = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
@@ -735,6 +736,14 @@ enum NotchPresentationRefreshContract {
                "closing an expanded island without safe menu space animates its withdrawal")
         suite.expect(simulated.panel?.isVisible == false,
                "closing tools withdraws their simulated cutout if the center is still unverified")
+        simulated.expanded = true
+        simulated.revealingFromAppFullscreen = true
+        simulated.refreshPresentation()
+        suite.expect(simulated.windowHost?.revealFromHidden == true,
+               "an app's own full screen ending reveals the withdrawn island from the screen edge")
+        simulated.revealingFromAppFullscreen = false
+        simulated.expanded = false
+        simulated.refreshPresentation()
 
         UserDefaults.standard.hides = true
         for isPhysical in [false, true] {
