@@ -239,6 +239,7 @@ enum SwitcherActivationTests {
             Workspace.shared.frontmostApplication = App(processIdentifier: 99)
         }
         static func isCurrentActivation(_ generation: UInt64) -> Bool { currentGeneration == generation }
+        static func AXIsProcessTrusted() -> Bool { Permissions.shared.accessibility }
         /// Visibility is the window server's answer, which this fixture does
         /// not model: staging treats the target as not visibly focused.
         static func windowIsVisiblyFocused(windowID: CGWindowID,
@@ -303,10 +304,10 @@ enum SwitcherActivationTests {
             return observerRegistrationResult
         }
         static func AXObserverGetRunLoopSource(_ observer: AXObserver) -> Int { 1 }
-        static func CFRunLoopAddSource(_ loop: CFRunLoop, _ source: Int, _ mode: CFRunLoopMode) {
+        static func CFRunLoopAddSource(_ loop: CFRunLoop?, _ source: Int, _ mode: CFRunLoopMode) {
             transportEvents.append("observer:attach")
         }
-        static func CFRunLoopRemoveSource(_ loop: CFRunLoop, _ source: Int, _ mode: CFRunLoopMode) {
+        static func CFRunLoopRemoveSource(_ loop: CFRunLoop?, _ source: Int, _ mode: CFRunLoopMode) {
             transportEvents.append("observer:detach")
         }
         static func AXObserverRemoveNotification(_ observer: AXObserver, _ window: Element,
@@ -670,6 +671,18 @@ enum SwitcherActivationTests {
                                 && AX.observerCompletion == nil,
                              "cancelled restore removes only successfully registered observers")
             }
+            AX.reset()
+            AX.minimizedWindows = [77]
+            var externalCurrent = true
+            AX.observerRegistrationResult = registration
+            AX.afterObserverRegistration = { externalCurrent = false }
+            let focused = AX.focusWindow(windowID: 77, pid: 20, generation: 1,
+                                         isCurrent: { externalCurrent })
+            suite.expect(!focused && !restored(),
+                         "external focus cancellation during observer registration prevents restoring the old window")
+            suite.expect(AX.transportEvents.contains("observer:remove") == (registration == .success)
+                            && AX.observerCompletion == nil,
+                         "external focus cancellation cleans up a registered observer without a stale restore")
             AX.reset()
             let active = SwitcherActivationWriteGuard()
             AX.observerRegistrationResult = registration

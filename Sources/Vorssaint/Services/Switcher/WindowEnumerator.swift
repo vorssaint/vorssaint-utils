@@ -297,6 +297,7 @@ enum WindowEnumerator {
     static func enumerateSwitcherWindows(groupByApp: Bool,
                                          preservingGroupedWindows: Bool,
                                          snapshot: Snapshot,
+                                         windowsOnly: Bool = false,
                                          displayScope: DisplayScope? = nil,
                                          scopedToFrontmostPID: pid_t? = nil,
                                          sourcePID: pid_t? = nil,
@@ -313,6 +314,7 @@ enum WindowEnumerator {
             marksHiddenSpaces: true,
             includesFullscreenAcrossSpaces: true,
             snapshot: snapshot,
+            windowsOnly: windowsOnly,
             displayScope: displayScope,
             scopedToFrontmostPID: scopedToFrontmostPID,
             sourcePID: sourcePID,
@@ -338,6 +340,7 @@ enum WindowEnumerator {
                                     marksHiddenSpaces: Bool,
                                     includesFullscreenAcrossSpaces: Bool = false,
                                     snapshot: Snapshot,
+                                    windowsOnly: Bool = false,
                                     displayScope: DisplayScope? = nil,
                                     scopedToFrontmostPID: pid_t? = nil,
                                     sourcePID: pid_t? = nil,
@@ -369,6 +372,7 @@ enum WindowEnumerator {
                                  includesFullscreenAcrossSpaces: includesFullscreenAcrossSpaces && showFullscreenWindows,
                                  marksHiddenSpaces: marksHiddenSpaces,
                                  snapshot: snapshot,
+                                 windowsOnly: windowsOnly,
                                  scopedToFrontmostPID: scopedToFrontmostPID,
                                  displayScope: displayScope,
                                  sourcePID: sourcePID,
@@ -439,6 +443,7 @@ enum WindowEnumerator {
                                     includesFullscreenAcrossSpaces: Bool = false,
                                     marksHiddenSpaces: Bool,
                                     snapshot: Snapshot,
+                                    windowsOnly: Bool = false,
                                     scopedToFrontmostPID: pid_t? = nil,
                                     displayScope: DisplayScope? = nil,
                                     sourcePID: pid_t? = nil,
@@ -815,6 +820,9 @@ enum WindowEnumerator {
             item.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized)
         }
         let filtered = windows.filter { item in
+            // Remove app-only entries before the visible cap: otherwise they
+            // reserve slots that an all-windows session can never display.
+            if windowsOnly, item.isAppEntry { return false }
             if !showFullscreenWindows, item.isFullscreen { return false }
             if minimizedPlacement == .hidden, affectedByMinimizedPlacement(item) { return false }
             return true

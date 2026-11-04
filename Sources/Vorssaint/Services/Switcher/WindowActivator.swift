@@ -813,8 +813,7 @@ enum WindowActivator {
         }
     }
 
-    private static func activateAppCooperatively(_ app: NSRunningApplication,
-                                                 allWindows: Bool) {
+    static func activateAppCooperatively(_ app: NSRunningApplication, allWindows: Bool) {
         let options: NSApplication.ActivationOptions = allWindows ? [.activateAllWindows] : []
         ActivationHandoff.yield(to: app)
         // The first answer is kept as it is: the fallback only runs when the
@@ -1618,9 +1617,11 @@ enum WindowActivator {
     private static func restoreWindowBeforeFocus(_ window: AXUIElement,
                                                  pid: pid_t,
                                                  generation: UInt64?,
-                                                 writeGuard: SwitcherActivationWriteGuard? = nil) -> Bool {
+                                                 writeGuard: SwitcherActivationWriteGuard? = nil,
+                                                 isCurrent externalIsCurrent: () -> Bool = { true }) -> Bool {
         func isCurrent() -> Bool {
-            (generation.map { isCurrentActivation($0) } ?? true)
+            externalIsCurrent()
+                && (generation.map { isCurrentActivation($0) } ?? true)
                 && (writeGuard?.isActive ?? true)
         }
         guard isCurrent() else { return false }
@@ -1666,16 +1667,18 @@ enum WindowActivator {
     }
 
     @discardableResult
-    private static func focusWindow(windowID: CGWindowID,
-                                    pid: pid_t,
-                                    makeAppFrontmost: Bool = true,
-                                    generation: UInt64? = nil,
-                                    writeGuard: SwitcherActivationWriteGuard? = nil) -> Bool {
+    static func focusWindow(windowID: CGWindowID,
+                            pid: pid_t,
+                            makeAppFrontmost: Bool = true,
+                            generation: UInt64? = nil,
+                            writeGuard: SwitcherActivationWriteGuard? = nil,
+                            isCurrent externalIsCurrent: () -> Bool = { true }) -> Bool {
         func isCurrent() -> Bool {
-            (generation.map { isCurrentActivation($0) } ?? true)
+            externalIsCurrent()
+                && (generation.map { isCurrentActivation($0) } ?? true)
                 && (writeGuard?.isActive ?? true)
         }
-        guard isCurrent(), Permissions.shared.accessibility else { return false }
+        guard isCurrent(), AXIsProcessTrusted() else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
         guard isCurrent(),
@@ -1692,7 +1695,7 @@ enum WindowActivator {
         guard isCurrent() else { return false }
         if minimizedResult == .success, (minimized as? Bool) == true {
             let completed = restoreWindowBeforeFocus(axWindow, pid: pid, generation: generation,
-                                                    writeGuard: writeGuard)
+                                                    writeGuard: writeGuard, isCurrent: isCurrent)
             guard isCurrent() else { return false }
             if completed,
                windowIsVisiblyFocused(windowID: windowID, pid: pid, window: axWindow),
