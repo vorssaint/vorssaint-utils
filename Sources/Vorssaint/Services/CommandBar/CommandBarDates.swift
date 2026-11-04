@@ -69,7 +69,7 @@ enum CommandBarDates {
     /// Places whose everyday name differs from the one the time zone database
     /// uses. The database covers the rest on its own, so this stays a handful
     /// rather than a table to maintain.
-    private static let placeAliases: [String: String] = [
+    static let placeAliases: [String: String] = [
         "londres": "London", "lisboa": "Lisbon", "roma": "Rome",
         "moscou": "Moscow", "moscovo": "Moscow", "москва": "Moscow",
         "nova york": "New_York", "nueva york": "New_York", "nova iorque": "New_York",
@@ -79,24 +79,40 @@ enum CommandBarDates {
         "praga": "Prague", "atenas": "Athens", "varsovia": "Warsaw",
         "bruxelas": "Brussels", "zurique": "Zurich", "munique": "Munich",
         "colonia": "Cologne", "estocolmo": "Stockholm", "hamburgo": "Hamburg",
+        "peking": "Beijing", "pekin": "Beijing", "pechino": "Beijing",
+        "genf": "Geneva", "geneve": "Geneva", "ginebra": "Geneva", "ginevra": "Geneva",
+        "munchen": "Munich", "koln": "Cologne",
+    ]
+
+    /// Cities the database gives no zone of their own, by the zone they keep
+    /// time with. The answer names the city asked about, not that zone's city.
+    private static let citiesWithoutZone: [String: String] = [
+        "Beijing": "Asia/Shanghai", "Geneva": "Europe/Zurich", "Munich": "Europe/Berlin",
+        "Cologne": "Europe/Berlin", "Hamburg": "Europe/Berlin",
     ]
 
     /// Every time zone by the folded name of the city in its identifier, built
-    /// once. "America/Sao_Paulo" answers to "sao paulo".
-    private static let zonesByCity: [String: TimeZone] = {
-        var map: [String: TimeZone] = [:]
+    /// once, with the city's name as the answer writes it. "America/Sao_Paulo"
+    /// answers to "sao paulo".
+    private static let zonesByCity: [String: (zone: TimeZone, name: String)] = {
+        var map: [String: (zone: TimeZone, name: String)] = [:]
         for identifier in TimeZone.knownTimeZoneIdentifiers {
             guard let zone = TimeZone(identifier: identifier) else { continue }
             guard let city = identifier.split(separator: "/").last else { continue }
-            let name = CommandBarSearch.normalized(
-                city.replacingOccurrences(of: "_", with: " "))
+            let written = city.replacingOccurrences(of: "_", with: " ")
+            let name = CommandBarSearch.normalized(written)
             // The first identifier wins: the list is sorted, and the plain
             // "Europe/London" comes before any legacy link to it.
-            if map[name] == nil { map[name] = zone }
+            if map[name] == nil { map[name] = (zone, written) }
         }
+        for (city, identifier) in citiesWithoutZone {
+            guard let zone = TimeZone(identifier: identifier) else { continue }
+            map[CommandBarSearch.normalized(city)] = (zone, city)
+        }
+        // Aliases last, so one can name a city without a zone too.
         for (alias, city) in placeAliases {
             let name = CommandBarSearch.normalized(city.replacingOccurrences(of: "_", with: " "))
-            if let zone = map[name] { map[alias] = zone }
+            if let place = map[name] { map[alias] = place }
         }
         return map
     }()
@@ -188,27 +204,28 @@ enum CommandBarDates {
                                           locale: Locale) -> Result? {
         guard tokens.contains(where: timeWords.contains) else { return nil }
         // Whatever is left after the time word and the little joining words is
-        // the name of the place, which may well be two words long.
-        let rest = tokens.filter { !timeWords.contains($0) && !futureWords.contains($0)
-            && $0 != "a" && $0 != "at" && $0 != "de" }
+        // the name of the place, which may well be two words long. A joining
+        // word only goes from the ends: "hora de lisboa", but "ciudad de mexico".
+        let joiningWords: Set<String> = ["a", "at", "de", "en"]
+        var rest = tokens.filter { !timeWords.contains($0) && !futureWords.contains($0) }
+        while let first = rest.first, joiningWords.contains(first) { rest.removeFirst() }
+        while let last = rest.last, joiningWords.contains(last) { rest.removeLast() }
         guard !rest.isEmpty else { return nil }
         let name = rest.joined(separator: " ")
-        guard let zone = zonesByCity[name] ?? zonesByCity[rest[rest.count - 1]] else { return nil }
+        guard let place = zonesByCity[name] ?? zonesByCity[rest[rest.count - 1]] else { return nil }
 
         let time = DateFormatter()
         time.locale = locale
-        time.timeZone = zone
+        time.timeZone = place.zone
         time.dateStyle = .none
         time.timeStyle = .short
         let day = DateFormatter()
         day.locale = locale
-        day.timeZone = zone
+        day.timeZone = place.zone
         day.dateStyle = .full
         day.timeStyle = .none
-        let place = zone.identifier.split(separator: "/").last
-            .map { $0.replacingOccurrences(of: "_", with: " ") } ?? zone.identifier
         return Result(formatted: time.string(from: now),
-                      detail: place + " · " + day.string(from: now))
+                      detail: place.name + " · " + day.string(from: now))
     }
 
     // MARK: - Writing and reading dates
