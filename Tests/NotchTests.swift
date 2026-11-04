@@ -1501,9 +1501,11 @@ enum NotchTests {
         typealias Layout = NotchMusicStripLayout
         let wing = compactMusic.compactActivityWingWidth
         let inset = Layout.coverInset(compactMusic), side = Layout.coverSide(compactMusic)
-        suite.expect(inset == compactMusic.compactMusicArtworkInset && side == compactMusic.compactMusicArtworkSide
-               && Layout.innerInset(compactMusic) == 0,
-               "a physical camera's cover keeps its full size and concentric inset")
+        suite.expect(Layout.innerInset(compactMusic) == Layout.cameraClearance
+               && wing - inset - side >= Layout.cameraClearance
+               && inset >= compactMusic.compactMusicArtworkInset - 2
+               && side >= compactMusic.compactMusicArtworkSide - Layout.cameraClearance,
+               "a physical camera's cover stays clear of the camera, giving up only that clearance")
         let words = Layout.wordsWidth(title: "Midnight City", artist: "M83")
         suite.expect(Layout.wordsWidth(title: "Midnight City", artist: "M83") == words
                && words > Layout.wordsWidth(title: "Midnight City", artist: nil) - 0.001

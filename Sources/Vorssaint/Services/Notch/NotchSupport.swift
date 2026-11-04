@@ -872,8 +872,11 @@ enum NotchMusicStripLayout {
     /// so a pass on the way to the menus leaves it alone.
     static let namingDelay: TimeInterval = 0.3
 
+    /// A physical camera's housing flares wider at the top of the screen than
+    /// the width it reports, so the cover keeps a few points off it.
+    static let cameraClearance: CGFloat = 4
     /// A simulated camera keeps a little air beside its drawn cutout.
-    static func innerInset(_ geometry: NotchGeometry) -> CGFloat { geometry.isNotched ? 0 : 8 }
+    static func innerInset(_ geometry: NotchGeometry) -> CGFloat { geometry.isNotched ? cameraClearance : 8 }
 
     /// A short wing gives clearance back before the cover turns into a chip.
     static func coverInset(_ geometry: NotchGeometry) -> CGFloat {
