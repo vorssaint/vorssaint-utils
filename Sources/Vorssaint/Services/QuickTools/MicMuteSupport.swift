@@ -72,9 +72,10 @@ enum MicMuteSupport {
         case restore(clearMute: Bool, restoreVolume: Bool)
     }
 
-    static func restoreNeed(muteSwitch: UInt32?, volume: Float?) -> RestoreNeed {
+    static func restoreNeed(muteSwitch: UInt32?, volume: Float?, hasSavedVolume: Bool = false) -> RestoreNeed {
         let muteOn = muteSwitch == 1
         guard let volume else {
+            if hasSavedVolume { return .unreadable }
             return muteOn ? .restore(clearMute: true, restoreVolume: false) : .unreadable
         }
         let quiet = volume <= silenceThreshold

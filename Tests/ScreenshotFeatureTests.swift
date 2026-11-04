@@ -4162,6 +4162,8 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0.75) == .alreadyAudible
                 && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil)
                 == .restore(clearMute: true, restoreVolume: false)
+                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil, hasSavedVolume: true)
+                == .unreadable
                 && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: nil) == .unreadable,
                "unmuting clears the mute switch and restores volume when each is needed, not one or the other")
         suite.expect(MicMuteSupport.inputChannelElements(channelCount: 3) == [0, 1, 2, 3] as [UInt32]

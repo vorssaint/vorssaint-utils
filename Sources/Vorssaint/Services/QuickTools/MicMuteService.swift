@@ -228,6 +228,8 @@ final class MicMuteService: ObservableObject {
             savedVolumes: defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double] ?? [:],
             savedChannelVolumes: defaults.dictionary(forKey: DefaultsKey.micMuteSavedChannelVolumes)
                 as? [String: [String: Double]] ?? [:],
+            savedControls: defaults.dictionary(forKey: DefaultsKey.micMuteSavedControls)
+                as? [String: [String: Double]] ?? [:],
             // Missing means never tracked; an empty list means tracked and
             // owning nothing, and the sweep must keep those two apart.
             mutedDevices: defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices),
@@ -237,6 +239,7 @@ final class MicMuteService: ObservableObject {
         if outcome.applied {
             defaults.set(outcome.savedVolumes, forKey: DefaultsKey.micMuteSavedVolumes)
             defaults.set(outcome.savedChannelVolumes, forKey: DefaultsKey.micMuteSavedChannelVolumes)
+            defaults.set(outcome.savedControls, forKey: DefaultsKey.micMuteSavedControls)
             defaults.set(outcome.mutedDevices, forKey: DefaultsKey.micMuteMutedDevices)
         }
         return outcome
@@ -287,6 +290,9 @@ final class MicMuteService: ObservableObject {
         /// Channel levels by device and element, so an unmute puts back the
         /// balance between channels instead of one level everywhere.
         var savedChannelVolumes: [String: [String: Double]]
+        /// Exact values of the controls this app may have changed. Zero gain
+        /// and an existing mute are user choices, not missing restore data.
+        var savedControls: [String: [String: Double]]
         var mutedDevices: [String]
         /// A device this sweep had to reach and could not, next to ones it did.
         var failed = false
@@ -301,6 +307,7 @@ final class MicMuteService: ObservableObject {
     private static func applyToDevices(muted: Bool,
                                        savedVolumes: [String: Double],
                                        savedChannelVolumes: [String: [String: Double]],
+                                       savedControls: [String: [String: Double]],
                                        mutedDevices: [String]?,
                                        legacyVolume: Double) -> MuteOutcome {
         let devices = inputDevices()
@@ -308,22 +315,26 @@ final class MicMuteService: ObservableObject {
             // Nothing to silence. An unmute has still done its job, and keeps
             // its claims for the devices that are away.
             return MuteOutcome(applied: !muted, savedVolumes: savedVolumes,
-                               savedChannelVolumes: savedChannelVolumes, mutedDevices: mutedDevices ?? [])
+                               savedChannelVolumes: savedChannelVolumes, savedControls: savedControls,
+                               mutedDevices: mutedDevices ?? [])
         }
         return muted
             ? mute(devices, savedVolumes: savedVolumes, savedChannelVolumes: savedChannelVolumes,
-                   mutedDevices: mutedDevices)
+                   savedControls: savedControls, mutedDevices: mutedDevices, legacyVolume: legacyVolume)
             : unmute(devices, savedVolumes: savedVolumes, savedChannelVolumes: savedChannelVolumes,
-                     mutedDevices: mutedDevices, legacyVolume: legacyVolume)
+                     savedControls: savedControls, mutedDevices: mutedDevices, legacyVolume: legacyVolume)
     }
 
     private static func mute(_ devices: [InputDevice],
                              savedVolumes: [String: Double],
                              savedChannelVolumes: [String: [String: Double]],
-                             mutedDevices: [String]?) -> MuteOutcome {
+                             savedControls: [String: [String: Double]],
+                             mutedDevices: [String]?,
+                             legacyVolume: Double) -> MuteOutcome {
         var outcome = MuteOutcome(applied: false,
                                   savedVolumes: savedVolumes,
                                   savedChannelVolumes: savedChannelVolumes,
+                                  savedControls: savedControls,
                                   mutedDevices: MicMuteSupport.absentClaims(recorded: mutedDevices,
                                                                             present: devices.map(\.uid)))
         let owned = Set(mutedDevices ?? [])
@@ -352,20 +363,48 @@ final class MicMuteService: ObservableObject {
             if outcome.savedChannelVolumes[device.uid] == nil, !channels.isEmpty {
                 outcome.savedChannelVolumes[device.uid] = channels
             }
-            // Both controls, every time. A mute switch that reads back
-            // engaged is not enough: capture on many Macs still hears the
-            // volume, so the level has to go to zero as well.
-            _ = setMuteSwitch(true, of: device.id)
-            _ = setInputVolume(0, of: device.id)
-            // Claimed only when the device really went quiet: a driver that
-            // takes the write and keeps its level must not be recorded as
-            // muted, or the unmute would raise a microphone it never lowered.
-            if isSilenced(device.id) {
+            // Snapshot every writable control before any write: a virtual
+            // main volume can also change its channel controls. Reapplying
+            // keeps the first snapshot, including a user's mute or zero gain.
+            let addresses = muteAddresses(of: device.id) + volumeAddresses(of: device.id)
+            var snapshot = savedControls[device.uid] ?? [:]
+            var writable: [AudioObjectPropertyAddress] = []
+            for var address in addresses {
+                var settable = DarwinBoolean(false)
+                guard AudioObjectHasProperty(device.id, &address),
+                      AudioObjectIsPropertySettable(device.id, &address, &settable) == noErr,
+                      settable.boolValue,
+                      let current = controlValue(of: device.id, at: address) else { continue }
+                let key = controlKey(address)
+                if snapshot[key] == nil {
+                    snapshot[key] = owned.contains(device.uid) && savedControls[device.uid] == nil
+                        ? legacyRestoreValue(current, at: address, uid: device.uid,
+                                             savedVolumes: savedVolumes,
+                                             savedChannelVolumes: savedChannelVolumes,
+                                             legacyVolume: legacyVolume)
+                        : current
+                }
+                writable.append(address)
+            }
+            var changed = false
+            for address in writable {
+                let target: Double = address.mSelector == kAudioDevicePropertyMute ? 1 : 0
+                if writeControl(target, of: device.id, at: address) { changed = true }
+            }
+            let quiet = isSilenced(device.id)
+            if changed || owned.contains(device.uid) {
+                // A partially applied mute still owes its changes back.
+                // Keep it operable and report the partial result, rather than
+                // abandoning the microphone after one control refused a write.
                 outcome.applied = true
                 outcome.mutedDevices.append(device.uid)
+                if !snapshot.isEmpty { outcome.savedControls[device.uid] = snapshot }
+                if !quiet { outcome.failed = true }
             } else {
+                if quiet { outcome.applied = true }
                 outcome.savedVolumes.removeValue(forKey: device.uid)
                 outcome.savedChannelVolumes.removeValue(forKey: device.uid)
+                outcome.savedControls.removeValue(forKey: device.uid)
                 // Only a microphone some app records from is left open. An aggregate
                 // has no switch or level of its own; the microphones under it are
                 // swept and reported on their own.
@@ -373,7 +412,9 @@ final class MicMuteService: ObservableObject {
                 var running: UInt32 = 0
                 read(device.id, kAudioDevicePropertyTransportType, &transport)
                 read(device.id, kAudioDevicePropertyDeviceIsRunningSomewhere, &running)
-                if transport != kAudioDeviceTransportTypeAggregate, running != 0 { outcome.failed = true }
+                if !quiet, transport != kAudioDeviceTransportTypeAggregate, running != 0 {
+                    outcome.failed = true
+                }
             }
         }
         return outcome
@@ -382,22 +423,57 @@ final class MicMuteService: ObservableObject {
     private static func unmute(_ devices: [InputDevice],
                                savedVolumes: [String: Double],
                                savedChannelVolumes: [String: [String: Double]],
+                               savedControls: [String: [String: Double]],
                                mutedDevices: [String]?,
                                legacyVolume: Double) -> MuteOutcome {
         let present = devices.map(\.uid)
         var outcome = MuteOutcome(applied: false,
                                   savedVolumes: savedVolumes,
                                   savedChannelVolumes: savedChannelVolumes,
+                                  savedControls: savedControls,
                                   mutedDevices: MicMuteSupport.absentClaims(recorded: mutedDevices,
                                                                             present: present))
         let targets = Set(MicMuteSupport.restoreTargets(recorded: mutedDevices, present: present))
         var attempted = false
         for device in devices where targets.contains(device.uid) {
+            if let snapshot = savedControls[device.uid] {
+                attempted = true
+                let addresses = snapshot.keys.compactMap(controlAddress).sorted {
+                    let left = controlRestoreOrder($0)
+                    let right = controlRestoreOrder($1)
+                    return left == right ? $0.mElement < $1.mElement : left < right
+                }
+                for address in addresses {
+                    guard let value = snapshot[controlKey(address)] else { continue }
+                    _ = writeControl(value, of: device.id, at: address)
+                }
+                // Check the final state after all writes. Later writes can
+                // affect earlier controls through a driver's master/channel
+                // aliases. Missing or unreadable controls stay ours to retry.
+                let restored = !snapshot.isEmpty && addresses.count == snapshot.count
+                    && addresses.allSatisfy { address in
+                        guard let expected = snapshot[controlKey(address)],
+                              let current = controlValue(of: device.id, at: address) else { return false }
+                        return controlValuesMatch(current, expected)
+                    }
+                if restored {
+                    outcome.applied = true
+                    outcome.savedControls.removeValue(forKey: device.uid)
+                    outcome.savedVolumes.removeValue(forKey: device.uid)
+                    outcome.savedChannelVolumes.removeValue(forKey: device.uid)
+                } else {
+                    outcome.failed = true
+                    outcome.mutedDevices.append(device.uid)
+                }
+                continue
+            }
             // A saved level only leaves once the device really opened: a
             // restore that failed keeps the claim and the level, so the next
             // attempt still knows the device is this app's to release.
             switch MicMuteSupport.restoreNeed(muteSwitch: muteSwitchValue(of: device.id),
-                                              volume: inputVolume(of: device.id)) {
+                                              volume: inputVolume(of: device.id),
+                                              hasSavedVolume: savedVolumes[device.uid] != nil
+                                                || savedChannelVolumes[device.uid] != nil) {
             case .alreadyAudible:
                 outcome.savedVolumes.removeValue(forKey: device.uid)
                 outcome.savedChannelVolumes.removeValue(forKey: device.uid)
@@ -441,8 +517,13 @@ final class MicMuteService: ObservableObject {
     /// This still does not prove silence in clients that bypass these
     /// controls, such as Siri.
     private static func isSilenced(_ device: AudioDeviceID) -> Bool {
-        MicMuteSupport.isCaptureSilenced(muteSwitch: muteSwitchValue(of: device),
-                                         volume: inputVolume(of: device))
+        var sawVolume = false
+        for var address in volumeAddresses(of: device) where AudioObjectHasProperty(device, &address) {
+            sawVolume = true
+            guard let value = controlValue(of: device, at: address),
+                  MicMuteSupport.isCaptureSilenced(muteSwitch: nil, volume: Float(value)) else { return false }
+        }
+        return sawVolume || muteSwitchValue(of: device) == 1
     }
 
     /// Every device that can capture audio, skipping the app's own mixing
@@ -526,42 +607,55 @@ final class MicMuteService: ObservableObject {
     }
 
     private static func muteSwitchValue(of device: AudioDeviceID) -> UInt32? {
+        var main = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyMute,
+                                               mScope: kAudioDevicePropertyScopeInput,
+                                               mElement: kAudioObjectPropertyElementMain)
         var sawProperty = false
-        for var address in muteAddresses(of: device) {
-            guard AudioObjectHasProperty(device, &address) else { continue }
+        var unreadable = false
+        if AudioObjectHasProperty(device, &main) {
             sawProperty = true
-            var value: UInt32 = 0
-            var size = UInt32(MemoryLayout<UInt32>.size)
-            if AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value) == noErr, value != 0 {
-                return 1
+            if let value = controlValue(of: device, at: main) {
+                if value == 1 { return 1 }
+            } else {
+                unreadable = true
             }
         }
+        // A channel switch only silences that channel. Without an engaged
+        // main switch, every input channel needs a readable, engaged switch.
+        var allMuted = true
+        for channel in 1...max(inputChannelCount(of: device), 1) {
+            var address = main
+            address.mElement = AudioObjectPropertyElement(channel)
+            guard AudioObjectHasProperty(device, &address) else {
+                allMuted = false
+                continue
+            }
+            sawProperty = true
+            guard let value = controlValue(of: device, at: address) else {
+                allMuted = false
+                unreadable = true
+                continue
+            }
+            if value != 1 { allMuted = false }
+        }
+        if allMuted { return 1 }
+        if unreadable { return nil }
         return sawProperty ? 0 : nil
     }
 
-    /// Every mute control the device exposes, master and channels. Some
-    /// drivers answer a write with success and keep their own value, so a
-    /// failed read-back is still a write we tried; the volume path is what
-    /// makes capture go quiet.
+    /// Legacy restores have no per-control snapshot. Even then, success
+    /// requires every exposed switch to read back the requested value.
     @discardableResult
     private static func setMuteSwitch(_ muted: Bool, of device: AudioDeviceID) -> Bool {
-        var applied = false
-        var value: UInt32 = muted ? 1 : 0
+        var addresses: [AudioObjectPropertyAddress] = []
         for var address in muteAddresses(of: device) {
-            var settable = DarwinBoolean(false)
-            guard AudioObjectHasProperty(device, &address),
-                  AudioObjectIsPropertySettable(device, &address, &settable) == noErr,
-                  settable.boolValue else { continue }
-            // A failed write on an earlier element must not keep going: some
-            // drivers share one switch across channels, and a later success
-            // would hide that the control this app relies on stayed put.
-            guard AudioObjectSetPropertyData(device, &address, 0, nil,
-                                             UInt32(MemoryLayout<UInt32>.size), &value) == noErr else {
-                return applied
-            }
-            applied = true
+            guard AudioObjectHasProperty(device, &address) else { continue }
+            addresses.append(address)
+            _ = writeControl(muted ? 1 : 0, of: device, at: address)
         }
-        return applied
+        return !addresses.isEmpty && addresses.allSatisfy {
+            controlValue(of: device, at: $0) == (muted ? 1 : 0)
+        }
     }
 
     private static func volumeAddresses(of device: AudioDeviceID) -> [AudioObjectPropertyAddress] {
@@ -581,10 +675,8 @@ final class MicMuteService: ObservableObject {
 
     private static func inputVolume(of device: AudioDeviceID) -> Float? {
         for var address in volumeAddresses(of: device) where AudioObjectHasProperty(device, &address) {
-            var volume = Float(0)
-            var size = UInt32(MemoryLayout<Float>.size)
-            if AudioObjectGetPropertyData(device, &address, 0, nil, &size, &volume) == noErr {
-                return volume
+            if let volume = controlValue(of: device, at: address) {
+                return Float(volume)
             }
         }
         return nil
@@ -597,11 +689,8 @@ final class MicMuteService: ObservableObject {
         var levels: [String: Double] = [:]
         for var address in volumeAddresses(of: device) where address.mElement != kAudioObjectPropertyElementMain
             && AudioObjectHasProperty(device, &address) {
-            var volume = Float(0)
-            var size = UInt32(MemoryLayout<Float>.size)
-            if AudioObjectGetPropertyData(device, &address, 0, nil, &size, &volume) == noErr,
-               MicMuteSupport.shouldSaveVolume(volume) {
-                levels[String(address.mElement)] = Double(volume)
+            if let volume = controlValue(of: device, at: address) {
+                levels[String(address.mElement)] = volume
             }
         }
         return levels
@@ -611,18 +700,100 @@ final class MicMuteService: ObservableObject {
     /// taking its own entry in `channels` when there is one.
     private static func setInputVolume(_ volume: Float, of device: AudioDeviceID,
                                        channels: [String: Double] = [:]) -> Bool {
-        var applied = false
+        var addresses: [AudioObjectPropertyAddress] = []
         for var address in volumeAddresses(of: device) where AudioObjectHasProperty(device, &address) {
-            var settable = DarwinBoolean(false)
-            guard AudioObjectIsPropertySettable(device, &address, &settable) == noErr,
-                  settable.boolValue else { continue }
-            var value = channels[String(address.mElement)].map(Float.init) ?? volume
-            if AudioObjectSetPropertyData(device, &address, 0, nil,
-                                          UInt32(MemoryLayout<Float>.size), &value) == noErr {
-                applied = true
-            }
+            addresses.append(address)
+            let value = channels[String(address.mElement)] ?? Double(volume)
+            _ = writeControl(value, of: device, at: address)
         }
-        return applied
+        return !addresses.isEmpty && addresses.allSatisfy { address in
+            guard let current = controlValue(of: device, at: address) else { return false }
+            return controlValuesMatch(current, channels[String(address.mElement)] ?? Double(volume))
+        }
+    }
+
+    private static func controlKey(_ address: AudioObjectPropertyAddress) -> String {
+        "\(address.mSelector):\(address.mElement)"
+    }
+
+    private static func controlAddress(_ key: String) -> AudioObjectPropertyAddress? {
+        let parts = key.split(separator: ":")
+        guard parts.count == 2, let selector = UInt32(parts[0]), let element = UInt32(parts[1]),
+              selector == kAudioDevicePropertyMute || selector == kAudioDevicePropertyVolumeScalar
+                || selector == kAudioHardwareServiceDeviceProperty_VirtualMainVolume else { return nil }
+        return AudioObjectPropertyAddress(mSelector: selector,
+                                           mScope: kAudioDevicePropertyScopeInput,
+                                           mElement: element)
+    }
+
+    private static func controlRestoreOrder(_ address: AudioObjectPropertyAddress) -> Int {
+        if address.mSelector == kAudioHardwareServiceDeviceProperty_VirtualMainVolume { return 0 }
+        return address.mSelector == kAudioDevicePropertyVolumeScalar ? 1 : 2
+    }
+
+    private static func controlValuesMatch(_ left: Double, _ right: Double) -> Bool {
+        left.isFinite && right.isFinite && abs(left - right) <= 0.0001
+    }
+
+    private static func controlValue(of device: AudioDeviceID,
+                                     at address: AudioObjectPropertyAddress) -> Double? {
+        var address = address
+        guard AudioObjectHasProperty(device, &address) else { return nil }
+        if address.mSelector == kAudioDevicePropertyMute {
+            var value: UInt32 = 0
+            var size = UInt32(MemoryLayout<UInt32>.size)
+            guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value) == noErr,
+                  value <= 1 else { return nil }
+            return Double(value)
+        }
+        var value: Float = 0
+        var size = UInt32(MemoryLayout<Float>.size)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value) == noErr,
+              value.isFinite, value >= 0, value <= 1 else { return nil }
+        return Double(value)
+    }
+
+    /// Reports a possible change, not proof of the requested state. A driver
+    /// may accept and ignore a write, or make the control unreadable afterwards.
+    /// Callers keep the snapshot and verify the final state separately.
+    private static func writeControl(_ value: Double, of device: AudioDeviceID,
+                                      at address: AudioObjectPropertyAddress) -> Bool {
+        guard value.isFinite, value >= 0, value <= 1,
+              address.mSelector != kAudioDevicePropertyMute || value == 0 || value == 1,
+              let current = controlValue(of: device, at: address) else { return false }
+        if controlValuesMatch(current, value) { return false }
+        var address = address
+        var settable = DarwinBoolean(false)
+        guard AudioObjectIsPropertySettable(device, &address, &settable) == noErr,
+              settable.boolValue else { return false }
+        let status: OSStatus
+        if address.mSelector == kAudioDevicePropertyMute {
+            var target = UInt32(value)
+            status = AudioObjectSetPropertyData(device, &address, 0, nil,
+                                                UInt32(MemoryLayout<UInt32>.size), &target)
+        } else {
+            var target = Float(value)
+            status = AudioObjectSetPropertyData(device, &address, 0, nil,
+                                                UInt32(MemoryLayout<Float>.size), &target)
+        }
+        let readBack = controlValue(of: device, at: address)
+        return status == noErr || readBack.map { !controlValuesMatch($0, current) } == true
+    }
+
+    /// An already-owned device may have been muted by a version without
+    /// control snapshots. Carry its old restore obligation into the first
+    /// snapshot instead of saving the mute or zero gain left by that version.
+    private static func legacyRestoreValue(_ current: Double, at address: AudioObjectPropertyAddress,
+                                           uid: String, savedVolumes: [String: Double],
+                                           savedChannelVolumes: [String: [String: Double]],
+                                           legacyVolume: Double) -> Double {
+        if address.mSelector == kAudioDevicePropertyMute {
+            return address.mElement == kAudioObjectPropertyElementMain ? 0 : current
+        }
+        if current > Double(MicMuteSupport.silenceThreshold) { return current }
+        if address.mElement != kAudioObjectPropertyElementMain,
+           let channel = savedChannelVolumes[uid]?[String(address.mElement)] { return channel }
+        return Double(MicMuteSupport.volumeToRestore(uid: uid, saved: savedVolumes, legacy: legacyVolume))
     }
 
     @discardableResult
