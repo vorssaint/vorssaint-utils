@@ -493,6 +493,13 @@ struct Strings {
     let uninstallerChoose: String
     let uninstallerPickerTitle: String
     let uninstallerPickerSearch: String
+    let uninstallerSelectAll: String
+    let uninstallerSelectNone: String
+    let uninstallerLastUsedFormat: String   // + date
+    let uninstallerNeverUsed: String
+    let uninstallerSortName: String
+    let uninstallerSortSize: String
+    let uninstallerSortLastUsed: String
     let uninstallerPickerEmpty: String
     let uninstallerEmptyNote: String
     let uninstallerFDANote: String
@@ -1647,6 +1654,13 @@ extension Strings {
         uninstallerChoose: "Escolher app…",
         uninstallerPickerTitle: "Escolher app",
         uninstallerPickerSearch: "Buscar apps",
+        uninstallerSelectAll: "Selecionar tudo",
+        uninstallerSelectNone: "Desmarcar tudo",
+        uninstallerLastUsedFormat: "Último uso: %@",
+        uninstallerNeverUsed: "Nenhum uso recente registrado",
+        uninstallerSortName: "Nome",
+        uninstallerSortSize: "Tamanho",
+        uninstallerSortLastUsed: "Último uso",
         uninstallerPickerEmpty: "Nenhum app encontrado",
         uninstallerEmptyNote: "Nada é removido sem a sua confirmação.",
         uninstallerFDANote: "Conceda Acesso Total ao Disco para uma análise mais completa.",
@@ -2765,6 +2779,13 @@ extension Strings {
         uninstallerChoose: "Choose app…",
         uninstallerPickerTitle: "Choose app",
         uninstallerPickerSearch: "Search apps",
+        uninstallerSelectAll: "Select all",
+        uninstallerSelectNone: "Select none",
+        uninstallerLastUsedFormat: "Last used: %@",
+        uninstallerNeverUsed: "No recent use recorded",
+        uninstallerSortName: "Name",
+        uninstallerSortSize: "Size",
+        uninstallerSortLastUsed: "Last used",
         uninstallerPickerEmpty: "No apps found",
         uninstallerEmptyNote: "Nothing is removed without your confirmation.",
         uninstallerFDANote: "Grant Full Disk Access for a more thorough scan.",
