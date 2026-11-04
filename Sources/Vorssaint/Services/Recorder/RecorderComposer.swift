@@ -346,11 +346,22 @@ final class RecorderComposer {
             // our own, through one context, reuse a handful.
             let timeline = (try? await asset.load(.duration)) ?? duration
             guard timeline.isValid, timeline > .zero else { return nil }
+            let naturalSize = (try? await track.load(.naturalSize)) ?? sourceSize
+            let preferredTransform = (try? await track.load(.preferredTransform)) ?? .identity
+            // Track transforms count down from the top; Core Image counts up
+            // from the bottom. Normalize the oriented pixels before the plan
+            // crops them or places privacy blurs in the displayed picture.
+            let flip = CGAffineTransform(scaleX: 1, y: -1)
+            var sourceTransform = flip.concatenating(preferredTransform).concatenating(flip)
+            let sourceBounds = CGRect(origin: .zero, size: naturalSize).applying(sourceTransform)
+            sourceTransform.tx -= sourceBounds.minX
+            sourceTransform.ty -= sourceBounds.minY
             let composition = AVMutableVideoComposition()
             composition.customVideoCompositorClass = RecorderVideoCompositor.self
             composition.instructions = [RecorderCompositionInstruction(
                 timeRange: CMTimeRange(start: .zero, duration: timeline),
                 trackID: track.trackID,
+                sourceTransform: sourceTransform,
                 composer: composer,
                 timing: RecorderExportTiming(speed: playbackSpeed))]
             composition.frameDuration = CMTime(value: 1,
@@ -408,14 +419,17 @@ private final class RecorderCompositionInstruction: NSObject, AVVideoComposition
     let requiredSourceTrackIDs: [NSValue]?
     let passthroughTrackID = kCMPersistentTrackID_Invalid
     let trackID: CMPersistentTrackID
+    let sourceTransform: CGAffineTransform
     /// Only read while rendering, from whichever thread asks for a frame.
     let composer: RecorderComposer
     let timing: RecorderExportTiming
 
-    init(timeRange: CMTimeRange, trackID: CMPersistentTrackID, composer: RecorderComposer,
+    init(timeRange: CMTimeRange, trackID: CMPersistentTrackID, sourceTransform: CGAffineTransform,
+         composer: RecorderComposer,
          timing: RecorderExportTiming) {
         self.timeRange = timeRange
         self.trackID = trackID
+        self.sourceTransform = sourceTransform
         self.composer = composer
         self.timing = timing
         requiredSourceTrackIDs = [NSNumber(value: trackID)]
@@ -450,7 +464,8 @@ private final class RecorderVideoCompositor: NSObject, AVVideoCompositing, @unch
         // is drawn on nothing, as the Core Image handler drew it, rather than
         // failing the whole export.
         let source = request.sourceFrame(byTrackID: instruction.trackID)
-            .map { CIImage(cvPixelBuffer: $0) } ?? CIImage.empty()
+            .map { CIImage(cvPixelBuffer: $0).transformed(by: instruction.sourceTransform) }
+            ?? CIImage.empty()
         // Plans are built on the edited, unscaled clock. Map back before
         // looking up zooms, cursor shapes, captions and privacy blurs,
         // including frames on either side of a cut.

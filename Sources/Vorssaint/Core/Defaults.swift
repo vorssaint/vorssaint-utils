@@ -54,8 +54,6 @@ enum DefaultsKey {
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
     static let scrollHorizontalEnabled = "scrollHorizontalEnabled"
     static let scrollHorizontalModifier = "scrollHorizontalModifier"
-    static let verticalZoomEnabled = "verticalZoomEnabled"
-    static let verticalZoomModifier = "verticalZoomModifier"
     static let pinchZoomEnabled = "pinchZoomEnabled"
     static let pinchZoomModifier = "pinchZoomModifier"
     static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
@@ -1052,13 +1050,13 @@ enum BrightnessUpdatePromptInfo {
 
 enum SupportUpdateIntroInfo {
     /// The stable release that gets this invitation, and the patches after it,
-    /// which share one completion marker. 3.4.2 introduces the revised message
-    /// even to people who completed the earlier invitation.
-    static let releaseVersion = "3.4.2"
+    /// which share one completion marker. The next stable update also includes
+    /// people who completed the previous invitation.
+    static let releaseVersion = "3.4.3"
 
     // Older beta onboarding wrote the release version before this screen was
     // available. A distinct completion marker keeps those upgraders eligible.
-    static let seenVersion = "3.4.2-support"
+    static let seenVersion = "3.4.3-support"
 
     static func matchesRelease(_ appVersion: String) -> Bool {
         guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
@@ -1241,8 +1239,6 @@ enum Defaults {
         DefaultsKey.scrollInverterHorizontalEnabled: false,
         DefaultsKey.scrollHorizontalEnabled: false,
         DefaultsKey.scrollHorizontalModifier: ScrollHorizontalModifier.shift.rawValue,
-        DefaultsKey.verticalZoomEnabled: false,
-        DefaultsKey.verticalZoomModifier: ScrollZoomModifier.command.rawValue,
         DefaultsKey.pinchZoomEnabled: false,
         DefaultsKey.pinchZoomModifier: ScrollZoomModifier.control.rawValue,
         DefaultsKey.focusFollowsMouseEnabled: false,

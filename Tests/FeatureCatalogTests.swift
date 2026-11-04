@@ -1562,9 +1562,9 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterHorizontalEnabled])
                 .contains(.scrollInverter),
                "horizontal-only inversion counts as using accessibility")
-        suite.expect(activeSet(.accessibility, available: [.scrollZoom], on: [DefaultsKey.verticalZoomEnabled])
+        suite.expect(activeSet(.accessibility, available: [.scrollZoom], on: [DefaultsKey.pinchZoomEnabled])
                 == [.scrollZoom]
-                && activeSet(.accessibility, available: [], on: [DefaultsKey.verticalZoomEnabled]).isEmpty,
+                && activeSet(.accessibility, available: [], on: [DefaultsKey.pinchZoomEnabled]).isEmpty,
                "Zoom alone owns accessibility only while installed")
         suite.expect(AppFeature.scrollInverter.enabledKeys == [DefaultsKey.scrollInverterEnabled,
                                                            DefaultsKey.scrollInverterHorizontalEnabled],

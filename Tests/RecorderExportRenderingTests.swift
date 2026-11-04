@@ -98,6 +98,7 @@ enum RecorderExportRenderingTests {
         expectThrottledProgress(suite, videoProgress.entries, frameReportsUpTo: 0.9, "video export")
         try await audioAndGIF(suite, take: take)
         try await composedEdges(suite, take: take)
+        try await orientedImports(suite, take: take)
         // The last case ends protection in the removed interval. The frame
         // held immediately before the splice must retain the pre-cut blur.
         let cases: [(cuts: Bool, blurStart: Double, blurEnd: Double, protectedTime: Double, clearTime: Double)] = [
@@ -269,6 +270,222 @@ enum RecorderExportRenderingTests {
         }
         let mean = samples.reduce(0, +) / Double(max(1, samples.count))
         return (samples.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(max(1, samples.count))).squareRoot()
+    }
+
+    /// Imported phone movies can store their orientation in the track rather
+    /// than in the encoded pixels. A blur is picked on the displayed picture,
+    /// so orientation must be applied before the composer reads that area.
+    private static func orientedImports(_ suite: TestSuite, take: RecorderTakeStore.Take) async throws {
+        let orientations: [(String, CGAffineTransform)] = [
+            ("identity", .identity),
+            ("clockwise", CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 192, ty: 0)),
+            ("half-turn", CGAffineTransform(a: -1, b: 0, c: 0, d: -1, tx: 256, ty: 192)),
+            ("counter-clockwise", CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 256)),
+            ("mirrored", CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: 256, ty: 0)),
+        ]
+        let time = CMTime(value: 12, timescale: 60)
+        for (name, transform) in orientations {
+            let folder = take.folder.appendingPathComponent("orientation-\(name)")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let imported = RecorderTakeStore.Take(id: UUID(), folder: folder)
+            try await writeOrientationVideo(to: imported.videoURL, transform: transform)
+            let asset = AVURLAsset(url: imported.videoURL)
+            let duration = try await asset.load(.duration)
+            guard let sourceTrack = try await asset.loadTracks(withMediaType: .video).first
+            else { throw FixtureFailure.writeFailed }
+            let storedTransform = try await sourceTrack.load(.preferredTransform)
+            suite.expect(storedTransform == transform, "\(name) fixture stores its track orientation")
+            // The oracle is AVFoundation's ordinary display transform, not
+            // the transform being tested in the custom compositor.
+            let reference = AVAssetImageGenerator(asset: asset)
+            reference.appliesPreferredTrackTransform = true
+            let expected = try await reference.image(at: time).image
+            let size = CGSize(width: expected.width, height: expected.height)
+            var document = RecorderEditDocument()
+            document.backdrop = ""
+            document.showsPointer = false
+            document.zoomEnabled = false
+            document.quality = RecorderSupport.Quality.high.rawValue
+            document.gifSize = RecorderSupport.GIFSize.small.rawValue
+            guard let timeline = await RecorderComposition.build(from: asset,
+                ranges: document.keptRanges(duration: duration.seconds), includesAudio: false),
+                let track = try await timeline.asset.loadTracks(withMediaType: .video).first
+            else {
+                suite.expect(false, "\(name) builds the edited preview timeline")
+                continue
+            }
+            var previews: [CGImage] = [], movies: [CGImage] = [], gifs: [CGImage] = []
+            // Even the old Core Image handler changes this coloured
+            // checkerboard's contrast, and encoding changes it again. Compare
+            // active/inactive blur through the same compositor AND format.
+            // A future blur keeps the control on the edited path at 0.2 s.
+            for (mode, start) in [("control", 0.25), ("blurred", 0.0)] {
+                document.blurs = [RecorderBlurRegion(start: start, end: duration.seconds,
+                    rect: CGRect(x: 0, y: 0, width: 0.5, height: 1))]
+                guard let plan = RecorderComposer.makePlan(document: document, track: RecorderPointerTrack(),
+                    sourceSize: size, frameRate: 60, duration: duration.seconds)
+                else {
+                    suite.expect(false, "\(name) \(mode) builds an edited plan")
+                    continue
+                }
+                let composer = RecorderComposer(plan: plan)
+                guard let composition = await RecorderComposer.videoComposition(
+                    track: track, asset: timeline.asset, duration: timeline.duration, frameRate: 60,
+                    composer: composer, sourceSize: size, outputSize: composer.canvasSize)
+                else {
+                    suite.expect(false, "\(name) \(mode) builds the edited preview composition")
+                    continue
+                }
+                // Exercise the preview's production composition offscreen.
+                // AVPlayer playback and window teardown remain runtime checks.
+                let preview = AVAssetImageGenerator(asset: timeline.asset)
+                preview.videoComposition = composition
+                preview.requestedTimeToleranceBefore = .zero
+                preview.requestedTimeToleranceAfter = .zero
+                previews.append(try await preview.image(at: time).image)
+
+                let movie = folder.appendingPathComponent("\(mode).mp4")
+                let movieFailure = await RecorderExporter().export(take: imported, document: document,
+                    output: .video, to: movie, progress: { _ in })
+                suite.expect(movieFailure == nil, "\(name) \(mode) exports an edited video")
+                if movieFailure == nil {
+                    let exported = AVAssetImageGenerator(asset: AVURLAsset(url: movie))
+                    exported.appliesPreferredTrackTransform = true
+                    exported.requestedTimeToleranceBefore = .zero
+                    exported.requestedTimeToleranceAfter = .zero
+                    movies.append(try await exported.image(at: time).image)
+                }
+                let gif = folder.appendingPathComponent("\(mode).gif")
+                let gifFailure = await RecorderExporter().export(take: imported, document: document,
+                    output: .gif, to: gif, progress: { _ in })
+                suite.expect(gifFailure == nil, "\(name) \(mode) exports an edited GIF")
+                if gifFailure == nil,
+                   let source = CGImageSourceCreateWithURL(gif as CFURL, nil),
+                   let frame = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+                    gifs.append(frame)
+                } else {
+                    suite.expect(false, "\(name) \(mode) edited GIF decodes")
+                }
+            }
+            for (route, frames) in [("preview composition", previews), ("video export", movies), ("GIF export", gifs)] {
+                suite.expect(frames.count == 2, "\(name) \(route) produces both contrast controls")
+                guard frames.count == 2 else { continue }
+                expectOrientedFrame(suite, frames[1], control: frames[0], reference: expected, "\(name) \(route)")
+            }
+        }
+    }
+
+    private static func writeOrientationVideo(to url: URL, transform: CGAffineTransform) async throws {
+        let (width, height) = (256, 192)
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
+        ])
+        input.transform = transform
+        let adapter = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height,
+            ])
+        writer.add(input)
+        guard writer.startWriting() else { throw FixtureFailure.writeFailed }
+        writer.startSession(atSourceTime: .zero)
+        for frame in 0..<30 {
+            while !input.isReadyForMoreMediaData {
+                guard writer.status == .writing else { throw FixtureFailure.writeFailed }
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+            var maybe: CVPixelBuffer?
+            guard let pool = adapter.pixelBufferPool,
+                  CVPixelBufferPoolCreatePixelBuffer(nil, pool, &maybe) == kCVReturnSuccess,
+                  let pixel = maybe else { throw FixtureFailure.writeFailed }
+            CVPixelBufferLockBaseAddress(pixel, [])
+            let bytes = CVPixelBufferGetBaseAddress(pixel)!.assumingMemoryBound(to: UInt8.self)
+            let stride = CVPixelBufferGetBytesPerRow(pixel)
+            for y in 0..<height { for x in 0..<width {
+                let value: UInt8 = (x / 4 + y / 4) % 2 == 0 ? 30 : 220
+                let offset = y * stride + x * 4
+                // Four corner colours distinguish rotations and reflections.
+                // Red detail starts equal; colour conversion and compression
+                // affect it differently, which the paired control captures.
+                bytes[offset] = y < height / 2 ? 20 : value
+                bytes[offset + 1] = x < width / 2 ? 20 : value
+                bytes[offset + 2] = value
+                bytes[offset + 3] = 255
+            } }
+            CVPixelBufferUnlockBaseAddress(pixel, [])
+            guard adapter.append(pixel, withPresentationTime: CMTime(value: Int64(frame), timescale: 60))
+            else { throw FixtureFailure.writeFailed }
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        guard writer.status == .completed else { throw FixtureFailure.writeFailed }
+    }
+
+    private static func expectOrientedFrame(_ suite: TestSuite, _ image: CGImage,
+                                            control: CGImage, reference: CGImage, _ label: String) {
+        suite.expect(image.width == reference.width && image.height == reference.height
+                && control.width == reference.width && control.height == reference.height,
+                     "\(label) keeps the displayed dimensions")
+        let actual = orientationSamples(image)
+        let unprotected = orientationSamples(control)
+        let expected = orientationSamples(reference)
+        guard actual.count == 4, unprotected.count == 4, expected.count == 4 else {
+            suite.expect(false, "\(label) has four readable corners")
+            return
+        }
+        for index in 0..<4 {
+            let sharp = index % 2 == 1
+            suite.expect(expected[index].spread > 60,
+                         "\(label) source corner \(index) has detail to protect")
+            // The control must have detail beyond the accepted blur ceiling,
+            // so a flat frame cannot satisfy a relative contrast comparison.
+            let baseline = unprotected[index].spread
+            suite.expect(baseline > 25,
+                         "\(label) control corner \(index) remains outside the blurred range, spread \(baseline)")
+            let controlError = zip(unprotected[index].rgb, expected[index].rgb).map { abs($0 - $1) }.max() ?? .infinity
+            suite.expect(controlError < 30,
+                         "\(label) control keeps source corner \(index) in place, colour error \(controlError)")
+            if sharp {
+                // Compare like-for-like encoded output rather than imposing
+                // the decoded source's contrast on MP4/GIF or CI rendering.
+                suite.expectClose(actual[index].spread, baseline,
+                    "\(label) leaves unprotected corner \(index) unchanged", tol: max(2, baseline * 0.1))
+                let error = zip(actual[index].rgb, expected[index].rgb).map { abs($0 - $1) }.max() ?? .infinity
+                suite.expect(error < 30,
+                             "\(label) keeps source corner \(index) in place, colour error \(error)")
+            } else {
+                suite.expect(actual[index].spread < 25 && actual[index].spread < baseline * 0.25,
+                    "\(label) protects corner \(index), spread \(actual[index].spread), control \(baseline)")
+            }
+        }
+    }
+
+    /// Sample well inside each quadrant, in row order. Comparing with the
+    /// normally displayed source catches a reversed turn as well as a missing
+    /// transform, while allowing the compositor's small colour differences.
+    private static func orientationSamples(_ image: CGImage) -> [(rgb: [Double], spread: Double)] {
+        let width = image.width, height = image.height
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(data: &bytes, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return [] }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return (0..<4).map { corner in
+            let column = corner % 2, row = corner / 2
+            let xs = ((column * 8 + 3) * width / 16)..<((column * 8 + 5) * width / 16)
+            let ys = ((row * 8 + 3) * height / 16)..<((row * 8 + 5) * height / 16)
+            var totals = [Double](repeating: 0, count: 3)
+            var squaredRed = 0.0
+            for y in ys { for x in xs {
+                let offset = (y * width + x) * 4
+                for channel in 0..<3 { totals[channel] += Double(bytes[offset + channel]) }
+                squaredRed += pow(Double(bytes[offset]), 2)
+            } }
+            let count = Double(max(1, xs.count * ys.count))
+            let means = totals.map { $0 / count }
+            return (means, max(0, squaredRed / count - means[0] * means[0]).squareRoot())
+        }
     }
 
     private static func audioAndGIF(_ suite: TestSuite, take: RecorderTakeStore.Take) async throws {

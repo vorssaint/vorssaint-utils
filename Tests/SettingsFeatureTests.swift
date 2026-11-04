@@ -28,10 +28,10 @@ enum SettingsFeatureTests {
                 .flatMap(\.items).first { $0.page == .mouse }!
             let zoomKeywords = zip(mouse.keywords, mouse.keywordFeatures)
                 .filter { $0.1 == .scrollZoom }.map(\.0)
-            suite.expect(zoomKeywords == [strings.zoomSection, strings.verticalZoom,
+            suite.expect(zoomKeywords == [strings.zoomSection,
                                            strings.pinchZoom],
                          "settings discovery includes every Zoom row in \(language.rawValue)")
-            for query in [strings.verticalZoom, strings.pinchZoom] {
+            for query in [strings.zoomSection, strings.pinchZoom] {
                 suite.expect(SettingsSearchSupport.matches(query: query, title: mouse.title, keywords: mouse.keywords),
                              "search finds a localized Zoom option on the Mouse page")
             }
