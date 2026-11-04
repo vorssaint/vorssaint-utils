@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import AppKit
+import UniformTypeIdentifiers
+
+/// How a clipboard paste into the shelf ended, so the caller can decide
+/// whether to surface feedback. Success is silent on purpose: the item
+/// appearing on the shelf (and the docked shelf's green tick) is the
+/// feedback, exactly as it is after a drop.
+enum ClipboardImportOutcome: Equatable {
+    case imported
+    case failed(ClipboardImportFailure)
+}
+
+enum ClipboardImportFailure: Equatable {
+    /// The general pasteboard has nothing readable on it.
+    case empty
+    /// It has content, but none of it maps to a file, image, link or text.
+    case incompatible
+}
+
+/// Centralized clipboard paste support for the shelf, the app's file-capable
+/// input surface. It mirrors the drop path (same accepted types, same
+/// capacity and thumbnail rules) but reads the *general* pasteboard instead
+/// of the drag pasteboard, so Cmd+V works wherever the shelf accepts files.
+///
+/// The read is serialized through `GeneralPasteboardAccess`: AppKit pasteboard
+/// reads can block on promised content, so everything that touches the general
+/// pasteboard happens off the main thread. What comes back is a private
+/// pasteboard whose contents are already rendered, so the shelf's ordinary
+/// `accept(pasteboard:)` (which runs on main) never blocks on a third-party app.
+final class ClipboardImportService {
+    static let shared = ClipboardImportService()
+
+    private enum SnapshotResult {
+        case compatible(NSPasteboard)
+        case empty
+        case incompatible
+    }
+
+    private init() {}
+
+    /// Reads the clipboard and, when it carries something the shelf can hold,
+    /// imports it. Always reports the outcome back on the main thread; the
+    /// import itself reuses `ShelfService.accept(pasteboard:)`, so capacity,
+    /// validation and payload persistence behave exactly like a drop.
+    func pasteIntoCurrentShelf(completion: @escaping (ClipboardImportOutcome) -> Void = { _ in }) {
+        let shelf = ShelfService.shared
+        guard AppFeature.shelf.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else {
+            completion(.failed(.incompatible))
+            return
+        }
+        GeneralPasteboardAccess.shared.async({ Self.snapshotGeneralPasteboard() }) { result in
+            switch result {
+            case let .compatible(board):
+                defer { board.releaseGlobally() }
+                let accepted = shelf.accept(pasteboard: board)
+                completion(accepted ? .imported : .failed(.incompatible))
+            case .empty:
+                completion(.failed(.empty))
+            case .incompatible:
+                completion(.failed(.incompatible))
+            }
+        }
+    }
+
+    /// Copies every droppable, already-rendered type off the general
+    /// pasteboard into a fresh private board. Copying `data(forType:)` here is
+    /// what forces any promised content to render off the main thread; file
+    /// promises themselves are not cloned (they have no data to copy and are
+    /// not how clipboard file copies arrive — those come as file URLs).
+    private static func snapshotGeneralPasteboard() -> SnapshotResult {
+        let source = NSPasteboard.general
+        guard let entries = source.pasteboardItems, !entries.isEmpty else { return .empty }
+
+        // `writeObjects` replaces the board's contents rather than appending,
+        // so build every cloned item first and write them all in one call.
+        var copies: [NSPasteboardItem] = []
+        for entry in entries {
+            let copy = NSPasteboardItem()
+            for type in entry.types where ShelfPasteboardSupport.isDroppablePasteboardType(type.rawValue)
+                && !ShelfPasteboardSupport.isFilePromiseType(type.rawValue) {
+                guard let data = entry.data(forType: type), !data.isEmpty else { continue }
+                copy.setData(data, forType: type)
+            }
+            if !copy.types.isEmpty { copies.append(copy) }
+        }
+        guard !copies.isEmpty else { return .incompatible }
+
+        let board = NSPasteboard.withUniqueName()
+        guard board.writeObjects(copies) else {
+            board.releaseGlobally()
+            return .incompatible
+        }
+        return .compatible(board)
+    }
+}

@@ -1054,6 +1054,10 @@ final class ShelfService: ObservableObject {
                 ShelfService.shared.selectAllVisibleItems()
                 return true
             }
+            if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "v" {
+                ShelfService.shared.pasteFromClipboard()
+                return true
+            }
             return super.performKeyEquivalent(with: event)
         }
 
@@ -1628,6 +1632,44 @@ final class ShelfService: ObservableObject {
         alert.informativeText = body
         alert.addButton(withTitle: ShelfPromiseDeliveryStrings.localized(L10n.shared.language).okButton)
         // A failed background delivery must not steal focus from another app.
+        if let window = panel, window.isVisible {
+            alert.beginSheetModal(for: window)
+        } else if let window = dockedPanel, window.isVisible {
+            alert.beginSheetModal(for: window)
+        } else if let window = NotchService.shared.presentationWindow, window.isVisible {
+            alert.beginSheetModal(for: window)
+        } else {
+            alert.runModal()
+        }
+    }
+
+    /// Pastes whatever the general clipboard carries into the shelf, the same
+    /// way a drop would. Runs the clipboard read off the main thread (via
+    /// `ClipboardImportService`) and only surfaces feedback on a failure; a
+    /// success is its own feedback, exactly like a landed drop.
+    func pasteFromClipboard() {
+        ClipboardImportService.shared.pasteIntoCurrentShelf { [weak self] outcome in
+            guard let self else { return }
+            if case let .failed(reason) = outcome {
+                self.reportClipboardPasteProblem(reason)
+            }
+        }
+    }
+
+    private func reportClipboardPasteProblem(_ reason: ClipboardImportFailure) {
+        let strings = ClipboardImportStrings.localized(L10n.shared.language)
+        let body: String
+        switch reason {
+        case .empty: body = strings.emptyBody
+        case .incompatible: body = strings.incompatibleBody
+        }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = strings.title
+        alert.informativeText = body
+        alert.addButton(withTitle: strings.okButton)
+        // A failed paste must not steal focus from another app; keep the same
+        // sheet-first, modal-last order as the promise-delivery alert.
         if let window = panel, window.isVisible {
             alert.beginSheetModal(for: window)
         } else if let window = dockedPanel, window.isVisible {
