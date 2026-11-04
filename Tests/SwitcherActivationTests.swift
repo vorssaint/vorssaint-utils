@@ -391,18 +391,27 @@ enum SwitcherActivationTests {
                             && !events.contains("event:1"),
                          "a refused no-raise activation falls back to the focus handoff and reports success")
 
-            resetFocus()
-            Bridge.postEventRecord = { _, bytes in
-                records.append(Array(UnsafeBufferPointer(start: bytes, count: 0x100)))
-                return bytes[0x3c] == 77 ? .failure : .success
+            for activationResult: CGError? in [.success, .failure, nil] {
+                resetFocus()
+                if let activationResult {
+                    Bridge.setFrontProcess = { _, _, options in
+                        frontOptions.append(options)
+                        return activationResult
+                    }
+                } else {
+                    Bridge.setFrontProcess = nil
+                }
+                Bridge.postEventRecord = { _, bytes in
+                    records.append(Array(UnsafeBufferPointer(start: bytes, count: 0x100)))
+                    // A mouse press would succeed, but disabled raising must
+                    // never use it to recover from this refused focus record.
+                    return bytes[0x08] == 0x0d && bytes[0x3c] == 77 ? .failure : .success
+                }
+                focus(replacing: oldWindow); Queue.main.finish()
+                suite.expect(results == [false] && frontOptions == (activationResult == nil ? [] : [0x400])
+                                && hasFocusRecords(oldWindow == nil ? [(77, 1)] : [(66, 2), (77, 1), (66, 1)]),
+                             "an undelivered focus gain restores old focus without a raising request or mouse press")
             }
-            focus(replacing: oldWindow); Queue.main.finish()
-            let restoredOld = records.contains { $0[0x08] == 0x0d && $0[0x3c] == 66 && $0[0x8a] == 1 }
-            suite.expect(results == [false] && frontOptions == [0x400, 0x200]
-                            && records.filter { $0[0x08] == 1 }.count == 1
-                            && records.contains { $0[0x08] == 0x0d && $0[0x3c] == 77 && $0[0x8a] == 1 }
-                            && restoredOld == (oldWindow != nil),
-                         "an undelivered focus record fronts the window and restores a released window when that fails")
 
             resetFocus()
             var lookups = 0
@@ -411,10 +420,9 @@ enum SwitcherActivationTests {
                 return lookups == (oldWindow == nil ? 2 : 3) ? -1 : noErr
             }
             focus(replacing: oldWindow); Queue.main.finish()
-            suite.expect(results == [true] && frontOptions == [0x400, 0x200]
-                            && records.contains { $0[0x08] == 1 }
-                            && !records.contains { $0[0x08] == 0x0d && $0[0x8a] == 1 },
-                         "a focus record that loses its process falls back to fronting the window")
+            suite.expect(results == [false] && frontOptions == [0x400]
+                            && hasFocusRecords(oldWindow == nil ? [] : [(66, 2), (66, 1)]),
+                         "losing the process after activation reports failure without a raising fallback")
         }
 
         for oldWindow: CGWindowID? in [nil, 66] {
@@ -435,10 +443,19 @@ enum SwitcherActivationTests {
                      "a hover that ends first restores the old window and does not fall back")
 
         resetFocus(); focus(replacing: 66)
-        Bridge.setFrontProcess = { _, _, _ in Activator.focusedID = 88; return .failure }
+        Bridge.setFrontProcess = { _, _, options in
+            frontOptions.append(options)
+            Activator.focusedID = 88
+            return .failure
+        }
+        Bridge.postEventRecord = { _, bytes in
+            records.append(Array(UnsafeBufferPointer(start: bytes, count: 0x100)))
+            return bytes[0x08] == 0x0d && bytes[0x3c] == 77 ? .failure : .success
+        }
         Queue.main.finish()
-        suite.expect(results == [true] && hasFocusRecords([(66, 2), (77, 1)]),
-                     "a refused no-raise activation delivers the focus record and does not restore over a newer window")
+        suite.expect(results == [false] && frontOptions == [0x400]
+                        && hasFocusRecords([(66, 2), (77, 1)]),
+                     "a failed focus gain neither raises the target nor restores old focus over a newer window")
         resetFocus()
     }
 }

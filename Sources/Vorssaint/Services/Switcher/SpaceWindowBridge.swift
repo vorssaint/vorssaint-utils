@@ -452,27 +452,19 @@ enum SpaceWindowBridge {
         }
     }
 
-    /// Gives this window keyboard focus, leaving stacking order alone when the
-    /// no-raise activation can do it. That activation (`kCPSNoWindows`) runs
-    /// first. When its symbol is missing or the call fails, the focus record
-    /// from 3.4.2 is posted instead. `frontWindow` runs only when that record
-    /// is not delivered: its user-generated activation and mouse press can
-    /// raise the window.
+    /// Tries activation without ordering windows, then sends the focus record
+    /// even when that activation is unavailable or refused. Failure must not
+    /// fall back to frontWindow: its user-generated activation and mouse press
+    /// can raise the window when the user disabled raising.
     private static func makeKeyWithoutRaise(_ windowID: CGWindowID, ownerPID: pid_t) -> Bool {
-        var noRaiseActivated = false
         if let setFrontProcess, let processForPID, postEventRecord != nil {
             var psn = ProcessSerialNumber()
             if processForPID(ownerPID, &psn) == noErr {
                 let noWindows: UInt32 = 0x400 // kCPSNoWindows
-                noRaiseActivated = setFrontProcess(&psn, windowID, noWindows) == .success
+                _ = setFrontProcess(&psn, windowID, noWindows)
             }
         }
-        if noRaiseActivated {
-            if postFocusRecord(windowID, ownerPID: ownerPID, gained: true) { return true }
-        } else if postFocusRecord(windowID, ownerPID: ownerPID, gained: true) {
-            return true
-        }
-        return frontWindow(windowID, ownerPID: ownerPID)
+        return postFocusRecord(windowID, ownerPID: ownerPID, gained: true)
     }
 
     @discardableResult
