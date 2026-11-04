@@ -363,7 +363,13 @@ final class NotchMusicService: ObservableObject {
         let tint = NotchArtworkTint.from(red: average.red, green: average.green, blue: average.blue)
             ?? NotchArtworkTint.accent(in: sample)
         let vibrance = NotchArtworkTint.vibrance(of: sample)
-        return tint?.with(vibrance: vibrance)
+        // A cover with no colour has no halo, but its light and dark still
+        // shade the bars, as they do on the phone.
+        guard let tint else {
+            let greys = NotchArtworkTint.field(of: sample, side: 12, vibrance: vibrance, greyed: true)
+            return greys.isEmpty ? nil : NotchArtworkTint.neutral(field: greys)
+        }
+        return tint.with(vibrance: vibrance)
             .with(field: NotchArtworkTint.field(of: sample, side: 12, vibrance: vibrance))
     }
 
