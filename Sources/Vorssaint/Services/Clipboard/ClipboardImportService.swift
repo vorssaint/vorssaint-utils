@@ -20,26 +20,37 @@ enum ClipboardImportFailure: Equatable {
     case incompatible
 }
 
-/// Centralized clipboard paste support for the shelf, the app's file-capable
-/// input surface. It mirrors the drop path (same accepted types, same
-/// capacity and thumbnail rules) but reads the *general* pasteboard instead
-/// of the drag pasteboard, so Cmd+V works wherever the shelf accepts files.
+/// The general pasteboard, read off the main thread and copied into a private
+/// board whose content is already rendered. Callers import from the private
+/// board on the main thread, so no paste path ever blocks on a third-party app.
+enum ClipboardSnapshot {
+    case compatible(NSPasteboard)
+    case empty
+    case incompatible
+}
+
+/// Centralized clipboard paste support for the app's file-capable input
+/// surfaces (the shelf and the notch's Files/Media module). It mirrors the drop
+/// path (same accepted types, same capacity and thumbnail rules) but reads the
+/// *general* pasteboard instead of the drag pasteboard, so Cmd+V works wherever
+/// files are accepted.
 ///
 /// The read is serialized through `GeneralPasteboardAccess`: AppKit pasteboard
 /// reads can block on promised content, so everything that touches the general
 /// pasteboard happens off the main thread. What comes back is a private
-/// pasteboard whose contents are already rendered, so the shelf's ordinary
-/// `accept(pasteboard:)` (which runs on main) never blocks on a third-party app.
+/// pasteboard whose contents are already rendered, so an ordinary
+/// `accept(pasteboard:)` (which runs on main) never blocks.
 final class ClipboardImportService {
     static let shared = ClipboardImportService()
 
-    private enum SnapshotResult {
-        case compatible(NSPasteboard)
-        case empty
-        case incompatible
-    }
-
     private init() {}
+
+    /// Reads the general clipboard off the main thread and hands the snapshot
+    /// back on the main thread. The caller keeps the private pasteboard and is
+    /// responsible for `releaseGlobally()` after importing from it.
+    func fetchSnapshot(completion: @escaping (ClipboardSnapshot) -> Void) {
+        GeneralPasteboardAccess.shared.async({ Self.snapshotGeneralPasteboard() }, then: completion)
+    }
 
     /// Reads the clipboard and, when it carries something the shelf can hold,
     /// imports it. Always reports the outcome back on the main thread; the
@@ -52,7 +63,7 @@ final class ClipboardImportService {
             completion(.failed(.incompatible))
             return
         }
-        GeneralPasteboardAccess.shared.async({ Self.snapshotGeneralPasteboard() }) { result in
+        fetchSnapshot { result in
             switch result {
             case let .compatible(board):
                 defer { board.releaseGlobally() }
@@ -71,7 +82,7 @@ final class ClipboardImportService {
     /// what forces any promised content to render off the main thread; file
     /// promises themselves are not cloned (they have no data to copy and are
     /// not how clipboard file copies arrive — those come as file URLs).
-    private static func snapshotGeneralPasteboard() -> SnapshotResult {
+    private static func snapshotGeneralPasteboard() -> ClipboardSnapshot {
         let source = NSPasteboard.general
         guard let entries = source.pasteboardItems, !entries.isEmpty else { return .empty }
 
