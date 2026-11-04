@@ -199,6 +199,7 @@ struct MediaWorkspaceView: View {
 
     var body: some View {
         layout
+        .focusable()
         .onPasteCommand(of: [.fileURL, .image, .png, .tiff]) { _ in
             pasteFromClipboard()
         }
@@ -377,6 +378,13 @@ struct MediaWorkspaceView: View {
     private var fileCard: some View {
         VStack(alignment: .leading, spacing: 9) {
             inputDropTarget
+
+            Button {
+                pasteFromClipboard()
+            } label: {
+                Label(l10n.s.menuPaste, systemImage: "doc.on.clipboard")
+            }
+            .controlSize(.small)
 
             HStack(spacing: 7) {
                 Text(l10n.s.mediaOutput)
