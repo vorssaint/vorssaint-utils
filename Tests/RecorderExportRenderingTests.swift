@@ -403,13 +403,14 @@ enum RecorderExportRenderingTests {
             let bytes = CVPixelBufferGetBaseAddress(pixel)!.assumingMemoryBound(to: UInt8.self)
             let stride = CVPixelBufferGetBytesPerRow(pixel)
             for y in 0..<height { for x in 0..<width {
-                let value: UInt8 = (x / 4 + y / 4) % 2 == 0 ? 30 : 220
+                let value: UInt8 = (x / 4 + y / 4) % 2 == 0 ? 30 : 180
                 let offset = y * stride + x * 4
                 // Four corner colours distinguish rotations and reflections.
-                // Red detail starts equal; colour conversion and compression
-                // affect it differently, which the paired control captures.
-                bytes[offset] = y < height / 2 ? 20 : value
-                bytes[offset + 1] = x < width / 2 ? 20 : value
+                // Every channel carries the checkerboard's luminance detail
+                // through H.264 chroma subsampling. Fixed offsets keep the
+                // corner colours distinct without relying on saturated red.
+                bytes[offset] = value + (y < height / 2 ? 0 : 60)
+                bytes[offset + 1] = value + (x < width / 2 ? 0 : 60)
                 bytes[offset + 2] = value
                 bytes[offset + 3] = 255
             } }
@@ -437,7 +438,7 @@ enum RecorderExportRenderingTests {
         for index in 0..<4 {
             let sharp = index % 2 == 1
             suite.expect(expected[index].spread > 60,
-                         "\(label) source corner \(index) has detail to protect")
+                         "\(label) source corner \(index) has detail to protect, spread \(expected[index].spread)")
             // The control must have detail beyond the accepted blur ceiling,
             // so a flat frame cannot satisfy a relative contrast comparison.
             let baseline = unprotected[index].spread
