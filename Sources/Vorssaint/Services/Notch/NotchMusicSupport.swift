@@ -5,7 +5,8 @@ import Foundation
 
 /// A colour taken from the cover art, deepened so it reads as a halo over the
 /// notch's black base. Artwork with no real colour of its own returns nothing,
-/// which keeps a grey smudge from appearing behind neutral covers.
+/// which keeps a grey smudge from appearing behind neutral covers. The one
+/// exception is `neutral`, which carries only a grey field for the bars.
 struct NotchArtworkTint: Equatable {
     let red: Double
     let green: Double
@@ -26,10 +27,19 @@ struct NotchArtworkTint: Equatable {
     /// bars out of the cover blurred this way, not out of one colour: a cover
     /// red on the left and cyan on the right gives bars that run from red to
     /// cyan, and the dark foot of a cover darkens the foot of every bar.
-    /// Empty when the cover is too grey to give the bars any colour.
+    /// Empty when the cover is too grey to give the bars any colour, unless
+    /// greys were asked for: see `neutral(field:)`.
     var field: [Double] = []
+    /// A cover with no colour at all. It has no halo colour and says so, so
+    /// only the bars use it: they run from the darker to the lighter grey of
+    /// the cover, as the phone's do, instead of one flat white.
+    var isNeutral = false
     static let fieldColumns = 4
     static let fieldRows = 3
+
+    static func neutral(field: [Double]) -> NotchArtworkTint {
+        NotchArtworkTint(red: 1, green: 1, blue: 1, isNeutral: true).with(field: field)
+    }
 
     func with(field: [Double]) -> NotchArtworkTint {
         var tint = self
@@ -44,7 +54,7 @@ struct NotchArtworkTint: Equatable {
     /// border and lettering. Matched against the phone's bars over a whole
     /// song, this blur and this crop follow them closely in colour and in light.
     static func field(of pixels: [(red: Double, green: Double, blue: Double)], side: Int,
-                      vibrance: Double) -> [Double] {
+                      vibrance: Double, greyed: Bool = false) -> [Double] {
         guard side > 0, pixels.count == side * side else { return [] }
         let spread = 0.2
         var cells: [(red: Double, green: Double, blue: Double)] = []
@@ -63,15 +73,17 @@ struct NotchArtworkTint: Equatable {
                 cells.append((sum.red / total, sum.green / total, sum.blue / total))
             }
         }
-        return lit(cells, vibrance: vibrance)
+        return lit(cells, vibrance: vibrance, greyed: greyed)
     }
 
     /// Lifts a field so the bars read on the black island: its brightest
     /// colour is raised to near full and its darkest kept above a third,
     /// while the light and dark between them keep their order. A vivid cover
     /// is given a little more colour, so hot pink stays hot after the blur
-    /// greys it. A field with too little colour anywhere is no field.
-    static func lit(_ cells: [(red: Double, green: Double, blue: Double)], vibrance: Double) -> [Double] {
+    /// greys it. A field with too little colour anywhere is no field, unless
+    /// `greyed` asks for its own light and dark alone, as greys.
+    static func lit(_ cells: [(red: Double, green: Double, blue: Double)], vibrance: Double,
+                    greyed: Bool = false) -> [Double] {
         let hsb = cells.map { cell -> (hue: Double, saturation: Double, brightness: Double) in
             let highest = max(cell.red, cell.green, cell.blue), lowest = min(cell.red, cell.green, cell.blue)
             let saturation = highest > 0 ? (highest - lowest) / highest : 0
@@ -86,9 +98,24 @@ struct NotchArtworkTint: Equatable {
             }
             return (hue, saturation, highest)
         }
-        guard let brightest = hsb.map(\.brightness).max(), brightest > 0,
-              hsb.contains(where: { $0.saturation >= 0.15 && $0.brightness >= 0.1 }) else { return [] }
+        guard let brightest = hsb.map(\.brightness).max(), brightest > 0 else { return [] }
         let gain = min(4, 0.92 / brightest)
+        guard hsb.contains(where: { $0.saturation >= 0.15 && $0.brightness >= 0.1 }) else {
+            guard greyed else { return [] }
+            // With no hue to lift, the cover's light and dark are all the bars
+            // have. Stretch that spread, top to foot and side to side, over
+            // the readable range, so a dim cover still shades its bars as
+            // richly as a bright one; a cover that is the same grey
+            // throughout keeps one flat grey.
+            let lowest = hsb.map(\.brightness).min() ?? 0
+            let spread = brightest - lowest
+            return hsb.flatMap { cell -> [Double] in
+                let light = spread >= 0.04
+                    ? 0.35 + 0.6 * (cell.brightness - lowest) / spread
+                    : 0.35 + 0.65 * min(1, cell.brightness * gain)
+                return [light, light, light]
+            }
+        }
         let boost = 1 + 0.4 * min(1, max(0, vibrance))
         return hsb.flatMap { cell -> [Double] in
             let brightness = 0.35 + 0.65 * min(1, cell.brightness * gain)
@@ -146,7 +173,8 @@ struct NotchArtworkTint: Equatable {
     /// The colour a mostly grey cover still has: the most colourful sixth
     /// of its pixels, averaged. A red jacket on a white slope averages away
     /// into grey, and the island would show plain white for a cover with
-    /// colour in it. A cover with no colour at all still gives none.
+    /// colour in it. A cover with no colour at all still gives none; its bars
+    /// take the greys of `field(of:side:vibrance:greyed:)` instead.
     static func accent(in pixels: [(red: Double, green: Double, blue: Double)]) -> NotchArtworkTint? {
         let colourful = pixels.compactMap { pixel -> (score: Double, pixel: (red: Double, green: Double, blue: Double))? in
             let highest = max(pixel.red, pixel.green, pixel.blue)

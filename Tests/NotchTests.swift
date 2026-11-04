@@ -3508,7 +3508,26 @@ enum NotchTests {
         suite.expect(NotchArtworkTint.field(of: Array(repeating: (red: 0.5, green: 0.5, blue: 0.52), count: 144),
                                             side: 12, vibrance: 0).isEmpty
                      && NotchArtworkTint.field(of: split, side: 11, vibrance: 0).isEmpty,
-                     "a grey cover, or pixels that do not fill the square, give no field")
+                     "a grey cover, or pixels that do not fill the square, give no field unless greys are asked for")
+        // A black-and-white cover: dark on the left, light on the right.
+        let blackWhite = (0..<144).map { index -> (red: Double, green: Double, blue: Double) in
+            let level = index % 12 < 6 ? 0.15 : 0.9
+            return (level, level, level)
+        }
+        let greys = NotchArtworkTint.field(of: blackWhite, side: 12, vibrance: 0, greyed: true)
+        suite.expect(greys.count == columns * rows * 3
+                     && stride(from: 0, to: greys.count, by: 3).allSatisfy { greys[$0] == greys[$0 + 1] && greys[$0] == greys[$0 + 2] },
+                     "a cover with no colour gives the bars greys, not hues")
+        suite.expect(greys[0] < greys[(columns - 1) * 3] - 0.15 && greys.min()! >= 0.35 && greys.max()! <= 1,
+                     "the bars run from the cover's darker grey to its lighter, kept readable on black")
+        suite.expect(NotchArtworkTint.field(of: blackWhite, side: 12, vibrance: 0).isEmpty
+                     && NotchArtworkTint.field(of: Array(repeating: (red: 0.0, green: 0.0, blue: 0.0), count: 144),
+                                               side: 12, vibrance: 0, greyed: true).isEmpty,
+                     "greys are only given when asked for, and never for an all-black cover")
+        suite.expect(NotchArtworkTint.field(of: split, side: 12, vibrance: 0.5, greyed: true) == field,
+                     "a cover with colour is shaded the same whether or not greys are asked for")
+        suite.expect(NotchArtworkTint.neutral(field: greys).isNeutral && !NotchArtworkTint(red: 1, green: 0, blue: 0).isNeutral,
+                     "only a cover without colour is marked neutral")
         suite.expect(NotchEqualizerView.fieldImage(field).map { $0.width == columns && $0.height == rows } == true
                      && NotchEqualizerView.fieldImage([0.5]) == nil,
                      "the bars paint a field as a small image they stretch over the row")
