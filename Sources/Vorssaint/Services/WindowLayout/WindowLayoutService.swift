@@ -2530,8 +2530,10 @@ final class WindowLayoutService: ObservableObject {
                   let app = NSRunningApplication(processIdentifier: pid),
                   !app.isTerminated, app.activationPolicy == .regular else { return nil }
             let axApp = AXUIElementCreateApplication(pid)
-            AXUIElementSetMessagingTimeout(axApp, 0.25)
-            window = AXWindowResolver.element(for: windowID, in: axApp)
+            // This extra search runs inside the mouse tap. Its whole scan must
+            // fit one short budget, not a fresh timeout for every app window.
+            window = AXWindowResolver.publishedElement(for: windowID, in: axApp,
+                deadline: ProcessInfo.processInfo.systemUptime + 0.1)
         }
         guard let window else { return nil }
         AXUIElementSetMessagingTimeout(window, 0.25)

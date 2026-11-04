@@ -2391,7 +2391,10 @@ def main():
           + "final class Host: Fixture {\n"
           + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
                     for prefix in ["    private func arm(", "    private func gestureTarget("])
-          + "}\n}\n")
+          + "}\n}\nextension WindowGestureTargetRuntimeTests.AXWindowResolver {\n"
+          + "".join(declaration(resolver, prefix)
+                    for prefix in ["    static func publishedElement(", "    static func prepareForRequest("])
+          + "}\n")
     write("WindowGestureApplyRuntime.swift", "import AppKit\nimport CoreGraphics\nimport Foundation\n"
           + "extension WindowGestureApplyRuntimeTests {\n"
           + declaration(window_directional, "private struct WindowPointerGesture {").replace("private ", "", 1)
