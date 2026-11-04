@@ -12,6 +12,34 @@ enum SettingsBackupSupport {
     static let settingsKey = "settings"
     static let formatVersion = 1
 
+    /// `Vorssaint --export-settings FILE` and `Vorssaint --import-settings FILE`
+    /// write and apply the same file as the buttons in Advanced settings.
+    enum Command: Equatable {
+        case export(path: String)
+        case `import`(path: String)
+        case missingFile(flag: String)
+        case conflictingFlags
+    }
+
+    static let exportFlag = "--export-settings"
+    static let importFlag = "--import-settings"
+
+    /// nil when neither flag is given. A flag followed by another option or by
+    /// nothing has no file to work on.
+    static func command(in arguments: [String]) -> Command? {
+        let flags = arguments.filter { $0 == exportFlag || $0 == importFlag }
+        guard !flags.isEmpty else { return nil }
+        guard flags.count == 1 else { return .conflictingFlags }
+        for (flag, command) in [(exportFlag, Command.export), (importFlag, Command.import)] {
+            guard let index = arguments.firstIndex(of: flag) else { continue }
+            guard let path = arguments.dropFirst(index + 1).first, !path.hasPrefix("-") else {
+                return .missingFile(flag: flag)
+            }
+            return command(path)
+        }
+        return nil
+    }
+
     /// Keys the backup carries: every registered preference, the availability
     /// layer, and the deliberately unregistered selection/layout keys — minus
     /// state that belongs to one machine or one moment.
@@ -103,9 +131,10 @@ enum SettingsBackupSupport {
     static let machineStateKeys: Set<String> = [
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
-        // Codex homes are folders on this Mac whose sign-in the cards use,
+        // Agent profiles are folders on this Mac whose sign-in the cards use,
         // never settings to bring to another one.
         DefaultsKey.notchAgentsCodexProfiles,
+        DefaultsKey.notchAgentsClaudeProfile,
         DefaultsKey.dockPreviewRestoreAutohide,
         // The Space arrangement setting to put back, and a Dock restart still
         // owed, belong to this Mac's Dock.

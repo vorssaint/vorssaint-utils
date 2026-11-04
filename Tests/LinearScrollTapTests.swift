@@ -19,7 +19,9 @@ enum LinearScrollTapTests {
     }
     final class Target {
         static let shared = Target()
-        func contains(_ point: CGPoint) -> Bool { false }
+        var isOwn = false
+        let clickThroughWindowIDs = Set<CGWindowID>()
+        func contains(_ point: CGPoint) -> Bool { isOwn }
     }
     final class Session {
         static let shared = Session()
@@ -36,12 +38,17 @@ enum LinearScrollTapTests {
         typealias ScrollInverter = Inverter
         var lastGesturePhaseTimestamp: UInt64?
     }
+    final class Switcher {
+        static let shared = Switcher()
+        var scrollNavigationActive = false
+    }
     final class Inverter {
         typealias UserDefaults = StandardDefaults
         typealias MouseAppExceptions = Exceptions
         typealias ScrollWheelTarget = Target
         typealias SessionActivity = Session
         typealias ScrollWheelHIDStage = HIDStage
+        typealias AppSwitcher = Switcher
         // Events built here carry this process's id, which the shipped tap
         // skips as its own glide frames.
         static let ownProcessID: Int64 = -1
@@ -50,6 +57,14 @@ enum LinearScrollTapTests {
         var lastGesturePhaseTimestamp: UInt64?
         var linearCarryVertical: Double = 0
         var linearCarryHorizontal: Double = 0
+        let pinchZoomLock = NSLock()
+        var zoomState = ScrollZoomGestureState()
+        var pinchPosts = 0
+        var pinchEvents: [(phase: Int64, point: CGPoint?)] = []
+        func postPinch(phase: Int64, magnification: Double, at point: CGPoint?) {
+            pinchEvents.append((phase, point))
+            if phase == 2 { pinchPosts += 1 }
+        }
     }
 
     static func run(_ suite: TestSuite) {
@@ -60,6 +75,8 @@ enum LinearScrollTapTests {
             defaults.removePersistentDomain(forName: name)
             Exceptions.shared.excepted = []
             HIDStage.shared.passes = true
+            Switcher.shared.scrollNavigationActive = false
+            Target.shared.isOwn = false
         }
         func configure(linear: Bool = true, installed: Bool = true, lines: Int = 3,
                        invert: Bool = false, invertHorizontal: Bool = false, inverterInstalled: Bool = true,
@@ -149,6 +166,49 @@ enum LinearScrollTapTests {
         let directionExcepted = deliver(wheel(line: 4, fixed: 4, point: 40))
         suite.expect(directionExcepted.map(verticalLine) == 3,
                      "an app excepted from the direction change is still capped by linear scrolling")
+
+        configure(linear: false, invert: true)
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+        defaults.set(ScrollZoomModifier.command.rawValue, forKey: DefaultsKey.pinchZoomModifier)
+        Switcher.shared.scrollNavigationActive = true
+        let switcherInverter = Inverter()
+        let switcherWheel = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskCommand),
+                                    through: switcherInverter)
+        suite.expect(switcherWheel.map(verticalLine) == -4 && switcherInverter.pinchPosts == 0,
+                     "Command-wheel keeps inversion and never enters Zoom while the switcher owns scrolling")
+        Switcher.shared.scrollNavigationActive = false
+        let pinchDirection = ScrollDirectionPreferences(defaults: defaults)
+        let ownInverter = Inverter()
+        _ = ownInverter.zoomState.update(pinchDirection.zoom)
+        ownInverter.zoomState.start()
+        Target.shared.isOwn = true
+        suite.expect(!ownInverter.consumeZoom(wheel(line: 1, fixed: 1, point: 10, flags: .maskCommand),
+                                              direction: pinchDirection) && ownInverter.pinchPosts == 0,
+                     "Pinch leaves an own panel's wheel unchanged")
+        configure(invert: true)
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+        defaults.set(ScrollZoomModifier.option.rawValue, forKey: DefaultsKey.pinchZoomModifier)
+        let ownWheel = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskAlternate))
+        suite.expect(ownWheel.map(verticalLine) == -3,
+                     "a panel that declines zoom still receives inversion and the linear cap")
+        Target.shared.isOwn = false
+        suite.expect(ownInverter.consumeZoom(wheel(line: 1, fixed: 1, point: 10, flags: .maskCommand),
+                                             direction: pinchDirection) && ownInverter.pinchPosts == 1,
+                     "Pinch still consumes a single tick over an external window")
+        let a = CGPoint(x: 10, y: 20), b = CGPoint(x: 30, y: 40)
+        let gestures = Inverter()
+        gestures.postPinchZoomLocked(1, modifier: .option, at: a)
+        gestures.postPinchZoomLocked(1, modifier: .option, at: a)
+        gestures.postPinchZoomLocked(-1, modifier: .option, at: b)
+        gestures.endPinchZoomLocked()
+        suite.expect(gestures.pinchEvents.map(\.phase) == [1, 2, 2, 4, 1, 2, 4]
+                     && gestures.pinchEvents.map(\.point) == [a, a, a, a, b, b, b],
+                     "moving between views ends the old gesture at its original point before beginning the next")
+
+        defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.pinchZoomEnabled)
 
         configure(sidewaysKey: .option)
         let sideways = deliver(wheel(line: 4, fixed: 4, point: 40, flags: .maskAlternate))

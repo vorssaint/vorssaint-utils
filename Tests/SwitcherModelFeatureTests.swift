@@ -154,8 +154,6 @@ enum SwitcherModelFeatureTests {
             suite.expect(code(path).contains("AppSwitcher.shared.scrollNavigationActive"),
                          "\(path) yields scrolling to the open switcher")
         }
-        suite.expect(!code("Sources/Vorssaint/Services/ScrollInverter.swift").contains("AppSwitcher.shared.scrollNavigationActive"),
-                     "scroll direction never stands aside for the open switcher")
         // Both wheel taps run after the switcher's session tap, so it applies
         // Scroll Direction itself, minus the apps excepted from it.
         suite.expect(switcher.contains("scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil)")
@@ -2084,22 +2082,23 @@ enum SwitcherModelFeatureTests {
                "update showcase intro starts unseen")
         suite.expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.2",
-               "support prompt is deliberately pinned to the 3.4.2 stable release")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: "3.3.2")
-               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: nil),
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.3",
+               "support prompt is deliberately pinned to the 3.4.3 stable release")
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.3.2")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: nil),
                "support prompt shows once after updating to its pinned release")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: "3.4.0-support")
-               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: "3.4.1-support"),
-               "people who saw an earlier support prompt receive the revised message in 3.4.2")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: SupportUpdateIntroInfo.seenVersion)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.4.0-support")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.4.2-support"),
+               "people who completed the 3.4.2 invitation receive the 3.4.3 invitation")
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.4", lastSeenVersion: SupportUpdateIntroInfo.seenVersion)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
                "support prompt stays hidden after it is seen, through later patches")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: "3.4.2"),
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.4.3"),
                "premature support markers from beta onboarding do not suppress the stable invitation")
         suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil)
                && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.1", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2-beta.2", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3-beta.2", lastSeenVersion: nil)
                && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.5.0", lastSeenVersion: nil),
                "support prompt never leaks into another release or a beta")
         suite.expect(AppInfo.discordURL.absoluteString == "https://discord.gg/M6BwWH4BJp",
@@ -2114,13 +2113,13 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.4.2",
+        suite.expect(plistVersion == "3.4.3",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "104",
+        suite.expect(plistBuild == "105",
                "every app version needs its own incremented bundle build")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.2",
-               "the support prompt is prepared for the 3.4.2 stable release")
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.3",
+               "the support prompt is prepared for the 3.4.3 stable release")
         suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0",
                "the stable release has its own tour marker without changing the installed version")
         for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.3", "3.4.0-beta.4", "3.4.0-beta.5", "3.4.0-beta.6", "3.4.0-beta.7", "3.4.0-beta.10"] {
@@ -2148,8 +2147,8 @@ enum SwitcherModelFeatureTests {
         for version in ["3.4.0", "3.4.1", "3.4.2", "3.4.10", "3.4.99"] {
             suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
                    && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion)
-                   && (["3.4.0", "3.4.1"].contains(version) || SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: "3.4.0")),
-                   "direct hotfix upgraders still receive the stable tour and, from 3.4.2, the support invitation")
+                   && (["3.4.0", "3.4.1", "3.4.2"].contains(version) || SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: "3.4.0")),
+                   "direct hotfix upgraders still receive the stable tour and, from 3.4.3, the support invitation")
             suite.expect(UpdateHighlightsInfo.seenVersion(for: version) == UpdateHighlightsInfo.releaseVersion
                    && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.releaseVersion)
                    && !SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
@@ -3640,7 +3639,10 @@ enum SwitcherModelFeatureTests {
                && SwitcherSupport.sanitizedMaxColumns(-3) == nil
                && SwitcherSupport.sanitizedMaxColumns(1) == SwitcherSupport.maxColumnsRange.lowerBound
                && SwitcherSupport.sanitizedMaxColumns(6) == 6
-               && SwitcherSupport.sanitizedMaxColumns(99) == SwitcherSupport.maxColumnsRange.upperBound,
+               && SwitcherSupport.sanitizedMaxColumns(9) == 9
+               && SwitcherSupport.sanitizedMaxColumns(10) == 10
+               && SwitcherSupport.sanitizedMaxColumns(11) == 10
+               && SwitcherSupport.sanitizedMaxColumns(99) == 10,
                "App Switcher column cap treats zero as Auto and clamps the rest")
         suite.expect(SwitcherSupport.cappedColumnCount(fitByWidth: 15, userMax: 6) == 6
                && SwitcherSupport.cappedColumnCount(fitByWidth: 4, userMax: 6) == 4
@@ -3663,6 +3665,17 @@ enum SwitcherModelFeatureTests {
                && SwitcherSupport.wrappingColumnCount(itemCount: 12, fitByWidth: 10, userMax: 8) == 6,
                "App Switcher column cap never makes the grid wider than Auto")
         let ultrawide = CGRect(x: 0, y: 0, width: 5120, height: 1415)
+        for columns in [9, 10] {
+            let layout = SwitcherIconRowLayout.compute(appCount: 30, selectedWindowCount: 1,
+                                                       screenVisibleFrame: ultrawide,
+                                                       maxColumns: SwitcherSupport.sanitizedMaxColumns(columns))
+            suite.expect(layout.columns == columns && layout.rows == (30 + columns - 1) / columns,
+                   "App Switcher icon row preserves a chosen cap of \(columns) columns")
+            suite.expect(SwitcherSupport.wrappingColumnCount(itemCount: 30, fitByWidth: 15,
+                                                              userMax: SwitcherSupport.sanitizedMaxColumns(columns)) == columns
+                   && SwitcherSupport.cappedColumnCount(fitByWidth: 4, userMax: columns) == 4,
+                   "App Switcher accepts a cap of \(columns) columns while respecting screen width")
+        }
         let strictIcons = SwitcherIconRowLayout.compute(appCount: 4, selectedWindowCount: 1,
                                                         screenVisibleFrame: ultrawide, maxColumns: 3)
         suite.expect(strictIcons.columns == 3 && strictIcons.rows == 2,
@@ -6463,7 +6476,7 @@ enum SwitcherModelFeatureTests {
                && SystemShortcutTakeoverSupport.recorderDecision(shortcut: .screenshotDefault, conflictsWithMacOS: false,
                                                                  takenOver: true, current: areaShot) == .save(clearTakeOver: true),
                "a taken-over row re-records its own key silently, is asked again for any other macOS key or when no key is recorded, and forgets the take-over when it leaves macOS keys")
-        suite.expect(GlobalShortcutRole.allCases.filter { !$0.supportsTakeOver } == [.switcher, .switcherWindow, .radialMenu]
+        suite.expect(GlobalShortcutRole.allCases.filter { !$0.supportsTakeOver } == [.switcher, .switcherWindow, .switcherAllWindows, .radialMenu]
                && GlobalShortcutRole.keepAwake.supportsTakeOver && GlobalShortcutRole.finderRename.supportsTakeOver,
                "only the rows whose key a feature claims may offer to take a macOS shortcut over")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.systemShortcutTakeOverKeys)

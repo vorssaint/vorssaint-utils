@@ -28,9 +28,9 @@ enum ShortcutRecordingTap {
     /// release keep being swallowed until the release arrives.
     private static var drainingKeyCode: Int64?
     private static var drainWatchdog: DispatchWorkItem?
-    /// This tap is created after the super key's and therefore sits ahead of
-    /// it, so the trigger key arrives here bare. Reading it the same way the
-    /// super key does lets a field record the combination the way it will be
+    /// This tap sits at the HID head, ahead of the super key's HID tail even
+    /// after a restart, so the trigger key arrives bare. Reading it the same way
+    /// as the super key lets a field record the combination the way it will be
     /// pressed later, instead of asking for the chosen modifiers by hand.
     private static var superState = SuperKeySupport.State()
     private static var observingSession = false
@@ -60,7 +60,7 @@ enum ShortcutRecordingTap {
             let mask = (CGEventMask(1) << CGEventType.keyDown.rawValue)
                 | (CGEventMask(1) << CGEventType.keyUp.rawValue)
             guard let created = CGEvent.tapCreate(
-                tap: .cgSessionEventTap,
+                tap: .cghidEventTap,
                 place: .headInsertEventTap,
                 options: .defaultTap,
                 eventsOfInterest: mask,
@@ -139,7 +139,7 @@ enum ShortcutRecordingTap {
             if SuperKeyService.isEngaged {
                 let superEvent: SuperKeySupport.Event
                 if keyCode == SuperKeySupport.triggerKeyCode {
-                    let timestamp = UInt64(event.timestamp)
+                    let timestamp = EventTimestamp.nanoseconds(of: event)
                     superEvent = type == .keyDown
                         ? .triggerDown(
                             isRepeat: isRepeat,

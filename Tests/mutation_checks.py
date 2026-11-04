@@ -1405,6 +1405,12 @@ MUTATIONS = [
      "                vDSP_vrampmul(samples + sourceChannel",
      "                vDSP_vrampmul(samples + sourceChannel",
      "both sides of a sliding gain stay equal"),
+    ("a silent callback keeps the last audible gain", "mixer", "Sources/Vorssaint/Services/Audio/MixerRender.swift",
+     "        func reset() {\n"
+     "            value = nil\n"
+     "        }\n",
+     "        func reset() {}\n",
+     "muting during a missing tap keeps resumed audio silent"),
     ("a gain that is not a number stays in the slide", "mixer", "Sources/Vorssaint/Services/Audio/MixerRender.swift",
      "        guard gain.isFinite else {\n"
      "            applied.value = nil\n"
@@ -1546,6 +1552,11 @@ MUTATIONS = [
      "Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift",
      "        return [lower, upper]\n", "        return [lower.union(upper)]\n",
      "no extra brightness overlay window reads as a full screen window"),
+    ("Extra Brightness rebuilds its own Space overlay on every desktop switch", "app-management",
+     "Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift",
+     "        sameDisplay && (inOwnSpace || (overlayOnActiveSpace && triggerOnActiveSpace))\n",
+     "        sameDisplay && ((inOwnSpace && false) || (overlayOnActiveSpace && triggerOnActiveSpace))\n",
+     "the overlay's own Space keeps the live windows across desktop switches"),
     ("the opening island starts a further resize again from rest", "notch",
      "Sources/Vorssaint/Services/Notch/NotchSupport.swift",
      "        var next = self\n        next.width = width\n        next.height = height\n",

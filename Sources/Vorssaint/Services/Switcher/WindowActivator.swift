@@ -530,7 +530,7 @@ enum WindowActivator {
         }
     }
 
-    private static func activateAppCooperatively(_ app: NSRunningApplication, allWindows: Bool) {
+    static func activateAppCooperatively(_ app: NSRunningApplication, allWindows: Bool) {
         let options: NSApplication.ActivationOptions = allWindows ? [.activateAllWindows] : []
         ActivationHandoff.yield(to: app)
         if !app.activate(from: NSRunningApplication.current, options: options) {
@@ -837,18 +837,21 @@ enum WindowActivator {
     }
 
     @discardableResult
-    private static func focusWindow(windowID: CGWindowID, pid: pid_t, makeAppFrontmost: Bool = true) -> Bool {
-        guard Permissions.shared.accessibility else { return false }
+    static func focusWindow(windowID: CGWindowID, pid: pid_t, makeAppFrontmost: Bool = true,
+                            isCurrent: () -> Bool = { true }) -> Bool {
+        guard AXIsProcessTrusted(), isCurrent() else { return false }
         let axApp = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(axApp, 0.35)
-        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid) else { return false }
+        guard let axWindow = axElement(windowID: windowID, in: axApp, pid: pid), isCurrent() else { return false }
 
         var minimized: CFTypeRef?
-        if AXUIElementCopyAttributeValue(axWindow, kAXMinimizedAttribute as CFString, &minimized) == .success,
-           (minimized as? Bool) == true {
+        let read = AXUIElementCopyAttributeValue(axWindow, kAXMinimizedAttribute as CFString, &minimized)
+        guard isCurrent() else { return false }
+        if read == .success, (minimized as? Bool) == true {
             AXUIElementSetAttributeValue(axWindow, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
         }
 
+        guard isCurrent() else { return false }
         if makeAppFrontmost {
             AXUIElementSetAttributeValue(axApp, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
         }

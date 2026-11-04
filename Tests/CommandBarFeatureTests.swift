@@ -12,6 +12,32 @@ import ImageIO
 import VMStatisticsCompat
 
 enum CommandBarFeatureTests {
+    enum CatalogBuildHost {
+        final class L10n {
+            static let shared = L10n()
+            var language = AppLanguage.zhHans
+            var s: Strings { Strings.localized(language) }
+        }
+        enum CommandBarLinks {
+            static func decode(_ data: Data?) -> [Int] { [] }
+        }
+        static var builtLanguages: [AppLanguage] = []
+        static func builtInEntries(_ s: Strings, language: AppLanguage,
+                                   bar: CommandBarFeatureStrings,
+                                   automationDenied: Bool) -> [CommandBarEntry] {
+            builtLanguages.append(language)
+            return [CommandBarEntry(id: "action.ejectDisks",
+                                    title: FeatureStrings.quickToggles(language).ejectTitle,
+                                    subtitle: bar.sourceActions, icon: .symbol("eject"), run: { _ in })]
+        }
+        static func includingEnglishNames(_ rows: [CommandBarEntry],
+                                          english: [CommandBarEntry]) -> [CommandBarEntry] {
+            CommandBarCatalogSearch.includingEnglishNames(rows, english: english)
+        }
+        static func snippetEntries(_ bar: CommandBarFeatureStrings) -> [CommandBarEntry] { [] }
+        static func linkEntries(_ links: [Int], bar: CommandBarFeatureStrings) -> [CommandBarEntry] { [] }
+    }
+
     /// Runs the production `copyAnswer` against a pasteboard that can refuse
     /// the write and a HUD that records what it shows.
     enum CopyAnswerHost {
@@ -143,6 +169,133 @@ enum CommandBarFeatureTests {
         func pageVisible(_ page: SettingsPage, available: Set<AppFeature>) -> Bool {
             FeatureVisibilitySupport.isPageVisible(page) { available.contains($0) }
         }
+        // The catalog adds English names to the same localized rows. Use
+        // production strings and merging, so a translated title cannot hide
+        // an action or turn its English name into another runnable entry.
+        for language in AppLanguage.allCases {
+            let strings = Strings.localized(language)
+            let hub = FeatureStrings.hub(language)
+            for (feature, expected) in [
+                (AppFeature.mouseButtonShortcuts, FeatureStrings.mouseButtons(language).pageTitle),
+                (.textSnippets, FeatureStrings.snippets(language).pageTitle),
+                (.windowLayout, FeatureStrings.windowLayout(language).title),
+                (.notch, FeatureStrings.notch(language).title),
+            ] {
+                suite.expect(feature.hubTitle(strings, hub: hub, language: language) == expected,
+                             "feature names honor explicit \(language) rather than the global interface language")
+            }
+        }
+        for language in AppLanguage.allCases {
+            CatalogBuildHost.L10n.shared.language = language
+            CatalogBuildHost.builtLanguages = []
+            let rows = CatalogBuildHost.build(automationDenied: false)
+            suite.expect(CatalogBuildHost.builtLanguages == (language == .enUS ? [.enUS] : [language, .enUS]),
+                         "the catalog indexes English alongside \(language) without rebuilding English twice")
+            suite.expect(rows.count == 1 && rows[0].title == FeatureStrings.quickToggles(language).ejectTitle
+                         && CommandBarSearch.matches(title: rows[0].title, keywords: rows[0].keywords, query: "eject"),
+                         "the production catalog builder retains one localized English-searchable command")
+        }
+        let englishBar = FeatureStrings.commandBar(.enUS)
+        let englishToggles = FeatureStrings.quickToggles(.enUS)
+        var ranLocalized = 0
+        func searchRow(_ id: String, _ title: String, keywords: String = "") -> CommandBarEntry {
+            CommandBarEntry(id: id, stableKey: "stable." + id, title: title,
+                            subtitle: "localized area", keywords: keywords,
+                            icon: .symbol("bolt"), isActive: true, numericRange: 0...100,
+                            confirmationPrompt: "confirm", run: { _ in ranLocalized += 1 })
+        }
+        for language in AppLanguage.allCases {
+            let bar = FeatureStrings.commandBar(language)
+            let toggles = FeatureStrings.quickToggles(language)
+            let english = [
+                searchRow("action.ejectDisks", englishToggles.ejectTitle),
+                searchRow("action.brightness", englishBar.brightnessTitle,
+                          keywords: englishBar.brightnessKeywords),
+                searchRow("action.hiddenFiles", englishToggles.hiddenFilesHide),
+            ]
+            let localized = [
+                searchRow("action.ejectDisks", toggles.ejectTitle),
+                searchRow("action.brightness", bar.brightnessTitle, keywords: bar.brightnessKeywords),
+                searchRow("action.hiddenFiles", toggles.hiddenFilesHide),
+            ]
+            let merged = CommandBarCatalogSearch.includingEnglishNames(localized, english: Array(english.reversed()))
+            suite.expect(merged.map(\.id) == localized.map(\.id)
+                         && Set(merged.map(\.id)).count == merged.count,
+                         "English metadata preserves row identity, order and count in \(language)")
+            for (row, original) in zip(merged, localized) {
+                suite.expect(row.title == original.title && row.subtitle == original.subtitle
+                             && row.stableKey == original.stableKey && row.isActive == original.isActive
+                             && row.numericRange == original.numericRange
+                             && row.confirmationPrompt == original.confirmationPrompt,
+                             "English search preserves localized presentation and execution metadata")
+                suite.expect(CommandBarSearch.matches(title: row.title, keywords: row.keywords,
+                                                      query: original.title),
+                             "localized title still finds \(row.id) in \(language)")
+            }
+            let eject = merged[0]
+            for query in ["eject", englishToggles.ejectTitle, "ejct"] {
+                suite.expect(CommandBarSearch.matches(title: eject.title, keywords: eject.keywords, query: query),
+                             "English name and fuzzy query \(query) find the same eject row in \(language)")
+            }
+            for query in [bar.brightnessKeywords, englishBar.brightnessKeywords] {
+                suite.expect(CommandBarSearch.matches(title: merged[1].title, keywords: merged[1].keywords,
+                                                      query: query),
+                             "localized and English keywords remain searchable in \(language)")
+            }
+            suite.expect(merged[2].keywords.contains(englishToggles.hiddenFilesHide)
+                         && !merged[2].keywords.contains(englishToggles.hiddenFilesShow),
+                         "English metadata names only the current dynamic action")
+            let exact = CommandBarCandidate(index: 0, title: eject.title, keywords: eject.keywords)
+            let fuzzy = CommandBarCandidate(index: 1, title: "Ejection helper")
+            suite.expect(CommandBarSearch.rankedIndexes(candidates: [fuzzy, exact],
+                                                        matching: englishToggles.ejectTitle).first == 0,
+                         "the exact English command outranks a fuzzy alternative")
+            let alias = CommandBarCandidate(index: 2, title: "Other", keywords: "mydisk", priority: 2_400)
+            suite.expect(CommandBarSearch.rankedIndexes(candidates: [exact, alias], matching: "mydisk") == [2],
+                         "personal aliases still use the existing ranking path")
+            let before = ranLocalized
+            merged[0].run(nil)
+            suite.expect(ranLocalized == before + 1, "English metadata retains the localized action closure")
+        }
+        for language in [AppLanguage.zhHans, .ja] {
+            let bar = FeatureStrings.commandBar(language)
+            let quitFormats = [bar.quitFormat, englishBar.quitFormat]
+            for query in ["quit safari", String(format: bar.quitFormat, "Safari")] {
+                suite.expect(CommandBarSearch.matchesVerb(query, in: quitFormats),
+                             "localized and English quit queries pass the pool gate in \(language)")
+            }
+            suite.expect(!CommandBarSearch.matchesVerb("Safari", in: quitFormats)
+                         && !CommandBarSearch.matchesVerb("SafariQuitHelper", in: quitFormats),
+                         "an ordinary app search never gains quit commands")
+            let pairs = [
+                ("answer.battery", bar.answerBatteryLabel, englishBar.answerBatteryLabel, "battery"),
+                ("answer.storage", bar.answerStorageLabel, englishBar.answerStorageLabel, "storage"),
+                ("answer.date", bar.answerDateLabel, englishBar.answerDateLabel, "today"),
+                ("answer.time", bar.answerTimeLabel, englishBar.answerTimeLabel, "time now"),
+            ]
+            let rows = CommandBarCatalogSearch.includingEnglishNames(
+                pairs.map { searchRow($0.0, $0.1, keywords: "free") },
+                english: pairs.map { searchRow($0.0, $0.2) })
+            let candidates = rows.enumerated().map {
+                CommandBarCandidate(index: $0.offset, title: $0.element.title, keywords: $0.element.keywords)
+            }
+            for (id, _, _, query) in pairs {
+                let token = String(CommandBarSearch.normalized(query).split(separator: " ").first ?? "")
+                let result = CommandBarSearch.rankedIndexes(candidates: candidates, matching: query)
+                    .map { rows[$0] }.filter { $0.matchesAnswerName(token) }
+                suite.expect(result.map(\.id).contains(id),
+                             "English \(query) survives ranking and the answer-name gate in \(language)")
+            }
+            suite.expect(rows.allSatisfy { !$0.matchesAnswerName("st") && !$0.matchesAnswerName("free") },
+                         "English answer names preserve rejection of short prefixes and unrelated keywords")
+            suite.expect(rows[0].withSubtitle("new caption").englishTitle == rows[0].englishTitle,
+                         "changing a row caption preserves its English name")
+        }
+
+        let unmatched = searchRow("new.action", "Local command", keywords: "local")
+        suite.expect(CommandBarCatalogSearch.includingEnglishNames([unmatched], english: []).first?.keywords == "local",
+                     "a missing English counterpart cannot remove a localized row")
+
         // MARK: Command bar calculator
 
         func math(_ input: String, decimal: String = ".", grouping: String = ",") -> String? {
@@ -1217,11 +1370,75 @@ enum CommandBarFeatureTests {
                "the word that also means inches is read correctly on both sides")
         suite.expect(unitValue("2 h to min").map { abs($0 - 120) < 0.001 } == true,
                "hours become minutes")
+        suite.expect(unitValue("1d to hr").map { abs($0 - 24) < 0.001 } == true,
+               "days become hours")
+        suite.expect(unitValue("2 weeks to days").map { abs($0 - 14) < 0.001 } == true,
+               "weeks become days")
+        suite.expect(unitValue("1 year to min").map { abs($0 - 525_600) < 0.001 } == true,
+               "years become minutes (365 days)")
+        suite.expect(unitValue("1 yr to d").map { abs($0 - 365) < 0.001 } == true,
+               "abbreviated year becomes days")
+        suite.expect(unitValue("3 wk to d").map { abs($0 - 21) < 0.001 } == true,
+               "abbreviated week becomes days")
+        suite.expect(unitValue("24 h to d").map { abs($0 - 1) < 0.001 } == true,
+               "hours become days")
+        suite.expect(unitValue("14 d to wk").map { abs($0 - 2) < 0.001 } == true,
+               "days become weeks")
+        suite.expect(unitValue("365 d to yr").map { abs($0 - 1) < 0.001 } == true,
+               "days become years")
+        suite.expect(CommandBarUnits.convert("2 semanas para dias",
+                                             decimalSeparator: ",",
+                                             groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 14) < 0.001 } == true,
+               "Portuguese week becomes days")
+        suite.expect(CommandBarUnits.convert("1 ano para dias",
+                                             decimalSeparator: ",",
+                                             groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 365) < 0.001 } == true,
+               "Portuguese year becomes days")
+        suite.expect(CommandBarUnits.convert("365 dias para anos",
+                                             decimalSeparator: ",",
+                                             groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 1) < 0.001 } == true,
+               "Portuguese days become years")
+        suite.expect(CommandBarUnits.convert("3 dias para horas",
+                                             decimalSeparator: ",",
+                                             groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 72) < 0.001 } == true,
+               "Portuguese days become hours")
+        suite.expect(units("1d to hr") == units("24 hr to hr") && units("24 hr to d") == "1 d"
+                && units("14 d to wk") == "2 wk" && units("1 yr to d") == "365 d"
+                && units("365 d to yr") == "1 yr",
+               "custom duration units format successfully")
+        suite.expect(unitValue("2 wks to days").map { abs($0 - 14) < 0.001 } == true
+                && unitValue("14 d to wks").map { abs($0 - 2) < 0.001 } == true
+                && unitValue("2 yrs to d").map { abs($0 - 730) < 0.001 } == true
+                && unitValue("730 d to yrs").map { abs($0 - 2) < 0.001 } == true,
+               "plural abbreviated units wks and yrs convert")
+        suite.expect(unitValue("2 weeks in days").map { abs($0 - 14) < 0.001 } == true
+                && unitValue("1d → hr").map { abs($0 - 24) < 0.001 } == true,
+               "conversion keywords in and arrow work with duration units")
+        suite.expect(unitValue("0.5 day to h").map { abs($0 - 12) < 0.001 } == true,
+               "fractional day converts")
+        suite.expect(unitValue("-1 d to h").map { abs($0 - -24) < 0.001 } == true,
+               "negative duration converts")
+        suite.expect(unitValue("1 dia to h").map { abs($0 - 24) < 0.001 } == true
+                && unitValue("1 week to d").map { abs($0 - 7) < 0.001 } == true
+                && unitValue("1 semana to d").map { abs($0 - 7) < 0.001 } == true
+                && unitValue("2 years to d").map { abs($0 - 730) < 0.001 } == true
+                && unitValue("2 anos to d").map { abs($0 - 730) < 0.001 } == true,
+               "singular and plural duration forms convert across languages")
         suite.expect(unitValue("1 kg to lb").map { abs($0 - 2.20462) < 0.001 } == true,
                "mass converts")
         suite.expect(unitValue("1.5 l to ml").map { abs($0 - 1500) < 0.001 } == true,
                "a decimal amount converts")
         suite.expect(units("100 km to kg") == nil, "two different families never meet")
+        suite.expect(units("1 day to kg") == nil && units("1 year to m") == nil,
+               "duration never converts to mass or length")
         suite.expect(units("100 kilometres to miles") != nil
                 && units("100 kilometres to miles") == units("100 kilometers to miles")
                 && units("5 centimetres to inches") == units("5 cm to in")
@@ -1242,6 +1459,21 @@ enum CommandBarFeatureTests {
         suite.expect(units("to") == nil && units("in") == nil,
                "the little words alone convert nothing")
         suite.expect(units("safari to dock") == nil, "plain words are not units")
+        suite.expect(units("day to night") == nil && units("year to date") == nil
+                && units("day to day") == nil && units("week to week") == nil,
+               "idiomatic phrases containing duration words are not conversions")
+        suite.expect(unitValue("1 wk to hr").map { abs($0 - 168) < 0.001 } == true
+                && unitValue("168 hr to wk").map { abs($0 - 1) < 0.001 } == true
+                && unitValue("1 d to min").map { abs($0 - 1440) < 0.001 } == true
+                && unitValue("1 d to s").map { abs($0 - 86400) < 0.001 } == true
+                && unitValue("1 yr to s").map { abs($0 - 31_536_000) < 0.001 } == true,
+               "full duration span conversions between seconds, minutes, hours, days, weeks, years")
+        suite.expect(CommandBarUnits.convert("1,5 dia para horas",
+                                             decimalSeparator: ",",
+                                             groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 36) < 0.001 } == true,
+               "Portuguese fractional duration converts")
         suite.expect(units("5 xyz to cm") == nil, "an unknown unit is refused, never guessed")
         suite.expect(units("minutes to read the article") == nil,
                "a sentence that happens to contain a unit word stays a search")

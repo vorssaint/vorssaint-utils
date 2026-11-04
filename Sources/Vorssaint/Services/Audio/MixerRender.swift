@@ -210,6 +210,12 @@ enum MixerRender {
     /// long block the gap adds up.
     final class AppliedGain {
         fileprivate var value: Float?
+
+        /// A silent callback breaks continuity with the last rendered block.
+        /// Resume at the current gain, including a mute requested in the gap.
+        func reset() {
+            value = nil
+        }
     }
 
     /// Renders like `render(source:into:gain:)`, but a gain that differs from
