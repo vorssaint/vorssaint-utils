@@ -23,6 +23,34 @@ enum SpaceWindowBridge {
         dlsym(UnsafeMutableRawPointer(bitPattern: -2) /* RTLD_DEFAULT */, name)
     }
 
+    // The public C API stores integer IDs in pointer slots, not CFNumbers;
+    // Swift therefore marks it unavailable. Read the slots without bridging.
+    private typealias CreateWindowListFunction =
+        @convention(c) (UInt32, CGWindowID) -> Unmanaged<CFArray>?
+    private static let createWindowList: CreateWindowListFunction? = {
+        guard let symbol = symbol("CGWindowListCreate") else { return nil }
+        return unsafeBitCast(symbol, to: CreateWindowListFunction.self)
+    }()
+
+    /// Opaque C array of integer IDs in pointer slots; never bridge to NSArray.
+    static func windowIDList() -> CFArray? {
+        createWindowList?(CGWindowListOption.optionAll.rawValue,
+                          kCGNullWindowID)?.takeRetainedValue()
+    }
+
+    static func allWindowIDs() -> Set<CGWindowID>? {
+        guard let list = windowIDList(),
+              CFArrayGetCount(list) > 0 else { return nil }
+        var ids: Set<CGWindowID> = []
+        ids.reserveCapacity(CFArrayGetCount(list))
+        for index in 0..<CFArrayGetCount(list) {
+            guard let id = CGWindowID(exactly: UInt(bitPattern: CFArrayGetValueAtIndex(list, index))),
+                  id != kCGNullWindowID else { return nil }
+            ids.insert(id)
+        }
+        return ids
+    }
+
     private static let connection: ConnectionID = {
         typealias Function = @convention(c) () -> ConnectionID
         guard let symbol = symbol("CGSMainConnectionID") else { return 0 }
@@ -313,6 +341,19 @@ enum SpaceWindowBridge {
         guard #available(macOS 26.0, *), let windows = windowTags(of: [windowID]) else { return nil }
         guard let tags = windows[windowID] else { return false }
         guard tags != 0 else { return nil }
+        return SpaceHopSupport.isMinimized(windowTags: tags)
+    }
+
+    /// Whether the window server holds the window minimized in the Dock, when
+    /// it answers. Nil when the answer is unknown: the query is unavailable,
+    /// the system is older than the tag, the server withheld the answer, or
+    /// the window is not among the answered ones. The two-valued
+    /// `isMinimized(_:)` keeps its earlier "false when unknown" contract;
+    /// this one keeps an unknown answer apart from a restored window.
+    static func minimizedState(of windowID: CGWindowID) -> Bool? {
+        guard #available(macOS 26.0, *),
+              let tags = windowTags(of: [windowID])?[windowID],
+              tags != 0 else { return nil }
         return SpaceHopSupport.isMinimized(windowTags: tags)
     }
 
