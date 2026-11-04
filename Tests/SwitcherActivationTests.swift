@@ -942,6 +942,8 @@ enum SwitcherActivationTests {
                      "hover activates another app without ordering windows or posting a mouse press")
         suite.expect(Queue.main.pending.isEmpty,
                      "cross-app focus has no same-app handoff to delay")
+        suite.expect(!events.contains("event:1") && !events.contains { $0.hasPrefix("raise:") },
+                     "a successful no-raise activation does not fall back to a raise or a click")
 
         resetFocus(); focus(replacing: 66)
         suite.expect(results.isEmpty && frontOptions.isEmpty && hasFocusRecords([(66, 2)])
@@ -951,14 +953,15 @@ enum SwitcherActivationTests {
         suite.expect(results == [true] && frontOptions == [0x400]
                         && hasFocusRecords([(66, 2), (77, 1)]),
                      "same-app hover gives the target keyboard focus without ordering windows or clicking")
+        suite.expect(!events.contains("event:1") && !events.contains { $0.hasPrefix("raise:") },
+                     "a successful same-app no-raise handoff does not fall back to a raise or a click")
 
         for oldWindow: CGWindowID? in [nil, 66] {
             resetFocus(); current = false; focus(replacing: oldWindow)
             suite.expect(results == [false] && events.isEmpty && Queue.main.pending.isEmpty,
                          "an obsolete hover cannot activate or release any window")
-            for missing in 0..<3 {
+            for missing in 1..<3 {
                 resetFocus()
-                if missing == 0 { Bridge.setFrontProcess = nil }
                 if missing == 1 { Bridge.processForPID = nil }
                 if missing == 2 { Bridge.postEventRecord = nil }
                 focus(replacing: oldWindow)
@@ -990,19 +993,32 @@ enum SwitcherActivationTests {
             resetFocus()
             Bridge.setFrontProcess = { _, _, options in frontOptions.append(options); return .failure }
             focus(replacing: oldWindow); Queue.main.finish()
-            suite.expect(results == [false] && frontOptions == [0x400]
-                            && hasFocusRecords(oldWindow == nil ? [] : [(66, 2), (66, 1)]),
-                         "a refused no-raise activation reports failure and restores any released old focus")
+            suite.expect(results == [true] && frontOptions == [0x400]
+                            && hasFocusRecords(oldWindow == nil ? [(77, 1)] : [(66, 2), (77, 1)])
+                            && !events.contains("event:1"),
+                         "a refused no-raise activation falls back to the focus handoff and reports success")
 
-            resetFocus()
-            Bridge.postEventRecord = { _, bytes in
-                records.append(Array(UnsafeBufferPointer(start: bytes, count: 0x100)))
-                return bytes[0x3c] == 77 ? .failure : .success
+            for activationResult: CGError? in [.success, .failure, nil] {
+                resetFocus()
+                if let activationResult {
+                    Bridge.setFrontProcess = { _, _, options in
+                        frontOptions.append(options)
+                        return activationResult
+                    }
+                } else {
+                    Bridge.setFrontProcess = nil
+                }
+                Bridge.postEventRecord = { _, bytes in
+                    records.append(Array(UnsafeBufferPointer(start: bytes, count: 0x100)))
+                    // A mouse press would succeed, but disabled raising must
+                    // never use it to recover from this refused focus record.
+                    return bytes[0x08] == 0x0d && bytes[0x3c] == 77 ? .failure : .success
+                }
+                focus(replacing: oldWindow); Queue.main.finish()
+                suite.expect(results == [false] && frontOptions == (activationResult == nil ? [] : [0x400])
+                                && hasFocusRecords(oldWindow == nil ? [(77, 1)] : [(66, 2), (77, 1), (66, 1)]),
+                             "an undelivered focus gain restores old focus without a raising request or mouse press")
             }
-            focus(replacing: oldWindow); Queue.main.finish()
-            suite.expect(results == [false] && frontOptions == [0x400]
-                            && hasFocusRecords(oldWindow == nil ? [(77, 1)] : [(66, 2), (77, 1), (66, 1)]),
-                         "an undelivered focus gain reports failure without falling back to a click or raise")
 
             resetFocus()
             var lookups = 0
@@ -1013,14 +1029,40 @@ enum SwitcherActivationTests {
             focus(replacing: oldWindow); Queue.main.finish()
             suite.expect(results == [false] && frontOptions == [0x400]
                             && hasFocusRecords(oldWindow == nil ? [] : [(66, 2), (66, 1)]),
-                         "losing the process after activation cannot claim that keyboard focus was delivered")
+                         "losing the process after activation reports failure without a raising fallback")
+        }
+
+        for oldWindow: CGWindowID? in [nil, 66] {
+            resetFocus()
+            Bridge.setFrontProcess = nil
+            focus(replacing: oldWindow); Queue.main.finish()
+            suite.expect(results == [true] && frontOptions.isEmpty
+                            && hasFocusRecords(oldWindow == nil ? [(77, 1)] : [(66, 2), (77, 1)]),
+                         "a missing no-raise activation still moves focus through the previous handoff")
         }
 
         resetFocus(); focus(replacing: 66)
-        Bridge.setFrontProcess = { _, _, _ in Activator.focusedID = 88; return .failure }
+        current = false
+        Bridge.setFrontProcess = { _, _, options in frontOptions.append(options); return .failure }
         Queue.main.finish()
-        suite.expect(results == [false] && hasFocusRecords([(66, 2)]),
-                     "a failed handoff never restores old focus over a newer focused window")
+        suite.expect(results == [false] && frontOptions.isEmpty
+                        && hasFocusRecords([(66, 2), (66, 1)]),
+                     "a hover that ends first restores the old window and does not fall back")
+
+        resetFocus(); focus(replacing: 66)
+        Bridge.setFrontProcess = { _, _, options in
+            frontOptions.append(options)
+            Activator.focusedID = 88
+            return .failure
+        }
+        Bridge.postEventRecord = { _, bytes in
+            records.append(Array(UnsafeBufferPointer(start: bytes, count: 0x100)))
+            return bytes[0x08] == 0x0d && bytes[0x3c] == 77 ? .failure : .success
+        }
+        Queue.main.finish()
+        suite.expect(results == [false] && frontOptions == [0x400]
+                        && hasFocusRecords([(66, 2), (77, 1)]),
+                     "a failed focus gain neither raises the target nor restores old focus over a newer window")
         resetFocus()
     }
 }

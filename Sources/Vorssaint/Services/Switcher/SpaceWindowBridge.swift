@@ -459,7 +459,9 @@ enum SpaceWindowBridge {
                                   replacing focusedWindowID: CGWindowID?,
                                   while isCurrent: @escaping () -> Bool,
                                   completion: @escaping (Bool) -> Void) {
-        guard isCurrent(), setFrontProcess != nil, processForPID != nil, postEventRecord != nil else {
+        // The no-raise activation is optional. The focus-record handoff still
+        // needs the process and the event transport.
+        guard isCurrent(), processForPID != nil, postEventRecord != nil else {
             completion(false)
             return
         }
@@ -491,16 +493,18 @@ enum SpaceWindowBridge {
         }
     }
 
-    /// Activate the process without ordering any of its windows, then give
-    /// this window keyboard focus. frontWindow's user-generated activation
-    /// and mouse press can raise the window even without an AXRaise action.
-    /// Failure must not fall back to that path when the user disabled raising.
+    /// Tries activation without ordering windows, then sends the focus record
+    /// even when that activation is unavailable or refused. Failure must not
+    /// fall back to frontWindow: its user-generated activation and mouse press
+    /// can raise the window when the user disabled raising.
     private static func makeKeyWithoutRaise(_ windowID: CGWindowID, ownerPID: pid_t) -> Bool {
-        guard let setFrontProcess, let processForPID, postEventRecord != nil else { return false }
-        var psn = ProcessSerialNumber()
-        guard processForPID(ownerPID, &psn) == noErr else { return false }
-        let noWindows: UInt32 = 0x400 // kCPSNoWindows
-        guard setFrontProcess(&psn, windowID, noWindows) == .success else { return false }
+        if let setFrontProcess, let processForPID, postEventRecord != nil {
+            var psn = ProcessSerialNumber()
+            if processForPID(ownerPID, &psn) == noErr {
+                let noWindows: UInt32 = 0x400 // kCPSNoWindows
+                _ = setFrontProcess(&psn, windowID, noWindows)
+            }
+        }
         return postFocusRecord(windowID, ownerPID: ownerPID, gained: true)
     }
 
