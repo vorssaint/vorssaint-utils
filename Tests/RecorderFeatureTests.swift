@@ -1505,6 +1505,41 @@ enum RecorderFeatureTests {
         suite.expect(!CommandBarSearch.matchesVerb("safari", in: "Quit %@")
                 && !CommandBarSearch.matchesVerb("", in: "Quit %@"),
                "an app name alone never drags the quit rows in")
+        // The way a person types it: the name in its place, without the quotes.
+        for language in AppLanguage.allCases {
+            let format = FeatureStrings.commandBar(language).quitFormat
+            let typed = format.replacingOccurrences(of: "%@", with: "Safari")
+                .filter { !"„“”«»「」".contains($0) }
+            suite.expect(CommandBarSearch.matchesVerb(typed, in: format),
+                   "\"\(typed)\" asks to quit in \(language.rawValue)")
+        }
+        // Korean keeps its word spaces, and its two-syllable verb is a whole word.
+        let korean = FeatureStrings.commandBar(.ko).quitFormat
+        let koreanRows = [CommandBarCandidate(index: 0, title: String(format: korean, "메모"), keywords: "메모")]
+        suite.expect(CommandBarSearch.matchesVerb("메모 종료", in: korean)
+                && CommandBarSearch.rankedIndexes(candidates: koreanRows, matching: "메모 종료") == [0],
+               "the Korean verb typed after the name brings up its row")
+        // Japanese often leaves out the particle between the name and the verb.
+        let japanese = FeatureStrings.commandBar(.ja).quitFormat
+        let japaneseRows = ["メモ", "Safari"].enumerated().map {
+            CommandBarCandidate(index: $0.offset, title: String(format: japanese, $0.element), keywords: $0.element)
+        }
+        suite.expect(CommandBarSearch.matchesVerb("メモ終了", in: japanese)
+                && CommandBarSearch.matchesVerb("Safari終了", in: japanese)
+                && CommandBarSearch.rankedIndexes(candidates: japaneseRows, matching: "メモ終了") == [0]
+                && CommandBarSearch.rankedIndexes(candidates: japaneseRows, matching: "Safari終了") == [1],
+               "the Japanese verb without its particle still brings up its row")
+        suite.expect(!CommandBarSearch.matchesVerb("descargas", in: "Salir de %@")
+                && !CommandBarSearch.matchesVerb("de", in: "Salir de %@")
+                && !CommandBarSearch.matchesVerb("dark mode", in: "Esci da %@")
+                && CommandBarSearch.matchesVerb("salir saf", in: "Salir de %@"),
+               "the little word before the name is not the verb")
+        // Only Chinese and Japanese look for the verb inside a word. Anywhere
+        // else a piece of it, like the "it" of "Quit", is an ordinary search.
+        suite.expect(!CommandBarSearch.matchesVerb("it", in: "Quit %@")
+                && !CommandBarSearch.matchesVerb("ui", in: "Quit %@")
+                && !CommandBarSearch.matchesVerb("ar", in: FeatureStrings.commandBar(.ptBR).quitFormat),
+               "a piece from inside the verb is not the verb")
         suite.expect(InstalledApps.isSystemApplication(
                     at: URL(fileURLWithPath: "/System/Applications/SystemUtility.app"))
                 && InstalledApps.isSystemApplication(
