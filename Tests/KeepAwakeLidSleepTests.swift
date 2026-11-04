@@ -68,6 +68,7 @@ enum KeepAwakeLidSleepContract {
     static var closes = 0
     static var policy: Bool? = true
     static var assertions: [[String: Any]]? = []
+    static var externalDisplay: Bool? = false
     static func IOPMFindPowerManagement(_ value: Int) -> Int { port }
     static func IOPMSleepSystem(_ value: Int) -> Int {
         calls += 1
@@ -106,7 +107,7 @@ enum KeepAwakeLidSleepContract {
     }
     static func reset() -> Service {
         port = 1; results = [0]; calls = 0; closes = 0
-        policy = true; assertions = []; BrightnessService.lid = true
+        policy = true; assertions = []; externalDisplay = false; BrightnessService.lid = true
         LidDisplayDimmer.reading = nil; LidDisplayDimmer.written = []; LidDisplayDimmer.writeSucceeds = true
         DimmingObserver.registrations = 0; DimmingObserver.releasedObjects = 0
         DimmingObserver.destroyedPorts = 0; DimmingObserver.callback = nil
@@ -128,13 +129,19 @@ enum KeepAwakeLidSleepTests {
     private typealias C = KeepAwakeLidSleepContract
 
     static func run(expect: (Bool, String) -> Void) {
-        func allowed(_ policy: Bool?, _ assertions: [[String: Any]]?) -> Bool {
-            KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: policy, assertions: assertions)
+        func allowed(_ policy: Bool?, _ assertions: [[String: Any]]?, external: Bool? = false) -> Bool {
+            KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: policy,
+                                                         externalDisplayConnected: external,
+                                                         assertions: assertions)
         }
         let connection: [String: Any] = ["AssertType": "PreventSystemSleep", "AssertLevel": 1,
                                           "ProcessingHotPlug": true]
         expect(!allowed(true, [connection]),
                "a live monitor transition overrides a stale allowed lid policy")
+        expect(!allowed(true, [], external: true),
+               "closed-display mode with an external monitor is never forced to sleep")
+        expect(!allowed(true, [], external: nil),
+               "an unreadable display list never authorizes forced sleep")
         expect(!allowed(false, []) && !allowed(nil, []) && !allowed(true, nil),
                "closed-display mode and unavailable system facts never authorize forced sleep")
         expect(allowed(true, []) && allowed(true, [["AssertType": "PreventUserIdleSystemSleep", "AssertLevel": 1]]),
@@ -166,6 +173,9 @@ enum KeepAwakeLidSleepTests {
                        "ports close and successful or inapplicable requests do not poll")
             }
         }
+        let docked = C.reset(); C.externalDisplay = true
+        docked.sleepIfLidAlreadyClosed()
+        expect(C.calls == 0, "ending a session docked to a monitor does not blank it with a sleep")
         let blocked = C.reset(); C.assertions = [connection]
         blocked.sleepIfLidAlreadyClosed()
         expect(C.calls == 0, "the production request respects an in-progress monitor connection")
