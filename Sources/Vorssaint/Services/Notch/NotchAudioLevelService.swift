@@ -267,6 +267,7 @@ private final class NotchAudioLevelReader {
     private var timer: DispatchSourceTimer?
     private var analyzer: NotchAudioAnalyzer?
     private var smoother = NotchAudioLevelSupport.Smoother()
+    private var tapWatch = NotchAudioLevelSupport.TapWatch()
     private var samples: [Float] = []
     private var hostDeviceUID: String?
     private var sampleRate: Double = 0
@@ -488,10 +489,11 @@ private final class NotchAudioLevelReader {
             refreshOutputLatency()
             return
         }
-        teardownPipeline()
-        // The ring keeps what it has heard, so a device change does not
-        // restart the silence countdown on a player already known to sound.
-        if !buildPipeline() { release(reporting: onUnavailable) }
+        // The tap goes too: one carried over from a device that went away can
+        // run on hearing nothing. The ring keeps what it has heard, so a device
+        // change does not restart the silence countdown on a player already
+        // known to sound.
+        rebuildTap()
     }
 
     private func watchDefaultOutputDevice() {
@@ -676,6 +678,10 @@ private final class NotchAudioLevelReader {
                 vDSP_vsmul(buffer.baseAddress!, 1, &gain, buffer.baseAddress!, 1, vDSP_Length(buffer.count))
             }
         }
+        if tapWatch.shouldRebuild(heard: ring.takeSound(), at: ProcessInfo.processInfo.systemUptime) {
+            rebuildTap()
+            return
+        }
         let magnitudes = analyzer.magnitudes(of: samples)
         let raw = NotchAudioLevelSupport.bandLevels(magnitudes: magnitudes, bands: analyzer.bands)
         onLevels(smoother.next(raw), readAt)
@@ -796,6 +802,7 @@ private final class NotchAudioRing {
     private var filled = 0
     private var peak: Float = 0
     private var heard = false
+    private var soundSinceAsked = false
     private let capacity: Int
 
     /// Whether any sample so far, turned up by `gain`, carried sound rather
@@ -807,6 +814,15 @@ private final class NotchAudioRing {
         defer { lock.unlock() }
         if peak * gain > 0.001 { heard = true }
         return heard
+    }
+
+    /// Whether anything but digital silence has arrived since the last time
+    /// of asking. A device that stopped delivering altogether answers no too.
+    func takeSound() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        defer { soundSinceAsked = false }
+        return soundSinceAsked
     }
 
     init(capacity: Int) {
@@ -832,6 +848,7 @@ private final class NotchAudioRing {
         }
         filled = min(capacity, filled + frames)
         peak = max(peak, loudest)
+        if loudest > 0 { soundSinceAsked = true }
     }
 
     /// The `output.count` samples that end `delay` frames before the most
