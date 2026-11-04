@@ -2667,6 +2667,11 @@ enum FeatureCatalogTests {
             DefaultsKey.brightnessDDCWriteOnlyPaths),
                "per-monitor DDC capability never travels in a settings backup")
         suite.expect(SettingsBackupSupport.machineStateKeys.contains(
+            DefaultsKey.brightnessDDCReadChecksumRechecked)
+                && !SettingsBackupSupport.exportKeys().contains(
+                    DefaultsKey.brightnessDDCReadChecksumRechecked),
+               "the DDC checksum recheck marker stays on the Mac that ran it")
+        suite.expect(SettingsBackupSupport.machineStateKeys.contains(
             DefaultsKey.brightnessForcedSoftwarePaths)
                 && !SettingsBackupSupport.exportKeys().contains(
                     DefaultsKey.brightnessForcedSoftwarePaths),
