@@ -6,6 +6,53 @@ import ApplicationServices
 
 private let switcherAXPressedNotification = "AXPressed"
 
+/// Shared by the pending writes of one window selection. A later click or
+/// keystroke belongs to the user even when no other Vorssaint activation ran.
+/// The queued work owns this guard; its monitors disappear with the last pass.
+final class SwitcherActivationWriteGuard {
+    private let lock = NSLock()
+    private var active = true
+    private var monitors: [Any] = []
+    private let startedAt = ProcessInfo.processInfo.systemUptime
+
+    init() {
+        let mask: NSEvent.EventTypeMask = [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown]
+        let global = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] event in
+            self?.observe(event)
+        }
+        let local = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+            self?.observe(event)
+            return event
+        }
+        monitors = [global, local].compactMap { $0 }
+    }
+
+    var isActive: Bool { lock.withLock { active } }
+
+    func invalidate() {
+        lock.withLock { active = false }
+    }
+
+    private func observe(_ event: NSEvent) {
+        guard event.timestamp > startedAt,
+              let cgEvent = event.cgEvent,
+              cgEvent.getIntegerValueField(.eventSourceUnixProcessID)
+                != Int64(ProcessInfo.processInfo.processIdentifier) else { return }
+        // Ignore the event that selected the window and our own activation or
+        // Space-travel events. Neither local nor global monitoring consumes input.
+        invalidate()
+    }
+
+    deinit {
+        let monitors = monitors
+        if Thread.isMainThread {
+            monitors.forEach(NSEvent.removeMonitor)
+        } else {
+            DispatchQueue.main.async { monitors.forEach(NSEvent.removeMonitor) }
+        }
+    }
+}
+
 /// Brings a switcher selection to the front: unminimizes if needed, makes the
 /// exact window the app's focused/main Accessibility window and activates the
 /// owning app. The initial exact-window path fronts the window synchronously,
@@ -179,8 +226,10 @@ enum WindowActivator {
         // focus pass restores and focuses the window once the app is front.
         if !targetStartedMinimized {
             prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID,
+                                       generation: generation,
                                        target: targetWindow)
         }
+        let writeGuard = SwitcherActivationWriteGuard()
         if sourceWasFullscreen || item.isFullscreen {
             let retryState = SwitcherWindowFocusRetryState(
                 targetWindowID: windowID,
@@ -197,7 +246,8 @@ enum WindowActivator {
                         plan: activationPlan,
                         windowID: windowID,
                         windowOwnerPID: windowOwnerPID,
-                        generation: generation)
+                        generation: generation,
+                        writeGuard: writeGuard)
             let retryDelays = retry
                 ? Self.fullscreenFocusRetryDelays
                 : [Self.fullscreenFocusRetryDelays[0]]
@@ -212,6 +262,7 @@ enum WindowActivator {
                                  stagingState: stagingState,
                                  activationPlan: activationPlan,
                                  generation: generation,
+                                 writeGuard: writeGuard,
                                  delays: retryDelays,
                                  stopsWhenTargetFocused: false)
             return
@@ -221,7 +272,8 @@ enum WindowActivator {
                     plan: activationPlan,
                     windowID: windowID,
                     windowOwnerPID: windowOwnerPID,
-                    generation: generation)
+                    generation: generation,
+                    writeGuard: writeGuard)
         // The first staging of an activation has nothing to skip yet, and no
         // foreground observation: the source app is the one in front.
         scheduleSourceStaging(targetWindowID: windowID,
@@ -232,6 +284,7 @@ enum WindowActivator {
                               sourceWindowOwnerPID: sourceWindowOwnerPID,
                               activationPlan: activationPlan,
                               generation: generation,
+                              writeGuard: writeGuard,
                               stagingState: stagingState,
                               observedFrontmostPID: nil)
 
@@ -258,6 +311,7 @@ enum WindowActivator {
                               stagingState: stagingState,
                               activationPlan: activationPlan,
                               generation: generation,
+                              writeGuard: writeGuard,
                               delays: [focusRetryDelay],
                               stopsWhenTargetFocused: true)
     }
@@ -686,9 +740,11 @@ enum WindowActivator {
                                     plan: SwitcherActivationPlan,
                                     windowID: CGWindowID? = nil,
                                     windowOwnerPID: pid_t? = nil,
-                                    generation: UInt64? = nil) {
+                                    generation: UInt64? = nil,
+                                    writeGuard: SwitcherActivationWriteGuard? = nil) {
         func isCurrent() -> Bool {
-            generation.map { isCurrentActivation($0) } ?? true
+            (generation.map { isCurrentActivation($0) } ?? true)
+                && (writeGuard?.isActive ?? true)
         }
         func scheduleFocusWindow(windowID: CGWindowID,
                                  ownerPID: pid_t,
@@ -698,7 +754,8 @@ enum WindowActivator {
                 let focused = focusWindow(windowID: windowID,
                                           pid: ownerPID,
                                           makeAppFrontmost: false,
-                                          generation: generation)
+                                          generation: generation,
+                                          writeGuard: writeGuard)
                 guard !focused, fallsBackToCooperativeActivation, isCurrent() else { return }
                 activationMainQueue.async {
                     guard isCurrent(),
@@ -832,6 +889,7 @@ enum WindowActivator {
                                               sourceWindowOwnerPID: pid_t?,
                                               activationPlan: SwitcherActivationPlan,
                                               generation: UInt64,
+                                              writeGuard: SwitcherActivationWriteGuard,
                                               stagingState: SwitcherSourceStagingState,
                                               observedFrontmostPID: pid_t?) {
         // A confirmed staging already left the source window behind the
@@ -844,7 +902,7 @@ enum WindowActivator {
             return
         }
         activationAXQueue.async {
-            guard isCurrentActivation(generation) else { return }
+            guard isCurrentActivation(generation), writeGuard.isActive else { return }
             let outcome = stageSourceBehindTargetIfNeeded(
                 targetWindowID: targetWindowID,
                 targetPID: targetPID,
@@ -853,7 +911,8 @@ enum WindowActivator {
                 sourceWindowID: sourceWindowID,
                 sourceWindowOwnerPID: sourceWindowOwnerPID,
                 activationPlan: activationPlan,
-                generation: generation)
+                generation: generation,
+                writeGuard: writeGuard)
             stagingState.record(outcome, generation: generation)
         }
     }
@@ -937,6 +996,7 @@ enum WindowActivator {
                                              stagingState: SwitcherSourceStagingState,
                                              activationPlan: SwitcherActivationPlan,
                                              generation: UInt64,
+                                             writeGuard: SwitcherActivationWriteGuard,
                                              delays: [TimeInterval],
                                              stopsWhenTargetFocused: Bool = false,
                                              scheduledAt: DispatchTime = .now(),
@@ -947,7 +1007,7 @@ enum WindowActivator {
         let deadline = scheduledAt + delay
         DispatchQueue.main.asyncAfter(deadline: deadline) {
             // Retry state belongs to main. Stale passes never enter the AX queue.
-            guard state.isActive else {
+            guard writeGuard.isActive, state.isActive else {
                 return
             }
             guard isCurrentActivation(generation) else {
@@ -958,14 +1018,14 @@ enum WindowActivator {
                 // lane before the pass was queued, so the lane's order is the
                 // join: the baseline has answered by the time this pass
                 // looks at the owner's windows.
-                guard isCurrentActivation(generation) else {
+                guard isCurrentActivation(generation), writeGuard.isActive else {
                     return
                 }
                 let readings = readFocusRetryReadings(
                     windowID: windowID,
                     targetWindowOwnerPID: targetWindowOwnerPID)
                 DispatchQueue.main.async {
-                    guard state.isActive else {
+                    guard writeGuard.isActive, state.isActive else {
                         return
                     }
                     guard isCurrentActivation(generation) else {
@@ -993,17 +1053,22 @@ enum WindowActivator {
                             frontmostPID: initialFrontmostPID,
                             frontmostAfterFocusQueryPID: postQueryFrontmostPID,
                             stopsWhenTargetFocused: stopsWhenTargetFocused)
-                        guard shouldContinue,
+                        guard shouldContinue else {
+                            writeGuard.invalidate()
+                            return
+                        }
+                        guard writeGuard.isActive,
                               let app = NSRunningApplication(processIdentifier: targetPID),
                               !app.isTerminated else { return }
                         activationAXQueue.async {
-                            guard isCurrentActivation(generation) else { return }
+                            guard isCurrentActivation(generation), writeGuard.isActive else { return }
                             prepareWindowForActivation(windowID: windowID,
                                                        pid: targetWindowOwnerPID,
-                                                       generation: generation)
-                            guard isCurrentActivation(generation) else { return }
+                                                       generation: generation,
+                                                       writeGuard: writeGuard)
+                            guard isCurrentActivation(generation), writeGuard.isActive else { return }
                             DispatchQueue.main.async {
-                                guard isCurrentActivation(generation) else { return }
+                                guard isCurrentActivation(generation), writeGuard.isActive else { return }
                                 // One foreground sample decides this round and
                                 // the source staging below, so the two cannot
                                 // disagree about who is in front.
@@ -1019,14 +1084,18 @@ enum WindowActivator {
                                     frontmostPID: observedFrontmostPID,
                                     stopsWhenTargetFocused: stopsWhenTargetFocused
                                 )
-                                guard shouldStillContinue,
-                                      let app = NSRunningApplication(processIdentifier: targetPID),
+                                guard shouldStillContinue else {
+                                    writeGuard.invalidate()
+                                    return
+                                }
+                                guard let app = NSRunningApplication(processIdentifier: targetPID),
                                       !app.isTerminated else { return }
                                 activateApp(app,
                                             plan: activationPlan,
                                             windowID: windowID,
                                             windowOwnerPID: targetWindowOwnerPID,
-                                            generation: generation)
+                                            generation: generation,
+                                            writeGuard: writeGuard)
                                 // The source window is only in front again when
                                 // the user went back to it. The target's own
                                 // activation in this round brought the target
@@ -1041,6 +1110,7 @@ enum WindowActivator {
                                     sourceWindowOwnerPID: sourceWindowOwnerPID,
                                     activationPlan: activationPlan,
                                     generation: generation,
+                                    writeGuard: writeGuard,
                                     stagingState: stagingState,
                                     observedFrontmostPID: observedFrontmostPID
                                 )
@@ -1056,6 +1126,7 @@ enum WindowActivator {
                                     stagingState: stagingState,
                                     activationPlan: activationPlan,
                                     generation: generation,
+                                    writeGuard: writeGuard,
                                     delays: delays,
                                     stopsWhenTargetFocused: stopsWhenTargetFocused,
                                     scheduledAt: scheduledAt,
@@ -1069,7 +1140,7 @@ enum WindowActivator {
                         return
                     }
                     runObservation {
-                        guard isCurrentActivation(generation) else {
+                        guard isCurrentActivation(generation), writeGuard.isActive else {
                             return
                         }
                         let focusedWindowID = readFocusRetryFocusedWindowID(
@@ -1088,7 +1159,7 @@ enum WindowActivator {
                             guard isCurrentActivation(generation) else {
                                 return
                             }
-                            guard state.isActive else {
+                            guard writeGuard.isActive, state.isActive else {
                                 return
                             }
                             let postQueryFrontmostPID =
@@ -1347,9 +1418,11 @@ enum WindowActivator {
     private static func prepareWindowForActivation(windowID: CGWindowID,
                                                    pid: pid_t,
                                                    generation: UInt64? = nil,
+                                                   writeGuard: SwitcherActivationWriteGuard? = nil,
                                                    target: SwitcherActivationTargetWindow? = nil) -> Bool {
         func isCurrent() -> Bool {
-            generation.map { isCurrentActivation($0) } ?? true
+            (generation.map { isCurrentActivation($0) } ?? true)
+                && (writeGuard?.isActive ?? true)
         }
         guard isCurrent(), Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
@@ -1413,8 +1486,12 @@ enum WindowActivator {
                                                         sourceWindowID: CGWindowID?,
                                                         sourceWindowOwnerPID: pid_t?,
                                                         activationPlan: SwitcherActivationPlan,
-                                                        generation: UInt64) -> SwitcherSourceStagingOutcome {
-        guard isCurrentActivation(generation),
+                                                        generation: UInt64,
+                                                        writeGuard: SwitcherActivationWriteGuard? = nil) -> SwitcherSourceStagingOutcome {
+        func isCurrent() -> Bool {
+            isCurrentActivation(generation) && (writeGuard?.isActive ?? true)
+        }
+        guard isCurrent(),
               activationPlan.restoreSourceWhenTargetMinimizes,
               SwitcherSupport.shouldStageSourceBehindTarget(targetPID: targetPID,
                                                             sourcePID: sourcePID,
@@ -1431,12 +1508,12 @@ enum WindowActivator {
         let targetApp = AXUIElementCreateApplication(targetWindowOwnerPID)
         AXUIElementSetMessagingTimeout(sourceApp, 0.35)
         AXUIElementSetMessagingTimeout(targetApp, 0.35)
-        guard isCurrentActivation(generation) else {
+        guard isCurrent() else {
             return .unresolved
         }
         let sourceWindow = axElement(windowID: sourceWindowID,
                                      in: sourceApp)
-        guard isCurrentActivation(generation) else {
+        guard isCurrent() else {
             return .unresolved
         }
         guard let sourceWindow else {
@@ -1444,7 +1521,7 @@ enum WindowActivator {
         }
         let targetWindow = axElement(windowID: targetWindowID,
                                      in: targetApp)
-        guard isCurrentActivation(generation) else {
+        guard isCurrent() else {
             return .unresolved
         }
         guard let targetWindow else {
@@ -1454,7 +1531,7 @@ enum WindowActivator {
         var sourceMinimized: CFTypeRef?
         let minimizedResult = AXUIElementCopyAttributeValue(
             sourceWindow, kAXMinimizedAttribute as CFString, &sourceMinimized)
-        guard isCurrentActivation(generation) else {
+        guard isCurrent() else {
             return .unresolved
         }
         // A minimized source window cannot sit behind the target yet. An
@@ -1472,40 +1549,40 @@ enum WindowActivator {
            windowIsVisiblyFocused(windowID: targetWindowID,
                                   pid: targetWindowOwnerPID,
                                   window: targetWindow),
-           isCurrentActivation(generation) {
+           isCurrent() {
             return minimizedResult == .success ? .staged : .unresolved
         }
         let sourceReady = targetIsFrontmost
             || AXUIElementPerformAction(sourceWindow, kAXRaiseAction as CFString) == .success
-        guard isCurrentActivation(generation) else {
+        guard isCurrent() else {
             return .unresolved
         }
         let targetRaiseResult = AXUIElementPerformAction(targetWindow, kAXRaiseAction as CFString)
-        guard isCurrentActivation(generation) else {
+        guard isCurrent() else {
             return .unresolved
         }
         let mainWindowResult = AXUIElementSetAttributeValue(targetApp,
                                                              kAXMainWindowAttribute as CFString,
                                                              targetWindow)
-        guard isCurrentActivation(generation) else {
+        guard isCurrent() else {
             return .unresolved
         }
         let focusedWindowResult = AXUIElementSetAttributeValue(targetApp,
                                                                 kAXFocusedWindowAttribute as CFString,
                                                                 targetWindow)
-        guard isCurrentActivation(generation) else {
+        guard isCurrent() else {
             return .unresolved
         }
         let windowMainResult = AXUIElementSetAttributeValue(targetWindow,
                                                              kAXMainAttribute as CFString,
                                                              kCFBooleanTrue)
-        guard isCurrentActivation(generation) else {
+        guard isCurrent() else {
             return .unresolved
         }
         let windowFocusedResult = AXUIElementSetAttributeValue(targetWindow,
                                                                 kAXFocusedAttribute as CFString,
                                                                 kCFBooleanTrue)
-        guard isCurrentActivation(generation) else {
+        guard isCurrent() else {
             return .unresolved
         }
         // Only confirmed source placement and target operations finish staging.
@@ -1540,8 +1617,14 @@ enum WindowActivator {
     // Unsupported/missing notifications retain the normal focus fallback.
     private static func restoreWindowBeforeFocus(_ window: AXUIElement,
                                                  pid: pid_t,
-                                                 generation: UInt64?) -> Bool {
-        guard let generation else {
+                                                 generation: UInt64?,
+                                                 writeGuard: SwitcherActivationWriteGuard? = nil) -> Bool {
+        func isCurrent() -> Bool {
+            (generation.map { isCurrentActivation($0) } ?? true)
+                && (writeGuard?.isActive ?? true)
+        }
+        guard isCurrent() else { return false }
+        guard generation != nil else {
             AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
             return false
         }
@@ -1550,6 +1633,7 @@ enum WindowActivator {
             context?.assumingMemoryBound(to: Bool.self).pointee = true
         }, &observer)
         guard created == .success, let observer else {
+            guard isCurrent() else { return false }
             AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
             return false
         }
@@ -1557,6 +1641,7 @@ enum WindowActivator {
         return withUnsafeMutablePointer(to: &completed) { completion in
             let notification = kAXWindowDeminiaturizedNotification as CFString
             guard AXObserverAddNotification(observer, window, notification, completion) == .success else {
+                guard isCurrent() else { return false }
                 AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
                 return false
             }
@@ -1567,11 +1652,12 @@ enum WindowActivator {
                 CFRunLoopRemoveSource(runLoop, source, .defaultMode)
                 AXObserverRemoveNotification(observer, window, notification)
             }
+            guard isCurrent() else { return false }
             guard AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString,
                                                kCFBooleanFalse) == .success else { return false }
             let deadline = DispatchTime.now() + 0.5
             while !completion.pointee,
-                  isCurrentActivation(generation),
+                  isCurrent(),
                   DispatchTime.now().uptimeNanoseconds < deadline.uptimeNanoseconds {
                 CFRunLoopRunInMode(.defaultMode, 0.01, true)
             }
@@ -1583,9 +1669,11 @@ enum WindowActivator {
     private static func focusWindow(windowID: CGWindowID,
                                     pid: pid_t,
                                     makeAppFrontmost: Bool = true,
-                                    generation: UInt64? = nil) -> Bool {
+                                    generation: UInt64? = nil,
+                                    writeGuard: SwitcherActivationWriteGuard? = nil) -> Bool {
         func isCurrent() -> Bool {
-            generation.map { isCurrentActivation($0) } ?? true
+            (generation.map { isCurrentActivation($0) } ?? true)
+                && (writeGuard?.isActive ?? true)
         }
         guard isCurrent(), Permissions.shared.accessibility else { return false }
         let axApp = AXUIElementCreateApplication(pid)
@@ -1603,7 +1691,8 @@ enum WindowActivator {
             axWindow, kAXMinimizedAttribute as CFString, &minimized)
         guard isCurrent() else { return false }
         if minimizedResult == .success, (minimized as? Bool) == true {
-            let completed = restoreWindowBeforeFocus(axWindow, pid: pid, generation: generation)
+            let completed = restoreWindowBeforeFocus(axWindow, pid: pid, generation: generation,
+                                                    writeGuard: writeGuard)
             guard isCurrent() else { return false }
             if completed,
                windowIsVisiblyFocused(windowID: windowID, pid: pid, window: axWindow),
@@ -1612,6 +1701,7 @@ enum WindowActivator {
             }
         }
 
+        guard isCurrent() else { return false }
         if makeAppFrontmost {
             AXUIElementSetAttributeValue(axApp,
                                          kAXFrontmostAttribute as CFString,
@@ -1674,11 +1764,12 @@ enum WindowActivator {
                                    appPID: pid_t,
                                    windowOwnerPID: pid_t,
                                    sourcePID: pid_t?,
-                                   state: SwitcherWindowFocusRetryState) {
+                                   state: SwitcherWindowFocusRetryState,
+                                   writeGuard: SwitcherActivationWriteGuard) {
         // The generation here is looked up by app, not handed over by the
         // hop: it is a fallback, and it is never the session's own number.
         let generation = activationGeneration(for: appPID)
-        guard isCurrentActivation(generation),
+        guard isCurrentActivation(generation), writeGuard.isActive,
               let app = NSRunningApplication(processIdentifier: appPID),
               !app.isTerminated else {
             return
@@ -1692,17 +1783,20 @@ enum WindowActivator {
                                        state: state,
                                        ignoresForeground: true,
                                        generation: generation) else {
+            writeGuard.invalidate()
             return
         }
         prepareWindowForActivation(windowID: windowID,
                                    pid: windowOwnerPID,
-                                   generation: generation)
-        guard isCurrentActivation(generation) else { return }
+                                   generation: generation,
+                                   writeGuard: writeGuard)
+        guard isCurrentActivation(generation), writeGuard.isActive else { return }
         activateApp(app,
                     plan: SwitcherSupport.activationPlan(targetsSpecificWindow: true),
                     windowID: windowID,
                     windowOwnerPID: windowOwnerPID,
-                    generation: generation)
+                    generation: generation,
+                    writeGuard: writeGuard)
     }
 
     /// Finds the Accessibility element of one window of an app.

@@ -21,6 +21,53 @@ enum SwitcherActivationTests {
         func reset() { pending.removeAll() }
     }
 
+    /// The production cancellation guard installs monitors here. Emitting an
+    /// event invokes their actual handlers without posting input to the system.
+    final class InputEvent {
+        typealias EventTypeMask = NSEvent.EventTypeMask
+        let type: NSEvent.EventType
+        let timestamp: TimeInterval
+        let cgEvent: CGEvent?
+        static var global: [UUID: (EventTypeMask, (InputEvent) -> Void)] = [:]
+        static var local: [UUID: (EventTypeMask, (InputEvent) -> InputEvent?)] = [:]
+
+        init(_ type: NSEvent.EventType, timestamp: TimeInterval = .greatestFiniteMagnitude,
+             sourcePID: pid_t = 0) {
+            self.type = type
+            self.timestamp = timestamp
+            let event = CGEvent(source: nil)
+            event?.setIntegerValueField(.eventSourceUnixProcessID, value: Int64(sourcePID))
+            cgEvent = event
+        }
+        static func addGlobalMonitorForEvents(matching mask: EventTypeMask,
+                                              handler: @escaping (InputEvent) -> Void) -> Any? {
+            let token = UUID()
+            global[token] = (mask, handler)
+            return token
+        }
+        static func addLocalMonitorForEvents(matching mask: EventTypeMask,
+                                             handler: @escaping (InputEvent) -> InputEvent?) -> Any? {
+            let token = UUID()
+            local[token] = (mask, handler)
+            return token
+        }
+        static func removeMonitor(_ monitor: Any) {
+            guard let token = monitor as? UUID else { return }
+            global[token] = nil
+            local[token] = nil
+        }
+        @discardableResult
+        static func emit(_ event: InputEvent, locally: Bool = false) -> InputEvent? {
+            let mask = EventTypeMask(rawValue: 1 << event.type.rawValue)
+            if locally {
+                return local.values.filter { $0.0.contains(mask) }
+                    .reduce(Optional(event)) { current, monitor in current.flatMap(monitor.1) }
+            }
+            global.values.filter { $0.0.contains(mask) }.forEach { $0.1(event) }
+            return event
+        }
+    }
+
     static var events: [String] = []
     static var records: [[UInt8]] = []
     static var frontOptions: [UInt32] = []
@@ -104,7 +151,8 @@ enum SwitcherActivationTests {
         @discardableResult static func focusWindow(windowID: CGWindowID,
                                                    pid: pid_t,
                                                    makeAppFrontmost: Bool = true,
-                                                   generation: UInt64? = nil) -> Bool {
+                                                   generation: UInt64? = nil,
+                                                   writeGuard: SwitcherActivationWriteGuard? = nil) -> Bool {
             events.append("raise:\(windowID):\(pid):\(makeAppFrontmost)")
             if let nextGeneration = SwitcherActivationTests.generationAfterFocus {
                 currentGeneration = nextGeneration
@@ -134,6 +182,7 @@ enum SwitcherActivationTests {
     /// The production hidden-Space raise and source staging methods run with
     /// inert elements. Only the orchestration is tested; macOS travel is not.
     enum HiddenSpaceActivator {
+        static let activationAXQueue = DeferredQueue()
         final class Element: NSObject {
             let pid: pid_t
             let windowID: CGWindowID?
@@ -141,6 +190,12 @@ enum SwitcherActivationTests {
                 self.pid = pid
                 self.windowID = windowID
             }
+        }
+        typealias AXUIElement = Element
+        final class AXObserver {}
+        struct SwitcherActivationTargetWindow {
+            let window: Element
+            func element() -> Element? { window }
         }
         typealias NSWorkspace = SwitcherActivationTests.Workspace
         struct PermissionState { var accessibility = true }
@@ -155,18 +210,35 @@ enum SwitcherActivationTests {
         static var missingWindows: Set<CGWindowID> = []
         static var minimizedWindows: Set<CGWindowID> = []
         static var raiseResult: AXError = .success
+        static var currentGeneration: UInt64 = 1
+        static var afterRead: (() -> Void)?
+        static var afterWrite: (() -> Void)?
+        static var observerCreationResult: AXError = .success
+        static var observerRegistrationResult: AXError = .success
+        static var afterObserverCreation: (() -> Void)?
+        static var afterObserverRegistration: (() -> Void)?
+        static var observerCompletion: UnsafeMutablePointer<Bool>?
 
         static func reset() {
+            activationAXQueue.reset()
             Permissions.shared = PermissionState()
             SpaceWindowBridge.hiddenWindows = []
             transportEvents = []
             missingWindows = []
             minimizedWindows = []
             raiseResult = .success
+            currentGeneration = 1
+            afterRead = nil
+            afterWrite = nil
+            observerCreationResult = .success
+            observerRegistrationResult = .success
+            afterObserverCreation = nil
+            afterObserverRegistration = nil
+            observerCompletion = nil
             // The staging path asks who is in front; no app of this fixture is.
             Workspace.shared.frontmostApplication = App(processIdentifier: 99)
         }
-        static func isCurrentActivation(_ generation: UInt64) -> Bool { true }
+        static func isCurrentActivation(_ generation: UInt64) -> Bool { currentGeneration == generation }
         /// Visibility is the window server's answer, which this fixture does
         /// not model: staging treats the target as not visibly focused.
         static func windowIsVisiblyFocused(windowID: CGWindowID,
@@ -190,6 +262,7 @@ enum SwitcherActivationTests {
         static func AXUIElementCopyAttributeValue(_ element: Element, _ attribute: CFString,
                                                   _ value: UnsafeMutablePointer<CFTypeRef?>) -> AXError {
             transportEvents.append("read:\(element.windowID ?? 0):\(attribute)")
+            defer { afterRead?() }
             guard attribute as String == kAXMinimizedAttribute as String,
                   let windowID = element.windowID else { return .attributeUnsupported }
             value.pointee = NSNumber(value: minimizedWindows.contains(windowID))
@@ -199,12 +272,47 @@ enum SwitcherActivationTests {
         static func AXUIElementSetAttributeValue(_ element: Element, _ attribute: CFString,
                                                  _ value: CFTypeRef) -> AXError {
             transportEvents.append("set:\(element.windowID ?? 0):\(attribute)")
+            if attribute as String == kAXMinimizedAttribute as String {
+                observerCompletion?.pointee = true
+            }
+            afterWrite?()
             return .success
         }
         @discardableResult
         static func AXUIElementPerformAction(_ element: Element, _ action: CFString) -> AXError {
             transportEvents.append("action:\(element.windowID ?? 0):\(action)")
+            afterWrite?()
             return raiseResult
+        }
+        static func AXObserverCreate(_ pid: pid_t,
+                                     _ callback: (AXObserver, Element, CFString, UnsafeMutableRawPointer?) -> Void,
+                                     _ observer: UnsafeMutablePointer<AXObserver?>) -> AXError {
+            transportEvents.append("observer:create")
+            observer.pointee = observerCreationResult == .success ? AXObserver() : nil
+            afterObserverCreation?()
+            return observerCreationResult
+        }
+        static func AXObserverAddNotification(_ observer: AXObserver, _ window: Element,
+                                              _ notification: CFString,
+                                              _ completion: UnsafeMutableRawPointer?) -> AXError {
+            transportEvents.append("observer:register")
+            if observerRegistrationResult == .success {
+                observerCompletion = completion?.assumingMemoryBound(to: Bool.self)
+            }
+            afterObserverRegistration?()
+            return observerRegistrationResult
+        }
+        static func AXObserverGetRunLoopSource(_ observer: AXObserver) -> Int { 1 }
+        static func CFRunLoopAddSource(_ loop: CFRunLoop, _ source: Int, _ mode: CFRunLoopMode) {
+            transportEvents.append("observer:attach")
+        }
+        static func CFRunLoopRemoveSource(_ loop: CFRunLoop, _ source: Int, _ mode: CFRunLoopMode) {
+            transportEvents.append("observer:detach")
+        }
+        static func AXObserverRemoveNotification(_ observer: AXObserver, _ window: Element,
+                                                 _ notification: CFString) {
+            transportEvents.append("observer:remove")
+            observerCompletion = nil
         }
     }
     final class Workspace {
@@ -325,6 +433,9 @@ enum SwitcherActivationTests {
         suite.expect(events.contains("activate:20:false") && records.isEmpty,
                      "a failed Wine front request falls back to app activation without a mouse event")
         runGenerationContracts(suite)
+        runInputCancellationContracts(suite)
+        runCancelledWriteContracts(suite)
+        runRestoreCancellationContracts(suite)
         runActivationBaselineContracts(suite)
         runHiddenSpaceContracts(suite)
         runFocusWithoutRaise(suite)
@@ -420,6 +531,162 @@ enum SwitcherActivationTests {
                      "deferred Accessibility focus checks the activation generation before starting")
         drainAll()
         reset()
+    }
+
+    private static func runInputCancellationContracts(_ suite: TestSuite) {
+        let app = App(processIdentifier: 20)!
+        let plan = SwitcherSupport.activationPlan(targetsSpecificWindow: true)
+        func select(_ writeGuard: SwitcherActivationWriteGuard) {
+            Activator.activateApp(app, plan: plan, windowID: 77, windowOwnerPID: 20,
+                                  generation: 1, writeGuard: writeGuard)
+        }
+
+        for locally in [false, true] {
+            for type: NSEvent.EventType in [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown] {
+                reset()
+                let writeGuard = SwitcherActivationWriteGuard()
+                select(writeGuard)
+                let beforeInput = events
+                let event = InputEvent(type)
+                let forwarded = InputEvent.emit(event, locally: locally)
+                Activator.activationAXQueue.drain()
+                Activator.activationMainQueue.drain()
+                suite.expect(!writeGuard.isActive && Activator.currentGeneration == 1
+                                && events == beforeInput && forwarded === event,
+                             "new user input cancels queued focus without swallowing the event or requiring a new switch")
+            }
+        }
+
+        for event in [InputEvent(.keyDown, timestamp: 0),
+                      InputEvent(.keyDown, sourcePID: ProcessInfo.processInfo.processIdentifier),
+                      InputEvent(.flagsChanged), InputEvent(.mouseMoved)] {
+            reset()
+            let writeGuard = SwitcherActivationWriteGuard()
+            select(writeGuard)
+            InputEvent.emit(event)
+            Activator.activationAXQueue.drain()
+            suite.expect(writeGuard.isActive && events.contains("raise:77:20:false"),
+                         "the selecting event, our synthetic travel and modifier releases preserve deferred focus")
+        }
+
+        reset(raise: false)
+        let writeGuard = SwitcherActivationWriteGuard()
+        select(writeGuard)
+        Activator.activationAXQueue.drain()
+        InputEvent.emit(InputEvent(.keyDown))
+        Activator.activationMainQueue.drain()
+        suite.expect(!events.contains("activate:20:false"),
+                     "typing before queued cooperative recovery keeps the user's new selection")
+        reset()
+
+        let monitorCount = InputEvent.global.count + InputEvent.local.count
+        var temporary: SwitcherActivationWriteGuard? = SwitcherActivationWriteGuard()
+        suite.expect(temporary?.isActive == true
+                        && InputEvent.global.count + InputEvent.local.count == monitorCount + 2,
+                     "one pending activation owns its two input monitors")
+        temporary = nil
+        suite.expect(InputEvent.global.count + InputEvent.local.count == monitorCount,
+                     "finishing the last activation pass removes both monitors")
+    }
+
+    private static func runCancelledWriteContracts(_ suite: TestSuite) {
+        typealias AX = HiddenSpaceActivator
+        let plan = SwitcherSupport.activationPlan(targetsSpecificWindow: true)
+        func writes() -> [String] {
+            AX.transportEvents.filter { $0.hasPrefix("set:") || $0.hasPrefix("action:") }
+        }
+        func perform(_ operation: Int, _ writeGuard: SwitcherActivationWriteGuard) {
+            switch operation {
+            case 0:
+                _ = AX.prepareWindowForActivation(windowID: 77, pid: 20, generation: 1,
+                                                  writeGuard: writeGuard)
+            case 1:
+                _ = AX.focusWindow(windowID: 77, pid: 20, generation: 1, writeGuard: writeGuard)
+            default:
+                _ = AX.stageSourceBehindTargetIfNeeded(targetWindowID: 77, targetPID: 20,
+                                                       targetWindowOwnerPID: 20, sourcePID: 10,
+                                                       sourceWindowID: 55, sourceWindowOwnerPID: 10,
+                                                       activationPlan: plan, generation: 1,
+                                                       writeGuard: writeGuard)
+            }
+        }
+
+        for operation in 0..<3 {
+            AX.reset()
+            let active = SwitcherActivationWriteGuard()
+            perform(operation, active)
+            suite.expect(!writes().isEmpty,
+                         "uninterrupted preparation, focus and staging retain their window writes")
+
+            AX.reset()
+            let cancelled = SwitcherActivationWriteGuard()
+            AX.afterRead = { InputEvent.emit(InputEvent(.leftMouseDown)) }
+            perform(operation, cancelled)
+            suite.expect(!cancelled.isActive && writes().isEmpty,
+                         "a click during an AX read cancels every subsequent preparation, focus or staging write")
+
+            AX.reset()
+            let interrupted = SwitcherActivationWriteGuard()
+            AX.afterWrite = { InputEvent.emit(InputEvent(.keyDown)) }
+            perform(operation, interrupted)
+            suite.expect(!interrupted.isActive && writes().count == 1,
+                         "new input during an AX write stops the remaining writes in the pass")
+        }
+
+        AX.reset()
+        let stagingGuard = SwitcherActivationWriteGuard()
+        AX.scheduleSourceStaging(targetWindowID: 77, targetPID: 20, targetWindowOwnerPID: 20,
+                                 sourcePID: 10, sourceWindowID: 55, sourceWindowOwnerPID: 10,
+                                 activationPlan: plan, generation: 1, writeGuard: stagingGuard,
+                                 stagingState: SwitcherSourceStagingState(generation: 1),
+                                 observedFrontmostPID: nil)
+        suite.expect(AX.activationAXQueue.pending.count == 1, "source staging waits on the write queue")
+        InputEvent.emit(InputEvent(.leftMouseDown))
+        AX.activationAXQueue.drain()
+        suite.expect(AX.transportEvents.isEmpty, "a newer selection cancels staging before even resolving its windows")
+        AX.reset()
+    }
+
+    private static func runRestoreCancellationContracts(_ suite: TestSuite) {
+        typealias AX = HiddenSpaceActivator
+        let window = AX.Element(pid: 20, windowID: 77)
+        func restore(_ writeGuard: SwitcherActivationWriteGuard) -> Bool {
+            AX.restoreWindowBeforeFocus(window, pid: 20, generation: 1, writeGuard: writeGuard)
+        }
+        func restored() -> Bool { AX.transportEvents.contains("set:77:AXMinimized") }
+
+        for registration in [AXError.success, .notificationUnsupported] {
+            for cancellation in 0..<2 {
+                AX.reset()
+                let writeGuard = SwitcherActivationWriteGuard()
+                AX.observerRegistrationResult = registration
+                AX.afterObserverRegistration = {
+                    if cancellation == 0 { AX.currentGeneration = 2 }
+                    else { InputEvent.emit(InputEvent(.keyDown)) }
+                }
+                suite.expect(!restore(writeGuard) && !restored(),
+                             "successful and failed observer registration cannot restore a superseded selection")
+                suite.expect(AX.transportEvents.contains("observer:remove") == (registration == .success)
+                                && AX.observerCompletion == nil,
+                             "cancelled restore removes only successfully registered observers")
+            }
+            AX.reset()
+            let active = SwitcherActivationWriteGuard()
+            AX.observerRegistrationResult = registration
+            let completed = restore(active)
+            suite.expect(restored() && completed == (registration == .success),
+                         "current activation restores through both observer success and the unsupported fallback")
+        }
+
+        for creation in [AXError.success, .cannotComplete] {
+            AX.reset()
+            let cancelled = SwitcherActivationWriteGuard()
+            AX.observerCreationResult = creation
+            AX.afterObserverCreation = { AX.currentGeneration = 2 }
+            suite.expect(!restore(cancelled) && !restored(),
+                         "observer creation cannot revive a cancelled activation")
+        }
+        AX.reset()
     }
 
     /// The fresh minimized state of an activation target, and the activation

@@ -346,6 +346,8 @@ def main():
                                    "    static func prepareForRequest(", "    private static func isWindow("])
           + "}\n")
     write("SwitcherActivationBodies.swift", "import AppKit\nimport ApplicationServices\n"
+          + declaration(activator, "final class SwitcherActivationWriteGuard {")
+              .replace("NSEvent", "SwitcherActivationTests.InputEvent")
           + "extension SwitcherActivationTests.Activator {\n"
           + "".join(declaration(activator, prefix).replace("private static", "static", 1)
                     for prefix in ["    private static func activateApp(",
@@ -356,6 +358,10 @@ def main():
           + "}\nextension SwitcherActivationTests.HiddenSpaceActivator {\n"
           + "".join(declaration(activator, prefix).replace("private static", "static", 1)
                     for prefix in ["    static func raiseWindowOnHiddenSpace(",
+                                   "    private static func scheduleSourceStaging(",
+                                   "    private static func prepareWindowForActivation(",
+                                   "    private static func restoreWindowBeforeFocus(",
+                                   "    private static func focusWindow(",
                                    "    private static func stageSourceBehindTargetIfNeeded("])
           + "}\nextension SwitcherActivationTests.Bridge {\n"
           + "".join(declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", prefix)

@@ -71,6 +71,7 @@ final class SpaceHop {
     static func cancelPending() {
         current?.restoreCursorIfNeeded()
         current?.cancelled = true
+        current?.writeGuard?.invalidate()
         current = nil
     }
 
@@ -81,6 +82,7 @@ final class SpaceHop {
     private let focusState: SwitcherWindowFocusRetryState
     private let app: NSRunningApplication
     private var cancelled = false
+    private var writeGuard: SwitcherActivationWriteGuard?
     private var arrowPressesLeft = SpaceHopSupport.maximumArrowSteps
     private var originalCursorLocation: CGPoint?
     private var warpedCursorLocation: CGPoint?
@@ -250,9 +252,11 @@ final class SpaceHop {
     /// first one raises unconditionally; the others retry unless the target's
     /// Space is visible and it is the focused window of the process that owns it, with that process in front.
     private func focusOnArrival() {
+        let writeGuard = self.writeGuard ?? SwitcherActivationWriteGuard()
+        self.writeGuard = writeGuard
         for (index, delay) in [0.15, 0.45, 0.9].enumerated() {
             schedule(after: delay) {
-                guard !self.cancelled, !self.app.isTerminated else { return }
+                guard !self.cancelled, writeGuard.isActive, !self.app.isTerminated else { return }
                 guard SpaceHopSupport.arrivalPulseShouldFocus(
                     isFirstPulse: index == 0,
                     targetSpaceIsVisible: self.windowSpaceIsVisible(),
@@ -267,7 +271,8 @@ final class SpaceHop {
                                                    appPID: self.appPID,
                                                    windowOwnerPID: self.windowOwnerPID,
                                                    sourcePID: self.sourcePID,
-                                                   state: self.focusState)
+                                                   state: self.focusState,
+                                                   writeGuard: writeGuard)
             }
         }
         schedule(after: 1.0) { self.finish() }
