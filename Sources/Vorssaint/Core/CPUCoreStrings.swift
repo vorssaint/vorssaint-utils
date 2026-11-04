@@ -19,6 +19,7 @@ extension FeatureStrings {
     static func cpuCores(_ language: AppLanguage) -> CPUCoreFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -46,6 +47,17 @@ extension CPUCoreFeatureStrings {
         efficiencyCores: "Efficiency",
         apps: "Apps using CPU",
         perCore: "Per core"
+    )
+
+    static let nl = CPUCoreFeatureStrings(
+        title: "Logische CPU-kernen",
+        coreFormat: "Kern %d",
+        hint: "Elke balk is één logische kern. De vulhoogte toont het gebruik, niet de resterende prestaties.",
+        superCores: "Super",
+        performanceCores: "Prestatie",
+        efficiencyCores: "Efficiëntie",
+        apps: "Apps die CPU gebruiken",
+        perCore: "Per kern"
     )
 
     static let ptBR = CPUCoreFeatureStrings(

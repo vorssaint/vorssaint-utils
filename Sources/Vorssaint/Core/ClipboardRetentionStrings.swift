@@ -23,6 +23,7 @@ extension FeatureStrings {
     static func clipboardRetention(_ language: AppLanguage) -> ClipboardRetentionStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -48,6 +49,14 @@ extension ClipboardRetentionStrings {
         oneDay: "1 day",
         daysFormat: "%d days",
         caption: "Older items are removed even below the limit. Pinned items are always kept."
+    )
+
+    static let nl = ClipboardRetentionStrings(
+        title: "Bewaar onderdelen gedurende",
+        forever: "Altijd",
+        oneDay: "1 dag",
+        daysFormat: "%d dagen",
+        caption: "Oudere onderdelen worden ook onder de limiet verwijderd. Vastgemaakte onderdelen blijven altijd bewaard."
     )
 
     static let ptBR = ClipboardRetentionStrings(

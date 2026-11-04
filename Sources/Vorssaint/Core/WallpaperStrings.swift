@@ -35,6 +35,7 @@ extension FeatureStrings {
     static func wallpaper(_ language: AppLanguage) -> WallpaperFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -78,6 +79,32 @@ extension WallpaperFeatureStrings {
         applyFailed: "Could not set the wallpaper",
         previousPage: "Previous",
         nextPage: "Next"
+    )
+
+    static let nl = WallpaperFeatureStrings(
+        pageTitle: "Achtergrond",
+        hubDescription: "Kies een stilstaande achtergrond zonder Systeeminstellingen te openen",
+        panelDescription: "Kies een stilstaande achtergrond zonder Systeeminstellingen te openen.",
+        filterAll: "Alles",
+        filterOwn: "Je afbeeldingen",
+        filterApple: "Apple",
+        applyAllDisplays: "Toon op alle Spaces",
+        addImage: "Voeg afbeelding toe",
+        addFolder: "Voeg map toe",
+        removeAdded: "Verwijder",
+        doneRemoving: "Gereed",
+        sourceUnavailable: "Niet beschikbaar",
+        addImagePrompt: "Kies afbeeldingen om in de achtergrondlijst van Vorssaint te bewaren",
+        addFolderPrompt: "Kies een map met afbeeldingen om in de achtergrondlijst van Vorssaint te bewaren",
+        openSystemSettings: "Open achtergrondinstellingen",
+        emptyAll: "Geen achtergronden gevonden",
+        emptyOwn: "Nog geen afbeeldingen toegevoegd",
+        emptyApple: "Geen stilstaande Apple-afbeeldingen gevonden",
+        downloading: "Downloaden…",
+        downloadFailed: "De achtergrond kon niet worden gedownload",
+        applyFailed: "De achtergrond kon niet worden ingesteld",
+        previousPage: "Vorige",
+        nextPage: "Volgende"
     )
 
     static let ptBR = WallpaperFeatureStrings(

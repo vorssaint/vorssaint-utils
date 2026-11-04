@@ -894,6 +894,7 @@ enum MediaSupport {
         case "tr": return ["tr-TR", "en-US"]
         case "ru": return ["ru-RU", "en-US"]
         case "es": return ["es-ES", "en-US"]
+        case "nl": return ["nl-NL", "en-US"]
         case "de": return ["de-DE", "en-US"]
         case "fr": return ["fr-FR", "en-US"]
         case "it": return ["it-IT", "en-US"]

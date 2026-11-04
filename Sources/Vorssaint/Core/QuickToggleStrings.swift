@@ -49,6 +49,7 @@ extension FeatureStrings {
     static func quickToggles(_ language: AppLanguage) -> QuickToggleFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -105,6 +106,45 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Start the screen saver",
         screenSaverCaption: "Starts right away, on every display.",
         actionFailed: "Could not complete."
+    )
+
+    static let nl = QuickToggleFeatureStrings(
+        pageTitle: "Snelle schakelaars",
+        hubDescription: "Acties met één klik, zoals donkere modus en Prullenmand",
+        panelCaption: "Systeemacties met één klik in het menubalkpaneel en het snelpaneel.",
+        darkModeToDark: "Schakel naar donkere modus",
+        darkModeToLight: "Schakel naar lichte modus",
+        darkModeCaption: "Wijzigt de weergave van het hele systeem.",
+        emptyTrashTitle: "Leeg de prullenmand",
+        emptyTrashCaption: "Verwijdert alles uit de prullenmand.",
+        emptyTrashConfirmTitle: "De prullenmand legen?",
+        emptyTrashConfirmMessage: "Alle onderdelen in de prullenmand worden verwijderd. Dit kan niet ongedaan worden gemaakt.",
+        emptyTrashConfirmButton: "Leeg de prullenmand",
+        quitAllTitle: "Stop alle apps",
+        quitOthersTitle: "Stop alle apps behalve de voorste",
+        quitAppsHeader: "Geopende apps",
+        quitAppsQuitAll: "Stop alle",
+        quitAppsQuitAllExcept: "Stop alle behalve %@",
+        quitAppsQuitOne: "Stop %@",
+        quitAppsFrontBadge: "Voorste",
+        quitAppsKeptBadge: "Behouden",
+        quitAppsEmpty: "Er zijn geen andere apps geopend.",
+        exceptionsTitle: "Te behouden apps",
+        exceptionsCaption: "‘Stop alle’ laat deze apps actief. Finder, Vorssaint en Telefoon blijven altijd actief. Je kunt een behouden app wel via de eigen rij stoppen.",
+        ejectTitle: "Verwijder alle schijven",
+        ejectCaption: "Verwijdert elke externe schijf veilig.",
+        hiddenFilesShow: "Toon verborgen bestanden",
+        hiddenFilesHide: "Verberg verborgen bestanden",
+        desktopIconsHide: "Verberg bureaubladsymbolen",
+        desktopIconsShow: "Toon bureaubladsymbolen",
+        finderRestartCaption: "Finder wordt herstart om dit toe te passen.",
+        lockScreenTitle: "Vergrendel het scherm",
+        lockScreenCaption: "Vraagt om het wachtwoord om terug te keren.",
+        displayOffTitle: "Schakel het beeldscherm uit",
+        displayOffCaption: "De Mac blijft actief met uitgeschakeld beeldscherm.",
+        screenSaverTitle: "Start de schermbeveiliging",
+        screenSaverCaption: "Start direct op elk beeldscherm.",
+        actionFailed: "Uitvoeren mislukt."
     )
 
     static let ptBR = QuickToggleFeatureStrings(

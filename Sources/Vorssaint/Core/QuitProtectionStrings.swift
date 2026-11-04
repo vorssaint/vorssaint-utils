@@ -58,6 +58,7 @@ extension FeatureStrings {
     static func quitProtection(_ language: AppLanguage) -> QuitProtectionStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -107,6 +108,41 @@ extension QuitProtectionStrings {
         extraCloseHUDFormat: "Use %@ to close",
         cancelHint: "Esc cancels",
         releaseHint: "Release to confirm",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
+    static let nl = QuitProtectionStrings(
+        name: "Bescherming tegen stoppen en sluiten",
+        description: "Beschermt ⌘Q en ⌘W tegen onbedoeld indrukken",
+        intro: "Configureer elke sneltoets afzonderlijk. De oorspronkelijke actie wordt pas na de gekozen bevestiging doorgegeven.",
+        enabled: "Bescherm deze sneltoets",
+        enabledCaption: "Andere Command-sneltoetsen blijven normaal werken.",
+        mode: "Bevestigingsmodus",
+        hold: "Houd ingedrukt om te bevestigen",
+        doublePress: "Druk tweemaal",
+        extraModifier: "Vereis extra speciale toets",
+        holdDuration: "Vasthoudduur",
+        doublePressInterval: "Interval voor dubbel drukken",
+        modifier: "Extra speciale toets",
+        appScope: "Apps",
+        allApps: "Alle apps",
+        selectedOnly: "Alleen geselecteerde apps",
+        allExceptSelected: "Alle behalve geselecteerde apps",
+        exceptions: "Geselecteerde apps",
+        noExceptions: "Geen apps geselecteerd",
+        addApp: "Voeg app toe…",
+        feedback: "Toon visuele feedback",
+        accessibilityCaption: "De bescherming gebruikt Toegankelijkheid om alleen ⌘Q en ⌘W overal te volgen.",
+        holdQuitHUDFormat: "Houd %@ ingedrukt om te stoppen",
+        holdCloseHUDFormat: "Houd %@ ingedrukt om te sluiten",
+        doubleQuitHUDFormat: "Druk opnieuw op %@ om te stoppen",
+        doubleCloseHUDFormat: "Druk opnieuw op %@ om te sluiten",
+        extraQuitHUDFormat: "Gebruik %@ om te stoppen",
+        extraCloseHUDFormat: "Gebruik %@ om te sluiten",
+        cancelHint: "Esc annuleert",
+        releaseHint: "Laat los om te bevestigen",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"

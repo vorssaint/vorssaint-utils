@@ -21,6 +21,7 @@ enum CountAgreement {
 /// language; the onboarding and Settings let the user override it at any time.
 enum AppLanguage: String, CaseIterable, Identifiable {
     case enUS = "en-US"
+    case nl = "nl"
     case ptBR = "pt-BR"
     case tr = "tr"
     case ru = "ru"
@@ -39,7 +40,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// How this language agrees a counted noun with the number in front of
-    /// it. Three of the fifteen put a distinct form between one and many, and
+    /// it. Three of the sixteen put a distinct form between one and many, and
     /// they disagree on which numbers take it, so the count itself is not
     /// enough to pick a form without knowing the language's rule.
     var countAgreement: CountAgreement {
@@ -54,6 +55,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .enUS: return "English (US)"
+        case .nl: return "Nederlands"
         case .ptBR: return "Português (Brasil)"
         case .tr: return "Türkçe"
         case .ru: return "Русский"
@@ -95,7 +97,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
 
         let matches: [(String, AppLanguage)] = [
-            ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
+            ("nl", .nl), ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
             ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
@@ -130,6 +132,7 @@ extension Strings {
     static func localized(_ language: AppLanguage) -> Strings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -149,7 +152,7 @@ extension Strings {
 }
 
 /// Flat, compiler-checked catalog of UI strings. Adding a field here forces
-/// both translations to be provided.
+/// every translation to be provided.
 struct Strings {
     // MARK: Menu bar & context menu
     let statusIdleTooltip: String

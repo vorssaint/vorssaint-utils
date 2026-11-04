@@ -38,6 +38,7 @@ struct WhatsAppOrganizerStrings {
     static func localized(_ language: AppLanguage) -> WhatsAppOrganizerStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
@@ -88,6 +89,39 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "WhatsApp organization",
         notificationFormat: "%1$d files organized. %2$d duplicate downloads handled. %3$d failed.",
         privacyNote: "To identify exact duplicates, file bytes are read locally only while calculating a cryptographic digest. Contents and chats are never stored or uploaded."
+    )
+
+    static let nl = WhatsAppOrganizerStrings(
+        title: "Automatisch ordenen",
+        experimental: "Experimenteel",
+        description: "Verplaatst stabiele WhatsApp-downloads naar een aparte map en herkent exact herhaalde downloads.",
+        enabled: "Orden automatisch",
+        enabledCaption: "WhatsApp kan een verplaatst bestand opnieuw downloaden. Vorssaint kan de netwerkdownload niet voorkomen, maar wel een identieke extra kopie herkennen en verwijderen.",
+        destination: "Doelmap",
+        chooseFolder: "Kies…",
+        useDefault: "Gebruik Downloads/WhatsApp",
+        invalidDestination: "Kies een andere map dan Downloads zelf.",
+        organization: "Mapstructuur",
+        flat: "Geen submappen",
+        byType: "Op bestandstype",
+        byMonth: "Op jaar en maand",
+        delay: "Wacht vóór verplaatsen",
+        minutesFormat: "%d minuten",
+        duplicateAction: "Als hetzelfde bestand opnieuw wordt gedownload",
+        trashDuplicate: "Verplaats de nieuwe kopie naar de prullenmand",
+        keepBoth: "Behoud beide kopieën",
+        replaceExisting: "Vervang de geordende kopie",
+        duplicateCaption: "Duplicaten worden bevestigd met een eigen SHA-256-controlewaarde. De geordende kopie wordt opnieuw gecontroleerd voordat een andere kopie wordt verwijderd.",
+        organizeNow: "Orden geschikte bestanden nu",
+        undo: "Maak laatste ordening ongedaan",
+        waiting: "Downloads volgen",
+        working: "WhatsApp-bestanden ordenen…",
+        resultFormat: "%1$d verplaatst · %2$d duplicaten · %3$d mislukt",
+        lastRunFormat: "Laatste ordening %@: %d verplaatst · %d duplicaten · %d mislukt",
+        neverRun: "Er is nog geen ordening uitgevoerd.",
+        notificationTitle: "WhatsApp ordenen",
+        notificationFormat: "%1$d bestanden geordend. %2$d dubbele downloads afgehandeld. %3$d mislukt.",
+        privacyNote: "Om exacte duplicaten te herkennen, worden bestandsbytes alleen lokaal gelezen tijdens het berekenen van een cryptografische controlewaarde. Inhoud en chats worden nooit bewaard of geüpload."
     )
 
     static let es = WhatsAppOrganizerStrings(
