@@ -3222,10 +3222,12 @@ final class NotchService: ObservableObject {
                 // own full screen eases its copy away.
                 let byApp = id != displayID && fullscreenDisplays.contains(id) && !fullscreenSpaceDisplays.contains(id)
                 if !byApp { mirrorsHiddenByApp.remove(id) }
-                if let mirror = mirrors[id], mirror.model.shown {
-                    mirror.model.shown = false
+                if let mirror = mirrors[id] {
                     if byApp { mirrorsHiddenByApp.insert(id) }
-                    mirror.host.hide(animated: byApp)
+                    if mirror.model.shown {
+                        mirror.model.shown = false
+                        mirror.host.hide(animated: byApp)
+                    }
                 }
                 continue
             }

@@ -252,6 +252,23 @@ enum NotchMirrorContract {
         suite.expect(notch?.model.shown == true && notch?.host.presented.last?.animated == false
                      && notch?.host.reveals.last == false,
                      "full screen last held by a Space ends at once")
+        SpaceWindowBridge.fullscreen = [1]
+        service.updateFullscreenDisplays()
+        service.syncMirrors()
+        let hidesBySpace = notch?.host.hides
+        SpaceWindowBridge.fullscreen = []
+        NotchAppFullscreen.covered = [1]
+        service.updateFullscreenDisplays()
+        service.syncMirrors()
+        suite.expect(notch?.model.shown == false && notch?.host.hides == hidesBySpace
+                     && service.mirrorsHiddenByApp == [1],
+                     "an app taking over a Space's full screen updates the hidden copy's reason without hiding it again")
+        NotchAppFullscreen.covered = []
+        service.updateFullscreenDisplays()
+        service.syncMirrors()
+        suite.expect(notch?.model.shown == true && notch?.host.presented.last?.animated == true
+                     && notch?.host.reveals.last == true && service.mirrorsHiddenByApp.isEmpty,
+                     "full screen last held by an app reveals the copy with motion even when a Space hid it first")
         service.hidesInFullscreen = false
         service.updateFullscreenDisplays()
 

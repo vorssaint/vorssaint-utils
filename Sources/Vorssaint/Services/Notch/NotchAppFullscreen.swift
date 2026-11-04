@@ -26,14 +26,19 @@ enum NotchAppFullscreen {
     /// window it hid the menu bar for. A zoomed window under a menu bar the
     /// user auto-hides keeps the island. Only the frontmost app sets the
     /// presentation options, so a level 0 window is confirmed while its app
-    /// is frontmost and stays so, by window number, while it still covers
-    /// the display in front. That keeps it covered after focus moves to
-    /// another display. Returns the covered displays and the new confirmed set.
+    /// is frontmost and stays so, by window number, while it still fills
+    /// the display, even behind another window. The frontmost app's leading
+    /// normal window rechecks the menu bar; its other windows keep their
+    /// confirmation when focus moves to another display. Returns the covered
+    /// displays and confirmed set.
     static func coveredDisplays(windows: [WindowInfo], frontmostPID: pid_t?, ownPID: pid_t,
                                 displays: [CGDirectDisplayID: CGRect], menuBarHidden: Bool,
                                 confirmed: Set<CGWindowID>)
         -> (displays: Set<CGDirectDisplayID>, confirmed: Set<CGWindowID>) {
         var covered = Set<CGDirectDisplayID>(), kept = Set<CGWindowID>()
+        let frontmostWindow = windows.first(where: {
+            $0.layer == 0 && $0.alpha > 0 && $0.ownerPID == frontmostPID
+        })?.number
         for (id, frame) in displays {
             let front = windows.first(where: {
                 $0.layer == 0 && $0.alpha > 0 && $0.ownerPID != ownPID && !$0.bounds.intersection(frame).isEmpty
@@ -42,10 +47,11 @@ enum NotchAppFullscreen {
                 && covers(window.bounds, frame) {
                 if window.layer > 0 {
                     if window.ownerPID == front || window.ownerPID == frontmostPID { covered.insert(id) }
-                } else if let front, window.ownerPID == front,
-                          (window.ownerPID == frontmostPID && menuBarHidden) || confirmed.contains(window.number) {
-                    covered.insert(id)
+                } else if window.layer == 0,
+                          (window.ownerPID == frontmostPID && menuBarHidden)
+                            || (confirmed.contains(window.number) && window.number != frontmostWindow) {
                     kept.insert(window.number)
+                    if window.ownerPID == front { covered.insert(id) }
                 }
             }
         }

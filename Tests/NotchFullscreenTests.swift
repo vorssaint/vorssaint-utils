@@ -275,6 +275,9 @@ enum NotchFullscreenTests {
         suite.expect(covered([window(built, pid: 7)], front: 7).isEmpty, "the island's own windows never count")
         suite.expect(covered([window(built, layer: 0)]).isEmpty,
                      "a normal window filling the display under an auto-hidden menu bar keeps the island")
+        suite.expect(covered([window(CGRect(x: 200, y: 100, width: 1000, height: 700), layer: 0),
+                              window(built, layer: -1, number: 2)], menuBarHidden: true).isEmpty,
+                     "a window below the normal level never counts as an app's full screen")
         // VLC 3 own full screen on a 3440x1440 display: video window at level 0
         // over the whole display, menu bar hidden by the app.
         let ultrawide = CGRect(x: 0, y: 0, width: 3440, height: 1440)
@@ -323,20 +326,41 @@ enum NotchFullscreenTests {
         let first = read([controls, video], front: vlcPID, hidden: true, confirmed: [])
         suite.expect(first.displays == [1] && first.confirmed == [10],
                      "VLC frontmost with the menu bar hidden covers its display and is confirmed")
+        let maximized = read([controls, video], front: vlcPID, hidden: false, confirmed: first.confirmed)
+        suite.expect(maximized.displays.isEmpty && maximized.confirmed.isEmpty,
+                     "restoring the menu bar forgets full screen even when a maximized window keeps its number and bounds")
         let focusB = [menuBar, dock, appOnB, video, controls]
+        suite.expect(read(focusB, front: otherPID, hidden: false, confirmed: maximized.confirmed).displays.isEmpty,
+                     "moving focus away does not revive a maximized window's expired full-screen confirmation")
         let moved = read(focusB, front: otherPID, hidden: false, confirmed: first.confirmed)
         suite.expect(moved.displays == [1] && moved.confirmed == [10],
                      "focus on another display keeps the confirmed full-screen window covered")
+        let sameAppOnB = w(31, vlcPID, 0, appOnB.bounds)
+        let sameApp = read([sameAppOnB, video], front: vlcPID, hidden: false, confirmed: first.confirmed)
+        suite.expect(sameApp.displays == [1] && sameApp.confirmed == [10],
+                     "another normal window of the same app taking focus on a second display keeps the video confirmed")
         suite.expect(read(focusB, front: otherPID, hidden: false, confirmed: []).displays.isEmpty,
                      "a level 0 window never confirmed keeps the island once focus moves")
         let clicked = read([w(40, otherPID, 0, CGRect(x: 200, y: 100, width: 1000, height: 700)), dock, video],
-                           front: otherPID, hidden: false, confirmed: [10])
-        suite.expect(clicked.displays.isEmpty && clicked.confirmed.isEmpty,
-                     "a normal window clicked above the full-screen window shows the island and drops it")
+                           front: otherPID, hidden: false, confirmed: moved.confirmed)
+        suite.expect(clicked.displays.isEmpty && clicked.confirmed == [10],
+                     "a normal window above the video shows the island without forgetting the video's full screen")
+        let uncovered = read(focusB, front: otherPID, hidden: false, confirmed: clicked.confirmed)
+        suite.expect(uncovered.displays == [1] && uncovered.confirmed == [10],
+                     "removing the covering window hides the island over the video without giving VLC focus")
         let left = read([menuBar, appOnB, w(10, vlcPID, 0, CGRect(x: 600, y: 200, width: 1200, height: 700))],
                         front: vlcPID, hidden: false, confirmed: [10])
         suite.expect(left.displays.isEmpty && left.confirmed.isEmpty,
                      "leaving full screen uncovers the display and forgets the window")
+        let resizedBehind = read([appOnB, w(10, vlcPID, 0, CGRect(x: 600, y: 200, width: 1200, height: 700))],
+                                 front: otherPID, hidden: false, confirmed: clicked.confirmed)
+        suite.expect(resizedBehind.displays.isEmpty && resizedBehind.confirmed.isEmpty,
+                     "a background window that stops filling the display loses its full-screen confirmation")
+        let closed = read([appOnB], front: otherPID, hidden: false, confirmed: first.confirmed)
+        let invisible = read([appOnB, w(10, vlcPID, 0, a, alpha: 0)],
+                             front: otherPID, hidden: false, confirmed: first.confirmed)
+        suite.expect(closed.confirmed.isEmpty && invisible.confirmed.isEmpty,
+                     "closed and invisible windows lose their full-screen confirmation")
         suite.expect(read([dock, appOnB], front: otherPID, hidden: false, confirmed: []).displays.isEmpty
                      && read([menuBar, dock, appOnB], front: otherPID, hidden: false, confirmed: []).displays.isEmpty,
                      "the Dock's full-display level 20 window alone never covers")
