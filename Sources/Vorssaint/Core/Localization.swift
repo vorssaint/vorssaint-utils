@@ -356,6 +356,8 @@ struct Strings {
     let ocrCaption: String
     let ocrCopied: String
     let ocrNoText: String
+    let ocrCutBreaks: String
+    let ocrAddBreaks: String
     let colorPickerName: String
     let colorPickerCaption: String
     let colorPickerFormatLabel: String
@@ -1222,6 +1224,8 @@ struct Strings {
     let launchAtLoginNeedsApproval: String
     let ocrRemoveLineBreaksToggle: String
     let ocrRemoveLineBreaksCaption: String
+    let ocrShowBreaksButtonToggle: String
+    let ocrShowBreaksButtonCaption: String
     let ocrQRToggle: String
     let ocrQRCaption: String
     let ocrQRCopied: String
@@ -1514,6 +1518,8 @@ extension Strings {
         ocrCaption: "Selecione uma área da tela e o texto reconhecido é copiado, pronto para colar.",
         ocrCopied: "Texto copiado",
         ocrNoText: "Nenhum texto encontrado",
+        ocrCutBreaks: "Remover quebras",
+        ocrAddBreaks: "Manter quebras",
         colorPickerName: "Conta-gotas de cor",
         colorPickerCaption: "Capture a cor de qualquer pixel da tela e copie no formato que preferir.",
         colorPickerFormatLabel: "Formato copiado",
@@ -2339,6 +2345,8 @@ extension Strings {
         launchAtLoginNeedsApproval: "O item de login está registrado, mas o macOS ainda precisa da sua aprovação. Nos Ajustes do Sistema, permita que o Vorssaint abra no login e funcione em segundo plano.",
         ocrRemoveLineBreaksToggle: "Remover quebras de linha",
         ocrRemoveLineBreaksCaption: "Remove as quebras de linha para que o texto copiado seja colado como um único parágrafo.",
+        ocrShowBreaksButtonToggle: "Botão Cortar/Manter quebras",
+        ocrShowBreaksButtonCaption: "Mostra Cortar ou Manter quebras depois de copiar o texto.",
         ocrQRToggle: "Ler QR codes",
         ocrQRCaption: "Se a área tiver um QR code, o conteúdo dele aparece para copiar ou abrir.",
         ocrQRCopied: "QR code copiado",
@@ -2632,6 +2640,8 @@ extension Strings {
         ocrCaption: "Select an area of the screen and the recognized text is copied, ready to paste.",
         ocrCopied: "Text copied",
         ocrNoText: "No text found",
+        ocrCutBreaks: "Cut Breaks",
+        ocrAddBreaks: "Add Breaks",
         colorPickerName: "Color picker",
         colorPickerCaption: "Grab the color of any pixel on screen and copy it in your favorite format.",
         colorPickerFormatLabel: "Copied format",
@@ -3457,6 +3467,8 @@ extension Strings {
         launchAtLoginNeedsApproval: "The login item is registered, but macOS still needs your approval. In System Settings, allow Vorssaint to open at login and to run in the background.",
         ocrRemoveLineBreaksToggle: "Remove line breaks",
         ocrRemoveLineBreaksCaption: "Removes line breaks so copied text pastes as one paragraph.",
+        ocrShowBreaksButtonToggle: "Cut/Add Breaks button",
+        ocrShowBreaksButtonCaption: "Offers Cut Breaks or Add Breaks after text is copied.",
         ocrQRToggle: "Read QR codes",
         ocrQRCaption: "If the area has a QR code, its content is shown to copy or open.",
         ocrQRCopied: "QR code copied",

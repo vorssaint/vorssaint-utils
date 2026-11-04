@@ -1850,10 +1850,15 @@ def main():
           + "}\n")
     write("ScreenTextCompletion.swift", "import Foundation\n"
           + "extension ScreenTextCompletionTests {\nfinal class ScreenTextService: State {\n"
+          + "var confirmation: Confirmation?\n"
           + "".join(declaration(screen_text, prefix).replace("private func", "func", 1)
-                    for prefix in ["    func copyText(", "    func receiveUnifiedCapture(",
+                    .replace("private final class", "final class", 1)
+                    for prefix in ["    private final class Confirmation",
+                                   "    func copyText(", "    func receiveUnifiedCapture(",
                                    "    private func recognize(", "    func syncWithPreferences()",
                                    "    func suspend()", "    private func cancelSession()",
+                                   "    func presentCopiedText(", "    private func confirm(",
+                                   "    private func setRemovesLineBreaks(",
                                    "    enum Outcome:"])
           + "}\n}\n")
     write("ScreenshotShareCompletion.swift", "import Foundation\n"

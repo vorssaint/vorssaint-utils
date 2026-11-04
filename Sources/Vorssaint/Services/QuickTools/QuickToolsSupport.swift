@@ -84,10 +84,19 @@ enum QuickToolsSupport {
 
     /// One recognized line of screen text with its normalized position
     /// (bottom-left origin, as Vision reports it).
-    struct RecognizedLine {
+    struct RecognizedLine: Equatable {
         let text: String
         let x: Double
         let y: Double
+    }
+
+    struct RecognizedCopy: Equatable {
+        let lines: [RecognizedLine]
+        var removesLineBreaks: Bool
+
+        var text: String {
+            QuickToolsSupport.joinedRecognizedText(lines, removingLineBreaks: removesLineBreaks)
+        }
     }
 
     /// Joins recognized lines in natural reading order: top to bottom, left
