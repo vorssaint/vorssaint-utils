@@ -200,6 +200,7 @@ struct MediaWorkspaceView: View {
     var body: some View {
         layout
         .focusable()
+        .focusEffectDisabled()
         .onPasteCommand(of: [.fileURL, .image, .png, .tiff]) { _ in
             pasteFromClipboard()
         }
