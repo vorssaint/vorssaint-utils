@@ -44,17 +44,46 @@ enum NotchAudioLevelSupport {
     /// latency, as Core Audio reports them for the output. The tap hears the
     /// player as it renders, so without this the bars run ahead of the sound,
     /// by a few hundred milliseconds on Bluetooth headphones.
-    static func playbackDelayFrames(deviceLatency: UInt32, safetyOffset: UInt32, bufferFrames: UInt32,
-                                    streamLatency: UInt32, sampleRate: Double) -> Int {
-        let total = Int(deviceLatency) + Int(safetyOffset) + Int(bufferFrames) + Int(streamLatency)
-        let rate = max(0, sampleRate)
-        return min(max(0, total - Int(rate * barLag)), Int(rate * longestPlaybackDelay))
+    static func outputFrames(deviceLatency: UInt32, safetyOffset: UInt32, bufferFrames: UInt32,
+                             streamLatency: UInt32) -> Int {
+        Int(deviceLatency) + Int(safetyOffset) + Int(bufferFrames) + Int(streamLatency)
     }
 
-    /// How long the bars themselves take to show a sound: half an analysis
+    /// How far behind the newest sample to read: what the output takes to play
+    /// it, less what the bars take to show it.
+    static func playbackDelayFrames(outputFrames: Int, sampleRate: Double, paintLag: Double = 0) -> Int {
+        let rate = max(0, sampleRate)
+        return min(max(0, outputFrames - Int(rate * (barLag + paintLag))), Int(rate * longestPlaybackDelay))
+    }
+
+    /// How long the bars' motion takes to show a sound: half an analysis
     /// block, the wait for the next reading, the glide to it and the spring.
     /// Read that much sooner, so the bars land on the beat rather than after it.
+    /// Getting a reading to the screen is measured instead: see `PaintLag`.
     static let barLag = 0.1
+
+    /// How long a reading takes from the analysis to the display frame it
+    /// shows in, as measured while the bars run. The display's own response
+    /// after that frame cannot be read and is not counted.
+    ///
+    /// Each sample moves the figure a small step toward itself, which settles
+    /// on the middle of the samples: a main thread that stalls once costs the
+    /// bars one step, not a jump in what they read.
+    struct PaintLag: Equatable {
+        /// Where it stands before the first sample: about two frames at 120 Hz.
+        static let starting = 0.02
+        /// The most one sample counts for. A stall past this is not the usual wait.
+        static let longest = 0.1
+        static let step = 0.002
+
+        private(set) var seconds = starting
+
+        mutating func record(_ sample: Double) {
+            guard sample.isFinite, sample >= 0 else { return }
+            let change = min(sample, Self.longest) - seconds
+            seconds += min(max(change, -Self.step), Self.step)
+        }
+    }
 
     static func fallsBack(heard: Bool, elapsed: TimeInterval) -> Bool {
         !heard && elapsed >= silenceGrace

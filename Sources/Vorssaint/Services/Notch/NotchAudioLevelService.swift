@@ -7,6 +7,7 @@ import Combine
 import CoreAudio
 import CoreAudioTapCompat
 import Foundation
+import QuartzCore
 
 /// Reads the current player's audio output and turns it into seven levels
 /// for the island's bars. Off unless chosen, and running only while that
@@ -29,8 +30,12 @@ final class NotchAudioLevelService: ObservableObject {
     private var reader: NotchAudioLevelReader?
     private var readerPID: pid_t = 0
     private var readerID: UUID?
+    private var readerIdentity: NotchMusicIdentity?
     private var silence = NotchAudioLevelSupport.SilenceMemory()
     private var stopWork: DispatchWorkItem?
+    /// When the reading now in `levels` was taken, 0 without one.
+    private(set) var levelsReadAt: CFTimeInterval = 0
+    private var paintLag = NotchAudioLevelSupport.PaintLag()
 
     private init() {}
 
@@ -58,6 +63,8 @@ final class NotchAudioLevelService: ObservableObject {
         reader = nil
         readerPID = 0
         readerID = nil
+        readerIdentity = nil
+        levelsReadAt = 0
         if levels != nil { levels = nil }
     }
 
@@ -72,13 +79,22 @@ final class NotchAudioLevelService: ObservableObject {
         // A reader that has not heard sound may already be reporting silence
         // from the pause. Give the resumed play a fresh chance, and a new
         // reader identity, while keeping audible readers through short pauses.
-        let resumeBeforeSound = stopWork != nil && levels == nil
+        let resuming = stopWork != nil
+        let resumeBeforeSound = resuming && levels == nil
         stopWork?.cancel(); stopWork = nil
-        guard readerPID != pid || resumeBeforeSound else { return }
+        let identity = NotchMusicIdentity(playback)
+        guard readerPID != pid || resumeBeforeSound else {
+            // A Bluetooth output can start again on another latency, and not
+            // every device says so.
+            if resuming || identity != readerIdentity {
+                readerIdentity = identity
+                reader?.readOutputLatency()
+            }
+            return
+        }
         // Release the previous player before deciding about this one, or its
         // reader would keep the bars on somebody else's levels.
         stop()
-        let identity = NotchMusicIdentity(playback)
         guard silence.reads(identity) else {
             hearsNothing = true
             return
@@ -92,10 +108,11 @@ final class NotchAudioLevelService: ObservableObject {
         // has started for the same player. Only this reading may publish.
         let id = UUID()
         readerID = id
-        let created = NotchAudioLevelReader(pid: pid, onLevels: { [weak self] next in
+        readerIdentity = identity
+        let created = NotchAudioLevelReader(pid: pid, onLevels: { [weak self] next, readAt in
             DispatchQueue.main.async {
                 guard let self, self.readerID == id else { return }
-                self.receive(next, from: pid)
+                self.receive(next, readAt: readAt, from: pid)
             }
         }, onSilence: { [weak self] in
             DispatchQueue.main.async {
@@ -114,6 +131,7 @@ final class NotchAudioLevelService: ObservableObject {
             }
         })
         reader = created
+        created.setPaintLag(paintLag.seconds)
         created.start()
     }
 
@@ -162,9 +180,17 @@ final class NotchAudioLevelService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
     }
 
-    private func receive(_ next: [Double], from pid: pid_t) {
+    private func receive(_ next: [Double], readAt: CFTimeInterval, from pid: pid_t) {
         guard reader != nil, readerPID == pid, levels != next else { return }
+        levelsReadAt = readAt
         levels = next
+    }
+
+    /// A reading taken at `readAt` reached the display frame shown at `shownAt`.
+    func painted(readAt: CFTimeInterval, shownAt: CFTimeInterval) {
+        guard readAt > 0 else { return }
+        paintLag.record(shownAt - readAt)
+        reader?.setPaintLag(paintLag.seconds)
     }
 }
 
@@ -227,7 +253,7 @@ private final class NotchAudioLevelReader {
     private let queue = DispatchQueue(label: "com.vorssaint.notch-audio-levels", qos: .utility)
     private static let teardownQueue = DispatchQueue(label: "com.vorssaint.notch-audio-levels.teardown", qos: .utility)
     private let pid: pid_t
-    private let onLevels: ([Double]) -> Void
+    private let onLevels: ([Double], CFTimeInterval) -> Void
     private let onSilence: () -> Void
     private let onUnavailable: () -> Void
     private let onProcessesLeft: () -> Void
@@ -246,8 +272,11 @@ private final class NotchAudioLevelReader {
     private var hostDeviceUID: String?
     private var sampleRate: Double = 0
     /// How far behind the newest sample the output is playing, in frames.
-    /// See `NotchAudioLevelSupport.playbackDelayFrames`.
-    private var playbackDelay = 0
+    /// See `NotchAudioLevelSupport.outputFrames`.
+    private var outputFrames = 0
+    private var paintLag = 0.0
+    private var hostDevice = AudioObjectID(0)
+    private var latencyStream = AudioStreamID(0)
     private var tapped: [AudioObjectID] = []
     /// What the tap's mixdown took from the player's sound, given back before
     /// the analysis. See `followLevel`.
@@ -261,7 +290,7 @@ private final class NotchAudioLevelReader {
     private var processCheck: DispatchWorkItem?
     private var stopped = false
 
-    init(pid: pid_t, onLevels: @escaping ([Double]) -> Void,
+    init(pid: pid_t, onLevels: @escaping ([Double], CFTimeInterval) -> Void,
          onSilence: @escaping () -> Void, onUnavailable: @escaping () -> Void,
          onProcessesLeft: @escaping () -> Void) {
         self.pid = pid
@@ -387,9 +416,11 @@ private final class NotchAudioLevelReader {
         self.analyzer = analyzer
         self.hostDeviceUID = hostUID
         self.sampleRate = sampleRate
-        playbackDelay = Self.playbackDelayFrames(of: host, sampleRate: sampleRate)
+        hostDevice = host
         samples = [Float](repeating: 0, count: analyzer.size)
         watchSampleRate(of: aggregateID)
+        watchLatency(of: host)
+        refreshOutputLatency()
         return true
     }
 
@@ -402,6 +433,8 @@ private final class NotchAudioLevelReader {
         rateListenerDevice = 0
         analyzer = nil
         hostDeviceUID = nil
+        stopWatchingLatency()
+        hostDevice = 0
         if rateDevice != 0 {
             var address = Self.address(kAudioDevicePropertyNominalSampleRate)
             AudioObjectRemovePropertyListener(rateDevice, &address, Self.deviceCallback, listenerClient)
@@ -448,8 +481,12 @@ private final class NotchAudioLevelReader {
     /// settle instead of looping.
     private func rebuildIfDeviceChanged() {
         guard !stopped, aggregateID != 0 else { return }
-        guard Self.hostDeviceUID() != hostDeviceUID
-                || Self.nominalSampleRate(of: aggregateID) != sampleRate else { return }
+        // Headphones that come back can hold the same UID under a new object.
+        guard Self.defaultOutputDevice() != hostDevice || Self.hostDeviceUID() != hostDeviceUID
+                || Self.nominalSampleRate(of: aggregateID) != sampleRate else {
+            refreshOutputLatency()
+            return
+        }
         teardownPipeline()
         // The ring keeps what it has heard, so a device change does not
         // restart the silence countdown on a player already known to sound.
@@ -476,6 +513,45 @@ private final class NotchAudioLevelReader {
                                           Self.deviceCallback, listenerClient) == noErr {
             rateListenerDevice = aggregateID
         }
+    }
+
+    /// The latency can change with the device staying the default, as when
+    /// Bluetooth headphones change codec. Reading it again is all that takes,
+    /// so these never rebuild anything. The first stream has a listener of its
+    /// own, moved along if the device changes its streams.
+    private func watchLatency(of device: AudioObjectID) {
+        for selector in Self.latencySelectors {
+            var address = Self.address(selector, scope: kAudioDevicePropertyScopeOutput)
+            AudioObjectAddPropertyListener(device, &address, Self.latencyCallback, listenerClient)
+        }
+    }
+
+    private func stopWatchingLatency() {
+        guard hostDevice != 0 else { return }
+        for selector in Self.latencySelectors {
+            var address = Self.address(selector, scope: kAudioDevicePropertyScopeOutput)
+            AudioObjectRemovePropertyListener(hostDevice, &address, Self.latencyCallback, listenerClient)
+        }
+        watchStreamLatency(of: 0)
+    }
+
+    private func watchStreamLatency(of stream: AudioStreamID) {
+        guard stream != latencyStream else { return }
+        var address = Self.address(kAudioStreamPropertyLatency)
+        if latencyStream != 0 {
+            AudioObjectRemovePropertyListener(latencyStream, &address, Self.latencyCallback, listenerClient)
+        }
+        latencyStream = 0
+        if stream != 0, AudioObjectAddPropertyListener(stream, &address, Self.latencyCallback, listenerClient) == noErr {
+            latencyStream = stream
+        }
+    }
+
+    /// Reads what the output takes to play a sample, on this reader's queue.
+    private func refreshOutputLatency() {
+        guard !stopped, hostDevice != 0 else { return }
+        watchStreamLatency(of: Self.firstOutputStream(of: hostDevice))
+        outputFrames = Self.outputFrames(of: hostDevice, stream: latencyStream)
     }
 
     /// A browser makes its sound in a helper process that it opens and shuts
@@ -534,6 +610,26 @@ private final class NotchAudioLevelReader {
         return noErr
     }
 
+    private static let latencySelectors: [AudioObjectPropertySelector] = [
+        kAudioDevicePropertyLatency, kAudioDevicePropertySafetyOffset,
+        kAudioDevicePropertyBufferFrameSize, kAudioDevicePropertyStreams,
+    ]
+
+    private static let latencyCallback: AudioObjectPropertyListenerProc = { _, _, _, client in
+        NotchAudioLevelListeners.reader(for: client)?.readOutputLatency()
+        return noErr
+    }
+
+    /// Asks the output again what it takes to play a sample.
+    func readOutputLatency() {
+        queue.async { [self] in refreshOutputLatency() }
+    }
+
+    /// What getting a reading to the screen now takes.
+    func setPaintLag(_ seconds: Double) {
+        queue.async { [self] in paintLag = seconds }
+    }
+
     fileprivate func deviceChanged() {
         queue.async { [self] in rebuildIfDeviceChanged() }
     }
@@ -569,7 +665,10 @@ private final class NotchAudioLevelReader {
             }
             return
         }
-        guard ring.latest(into: &samples, delay: playbackDelay) else { return }
+        let delay = NotchAudioLevelSupport.playbackDelayFrames(outputFrames: outputFrames, sampleRate: sampleRate,
+                                                               paintLag: paintLag)
+        let readAt = CACurrentMediaTime()
+        guard ring.latest(into: &samples, delay: delay) else { return }
         if levelCompensation > 1 {
             var gain = levelCompensation
             samples.withUnsafeMutableBufferPointer { buffer in
@@ -578,7 +677,7 @@ private final class NotchAudioLevelReader {
         }
         let magnitudes = analyzer.magnitudes(of: samples)
         let raw = NotchAudioLevelSupport.bandLevels(magnitudes: magnitudes, bands: analyzer.bands)
-        onLevels(smoother.next(raw))
+        onLevels(smoother.next(raw), readAt)
     }
 
     // MARK: - Core Audio
@@ -665,9 +764,14 @@ private final class NotchAudioLevelReader {
         return uid as String
     }
 
+    private static func firstOutputStream(of device: AudioObjectID) -> AudioStreamID {
+        var stream = AudioStreamID(0)
+        return read(device, kAudioDevicePropertyStreams, &stream, scope: kAudioDevicePropertyScopeOutput) ? stream : 0
+    }
+
     /// How long the output takes to play what it is handed. A figure the
     /// device does not report counts as none, as it did before.
-    private static func playbackDelayFrames(of device: AudioObjectID, sampleRate: Double) -> Int {
+    private static func outputFrames(of device: AudioObjectID, stream: AudioStreamID) -> Int {
         let output = kAudioDevicePropertyScopeOutput
         var deviceLatency: UInt32 = 0
         var safetyOffset: UInt32 = 0
@@ -676,13 +780,9 @@ private final class NotchAudioLevelReader {
         _ = read(device, kAudioDevicePropertyLatency, &deviceLatency, scope: output)
         _ = read(device, kAudioDevicePropertySafetyOffset, &safetyOffset, scope: output)
         _ = read(device, kAudioDevicePropertyBufferFrameSize, &bufferFrames, scope: output)
-        var stream = AudioStreamID(0)
-        if read(device, kAudioDevicePropertyStreams, &stream, scope: output), stream != 0 {
-            _ = read(stream, kAudioStreamPropertyLatency, &streamLatency)
-        }
-        return NotchAudioLevelSupport.playbackDelayFrames(deviceLatency: deviceLatency, safetyOffset: safetyOffset,
-                                                          bufferFrames: bufferFrames, streamLatency: streamLatency,
-                                                          sampleRate: sampleRate)
+        if stream != 0 { _ = read(stream, kAudioStreamPropertyLatency, &streamLatency) }
+        return NotchAudioLevelSupport.outputFrames(deviceLatency: deviceLatency, safetyOffset: safetyOffset,
+                                                   bufferFrames: bufferFrames, streamLatency: streamLatency)
     }
 }
 

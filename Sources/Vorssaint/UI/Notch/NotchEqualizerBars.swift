@@ -18,13 +18,18 @@ struct NotchEqualizerBars: View {
     /// Band levels from 0 to 1 read from the player's audio. When present the
     /// bars follow them instead of the stepped synthetic motion.
     var live: [Double]? = nil
+    /// When `live` was read, and who to tell when it reached the screen, with
+    /// that time and the time of the frame it shows in.
+    var liveReadAt: CFTimeInterval = 0
+    var onPainted: ((CFTimeInterval, CFTimeInterval) -> Void)? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let count = max(1, bars)
         NotchEqualizerBridge(animates: isPlaying && !reduceMotion, bars: count,
                              barWidth: barWidth, height: height, tint: NSColor(tint), field: field,
-                             levels: isPlaying && !reduceMotion ? live : nil)
+                             levels: isPlaying && !reduceMotion ? live : nil,
+                             levelsReadAt: liveReadAt, onPainted: onPainted)
             .frame(width: CGFloat(count) * barWidth + CGFloat(count - 1) * barWidth * 0.85,
                    height: height)
             // A hosted view has no baseline of its own, so beside text it
@@ -45,12 +50,14 @@ private struct NotchEqualizerBridge: NSViewRepresentable {
     let tint: NSColor
     let field: [Double]
     let levels: [Double]?
+    let levelsReadAt: CFTimeInterval
+    let onPainted: ((CFTimeInterval, CFTimeInterval) -> Void)?
 
     func makeNSView(context: Context) -> NotchEqualizerView { NotchEqualizerView() }
 
     func updateNSView(_ view: NotchEqualizerView, context: Context) {
         view.configure(animates: animates, bars: bars, barWidth: barWidth, height: height,
-                       tint: tint, field: field, levels: levels)
+                       tint: tint, field: field, levels: levels, levelsReadAt: levelsReadAt, onPainted: onPainted)
     }
 
     static func dismantleNSView(_ view: NotchEqualizerView, coordinator: ()) { view.stop() }
@@ -74,6 +81,7 @@ final class NotchEqualizerView: NSView {
     /// that show this window, then dropped so the next level can move on.
     private var pinnedHeights: [CGFloat]?
     private lazy var clock = NotchDecorativeClock { [weak self] time in self?.step(at: time) }
+    private let paintTimer = NotchPaintTimer()
 
     /// Every copy of the wave, the island and the ones on other displays,
     /// measures from this instant. Each copy keeping its own start made the
@@ -146,8 +154,11 @@ final class NotchEqualizerView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     func configure(animates: Bool, bars count: Int, barWidth: CGFloat, height: CGFloat,
-                   tint: NSColor, field: [Double] = [], levels: [Double]? = nil) {
+                   tint: NSColor, field: [Double] = [], levels: [Double]? = nil,
+                   levelsReadAt: CFTimeInterval = 0,
+                   onPainted: ((CFTimeInterval, CFTimeInterval) -> Void)? = nil) {
         let count = max(1, count)
+        let freshLevels = levels != self.levels
         self.animates = animates
         self.levels = levels
         self.barWidth = barWidth
@@ -172,11 +183,16 @@ final class NotchEqualizerView: NSView {
         gradient.isHidden = !artwork.isHidden
         CATransaction.commit()
         updateBars()
+        // A copy held offscreen commits too, but has no frame to time.
+        if freshLevels, levels != nil, animates, exposed, pinnedHeights == nil {
+            paintTimer.committed(reading: levelsReadAt, in: self, report: onPainted)
+        }
     }
 
     func stop() {
         animates = false
         levels = nil
+        paintTimer.stop()
         updateBars()
         visibilityObservers.forEach(NotificationCenter.default.removeObserver)
         visibilityObservers = []
@@ -223,9 +239,12 @@ final class NotchEqualizerView: NSView {
 
     var isMoving: Bool { clock.isRunning }
 
-    private func updateBars() {
-        let exposed = !isHiddenOrHasHiddenAncestor
+    private var exposed: Bool {
+        !isHiddenOrHasHiddenAncestor
             && window?.isVisible == true && window?.occlusionState.contains(.visible) == true
+    }
+
+    private func updateBars() {
         // Offscreen only to change displays: keep the pose. Dropping to dots
         // and rising again is the blink while music plays.
         let held = (window as? NotchWaveHold)?.holdsWave == true
@@ -299,6 +318,55 @@ final class NotchEqualizerView: NSView {
             bar.bounds.size.height = swingHeight(index, at: time)
         }
         CATransaction.commit()
+    }
+}
+
+/// Times how long a live reading takes to reach the screen. A commit made before
+/// a display link fires shows no later than the frame that link is preparing,
+/// so the link's target is when the reading appears. The link fires once and
+/// pauses, for a few readings a second: left running it would wake the app on
+/// every refresh, up to 120 times a second, to time a thirtieth of them.
+private final class NotchPaintTimer {
+    /// One reading in this many is timed, about four a second.
+    static let readingsPerSample = 8
+
+    private var link: CADisplayLink?
+    private var readings = 0
+    private var pending: CFTimeInterval = 0
+    private var report: ((CFTimeInterval, CFTimeInterval) -> Void)?
+
+    func committed(reading readAt: CFTimeInterval, in view: NSView,
+                   report: ((CFTimeInterval, CFTimeInterval) -> Void)?) {
+        readings += 1
+        guard readings >= Self.readingsPerSample, readAt > 0, let report else { return }
+        readings = 0
+        pending = readAt
+        self.report = report
+        if link == nil {
+            let link = view.displayLink(target: Target(timer: self), selector: #selector(Target.fire(_:)))
+            link.add(to: .main, forMode: .common)
+            self.link = link
+        }
+        link?.isPaused = false
+    }
+
+    func stop() {
+        link?.invalidate()
+        link = nil
+    }
+
+    deinit { link?.invalidate() }
+
+    fileprivate func fired(_ link: CADisplayLink) {
+        link.isPaused = true
+        report?(pending, link.targetTimestamp)
+    }
+
+    /// A display link retains its target, so it holds the timer weakly.
+    private final class Target: NSObject {
+        weak var timer: NotchPaintTimer?
+        init(timer: NotchPaintTimer) { self.timer = timer }
+        @objc func fire(_ link: CADisplayLink) { timer?.fired(link) }
     }
 }
 

@@ -81,18 +81,35 @@ enum NotchAudioLevelTests {
         expect(!NotchAudioLevelSupport.fallsBack(heard: false, elapsed: 1) && !NotchAudioLevelSupport.fallsBack(heard: true, elapsed: 10)
                && NotchAudioLevelSupport.fallsBack(heard: false, elapsed: NotchAudioLevelSupport.silenceGrace),
                "a tap that only ever delivers silence hands the bars back to their synthetic motion")
-        expect(NotchAudioLevelSupport.playbackDelayFrames(deviceLatency: 0, safetyOffset: 0, bufferFrames: 0,
-                                                          streamLatency: 0, sampleRate: 48_000) == 0,
-               "an output that reports no latency keeps the bars on the newest sound")
-        expect(NotchAudioLevelSupport.playbackDelayFrames(deviceLatency: 9_600, safetyOffset: 144, bufferFrames: 512,
-                                                          streamLatency: 0, sampleRate: 48_000) == 10_256 - 4_800,
+        func delay(_ latency: UInt32, _ safety: UInt32, _ buffer: UInt32, _ stream: UInt32, paintLag: Double = 0) -> Int {
+            let frames = NotchAudioLevelSupport.outputFrames(deviceLatency: latency, safetyOffset: safety,
+                                                             bufferFrames: buffer, streamLatency: stream)
+            return NotchAudioLevelSupport.playbackDelayFrames(outputFrames: frames, sampleRate: 48_000, paintLag: paintLag)
+        }
+        expect(delay(0, 0, 0, 0) == 0, "an output that reports no latency keeps the bars on the newest sound")
+        expect(delay(9_600, 144, 512, 0) == 10_256 - 4_800,
                "Bluetooth headphones hold the bars back by what the output takes to play, less the bars' own lag")
-        expect(NotchAudioLevelSupport.playbackDelayFrames(deviceLatency: 256, safetyOffset: 0, bufferFrames: 256,
-                                                          streamLatency: 0, sampleRate: 48_000) == 0,
-               "an output faster than the bars themselves is read without a delay")
-        expect(NotchAudioLevelSupport.playbackDelayFrames(deviceLatency: .max, safetyOffset: .max, bufferFrames: .max,
-                                                          streamLatency: .max, sampleRate: 48_000) == 36_000,
+        expect(delay(9_600, 144, 512, 0, paintLag: 0.025) == 10_256 - 4_800 - 1_200,
+               "the time a reading takes to reach the screen is read that much sooner")
+        expect(delay(256, 0, 256, 0) == 0, "an output faster than the bars themselves is read without a delay")
+        expect(delay(.max, .max, .max, .max) == 36_000,
                "an output misreporting its latency cannot hold the bars back without end")
+        typealias PaintLag = NotchAudioLevelSupport.PaintLag
+        var paint = PaintLag()
+        paint.record(0.09)
+        expect(abs(paint.seconds - (PaintLag.starting + PaintLag.step)) < 1e-9, "one slow frame moves the paint lag one step")
+        var steady = PaintLag()
+        for _ in 0..<40 { steady.record(0.03) }
+        expect(abs(steady.seconds - 0.03) <= PaintLag.step, "the paint lag settles on what it keeps measuring")
+        for _ in 0..<3 { steady.record(5) }
+        expect(steady.seconds <= 0.03 + 4 * PaintLag.step, "a main thread that stalls barely moves the paint lag")
+        var odd = PaintLag()
+        odd.record(-1)
+        odd.record(.nan)
+        expect(odd == PaintLag(), "a frame that cannot be right is ignored")
+        var longest = PaintLag()
+        for _ in 0..<200 { longest.record(9) }
+        expect(longest.seconds <= PaintLag.longest + PaintLag.step, "a long run of slow frames cannot hold the paint lag past its limit")
         let domain = "com.vorssaint.tests.audio-levels"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
@@ -212,6 +229,7 @@ enum NotchAudioRingContract {
 /// The production service is extracted here; only its preference inputs,
 /// playback publisher and asynchronous hardware reader are replaced.
 typealias NotchAudioTestSilenceMemory = NotchAudioLevelSupport.SilenceMemory
+typealias NotchAudioTestPaintLag = NotchAudioLevelSupport.PaintLag
 
 enum NotchAudioLevelLifecycleContract {
     final class NSWorkspace {
@@ -225,6 +243,7 @@ enum NotchAudioLevelLifecycleContract {
     enum NotchSupport { static func isEnabled() -> Bool { true } }
     enum NotchAudioLevelSupport {
         typealias SilenceMemory = NotchAudioTestSilenceMemory
+        typealias PaintLag = NotchAudioTestPaintLag
         static let isSupported = true
         static var enabled = false
         static func isEnabled() -> Bool { enabled }
@@ -235,16 +254,18 @@ enum NotchAudioLevelLifecycleContract {
     }
     final class NotchAudioLevelReader {
         static var instances: [NotchAudioLevelReader] = []
-        let onLevels: ([Double]) -> Void
+        private let deliver: ([Double], CFTimeInterval) -> Void
+        private(set) var latencyReads = 0
+        private(set) var paintLag = 0.0
         let onSilence: () -> Void
         let onUnavailable: () -> Void
         let onProcessesLeft: () -> Void
         private(set) var stopped = false
 
-        init(pid: pid_t, onLevels: @escaping ([Double]) -> Void,
+        init(pid: pid_t, onLevels: @escaping ([Double], CFTimeInterval) -> Void,
              onSilence: @escaping () -> Void, onUnavailable: @escaping () -> Void,
              onProcessesLeft: @escaping () -> Void) {
-            self.onLevels = onLevels
+            deliver = onLevels
             self.onSilence = onSilence
             self.onUnavailable = onUnavailable
             self.onProcessesLeft = onProcessesLeft
@@ -252,19 +273,22 @@ enum NotchAudioLevelLifecycleContract {
         }
         func start() {}
         func stop() { stopped = true }
+        func onLevels(_ levels: [Double], readAt: CFTimeInterval = 1) { deliver(levels, readAt) }
+        func readOutputLatency() { latencyReads += 1 }
+        func setPaintLag(_ seconds: Double) { paintLag = seconds }
     }
 
     static func run(expect: (Bool, String) -> Void) {
         typealias Reader = NotchAudioLevelReader
         let service = NotchAudioLevelService.shared
         let music = NotchMusicService.shared
-        func playback(playing: Bool = true) -> NotchPlayback {
+        func playback(playing: Bool = true, item: String = "track") -> NotchPlayback {
             let track = RadialNowPlayingSnapshot(title: "Track", artist: "Artist", album: "Album",
                                                 artworkData: nil, appBundleIdentifier: "org.example.player",
                                                 appPID: 42)
             return NotchPlayback(track: track, isPlaying: playing, elapsed: 0, duration: 180, rate: 1,
                                  sampledAt: Date(timeIntervalSinceReferenceDate: 0), canSeek: false,
-                                 itemIdentifier: "track", canSendCommandsDirectly: true)
+                                 itemIdentifier: item, canSendCommandsDirectly: true)
         }
         // A barrier behind the service's callbacks drains only the main queue;
         // it neither creates a device nor depends on a player's timing.
@@ -424,10 +448,27 @@ enum NotchAudioLevelLifecycleContract {
         drain()
         expect(!audible.stopped && Reader.instances.count == beforeAudiblePause && service.levels == [0.8],
                "a short pause preserves a reader that already delivered sound")
+        expect(audible.latencyReads == 1, "playing again after a short pause asks the output its latency again")
+        music.playback = playback()
+        drain()
+        expect(audible.latencyReads == 1, "a playback update within the same play does not ask again")
+        music.playback = playback(item: "next")
+        drain()
+        expect(!audible.stopped && audible.latencyReads == 2, "the next track asks again without a new reader")
+
+        audible.onLevels([0.7], readAt: 5)
+        drain()
+        expect(service.levelsReadAt == 5, "the bars can tell when the levels they show were read")
+        let startingPaint = NotchAudioTestPaintLag.starting
+        service.painted(readAt: 0, shownAt: 5)
+        expect(audible.paintLag == startingPaint, "a frame with no reading behind it says nothing about the paint lag")
+        service.painted(readAt: 5, shownAt: 5.05)
+        expect(audible.paintLag > startingPaint, "a timed frame reaches the reader")
 
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
         service.syncWithPreferences()
         drain()
+        expect(service.levelsReadAt == 0, "a stopped reader leaves no reading to time")
         expect(audible.stopped && service.levels == nil,
                "Reduce Motion stops audio analysis because the bars cannot use its levels")
         music.playback = playback()
