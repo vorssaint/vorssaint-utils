@@ -228,6 +228,25 @@ enum RecorderExportRenderingTests {
                     || ($0.blue > $0.red * 2 && $0.blue > $0.green * 2)
             }, "trimmed GIF excludes the red opening and white closing phases")
         } else { suite.expect(false, "exported GIF decodes") }
+        // A GIF is the same picture the editor's quality gives the video: a
+        // recording wider than the old 800-pixel cap keeps every pixel at
+        // High and halves only at Small.
+        let wideFolder = folder.appendingPathComponent("gif-full-size-source")
+        try FileManager.default.createDirectory(at: wideFolder, withIntermediateDirectories: true)
+        let wideTake = RecorderTakeStore.Take(id: UUID(), folder: wideFolder)
+        try await writePhaseVideo(to: wideTake.videoURL, seconds: 1, side: 1_000)
+        for (quality, side) in [(RecorderSupport.Quality.high, 1_000), (.small, 500)] {
+            var document = RecorderEditDocument(quality: quality.rawValue)
+            document.showsPointer = false
+            document.zoomEnabled = false
+            let url = folder.appendingPathComponent("full-size-\(quality.rawValue).gif")
+            let failure = await RecorderExporter().export(take: wideTake, document: document,
+                                                          output: .gif, to: url, progress: { _ in })
+            let image = CGImageSourceCreateWithURL(url as CFURL, nil)
+                .flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
+            suite.expect(failure == nil && image?.width == side && image?.height == side,
+                         "a \(quality.rawValue) GIF matches the video's \(side) px size, got \(image.map { "\($0.width)x\($0.height)" } ?? "none")")
+        }
         let pasteboard = NSPasteboard.withUniqueName()
         pasteboard.clearContents()
         pasteboard.setString("keep me", forType: .string)
@@ -568,13 +587,13 @@ enum RecorderExportRenderingTests {
         return sqrt(samples.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(samples.count))
     }
 
-    private static func writePhaseVideo(to url: URL, seconds: Int = 2,
+    private static func writePhaseVideo(to url: URL, seconds: Int = 2, side: Int = 128,
                                         movingSquare: Bool = false,
                                         everyFrameKey: Bool = false) async throws {
         try? FileManager.default.removeItem(at: url)
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         var settings: [String: Any] = [
-            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 128, AVVideoHeightKey: 128,
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: side, AVVideoHeightKey: side,
         ]
         if everyFrameKey {
             settings[AVVideoCompressionPropertiesKey] = [AVVideoMaxKeyFrameIntervalKey: 1]
@@ -583,7 +602,7 @@ enum RecorderExportRenderingTests {
         let adapter = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
             sourcePixelBufferAttributes: [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                kCVPixelBufferWidthKey as String: 128, kCVPixelBufferHeightKey as String: 128,
+                kCVPixelBufferWidthKey as String: side, kCVPixelBufferHeightKey as String: side,
             ])
         writer.add(input)
         writer.startWriting()
@@ -596,7 +615,7 @@ enum RecorderExportRenderingTests {
             CVPixelBufferLockBaseAddress(pixel, [])
             let pointer = CVPixelBufferGetBaseAddress(pixel)!.assumingMemoryBound(to: UInt8.self)
             let stride = CVPixelBufferGetBytesPerRow(pixel)
-            for y in 0..<128 { for x in 0..<128 {
+            for y in 0..<side { for x in 0..<side {
                 let value: UInt8 = ((x / 4 + y / 4) % 2 == 0) ? 0 : 255
                 let offset = y * stride + x * 4
                 if movingSquare {

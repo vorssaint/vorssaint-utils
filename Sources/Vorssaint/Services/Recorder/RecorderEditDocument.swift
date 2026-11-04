@@ -20,7 +20,6 @@ struct RecorderEditDocument: Codable, Equatable {
     /// Export only: editing, cuts and overlays stay on their original clock.
     var exportSpeed: Double
     var keepsSystemAudio: Bool
-    var gifSize: String
     var gifFrameRate: Int
     /// The background behind the recording, as the same JSON the screenshot
     /// tool writes, so a look saved in one tool is understood by the other.
@@ -58,7 +57,6 @@ struct RecorderEditDocument: Codable, Equatable {
          quality: String = RecorderSupport.Quality.balanced.rawValue,
          exportSpeed: Double = 1,
          keepsSystemAudio: Bool = true,
-         gifSize: String = RecorderSupport.GIFSize.medium.rawValue,
          gifFrameRate: Int = 12,
          backdrop: String = "",
          aspect: String = RecorderSupport.Aspect.original.rawValue,
@@ -83,7 +81,6 @@ struct RecorderEditDocument: Codable, Equatable {
         self.quality = quality
         self.exportSpeed = exportSpeed
         self.keepsSystemAudio = keepsSystemAudio
-        self.gifSize = gifSize
         self.gifFrameRate = gifFrameRate
         self.backdrop = backdrop
         self.aspect = aspect
@@ -115,8 +112,6 @@ struct RecorderEditDocument: Codable, Equatable {
             ?? RecorderSupport.Quality.balanced.rawValue
         exportSpeed = try container.decodeIfPresent(Double.self, forKey: .exportSpeed) ?? 1
         keepsSystemAudio = try container.decodeIfPresent(Bool.self, forKey: .keepsSystemAudio) ?? true
-        gifSize = try container.decodeIfPresent(String.self, forKey: .gifSize)
-            ?? RecorderSupport.GIFSize.medium.rawValue
         gifFrameRate = try container.decodeIfPresent(Int.self, forKey: .gifFrameRate) ?? 12
         backdrop = try container.decodeIfPresent(String.self, forKey: .backdrop) ?? ""
         aspect = try container.decodeIfPresent(String.self, forKey: .aspect)
@@ -261,10 +256,6 @@ struct RecorderEditDocument: Codable, Equatable {
         RecorderSupport.sanitizedQuality(quality)
     }
 
-    var resolvedGIFSize: RecorderSupport.GIFSize {
-        RecorderSupport.sanitizedGIFSize(gifSize)
-    }
-
     var resolvedGIFFrameRate: Int {
         RecorderSupport.sanitizedGIFFrameRate(gifFrameRate)
     }
@@ -324,7 +315,6 @@ struct RecorderEditDocument: Codable, Equatable {
         document.trimEnd = trim.end
         document.quality = resolvedQuality.rawValue
         document.exportSpeed = exportTiming.speed
-        document.gifSize = resolvedGIFSize.rawValue
         document.gifFrameRate = resolvedGIFFrameRate
         document.aspect = resolvedAspect.rawValue
         document.pointerSmoothing = resolvedSmoothing.rawValue

@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Save as GIF and Copy as GIF use the resolution shown in the recording editor's quality menu instead of shrinking the GIF to 800 pixels or less. The separate GIF size setting has been removed.
+
 ## [3.4.3] - 2026-10-29
 
 ### Summary

@@ -747,7 +747,7 @@ enum DefaultsKey {
     static let recorderSaveFolder = "recorderSaveFolder"
     static let recorderOpenEditor = "recorderOpenEditor"
     static let recorderAutomaticZoom = "recorderAutomaticZoom"
-    static let recorderGIFSize = "recorderGIFSize"
+    static let recorderGIFSize = "recorderGIFSize" // retired: GIFs now follow the editor's quality
     static let recorderGIFFrameRate = "recorderGIFFrameRate"
     static let recorderEditorPresets = "recorderEditorPresets"
     static let recorderSharingEnabled = "recorderSharingEnabled"
@@ -1879,7 +1879,6 @@ enum Defaults {
         DefaultsKey.recorderSaveFolder: "",
         DefaultsKey.recorderOpenEditor: true,
         DefaultsKey.recorderAutomaticZoom: true,
-        DefaultsKey.recorderGIFSize: RecorderSupport.GIFSize.medium.rawValue,
         DefaultsKey.recorderGIFFrameRate: 12,
         DefaultsKey.recorderEditorPresets: Data(),
         DefaultsKey.recorderSharingEnabled: true,
@@ -2041,6 +2040,8 @@ enum Defaults {
         // The "all apps" output choice now lasts one session; a saved one
         // would move apps that chose their own output after every launch.
         defaults.removeObject(forKey: DefaultsKey.mixerUniversalOutputDevice)
+        // GIFs are exported at the editor's quality, like the video.
+        defaults.removeObject(forKey: DefaultsKey.recorderGIFSize)
     }
 
     /// Start text filtering off for existing installations as well. A distinct

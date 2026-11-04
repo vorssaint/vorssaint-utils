@@ -573,24 +573,27 @@ final class RecorderExporter {
         guard frameCount > 0 else { return .noVideo }
 
         // Rendered through the same composer as the video, so a background and
-        // a smoothed pointer are in it too.
+        // a smoothed pointer are in it too, at the size the editor's quality
+        // shows for the video.
         let frameRate = Int(((try? await videoTrack.load(.nominalFrameRate)) ?? 60).rounded())
         let track = RecorderPointerTrack.decoded(try? Data(contentsOf: pointerURL))
         let plan = RecorderComposer.makePlan(document: document,
                                              track: track,
                                              sourceSize: sourceSize,
                                              frameRate: RecorderSupport.sanitizedFrameRate(frameRate),
-                                             duration: duration)
+                                             duration: duration,
+                                             outputScale: document.resolvedQuality.outputScale)
         let composer = plan.map { RecorderComposer(plan: $0) }
-        let canvas = composer?.canvasSize ?? RecorderSupport.evenSize(sourceSize)
-        let size = RecorderSupport.gifOutputSize(source: canvas, size: document.resolvedGIFSize)
+        let canvas = composer?.canvasSize
+            ?? RecorderSupport.outputSize(source: RecorderSupport.evenSize(sourceSize),
+                                          quality: document.resolvedQuality)
 
         let generator = AVAssetImageGenerator(asset: timeline)
         defer { generator.cancelAllCGImageGeneration() }
         generator.appliesPreferredTrackTransform = true
         generator.requestedTimeToleranceBefore = .zero
         generator.requestedTimeToleranceAfter = .zero
-        generator.maximumSize = size
+        generator.maximumSize = canvas
         if let composer {
             guard let composition = await RecorderComposer.videoComposition(
                 track: timelineVideo,
@@ -609,7 +612,10 @@ final class RecorderExporter {
         defer { workspace.discard() }
         let frameProgress = ProgressThrottle(progress)
         do {
-            let writer = try RecorderGIFWriter(url: workspace.fileURL, fps: fps)
+            let writer = try RecorderGIFWriter(
+                url: workspace.fileURL, fps: fps,
+                framesPerChunk: RecorderGIFWriter.framesPerChunk(width: Int(canvas.width),
+                                                                 height: Int(canvas.height)))
             // A frame that does not decode, as in a damaged stretch of an
             // imported movie, repeats the one before it, and frames before
             // the first that decodes take that one, so the animation keeps

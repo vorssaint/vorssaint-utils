@@ -21,11 +21,19 @@ final class RecorderGIFWriter {
     enum Failure: Error { case invalidFrame, closed, empty }
 
     /// How many frames ImageIO holds at once. It is the frame budget the
-    /// in-memory encoder always had (300 decoded frames, ~1.6 MB each at the
-    /// large size), so every clip within it comes out as that encoder made it.
-    /// On top of those frames, the chunk's encoded bytes are held up to three
-    /// times while ImageIO's output is parsed.
+    /// in-memory encoder always had (300 decoded frames, ~1.6 MB each at an
+    /// 800-pixel GIF), so every clip within it comes out as that encoder made
+    /// it. On top of those frames, the chunk's encoded bytes are held up to
+    /// three times while ImageIO's output is parsed.
     static let framesPerChunk = 300
+    static let decodedBytesPerChunk = 480_000_000
+
+    /// A full-resolution GIF holds far bigger frames, so it gets fewer of them
+    /// per chunk and the decoded bytes stay within the same budget.
+    static func framesPerChunk(width: Int, height: Int) -> Int {
+        let frameBytes = max(1, width) * max(1, height) * 4
+        return min(framesPerChunk, max(1, decodedBytesPerChunk / frameBytes))
+    }
 
     private let file: FileHandle
     private let fps: Int

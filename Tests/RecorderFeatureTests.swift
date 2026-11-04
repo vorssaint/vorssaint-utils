@@ -92,7 +92,6 @@ enum RecorderFeatureTests {
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.colorPickerShortcut)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotShortcutEnabled)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderQuality)
-                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderGIFSize)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderMicrophone)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderAutomaticZoom)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSharingEnabled),
@@ -545,17 +544,14 @@ enum RecorderFeatureTests {
         suite.expect([Double.nan, .infinity, -1, 0, Double.greatestFiniteMagnitude].allSatisfy {
             RecorderSupport.gifFrameCount(duration: $0, fps: 12) == 0
         }, "invalid and unrepresentable GIF durations cannot overflow the frame count")
-        let gifSize = RecorderSupport.gifOutputSize(source: CGSize(width: 2940, height: 1912),
-                                                    size: .medium)
-        suite.expect(max(gifSize.width, gifSize.height) <= RecorderSupport.GIFSize.medium.longEdge
-                && gifSize.width.truncatingRemainder(dividingBy: 2) == 0,
-               "a GIF is scaled down to its long edge and stays on even pixels")
-        suite.expect(RecorderSupport.gifOutputSize(source: CGSize(width: 200, height: 120), size: .large)
-                == CGSize(width: 200, height: 120),
-               "a recording smaller than the GIF size is never blown up")
-        suite.expect(RecorderSupport.sanitizedGIFFrameRate(99) == 12
-                && RecorderSupport.sanitizedGIFSize("nonsense") == .medium,
-               "unknown GIF settings fall back to the middle choice")
+        suite.expect(RecorderGIFWriter.framesPerChunk(width: 800, height: 450) == 300
+                && RecorderGIFWriter.framesPerChunk(width: 2940, height: 1912) == 21
+                && RecorderGIFWriter.framesPerChunk(width: 60_000, height: 60_000) == 1,
+               "a full-size GIF holds fewer frames per chunk so its memory stays bounded")
+        suite.expect(RecorderSupport.sanitizedGIFFrameRate(99) == 12,
+               "an unknown GIF frame rate falls back to the middle choice")
+        suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderGIFSize),
+               "the retired GIF size no longer travels in backups")
         suite.expect(RecorderSupport.sanitizedAudioGain(-1) == 0
                 && RecorderSupport.sanitizedAudioGain(3) == 1
                 && RecorderSupport.sanitizedAudioGain(.nan) == 1,

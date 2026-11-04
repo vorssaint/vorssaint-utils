@@ -759,24 +759,6 @@ enum RecorderSupport {
 
     // MARK: - GIF
 
-    /// GIF frames are encoded a chunk at a time, so the picture size and the
-    /// chunk length bound the memory an export needs, whatever its length.
-    enum GIFSize: String, CaseIterable {
-        case small, medium, large
-
-        var longEdge: CGFloat {
-            switch self {
-            case .small: return 420
-            case .medium: return 600
-            case .large: return 800
-            }
-        }
-    }
-
-    static func sanitizedGIFSize(_ raw: String?) -> GIFSize {
-        GIFSize(rawValue: raw ?? "") ?? .medium
-    }
-
     static let gifFrameRates = [8, 12, 15]
 
     static func sanitizedGIFFrameRate(_ raw: Int) -> Int {
@@ -788,13 +770,6 @@ enum RecorderSupport {
         let count = (duration * Double(fps)).rounded(.down)
         guard count.isFinite, count < Double(Int.max) else { return 0 }
         return max(1, Int(count))
-    }
-
-    static func gifOutputSize(source: CGSize, size: GIFSize) -> CGSize {
-        let longest = max(source.width, source.height)
-        guard longest > 0 else { return CGSize(width: size.longEdge, height: size.longEdge) }
-        let factor = min(1, size.longEdge / longest)
-        return evenSize(CGSize(width: source.width * factor, height: source.height * factor))
     }
 
     // MARK: - Disk
