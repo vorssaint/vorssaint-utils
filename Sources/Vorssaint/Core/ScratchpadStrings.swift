@@ -59,6 +59,7 @@ extension FeatureStrings {
     static func scratchpad(_ language: AppLanguage) -> ScratchpadFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -125,6 +126,55 @@ extension ScratchpadFeatureStrings {
         markLink: "Link",
         formatMarks: "Formatting",
         textSize: "Text size"
+    )
+
+    static let nl = ScratchpadFeatureStrings(
+        pageTitle: "Kladblok",
+        hubDescription: "Zwevende blokken voor tijdelijke notities",
+        panelCaption: "Snelle notities in aparte tabbladen",
+        openButton: "Open kladblok",
+        placeholder: "Typ wat je wilt. Het wordt vanzelf bewaard.",
+        copyAll: "Kopieer alles",
+        copied: "Gekopieerd",
+        exportAction: "Bewaar als bestand",
+        exportFailed: "Het bestand kon niet worden bewaard",
+        loadFailed: "Je notities konden niet worden geopend. Ze zijn ongewijzigd gebleven.",
+        saveFailed: "Je notities konden niet worden bewaard. Kopieer ze ergens anders naartoe voordat je stopt.",
+        clearAction: "Wis",
+        retentionTitle: "Wis automatisch",
+        retentionNever: "Nooit",
+        retentionDay: "Na een dag ongebruikt",
+        retentionWeek: "Na een week ongebruikt",
+        retentionMonth: "Na een maand ongebruikt",
+        retentionCaption: "Het kladblok wordt geleegd zodra de tekst zo lang niet is gewijzigd.",
+        closeOnClickOutside: "Sluit als ik erbuiten klik",
+        keepOpen: "Houd open",
+        backgroundOpacity: "Kladblokachtergrond",
+        backgroundTranslucent: "Doorschijnend",
+        backgroundOpaque: "Ondoorzichtig",
+        newPad: "Nieuw kladblok",
+        padActions: "Kladblokacties",
+        renamePad: "Wijzig kladbloknaam",
+        closePad: "Sluit kladblok",
+        saveName: "Bewaar",
+        cancel: "Annuleer",
+        deletePadMessageFormat: "‘%@’ en alle inhoud verwijderen?",
+        padLimitFormat: "Je kunt maximaal %d kladblokken bewaren",
+        previewFormatting: "Toon opmaak",
+        editText: "Wijzig tekst",
+        taskDone: "Gereed",
+        taskNotDone: "Niet gereed",
+        markBold: "Vet",
+        markItalic: "Cursief",
+        markStrikethrough: "Doorhalen",
+        markHeading: "Kop",
+        markBullet: "Opsomming",
+        markNumbered: "Genummerde lijst",
+        markQuote: "Citaat",
+        markCode: "Code",
+        markLink: "Link",
+        formatMarks: "Opmaak",
+        textSize: "Tekstgrootte"
     )
 
     static let ptBR = ScratchpadFeatureStrings(

@@ -1964,6 +1964,7 @@ enum FeatureCatalogTests {
             let strings: Strings = {
                 switch language {
                 case .enUS: return .enUS
+                case .nl: return .nl
                 case .ptBR: return .ptBR
                 case .tr: return .tr
                 case .ru: return .ru

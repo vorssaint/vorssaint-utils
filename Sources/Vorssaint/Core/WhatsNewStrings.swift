@@ -41,6 +41,20 @@ extension FeatureStrings {
                 skipPreviewCheckbox: "Don’t show what’s new before updating",
                 showPreviewToggle: "Show what’s new before updating",
                 showPreviewCaption: "What changed in your features still appears after each update.")
+        case .nl:
+            return WhatsNewStrings(
+                updatedFromFormat: "Bijgewerkt vanaf %@",
+                newFeatures: "Nieuwe functies",
+                yourFeatures: "Je functies",
+                notInstalled: "Niet geïnstalleerd",
+                kindNew: "Nieuw",
+                kindChanged: "Gewijzigd",
+                kindFixed: "Opgelost",
+                updated: "Bijgewerkt",
+                chooseFeatureHint: "Kies een functie om te zien wat er is gewijzigd.",
+                skipPreviewCheckbox: "Toon vernieuwingen niet vóór bijwerken",
+                showPreviewToggle: "Toon vernieuwingen vóór bijwerken",
+                showPreviewCaption: "Wijzigingen in je functies verschijnen nog steeds na elke update.")
         case .ptBR:
             return WhatsNewStrings(
                 updatedFromFormat: "Atualizado da versão %@",

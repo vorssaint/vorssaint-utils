@@ -48,6 +48,7 @@ extension FeatureStrings {
     static func keepAwakeAutomation(_ language: AppLanguage) -> KeepAwakeAutomationStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -68,6 +69,7 @@ extension FeatureStrings {
     static func keepAwakeDisplaySleep(_ language: AppLanguage) -> KeepAwakeDisplaySleepStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -90,6 +92,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let enUS = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Allow the display to sleep",
         allowDisplaySleepCaption: "Keeps the Mac awake while the display follows its normal sleep timer."
+    )
+
+    static let nl = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Sta sluimerstand van beeldscherm toe",
+        allowDisplaySleepCaption: "Houdt de Mac wakker terwijl het beeldscherm de normale sluimertimer volgt."
     )
 
     static let ptBR = KeepAwakeDisplaySleepStrings(
@@ -183,6 +190,28 @@ extension KeepAwakeAutomationStrings {
         matchAny: "Any",
         matchAll: "All",
         automationCaptionAll: "Starts only when every selected condition is active."
+    )
+
+    static let nl = KeepAwakeAutomationStrings(
+        automationSection: "Automatisering",
+        automationCaption: "Start zodra een geselecteerde voorwaarde actief is.",
+        automationOff: "Uit",
+        externalDisplayToggle: "Extern beeldscherm",
+        externalDisplayActive: "Actief zolang een extern beeldscherm is aangesloten",
+        powerToggle: "Voeding",
+        powerActive: "Actief zolang de netvoeding is aangesloten",
+        runningAppsToggle: "Apps",
+        runningAppsActive: "Actief zolang een geselecteerde app actief is",
+        runningAppsListTitle: "Geselecteerde apps",
+        runningAppsAddButton: "Voeg een app toe…",
+        runningAppsRemoveButton: "Verwijder",
+        runningAppsListCaption: "Wakker houden start zolang een van deze apps geopend is, ook op de achtergrond.",
+        automationActive: "Actief omdat aan een automatische voorwaarde is voldaan",
+        pauseWhenLockedToggle: "Pauzeer zolang de Mac is vergrendeld",
+        pauseWhenLockedCaption: "Volgt de normale sluimerregels tijdens vergrendeling en hervat de resterende sessie na ontgrendeling.",
+        matchAny: "Een van de voorwaarden",
+        matchAll: "Alles",
+        automationCaptionAll: "Start alleen wanneer alle geselecteerde voorwaarden actief zijn."
     )
 
     static let ptBR = KeepAwakeAutomationStrings(

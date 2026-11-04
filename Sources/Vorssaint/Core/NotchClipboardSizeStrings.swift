@@ -95,6 +95,11 @@ extension FeatureStrings {
             compact: "Compact",
             comfortable: "Comfortable",
             hint: "Compact entries show one or two lines and open up when the pointer rests on them.")
+        case .nl: return NotchClipboardSizeStrings(
+            entrySize: "Grootte vermeldingen",
+            compact: "Compact",
+            comfortable: "Ruim",
+            hint: "Compacte vermeldingen tonen één of twee regels en klappen uit als de aanwijzer erop rust.")
         case .ptBR: return NotchClipboardSizeStrings(
             entrySize: "Tamanho das entradas",
             compact: "Compacto",

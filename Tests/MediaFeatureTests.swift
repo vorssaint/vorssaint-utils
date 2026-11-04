@@ -488,6 +488,8 @@ enum MediaFeatureTests {
                "Media output visibility respects dot-prefixed manual filenames")
         suite.expect(MediaSupport.recognitionLanguages(for: "pt-BR") == ["pt-BR", "en-US"],
                "Media OCR language defaults include the app language and English")
+        suite.expect(MediaSupport.recognitionLanguages(for: "nl") == ["nl-NL", "en-US"],
+               "Media OCR language defaults include Dutch and English")
         suite.expect(MediaSupport.recognitionLanguages(for: "tr") == ["tr-TR", "en-US"],
                "Media OCR language defaults include Turkish and English")
         suite.expect(MediaSupport.recognitionLanguages(for: "ko") == ["ko-KR", "en-US"],
