@@ -42,12 +42,12 @@ enum DockPreviewOrientation: String, Equatable {
 }
 
 enum DockPreviewPanelPlacement: String, CaseIterable {
-    case left
-    case center
+    case relativeAlignment
+    case defaultAlignment
 
     static func sanitized(_ raw: String?) -> DockPreviewPanelPlacement {
         guard let raw, let placement = DockPreviewPanelPlacement(rawValue: raw) else {
-            return .left
+            return .defaultAlignment
         }
         return placement
     }
@@ -381,7 +381,7 @@ enum DockPreviewSupport {
                            panelSize: CGSize,
                            screenVisibleFrame: CGRect,
                            orientation: DockPreviewOrientation,
-                           placement: DockPreviewPanelPlacement = .left,
+                           placement: DockPreviewPanelPlacement = .relativeAlignment,
                            gap: CGFloat = panelGap,
                            padding: CGFloat = edgePadding) -> CGRect {
         var width = min(panelSize.width, max(1, screenVisibleFrame.width - padding * 2))
@@ -396,13 +396,13 @@ enum DockPreviewSupport {
         switch orientation {
         case .bottom:
             switch placement {
-            case .left:
+            case .relativeAlignment:
                 // Keep the first card centered over the Dock icon. As the
                 // window list grows, its trailing cards scroll.
                 let firstCardX = anchor.midX - panelPadding - cardWidth / 2
                 x = max(screenVisibleFrame.minX + padding, firstCardX)
                 width = min(width, max(1, screenVisibleFrame.maxX - padding - x))
-            case .center:
+            case .defaultAlignment:
                 x = clamped(anchor.midX - width / 2,
                             lower: screenVisibleFrame.minX + padding,
                             upper: screenVisibleFrame.maxX - width - padding)

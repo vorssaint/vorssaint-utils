@@ -13,7 +13,7 @@ struct DockSettings: View {
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewCurrentSpaceOnly) private var dockPreviewCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewPanelPlacement)
-    private var dockPreviewPanelPlacement = DockPreviewPanelPlacement.left.rawValue
+    private var dockPreviewPanelPlacement = DockPreviewPanelPlacement.defaultAlignment.rawValue
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -86,11 +86,16 @@ struct DockSettings: View {
                     }
             }
             if dockPreviewEnabled {
-                SettingsMenuRow(symbol: "rectangle.center.inset.filled",
-                                title: "Alignment",
-                                selection: $dockPreviewPanelPlacement) {
-                    Text("Left").tag(DockPreviewPanelPlacement.left.rawValue)
-                    Text("Center").tag(DockPreviewPanelPlacement.center.rawValue)
+                SettingsRow(symbol: "rectangle.center.inset.filled",
+                            title: "Preview Alignment",
+                            caption: "Controls how the Dock Preview is positioned when an app has multiple windows") {
+                    Picker("Preview Alignment", selection: $dockPreviewPanelPlacement) {
+                        Text("Default").tag(DockPreviewPanelPlacement.defaultAlignment.rawValue)
+                        Text("Relative").tag(DockPreviewPanelPlacement.relativeAlignment.rawValue)
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
                 }
                 .onChange(of: dockPreviewPanelPlacement) { _, _ in
                     dockPreview.panelPlacementDidChange()
