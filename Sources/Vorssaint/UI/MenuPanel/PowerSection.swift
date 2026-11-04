@@ -14,7 +14,7 @@ struct PowerSection: View {
     @AppStorage(DefaultsKey.monitorGraphPower) private var showGraph = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var showCharge = true
     @AppStorage(DefaultsKey.monitorPwrTemperature) private var showTemperature = true
-    @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var showPeripherals = false
+    @AppStorage(DefaultsKey.monitorPwrPeripherals) private var showPeripherals = false
     @AppStorage(DefaultsKey.monitorGraphBattery) private var graphBattery = true
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.monitorPwrSystem) private var pwrSystem = true
@@ -77,8 +77,7 @@ struct PowerSection: View {
 
     private func isAvailable(_ block: Block) -> Bool {
         switch block {
-        case .system, .adapter: return true
-        case .peripherals: return showPeripherals && !monitor.snapshot.peripheralBatteries.isEmpty
+        case .system, .adapter, .peripherals: return true
         case .charge, .temperature, .battery, .remaining, .health: return PowerSampler.hasInternalBattery
         }
     }
@@ -137,7 +136,13 @@ struct PowerSection: View {
                                    systemImage: "thermometer.medium", isVisible: $showTemperature)
             }
         case .peripherals:
-            peripheralBatteryRows
+            if showPeripherals, !monitor.snapshot.peripheralBatteries.isEmpty {
+                peripheralBatteryRows(editing: editing)
+            } else if editing && !showPeripherals {
+                PanelHiddenItemRow(title: l10n.s.monitorShowPeripheralBattery,
+                                   systemImage: MenuBarMetric.peripheralBattery.symbolName,
+                                   isVisible: $showPeripherals)
+            }
         case .system:
             if pwrSystem, let watts = power?.systemWatts {
                 VStack(alignment: .leading, spacing: 6) {
@@ -266,9 +271,15 @@ struct PowerSection: View {
         }
     }
 
-    private var peripheralBatteryRows: some View {
+    private func peripheralBatteryRows(editing: Bool) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            subsectionLabel(l10n.s.monitorShowPeripheralBattery)
+            HStack(spacing: 6) {
+                subsectionLabel(l10n.s.monitorShowPeripheralBattery)
+                Spacer(minLength: 0)
+                if editing {
+                    PanelInlineHideButton(isVisible: $showPeripherals)
+                }
+            }
             ForEach(PeripheralBatterySupport.sorted(monitor.snapshot.peripheralBatteries).prefix(5)) { device in
                 HStack(spacing: 8) {
                     Image(systemName: peripheralIcon(for: device.kind))
@@ -321,6 +332,7 @@ struct PowerSection: View {
         pwrBattery = true
         pwrTimeRemaining = true
         pwrHealth = true
+        showPeripherals = false
     }
 
     private func adapterCaption(_ power: PowerReading) -> String {

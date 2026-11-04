@@ -46,7 +46,10 @@ enum WindowDirectionalModifierRuntimeTests {
                                    block: @escaping (Timer) -> Void) -> Timer { Timer() }
         func invalidate() {}
     }
-    struct NSScreen { let visibleFrame = CGRect(x: -1000, y: 0, width: 2000, height: 1000) }
+    struct NSScreen {
+        let visibleFrame = CGRect(x: -1000, y: 0, width: 2000, height: 1000)
+        var windowLayoutVisibleFrame: CGRect { visibleFrame }
+    }
     struct WindowLayoutTarget {
         let serial: Int
         let frame = CGRect(x: 0, y: 0, width: 600, height: 500)

@@ -60,6 +60,11 @@ final class AppUninstaller: ObservableObject {
     @Published private(set) var phase: Phase = .empty
     @Published private(set) var target: Target?
     @Published private(set) var homebrewPackage: HomebrewPackage?
+    @Published private(set) var homebrewCheckFailed = false
+    /// The app the last selection turned down, so the empty state can say
+    /// why instead of springing back in silence (#1582). An accepted
+    /// selection or a reset clears it.
+    @Published private(set) var refusal: UninstallerSupport.RefusedApp?
     @Published var items: [Leftover] = []
     private var allowedRemovalPaths = Set<String>()
     private var targetFileIdentity: UninstallerSupport.FileIdentity?
@@ -99,6 +104,11 @@ final class AppUninstaller: ObservableObject {
         phase == .removing || isRemovingWithHomebrew
     }
 
+    var canRemoveSelected: Bool {
+        phase == .results && !isRemoving && !homebrewCheckFailed
+            && items.contains(where: \.include)
+    }
+
     /// What the Homebrew confirmation showed, since the panel, Settings and the
     /// command bar share this uninstaller and can change it while it is open.
     struct HomebrewRemovalConfirmation {
@@ -108,7 +118,7 @@ final class AppUninstaller: ObservableObject {
     }
 
     var homebrewRemovalConfirmation: HomebrewRemovalConfirmation? {
-        guard phase == .results, !isRemoving,
+        guard canRemoveSelected,
               let package = selectedHomebrewPackage, let target else { return nil }
         return HomebrewRemovalConfirmation(package: package, targetURL: target.url,
                                            selectedIDs: Set(items.filter(\.include).map(\.id)))
@@ -120,19 +130,28 @@ final class AppUninstaller: ObservableObject {
     @discardableResult
     func select(appURL: URL) -> Bool {
         guard !isRemoving else { return false }
-        guard let selection = UninstallerSupport.selection(for: appURL) else { return false }
+        let selection: UninstallerSupport.Selection
+        switch UninstallerSupport.evaluate(appURL) {
+        case let .success(accepted):
+            selection = accepted
+        case let .failure(reason):
+            refusal = UninstallerSupport.RefusedApp(name: UninstallerSupport.appName(at: appURL),
+                                                    refusal: reason)
+            return false
+        }
+        refusal = nil
         let bundleID = selection.bundleID
         let selectedURL = selection.url
         let selectedIdentity = selection.identity
         let selectedInfoIdentity = selection.infoIdentity
-        var name = FileManager.default.displayName(atPath: appURL.path)
-        if name.hasSuffix(".app") { name.removeLast(4) }
+        let name = UninstallerSupport.appName(at: appURL)
         let icon = NSWorkspace.shared.icon(forFile: appURL.path)
 
         target = Target(name: name, bundleID: bundleID, url: selectedURL, icon: icon)
         targetFileIdentity = selectedIdentity
         targetInfoIdentity = selectedInfoIdentity
         homebrewPackage = nil
+        homebrewCheckFailed = false
         homebrewRemovalSize = 0
         homebrewRemovedApplication = false
         homebrewRemovalObservation?.cancel()
@@ -177,25 +196,32 @@ final class AppUninstaller: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, !cancellation.isCancelled,
                       self.phase == .scanning, self.target?.url == selectedURL else { return }
-                guard Self.applicationIdentityMatches(
+                guard UninstallerSupport.applicationIdentityMatches(
                     selectedURL, appIdentity: selectedIdentity,
                     infoIdentity: selectedInfoIdentity) else {
                     self.reset()
                     return
                 }
-                HomebrewManager.shared.packageManagingApplication(at: selectedURL) { [weak self] package in
+                HomebrewManager.shared.packageManagingApplication(at: selectedURL) { [weak self] result in
                     // Drop the result if the user picked a different app (or reset)
                     // while this scan was running — never show A's files under B.
                     guard let self, !cancellation.isCancelled,
                           self.phase == .scanning, self.target?.url == selectedURL else { return }
-                    guard Self.applicationIdentityMatches(
+                    guard UninstallerSupport.applicationIdentityMatches(
                         selectedURL, appIdentity: selectedIdentity,
                         infoIdentity: selectedInfoIdentity) else {
                         self.reset()
                         return
                     }
                     self.items = found
-                    self.homebrewPackage = package
+                    switch result {
+                    case let .success(package):
+                        self.homebrewPackage = package
+                        self.homebrewCheckFailed = false
+                    case .failure:
+                        self.homebrewPackage = nil
+                        self.homebrewCheckFailed = true
+                    }
                     self.allowedRemovalPaths = Set(found.map { $0.url.standardizedFileURL.path })
                     self.scanCancellation = nil
                     self.phase = .results
@@ -211,14 +237,26 @@ final class AppUninstaller: ObservableObject {
         items[index].include = include
     }
 
+    func retryHomebrewCheck() {
+        guard phase == .results, homebrewCheckFailed, let target else { return }
+        select(appURL: target.url)
+    }
+
+    /// Drops the refusal note, for an uninstaller view that opens or closes.
+    func clearRefusal() {
+        refusal = nil
+    }
+
     func reset() {
         guard !isRemoving else { return }
+        refusal = nil
         scanCancellation?.cancel()
         scanCancellation = nil
         target = nil
         targetFileIdentity = nil
         targetInfoIdentity = nil
         homebrewPackage = nil
+        homebrewCheckFailed = false
         homebrewRemovalSize = 0
         homebrewRemovedApplication = false
         homebrewRemovalObservation?.cancel()
@@ -231,7 +269,7 @@ final class AppUninstaller: ObservableObject {
     // MARK: - Removal
 
     func removeSelected() {
-        guard phase == .results, !isRemoving else { return }
+        guard canRemoveSelected, selectedHomebrewPackage == nil else { return }
         let chosen = items.filter(\.include)
         guard !chosen.isEmpty else { return }
         phase = .removing
@@ -263,7 +301,7 @@ final class AppUninstaller: ObservableObject {
             var stubborn: [Leftover] = []
             var failed: [Leftover] = []
             let targetIsOriginal = targetURL.map {
-                Self.applicationIdentityMatches(
+                UninstallerSupport.applicationIdentityMatches(
                     $0, appIdentity: expectedTargetIdentity,
                     infoIdentity: expectedInfoIdentity)
             } ?? false
@@ -388,7 +426,7 @@ final class AppUninstaller: ObservableObject {
     /// only the other items the person selected. The app itself is excluded so
     /// this flow never tries to remove the same bundle twice.
     func removeSelectedWithHomebrew(confirmation: HomebrewRemovalConfirmation) {
-        guard phase == .results, !isRemoving,
+        guard canRemoveSelected,
               target?.url == confirmation.targetURL,
               selectedHomebrewPackage?.id == confirmation.package.id,
               Set(items.filter(\.include).map(\.id)) == confirmation.selectedIDs else {
@@ -890,18 +928,6 @@ final class AppUninstaller: ObservableObject {
             path.hasPrefix($0.path + "/")
         }) else { return false }
         return UninstallerSupport.removalPathIsSafe(url, within: root)
-    }
-
-    private static func applicationIdentityMatches(
-        _ url: URL,
-        appIdentity: UninstallerSupport.FileIdentity?,
-        infoIdentity: UninstallerSupport.FileIdentity?
-    ) -> Bool {
-        guard let appIdentity, let infoIdentity,
-              UninstallerSupport.fileIdentity(at: url) == appIdentity else { return false }
-        let infoURL = url.appendingPathComponent("Contents/Info.plist")
-        return UninstallerSupport.fileIdentity(at: infoURL) == infoIdentity
-            && UninstallerSupport.removalPathIsSafe(infoURL, within: url)
     }
 
     private static func allBundleIDs(in appURL: URL, fm: FileManager) -> Set<String> {

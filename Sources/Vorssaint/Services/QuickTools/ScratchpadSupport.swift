@@ -285,7 +285,8 @@ enum ScratchpadSupport {
             currentText.append(AttributedString(parsed[run.range]))
         }
         finishBlock()
-        blocks = blocks.map { withTask($0, in: text) }
+        let lineStarts = lineStarts(in: text)
+        blocks = blocks.map { withTask($0, in: text, lineStarts: lineStarts) }
 
         return blocks.isEmpty
             ? [ScratchpadMarkdownBlock(kind: .paragraph,
@@ -312,7 +313,8 @@ enum ScratchpadSupport {
     /// where its box is in `source`: the parser's own position of the item's
     /// first run, so the reading and a click can never disagree about which
     /// line a box belongs to. Source positions leave the block here.
-    private static func withTask(_ block: ScratchpadMarkdownBlock, in source: String) -> ScratchpadMarkdownBlock {
+    private static func withTask(_ block: ScratchpadMarkdownBlock, in source: String,
+                                 lineStarts: [String.Index]) -> ScratchpadMarkdownBlock {
         var text = block.text
         let first = text.runs.first
         text.markdownSourcePosition = nil
@@ -324,14 +326,20 @@ enum ScratchpadSupport {
         guard case .unorderedListItem(let depth) = block.kind,
               let first, first.inlinePresentationIntent == nil, first.link == nil,
               let position = first.markdownSourcePosition,
-              // Foundation turns the parser's line and UTF-8 column into an
-              // index; its NSRange variant misplaces every line after a CRLF.
-              let start = Range<String.Index>(position, in: source)?.lowerBound,
+              // The parser's line and UTF-8 column, read against lines
+              // counted here. Foundation's own conversion slips a line after
+              // a lazy continuation line or a NUL, and its NSRange variant
+              // after every CRLF.
+              position.startLine >= 1, position.startLine <= lineStarts.count, position.startColumn >= 1,
+              let start = source.utf8.index(lineStarts[position.startLine - 1],
+                                            offsetBy: position.startColumn - 1,
+                                            limitedBy: source.utf8.endIndex),
               let marker = taskMarker(in: String(text.characters))
         else { return plain }
-        // A NUL above the item moves that conversion onto a later line, which
-        // may hold a box of the same shape, so the text there has to read as
-        // the run does, up to the first escape or entity the parser resolved.
+        // A position that still lands elsewhere, as one after a NUL on the
+        // item's own line does, must not reach a box of the same shape, so
+        // the text there has to read as the run does, up to the first escape
+        // or entity the parser resolved.
         let run = String(block.text[first.range].characters)
         guard run.hasPrefix(source[start...].prefix(run.count).prefix { !"\\&\u{0}".contains($0) })
         else { return plain }
@@ -346,6 +354,24 @@ enum ScratchpadSupport {
         text.removeSubrange(opening..<end)
         return ScratchpadMarkdownBlock(kind: .taskListItem(depth: depth, checked: marker.checked, box: box),
                                        containerID: block.containerID, text: text, quoteDepth: block.quoteDepth)
+    }
+
+    /// Where each line of `text` starts, ending lines at \n, \r\n and a lone
+    /// \r, as the Markdown parser does.
+    private static func lineStarts(in text: String) -> [String.Index] {
+        let bytes = text.utf8
+        var starts = [bytes.startIndex]
+        var index = bytes.startIndex
+        while index < bytes.endIndex {
+            let byte = bytes[index]
+            index = bytes.index(after: index)
+            guard byte == UInt8(ascii: "\n") || byte == UInt8(ascii: "\r") else { continue }
+            if byte == UInt8(ascii: "\r"), index < bytes.endIndex, bytes[index] == UInt8(ascii: "\n") {
+                index = bytes.index(after: index)
+            }
+            starts.append(index)
+        }
+        return starts
     }
 
     /// The box whose `[` sits at UTF-16 offset `box` of `text`: `[ ]`, `[x]`,
@@ -403,7 +429,10 @@ enum ScratchpadSupport {
             return (content, "", content.location)
         }
         var next = marker
-        if let digits = Int(marker.dropLast()), let delimiter = marker.last { next = "\(digits + 1)\(delimiter)" }
+        // The largest number has no next one; its item repeats it.
+        if let digits = Int(marker.dropLast()), digits < Int.max, let delimiter = marker.last {
+            next = "\(digits + 1)\(delimiter)"
+        }
         let replacement = "\n" + prefix + next + spacing + (hasBox ? "[ ] " : "")
         return (selection, replacement, selection.location + (replacement as NSString).length)
     }

@@ -92,11 +92,12 @@ enum NotchTests {
                && controls.height == NotchLayout.cardHeight + NotchLayout.rowSpacing + NotchLayout.shortcutHeight
                && controls.height < NotchLayout.compactContentHeight,
                "the default home page is the player's card row over one shortcut rail, shorter than the compact strip")
+        let nineTiles = NotchLayout.controls(hasCards: false, shortcutCount: 9, width: 424, height: 154)
         suite.expect(NotchLayout.controls(hasCards: true, shortcutCount: 4, width: 424, height: 154)
                == NotchControlsLayout(cardRow: 154 - NotchLayout.shortcutHeight - NotchLayout.rowSpacing, shortcutRows: 1)
                && NotchLayout.controls(hasCards: false, shortcutCount: 0, width: 424, height: 154) == NotchControlsLayout(cardRow: 0, shortcutRows: 0)
                && NotchLayout.controls(hasCards: true, shortcutCount: 0, width: 424, height: 154).height == NotchLayout.cardHeight
-               && NotchLayout.controls(hasCards: false, shortcutCount: 9, width: 424, height: 154).height == NotchLayout.shortcutHeight,
+               && nineTiles == NotchControlsLayout(cardRow: 0, shortcutRows: 2, shortcutRowSpacing: NotchLayout.shortcutLeastRowSpacing),
                "the smallest custom island shortens the cards to keep the rail, and rows nobody enabled cost nothing")
         let timerSetup = NotchLayout.timer(mode: .timer, hasSession: false, height: 180)
         let pomodoroSetup = NotchLayout.timer(mode: .pomodoro, hasSession: false, height: 180)
@@ -181,6 +182,75 @@ enum NotchTests {
                && NotchLayout.musicPlayerHeight(band: 37.5, playing: false)
                    == NotchLayout.musicPlayerHeight(band: 37.5) - NotchLayout.musicTimelineHeight - NotchLayout.rowSpacing,
                "the player is a small cover beside the camera, the song below it, the timeline and one row of buttons")
+    }
+
+    private static func musicVolumeLayoutContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let volumeRow = NotchLayout.levelRowHeight + NotchLayout.rowSpacing
+        for notched in [false, true] {
+            for layout: NotchSize in [.compact, .spacious] {
+                var geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                             cameraWidth: notched ? 210 : 0, layout: layout, silhouette: .capsule)
+                geometry.pageTop = NotchModule.music.pageTop
+                for playing in [false, true] {
+                    let original = geometry.expandedSize(module: .music, musicHasContent: playing)
+                    let disabled = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: false)
+                    let enabled = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: true)
+                    let player = NotchLayout.musicPlayerHeight(band: geometry.musicBandHeight, playing: playing, showVolume: true)
+                    let content = geometry.contentSize(for: enabled)
+                    suite.expect(disabled == original && enabled.width == original.width
+                                 && enabled.height == original.height + volumeRow && content.height == player,
+                                 "optional volume adds one complete row without changing the preset player's width or making it scroll: \(layout), notched \(notched), playing \(playing)")
+                    suite.expect(player == NotchLayout.musicPlayerHeight(band: geometry.musicBandHeight, playing: playing) + volumeRow,
+                                 "the volume row has the same height in the playing and idle player")
+
+                    let extras = geometry.musicExtrasHeight
+                    let opened = geometry.contentSize(for: geometry.expandedSize(module: .music, musicHasContent: playing,
+                                                                                 musicShowsVolume: true, musicExtraHeight: extras))
+                    let split = NotchLayout.musicSplit(height: opened.height, extras: extras, resting: player, keepsPlayer: true)
+                    suite.expect(split.showsPlayer && split.player == player && split.extra == extras - NotchLayout.rowSpacing,
+                                 "opening lyrics or the queue keeps the optional volume row and the list's full height")
+                    for height in stride(from: content.height, through: opened.height, by: 12) {
+                        let growing = NotchLayout.musicSplit(height: height, extras: extras, resting: player, keepsPlayer: true)
+                        suite.expect(growing.showsPlayer && growing.player == player,
+                                     "the optional volume row stays with the player while lyrics or the queue grows")
+                    }
+                }
+            }
+
+            for width in [360.0, 480] {
+                for height in [NotchSize.heightRange.lowerBound, 340, 500] {
+                    var geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                                 cameraWidth: notched ? 210 : 0, layout: .custom,
+                                                 customWidth: width, customHeight: height, silhouette: .capsule)
+                    geometry.pageTop = NotchModule.music.pageTop
+                    for playing in [false, true] {
+                        let player = NotchLayout.musicPlayerHeight(band: geometry.musicBandHeight, playing: playing, showVolume: true)
+                        let closed = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: true)
+                        let opened = geometry.expandedSize(module: .music, musicHasContent: playing, musicShowsVolume: true,
+                                                           musicExtraHeight: geometry.musicExtrasHeight)
+                        let available = geometry.contentSize(for: opened).height
+                        suite.expect(closed.height <= CGFloat(height) && opened.height <= CGFloat(height)
+                                     && geometry.contentSize(for: closed).height == min(geometry.contentBudget, player),
+                                     "optional volume respects the custom height with and without an open list: \(width) × \(height), notched \(notched)")
+                        let split = NotchLayout.musicSplit(height: available, extras: geometry.musicExtrasHeight,
+                                                           resting: player, keepsPlayer: false)
+                        suite.expect(split.showsPlayer
+                                     ? split.player == player && split.extra >= NotchLayout.musicMinimumExtraHeight
+                                         && split.player + NotchLayout.rowSpacing + split.extra <= available
+                                     : split.extra <= available && available - player - NotchLayout.rowSpacing < NotchLayout.musicMinimumExtraHeight,
+                                     "a short custom island gives lyrics or the queue the player's space before cutting the optional volume row")
+                    }
+                }
+            }
+        }
+        let player = NotchLayout.musicPlayerHeight(band: 36, showVolume: true)
+        let boundary = player + NotchLayout.rowSpacing + NotchLayout.musicMinimumExtraHeight
+        let below = NotchLayout.musicSplit(height: boundary - 1, extras: 216, resting: player, keepsPlayer: false)
+        let fits = NotchLayout.musicSplit(height: boundary, extras: 216, resting: player, keepsPlayer: false)
+        suite.expect(!below.showsPlayer && fits.showsPlayer && fits.player == player
+                     && fits.extra == NotchLayout.musicMinimumExtraHeight,
+                     "a custom island keeps the player and volume exactly when a readable lyrics or queue list fits")
     }
 
     private static func presentationSpacingContracts(_ suite: TestSuite) {
@@ -375,9 +445,11 @@ enum NotchTests {
         }
     }
 
-    /// Each page takes the width it needs, up to the chosen one: the player
-    /// about 380 points between its sides, still wrapping the camera, the
-    /// home page its row of shortcuts, and lists the whole chosen width.
+    /// Under a preset each page takes the width it needs, up to the preset's:
+    /// the player about 380 points between its sides, still wrapping the
+    /// camera, the home page its row of shortcuts, and lists the whole width.
+    /// A width set by hand is the island's on every page, so a wider one
+    /// makes the player, the timer and the home page wider too.
     private static func pageWidthContracts(_ suite: TestSuite) {
         let screens: [(CGFloat, CGFloat)] = [(0, 0), (156, 28), (179, 32), (185, 37.5), (210, 37.5), (224, 37.5)]
         for (camera, top) in screens {
@@ -412,6 +484,535 @@ enum NotchTests {
         custom.pageContentWidth = NotchLayout.musicContentWidth
         suite.expect(custom.expandedWidth == 360 && custom.headerCameraGap == 0,
                      "a chosen width narrower than the player still limits it, and its row then sits below the camera")
+        var handSet = true, wraps = true
+        for (camera, top) in screens {
+            let preset = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: top,
+                                       cameraWidth: camera, layout: .spacious, silhouette: camera == 0 ? .capsule : .notch)
+                .page(.music, controls: [], sectionsButton: false)
+            for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 20) {
+                let base = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: top,
+                                         cameraWidth: camera, layout: .custom, customWidth: width,
+                                         silhouette: camera == 0 ? .capsule : .notch)
+                for module: NotchModule in [.music, .timer, .controls] {
+                    for sectionsButton in [false, true] {
+                        let page = base.page(module, controls: shortcuts, sectionsButton: sectionsButton)
+                        handSet = handSet && page.expandedWidth == CGFloat(width)
+                    }
+                }
+                // As wide as the preset's player or wider, it still wraps the camera.
+                let player = base.page(.music, controls: [], sectionsButton: false)
+                if CGFloat(width) >= preset.expandedWidth {
+                    wraps = wraps && player.headerCameraGap == preset.headerCameraGap
+                }
+            }
+        }
+        suite.expect(handSet, "a width set by hand is the island's on the player, the timer and the home page")
+        suite.expect(wraps, "a player set wider by hand wraps the camera as the preset's does")
+        // The Layout tab previews the home page at the width the island opens
+        // it at, never a preset's wider island around it.
+        let editor = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift", encoding: .utf8)) ?? ""
+        suite.expect(editor.contains("private var actualWidth: CGFloat { previewGeometry.expandedWidth }")
+                     && editor.contains("return geometry.page(.controls, controls: NotchSupport.controls(),"),
+                     "the Layout preview opens the home page as the island does")
+    }
+
+    /// Without a floating Explore button each page's row starts with the
+    /// island's own way to the sections, and the player's row ends with it
+    /// after its toggles. A page with a width of its own grows by it beside a
+    /// camera, up to the chosen width, so its controls keep the room they
+    /// have while the button floats; the player grows only when its toggles
+    /// leave no room, and never changes where it wraps the camera; the home
+    /// page's levels keep their narrowest past it, or share the row below the
+    /// camera; a page with nothing for the row still gets one for the button;
+    /// and a level reading drops only its percentage where a side has no room.
+    private static func sectionsButtonContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1710, height: 1112)
+        let home: [NotchControlItem] = [.volume, .brightness, .music, .mixer, .keepAwake, .timer, .calendar]
+        let button = NotchBand.sectionsButtonRoom
+        let least = NotchLayout.bandLevelMinimumWidth
+        var sizes: [(NotchSize, Double)] = [(.compact, NotchSize.defaultWidth), (.spacious, NotchSize.defaultWidth)]
+        sizes += stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 20).map { (.custom, $0) }
+        var unchanged = true, widths = true, sides = true, levels = true, below = true, rows = true
+        var readings = true, player = true, reached = true, bare = true
+        var playerWraps = true, playerWidths = true, playerRow = true
+        var narrowestPlayer = CGFloat.infinity
+        var movedLevels = 0
+        for camera: CGFloat in [0, 156, 170, 180, 185, 190, 200, 208, 210, 224] {
+            for (size, custom) in sizes {
+                let base = NotchGeometry(screen: screen, safeAreaTop: camera > 0 ? 32 : 0, cameraWidth: camera, layout: size,
+                                         customWidth: custom, silhouette: camera > 0 ? .notch : .capsule)
+                for module in NotchModule.allCases {
+                    let floating = base.page(module, controls: home, sectionsButton: false)
+                    let leading = base.page(module, controls: home, sectionsButton: true)
+                    let floatingBand = NotchBand(geometry: floating, contentWidth: floating.contentWidth)
+                    let band = NotchBand(geometry: leading, contentWidth: leading.contentWidth)
+                    unchanged = unchanged && !floatingBand.sectionsButton && !floatingBand.trailingSectionsButton
+                        && !floatingBand.pageSectionsButton && floatingBand.leadingRoom == floatingBand.side
+                        && floating.expandedWidth == {
+                            var plain = base
+                            plain.pageTop = module.pageTop
+                            plain.pageContentWidth = NotchLayout.naturalContentWidth(module, controls: home, within: base.contentWidth)
+                            return plain.expandedWidth
+                        }()
+                    // The player lays out its leading side itself: its row ends
+                    // with the button, or the page shows it where the row cannot.
+                    let wraps = module.pageTop == .wrapsCamera
+                    sides = sides && band.sectionsButton == !wraps
+                        && (band.trailingSectionsButton || band.pageSectionsButton) == wraps
+                        && !(band.trailingSectionsButton && band.pageSectionsButton)
+                        && band.leadingRoom == band.side - (band.sectionsButton ? button : 0)
+                    // Every page leads to the sections: from a row it has, or from the page.
+                    reached = reached && (band.pageSectionsButton || leading.headerRowHeight > 0)
+                    if module.pageTop == .none, !floatingBand.besideCamera {
+                        // A page with nothing for the row starts below the button's row,
+                        // keeping the content it has while the button floats.
+                        let content = { (page: NotchGeometry) -> CGFloat in page.contentSize(for: page.expandedSize(module: module)).height }
+                        bare = bare && floating.headerRowHeight == 0 && leading.headerRowHeight == NotchLayout.headerHeight
+                            && leading.pageTopInset == leading.headerTopInset + NotchLayout.headerHeight + NotchLayout.spacing
+                            && (size == .custom || content(leading) == content(floating))
+                    }
+                    if wraps {
+                        for count in 0...2 {
+                            var page = leading
+                            page.pageTrailingControls = count
+                            let row = NotchBand(geometry: page, contentWidth: page.contentWidth)
+                            let need: CGFloat = CGFloat(count) * button + 28
+                            let grew = page.expandedWidth - floating.expandedWidth
+                            let roomy = !floatingBand.besideCamera || floatingBand.side >= need
+                            // The button never changes whether the player wraps the camera.
+                            playerWraps = playerWraps && row.besideCamera == floatingBand.besideCamera
+                            // It grows only when the toggles leave no room, and only to hold it there.
+                            playerWidths = playerWidths
+                                && (roomy ? grew == 0 : grew == 0 || (grew <= button * 2 && row.trailingSectionsButton))
+                            // The row holds it where it fits after them, presets beside
+                            // common cameras included; elsewhere the page shows it.
+                            playerRow = playerRow && row.trailingSectionsButton != row.pageSectionsButton
+                                && (!row.trailingSectionsButton || row.side >= need)
+                                && (size == .custom || camera > 210 || !row.besideCamera || row.trailingSectionsButton)
+                        }
+                    } else if band.besideCamera, band.sectionsButton, floating.pageContentWidth != nil {
+                        // Each side past the button keeps what a page's row keeps
+                        // beside a camera, unless the chosen width stops the island.
+                        widths = widths && leading.expandedWidth <= floating.expandedWidth + button * 2
+                            && (band.leadingRoom >= floating.pageBandSide - NotchBand.cameraClearance
+                                || leading.expandedWidth == base.expandedWidth)
+                    } else {
+                        // Lists keep the chosen width, and a full row holds the button.
+                        widths = widths && leading.expandedWidth == floating.expandedWidth
+                    }
+                    if band.besideCamera, module.pageTop != .wrapsCamera {
+                        readings = readings && band.side >= NotchLayout.levelReadingDetailWidth
+                    }
+                }
+                let page = base.page(.controls, controls: home, sectionsButton: true)
+                let band = NotchBand(geometry: page, contentWidth: page.contentWidth)
+                let floating = base.page(.controls, controls: home, sectionsButton: false)
+                for count in 1...3 {
+                    let inRow = NotchLayout.bandLevelCount(count, band: band)
+                    if band.besideCamera {
+                        // In the row the first level keeps its narrowest past the button.
+                        levels = levels && (inRow == 0 || (inRow == count && band.side - button >= least))
+                            && (count == 3 || inRow == count || band.side - button < least)
+                        // A preset adds the row below the camera to the island when the levels move there.
+                        let moved = inRow == 0 && NotchLayout.bandLevelCount(count, band: NotchBand(
+                            geometry: floating, contentWidth: floating.contentWidth)) == count
+                        if moved, size != .custom {
+                            movedLevels += 1
+                            below = below && page.expandedSize(module: .controls, sliderCount: count).height
+                                - floating.expandedSize(module: .controls, sliderCount: count).height
+                                == NotchLayout.levelRowHeight + NotchLayout.rowSpacing
+                        }
+                    } else {
+                        // Across the top every level keeps its narrowest after the button.
+                        let held = CGFloat(count) * least + CGFloat(count - 1) * NotchLayout.bandLevelSpacing
+                        let used = button + held + NotchLayout.bandLevelSpacing
+                        let reading = NotchLayout.homeReadingWidth(levels: count, side: band.leadingRoom)
+                        rows = rows && inRow == count && used <= band.side && used + (reading ?? 0) <= band.side
+                    }
+                }
+                let music = base.page(.music, controls: home, sectionsButton: true)
+                let musicBand = NotchBand(geometry: music, contentWidth: music.contentWidth)
+                if musicBand.besideCamera {
+                    // Across from the cover the reading keeps its glyph and a
+                    // meter: a preset's player is only as wide as it needs, and
+                    // only a wider width set by hand leaves room for the percentage.
+                    narrowestPlayer = min(narrowestPlayer, musicBand.side)
+                    player = player && (size == .custom || musicBand.side < NotchLayout.levelReadingDetailWidth)
+                        && musicBand.side - 18 - 8 >= 36
+                }
+            }
+        }
+        suite.expect(unchanged, "with Explore floating the row and every page's width stay as they were")
+        suite.expect(sides, "every page but the player starts its row with the sections button, and its controls follow it; the player shows it itself")
+        suite.expect(reached, "every page leads to the sections without the floating Explore button")
+        suite.expect(bare, "a page with nothing for the row gets one for the sections button where no camera's row holds it")
+        suite.expect(widths,
+                     "a page with a width of its own grows by the sections button beside a camera, up to the chosen width; lists and full rows keep theirs")
+        suite.expect(playerWraps, "the sections button never changes where the player wraps the camera")
+        suite.expect(playerWidths, "the player grows by the sections button only when its toggles leave the row no room, and only to hold it there")
+        suite.expect(playerRow, "the player's row ends with the sections button where it fits after the toggles; elsewhere the page shows it")
+        suite.expect(levels, "a level beside the camera keeps its narrowest past the sections button, or the levels share the row below")
+        suite.expect(below && movedLevels > 0,
+                     "a preset island grows by the row below the camera when the levels move there: \(movedLevels) islands")
+        suite.expect(rows, "a full row holds every level at its narrowest after the sections button, a reading too")
+        suite.expect(readings, "every page's row but the player's keeps a level reading's percentage beside a camera")
+        suite.expect(player && narrowestPlayer.isFinite,
+                     "across from the player's cover a reading keeps its glyph and a meter at least 36 points long: \(narrowestPlayer)")
+    }
+
+    /// The views put the island's way to the sections where the band says:
+    /// every fallback of the row's trailing side ends a wrapping page's
+    /// controls with it, and the player shows it where the row does not.
+    private static func sectionsButtonPlacementContracts(_ suite: TestSuite) {
+        func source(_ path: String) -> String { (try? String(contentsOfFile: path, encoding: .utf8)) ?? "" }
+        let island = source("Sources/Vorssaint/UI/Notch/NotchView.swift")
+        let row = (island.components(separatedBy: "private func bandRow(").dropFirst().first ?? "")
+            .components(separatedBy: "private func updateControl(").first ?? ""
+        let fallbacks = row.components(separatedBy: "HStack(spacing: 6) {").count - 1
+        let ends = row.components(separatedBy: "items.trailing; trailingSections(band)").count - 1
+        suite.expect(fallbacks == 4 && ends == fallbacks
+                     && row.contains("if band.trailingSectionsButton { NotchSectionsButton(action: service.toggleSections) }"),
+                     "every fallback of the row's trailing side ends a wrapping page's controls with the sections button")
+        let player = source("Sources/Vorssaint/UI/Notch/NotchMusicView.swift")
+        let corners = player.components(separatedBy: "} corner: {").dropFirst().map { $0.components(separatedBy: "}").first ?? "" }
+        let cornersShowIt = corners.count == 2 && corners.allSatisfy { $0.contains("sectionsButton") }
+        let rowItems = (player.components(separatedBy: ".notchBand(trailing: {").dropFirst().first ?? "")
+            .components(separatedBy: "})").first ?? ""
+        suite.expect(player.contains("if band.pageSectionsButton { NotchSectionsButton(action: NotchService.shared.toggleSections) }")
+                     && cornersShowIt && player.contains("extraButtons; sectionsButton }")
+                     && player.contains("if band.besideCamera { sectionsButton }") && !rowItems.contains("sectionsButton")
+                     && player.contains(".overlay(alignment: .topLeading) { sectionsButton.frame(height: band.height) }"),
+                     "the player shows the sections button in its corners, its row of toggles, beside its bars and on the cover's side of the row while it is away, where the row does not")
+    }
+
+    /// The home page's rail never scrolls a tile it could show whole. Where
+    /// its tiles would just miss the island's width it closes the gaps
+    /// between them, so four fit across at every allowed width, beside a
+    /// camera and in a capsule; a rail that fit already keeps its gaps.
+    private static func homeRailContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1710, height: 1112)
+        let levels: [NotchControlItem] = [.volume, .brightness, .keyboardLight]
+        let tiles: [NotchControlItem] = [.mixer, .keepAwake, .timer, .calendar, .microphone, .screenshot, .recording,
+                                         .speedTest, .panel, .commandBar, .scratchpad]
+        let tile = NotchLayout.shortcutWidth, spacing = NotchLayout.shortcutSpacing
+        var sizes: [(NotchSize, Double, Double)] = [(.compact, NotchSize.defaultWidth, NotchSize.defaultHeight),
+                                                    (.spacious, NotchSize.defaultWidth, NotchSize.defaultHeight)]
+        let heights: [Double] = [NotchSize.heightRange.lowerBound, 340, NotchSize.defaultHeight, NotchSize.heightRange.upperBound]
+        for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 10) {
+            for height in heights { sizes.append((.custom, width, height)) }
+        }
+        var whole: String?, kept: String?, inside: String?
+        var closed = 0
+        let surfaces: [(CGFloat, NotchSilhouette)] = [(0, .capsule), (0, .notch), (185, .notch), (224, .notch)]
+        for (camera, silhouette) in surfaces {
+            for (size, width, height) in sizes {
+                let base = NotchGeometry(screen: screen, safeAreaTop: camera > 0 ? 32 : 0, cameraWidth: camera, layout: size,
+                                         customWidth: width, customHeight: height, silhouette: silhouette)
+                for count in 0...tiles.count {
+                    for music in [false, true] {
+                        for levelCount in 0...levels.count {
+                            for button in [false, true] {
+                                // One part per line: Swift 6.0.3 cannot type-check them as one sum in time.
+                                var controls = Array(levels.prefix(levelCount))
+                                if music { controls.append(.music) }
+                                controls += tiles.prefix(count)
+                                // The page as the island draws it: the height it is given, its levels and its rows.
+                                let page = base.page(.controls, controls: controls, sectionsButton: button)
+                                let content = page.contentSize(for: page.expandedSize(module: .controls, shortcutCount: count,
+                                                                                      sliderCount: levelCount,
+                                                                                      controlsHaveMusic: music))
+                                let band = NotchBand(geometry: page, contentWidth: content.width)
+                                let below = NotchLayout.bandLevelCount(levelCount, band: band) < levelCount
+                                let pageHeight = max(content.height, NotchLayout.controls(
+                                    hasCards: music, levelRow: below, shortcutCount: count,
+                                    width: content.width, height: content.height).height)
+                                let rows = NotchLayout.controls(hasCards: music, levelRow: below, shortcutCount: count,
+                                                                width: content.width, height: pageHeight).shortcutRows
+                                guard rows > 0 else { continue }
+                                let columns = NotchLayout.railColumns(count: count, rows: rows)
+                                let gap = NotchLayout.railGap(columns: columns, itemWidth: tile, spacing: spacing,
+                                                              least: NotchLayout.shortcutLeastSpacing, width: content.width)
+                                func name() -> String {
+                                    let surface: String = camera > 0 ? "\(Int(camera))-point camera" : silhouette == .capsule ? "capsule" : "no camera"
+                                    let island: String = size == .custom ? "custom \(Int(width))×\(Int(height))" : size.rawValue
+                                    return "\(surface), \(island), \(count) tiles, \(columns) across \(content.width) points"
+                                }
+                                if gap == nil, columns <= 4 || CGFloat(columns) * tile <= content.width {
+                                    whole = whole ?? name()
+                                }
+                                if NotchLayout.railFits(columns: columns, itemWidth: tile, spacing: spacing, width: content.width),
+                                   gap != spacing {
+                                    kept = kept ?? name()
+                                }
+                                if let gap {
+                                    if gap < spacing { closed += 1 }
+                                    let used: CGFloat = CGFloat(columns) * tile + CGFloat(columns - 1) * gap
+                                    if gap < NotchLayout.shortcutLeastSpacing || used > content.width + 0.001 {
+                                        inside = inside ?? name()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        suite.expect(whole == nil,
+                     "the home page's tiles never scroll while they fit side by side, four across at every allowed width: \(whole ?? "")")
+        suite.expect(kept == nil, "a home page rail that fit with its gaps keeps them: \(kept ?? "")")
+        suite.expect(inside == nil && closed > 0,
+                     "a rail that closes its gaps stays inside the page and keeps at least the least gap: \(inside ?? "") (\(closed) closed)")
+        // The narrowest island in the reported setup: eight tiles, three
+        // levels across the capsule's row and no player, two rows of four.
+        var narrowControls = levels
+        narrowControls += tiles.prefix(8)
+        let narrowest = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .custom,
+                                      customWidth: NotchSize.widthRange.lowerBound,
+                                      customHeight: NotchSize.heightRange.lowerBound, silhouette: .capsule)
+            .page(.controls, controls: narrowControls, sectionsButton: false)
+        let content = narrowest.contentSize(for: narrowest.expandedSize(module: .controls, shortcutCount: 8, sliderCount: 3,
+                                                                        controlsHaveMusic: false))
+        let rows = NotchLayout.controls(hasCards: false, shortcutCount: 8, width: content.width, height: content.height).shortcutRows
+        let narrowGap = NotchLayout.railGap(columns: NotchLayout.railColumns(count: 8, rows: rows), itemWidth: tile,
+                                            spacing: spacing, least: NotchLayout.shortcutLeastSpacing, width: content.width)
+        suite.expect(content.width == CGFloat(304) && rows == 2 && narrowGap == CGFloat(0),
+                     "at the narrowest width eight tiles sit in two rows of four with their gaps closed")
+        // The island and its Layout preview hand the rail the same least gap.
+        for path in ["Sources/Vorssaint/UI/Notch/NotchControlsView.swift", "Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift"] {
+            let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            suite.expect(source.components(separatedBy: "leastSpacing: NotchLayout.shortcutLeastSpacing").count == 2,
+                         "the home page's rail closes its gaps before it scrolls in \(path)")
+        }
+    }
+
+    /// A home page rail a few points short of its next row closes its rows,
+    /// as it closes its columns, before it scrolls sideways: down to 6 points,
+    /// where a title on two lines sits as near the circle under it as its own
+    /// circle above. Any other rail keeps its rows and gaps, presets included.
+    private static func homeRailRowContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1710, height: 1112)
+        let levels: [NotchControlItem] = [.volume, .brightness, .keyboardLight]
+        let tiles: [NotchControlItem] = [.mixer, .keepAwake, .timer, .calendar, .microphone, .screenshot, .recording,
+                                         .speedTest, .panel, .commandBar, .scratchpad]
+        let tile = NotchLayout.shortcutWidth, row = NotchLayout.shortcutHeight, spacing = NotchLayout.shortcutSpacing
+        var sizes: [(NotchSize, Double, Double)] = [(.compact, NotchSize.defaultWidth, NotchSize.defaultHeight),
+                                                    (.spacious, NotchSize.defaultWidth, NotchSize.defaultHeight)]
+        // The slider's lowest steps, heights the Layout tab's corner reaches
+        // between them, and taller islands.
+        let heights: [Double] = [NotchSize.heightRange.lowerBound, 261, 262.5, 264, 266, 268, 270, 340,
+                                 NotchSize.heightRange.upperBound]
+        for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 20) {
+            for height in heights { sizes.append((.custom, width, height)) }
+        }
+        // Cameras from a scaled display's short one to a tall menu bar's.
+        var surfaces: [(CGFloat, CGFloat, NotchSilhouette)] = [(0, 0, .capsule), (0, 0, .notch)]
+        for top: CGFloat in [28, 32, 38] {
+            surfaces += [(top, 156, .notch), (top, 224, .notch)]
+        }
+        var taken: String?, kept: String?, tight: String?, filled: String?
+        var closed = 0
+        for (top, camera, silhouette) in surfaces {
+            for (size, width, height) in sizes {
+                let base = NotchGeometry(screen: screen, safeAreaTop: top, cameraWidth: camera, layout: size,
+                                         customWidth: width, customHeight: height, silhouette: silhouette)
+                for count in 1...tiles.count {
+                    for music in [false, true] {
+                        // No levels, one on each side of a camera, or three in a row below it.
+                        for levelCount in [0, 2, 3] {
+                            for button in [false, true] {
+                                // One part per line: Swift 6.0.3 cannot type-check them as one sum in time.
+                                var controls = Array(levels.prefix(levelCount))
+                                if music { controls.append(.music) }
+                                controls += tiles.prefix(count)
+                                let page = base.page(.controls, controls: controls, sectionsButton: button)
+                                let content = page.contentSize(for: page.expandedSize(module: .controls, shortcutCount: count,
+                                                                                      sliderCount: levelCount,
+                                                                                      controlsHaveMusic: music))
+                                let band = NotchBand(geometry: page, contentWidth: content.width)
+                                let below = NotchLayout.bandLevelCount(levelCount, band: band) < levelCount
+                                // The page as the island draws it, from the height it is given.
+                                let pageHeight = max(content.height, NotchLayout.controls(
+                                    hasCards: music, levelRow: below, shortcutCount: count,
+                                    width: content.width, height: content.height).height)
+                                let layout = NotchLayout.controls(hasCards: music, levelRow: below, shortcutCount: count,
+                                                                  width: content.width, height: pageHeight)
+                                // The most the island gives the rail, and the rows that held at the full gap.
+                                let levelRow: CGFloat = NotchLayout.levelRowHeight + NotchLayout.rowSpacing
+                                let card: CGFloat = NotchLayout.minimumCardHeight + NotchLayout.rowSpacing
+                                var room = page.contentBudget
+                                if below && size != .custom { room += levelRow }
+                                var rail = room
+                                if below { rail -= levelRow }
+                                if music { rail -= card }
+                                let perRow = NotchLayout.railCapacity(width: content.width, itemWidth: tile, spacing: spacing)
+                                let full = NotchLayout.railRows(count: count, perRow: perRow, rowHeight: row,
+                                                                spacing: spacing, height: rail)
+                                let scrolls = NotchLayout.railGap(columns: NotchLayout.railColumns(count: count, rows: full),
+                                                                  itemWidth: tile, spacing: spacing,
+                                                                  least: NotchLayout.shortcutLeastSpacing, width: content.width) == nil
+                                func name() -> String {
+                                    let surface: String = camera > 0 ? "\(Int(camera))×\(top) camera" : silhouette == .capsule ? "capsule" : "no camera"
+                                    let island: String = size == .custom ? "custom \(Int(width))×\(height)" : size.rawValue
+                                    return "\(surface), \(island), \(count) tiles, music \(music), \(levelCount) levels, sections button \(button)"
+                                }
+                                let closedRows: CGFloat = CGFloat(full + 1) * row + CGFloat(full) * 6
+                                if scrolls, closedRows <= rail {
+                                    closed += 1
+                                    if layout.shortcutRows != full + 1 { taken = taken ?? name() }
+                                    if abs(content.height - room) > 0.001 { filled = filled ?? name() }
+                                } else if layout.shortcutRows != full || layout.shortcutRowSpacing != spacing {
+                                    kept = kept ?? name()
+                                }
+                                let rowGap = layout.shortcutRowSpacing
+                                let outside = rowGap < CGFloat(6) || rowGap > spacing
+                                let presetMoved = size != .custom && rowGap != spacing
+                                if outside || presetMoved || layout.height > pageHeight + CGFloat(0.001) {
+                                    tight = tight ?? name()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        suite.expect(taken == nil && closed > 0,
+                     "a home page rail that would scroll takes the row it is a few points short of, its rows closed: \(taken ?? "") (\(closed) closed)")
+        suite.expect(kept == nil, "any other home page rail keeps its rows and their gaps: \(kept ?? "")")
+        suite.expect(tight == nil,
+                     "rows close no further than 6 points, never in a preset, and stay inside the page: \(tight ?? "")")
+        suite.expect(filled == nil, "an island whose rows close takes the height chosen for it: \(filled ?? "")")
+        // The report: eight shortcuts and no player in the smallest custom
+        // island, its row below a 32-point camera, 2 points short of a second
+        // row. Its rows close to 6 points and hold all eight, four across.
+        for camera: CGFloat in [156, 185, 224] {
+            var cameraControls = Array(levels.prefix(2))
+            cameraControls += tiles.prefix(8)
+            let page = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: camera, layout: .custom,
+                                     customWidth: NotchSize.widthRange.lowerBound,
+                                     customHeight: NotchSize.heightRange.lowerBound)
+                .page(.controls, controls: cameraControls, sectionsButton: false)
+            let island = page.expandedSize(module: .controls, shortcutCount: 8, sliderCount: 2, controlsHaveMusic: false)
+            let content = page.contentSize(for: island)
+            let layout = NotchLayout.controls(hasCards: false, shortcutCount: 8, width: content.width, height: content.height)
+            let gap = NotchLayout.railGap(columns: NotchLayout.railColumns(count: 8, rows: layout.shortcutRows),
+                                          itemWidth: tile, spacing: spacing, least: NotchLayout.shortcutLeastSpacing,
+                                          width: content.width)
+            let fills = page.headerCameraGap == 0 && island.height == CGFloat(NotchSize.heightRange.lowerBound)
+            let twoRows = layout == NotchControlsLayout(cardRow: 0, shortcutRows: 2, shortcutRowSpacing: 6)
+            suite.expect(fills && content == CGSize(width: 304, height: 154) && twoRows && gap == CGFloat(0),
+                         "below a \(Int(camera))-point camera the smallest island holds eight shortcuts in two rows of four")
+        }
+        // The island and its Layout preview space the rows as the layout does.
+        for (path, call) in [("Sources/Vorssaint/UI/Notch/NotchControlsView.swift", "rowSpacing: layout.shortcutRowSpacing"),
+                             ("Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift", "rowSpacing: controls.shortcutRowSpacing")] {
+            let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            suite.expect(source.components(separatedBy: call).count == 2,
+                         "the home page's rail spaces its rows as its layout does in \(path)")
+        }
+    }
+
+    /// The Tools page's rail never scrolls a column it could show whole
+    /// either. Its titles span their cells, so where it closes its gaps they
+    /// give up what was closed and stay as far apart as anywhere else, and
+    /// the arrows walk rows exactly when the rail draws rows.
+    private static func toolRailContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1710, height: 1112)
+        let tile = NotchLayout.toolWidth, spacing = NotchLayout.toolSpacing
+        var sizes: [(NotchSize, Double, Double)] = [(.compact, NotchSize.defaultWidth, NotchSize.defaultHeight),
+                                                    (.spacious, NotchSize.defaultWidth, NotchSize.defaultHeight)]
+        let heights: [Double] = [NotchSize.heightRange.lowerBound, 280, 300, 340, 400, NotchSize.defaultHeight,
+                                 NotchSize.heightRange.upperBound]
+        for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 5) {
+            for height in heights { sizes.append((.custom, width, height)) }
+        }
+        let surfaces: [(CGFloat, NotchSilhouette)] = [(0, .capsule), (0, .notch), (156, .notch), (185, .notch), (210, .notch),
+                                                      (224, .notch)]
+        let tools = QuickLauncherContract.QuickLauncherItem.allCases.count
+        var whole: String?, kept: String?, apart: String?, walk: String?
+        var closed = 0
+        for (camera, silhouette) in surfaces {
+            for (size, width, height) in sizes {
+                let base = NotchGeometry(screen: screen, safeAreaTop: camera > 0 ? 32 : 0, cameraWidth: camera, layout: size,
+                                         customWidth: width, customHeight: height, silhouette: silhouette)
+                for button in [false, true] {
+                    // The page as the island draws it, for as many tools as the launcher lists.
+                    let page = base.page(.tools, controls: [], sectionsButton: button)
+                    for count in 1...tools {
+                        let content = page.contentSize(for: page.expandedSize(module: .tools, toolCount: count))
+                        let perRow = NotchLayout.railCapacity(width: content.width, itemWidth: tile, spacing: spacing)
+                        let rows = NotchLayout.railRows(count: count, perRow: perRow, rowHeight: NotchLayout.toolHeight,
+                                                        spacing: spacing, height: content.height)
+                        let columns = NotchLayout.railColumns(count: count, rows: rows)
+                        let side = CGFloat(columns) * tile
+                        let gap = NotchLayout.railGap(columns: columns, itemWidth: tile, spacing: spacing,
+                                                      least: NotchLayout.toolLeastSpacing, width: content.width)
+                        let inset = NotchLayout.toolTitleInset(count: count, rows: rows, width: content.width)
+                        func name() -> String {
+                            let surface = camera > 0 ? "\(Int(camera))-point camera" : "\(silhouette.rawValue)"
+                            let chosen = size == .custom ? "custom \(Int(width))×\(Int(height))" : size.rawValue
+                            return "\(surface), \(chosen), \(count) tools, \(columns) across \(content.width) points"
+                        }
+                        if gap == nil, side <= content.width {
+                            whole = whole ?? name()
+                        }
+                        let fitsWithGaps = NotchLayout.railFits(columns: columns, itemWidth: tile, spacing: spacing,
+                                                                width: content.width)
+                        if fitsWithGaps, gap != spacing || inset != 0 {
+                            kept = kept ?? name()
+                        }
+                        if gap == nil, inset != 0 {
+                            kept = kept ?? name()
+                        }
+                        if let gap {
+                            if gap < spacing { closed += 1 }
+                            let used: CGFloat = side + CGFloat(columns - 1) * gap
+                            let titlesApart: CGFloat = gap + inset * 2
+                            let inside = gap >= NotchLayout.toolLeastSpacing && used <= content.width + 0.001
+                            if !inside || abs(titlesApart - spacing) > 0.001 {
+                                apart = apart ?? name()
+                            }
+                        }
+                        let drawn: QuickToolsSupport.GridFlow = gap == nil ? .columns(rows: rows) : .rows(columns: columns)
+                        if page.toolFlow(count: count) != drawn || page.toolRows(count: count) != rows {
+                            walk = walk ?? name()
+                        }
+                    }
+                }
+            }
+        }
+        suite.expect(whole == nil,
+                     "the Tools page's tiles never scroll while they fit side by side, four across at every allowed width: \(whole ?? "")")
+        suite.expect(kept == nil,
+                     "a Tools rail that fits with its gaps, or scrolls, keeps its gaps and its titles' full width: \(kept ?? "")")
+        suite.expect(apart == nil && closed > 0,
+                     "titles in a Tools rail that closed its gaps stay as far apart as its spacing keeps them: \(apart ?? "") (\(closed) closed)")
+        suite.expect(walk == nil, "the Tools arrows walk rows exactly when the rail draws rows: \(walk ?? "")")
+        // The reported setup: eight tools at the narrowest island, in a
+        // capsule and beside cameras, two rows of four.
+        for camera: CGFloat in [0, 185, 224] {
+            let page = NotchGeometry(screen: screen, safeAreaTop: camera > 0 ? 32 : 0, cameraWidth: camera, layout: .custom,
+                                     customWidth: NotchSize.widthRange.lowerBound,
+                                     customHeight: NotchSize.heightRange.lowerBound,
+                                     silhouette: camera > 0 ? .notch : .capsule)
+                .page(.tools, controls: [], sectionsButton: false)
+            let content = page.contentSize(for: page.expandedSize(module: .tools, toolCount: 8))
+            let rows = page.toolRows(count: 8)
+            let gap = NotchLayout.railGap(columns: 4, itemWidth: tile, spacing: spacing,
+                                          least: NotchLayout.toolLeastSpacing, width: content.width)
+            let inset = NotchLayout.toolTitleInset(count: 8, rows: rows, width: content.width)
+            let twoRowsOfFour = content.width == 304 && rows == 2
+            let closedAndInset = gap == CGFloat(0) && inset == spacing / 2
+            suite.expect(twoRowsOfFour && closedAndInset,
+                         "at the narrowest width eight tools sit in two rows of four, gaps closed and titles inset: \(camera)")
+            suite.expect(page.toolFlow(count: 8) == .rows(columns: 4),
+                         "at the narrowest width the Tools arrows walk two rows of four: \(camera)")
+        }
+        // The island's page and the Content tab's preview share the view.
+        let source = (try? String(contentsOfFile: "Sources/Vorssaint/UI/QuickLauncher/QuickLauncherView.swift",
+                                  encoding: .utf8)) ?? ""
+        let rail = source.contains("leastSpacing: NotchLayout.toolLeastSpacing")
+        let titles = source.contains("cell(item, titleInset: titleInset)") && source.contains(".padding(.horizontal, titleInset)")
+        suite.expect(rail && titles, "the Tools page's rail closes its gaps before it scrolls and insets its titles by them")
     }
 
     private static func noticeLayoutContracts(_ suite: TestSuite) {
@@ -452,14 +1053,18 @@ enum NotchTests {
             }
         }
         for event in [NotchEvent.volume, .brightness, .keyboardLight] {
+            let widest = NotchNotice(event: event, title: "Level", detail: "100%",
+                                     symbol: "speaker.wave.2", level: 1).preferredWingWidth
             for percent in 0...100 {
                 let notice = NotchNotice(event: event, title: "Level", detail: "\(percent)%",
                                          symbol: "speaker.wave.2", level: Double(percent) / 100)
                 let wing = notice.preferredWingWidth
-                let content = width(notice.detail) + 18 + 8
+                let content = width("100%") + 18 + 8
                 suite.expect(content + NotchNotice.levelInset <= wing && wing < content + NotchNotice.levelInset + 1
                              && notice.inset(wing: wing) == NotchNotice.levelInset,
-                             "a level's wings fit its mark and reading, with no empty black at the end")
+                             "a level's wings fit its mark and widest reading, with no empty black at the end")
+                suite.expect(wing == widest,
+                             "a level's wings hold still as its reading gains or loses a digit")
                 suite.expect(wing - NotchNotice.levelInset >= 40,
                              "the opposite meter remains readable beside the shortest reading")
             }
@@ -718,11 +1323,11 @@ enum NotchTests {
         }
     }
 
-    /// Cover the menu bar even when it ends below the camera's safe area.
+    /// By default the island is the housing macOS reports; covering the menu bar below it is opt-in.
     private static func physicalStripContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         for safeTop: CGFloat in [24, 32, 37.5, 40] {
-            for barHeight: CGFloat in [24, 32, 33, 37, 38, 40, 64] {
+            for barHeight: CGFloat in [24, 32, 33, 37, 38, 39, 40, 64] {
                 let geometry = NotchGeometry(screen: screen, safeAreaTop: safeTop, cameraWidth: 179,
                                              menuBarHeight: barHeight, compactSideRoom: 100)
                 let strips = [geometry.restingSize(showsContent: false), geometry.restingSize(showsContent: true),
@@ -730,17 +1335,22 @@ enum NotchTests {
                               geometry.noticeSize(wingWidth: 190), geometry.compactMusicGeometry.compactActivitySize,
                               geometry.compactTimerGeometry(showsDownloads: true).compactActivitySize]
                 for size in strips {
-                    suite.expect(size.height == max(safeTop, barHeight) && size.height == geometry.stripHeight
-                           && geometry.frame(for: size).minY <= screen.maxY - barHeight,
-                           "every physical strip covers the bar's bottom edge without leaving a wallpaper seam")
+                    suite.expect(size.height == safeTop && size.height == geometry.stripHeight,
+                           "every physical strip is exactly as tall as the cutout, so it never reaches below the notch")
                 }
                 suite.expect(geometry.menuBarHeight == max(safeTop, barHeight),
                        "the bar's own height remains available for measuring menu space")
-                let original = NotchGeometry(screen: screen, safeAreaTop: safeTop, cameraWidth: 179,
-                                             menuBarHeight: barHeight, compactSideRoom: 100, hideMenuBarGap: false)
-                suite.expect(original.collapsed.height == safeTop && original.bareCutout.height == safeTop
-                       && original.menuBarHeight == max(safeTop, barHeight),
-                       "turning gap hiding off restores the physical cutout height without losing the measured menu bar")
+                let covering = NotchGeometry(screen: screen, safeAreaTop: safeTop, cameraWidth: 179,
+                                             menuBarHeight: barHeight, compactSideRoom: 100, hideMenuBarGap: true)
+                let covered = [covering.restingSize(showsContent: false), covering.restingSize(showsContent: true),
+                               covering.collapsed, covering.bareCutout, covering.notice,
+                               covering.noticeSize(wingWidth: 190), covering.compactMusicGeometry.compactActivitySize,
+                               covering.compactTimerGeometry(showsDownloads: true).compactActivitySize]
+                for size in covered {
+                    suite.expect(size.height == max(safeTop, barHeight) && size.height == covering.stripHeight
+                           && covering.frame(for: size).minY <= screen.maxY - barHeight,
+                           "hiding the gap covers the bar's bottom edge without leaving a wallpaper seam")
+                }
             }
         }
         for silhouette in NotchSilhouette.allCases {
@@ -773,14 +1383,14 @@ enum NotchTests {
         let fitted = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
                                    menuBarHeight: 33, compactSideRoom: 100,
                                    cameraFit: NotchCameraFit(width: 2, height: 0.5))
-        suite.expect(reported.cameraWidth == 179 && reported.cameraHeight == 33,
-               "without a fit the island covers the housing and reaches the measured menu bar's bottom")
-        suite.expect(fitted.cameraWidth == 181 && fitted.cameraHeight == 33.5,
-               "a fit widens and lengthens the island after matching the menu bar")
+        suite.expect(reported.cameraWidth == 179 && reported.cameraHeight == 32,
+               "without a fit the island matches the housing macOS reports")
+        suite.expect(fitted.cameraWidth == 181 && fitted.cameraHeight == 32.5,
+               "a fit widens and lengthens the camera housing the island covers")
         let strips = [fitted.restingSize(showsContent: false), fitted.restingSize(showsContent: true), fitted.collapsed,
                       fitted.notice, fitted.noticeSize(wingWidth: 190), fitted.compactMusicGeometry.compactActivitySize,
                       fitted.compactTimerGeometry(showsDownloads: true).compactActivitySize]
-        suite.expect(strips.allSatisfy { $0.height == 33.5 && $0.height == fitted.stripHeight },
+        suite.expect(strips.allSatisfy { $0.height == 32.5 && $0.height == fitted.stripHeight },
                "every strip beside the camera, the volume and brightness notice included, follows the fitted height")
         suite.expect(fitted.restingSize(showsContent: false).width == 181
                && fitted.noticeCameraGap == 181 && fitted.musicCameraGap == 181,
@@ -843,10 +1453,10 @@ enum NotchTests {
         let outlined = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
                                      menuBarHeight: 33, compactSideRoom: 100, outline: true)
         suite.expect(bare.outlineRoom == 0 && outlined.outlineRoom == room
-               && outlined.restingSize(showsContent: false) == CGSize(width: 179 + room * 2, height: 33 + room),
+               && outlined.restingSize(showsContent: false) == CGSize(width: 179 + room * 2, height: 32 + room),
                "an outlined island reaches past the camera by the line's width, so the line shows around the notch")
         suite.expect([outlined.restingSize(showsContent: true), outlined.notice,
-                      outlined.compactMusicGeometry.compactActivitySize].allSatisfy { $0.height == 33 + room },
+                      outlined.compactMusicGeometry.compactActivitySize].allSatisfy { $0.height == 32 + room },
                "every strip beside the camera keeps its line clear of the housing")
         suite.expect(!outlined.hasSameMenuBar(as: bare), "turning the outline on measures the menus again for the wider island")
         suite.expect(outlined.bareCutout == bare.restingSize(showsContent: false)
@@ -1152,10 +1762,16 @@ enum NotchTests {
         NotchMissionControlPollingTests.run(suite)
         activitySelectionContracts(suite)
         railContracts(suite)
+        musicVolumeLayoutContracts(suite)
         presentationSpacingContracts(suite)
         captureControlsLayoutContracts(suite)
         pageTopContracts(suite)
         pageWidthContracts(suite)
+        sectionsButtonContracts(suite)
+        sectionsButtonPlacementContracts(suite)
+        homeRailContracts(suite)
+        homeRailRowContracts(suite)
+        toolRailContracts(suite)
         noticeLayoutContracts(suite)
         simulatedMenuBoundsContracts(suite)
         simulatedDisplayContracts(suite)
@@ -1168,6 +1784,7 @@ enum NotchTests {
         NotchPanelTests.run { suite.expect($0, $1) }
         NotchHoverTests.run(suite)
         NotchScreenEdgeClickTests.run(suite)
+        NotchClickElsewhereTests.run(suite)
         NotchPresentationRefreshContract.run(suite)
         NotchScreenRefreshContract.run(suite)
         NotchMirrorContract.run(suite)
@@ -1180,6 +1797,7 @@ enum NotchTests {
         NotchUpdateTests.run(suite)
         NotchCaptureKeyboardTests.run(suite)
         NotchKeyMonitorTests.run(suite)
+        NotchCommandBarHeightTests.run(suite)
         NotchDownloadProgressTests.run(suite)
         NotchSliderEditingTests.run(suite)
         NotchFileToolsTests.run(suite)
@@ -1382,10 +2000,11 @@ enum NotchTests {
                        == NotchLayout.levelRowHeight + NotchLayout.rowSpacing
                },
                "the levels sit in the top row, and three beside a camera share one slim row below it")
-        func levelBand(side: CGFloat, besideCamera: Bool) -> NotchBand {
+        func levelBand(side: CGFloat, besideCamera: Bool, sectionsButton: Bool = false) -> NotchBand {
             var band = NotchBand()
             band.besideCamera = besideCamera
             band.side = side
+            band.sectionsButton = sectionsButton
             return band
         }
         let fullRow = levelBand(side: 304, besideCamera: false)
@@ -1394,6 +2013,13 @@ enum NotchTests {
                && NotchLayout.bandLevelCount(2, band: levelBand(side: 114, besideCamera: true)) == 2
                && NotchLayout.bandLevelCount(1, band: levelBand(side: 114, besideCamera: true)) == 1,
                "a full row holds every level, and a camera's sides only levels they split evenly")
+        suite.expect(NotchLayout.bandLevelCount(3, band: levelBand(side: 304, besideCamera: false, sectionsButton: true)) == 3
+               && NotchLayout.bandLevelCount(3, band: levelBand(side: 290, besideCamera: false, sectionsButton: true)) == 0
+               && NotchLayout.bandLevelCount(2, band: levelBand(side: 114, besideCamera: true, sectionsButton: true)) == 2
+               && NotchLayout.bandLevelCount(2, band: levelBand(side: 104, besideCamera: true, sectionsButton: true)) == 0
+               && NotchLayout.bandLevelCount(1, band: levelBand(side: 104, besideCamera: true, sectionsButton: true)) == 0
+               && NotchLayout.bandLevelCount(2, band: levelBand(side: 104, besideCamera: true)) == 2,
+               "past the sections button a level keeps its narrowest, or the levels move to the row below")
         suite.expect(NotchLayout.homeReadingWidth(levels: 3, side: 504) == NotchLayout.homeReadingWidth
                && NotchLayout.homeReadingWidth(levels: 3, side: 440) == 440 - 12 - 252
                && NotchLayout.homeReadingWidth(levels: 3, side: 304) == nil
@@ -1415,6 +2041,15 @@ enum NotchTests {
         suite.expect(!NotchSupport.hidesUntilHover(in: defaults), "click to open does not hide the island until hover")
         defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
         suite.expect(NotchSupport.hidesUntilHover(in: defaults), "hidden until hover waits out of sight for the pointer")
+        suite.expect(NotchSupport.hidesNoticesUntilHover(in: defaults) && !NotchSupport.hiddenShowsActivity(in: defaults),
+               "hidden until hover keeps activity and notices out of sight by default")
+        defaults.set(true, forKey: DefaultsKey.notchHiddenShowsActivity)
+        suite.expect(NotchSupport.hiddenShowsActivity(in: defaults) && !NotchSupport.hidesNoticesUntilHover(in: defaults),
+               "a hidden island set to show activity takes notices while it waits for the pointer")
+        defaults.set(false, forKey: DefaultsKey.notchOpenOnHover)
+        suite.expect(!NotchSupport.hiddenShowsActivity(in: defaults), "showing activity only applies while hidden until hover")
+        defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
+        defaults.set(false, forKey: DefaultsKey.notchHiddenShowsActivity)
         defaults.set(false, forKey: DefaultsKey.notchOpenOnHover)
         suite.expect(!NotchSupport.hidesUntilHover(in: defaults), "an island that opens by click never waits for hover")
         defaults.set(false, forKey: DefaultsKey.notchHideUntilHover)
@@ -1438,8 +2073,8 @@ enum NotchTests {
                "a new island starts spacious and opens by click")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchHideUntilHover), "hidden hover is opt-in")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchOutlineEnabled), "the island outline is opt-in")
-        suite.expect(defaults.bool(forKey: DefaultsKey.notchHideMenuBarGap),
-                     "the island hides the gap below a physical notch by default")
+        suite.expect(!defaults.bool(forKey: DefaultsKey.notchHideMenuBarGap),
+                     "the island matches the physical notch's height unless covering the gap below it is chosen")
         suite.expect(defaults.double(forKey: DefaultsKey.notchHoverDelay) == 0.25,
                "hover activation defaults to a deliberate quarter-second pause")
         for value in [0.10, 0.25, 0.65, 1.0] {
@@ -1743,7 +2378,19 @@ enum NotchTests {
         suite.expect(key(126) == .move(backwards: true) && key(125) == .move(backwards: false)
                 && key(36) == .paste && key(76) == .paste,
                "the arrow keys and Return drive the list while the search field has the focus")
+        suite.expect(key(45, "n", .control) == key(125) && key(35, "p", .control) == key(126)
+                && key(0, "N", [.control, .capsLock]) == key(125) && key(2, "P", .control) == key(126),
+               "Control-N/P follow the layout's letter and move like the arrows, including with Caps Lock")
+        suite.expect(key(45, "n", .control, composing: true) == nil
+                && key(35, "p", .control, composing: true) == nil,
+               "Control-N/P stay with an input method while it composes")
+        for modifiers: NSEvent.ModifierFlags in [.command, .option, [.control, .shift],
+                                                 [.control, .command], [.control, .option]] {
+            suite.expect(key(45, "n", modifiers) == nil && key(35, "p", modifiers) == nil,
+                   "other shortcuts with N/P do not move the clipboard highlight")
+        }
         suite.expect(key(0, "a") == .reveal && key(0, "Ab") == .reveal && key(0, "ñ") == .reveal && key(40, "ㅎ") == .reveal
+                && key(45, "n") == .reveal && key(35, "p") == .reveal
                 && key(49, " ") == nil && key(48, "\t") == nil && key(51, "\u{7f}") == nil
                 && key(125, "\u{F701}") == .move(backwards: false),
                "a typed letter shows the search field and goes on to it, while a space and control keys stay as they are")
@@ -2473,6 +3120,72 @@ enum NotchTests {
                        "a reserved window keeps whole, equal margins so the settled island does not shift a pixel")
             }
         }
+        // The Command Bar's island opens toward its field, and its rows,
+        // measured on the way, move the target further down.
+        do {
+            let field = CGSize(width: 616, height: roomy.collapsed.height + 76)
+            let rows = CGSize(width: 616, height: 666)
+            let opening = NotchMotionTimeline(from: roomy.collapsed, to: field, begin: 10)
+            suite.expect((0...60).allSatisfy { step in
+                             let time = Double(step) / 100
+                             let size = opening.size(at: 10 + time)
+                             let expected = NotchMotion.size(at: time, from: roomy.collapsed, to: field)
+                             return abs(size.width - expected.width) < 0.001 && abs(size.height - expected.height) < 0.001
+                         },
+                         "a motion begun once moves exactly as the island's springs always have")
+            let retarget = 10.07, frame = 1.0 / 60
+            if let carried = opening.continued(to: rows, at: retarget) {
+                let before = opening.size(at: retarget - frame), at = opening.size(at: retarget)
+                let after = carried.size(at: retarget + frame)
+                let restarted = NotchMotion.size(at: frame, from: at, to: rows)
+                // What each side gained over the frame before the new target
+                // and the frame after it, carried on or started again from rest.
+                let widthBefore: CGFloat = at.width - before.width, widthAfter: CGFloat = after.width - at.width
+                let heightBefore: CGFloat = at.height - before.height, heightAfter: CGFloat = after.height - at.height
+                let restartedWidth: CGFloat = restarted.width - at.width, restartedHeight: CGFloat = restarted.height - at.height
+                suite.expect(carried.start == at && carried.size(at: retarget) == at,
+                             "a target moving on carries the island on from where it is")
+                suite.expect(abs(widthAfter - widthBefore) < widthBefore / 4 && widthAfter > restartedWidth * 2,
+                             "the width keeps its speed, where starting again from rest stalled it")
+                suite.expect((0...50).allSatisfy {
+                                 let time = retarget + Double($0) / 100
+                                 return carried.size(at: time).width == opening.size(at: time).width
+                             },
+                             "a side whose target stays put keeps its own motion")
+                suite.expect(heightAfter > restartedHeight + heightBefore / 2,
+                             "a side whose target moves further keeps its speed as the new pull starts")
+                let frames = carried.frames()
+                suite.expect(frames.sizes.first == at && frames.sizes.last == rows && frames.keyTimes.first == 0
+                             && frames.keyTimes.last == 1 && frames.keyTimes.count == frames.sizes.count,
+                             "a carried motion starts on screen and ends exactly at its new target")
+                suite.expect(frames.duration > 0.1 && frames.duration < 1,
+                             "a carried motion settles within the time its surroundings wait for it: \(frames.duration)")
+                let lowest = CGSize(width: at.width - 0.001, height: at.height - 0.001)
+                let farthest = CGSize(width: rows.width + NotchMotion.overshootLimit, height: rows.height + NotchMotion.overshootLimit)
+                suite.expect(frames.sizes.allSatisfy {
+                                 $0.width >= lowest.width && $0.height >= lowest.height
+                                     && $0.width <= farthest.width && $0.height <= farthest.height
+                             },
+                             "a carried motion never goes back and swings no farther than the room kept around the island")
+            } else {
+                suite.expect(false, "a taller target while opening carries the motion on")
+            }
+            suite.expect(opening.continued(to: roomy.collapsed, at: retarget) == nil
+                         && opening.continued(to: CGSize(width: 616, height: field.height - 20), at: retarget) == nil,
+                         "a motion turning back starts again from where it is drawn")
+            suite.expect(NotchMotionTimeline(from: idle, to: roomy.notice, begin: 0, steady: true)
+                             .continued(to: roomy.expanded, at: 0.05) == nil
+                         && NotchMotionTimeline(from: idle, to: roomy.notice, begin: 0, offset: 40)
+                             .continued(to: roomy.expanded, at: 0.05) == nil,
+                         "a width easing without a swing, or a centre on its way, starts again as it always has")
+            let late = opening.rebased(to: 10.02)
+            suite.expect(late.begin == 10.02 && (0...40).allSatisfy { step in
+                             let time = 10 + Double(step) / 100
+                             let shifted = late.size(at: time + 0.02), original = opening.size(at: time)
+                             return abs(shifted.width - original.width) < 0.001 && abs(shifted.height - original.height) < 0.001
+                         },
+                         "a motion that reached the screen late is timed from when it did")
+        }
         func near(_ value: CGFloat, _ expected: CGFloat) -> Bool { abs(value - expected) < 0.000_1 }
         let closing = NotchGlassFade.plan(from: 200, to: 32, endsInGlass: false, current: 1)
         suite.expect(near(closing.openness(atHeight: 200), 0) && near(closing.openness(atHeight: 80), 0)
@@ -2680,6 +3393,49 @@ enum NotchTests {
                              "with every display chosen, the island that responds follows the pointer")
             }
         }
+        // The shape for displays without a notch shows only where the island can rest.
+        suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: .automatic, builtIn: [true, false],
+                                                              notched: [true, false], main: 1),
+               "automatic keeps a notched laptop's island off its monitor, even the main one")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .automatic, builtIn: [false],
+                                                             notched: [false], main: 0),
+               "automatic reaches the monitor once the lid closes")
+        suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [true, false],
+                                                              notched: [true, false], main: 1),
+               "the built-in choice keeps the island on its camera")
+        suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [false],
+                                                              notched: [false], main: 0),
+               "the built-in choice reaches no monitor while the lid is closed")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [true, false],
+                                                             notched: [false, false], main: 1),
+               "a built-in screen without a notch floats the island itself")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .builtIn, builtIn: [false, false],
+                                                             notched: [false, false], main: 1, hasLid: false),
+               "a Mac without a lid keeps the built-in choice on its main display")
+        suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: .main, builtIn: [true, false],
+                                                             notched: [true, false], main: 1)
+                     && !NotchSupport.reachesDisplayWithoutNotch(preference: .main, builtIn: [true, false],
+                                                                 notched: [true, false], main: 0),
+               "the main display choice reaches a monitor only when it has the menu bar")
+        for preference in [NotchDisplay.pointer, .all] {
+            suite.expect(NotchSupport.reachesDisplayWithoutNotch(preference: preference, builtIn: [true, false],
+                                                                 notched: [true, false], main: 0),
+                   "the pointer can take the island to a monitor: \(preference)")
+            suite.expect(!NotchSupport.reachesDisplayWithoutNotch(preference: preference, builtIn: [true],
+                                                                  notched: [true], main: 0),
+                   "no display without a notch is reached when none is connected: \(preference)")
+        }
+        // Settings asks that rule with the displays connected now, and its
+        // button switches to every display (issue #1711).
+        let notchSettings = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/NotchSettings.swift",
+                                         encoding: .utf8)) ?? ""
+        let notchServiceSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchService.swift",
+                                              encoding: .utf8)) ?? ""
+        suite.expect(notchSettings.contains("if enabled, !NotchService.reachesDisplayWithoutNotch(NotchDisplay(rawValue: display) ?? .automatic) {")
+                     && notchSettings.contains("Button(text.showOnAllDisplays) { display = NotchDisplay.all.rawValue }")
+                     && notchServiceSource.contains("NotchSupport.reachesDisplayWithoutNotch(preference: preference, builtIn: layout.builtIn,")
+                     && notchServiceSource.contains("notched: layout.notched, main: layout.main, hasLid: hasLid)"),
+               "the Displays without a notch card offers All displays only while the chosen display keeps the island off them")
         suite.expect(NotchSupport.shouldReplace(.volume, with: .brightness), "continuous controls can replace each other")
         suite.expect(!NotchSupport.shouldReplace(.volume, with: .clipboard), "copy does not interrupt a volume adjustment")
         suite.expect(NotchSupport.shouldReplace(.battery, with: .capture), "a capture takes precedence over passive battery status")
@@ -2690,6 +3446,8 @@ enum NotchTests {
                "fine volume preserves the system quarter-step")
         suite.expect((0..<9).map { NotchClipboardPastePress.index(
                     keyCode: [18, 19, 20, 21, 23, 22, 26, 28, 25][$0], commandOnly: true) } == (0..<9).map { $0 }
+               && (0..<9).map { NotchClipboardPastePress.index(
+                    keyCode: [83, 84, 85, 86, 87, 88, 89, 91, 92][$0], commandOnly: true) } == (0..<9).map { $0 }
                && NotchClipboardPastePress.index(keyCode: 18, commandOnly: false) == nil
                && NotchClipboardPastePress.index(keyCode: 29, commandOnly: true) == nil,
                "⌘1 to ⌘9 on the clipboard page name the first nine entries, and nothing else does")
@@ -2872,6 +3630,7 @@ enum NotchTests {
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "the master switch also stops calendar reads")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchCalendarEnabled,
                                                                  DefaultsKey.notchCalendarCountdown,
+                                                                 DefaultsKey.notchCalendarCountdownLead,
                                                                  DefaultsKey.notchCalendarTimeLeft,
                                                                  DefaultsKey.notchCalendarWeekNumbers,
                                                                  AppFeature.notchCalendar.availabilityKey]),
@@ -2920,13 +3679,17 @@ enum NotchTests {
                "an all-day-only calendar has no timed appointment")
         suite.expect(NotchCalendarSupport.nextRefresh(entries, now: now) == now.addingTimeInterval(300),
                "the next refresh chooses the nearest future event boundary")
-        let hour = NotchCalendarSupport.countdownLeadTime
+        let hour = NotchCalendarSupport.countdownLeadTime(in: defaults)
+        suite.expect(hour == 3600 && NotchCalendarSupport.timeLeftLeadTime == 3600,
+                     "a start keeps its hour lead until another is chosen, and an end always has its hour")
         func countdownFor(_ events: [NotchCalendarEvent], at offset: Double = 0, starts: Bool = true,
-                          ends: Bool = false) -> NotchCalendarCountdown? {
-            NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends)
+                          ends: Bool = false, lead: TimeInterval = hour) -> NotchCalendarCountdown? {
+            NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends,
+                                           leadTime: lead)
         }
-        func transition(_ events: [NotchCalendarEvent], starts: Bool = true, ends: Bool = false) -> Date? {
-            NotchCalendarSupport.countdownTransition(events, now: now, starts: starts, ends: ends)
+        func transition(_ events: [NotchCalendarEvent], starts: Bool = true, ends: Bool = false,
+                        lead: TimeInterval = hour) -> Date? {
+            NotchCalendarSupport.countdownTransition(events, now: now, starts: starts, ends: ends, leadTime: lead)
         }
         suite.expect(countdownFor(entries) == NotchCalendarCountdown(event: later, ongoing: false)
                      && countdownFor([allDay, current]) == nil,
@@ -2947,6 +3710,24 @@ enum NotchTests {
         suite.expect(transition([event("future", hour + 600, hour + 900)]) == now.addingTimeInterval(600)
                      && transition([later]) == later.start,
                      "a refresh is scheduled when the hour window opens and when an event starts")
+        let in45 = event("in 45", 45 * 60, 75 * 60)
+        let in90 = event("in 90", 90 * 60, 120 * 60)
+        suite.expect(countdownFor([in45], lead: 1800) == nil && countdownFor([in45])?.event == in45
+                     && countdownFor([in45], lead: 7200)?.event == in45,
+                     "an event 45 minutes away waits for a 30 minute lead and shows with one or two hours")
+        suite.expect(countdownFor([in90], lead: 1800) == nil && countdownFor([in90]) == nil
+                     && countdownFor([in90], lead: 7200)?.event == in90,
+                     "an event 90 minutes away shows only with a two hour lead")
+        suite.expect(transition([in45], lead: 1800) == now.addingTimeInterval(15 * 60)
+                     && countdownFor([in45], at: 15 * 60, lead: 1800)?.event == in45
+                     && transition([in90], lead: 7200) == in90.start,
+                     "a refresh is scheduled when the chosen lead opens, not the hour")
+        defaults.set(0, forKey: DefaultsKey.notchCalendarCountdownLead)
+        let shortest = NotchCalendarSupport.countdownLeadTime(in: defaults)
+        defaults.set(10_000, forKey: DefaultsKey.notchCalendarCountdownLead)
+        suite.expect(shortest == 5 * 60 && NotchCalendarSupport.countdownLeadTime(in: defaults) == 240 * 60,
+                     "a restored or hand-edited lead stays between five minutes and four hours")
+        defaults.removeObject(forKey: DefaultsKey.notchCalendarCountdownLead)
         // A meeting that ends in 30 minutes, 15 minutes before the next one starts.
         let meeting = event("meeting", -1800, 1800)
         let afterGap = event("after gap", 2700, 4500)
@@ -2971,8 +3752,12 @@ enum NotchTests {
                      && countdownFor([long], at: 600, ends: true) == NotchCalendarCountdown(event: long, ongoing: true)
                      && countdownFor([allDay], ends: true) == nil,
                      "time left appears only in the hour before a timed end")
-        suite.expect(!NotchCalendarCountdown(event: later, ongoing: true).isShown(at: now)
-                     && !NotchCalendarCountdown(event: meeting, ongoing: true).isShown(at: meeting.end),
+        suite.expect(countdownFor([meeting], starts: false, ends: true, lead: 900)?.target == meeting.end
+                     && countdownFor([long], starts: false, ends: true, lead: 7200) == nil
+                     && transition([long], starts: false, ends: true, lead: 7200) == now.addingTimeInterval(600),
+                     "the lead before a start leaves time left on its hour")
+        suite.expect(!NotchCalendarCountdown(event: later, ongoing: true).isShown(at: now, leadTime: hour)
+                     && !NotchCalendarCountdown(event: meeting, ongoing: true).isShown(at: meeting.end, leadTime: hour),
                      "an end is never shown before its event begins or once it has passed")
         suite.expect(transition([long], ends: true) == now.addingTimeInterval(600)
                      && transition([afterGap], starts: false, ends: true) == afterGap.start,
@@ -3045,7 +3830,7 @@ enum NotchTests {
     /// Events chosen from their menu in the island, with the countdown for
     /// every event off.
     private static func chosenCountdownContracts(_ suite: TestSuite, defaults: UserDefaults, now: Date) {
-        let hour = NotchCalendarSupport.countdownLeadTime
+        let hour = NotchCalendarSupport.timeLeftLeadTime
         func event(_ key: String, _ start: Double, _ end: Double) -> NotchCalendarEvent {
             NotchCalendarEvent(id: key + ":" + String(start), title: key, calendar: "Personal",
                                start: now.addingTimeInterval(start), end: now.addingTimeInterval(end),
@@ -3064,9 +3849,10 @@ enum NotchTests {
         let other = event("other", 600, 900)
         let unkeyed = event("", 300, 600)
         func countdown(_ events: [NotchCalendarEvent], at offset: Double = 0, starts: Bool = false,
-                       ends: Bool = false, choices: Set<String> = ["chosen"]) -> NotchCalendarCountdown? {
+                       ends: Bool = false, choices: Set<String> = ["chosen"],
+                       lead: TimeInterval = hour) -> NotchCalendarCountdown? {
             NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends,
-                                           chosen: choices)
+                                           chosen: choices, leadTime: lead)
         }
         suite.expect(countdown([other, chosen]) == NotchCalendarCountdown(event: chosen, ongoing: false)
                      && countdown([other, chosen], choices: []) == nil,
@@ -3080,10 +3866,17 @@ enum NotchTests {
                      "a chosen event counts down to its start; time left in it follows its own option")
         let ahead = event("ahead", hour + 1800, hour + 3600)
         suite.expect(NotchCalendarSupport.countdownTransition([ahead], now: now, starts: false, ends: false,
-                                                              chosen: ["ahead"]) == now.addingTimeInterval(1800)
+                                                              chosen: ["ahead"], leadTime: hour)
+                        == now.addingTimeInterval(1800)
                      && NotchCalendarSupport.countdownTransition([ahead], now: now, starts: false, ends: false,
-                                                                 chosen: []) == nil,
-                     "a refresh is scheduled when a chosen event's hour opens, and none for an event not chosen")
+                                                                 chosen: [], leadTime: hour) == nil,
+                     "a refresh is scheduled when a chosen event's lead opens, and none for an event not chosen")
+        suite.expect(countdown([chosen], lead: 900) == nil
+                     && NotchCalendarSupport.countdownTransition([chosen], now: now, starts: false, ends: false,
+                                                                 chosen: ["chosen"], leadTime: 900)
+                        == now.addingTimeInterval(300)
+                     && countdown([ahead], choices: ["ahead"], lead: 7200)?.event == ahead,
+                     "a chosen event follows the lead with the countdown for every event off")
         suite.expect(NotchCalendarSupport.chosenCountdowns(in: defaults).isEmpty, "no event starts chosen")
         NotchCalendarSupport.setCountdown(true, for: chosen, in: defaults)
         NotchCalendarSupport.setCountdown(true, for: unkeyed, in: defaults)

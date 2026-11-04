@@ -340,6 +340,7 @@ final class RecorderExporter {
         let expectedFrames = max(1, Int((timelineDuration.seconds
             * Double(outputFrameRate)).rounded()))
         let counter = FrameCounter()
+        let frameProgress = ProgressThrottle(progress)
 
         await withTaskGroup(of: Void.self) { group in
             group.addTask { [cancelled] in
@@ -352,7 +353,7 @@ final class RecorderExporter {
                     // Weighted so the bar never parks at almost-done while the
                     // sound is still being written. It reaches one when the
                     // file is closed, and not before.
-                    progress(min(0.9, Double(done) / Double(expectedFrames) * 0.9))
+                    frameProgress.report(min(0.9, Double(done) / Double(expectedFrames) * 0.9))
                 }
             }
             if let audioInput, let audioOutput {
@@ -606,21 +607,32 @@ final class RecorderExporter {
 
         guard let workspace = try? RecorderGIFWorkspace() else { return .writeFailed }
         defer { workspace.discard() }
+        let frameProgress = ProgressThrottle(progress)
         do {
             let writer = try RecorderGIFWriter(url: workspace.fileURL, fps: fps)
+            // A frame that does not decode, as in a damaged stretch of an
+            // imported movie, repeats the one before it, and frames before
+            // the first that decodes take that one, so the animation keeps
+            // its length. Only a timeline without a single frame fails, and
+            // then the existing destination stays.
+            var previous: CGImage?
+            var missing = 0
             for index in 0..<frameCount {
                 if cancelled.isCancelled { return .cancelled }
                 let seconds = min(outputDuration, Double(index) / Double(fps))
                 let time = CMTime(seconds: seconds, preferredTimescale: 600)
-                // A decode failure must preserve the existing destination,
-                // rather than silently shortening the animation.
-                guard let frame = try? await generator.image(at: time).image else {
-                    return cancelled.isCancelled ? .cancelled : .readFailed
-                }
+                let decoded = try? await generator.image(at: time).image
                 if cancelled.isCancelled { return .cancelled }
-                try writer.append(frame)
-                progress(min(0.99, Double(index + 1) / Double(frameCount)))
+                if let frame = decoded ?? previous {
+                    for _ in 0...missing { try writer.append(frame) }
+                    missing = 0
+                    previous = frame
+                } else {
+                    missing += 1
+                }
+                frameProgress.report(min(0.99, Double(index + 1) / Double(frameCount)))
             }
+            guard previous != nil else { return .readFailed }
             if cancelled.isCancelled { return .cancelled }
             try writer.finish()
             if cancelled.isCancelled { return .cancelled }
@@ -663,6 +675,35 @@ private final class FrameCounter: @unchecked Sendable {
         defer { lock.unlock() }
         count += 1
         return count
+    }
+}
+
+/// Passes progress on at most ten times a second, and only once it has
+/// moved by half a percent. Frames are appended far faster than that, and
+/// every report redraws the editor on the main thread (#3075).
+private final class ProgressThrottle: @unchecked Sendable {
+    private static let interval: TimeInterval = 0.1
+    private static let step = 0.005
+    private let lock = NSLock()
+    private let forward: (Double) -> Void
+    private var lastValue = 0.0
+    private var lastTime = -TimeInterval.infinity
+
+    init(_ forward: @escaping (Double) -> Void) {
+        self.forward = forward
+    }
+
+    func report(_ value: Double) {
+        let now = ProcessInfo.processInfo.systemUptime
+        lock.lock()
+        guard value - lastValue >= Self.step, now - lastTime >= Self.interval else {
+            lock.unlock()
+            return
+        }
+        lastValue = value
+        lastTime = now
+        lock.unlock()
+        forward(value)
     }
 }
 

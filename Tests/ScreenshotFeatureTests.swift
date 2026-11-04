@@ -466,6 +466,30 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotSupport.scrollingSamplesAreStable(nextScrollSample,
                                                            nextScrollSample),
                "settling recognizes two unchanged scrolling frames")
+        func lowContrastSample(offset: Int, noisy: Bool = false) -> ScreenshotSupport.ScrollingSample {
+            let sample = scrollingSample(offset: offset)
+            var pixels = sample.pixels.map { $0 / 16 }
+            if noisy {
+                for index in stride(from: 0, to: pixels.count, by: 17) { pixels[index] += 1 }
+            }
+            return .init(width: sample.width, height: sample.height, pixels: pixels)
+        }
+        suite.expect(ScreenshotSupport.scrollingTransition(previous: lowContrastSample(offset: 0),
+                                                           current: lowContrastSample(offset: 42))
+                == .advanced(overlap: 78, direction: .forward, contentColumns: 0..<16),
+               "a precise low-contrast overlap beats longer but only similar rows")
+        for offset in [2, 42] {
+            for noisy in [false, true] {
+                let start = lowContrastSample(offset: 0)
+                let next = lowContrastSample(offset: offset, noisy: noisy)
+                suite.expect(ScreenshotSupport.scrollingTransition(previous: start, current: next)
+                        == .advanced(overlap: 120 - offset, direction: .forward, contentColumns: 0..<16),
+                             "a precise low-contrast overlap survives similar rows, offset: \(offset), noisy: \(noisy)")
+                suite.expect(ScreenshotSupport.scrollingTransition(previous: next, current: start)
+                        == .advanced(overlap: 120 - offset, direction: .backward, contentColumns: 0..<16),
+                             "low-contrast backtracking keeps the correct overlap, offset: \(offset), noisy: \(noisy)")
+            }
+        }
         let shortFinalScrollSample = scrollingSample(offset: 8)
         suite.expect(ScreenshotSupport.scrollingTransition(previous: firstScrollSample,
                                                      current: shortFinalScrollSample)
@@ -540,7 +564,7 @@ enum ScreenshotFeatureTests {
             fixedBottomRows: 0) == 78..<120,
                "captures without a fixed footer keep the original crop geometry")
         // Each input is independent: repeating the same pure call adds no case.
-        for offset in [8, 76] {
+        for offset in [8, 76, 96, 104] {
             let transition = ScreenshotSupport.scrollingTransition(
                 previous: firstScrollSample,
                 current: scrollingSample(offset: offset))
@@ -548,6 +572,12 @@ enum ScreenshotFeatureTests {
                                             direction: .forward,
                                             contentColumns: 0..<16),
                    "scroll matching handles an advance of \(offset) rows: \(transition)")
+            suite.expect(ScreenshotSupport.scrollingTransition(
+                previous: scrollingSample(offset: offset),
+                current: firstScrollSample) == .advanced(overlap: 120 - offset,
+                                                       direction: .backward,
+                                                       contentColumns: 0..<16),
+                "small overlaps also identify backward scrolling by \(offset) rows")
         }
         let retinaScrollStart = scrollingSample(width: 32, height: 900, offset: 0)
         let retinaScrollNext = scrollingSample(width: 32, height: 900, offset: 558)
@@ -614,6 +644,21 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotSupport.scrollingTransition(previous: firstScrollSample,
                                                      current: unmatchedScrollSample) == .unmatched,
                "ambiguous content fails instead of inventing a seam")
+        func repeatedScrollSample(offset: Int, noisy: Bool = false) -> ScreenshotSupport.ScrollingSample {
+            var pixels = [UInt8](repeating: 0, count: 16 * 120)
+            for index in pixels.indices {
+                let row = (index / 16 + offset) % 24
+                let noise = noisy && index % 17 == 0 ? 1 : 0
+                pixels[index] = UInt8(row * 9 + noise)
+            }
+            return .init(width: 16, height: 120, pixels: pixels)
+        }
+        for noisy in [false, true] {
+            suite.expect(ScreenshotSupport.scrollingTransition(
+                previous: repeatedScrollSample(offset: 0),
+                current: repeatedScrollSample(offset: 8, noisy: noisy)) == .unmatched,
+                "equally precise repeated rows cannot select an arbitrary scroll offset, noisy: \(noisy)")
+        }
         suite.expectClose(Double(ScreenshotSupport.captureScale(fromDPI: 144) ?? 0), 2,
                     "the cached screenshot restores its Retina scale from PNG metadata")
         suite.expect(ScreenshotSupport.captureScale(fromDPI: nil) == nil
@@ -1262,6 +1307,18 @@ enum ScreenshotFeatureTests {
         suite.expect(!fullScreenClickHost.passesThrough
                 && fullScreenClickHost.acceptsFirstMouse(for: nil),
                "the interactive full-screen host receives its first click while Dynamic Island owns key focus")
+        let buttonSize = fullScreenClickHost.fittingSize
+        suite.expect(buttonSize.width > 1 && buttonSize.height > 0,
+               "the full-screen button retains a measurable size instead of collapsing to one point")
+        let fixedGuideHost = PassThroughHostingView(fixedFrameRootView: Text("Screenshot"))
+        let guideFrame = CGRect(x: 100, y: 100, width: 620, height: 146)
+        fixedGuideHost.frame = guideFrame
+        for title in ["Record screen", "Pick color", "Screenshot"] {
+            fixedGuideHost.rootView = Text(title)
+            fixedGuideHost.layoutSubtreeIfNeeded()
+            suite.expect(fixedGuideHost.frame == guideFrame && fixedGuideHost.sizingOptions.isEmpty,
+                   "changing the capture guide leaves its assigned frame intact")
+        }
         suite.expect(ScreenshotSupport.offersRepeatLastRegion(isPickingColor: false,
                                                         storedRegionDisplayIsAvailable: true),
                "the repeat hint is offered once a region is stored on a display still in the session")
@@ -1274,6 +1331,11 @@ enum ScreenshotFeatureTests {
         let captureSelectionSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
             encoding: .utf8)) ?? ""
+        suite.expect(captureSelectionSource.contains(
+            "PassThroughHostingView(fixedFrameRootView: CaptureGuideView(")
+                && captureSelectionSource.contains(
+                    "PassThroughHostingView(interactiveRootView: FullScreenCaptureButton("),
+               "only the manually sized capture guide opts out of intrinsic hosting size")
         suite.expect(captureSelectionSource.contains(
             "override func mouseExited(with event: NSEvent) {\n        refreshPointerState()\n        refreshGuideVisibility()"),
                "system chrome cannot hide the capture chooser while the pointer remains on its display")
@@ -1404,6 +1466,42 @@ enum ScreenshotFeatureTests {
             .components(separatedBy: "\n}").first ?? ""
         suite.expect(overlayViewBody.contains("acceptsFirstMouse") && overlayViewBody.contains("acceptsFirstMouse(for event: NSEvent?) -> Bool { true }"),
                "the capture surface claims the first click so a drag works while Dynamic Island holds key focus")
+        // The other half of that drag: live, the panel is clear and draws no
+        // dim over the desktop until the drag starts, and a window left at the
+        // default passes a press on a transparent pixel through to the desktop.
+        // A session can start live, so the assignment must be a statement of
+        // the initializer itself, not a branch or a later update, and nothing
+        // in the class may set the property to true.
+        let overlayPanelBody = selectionSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+            .components(separatedBy: "class ScreenshotOverlayPanel").dropFirst().first?
+            .components(separatedBy: "\n}").first ?? ""
+        let overlayPanelInit = overlayPanelBody.components(separatedBy: "super.init(contentRect:").dropFirst().first?
+            .components(separatedBy: "\n    }").first ?? ""
+        suite.expect(overlayPanelInit.components(separatedBy: "\n").contains("        ignoresMouseEvents = false")
+                && !overlayPanelBody.contains("ignoresMouseEvents = true"),
+               "the clear capture surface takes a press over the bare desktop instead of passing it through")
+        // Taking every press lasts until the window is really gone, and AppKit
+        // fades the panel out after `orderOut`, so a quick click or the first
+        // scroll after a capture landed on the leaving panel. Every path that
+        // orders the panels out goes through the retire step, which lets go of
+        // the mouse and flushes that to the window server before they leave.
+        let selectionCode = selectionSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        func selectionMethod(_ signature: String) -> String {
+            selectionCode.components(separatedBy: signature).dropFirst().first?
+                .components(separatedBy: "\n    }").first ?? ""
+        }
+        let retireBody = selectionMethod("private func retirePanels()")
+        let retireSteps = ["$0.ignoresMouseEvents = true", "CATransaction.flush()", "$0.orderOut(nil)"]
+            .compactMap { retireBody.range(of: $0)?.lowerBound }
+        suite.expect(retireSteps.count == 3 && retireSteps == retireSteps.sorted()
+                && selectionCode.components(separatedBy: "orderOut(").count == 2
+                && selectionMethod("private func captureLive(").contains("retirePanels()")
+                && selectionMethod("private func finish(").contains("retirePanels()"),
+               "a capture surface leaving the screen stops taking the mouse before its fade")
         // Both editors state a size the same way. The recorder wrote
         // "1960x1274" beside a screenshot editor that already read
         // "2940 \u{00D7} 1912 px", and the letter x is the tell.
@@ -2865,6 +2963,52 @@ enum ScreenshotFeatureTests {
                                                colors: [[0, 2, -1], [0.5, 0.5, 0.5]])
                 .sanitized().colors?.first == [0, 1, 0],
                "gradient colors clamp component by component")
+        // A window capture keeps its rounded corners in its alpha. The card's
+        // shadow has to follow them, or a square of shadow shows past them.
+        func card(cornerRadius: CGFloat) -> CGImage? {
+            guard let context = CGContext(data: nil, width: 400, height: 300, bitsPerComponent: 8,
+                                          bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return nil }
+            context.setFillColor(CGColor(gray: 0.5, alpha: 1))
+            context.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: 400, height: 300),
+                                   cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil))
+            context.fillPath()
+            return context.makeImage()
+        }
+        if let square = card(cornerRadius: 0), let window = card(cornerRadius: 40) {
+            suite.expect(ScreenshotSupport.transparentCornerRadius(of: square) == 0,
+                   "an opaque capture has no rounding of its own")
+            suite.expect(abs(ScreenshotSupport.transparentCornerRadius(of: window) - 40) <= 3,
+                   "a window's own corner radius is read from its alpha")
+            func shadowBrightness(_ image: CGImage) -> UInt8? {
+                let margin = Int(ScreenshotSupport.backdropPadding(for: CGSize(width: 400, height: 300),
+                                                                   factor: 1))
+                guard let export = ScreenshotRenderer.renderExport(
+                        baseImage: image, annotations: [], blurSources: .none, scale: 1,
+                        annotationShadowsEnabled: false, watermark: ScreenshotSupport.WatermarkStyle(),
+                        watermarkImage: nil,
+                        style: ScreenshotSupport.BackdropStyle(kind: .solid, colors: [[1, 1, 1]],
+                                                               padding: 1, cornerRadius: 0),
+                        fill: .colors([(red: 1, green: 1, blue: 1)]), downscaleTo1x: false)?.image,
+                      let context = CGContext(data: nil, width: export.width, height: export.height,
+                                              bitsPerComponent: 8, bytesPerRow: export.width * 4,
+                                              space: CGColorSpaceCreateDeviceRGB(),
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+                      let pixels = context.data
+                else { return nil }
+                context.draw(export, in: CGRect(x: 0, y: 0, width: export.width, height: export.height))
+                // Just outside the card's lower left corner, where the shadow falls.
+                let x = margin - 2, y = export.height - margin + 1
+                return pixels.load(fromByteOffset: (y * export.width + x) * 4, as: UInt8.self)
+            }
+            if let squareCorner = shadowBrightness(square), let windowCorner = shadowBrightness(window) {
+                suite.expect(Int(windowCorner) - Int(squareCorner) >= 20,
+                       "the shadow follows a window's own rounded corner instead of a square card")
+            } else {
+                suite.expect(false, "the corner shadow test exports render")
+            }
+        }
 
         let presetList = [solidStyle,
                           ScreenshotSupport.BackdropStyle(kind: .gradient,

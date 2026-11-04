@@ -1526,14 +1526,20 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
             QuickToolHUD.show(icon: "record.circle", message: strings.exportFailed)
             return
         }
-        run(.gif, to: destination, rememberDestination: false) { [weak self] url in
-            guard let self else { return }
-            guard RecorderGIFClipboard.publish(fileURL: url) else {
-                NSSound.beep()
-                QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)
-                return
+        let strings = strings
+        run(.gif, to: destination, rememberDestination: false) { url in
+            // A long recording's GIF takes a while to check, so it goes on
+            // the pasteboard's own lane instead of the main thread.
+            GeneralPasteboardAccess.shared.async({
+                RecorderGIFClipboard.publish(fileURL: url)
+            }) { published in
+                guard published else {
+                    NSSound.beep()
+                    QuickToolHUD.show(icon: "record.circle", message: strings.exportFailed)
+                    return
+                }
+                QuickToolHUD.show(icon: "doc.on.doc", message: strings.copiedHUD)
             }
-            QuickToolHUD.show(icon: "doc.on.doc", message: self.strings.copiedHUD)
         }
     }
 
