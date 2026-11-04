@@ -63,7 +63,8 @@ struct NotchLiveEqualizerBars: View {
 
     var body: some View {
         NotchEqualizerBars(isPlaying: isPlaying, bars: bars, barWidth: barWidth, height: height, tint: tint,
-                           field: field, live: audio.levels ?? (audio.hearsNothing ? [0] : nil))
+                           field: field, live: audio.levels ?? (audio.hearsNothing ? [0] : nil),
+                           liveReadAt: audio.levelsReadAt, onPainted: audio.painted)
     }
 }
 
