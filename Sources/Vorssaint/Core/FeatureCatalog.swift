@@ -16,7 +16,7 @@ enum AppFeature: String, CaseIterable {
     // Windows and Dock
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit, spacesOrder, dockTweaks
     // Mouse and keyboard
-    case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
+    case scrollInverter, scrollHorizontal, scrollZoom, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
@@ -26,7 +26,7 @@ enum AppFeature: String, CaseIterable {
     // Energy and display
     case keepAwake, brightness, extraBrightness, bluetoothSleep
     // Tools
-    case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
+    case quickLauncher, quickToggles, quitApps, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
          commandBar, screenRecorder, wallpaper, killProcess, portManager
     // Dynamic Island, then its extensions
@@ -45,7 +45,7 @@ enum FeatureGroup: String, CaseIterable {
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
     case accessibility, screenRecording, fullDiskAccess, filesAndFolders, notifications,
-         automationFinder, automationTerminal, automationPlayback, audioCapture, microphone, camera, appManagement, calendar
+         automationFinder, automationPlayback, audioCapture, microphone, camera, appManagement, calendar
 }
 
 enum PermissionPollingSupport {
@@ -104,7 +104,7 @@ extension AppFeature {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder,
              .dockTweaks:
             return .windowsDock
-        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
@@ -114,7 +114,7 @@ extension AppFeature {
             return .sound
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep:
             return .energyDisplay
-        case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+        case .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
              .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
             return .tools
@@ -140,6 +140,7 @@ extension AppFeature {
         case .dockTweaks: return "slider.horizontal.3"
         case .scrollInverter: return "arrow.up.arrow.down"
         case .scrollHorizontal: return "arrow.triangle.swap"
+        case .scrollZoom: return "plus.magnifyingglass"
         case .focusFollowsMouse: return "cursorarrow.and.square.on.square.dashed"
         case .smoothScroll: return "cursorarrow.motionlines"
         case .linearScroll: return "arrow.up.and.down.text.horizontal"
@@ -173,6 +174,7 @@ extension AppFeature {
         case .bluetoothSleep: return "wave.3.right.circle"
         case .quickLauncher: return "wand.and.rays"
         case .quickToggles: return "togglepower"
+        case .quitApps: return "xmark.app"
         case .colorPicker: return "eyedropper"
         case .screenOCR: return "text.viewfinder"
         case .cleaningMode: return "bubbles.and.sparkles"
@@ -245,6 +247,7 @@ extension AppFeature {
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled,
                                       DefaultsKey.scrollInverterHorizontalEnabled]
         case .scrollHorizontal: return [DefaultsKey.scrollHorizontalEnabled]
+        case .scrollZoom: return [DefaultsKey.pinchZoomEnabled]
         case .focusFollowsMouse: return [DefaultsKey.focusFollowsMouseEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .linearScroll: return [DefaultsKey.linearScrollEnabled]
@@ -290,7 +293,7 @@ extension AppFeature {
         // The Dock tweaks read and write the Dock's own preferences, so the
         // app keeps no switch of its own for them.
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake, .dockTweaks,
-             .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+             .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
@@ -353,7 +356,7 @@ extension AppFeature {
         case .notch: return [.accessibility, .automationPlayback]
         case .mouseAcceleration, .spacesOrder, .dockTweaks:
             return []
-        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
              .dockClick, .windowMaximizer, .windowLayout,
              .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
@@ -379,7 +382,7 @@ extension AppFeature {
         case .brightness: return [.accessibility]
         case .cleaner: return [.fullDiskAccess, .filesAndFolders, .notifications]
         case .uninstaller: return [.fullDiskAccess, .automationFinder]
-        case .homebrew: return [.automationTerminal, .appManagement]
+        case .homebrew: return [.appManagement]
         case .appUpdates: return [.notifications, .appManagement]
         case .diskImageInstaller: return [.appManagement]
         case .mixer: return [.audioCapture, .accessibility]
@@ -389,7 +392,9 @@ extension AppFeature {
              .soundOutputSwitcher, .audioPriority,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
              .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
-             .portManager:
+             .portManager,
+             // Each app gets the ordinary quit request it would from its own menu.
+             .quitApps:
             return []
         }
     }
@@ -487,8 +492,8 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices:
             return true
-        case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder,
+        case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .diskImageInstaller, .audioPriority,
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps,
              .dockTweaks:
             return false
         }
@@ -623,7 +628,7 @@ extension AppPermission {
         case .fullDiskAccess: return "externaldrive.badge.person.crop"
         case .filesAndFolders: return "folder.badge.person.crop"
         case .notifications: return "bell.badge"
-        case .automationFinder, .automationTerminal, .automationPlayback: return "gearshape.2"
+        case .automationFinder, .automationPlayback: return "gearshape.2"
         case .audioCapture: return "waveform"
         case .microphone: return "mic"
         case .calendar: return "calendar"

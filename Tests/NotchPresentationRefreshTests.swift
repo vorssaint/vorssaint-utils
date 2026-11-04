@@ -177,6 +177,7 @@ enum NotchPresentationRefreshContract {
         var captureContentHeight: CGFloat?
         var captureFallback: (() -> Void)?
         var captureClose: (() -> Void)?
+        var captureDismiss: (() -> Void)?
         var captureHover: ((Bool) -> Void)?
         var captureClosesOnCollapse = false
         var routesCaptures = true
@@ -277,6 +278,7 @@ enum NotchPresentationRefreshContract {
         func syncHiddenHoverMonitoring() {}
         func schedulePointerFollow() {}
         func syncMirrors() {}
+        var mirrorHeldForArrival: CGDirectDisplayID?
         func finishMusicDeparture() {
             musicDepartureWork?.cancel(); musicDepartureWork = nil
             departingMusic = nil
@@ -510,6 +512,15 @@ enum NotchPresentationRefreshContract {
         fullscreen.refreshPresentation()
         suite.expect(fullscreen.panel?.isVisible == true && fullscreen.acceptsSystemFeedback,
                      "leaving fullscreen restores ordinary content and feedback routing")
+        let relocatingCapture = Service()
+        relocatingCapture.captureControls = CaptureOptions()
+        relocatingCapture.captureSelectionInProgress = true
+        relocatingCapture.mirrorHeldForArrival = 2
+        relocatingCapture.panel?.isVisible = false
+        relocatingCapture.refreshPresentation(animated: false)
+        suite.expect(relocatingCapture.windowHost?.hideAnimations == [false]
+                     && relocatingCapture.panel?.isVisible == false && !relocatingCapture.edgeClicksEnabled,
+                     "selection during a relocation hides through the host, so a pending arrival cannot reveal controls")
         let countdown = Service()
         countdown.expanded = false
         countdown.compactActivityIsVisible = true

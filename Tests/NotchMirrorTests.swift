@@ -28,7 +28,14 @@ enum NotchMirrorContract {
         var isVisible = false
         var sharingType = NSWindow.SharingType.readOnly
         var orders = 0
+        var orderedBelow = 0
+        var windowNumber = 1
         func orderFrontRegardless() { isVisible = true; orders += 1 }
+        func order(_ place: NSWindow.OrderingMode, relativeTo otherWindow: Int) {
+            isVisible = true
+            orders += 1
+            if place == .below { orderedBelow += 1 }
+        }
     }
     final class Host {
         let panel = Panel()
@@ -64,10 +71,15 @@ enum NotchMirrorContract {
         }
         static func topology() -> Topology? { Topology() }
     }
+    enum NotchAppFullscreen {
+        static var covered: Set<CGDirectDisplayID> = []
+        static func coveredDisplays() -> Set<CGDirectDisplayID> { covered }
+    }
 
     class State {
         var showsOnAllDisplays = true, running = true, suspended = false
         var windowHost: Host? = Host()
+        var mirrorHeldForArrival: CGDirectDisplayID?
         var displayID: CGDirectDisplayID? = 1
         var mirrors: [CGDirectDisplayID: NotchMirror] = [:]
         var fullscreenDisplays: Set<CGDirectDisplayID> = []
@@ -118,6 +130,7 @@ enum NotchMirrorContract {
             NSScreen.screens = []
             NSScreen.screensHaveSeparateSpaces = true
             SpaceWindowBridge.fullscreen = []
+            NotchAppFullscreen.covered = []
         }
         let builtIn = NSScreen(1, CGRect(x: 0, y: 0, width: 1470, height: 956), notched: true)
         let external = NSScreen(2, CGRect(x: 1470, y: -86, width: 1920, height: 1080))
@@ -148,6 +161,23 @@ enum NotchMirrorContract {
                      && capsule?.model.size.width == external2.restingSize(showsContent: false).width + 40
                      && capsule?.host.outline?.enabled == true && capsule?.host.outline?.color == .systemOrange,
                      "a timer starting reshapes each copy as the island does, in the timer's outline")
+
+        let trading = Service()
+        trading.syncMirrors()
+        let kept = trading.mirrors[2]
+        trading.windowHost?.panel.isVisible = true
+        trading.mirrorHeldForArrival = 2
+        trading.displayID = 2
+        trading.syncMirrors()
+        let underneath = trading.mirrors[1]
+        suite.expect(kept?.model.shown == true && kept?.host.hides == 0
+                     && underneath?.model.shown == true && underneath?.host.panel.orderedBelow == 1,
+                     "while the island moves, the copy it is joining stays up and the one it leaves sits underneath")
+        trading.mirrorHeldForArrival = nil
+        trading.syncMirrors()
+        suite.expect(kept?.model.shown == false && kept?.host.hides == 1 && underneath?.model.shown == true,
+                     "the copy steps aside once the island has arrived on its display")
+        arrivalVisibilityContracts(suite)
 
         // The island follows the pointer to the external display.
         service.displayID = 2
@@ -274,5 +304,85 @@ enum NotchMirrorContract {
                      && model.update(geometry: external2, strip: external2, size: CGSize(width: 120, height: 24), activity: .music)
                      && model.activity == .music,
                      "a copy is only redrawn when what it shows changes")
+    }
+
+    /// A pending arrival may retain an eligible copy, but cannot overrule the
+    /// same visibility policy that ordinarily removes that display's island.
+    private static func arrivalVisibilityContracts(_ suite: TestSuite) {
+        let separateSpaces = NSScreen.screensHaveSeparateSpaces
+        defer {
+            NSScreen.screensHaveSeparateSpaces = separateSpaces
+            SpaceWindowBridge.fullscreen = []
+            NotchAppFullscreen.covered = []
+        }
+        func arriving(activity: NotchCompactActivity? = nil) -> Service {
+            let service = Service()
+            service.compactActivity = activity
+            service.syncMirrors()
+            service.displayID = 2
+            service.mirrorHeldForArrival = 2
+            return service
+        }
+
+        let allowed = arriving()
+        let allowedCopy = allowed.mirrors[2]!
+        allowed.syncMirrors()
+        suite.expect(allowedCopy.model.shown && allowedCopy.host.panel.isVisible
+                     && allowedCopy.host.presented.count == 1 && allowedCopy.host.hides == 0,
+                     "holding an eligible arrival leaves its already drawn copy untouched")
+
+        for appFullscreen in [false, true] {
+            let fullscreen = arriving()
+            let copy = fullscreen.mirrors[2]!
+            fullscreen.hidesInFullscreen = true
+            if appFullscreen { NotchAppFullscreen.covered = [2] }
+            else { SpaceWindowBridge.fullscreen = [2] }
+            fullscreen.updateFullscreenDisplays()
+            fullscreen.syncMirrors()
+            suite.expect(fullscreen.fullscreenDisplays.contains(2) && !copy.model.shown
+                         && !copy.host.panel.isVisible && copy.host.hides == 1,
+                         "a held arrival still hides for \(appFullscreen ? "an application's" : "a Space's") full screen")
+            SpaceWindowBridge.fullscreen = []
+            NotchAppFullscreen.covered = []
+        }
+
+        let hidden = arriving()
+        let hiddenCopy = hidden.mirrors[2]!
+        hidden.hidesUntilHover = true
+        hidden.syncMirrors()
+        suite.expect(!hiddenCopy.model.shown && !hiddenCopy.host.panel.isVisible && hiddenCopy.host.hides == 1,
+                     "hide-until-hover removes a held copy when it has no activity to keep visible")
+
+        let active = arriving(activity: .music)
+        let activeCopy = active.mirrors[2]!
+        active.hidesUntilHover = true
+        active.hiddenShowsActivity = true
+        active.syncMirrors()
+        suite.expect(activeCopy.model.shown && activeCopy.host.panel.isVisible && activeCopy.host.hides == 0,
+                     "hide-until-hover still permits a held copy of an activity configured to remain visible")
+        active.compactActivity = nil
+        active.syncMirrors()
+        suite.expect(!activeCopy.model.shown && activeCopy.host.hides == 1,
+                     "an activity ending removes its held copy even before the live island arrives")
+
+        let noRoom = arriving()
+        let coveredMenus = noRoom.mirrors[2]!
+        NSScreen.screensHaveSeparateSpaces = true
+        noRoom.coversMenus = false
+        noRoom.syncMirrors()
+        suite.expect(!coveredMenus.model.shown && !coveredMenus.host.panel.isVisible && coveredMenus.host.hides == 1,
+                     "a held capsule gives way when its display gains menus the island cannot cover")
+
+        let camera = Service()
+        camera.displayID = 2
+        camera.coversMenus = false
+        camera.syncMirrors()
+        let cameraCopy = camera.mirrors[1]!
+        camera.displayID = 1
+        camera.mirrorHeldForArrival = 1
+        camera.syncMirrors()
+        suite.expect(cameraCopy.model.shown && cameraCopy.model.geometry.compactSideRoom == nil
+                     && cameraCopy.host.hides == 0,
+                     "a held physical camera remains covered even when the menus leave no room for wings")
     }
 }
