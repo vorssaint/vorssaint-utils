@@ -227,14 +227,29 @@ enum CleanerSupport {
     /// Whether an installed bundle identifier owns this candidate. Ownership
     /// is the exact id or a dot separated prefix in either direction, so
     /// com.maker.App keeps com.maker.App.helper (embedded helpers register
-    /// no app of their own) and com.maker keeps com.maker.App.
+    /// no app of their own) and com.maker keeps com.maker.App. A two part
+    /// name read as a domain is also owned by the identifiers under its
+    /// reverse: vendors name support folders after their site, so an
+    /// installed net.battle.app keeps Battle.net.
     static func isOwned(candidate: String, byInstalled installed: Set<String>) -> Bool {
         let lowered = candidate.lowercased()
         if installed.contains(lowered) { return true }
+        let reversedDomain = reversedDomainNamespace(of: lowered)
         for id in installed {
             if lowered.hasPrefix(id + ".") || id.hasPrefix(lowered + ".") { return true }
+            if let reversedDomain, id == reversedDomain || id.hasPrefix(reversedDomain + ".") { return true }
         }
         return false
+    }
+
+    /// The reverse namespace of a two part domain shaped name (battle.net
+    /// gives net.battle). Hosting sites are excluded for the same reason as
+    /// in the vendor namespace: unrelated developers share them.
+    private static func reversedDomainNamespace(of name: String) -> String? {
+        let parts = name.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty,
+              !hostingNamespaces.contains(String(parts[0])) else { return nil }
+        return parts[1] + "." + parts[0]
     }
 
     /// The executables a launchd property list points at, in the order they
