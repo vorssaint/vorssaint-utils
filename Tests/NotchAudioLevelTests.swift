@@ -94,6 +94,30 @@ enum NotchAudioLevelTests {
         expect(delay(256, 0, 256, 0) == 0, "an output faster than the bars themselves is read without a delay")
         expect(delay(.max, .max, .max, .max) == 36_000,
                "an output misreporting its latency cannot hold the bars back without end")
+        var silent = NotchAudioLevelSupport.Smoother()
+        let nothing = [Double](repeating: 0, count: 6)
+        var silentLevels = silent.next(nothing)
+        for _ in 0..<Int(NotchAudioLevelSupport.updatesPerSecond * 300) { silentLevels = silent.next(nothing) }
+        expect(silentLevels == nothing, "five minutes of silence leaves the bars lying flat as the scale eases down")
+        typealias TapWatch = NotchAudioLevelSupport.TapWatch
+        var watch = TapWatch()
+        expect(!watch.shouldRebuild(heard: false, at: 0), "a watch starts by noting the time")
+        expect(!watch.shouldRebuild(heard: false, at: TapWatch.firstWait - 0.1), "a short silence is left alone")
+        expect(watch.shouldRebuild(heard: false, at: TapWatch.firstWait), "a tap silent for the first wait is built again")
+        expect(!watch.shouldRebuild(heard: false, at: TapWatch.firstWait * 2),
+               "a second try waits longer for a player that may really be quiet")
+        expect(watch.shouldRebuild(heard: false, at: TapWatch.firstWait * 3), "the second try comes after twice the wait")
+        var patient = TapWatch()
+        _ = patient.shouldRebuild(heard: false, at: 0)
+        var rebuiltAt: [Double] = []
+        for second in 1...400 where patient.shouldRebuild(heard: false, at: Double(second)) { rebuiltAt.append(Double(second)) }
+        expect(zip(rebuiltAt.dropFirst(), rebuiltAt).allSatisfy { $0 - $1 <= TapWatch.longestWait },
+               "a tap that stays deaf keeps being tried at the longest wait")
+        expect(!patient.shouldRebuild(heard: true, at: 401), "sound stops the retries")
+        expect(!patient.shouldRebuild(heard: false, at: 401 + TapWatch.firstWait - 0.1),
+               "sound starts the wait over")
+        expect(patient.shouldRebuild(heard: false, at: 401 + TapWatch.firstWait),
+               "a tap that goes deaf again is caught as soon as the first time")
         typealias PaintLag = NotchAudioLevelSupport.PaintLag
         var paint = PaintLag()
         paint.record(0.09)
@@ -209,6 +233,15 @@ enum NotchAudioRingContract {
                                    mData: buffer.baseAddress))
         }
         var block = [Float](repeating: 0, count: 2)
+        expect(ring.takeSound() && !ring.takeSound(), "sound is reported once for each time of asking")
+        let deaf = NotchAudioRing(capacity: 8)
+        var quiet = [Float](repeating: 0, count: 4)
+        quiet.withUnsafeMutableBufferPointer { buffer in
+            deaf.write(AudioBuffer(mNumberChannels: 1,
+                                   mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                   mData: buffer.baseAddress))
+        }
+        expect(!deaf.takeSound(), "digital silence does not count as sound")
         expect(ring.latest(into: &block) && block == [5, 6], "without a delay the newest samples are read")
         expect(ring.latest(into: &block, delay: 3) && block == [2, 3],
                "a delay reads the samples the output is playing now")

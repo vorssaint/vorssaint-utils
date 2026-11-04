@@ -56,6 +56,34 @@ enum NotchAudioLevelSupport {
         return min(max(0, outputFrames - Int(rate * (barLag + paintLag))), Int(rate * longestPlaybackDelay))
     }
 
+    /// Notices a tap that has stopped hearing a player it has already heard.
+    /// A tap can go deaf without a word, as when headphones are switched off
+    /// and on again: its device keeps running and delivers pure silence, which
+    /// looks the same as a quiet moment in a song. A new tap costs nothing the
+    /// silence has not already lost, so it is tried soon, then less often,
+    /// for a player that really has gone quiet.
+    struct TapWatch: Equatable {
+        static let firstWait = 3.0
+        static let longestWait = 30.0
+
+        private var quietSince: TimeInterval?
+        private var wait = firstWait
+
+        /// Whether to build the tap again, given whether any sound has
+        /// arrived since the last time of asking.
+        mutating func shouldRebuild(heard: Bool, at now: TimeInterval) -> Bool {
+            if heard { wait = Self.firstWait }
+            guard !heard, let quietSince else {
+                self.quietSince = now
+                return false
+            }
+            guard now - quietSince >= wait else { return false }
+            self.quietSince = now
+            wait = min(wait * 2, Self.longestWait)
+            return true
+        }
+    }
+
     /// How long the bars' motion takes to show a sound: half an analysis
     /// block, the wait for the next reading, the glide to it and the spring.
     /// Read that much sooner, so the bars land on the beat rather than after it.
@@ -228,7 +256,9 @@ enum NotchAudioLevelSupport {
         mutating func scaled(_ raw: [Double]) -> [Double] {
             peak = max(raw.max() ?? 0, peak - Self.ease)
             let bottom = peak + Self.headroom - Self.span
-            return raw.map { min(1, max(0, ($0 - bottom) / Self.span)) }
+            // Silence stays flat however far the scale has eased down: a level
+            // of nothing would otherwise rise with it, every band alike.
+            return raw.map { $0 > 0 ? min(1, max(0, ($0 - bottom) / Self.span)) : 0 }
         }
 
         static func frequency(band: Int, of bands: Int) -> Double {
