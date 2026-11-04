@@ -19,6 +19,11 @@ enum SettingsBackup {
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         ScratchpadService.shared.prepareForSettingsBackup()
+        return write(to: url)
+    }
+
+    /// Writes the backup file; false when it could not be saved.
+    static func write(to url: URL) -> Bool {
         let defaults = UserDefaults.standard
         // object(forKey:) sees through to registered defaults, so the file is
         // a complete snapshot: importing it reproduces this exact setup even
@@ -70,10 +75,16 @@ enum SettingsBackup {
         return SettingsBackupSupport.sanitizedSettings(from: payload)
     }
 
-    /// Clears the exportable keys (unset ones fall back to their registered
-    /// defaults), writes the file's values and relaunches.
+    /// Applies the file's values and relaunches.
     static func applyAndRelaunch(settings: [String: Any]) {
         ScratchpadService.shared.prepareForSettingsRestore()
+        apply(settings: settings)
+        FeatureRuntime.shared.relaunchApp()
+    }
+
+    /// Clears the exportable keys (unset ones fall back to their registered
+    /// defaults) and writes the file's values.
+    static func apply(settings: [String: Any]) {
         let defaults = UserDefaults.standard
         let localRecorderPresets = defaults.data(forKey: DefaultsKey.recorderEditorPresets)
         let localWatermark = defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle)
@@ -121,6 +132,44 @@ enum SettingsBackup {
                 restored: defaults.stringArray(forKey: DefaultsKey.windowLayoutIgnoredApps) ?? [],
                 carried: windowLayoutPaths), forKey: DefaultsKey.windowLayoutIgnoredApps)
         }
-        FeatureRuntime.shared.relaunchApp()
+    }
+
+    /// `--export-settings FILE` and `--import-settings FILE`, for scripts and
+    /// dotfiles. Runs before the app starts, so no menu bar item or window
+    /// appears.
+    static func runCommandAndExit(_ command: SettingsBackupSupport.Command) -> Never {
+        switch command {
+        case .conflictingFlags:
+            failCommand("use exactly one settings backup flag")
+        case .missingFile(let flag):
+            failCommand("\(flag) needs a file path")
+        case .export(let path):
+            Defaults.register()
+            guard write(to: URL(fileURLWithPath: path)) else { failCommand("could not save \(path)") }
+            print("SETTINGS: exported to \(path)")
+        case .import(let path):
+            // A running app keeps the settings it already loaded and saves some
+            // of them again, over the imported ones. The Import button
+            // relaunches for the same reason.
+            let pid = ProcessInfo.processInfo.processIdentifier
+            let running = NSRunningApplication.runningApplications(
+                withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+                .contains { $0.processIdentifier != pid }
+            guard !running else { failCommand("quit the app before importing settings") }
+            guard let settings = readSettings(at: URL(fileURLWithPath: path)) else {
+                failCommand("\(path) is not a valid Vorssaint backup")
+            }
+            Defaults.register()
+            apply(settings: settings)
+            // The process exits next; make sure the writes reach the store.
+            UserDefaults.standard.synchronize()
+            print("SETTINGS: imported from \(path)")
+        }
+        exit(EXIT_SUCCESS)
+    }
+
+    private static func failCommand(_ message: String) -> Never {
+        FileHandle.standardError.write(Data("SETTINGS: \(message)\n".utf8))
+        exit(EXIT_FAILURE)
     }
 }

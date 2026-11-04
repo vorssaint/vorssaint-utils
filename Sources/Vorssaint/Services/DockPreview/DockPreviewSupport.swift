@@ -341,6 +341,11 @@ enum DockPreviewSupport {
     /// polling rate while remaining much faster than the hover delay.
     static let mouseMoveSampleInterval: TimeInterval = 1.0 / 60
 
+    /// How long a Dock hit-test may wait on the Dock before giving up. It
+    /// runs on the main thread inside the mouse handler, so a stuck Dock
+    /// must cost a skipped move rather than the default six-second stall.
+    static let dockHitTimeout: Float = 0.25
+
     static func availability(enabled: Bool,
                              hasAccessibility: Bool,
                              hasScreenRecording: Bool,

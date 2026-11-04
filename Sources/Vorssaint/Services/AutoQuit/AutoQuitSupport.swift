@@ -125,20 +125,57 @@ enum AutoQuitSupport {
         }
     }
 
-    /// Menu bar and background apps (LSUIElement, LSBackgroundOnly) take a
-    /// Dock icon only while a window such as Settings is open. Closing that
-    /// window is not quitting the app (issue #1824).
-    static func isBackgroundApp(bundleURL: URL?) -> Bool {
-        guard let bundleURL, let bundle = Bundle(url: bundleURL) else { return false }
-        return ["LSUIElement", "LSBackgroundOnly"].contains { key in
-            (bundle.object(forInfoDictionaryKey: key) as? NSNumber)?.boolValue
-                ?? (bundle.object(forInfoDictionaryKey: key) as? NSString)?.boolValue
-                ?? false
+    /// Exemptions always win over an explicit menu bar app choice. Permission
+    /// to quit belongs only to the selected bundle, never to its nested helpers.
+    static func isQuitExempt(bundleIdentifier: String?,
+                             bundleURL: URL?,
+                             isInDock: Bool,
+                             exceptions: [String],
+                             dockApps: [String]) -> Bool {
+        if isExcepted(bundleIdentifier: bundleIdentifier,
+                      bundleURL: bundleURL,
+                      exceptions: Defaults.mandatoryAutoQuitExceptionBundleIDs + exceptions) {
+            return true
         }
+        let allowsMenuBarQuit = bundleIdentifier.map { dockApps.contains($0) } ?? false
+        return isBackgroundApp(bundleURL: bundleURL,
+                               isInDock: isInDock,
+                               allowsMenuBarQuit: allowsMenuBarQuit)
+    }
+
+    /// A current Dock icon cannot distinguish a permanent choice (#2516) from
+    /// a menu bar app that drops it after Settings closes (#1824). Keep the
+    /// exemption unless the user explicitly selected this app. Background-only
+    /// apps remain exempt regardless of that choice or their current policy.
+    static func isBackgroundApp(bundleURL: URL?,
+                                isInDock: Bool,
+                                allowsMenuBarQuit: Bool = false) -> Bool {
+        guard let bundleURL, let bundle = Bundle(url: bundleURL) else { return false }
+        return bundleFlag("LSBackgroundOnly", in: bundle)
+            || (bundleFlag("LSUIElement", in: bundle) && (!allowsMenuBarQuit || !isInDock))
+    }
+
+    /// The picker offers only apps whose default exemption this choice can lift.
+    static func canAllowMenuBarQuit(bundleURL: URL?) -> Bool {
+        guard let bundleURL, let bundle = Bundle(url: bundleURL) else { return false }
+        return bundleFlag("LSUIElement", in: bundle) && !bundleFlag("LSBackgroundOnly", in: bundle)
+    }
+
+    private static func bundleFlag(_ key: String, in bundle: Bundle) -> Bool {
+        (bundle.object(forInfoDictionaryKey: key) as? NSNumber)?.boolValue
+            ?? (bundle.object(forInfoDictionaryKey: key) as? NSString)?.boolValue
+            ?? false
     }
 
     static func isCommandW(keyCode: Int64, command: Bool, control: Bool) -> Bool {
         keyCode == commandWKeyCode && command && !control
+    }
+
+    /// A click Accessibility names as one of these is never a close, wherever
+    /// it landed.
+    static func isWindowButtonOtherThanClose(subrole: String?) -> Bool {
+        guard let subrole else { return false }
+        return [kAXMinimizeButtonSubrole, kAXZoomButtonSubrole, kAXFullScreenButtonSubrole].contains(subrole)
     }
 
     /// Phone is kept as a mandatory quit exception for Continuity calls, but on
@@ -198,12 +235,16 @@ enum AutoQuitSupport {
     /// is showing right now, and an app that hides its window instead of
     /// destroying it should still quit on close. Accessibility cannot tell the
     /// two apart (both leave the app with no windows at all), the window server
-    /// can. Without a Space answer the old rule stands: anything with a title
-    /// keeps the app alive.
-    static func offscreenWindowKeepsAppAlive(windowSpaces: [UInt64],
-                                             visibleSpaces: Set<UInt64>?,
-                                             hasTitle: Bool) -> Bool {
-        guard let visibleSpaces, !visibleSpaces.isEmpty, !windowSpaces.isEmpty else { return hasTitle }
+    /// can. A successful empty Space answer identifies a leftover surface,
+    /// even if it retains a title (#2696). A failed query proves nothing, and
+    /// titles may be missing without Screen Recording permission, so keep the
+    /// app alive whenever Space membership or visibility is unknown. Callers
+    /// must check for minimized windows before discarding leftover surfaces.
+    static func offscreenWindowKeepsAppAlive(windowSpaces: [UInt64]?,
+                                             visibleSpaces: Set<UInt64>?) -> Bool {
+        guard let windowSpaces else { return true }
+        guard !windowSpaces.isEmpty else { return false }
+        guard let visibleSpaces, !visibleSpaces.isEmpty else { return true }
         return SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: windowSpaces,
                                                      visibleSpaces: visibleSpaces)
     }
@@ -212,14 +253,20 @@ enum AutoQuitSupport {
     /// holds a window of the app at `pid` that the user has. The system
     /// lookups come in as closures so any list can be judged:
     /// `processDrawsForApp` says whether another process draws this app's own
-    /// interface, and `visibleSpaces` and `windowSpaces` answer the Space rule
-    /// for a normal window off screen.
+    /// interface, and `windowIsMinimized`, `visibleSpaces` and
+    /// `windowSpaces` judge a normal window off screen. A minimized window
+    /// sits off screen on the Space in front, exactly like a window the app
+    /// hid on close, so only the window server's minimized tag keeps it from
+    /// reading as closed when Accessibility cannot see it (issue #3249).
+    /// An unavailable minimized state also keeps the app running: no Space
+    /// membership alone must never discard a potentially minimized window.
     static func windowListHasUserWindow(_ windows: [[String: Any]],
                                         pid: pid_t,
                                         countsEverythingShown: Bool,
                                         processDrawsForApp: (pid_t) -> Bool,
+                                        windowIsMinimized: (CGWindowID) -> Bool?,
                                         visibleSpaces: () -> Set<UInt64>?,
-                                        windowSpaces: (CGWindowID) -> [UInt64]) -> Bool {
+                                        windowSpaces: (CGWindowID) -> [UInt64]?) -> Bool {
         var shownSpaces: Set<UInt64>?
         var askedForVisibleSpaces = false
         // One answer per process: every window of a process shares it.
@@ -253,17 +300,16 @@ enum AutoQuitSupport {
             }
             guard role == .normalWindowOffScreen,
                   let windowID = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value else { continue }
+            if windowIsMinimized(CGWindowID(windowID)) != false { return true }
             // Asked once per check, and only when there is an off-screen window
             // to judge: the common case never pays for it.
             if !askedForVisibleSpaces {
                 shownSpaces = visibleSpaces()
                 askedForVisibleSpaces = true
             }
-            let title = window[kCGWindowName as String] as? String ?? ""
             if offscreenWindowKeepsAppAlive(
                 windowSpaces: windowSpaces(CGWindowID(windowID)),
-                visibleSpaces: shownSpaces,
-                hasTitle: !title.isEmpty) {
+                visibleSpaces: shownSpaces) {
                 return true
             }
         }

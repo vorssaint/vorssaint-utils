@@ -308,13 +308,16 @@ struct ScreenshotEditorView: View {
             let path = CGPath(roundedRect: imageRect,
                               cornerWidth: corner, cornerHeight: corner, transform: nil)
             cardPath = path
+            let outlineCorner = model.cardOutlineCornerPixels * zoom
+            let outline = CGPath(roundedRect: imageRect,
+                                 cornerWidth: outlineCorner, cornerHeight: outlineCorner, transform: nil)
             cg.saveGState()
             cg.setShadow(offset: CGSize(width: 0, height: -5), blur: 18,
                          color: CGColor(gray: 0, alpha: 0.38))
             cg.addRect(CGRect(origin: .zero, size: size))
-            cg.addPath(path)
+            cg.addPath(outline)
             cg.clip(using: .evenOdd)
-            cg.addPath(path)
+            cg.addPath(outline)
             cg.setFillColor(CGColor(gray: 1, alpha: 1))
             cg.fillPath()
             cg.restoreGState()

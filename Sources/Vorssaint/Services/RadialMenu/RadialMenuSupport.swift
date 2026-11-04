@@ -288,15 +288,21 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
 /// Quick toggle actions a slice can trigger. Raw values persist inside the
 /// items blob; never rename them.
 enum RadialMenuQuickToggle: String, Codable, CaseIterable, Identifiable {
-    case darkMode, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
+    case darkMode, emptyTrash, quitAllApps, ejectDisks, hiddenFiles, desktopIcons,
          lockScreen, displayOff, screenSaver
 
     var id: String { rawValue }
+
+    /// Quit all apps belongs to the Quit apps feature; the rest to Quick toggles.
+    var feature: AppFeature {
+        self == .quitAllApps ? .quitApps : .quickToggles
+    }
 
     var symbolName: String {
         switch self {
         case .darkMode: return "moon.fill"
         case .emptyTrash: return "trash"
+        case .quitAllApps: return "xmark.app"
         case .ejectDisks: return "eject.fill"
         case .hiddenFiles: return "eye"
         case .desktopIcons: return "desktopcomputer"

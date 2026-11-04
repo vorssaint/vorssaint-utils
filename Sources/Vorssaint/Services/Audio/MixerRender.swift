@@ -3,10 +3,51 @@
 
 import Accelerate
 import CoreAudio
+import Darwin
+
+/// The sample representation the mixer can render without conversion. A tap
+/// tied to a device stream inherits that stream's format; it is not always
+/// the interleaved Float32 produced by a stereo mixdown.
+struct MixerTapFormat: Equatable {
+    let sampleRate: Double
+    let channels: Int
+    let flags: AudioFormatFlags
+
+    init?(_ format: AudioStreamBasicDescription, allowNonInterleaved: Bool = false) {
+        let channels = Int(format.mChannelsPerFrame)
+        let planar = format.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0
+        guard format.mFormatID == kAudioFormatLinearPCM,
+              format.mFormatFlags & kAudioFormatFlagIsFloat != 0,
+              format.mFormatFlags & kAudioFormatFlagIsPacked != 0,
+              allowNonInterleaved || !planar,
+              format.mFormatFlags & kAudioFormatFlagIsBigEndian == kAudioFormatFlagsNativeEndian,
+              format.mBitsPerChannel == 32, channels > 0,
+              UInt64(format.mBytesPerFrame) == UInt64(planar ? 1 : channels) * 4,
+              format.mFramesPerPacket == 1,
+              format.mBytesPerPacket == format.mBytesPerFrame,
+              format.mSampleRate.isFinite, format.mSampleRate > 0 else { return nil }
+        sampleRate = format.mSampleRate
+        self.channels = channels
+        flags = format.mFormatFlags
+    }
+
+    /// A direct tap avoids the system's stereo mixdown attenuation on wide
+    /// interfaces. Restrict it to one complete stream on the app's own output,
+    /// so every captured channel has the same destination and no other stream
+    /// or device is dropped. Other routes retain the stereo mixdown path.
+    static func usesDeviceStream(processDevices: [[AudioObjectID]], outputDevice: AudioObjectID,
+                                 streamCount: Int, startingChannel: UInt32,
+                                 format: MixerTapFormat?) -> Bool {
+        guard outputDevice != 0, streamCount == 1, startingChannel == 1,
+              let format, format.channels > 2 else { return false }
+        let devices = Set(processDevices.flatMap { $0 })
+        return devices == [outputDevice]
+    }
+}
 
 /// Puts a tapped app's audio onto whatever shape the output device asks for.
 ///
-/// The tap always hands over the same thing: two interleaved channels. The
+/// The tap hands over interleaved Float32, validated when it is created. The
 /// device on the other side does not have to match. A headset in a call
 /// carries one channel, an audio interface can carry eight, and a device that
 /// also records puts its own microphone in front of the tap in the same list
@@ -40,9 +81,13 @@ enum MixerRender {
                                tapChannels: Int) -> Int? {
         var lone: Int?
         for index in stride(from: buffers.count - 1, through: 0, by: -1)
-        where buffers[index].mData != nil && buffers[index].mNumberChannels > 0 {
-            if Int(buffers[index].mNumberChannels) == tapChannels { return index }
-            if buffers.count == 1 { lone = index }
+        where buffers[index].mNumberChannels > 0 {
+            if Int(buffers[index].mNumberChannels) == tapChannels {
+                // An empty tap is still the tap. Looking farther back could
+                // play a live microphone with the same channel count.
+                return buffers[index].mData == nil ? nil : index
+            }
+            if buffers.count == 1, buffers[index].mData != nil { lone = index }
         }
         return lone
     }
@@ -67,6 +112,12 @@ enum MixerRender {
     /// a frame with no samples behind it.
     static func silence(_ output: UnsafeMutableAudioBufferListPointer, from frame: Int = 0) {
         for buffer in output {
+            // A suspended callback may receive a new, unsupported format.
+            // Silence all bytes without interpreting them as Float32.
+            if frame == 0 {
+                if let data = buffer.mData { memset(data, 0, Int(buffer.mDataByteSize)) }
+                continue
+            }
             let channels = Int(buffer.mNumberChannels)
             guard channels > 0,
                   let destination = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
