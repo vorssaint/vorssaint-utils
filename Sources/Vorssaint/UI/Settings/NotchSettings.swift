@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 import EventKit
 
@@ -82,6 +83,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLockSounds) private var lockSounds = false
     @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
+    @AppStorage(DefaultsKey.notchOutlineColor) private var outlineColor = Defaults.defaultNotchOutlineColor
     @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = false
     @AppStorage(DefaultsKey.notchCustomWidth) private var customWidth = NotchSize.defaultWidth
     @AppStorage(DefaultsKey.notchCustomHeight) private var customHeight = NotchSize.defaultHeight
@@ -122,7 +124,7 @@ struct NotchSettings: View {
          String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer),
          String(showPlayingMusic), String(includeOtherPlayers), String(musicShowVolume), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(hideTimerCountdown),
-         String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(hideMenuBarGap),
+         String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), outlineColor, String(hideMenuBarGap),
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
          String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback),
          String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel),
@@ -285,6 +287,12 @@ struct NotchSettings: View {
             }
             SettingsCard {
                 switchRow("capsule", text.showOutline, isOn: $outlineEnabled)
+                ColorPicker(text.outlineColor,
+                            selection: colorBinding($outlineColor,
+                                                    fallback: Defaults.defaultNotchOutlineColor),
+                            supportsOpacity: false)
+                    .padding(.leading, settingsRowTextInset)
+                    .disabled(!outlineEnabled)
             }
             // Only a physical camera has an outline to match.
             if NotchSupport.hasNotchedDisplay {
@@ -998,6 +1006,18 @@ struct NotchSettings: View {
             Text(text.title).tag(true)
             Text(editor.separate).tag(false)
         }.disabled(!available)
+    }
+
+    private func colorBinding(_ storage: Binding<String>, fallback: String) -> Binding<Color> {
+        Binding {
+            let rgb = MenuBarUsageBarSupport.rgb(for: storage.wrappedValue, fallback: fallback)
+            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        } set: { color in
+            guard let converted = NSColor(color).usingColorSpace(.sRGB) else { return }
+            storage.wrappedValue = MenuBarUsageBarSupport.hex(red: Double(converted.redComponent),
+                                                              green: Double(converted.greenComponent),
+                                                              blue: Double(converted.blueComponent))
+        }
     }
 
     /// An option with its icon, one line and a switch, like every other page.

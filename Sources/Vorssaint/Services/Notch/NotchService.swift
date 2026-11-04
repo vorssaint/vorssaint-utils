@@ -169,6 +169,14 @@ final class NotchService: ObservableObject {
     @Published private(set) var power = PowerReading()
     @Published private var musicDetailVisible = false
 
+    private static var chosenOutlineColor: NSColor {
+        let rgb = MenuBarUsageBarSupport.rgb(for: UserDefaults.standard.string(forKey: DefaultsKey.notchOutlineColor),
+                                            fallback: Defaults.defaultNotchOutlineColor)
+        return NSColor(srgbRed: CGFloat(rgb.red), green: CGFloat(rgb.green), blue: CGFloat(rgb.blue), alpha: 1)
+    }
+
+    private var mirrorOutlineColor: NSColor?
+
     private var windowHost: NotchWindowHost?
     private var panel: NotchPanel? { windowHost?.panel }
     private var captureControlsCancel: (() -> Void)?
@@ -2693,8 +2701,9 @@ final class NotchService: ObservableObject {
         // Preferences can change computed dimensions without publishing a
         // service property. Update SwiftUI's layout along with the native host.
         if let windowHost, windowHost.targetSize != size { objectWillChange.send() }
+        // Orange reads as a running timer, not decoration, so a chosen colour never hides it.
         windowHost?.setOutline(enabled: !fullscreenCompact && UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
-                               color: compactActivityIsVisible && compactActivity == .timer ? .systemOrange : .white)
+                               color: compactActivityIsVisible && compactActivity == .timer ? .systemOrange : Self.chosenOutlineColor)
         // Something else took the place the stand-in was headed for, as music
         // arriving while the island closes: it goes now rather than stand
         // over what came instead.
@@ -3192,6 +3201,7 @@ final class NotchService: ObservableObject {
         // well, unless it shows the activity they would draw.
         let hidesAtRest = NotchSupport.hidesUntilHover() && (activity == nil || !NotchSupport.hiddenShowsActivity())
         let outline = UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled)
+        let outlineColor = Self.chosenOutlineColor
         for screen in screens {
             let id = screen.notchDisplayID
             var base: NotchGeometry?
@@ -3216,10 +3226,13 @@ final class NotchService: ObservableObject {
             let (strip, size) = mirrorSurface(on: base, activity: activity)
             let mirror = mirrors[id] ?? makeMirror(geometry: base, size: size)
             mirrors[id] = mirror
-            if mirror.model.outline != outline || mirror.model.timerOutline != (activity == .timer) {
+            // The copies carry no colour of their own, so a recoloured outline is
+            // tracked here or it would wait for the next enable or timer change.
+            if mirror.model.outline != outline || mirror.model.timerOutline != (activity == .timer)
+                || mirrorOutlineColor != outlineColor {
                 mirror.model.outline = outline
                 mirror.model.timerOutline = activity == .timer
-                mirror.host.setOutline(enabled: outline, color: activity == .timer ? .systemOrange : .white)
+                mirror.host.setOutline(enabled: outline, color: activity == .timer ? .systemOrange : outlineColor)
             }
             let sharing: NSWindow.SharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
             if mirror.host.panel.sharingType != sharing { mirror.host.panel.sharingType = sharing }
@@ -3243,6 +3256,7 @@ final class NotchService: ObservableObject {
                 mirror.host.panel.orderFrontRegardless()
             }
         }
+        mirrorOutlineColor = outlineColor
     }
 
     /// A copy's closed surface: the strip of what the island shows, drawn

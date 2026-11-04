@@ -832,6 +832,8 @@ enum DefaultsKey {
     static let notchControlOrder = "notchControlOrder"
     static let notchSize = "notchSize"
     static let notchOutlineEnabled = "notchOutlineEnabled"
+    // Hex string such as "#FFFFFF"; the outline was white-only before issue #3840.
+    static let notchOutlineColor = "notchOutlineColor"
     static let notchHideMenuBarGap = "notchHideMenuBarGap"
     static let notchCustomWidth = "notchCustomWidth"
     static let notchCustomHeight = "notchCustomHeight"
@@ -1206,6 +1208,7 @@ enum Defaults {
     static let defaultClipboardAutoClearDelay = 20
     static let allowedClipboardMenuBarPreviewLengthRange = 5...50
     static let defaultClipboardMenuBarPreviewLength = 20
+    static let defaultNotchOutlineColor = "#FFFFFF"
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
 
     static let registeredDefaults: [String: Any] = [
@@ -1446,6 +1449,7 @@ enum Defaults {
         DefaultsKey.notchControlOrder: "",
         DefaultsKey.notchSize: NotchSize.spacious.rawValue,
         DefaultsKey.notchOutlineEnabled: false,
+        DefaultsKey.notchOutlineColor: Defaults.defaultNotchOutlineColor,
         DefaultsKey.notchHideMenuBarGap: false,
         DefaultsKey.notchCustomWidth: NotchSize.defaultWidth,
         DefaultsKey.notchCustomHeight: NotchSize.defaultHeight,

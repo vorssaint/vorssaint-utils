@@ -423,17 +423,31 @@ enum NotchPresentationRefreshContract {
         defer {
             UserDefaults.standard.hides = false
             UserDefaults.standard.outline = false
+            Foundation.UserDefaults.standard.removeObject(forKey: DefaultsKey.notchOutlineColor)
         }
         let outlined = Service()
         outlined.expanded = false
+        // The chosen colour arrives in sRGB, the named colours it is checked
+        // against do not, so both sides go through sRGB before comparing.
+        let outlineIs: (NSColor) -> Bool = { expected in
+            outlined.windowHost?.outlineColor.usingColorSpace(.sRGB) == expected.usingColorSpace(.sRGB)
+        }
+        func outlineColor(_ hex: String) -> NSColor {
+            let rgb = MenuBarUsageBarSupport.rgb(for: hex, fallback: Defaults.defaultNotchOutlineColor)
+            return NSColor(srgbRed: CGFloat(rgb.red), green: CGFloat(rgb.green), blue: CGFloat(rgb.blue), alpha: 1)
+        }
         UserDefaults.standard.outline = true
         outlined.refreshPresentation(animated: false)
-        suite.expect(outlined.windowHost?.outlineEnabled == true && outlined.windowHost?.outlineColor == .white,
+        suite.expect(outlined.windowHost?.outlineEnabled == true && outlineIs(.white),
                      "the optional outline reaches the resting island")
+        Foundation.UserDefaults.standard.set("#A020F0", forKey: DefaultsKey.notchOutlineColor)
+        outlined.refreshPresentation(animated: false)
+        suite.expect(outlined.windowHost?.outlineEnabled == true && outlineIs(outlineColor("#A020F0")),
+                     "the colour the user picked reaches the resting island")
         outlined.compactActivityIsVisible = true
         outlined.refreshPresentation(animated: false)
-        suite.expect(outlined.windowHost?.outlineColor == .systemOrange,
-                     "the compact timer tints the optional outline orange")
+        suite.expect(outlineIs(.systemOrange),
+                     "the compact timer tints the optional outline orange, whatever colour is chosen")
         UserDefaults.standard.outline = false
         outlined.refreshPresentation(animated: false)
         suite.expect(outlined.windowHost?.outlineEnabled == false,

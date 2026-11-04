@@ -1416,7 +1416,11 @@ def main():
           + declaration(notch, "    private func move(to screen:").replace("private func", "func", 1)
           + declaration(notch, "    private func cancelRelocation()").replace("private func", "func", 1)
           + "}\n}\n")
+    # A one-line stored property has no closing brace for declaration() to find.
+    mirror_outline_color = "    var mirrorOutlineColor: NSColor?\n"
+    chosen_outline_color = declaration(notch, "    private static var chosenOutlineColor: NSColor {")
     write("NotchMirrors.swift", "import AppKit\nextension NotchMirrorContract {\nfinal class Service: State {\n"
+          + chosen_outline_color + mirror_outline_color
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func syncMirrors()", "    private func mirrorSurface(", "    private func mirrorSideRoom(",
               "    private func closeMirrors()", "    private func updateFullscreenDisplays()",
@@ -1453,6 +1457,8 @@ def main():
           + "}\n}\n")
     write("NotchPresentationRefresh.swift", "import AppKit\nimport Foundation\nimport Combine\nimport SwiftUI\n"
           + "extension NotchPresentationRefreshContract {\nfinal class Service: State {\n"
+          # This host shadows UserDefaults with a double that only answers bool(forKey:).
+          + chosen_outline_color.replace("UserDefaults.standard.string(", "Foundation.UserDefaults.standard.string(", 1)
           + "func resignPanelKey() { panel?.resignKey() }\n"
           + "func hover(_ entered: Bool) {\nlet wasInside = inside\n"
           + "inside = windowHost?.containsHover(NSEvent.mouseLocation) == true\n"
