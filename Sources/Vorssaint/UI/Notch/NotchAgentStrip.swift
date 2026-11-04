@@ -32,19 +32,42 @@ struct NotchAgentStrip: View {
         // walks the preferences for every font, inset and frame.
         let geometry = displayGeometry ?? service.compactActivityGeometry
         let working = working(live)
-        let tint = working.first?.tint ?? .white
+        let needsApproval = live.contains { $0.needsApproval }
+        let tint = needsApproval ? Color.orange : (working.first?.tint ?? .white)
         let budget = geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
         let iconSize = min(working.count > 1 ? 11.0 : 14.0, max(8, budget - 4))
         let textSize = NotchAgentSupport.stripTextSize(height: geometry.compactActivityContentHeight)
-        let iconInset = !geometry.compactActivityUsesFooter
-            ? geometry.compactActivityEdgeInset(boxHeight: iconSize + 4, radius: (iconSize + 4) / 2) : 0
+        let companion = service.compactCompanion
+        let iconInset: CGFloat = {
+            if let companion { return NotchCompanionMark.inset(companion, geometry: geometry) }
+            return !geometry.compactActivityUsesFooter
+                ? geometry.compactActivityEdgeInset(boxHeight: iconSize + 4, radius: (iconSize + 4) / 2) : 0
+        }()
         let textInset = !geometry.compactActivityUsesFooter
             ? geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0) : 0
         HStack(spacing: 0) {
-            Button { service.openActivity(.agents) } label: {
-                HStack(spacing: 1) {
+            Button {
+                if let companion {
+                    if companion == .music { service.openActivity(.music) }
+                    else if companion == .calendar { service.openCountdownEvent() }
+                    else { service.openActivity(companion.module) }
+                } else {
+                    service.openActivity(.agents)
+                }
+            } label: {
+                HStack(spacing: 2) {
                     if geometry.compactActivityWingWidth >= 28 {
-                        ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
+                        if let companion {
+                            NotchCompanionMark(companion: companion, geometry: geometry)
+                        } else {
+                            ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
+                            if needsApproval {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .font(.system(size: iconSize * 0.95, weight: .bold))
+                                    .foregroundStyle(Color.orange)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
+                        }
                     }
                 }
                 .padding(.leading, iconInset)
@@ -52,24 +75,39 @@ struct NotchAgentStrip: View {
                        alignment: .leading)
                 .contentShape(Rectangle())
             }
+            .accessibilityLabel(companion.map { NotchCompanionMark.label($0, language: l10n.language) }
+                                ?? working.map(\.displayName).joined(separator: ", "))
             Color.clear.frame(width: geometry.compactActivityCameraGap)
             Button { service.openActivity(.agents) } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 42 {
-                        NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
-                            let text = reading(at: date, live: live)
-                            Text(text)
-                                .font(.system(size: textSize, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(tint)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.6)
-                                // A reading that gains a digit, like an hour
-                                // passing, needs wider wings; the service
-                                // measures the same reading.
-                                .onChange(of: NotchAgentSupport.readingShape(text)) { _, _ in
-                                    DispatchQueue.main.async { service.refreshPresentation() }
-                                }
+                        if needsApproval {
+                            HStack(spacing: 3) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: textSize * 0.75, weight: .bold))
+                                    .foregroundStyle(Color.orange)
+                                Text("Approval")
+                                    .font(.system(size: textSize, weight: .bold))
+                                    .foregroundStyle(Color.orange)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                            }
+                        } else {
+                            NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
+                                let text = reading(at: date, live: live)
+                                Text(text)
+                                    .font(.system(size: textSize, weight: .medium))
+                                    .monospacedDigit()
+                                    .foregroundStyle(tint)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.6)
+                                    // A reading that gains a digit, like an hour
+                                    // passing, needs wider wings; the service
+                                    // measures the same reading.
+                                    .onChange(of: NotchAgentSupport.readingShape(text)) { _, _ in
+                                        DispatchQueue.main.async { service.refreshPresentation() }
+                                    }
+                            }
                         }
                     }
                 }

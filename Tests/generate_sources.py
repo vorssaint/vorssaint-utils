@@ -1323,7 +1323,7 @@ def main():
         if line not in prefix:
             raise ValueError("Expected the non-music activity readings in capsuleStripSize")
         prefix = prefix.replace(line, "")
-    capsule_music = (prefix + "        switch activity {\n" + music_case
+    capsule_music = (prefix + "        switch activity {\n" + music_case.replace("workingAgents: working", "workingAgents: 0")
                      + '        default: preconditionFailure("Only music is measured by this fixture")\n'
                      + "        }\n    }\n#sourceLocation()\n")
     write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
@@ -2478,7 +2478,7 @@ def main():
                         "    private func settleArchive(").replace("private func", "func", 1)
           + "}\n}\n")
 
-    write("AgentUsageRead.swift", "import Foundation\n"
+    write("AgentUsageRead.swift", "import AppKit\nimport Foundation\n"
           + "extension AgentUsageReadTests {\nfinal class Host: Fixture {\n"
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
                     .replace("private func", "func", 1)

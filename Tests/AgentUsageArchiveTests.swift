@@ -287,7 +287,8 @@ enum AgentUsageArchiveTests {
             ("AgentUsageArchive.Contents", labels(contents), ["providers", "store", "cursors"]),
             ("AgentUsageStore", labels(first),
              ["records", "billables", "sources", "index", "summary", "limits", "codexPlan", "codexPlanObserved",
-              "turns", "waiting", "registered", "settled", "replies", "reportsTransitions"]),
+              "turns", "waiting", "registered", "settled", "replies", "reportsTransitions",
+              "agySessions", "agyTurnBaselines"]),
             ("AgentUsageStore.Saved", labels(sample),
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),
             ("AgentUsageStore.Saved.Record", labels(sampleRecord), ["key", "record", "billable", "sources"]),
@@ -297,11 +298,11 @@ enum AgentUsageArchiveTests {
              ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),
             ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
-            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt"]),
+            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt", "name", "detail"]),
             ("AgentLiveSession", labels(sampleTurn),
-             ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
+             ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost", "needsApproval"]),
             ("AgentLogCursor", labels(cursor),
-             ["path", "provider", "parent", "openCode", "offset", "identity", "pending", "discarding",
+             ["path", "provider", "parent", "openCode", "session", "offset", "identity", "pending", "discarding",
               "state", "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
@@ -309,7 +310,7 @@ enum AgentUsageArchiveTests {
              ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
               "codexSubagent", "codexHeaderRead", "codexRoot", "codexTotalsSession",
               "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
-              "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "runningCommands"])
+              "copilotTurnID", "copilotFinalResponse", "namedWorkspace", "parentSession", "openCodeSessions", "runningCommands"])
         ]
         for layout in layouts {
             suite.expect(layout.stored == layout.written,

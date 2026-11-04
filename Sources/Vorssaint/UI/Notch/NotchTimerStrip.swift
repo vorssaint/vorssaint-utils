@@ -136,7 +136,13 @@ struct NotchCompanionMark: View {
         case .music:
             NotchMusicCover(artwork: music.artwork, side: geometry.compactMusicArtworkSide,
                             radius: geometry.compactMusicArtworkRadius, source: music.playback?.track)
-        case .timer, .keepAwake, .watch:
+        case .timer:
+            let timer = NotchTimerService.shared
+            Image(systemName: timer.session.completed ? "checkmark.circle"
+                  : timer.session.isPaused ? "pause.circle" : timer.session.countsUp ? "stopwatch" : "timer")
+                .font(.system(size: min(13, NotchTimerSupport.stripIconSize(height: geometry.compactActivityContentHeight)), weight: .medium))
+                .foregroundStyle(.orange)
+        case .keepAwake, .watch:
             EmptyView()
         }
     }

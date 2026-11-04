@@ -100,13 +100,19 @@ struct ClaudeReader: AgentHarnessReader {
             if state.turnOpen { entries.append(.turnEnded(date, completed: !failed, duration: nil)) }
             state.turnOpen = false
         default:
-            for block in message["content"] as? [[String: Any]] ?? []
-            where block["type"] as? String == "tool_use" && block["name"] as? String == "Bash" {
+            let blocks = message["content"] as? [[String: Any]] ?? []
+            for block in blocks where block["type"] as? String == "tool_use" && block["name"] as? String == "Bash" {
                 if let id = block["id"] as? String { state.runningCommands.insert(id) }
+            }
+            let needsApproval = blocks.contains { block in
+                guard block["type"] as? String == "tool_use" else { return false }
+                let name = (block["name"] as? String)?.lowercased() ?? ""
+                return name.contains("ask") || name.contains("question") || name.contains("confirm")
             }
             // Ahead of the usage, so a reply that opens the turn again, as
             // after an offline end, counts toward it.
-            entries.insert(state.turnOpen ? .turnActive(date) : .turnBegan(date), at: 0)
+            let activeEntry: AgentLogEntry = needsApproval ? .turnNeedsApproval(date) : (state.turnOpen ? .turnActive(date) : .turnBegan(date))
+            entries.insert(activeEntry, at: 0)
             state.turnOpen = true
         }
         return entries
