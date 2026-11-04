@@ -84,6 +84,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @AppStorage(DefaultsKey.notchOutlineColor) private var outlineColor = Defaults.defaultNotchOutlineColor
+    @AppStorage(DefaultsKey.notchOutlineWidth) private var outlineWidth = Defaults.defaultNotchOutlineWidth
     @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = false
     @AppStorage(DefaultsKey.notchCustomWidth) private var customWidth = NotchSize.defaultWidth
     @AppStorage(DefaultsKey.notchCustomHeight) private var customHeight = NotchSize.defaultHeight
@@ -124,7 +125,7 @@ struct NotchSettings: View {
          String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer),
          String(showPlayingMusic), String(includeOtherPlayers), String(musicShowVolume), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(hideTimerCountdown),
-         String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), outlineColor, String(hideMenuBarGap),
+         String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), outlineColor, String(outlineWidth), String(hideMenuBarGap),
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
          String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback),
          String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel),
@@ -293,6 +294,21 @@ struct NotchSettings: View {
                             supportsOpacity: false)
                     .padding(.leading, settingsRowTextInset)
                     .disabled(!outlineEnabled)
+                Stepper(value: $outlineWidth,
+                        in: Defaults.allowedNotchOutlineWidthRange,
+                        step: 1) {
+                    HStack {
+                        Text(text.outlineWidth)
+                        Spacer()
+                        // Rounded, not truncated: a restored half point would
+                        // otherwise read a whole point thinner than it draws.
+                        Text("\(Int(outlineWidth.rounded())) pt")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                }
+                .padding(.leading, settingsRowTextInset)
+                .disabled(!outlineEnabled)
             }
             // Only a physical camera has an outline to match.
             if NotchSupport.hasNotchedDisplay {

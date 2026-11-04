@@ -25,5 +25,20 @@ enum NotchOutlineColorTests {
             suite.expect(MenuBarUsageBarSupport.hex(red: rgb.red, green: rgb.green, blue: rgb.blue) == hex,
                          "an outline colour survives the trip through the drawing components unchanged")
         }
+
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchOutlineWidth] as? Double == 2,
+                     "the island outline starts at its old 2 pt so no existing island changes shape")
+
+        suite.expect(Defaults.allowedNotchOutlineWidthRange == 1.0...6.0,
+                     "an outline thin enough to vanish or thick enough to swallow the island is out of reach")
+        suite.expect(Defaults.allowedNotchOutlineWidthRange.contains(Defaults.defaultNotchOutlineWidth),
+                     "the shipped outline width is a width the user could have picked themselves")
+
+        for raw in [0.4, 0, -3, 12] as [Double] {
+            let clamped = min(max(raw, Defaults.allowedNotchOutlineWidthRange.lowerBound),
+                              Defaults.allowedNotchOutlineWidthRange.upperBound)
+            suite.expect(Defaults.allowedNotchOutlineWidthRange.contains(clamped),
+                         "a stored width from an older build or a stray write still draws a visible outline")
+        }
     }
 }
