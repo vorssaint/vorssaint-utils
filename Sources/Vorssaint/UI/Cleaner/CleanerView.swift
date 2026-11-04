@@ -14,50 +14,68 @@ struct CleanerSettings: View {
     @State private var tool = Tool.system
 
     private enum Tool: String {
-        case system, whatsApp
+        case system, largeFiles, duplicates, startup, whatsApp
     }
 
     /// A panel surface can ask for a specific tool; the hint is one-shot.
     private func consumeToolHint() {
         guard let hint = router.cleanerTool else { return }
         router.cleanerTool = nil
-        guard whatsAppEnabled, let wanted = Tool(rawValue: hint) else { return }
+        guard let wanted = Tool(rawValue: hint) else { return }
+        guard wanted != .whatsApp || whatsAppEnabled else { return }
         tool = wanted
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            if whatsAppEnabled {
-                Picker("", selection: $tool) {
-                    Label(l10n.s.cleanerName, systemImage: "sparkles")
-                        .tag(Tool.system)
+            Picker("", selection: $tool) {
+                Label(l10n.s.cleanerName, systemImage: "sparkles")
+                    .tag(Tool.system)
+                Label(l10n.s.largeFilesName, systemImage: "doc.badge.clock")
+                    .tag(Tool.largeFiles)
+                Label(l10n.s.duplicatesName, systemImage: "doc.on.doc")
+                    .tag(Tool.duplicates)
+                Label(l10n.s.startupName, systemImage: "power")
+                    .tag(Tool.startup)
+                if whatsAppEnabled {
                     Label(FeatureStrings.whatsAppDownloads(l10n.language).title,
                           systemImage: "arrow.down.doc")
                         .tag(Tool.whatsApp)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 440)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 14)
-
-                Divider()
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 600)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
 
-            if whatsAppEnabled, tool == .whatsApp {
+            Divider()
+
+            switch tool {
+            case .whatsApp where whatsAppEnabled:
                 WhatsAppDownloadsSettings()
-            } else {
+            case .largeFiles:
+                LargeFilesView()
+            case .duplicates:
+                DuplicatesView()
+            case .startup:
+                StartupItemsView()
+            default:
                 CleanerView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
-            if !whatsAppEnabled { tool = .system }
+            if !whatsAppEnabled, tool == .whatsApp { tool = .system }
             consumeToolHint()
         }
         .onChange(of: router.cleanerTool) { _, _ in consumeToolHint() }
         .onChange(of: whatsAppEnabled) { _, enabled in
-            tool = enabled ? .whatsApp : .system
+            if enabled {
+                tool = .whatsApp
+            } else if tool == .whatsApp {
+                tool = .system
+            }
             WhatsAppDownloadScheduler.shared.syncWithPreferences()
             WhatsAppDownloadOrganizer.shared.syncWithPreferences()
             if !enabled {
@@ -1009,10 +1027,33 @@ struct PanelCleanerView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(l10n.s.menuClose)
             }
+            // The list-heavy tools need more room than this panel has, so
+            // they open in their own window.
+            HStack(spacing: 6) {
+                toolButton(l10n.s.largeFilesName, "doc.badge.clock", .largeFiles)
+                toolButton(l10n.s.duplicatesName, "doc.on.doc", .duplicates)
+                toolButton(l10n.s.startupName, "power", .startup)
+            }
             CleanerView(compact: true)
         }
         .padding(2)
         .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
         .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
+    }
+
+    private func toolButton(_ title: String, _ icon: String, _ tool: CleanerExtraTool) -> some View {
+        Button {
+            // Close the panel first so the window is not left behind it, then
+            // open the window on the next turn of the run loop.
+            appDelegate()?.closePopover(animated: false)
+            DispatchQueue.main.async { CleanerToolsWindowController.shared.show(tool) }
+        } label: {
+            Label(title, systemImage: icon)
+                .font(.system(size: 11))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity)
+        }
+        .controlSize(.small)
     }
 }

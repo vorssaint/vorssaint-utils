@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import CoreServices
 
 /// Small lookups for resolving a bundle identifier to a human name and icon,
 /// and for listing apps the user might pick. Shared by the auto-quit exception
@@ -21,6 +22,10 @@ enum InstalledApps {
         /// process rather than a bundle on disk, so the picker stores exactly
         /// what the taps will compare against.
         var explicitIdentity: String? = nil
+        /// Disk space the bundle takes and when Spotlight last saw it opened.
+        /// Filled in later by `usage(of:)` for the lists that show them.
+        var size: Int64? = nil
+        var lastUsed: Date? = nil
 
         var identity: String? {
             explicitIdentity ?? bundleID
@@ -30,6 +35,47 @@ enum InstalledApps {
             NSWorkspace.shared.icon(forFile: url.path)
         }
     }
+
+    /// What an app takes on disk and when it was last opened. Walks the whole
+    /// bundle, so call it off the main thread. `lastUsed` is nil when Spotlight
+    /// has no record of the app being opened.
+    static func usage(of url: URL) -> (size: Int64, lastUsed: Date?) {
+        usageCacheLock.lock()
+        let cached = usageCache[url.path]
+        usageCacheLock.unlock()
+        if let cached, Date().timeIntervalSince(cached.measured) < 600 { return (cached.size, cached.lastUsed) }
+        var total: Int64 = 0
+        let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
+        func allocated(_ item: URL) -> Int64 {
+            let values = try? item.resourceValues(forKeys: Set(keys))
+            return Int64(values?.totalFileAllocatedSize ?? values?.fileAllocatedSize ?? 0)
+        }
+        total += allocated(url)
+        if let walker = FileManager.default.enumerator(at: url, includingPropertiesForKeys: keys,
+                                                       options: [], errorHandler: nil) {
+            for case let item as URL in walker {
+                if (try? item.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true {
+                    walker.skipDescendants()
+                    continue
+                }
+                total += allocated(item)
+            }
+        }
+        var lastUsed: Date?
+        if let item = MDItemCreate(nil, url.path as CFString),
+           let value = MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date {
+            lastUsed = value
+        }
+        usageCacheLock.lock()
+        usageCache[url.path] = (total, lastUsed, Date())
+        usageCacheLock.unlock()
+        return (total, lastUsed)
+    }
+
+    /// Measured sizes kept for ten minutes, so reopening a picker does not
+    /// walk every app again.
+    private static let usageCacheLock = NSLock()
+    private static var usageCache: [String: (size: Int64, lastUsed: Date?, measured: Date)] = [:]
 
     static func url(for bundleID: String) -> URL? {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)

@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+
+/// The startup items list's pure rules: which labels may reach launchctl, which
+/// entries are locked, how launch agent files and launchctl output are read, and
+/// the exact commands used to switch an agent.
+enum StartupItemSupportTests {
+    static func run(_ suite: TestSuite) {
+        suite.expect(StartupItemSupport.isValidLabel("com.vendor.helper-2_x+y"),
+                     "an ordinary reverse-domain label is accepted")
+        suite.expect(!StartupItemSupport.isValidLabel("")
+                     && !StartupItemSupport.isValidLabel("a/b")
+                     && !StartupItemSupport.isValidLabel("a b")
+                     && !StartupItemSupport.isValidLabel("a;b")
+                     && !StartupItemSupport.isValidLabel("../x")
+                     && !StartupItemSupport.isValidLabel("caf\u{00E9}")
+                     && !StartupItemSupport.isValidLabel(String(repeating: "a", count: 201)),
+                     "empty, long, spaced, path-like or non-ASCII labels never reach launchctl")
+
+        suite.expect(StartupItemSupport.isLocked("com.apple.Finder")
+                     && StartupItemSupport.isLocked("COM.APPLE.thing")
+                     && StartupItemSupport.isLocked("com.vorssaint.utils")
+                     && !StartupItemSupport.isLocked("com.apple2.vendor")
+                     && !StartupItemSupport.isLocked("com.vendor.helper"),
+                     "macOS and Vorssaint entries are locked, lookalikes are not")
+
+        let entry = StartupItemSupport.entry(from: ["Label": "com.vendor.helper",
+                                                    "ProgramArguments": ["/usr/local/bin/helper", "--run"],
+                                                    "RunAtLoad": true])
+        suite.expect(entry == StartupItemSupport.Entry(label: "com.vendor.helper", program: "/usr/local/bin/helper",
+                                                       runAtLoad: true, plistDisabled: false),
+                     "an agent plist is read into a label, program and flags")
+        suite.expect(StartupItemSupport.entry(from: ["Program": "/bin/x"]) == nil
+                     && StartupItemSupport.entry(from: ["Label": ""]) == nil,
+                     "a plist without a usable label is ignored")
+        suite.expect(StartupItemSupport.entry(from: ["Label": "a.b", "Program": "/p", "ProgramArguments": ["/q"],
+                                                     "Disabled": true])?.program == "/p"
+                     && StartupItemSupport.entry(from: ["Label": "a.b", "Disabled": true])?.plistDisabled == true,
+                     "Program wins over ProgramArguments and a Disabled key is honored")
+
+        let printed = """
+        disabled services = {
+            "com.vendor.off" => disabled
+            "com.vendor.on" => enabled
+            "com.vendor.legacy" => true
+            "com.vendor.legacyoff" => false
+        }
+        """
+        suite.expect(StartupItemSupport.overrides(fromPrintDisabled: printed)
+                     == ["com.vendor.off": true, "com.vendor.on": false,
+                         "com.vendor.legacy": true, "com.vendor.legacyoff": false],
+                     "launchctl's override list is read in both wordings, enabled entries included")
+
+        suite.expect(StartupItemSupport.owningApp(ofProgram: "/Applications/Some Tool.app/Contents/MacOS/helper")?.name
+                     == "Some Tool"
+                     && StartupItemSupport.owningApp(ofProgram: "/Applications/Some Tool.app/Contents/MacOS/helper")?.path
+                     == "/Applications/Some Tool.app"
+                     && StartupItemSupport.owningApp(ofProgram: "/usr/local/bin/helper") == nil
+                     && StartupItemSupport.owningApp(ofProgram: "/opt/.app/x") == nil
+                     && StartupItemSupport.owningApp(ofProgram: "") == nil,
+                     "the app a program belongs to is the first .app folder in its path")
+        suite.expect(StartupItemSupport.displayName(program: "/Applications/Foo.app/Contents/MacOS/foo", label: "com.v.foo")
+                     == "Foo"
+                     && StartupItemSupport.displayName(program: "/usr/local/bin/sync-helper", label: "com.v.sync")
+                     == "sync-helper"
+                     && StartupItemSupport.displayName(program: "", label: "com.v.sync") == "com.v.sync",
+                     "a row is named after its app, else its program, else its label")
+        suite.expect(StartupItemSupport.isProgramMissing("/gone/tool", exists: false)
+                     && !StartupItemSupport.isProgramMissing("/here/tool", exists: true)
+                     && !StartupItemSupport.isProgramMissing("sh", exists: false)
+                     && !StartupItemSupport.isProgramMissing("", exists: false),
+                     "only an absolute path that does not exist counts as missing")
+        suite.expect(StartupItemSupport.status(programMissing: true, runAtLoad: true) == .leftover
+                     && StartupItemSupport.status(programMissing: false, runAtLoad: true) == .atLogin
+                     && StartupItemSupport.status(programMissing: false, runAtLoad: false) == .onDemand,
+                     "a missing program is a leftover, otherwise the entry starts at login or on demand")
+
+        suite.expect(StartupItemSupport.disableCommands(uid: 501, label: "com.vendor.helper")
+                     == [["disable", "gui/501/com.vendor.helper"], ["bootout", "gui/501/com.vendor.helper"]]
+                     && StartupItemSupport.enableCommands(uid: 501, label: "com.vendor.helper", plistPath: "/p/a.plist")
+                     == [["enable", "gui/501/com.vendor.helper"], ["bootstrap", "gui/501", "/p/a.plist"]],
+                     "switching an agent uses exactly these launchctl calls")
+    }
+}

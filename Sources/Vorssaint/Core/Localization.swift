@@ -493,6 +493,61 @@ struct Strings {
     let uninstallerChoose: String
     let uninstallerPickerTitle: String
     let uninstallerPickerSearch: String
+    let uninstallerSelectAll: String
+    let uninstallerSelectNone: String
+    let uninstallerLastUsedFormat: String   // + date
+    let uninstallerNeverUsed: String
+    let uninstallerSortName: String
+    let uninstallerSortSize: String
+    let uninstallerSortLastUsed: String
+    let largeFilesName: String
+    let largeFilesIntro: String
+    let largeFilesScan: String
+    let largeFilesMinSize: String
+    let largeFilesOlderThan: String
+    let largeFilesAnyAge: String
+    let largeFilesDaysFormat: String
+    let largeFilesOneYear: String
+    let largeFilesNone: String
+    let largeFilesMoveToTrash: String
+    let largeFilesSafeReplaceable: String
+    let largeFilesSafeYours: String
+    let largeFilesSafeCheck: String
+    let largeFilesOpensWithFormat: String
+    let largeFilesDownloadedFromFormat: String
+    let largeFilesAddedFormat: String
+    let duplicatesName: String
+    let duplicatesIntro: String
+    let duplicatesScan: String
+    let duplicatesNone: String
+    let duplicatesKeepNote: String
+    let duplicatesCopiesFormat: String
+    let duplicatesSelectExtras: String
+    let duplicatesSelectOthers: String
+    let duplicatesSmartSelect: String
+    let duplicatesKeepBest: String
+    let duplicatesKeepNewest: String
+    let duplicatesKeepOldest: String
+    let duplicatesTemporaryOnly: String
+    let duplicatesKeepThis: String
+    let duplicatesBestCopy: String
+    let duplicatesTiedToFormat: String
+    let duplicatesRiskSynced: String
+    let duplicatesRiskProject: String
+    let duplicatesRiskVM: String
+    let duplicatesFreesFormat: String
+    let duplicatesSkipNote: String
+    let startupName: String
+    let startupIntro: String
+    let startupYours: String
+    let startupShared: String
+    let startupNone: String
+    let startupRefresh: String
+    let startupLocked: String
+    let startupFailed: String
+    let startupLeftover: String
+    let startupAtLogin: String
+    let startupOnDemand: String
     let uninstallerPickerEmpty: String
     let uninstallerEmptyNote: String
     let uninstallerFDANote: String
@@ -1647,6 +1702,61 @@ extension Strings {
         uninstallerChoose: "Escolher app…",
         uninstallerPickerTitle: "Escolher app",
         uninstallerPickerSearch: "Buscar apps",
+        uninstallerSelectAll: "Selecionar tudo",
+        uninstallerSelectNone: "Desmarcar tudo",
+        uninstallerLastUsedFormat: "Último uso: %@",
+        uninstallerNeverUsed: "Nenhum uso recente registrado",
+        uninstallerSortName: "Nome",
+        uninstallerSortSize: "Tamanho",
+        uninstallerSortLastUsed: "Último uso",
+        largeFilesName: "Arquivos grandes",
+        largeFilesIntro: "Encontre arquivos grandes na sua pasta pessoal. Nada vem selecionado, e os arquivos removidos vão para a Lixeira.",
+        largeFilesScan: "Encontrar arquivos grandes",
+        largeFilesMinSize: "Maiores que",
+        largeFilesOlderThan: "Não abertos há",
+        largeFilesAnyAge: "Qualquer época",
+        largeFilesDaysFormat: "%d dias",
+        largeFilesOneYear: "1 ano",
+        largeFilesNone: "Nenhum arquivo grande encontrado",
+        largeFilesMoveToTrash: "Mover para a Lixeira",
+        largeFilesSafeReplaceable: "Geralmente pode ser baixado de novo",
+        largeFilesSafeYours: "Seu próprio arquivo, pode ser a única cópia",
+        largeFilesSafeCheck: "Confira antes de remover",
+        largeFilesOpensWithFormat: "Abre com %@",
+        largeFilesDownloadedFromFormat: "Baixado de %@",
+        largeFilesAddedFormat: "Adicionado em %@",
+        duplicatesName: "Duplicados",
+        duplicatesIntro: "Encontre arquivos idênticos na sua pasta pessoal. Uma cópia de cada arquivo sempre fica, e as cópias removidas vão para a Lixeira.",
+        duplicatesScan: "Encontrar duplicados",
+        duplicatesNone: "Nenhum arquivo duplicado encontrado",
+        duplicatesKeepNote: "Uma cópia de cada arquivo sempre fica.",
+        duplicatesCopiesFormat: "%d cópias",
+        duplicatesSelectExtras: "Selecionar cópias extras",
+        duplicatesSelectOthers: "Selecionar todos os outros",
+        duplicatesSmartSelect: "Seleção inteligente",
+        duplicatesKeepBest: "Manter a melhor cópia de cada",
+        duplicatesKeepNewest: "Manter a cópia mais recente de cada",
+        duplicatesKeepOldest: "Manter a cópia mais antiga de cada",
+        duplicatesTemporaryOnly: "Só cópias em Downloads ou na Mesa",
+        duplicatesKeepThis: "Manter esta e selecionar as outras",
+        duplicatesBestCopy: "Melhor cópia para manter",
+        duplicatesTiedToFormat: "Ligado a %@",
+        duplicatesRiskSynced: "Arriscado remover, pois sincroniza com seus outros dispositivos",
+        duplicatesRiskProject: "Arriscado remover, pois um projeto de código pode precisar dele",
+        duplicatesRiskVM: "Arriscado remover, pois uma máquina virtual pode precisar dele",
+        duplicatesFreesFormat: "Libera %@",
+        duplicatesSkipNote: "Cópias arriscadas nunca são selecionadas automaticamente",
+        startupName: "Inicialização",
+        startupIntro: "Ajudantes que iniciam com o seu Mac. Desative os que você não precisa; você pode reativá-los quando quiser.",
+        startupYours: "Seus ajudantes de login",
+        startupShared: "Compartilhados com todos os usuários (somente leitura)",
+        startupNone: "Nenhum ajudante de inicialização encontrado",
+        startupRefresh: "Atualizar",
+        startupLocked: "Faz parte do macOS ou do Vorssaint, então não pode ser alterado aqui",
+        startupFailed: "Não foi possível alterar",
+        startupLeftover: "App não encontrado, provavelmente um resto",
+        startupAtLogin: "Inicia quando você entra",
+        startupOnDemand: "Inicia só quando necessário",
         uninstallerPickerEmpty: "Nenhum app encontrado",
         uninstallerEmptyNote: "Nada é removido sem a sua confirmação.",
         uninstallerFDANote: "Conceda Acesso Total ao Disco para uma análise mais completa.",
@@ -2765,6 +2875,61 @@ extension Strings {
         uninstallerChoose: "Choose app…",
         uninstallerPickerTitle: "Choose app",
         uninstallerPickerSearch: "Search apps",
+        uninstallerSelectAll: "Select all",
+        uninstallerSelectNone: "Select none",
+        uninstallerLastUsedFormat: "Last used: %@",
+        uninstallerNeverUsed: "No recent use recorded",
+        uninstallerSortName: "Name",
+        uninstallerSortSize: "Size",
+        uninstallerSortLastUsed: "Last used",
+        largeFilesName: "Large files",
+        largeFilesIntro: "Find big files in your home folder. Nothing is selected until you choose, and removed files go to the Trash.",
+        largeFilesScan: "Find large files",
+        largeFilesMinSize: "Larger than",
+        largeFilesOlderThan: "Not opened in",
+        largeFilesAnyAge: "Any time",
+        largeFilesDaysFormat: "%d days",
+        largeFilesOneYear: "1 year",
+        largeFilesNone: "No large files found",
+        largeFilesMoveToTrash: "Move to Trash",
+        largeFilesSafeReplaceable: "Can usually be downloaded again",
+        largeFilesSafeYours: "Your own file, may be the only copy",
+        largeFilesSafeCheck: "Check before removing",
+        largeFilesOpensWithFormat: "Opens with %@",
+        largeFilesDownloadedFromFormat: "Downloaded from %@",
+        largeFilesAddedFormat: "Added %@",
+        duplicatesName: "Duplicates",
+        duplicatesIntro: "Find identical files in your home folder. One copy of each file always stays, and removed copies go to the Trash.",
+        duplicatesScan: "Find duplicates",
+        duplicatesNone: "No duplicate files found",
+        duplicatesKeepNote: "One copy of each file always stays.",
+        duplicatesCopiesFormat: "%d copies",
+        duplicatesSelectExtras: "Select extra copies",
+        duplicatesSelectOthers: "Select all others",
+        duplicatesSmartSelect: "Smart select",
+        duplicatesKeepBest: "Keep the best copy of each",
+        duplicatesKeepNewest: "Keep the newest copy of each",
+        duplicatesKeepOldest: "Keep the oldest copy of each",
+        duplicatesTemporaryOnly: "Only copies in Downloads or Desktop",
+        duplicatesKeepThis: "Keep this one, select the others",
+        duplicatesBestCopy: "Best copy to keep",
+        duplicatesTiedToFormat: "Tied to %@",
+        duplicatesRiskSynced: "Risky to remove, because it syncs to your other devices",
+        duplicatesRiskProject: "Risky to remove, because a code project may need it",
+        duplicatesRiskVM: "Risky to remove, because a virtual machine may need it",
+        duplicatesFreesFormat: "Frees %@",
+        duplicatesSkipNote: "Risky copies are never selected automatically",
+        startupName: "Startup",
+        startupIntro: "Helpers that start with your Mac. Switch off the ones you do not need; you can switch them back on any time.",
+        startupYours: "Your login helpers",
+        startupShared: "Shared with all users (view only)",
+        startupNone: "No startup helpers found",
+        startupRefresh: "Refresh",
+        startupLocked: "Part of macOS or Vorssaint, so it cannot be changed here",
+        startupFailed: "Could not change",
+        startupLeftover: "App not found, probably a leftover",
+        startupAtLogin: "Starts when you log in",
+        startupOnDemand: "Starts only when needed",
         uninstallerPickerEmpty: "No apps found",
         uninstallerEmptyNote: "Nothing is removed without your confirmation.",
         uninstallerFDANote: "Grant Full Disk Access for a more thorough scan.",
