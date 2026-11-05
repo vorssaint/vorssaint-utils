@@ -135,6 +135,7 @@ final class URLCleanerService: ObservableObject {
                 if let cleaned = result.cleaned {
                     self.lastCleaned = cleaned.url
                     self.lastRemoved = cleaned.removed
+                    QuickToolHUD.show(icon: "link", message: L10n.shared.s.urlCleanerCleaned)
                 }
             }
         }
