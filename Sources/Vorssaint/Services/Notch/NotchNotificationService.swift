@@ -25,6 +25,7 @@ final class NotchNotificationService: ObservableObject {
     private var reader: NotchNotificationReader?
     private var cancellation = DispatchWorkItem {}
     private var pendingScan: DispatchWorkItem?
+    private var pendingNativeRestore: DispatchWorkItem?
     private var generation = UUID()
     private var reading = false
     private var rescan = false
@@ -62,13 +63,14 @@ final class NotchNotificationService: ObservableObject {
         detach()
         guard let nextPID else { return }
         var created: AXObserver?
-        let callback: AXObserverCallback = { _, _, name, context in
+        let callback: AXObserverCallback = { _, element, name, context in
             guard let context else { return }
             let service = Unmanaged<NotchNotificationService>.fromOpaque(context).takeUnretainedValue()
             // A new window usually brings a banner, laid out a few hundredths
             // of a second later. Reading it then lets a hidden original leave
             // before it slides in. The regular pass still follows.
             if name as String == kAXWindowCreatedNotification {
+                service.prehide(element)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak service] in service?.scan() }
             }
             service.scheduleScan()
@@ -88,6 +90,41 @@ final class NotchNotificationService: ObservableObject {
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(created), .commonModes)
         monitoring = true
         scan()
+    }
+
+    /// Moves a window the center just made out of sight before its banner
+    /// draws. The pass that follows reads it there and decides whether it
+    /// stays away or comes back.
+    private func prehide(_ window: AXUIElement) {
+        guard monitoring, NotchNotificationSupport.dismissesNative(), NotchNotificationSupport.movesNativeWindow,
+              let reader else { return }
+        hidesNative = true
+        let requested = generation
+        queue.async { [weak self] in
+            reader.prehide(window)
+            let hidden = reader.hidesWindows
+            let retryDelay = reader.prehideRetryDelay
+            DispatchQueue.main.async {
+                guard let self, self.generation == requested else { return }
+                self.hidesNative = self.hidesNative || hidden
+                self.scheduleNativeRestore(after: retryDelay)
+            }
+        }
+    }
+
+    /// The reader supplies the remaining grace after moving the window. A
+    /// failed restoration schedules another pass even if AX stays silent.
+    private func scheduleNativeRestore(after delay: TimeInterval?) {
+        pendingNativeRestore?.cancel(); pendingNativeRestore = nil
+        guard let delay, monitoring else { return }
+        let requested = generation
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.generation == requested else { return }
+            self.pendingNativeRestore = nil
+            self.scheduleScan()
+        }
+        pendingNativeRestore = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private func scheduleScan() {
@@ -194,9 +231,11 @@ final class NotchNotificationService: ObservableObject {
             self.queue.async { [weak self] in
                 let failed = reader.hideNative(shown)
                 let hidden = reader.hidesWindows
+                let retryDelay = reader.prehideRetryDelay
                 DispatchQueue.main.async {
                     guard let self, self.generation == requested else { return }
                     self.hidesNative = hidden
+                    self.scheduleNativeRestore(after: retryDelay)
                     // Closed instead, so later passes do not move its window again.
                     self.shownIDs.subtract(failed)
                     for id in failed where self.closingIDs.insert(id).inserted { self.closeNative(id) }
@@ -258,9 +297,10 @@ final class NotchNotificationService: ObservableObject {
         // Cancelling first ends a read in flight at its next step, and the wait
         // still covers a move on its way, even one a later pass just queued.
         cancellation.cancel()
-        if let reader, hidesNative || !shownIDs.isEmpty { queue.sync { reader.showNative() } }
+        reader?.restoreNativeSynchronously(on: queue)
         generation = UUID()
         pendingScan?.cancel(); pendingScan = nil
+        pendingNativeRestore?.cancel(); pendingNativeRestore = nil
         if let observer {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
             if let application {

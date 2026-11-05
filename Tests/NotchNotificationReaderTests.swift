@@ -109,6 +109,273 @@ enum NotchNotificationReaderTests {
         busyClosing(suite)
         nativeHiding(suite)
         hiddenWindowReturns(suite)
+        arrivalHiding(suite)
+        arrivalFocus(suite)
+        arrivalRecovery(suite)
+        arrivalQueue(suite)
+        arrivalRollback(suite)
+    }
+
+    private static func arriving() -> (access: Access, reader: NotchNotificationReaderCore<Access>, window: Node, home: CGRect) {
+        let access = Access(), banner = card()
+        banner.strings["AXSubrole"] = "AXNotificationCenterBanner"
+        let window = Node("AXWindow", subrole: "AXSystemDialog", children: [banner])
+        access.roots = [window]
+        return (access, access.reader(), window, window.frame)
+    }
+
+    /// A window the center just made leaves the screen before anything reads
+    /// it; only a banner the island shows keeps it away.
+    private static func arrivalHiding(_ suite: TestSuite) {
+        do {
+            let (access, reader, window, home) = arriving()
+            reader.prehide(window)
+            suite.expect(access.moves == 0 && window.frame == home && !reader.hidesWindows && reader.prehideRetryDelay == nil,
+                         "a new window stays in place without the option to hide native banners")
+        }
+        do {
+            let (access, reader, window, _) = arriving()
+            access.allowClose = true
+            reader.prehide(window)
+            suite.expect(!window.frame.intersects(screens) && reader.hidesWindows,
+                         "a new window leaves every display before its banner is read")
+            let id = reader.read()?.items.first?.id
+            suite.expect(id != nil, "a banner moved away on arrival is still read")
+            if let id {
+                suite.expect(reader.hideNative([id]).isEmpty && !window.frame.intersects(screens) && reader.hidesWindows,
+                             "a banner the island shows stays out of sight")
+                suite.expect(reader.prehideRetryDelay == nil, "an accepted banner needs no arrival cleanup timer")
+            }
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            reader.prehide(window)
+            _ = reader.read()
+            suite.expect(reader.hideNative([]).isEmpty && window.frame == home && !reader.hidesWindows,
+                         "a banner the island passed over comes back where the center put it")
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            window.children[0].strings["AXSubrole"] = "AXNotificationCenterAlert"
+            reader.prehide(window)
+            let ids = Set(reader.read()?.items.map(\.id) ?? [])
+            _ = reader.hideNative(ids)
+            suite.expect(!ids.isEmpty && window.frame == home && !reader.hidesWindows && reader.prehideRetryDelay == nil
+                         && access.performed.isEmpty && access.presses.isEmpty,
+                         "a persistent alert returns after arrival even if mirrored, without dismissing its alarm")
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            reader.prehide(window)
+            access.allowClose = false
+            _ = reader.hideNative([])
+            suite.expect(window.frame == home && !reader.hidesWindows && reader.prehideRetryDelay == nil,
+                         "turning off native hiding restores arrivals and cancels their cleanup")
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            window.children = []
+            reader.prehide(window)
+            _ = reader.read()
+            suite.expect(reader.hideNative([]).isEmpty && !window.frame.intersects(screens),
+                         "an empty new window waits a moment for its banner to lay out")
+            access.time += NotchNotificationReaderCore<Access>.prehideGrace
+            _ = reader.read()
+            suite.expect(reader.hideNative([]).isEmpty && window.frame == home && !reader.hidesWindows,
+                         "a new window that never holds a banner comes back once its grace is over")
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            reader.prehide(window)
+            access.focused = true
+            suite.expect(reader.read() == nil && window.frame == home && !reader.hidesWindows,
+                         "opening the center brings a window moved on arrival back")
+        }
+    }
+
+    private static func arrivalFocus(_ suite: TestSuite) {
+        for focused in [true, false] {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            access.focused = focused
+            if !focused { access.failRead = "focused" }
+            reader.prehide(window)
+            suite.expect(access.moves == 0 && window.frame == home && !reader.hidesWindows && reader.prehideRetryDelay == nil,
+                         "arrival hiding leaves a focused or unreadable center in place")
+        }
+        for throughRead in [true, false] {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            reader.prehide(window)
+            access.failRead = "focused"
+            if throughRead { _ = reader.read() } else { _ = reader.hideNative([]) }
+            suite.expect(window.frame == home && !reader.hidesWindows && reader.prehideRetryDelay == nil,
+                         "losing the focus query after arrival restores native windows instead of stranding them")
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            access.beforeRead = { operation, _ in if operation == "focused" { access.allowClose = false } }
+            reader.prehide(window)
+            access.beforeRead = nil
+            suite.expect(access.moves == 0 && window.frame == home && !reader.hidesWindows,
+                         "turning native hiding off during the focus check prevents the arrival move")
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            access.allowed = false
+            reader.prehide(window)
+            suite.expect(access.moves == 0 && window.frame == home && reader.prehideRetryDelay == nil,
+                         "an arrival queued before cancellation cannot move a new window afterward")
+        }
+    }
+
+    private static func arrivalRecovery(_ suite: TestSuite) {
+        for failure in ["read", "move", "ignored move"] {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            window.children = []
+            reader.prehide(window)
+            _ = reader.read()
+            access.time += NotchNotificationReaderCore<Access>.prehideGrace
+            if failure == "read" { access.failRead = "frame" }
+            if failure == "move" { access.movable = false }
+            if failure == "ignored move" { access.ignoresMove = true }
+            _ = reader.hideNative([])
+            suite.expect(reader.hidesWindows && !window.frame.intersects(screens) && reader.prehideRetryDelay == 0.1,
+                         "a failed arrival restoration retains a scheduled retry after \(failure)")
+            access.failRead = nil; access.movable = true; access.ignoresMove = false
+            access.time += reader.prehideRetryDelay ?? 0
+            _ = reader.hideNative([])
+            suite.expect(window.frame == home && !reader.hidesWindows && reader.prehideRetryDelay == nil,
+                         "the next placement restores an empty window after \(failure), without a new notification")
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            window.children = []
+            reader.prehide(window)
+            access.focused = true; access.failRead = "frame"
+            _ = reader.read()
+            suite.expect(reader.hidesWindows && reader.prehideRetryDelay != nil,
+                         "a failed show-all restoration does not discard the pending arrival")
+            access.focused = false; access.failRead = nil
+            access.time += NotchNotificationReaderCore<Access>.prehideGrace
+            _ = reader.read()
+            _ = reader.hideNative([])
+            suite.expect(window.frame == home && !reader.hidesWindows && reader.prehideRetryDelay == nil,
+                         "a failed restoration can recover after the center closes again")
+        }
+        do {
+            let (access, reader, window, _) = arriving()
+            access.allowClose = true
+            window.frame.origin = CGPoint(x: -10_000, y: -10_000)
+            reader.prehide(window)
+            suite.expect(access.moves == 0 && !reader.hidesWindows && reader.prehideRetryDelay == nil,
+                         "an already offscreen window not moved by this reader needs no restoration timer")
+        }
+    }
+
+    private static func arrivalQueue(_ suite: TestSuite) {
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            window.children = []
+            // The creation callback happened at zero, but another queued read
+            // consumed the old timer before this move could begin.
+            access.time = 1
+            reader.prehide(window)
+            let delay = reader.prehideRetryDelay
+            suite.expect(delay == NotchNotificationReaderCore<Access>.prehideGrace,
+                         "a delayed arrival receives its full grace after the actual move")
+            access.time += 0.2
+            _ = reader.read()
+            _ = reader.hideNative([])
+            suite.expect(reader.hidesWindows && (reader.prehideRetryDelay ?? 0) > 0,
+                         "an early pass keeps a later cleanup scheduled for the delayed arrival")
+            access.time = 1 + (delay ?? 0)
+            _ = reader.hideNative([])
+            suite.expect(window.frame == home && !reader.hidesWindows && reader.prehideRetryDelay == nil,
+                         "the deadline supplied after the queued move restores an empty window")
+        }
+        do {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            let queue = DispatchQueue(label: "test.notch-notification-arrival")
+            let moved = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0)
+            // The native move completed, but its result has not reached the
+            // main thread. The service uses this same unconditional drain.
+            queue.async {
+                reader.prehide(window)
+                moved.signal()
+                release.wait()
+            }
+            let completed = moved.wait(timeout: .now() + 2) == .success
+            if completed { access.allowed = false }
+            release.signal()
+            reader.restoreNativeSynchronously(on: queue)
+            suite.expect(completed && access.moves == 2 && window.frame == home && !reader.hidesWindows
+                         && reader.prehideRetryDelay == nil,
+                         "shutdown drains and restores an unpublished move after cancellation, regardless of cached main-thread state")
+        }
+    }
+
+    private static func arrivalRollback(_ suite: TestSuite) {
+        for failure in ["read", "timeout", "cancellation", "ignored rollback"] {
+            for onArrival in [true, false] {
+                let (access, reader, window, home) = arriving()
+                access.allowClose = true
+                let ids: Set<UUID> = onArrival ? [] : Set(reader.read()?.items.map(\.id) ?? [])
+                access.beforeRead = { operation, _ in
+                    guard operation == "frame", access.moves == 1 else { return }
+                    access.beforeRead = nil
+                    if failure == "timeout" { access.time += 1 }
+                    else if failure == "cancellation" { access.allowed = false }
+                    else { access.failRead = "frame" }
+                    if failure == "ignored rollback" { access.ignoresMove = true }
+                    else { access.movable = false }
+                }
+                if onArrival { reader.prehide(window) }
+                else {
+                    suite.expect(reader.hideNative(ids).isEmpty,
+                                 "an unconfirmed move cannot authorize fallback closing after \(failure)")
+                }
+                suite.expect((onArrival || !ids.isEmpty) && access.moves >= 2 && !window.frame.intersects(screens)
+                             && reader.hidesWindows && reader.prehideRetryDelay == 0.1,
+                             "a failed confirmation and rollback retain the window and its retry after \(failure)")
+                access.beforeRead = nil; access.failRead = nil
+                access.movable = true; access.ignoresMove = false
+                // No live target is needed for recovery. Cancellation may
+                // still forbid reading when the restoration timer fires.
+                window.children = []
+                _ = reader.read()
+                _ = reader.hideNative([])
+                suite.expect(window.frame == home && !reader.hidesWindows && reader.prehideRetryDelay == nil
+                             && access.performed.isEmpty,
+                             "a later pass restores the recorded origin after \(failure), without closing a banner")
+            }
+        }
+        for failure in ["read", "timeout"] {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            access.beforeRead = { operation, _ in
+                guard operation == "frame" else { return }
+                if access.moves == 1 {
+                    if failure == "read" { access.failRead = "frame" }
+                    else { access.time += 1 }
+                } else if access.moves == 2 { access.failRead = nil }
+            }
+            reader.prehide(window)
+            access.beforeRead = nil
+            suite.expect(access.moves == 2 && window.frame == home && !reader.hidesWindows && reader.prehideRetryDelay == nil,
+                         "a confirmed successful rollback needs no retry after \(failure)")
+        }
     }
 
     /// The center's window with one transient banner, read once.
