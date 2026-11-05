@@ -515,6 +515,7 @@ enum DefaultsKey {
     static let windowReserveStageManagerSpace = "windowReserveStageManagerSpace"
     static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // per-edge percentage for margin maximize
     static let windowLayoutSideRepeatCyclesThirds = "windowLayoutSideRepeatCyclesThirds" // repeated Left/Right cycles half, 2/3, 1/3 on the same display
+    static let windowLayoutRepeatCyclesAll = "windowLayoutRepeatCyclesAll" // every half and corner cycles sizes on a repeat, like Rectangle
     static let windowLayoutIgnoredApps = "windowLayoutIgnoredApps" // apps that temporarily disable window layout while focused
     static let panelCollapsedSections = "panelCollapsedSections"
     static let panelCollapsedResetVersion = "panelCollapsedResetVersion"
@@ -815,6 +816,13 @@ enum DefaultsKey {
     static let windowLayoutShortcutBottomLeftSixth = "windowLayoutShortcutBottomLeftSixth"
     static let windowLayoutShortcutBottomCenterSixth = "windowLayoutShortcutBottomCenterSixth"
     static let windowLayoutShortcutBottomRightSixth = "windowLayoutShortcutBottomRightSixth"
+    static let windowLayoutShortcutTopLeftTwoThirds = "windowLayoutShortcutTopLeftTwoThirds"
+    static let windowLayoutShortcutTopRightTwoThirds = "windowLayoutShortcutTopRightTwoThirds"
+    static let windowLayoutShortcutBottomLeftTwoThirds = "windowLayoutShortcutBottomLeftTwoThirds"
+    static let windowLayoutShortcutBottomRightTwoThirds = "windowLayoutShortcutBottomRightTwoThirds"
+    static let windowLayoutShortcutMaximizeHeight = "windowLayoutShortcutMaximizeHeight"
+    static let windowLayoutShortcutMakeSmaller = "windowLayoutShortcutMakeSmaller"
+    static let windowLayoutShortcutMakeLarger = "windowLayoutShortcutMakeLarger"
 
     // Text snippets: type a trigger, get the expansion.
     static let textSnippetsEnabled = "textSnippetsEnabled"
@@ -895,25 +903,68 @@ enum DefaultsKey {
     // AI agents: what the island reads from Claude Code, Codex, OpenCode and GitHub Copilot, and shows.
     static let notchAgentsEnabled = "notchAgentsEnabled"
     static let notchAgentsClaude = "notchAgentsClaude"
-    static let notchAgentsClaudeProfile = "notchAgentsClaudeProfile"
     static let notchAgentsCodex = "notchAgentsCodex"
     /// The Codex homes, `CODEX_HOME` folders, that get limits cards of their own.
     static let notchAgentsCodexProfiles = "notchAgentsCodexProfiles"
+    /// The Claude Code profiles, `CLAUDE_CONFIG_DIR` folders, each signed in
+    /// to one seat of a Claude plan, whose limits show side by side.
+    static let notchAgentsClaudeSeats = "notchAgentsClaudeSeats"
+    /// The organization's name on the seats' card, as the person writes it.
+    static let notchAgentsClaudeOrgLabel = "notchAgentsClaudeOrgLabel"
+    /// The accounts whose limits the island, or the lock screen, leaves out:
+    /// `claude`, `claudeAPI` and `codex` here, comma-separated, and the
+    /// Claude seats' and Codex homes' profile ids in the `Profiles` pair.
+    static let notchAgentsIslandHiddenAccounts = "notchAgentsIslandHiddenAccounts"
+    static let notchAgentsLockHiddenAccounts = "notchAgentsLockHiddenAccounts"
+    static let notchAgentsIslandHiddenProfiles = "notchAgentsIslandHiddenProfiles"
+    static let notchAgentsLockHiddenProfiles = "notchAgentsLockHiddenProfiles"
     static let notchAgentsOpenCode = "notchAgentsOpenCode"
     static let notchAgentsCopilot = "notchAgentsCopilot"
+    /// Folders holding Claude Code and Codex logs synced from other
+    /// computers, one path a line, whose usage counts with this Mac's.
+    static let notchAgentsSyncedFolders = "notchAgentsSyncedFolders"
     static let notchAgentsCardOrder = "notchAgentsCardOrder"
     static let notchAgentsHiddenCards = "notchAgentsHiddenCards"
     static let notchAgentsPeriod = "notchAgentsPeriod"
     static let notchAgentsLimitDisplay = "notchAgentsLimitDisplay"
     static let notchAgentsLimitFocus = "notchAgentsLimitFocus"
+    static let notchAgentsRestingLayout = "notchAgentsRestingLayout"
+    /// Retired: the resting island's ring follows "Limit to show". Read once
+    /// by `migrateRestingWindows`.
+    static let notchAgentsRestingSession = "notchAgentsRestingSession"
+    static let notchAgentsRestingWeekly = "notchAgentsRestingWeekly"
+    static let notchAgentsRestingHidden = "notchAgentsRestingHidden"
     static let notchAgentsLiveActivity = "notchAgentsLiveActivity"
     static let notchAgentsReadout = "notchAgentsReadout"
     static let notchAgentsFinishAlert = "notchAgentsFinishAlert"
     static let notchAgentsFinishMinimum = "notchAgentsFinishMinimum"
+    /// A notice when an agent waits on the person, how soon, and whether it
+    /// reminds again; guesses from a quiet log, and interrupted work, apart.
+    static let notchAgentsInputAlert = "notchAgentsInputAlert"
+    static let notchAgentsInputDelay = "notchAgentsInputDelay"
+    static let notchAgentsInputRepeat = "notchAgentsInputRepeat"
+    static let notchAgentsInputInferred = "notchAgentsInputInferred"
+    static let notchAgentsInterruptAlert = "notchAgentsInterruptAlert"
     static let notchAgentsLimitAlert = "notchAgentsLimitAlert"
     static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
     static let notchAgentsDailyBudget = "notchAgentsDailyBudget"
     static let notchAgentsPriceUpdates = "notchAgentsPriceUpdates"
+    /// The Sounds page: one switch for every sound. Each moment's own keys
+    /// come from `AppSound`, and register through `AppSound.registeredDefaults`.
+    static let soundsEnabled = "soundsEnabled"
+    /// Holds every sound while the screen is shared or an app records from a microphone.
+    static let soundsQuietWhileSharing = "soundsQuietWhileSharing"
+    /// Holds an agent's sounds while its own session is in front.
+    static let soundsOnlyWhenAway = "soundsOnlyWhenAway"
+    /// `AppSoundOutput`: the current output or the alert device.
+    static let soundsOutput = "soundsOutput"
+    /// Who pays for Claude Code's requests: `AgentClaudeBilling`.
+    static let notchAgentsClaudeBilling = "notchAgentsClaudeBilling"
+    /// The API key's prepaid balance in US dollars as entered, when, and what
+    /// that day had already spent; 0 while none is entered.
+    static let notchAgentsClaudeCredits = "notchAgentsClaudeCredits"
+    static let notchAgentsClaudeCreditsSince = "notchAgentsClaudeCreditsSince"
+    static let notchAgentsClaudeCreditsBaseline = "notchAgentsClaudeCreditsBaseline"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     // How the island looks on a display without a camera housing.
@@ -940,8 +991,13 @@ enum DefaultsKey {
     static let notchReturnHome = "notchReturnHome"
     static let notchHomeModule = "notchHomeModule"
     static let notchOpensActivity = "notchOpensActivity"
+    static let notchPointerDriven = "notchPointerDriven"
     static let notchHiddenModules = "notchHiddenModules"
     static let notchModuleOrder = "notchModuleOrder"
+    static let notchNavigationStyle = "notchNavigationStyle"
+    static let notchTopBarOrder = "notchTopBarOrder"
+    static let notchTopBarHidden = "notchTopBarHidden"
+    static let notchTopBarSecondaryClickToggles = "notchTopBarSecondaryClickToggles"
     static let notchQuickAccessLayout = "notchQuickAccessLayout"
     static let notchQuickAccessSide = "notchQuickAccessSide"
     static let notchQuickAccessSecond = "notchQuickAccessSecond"
@@ -961,6 +1017,15 @@ enum DefaultsKey {
     static let notchShowInCaptures = "notchShowInCaptures"
     static let notchLockScreen = "notchLockScreen" // music and live activities over the lock screen
     static let notchLockSounds = "notchLockSounds" // padlock sounds as the Mac locks and unlocks
+    static let notchLockScreenAgents = "notchLockScreenAgents" // the AI rail right of the lock screen's stage
+    static let notchLockScreenAgentsHideProjects = "notchLockScreenAgentsHideProjects"
+    static let notchLockScreenAgentsHideAmounts = "notchLockScreenAgentsHideAmounts"
+    static let notchLockScreenMac = "notchLockScreenMac" // This Mac: system, accessories and battery left of the stage, the calendar on it
+    static let notchLockScreenMacHideEvents = "notchLockScreenMacHideEvents"
+    static let notchLockScreenTileTone = "notchLockScreenTileTone" // the widgets' palette, chosen as Job profile
+    static let notchLockScreenWidgetOrder = "notchLockScreenWidgetOrder" // each place's widgets top to bottom, empty for the first order
+    static let notchLockScreenHiddenWidgets = "notchLockScreenHiddenWidgets"
+    static let notchLockWallpaper = "notchLockWallpaper" // the moon wallpaper, and what moves on it over the lock screen
     // Companion: a small friend who rests in the closed island and is the Command Bar's face.
     static let notchMascotEnabled = "notchMascotEnabled"
     static let notchMascotVisits = "notchMascotVisits" // passes through the island now and then
@@ -989,6 +1054,8 @@ enum DefaultsKey {
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
     static let simulateBetaUI = "simulateBetaUI"
+    // Dev-build only: stand-in usage for the resting AI meters, e.g. "claude.session=0.86".
+    static let simulateRestingUsage = "simulateRestingUsage"
 
     /// Features hub availability layer, one key per AppFeature raw value.
     /// Registered true: unavailable features vanish from every surface and
@@ -1495,24 +1562,45 @@ enum Defaults {
         DefaultsKey.notchCalendarExcluded: [String](),
         DefaultsKey.notchAgentsEnabled: false,
         DefaultsKey.notchAgentsClaude: true,
-        DefaultsKey.notchAgentsClaudeProfile: "",
         DefaultsKey.notchAgentsCodex: true,
         DefaultsKey.notchAgentsCodexProfiles: "",
+        DefaultsKey.notchAgentsClaudeSeats: "",
+        DefaultsKey.notchAgentsClaudeOrgLabel: "",
+        DefaultsKey.notchAgentsIslandHiddenAccounts: "",
+        DefaultsKey.notchAgentsLockHiddenAccounts: "",
+        DefaultsKey.notchAgentsIslandHiddenProfiles: "",
+        DefaultsKey.notchAgentsLockHiddenProfiles: "",
         DefaultsKey.notchAgentsOpenCode: true,
         DefaultsKey.notchAgentsCopilot: true,
+        DefaultsKey.notchAgentsSyncedFolders: "",
         DefaultsKey.notchAgentsCardOrder: "",
-        DefaultsKey.notchAgentsHiddenCards: "",
+        DefaultsKey.notchAgentsHiddenCards: NotchAgentSupport.defaultHiddenCards,
         DefaultsKey.notchAgentsPeriod: AgentPeriod.today.rawValue,
         DefaultsKey.notchAgentsLimitDisplay: NotchAgentLimitDisplay.remaining.rawValue,
         DefaultsKey.notchAgentsLimitFocus: NotchAgentLimitFocus.mostUsed.rawValue,
+        DefaultsKey.notchAgentsRestingLayout: NotchAgentRestingLayout.single.rawValue,
+        DefaultsKey.notchAgentsRestingHidden: "",
         DefaultsKey.notchAgentsLiveActivity: true,
         DefaultsKey.notchAgentsReadout: NotchAgentReadout.elapsed.rawValue,
         DefaultsKey.notchAgentsFinishAlert: true,
         DefaultsKey.notchAgentsFinishMinimum: NotchAgentSupport.defaultFinishMinimum,
+        DefaultsKey.notchAgentsInputAlert: true,
+        DefaultsKey.notchAgentsInputDelay: AgentAttentionPolicy.defaultDelay,
+        DefaultsKey.notchAgentsInputRepeat: true,
+        DefaultsKey.notchAgentsInputInferred: false,
+        DefaultsKey.notchAgentsInterruptAlert: false,
         DefaultsKey.notchAgentsLimitAlert: true,
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,
         DefaultsKey.notchAgentsDailyBudget: 0.0,
         DefaultsKey.notchAgentsPriceUpdates: true,
+        DefaultsKey.soundsEnabled: true,
+        DefaultsKey.soundsQuietWhileSharing: true,
+        DefaultsKey.soundsOnlyWhenAway: false,
+        DefaultsKey.soundsOutput: AppSoundOutput.current.rawValue,
+        DefaultsKey.notchAgentsClaudeBilling: AgentClaudeBilling.automatic.rawValue,
+        DefaultsKey.notchAgentsClaudeCredits: 0.0,
+        DefaultsKey.notchAgentsClaudeCreditsSince: 0.0,
+        DefaultsKey.notchAgentsClaudeCreditsBaseline: 0.0,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,
@@ -1546,8 +1634,13 @@ enum Defaults {
         DefaultsKey.notchReturnHome: false,
         DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,
         DefaultsKey.notchOpensActivity: true,
+        DefaultsKey.notchPointerDriven: false,
         DefaultsKey.notchHiddenModules: "",
         DefaultsKey.notchModuleOrder: "",
+        DefaultsKey.notchNavigationStyle: NotchNavigationStyle.topBar.rawValue,
+        DefaultsKey.notchTopBarOrder: "",
+        DefaultsKey.notchTopBarHidden: "",
+        DefaultsKey.notchTopBarSecondaryClickToggles: true,
         DefaultsKey.notchQuickAccessLayout: Data(),
         DefaultsKey.notchVolume: true,
         DefaultsKey.notchInputSource: true,
@@ -1563,6 +1656,15 @@ enum Defaults {
         DefaultsKey.notchShowInCaptures: true,
         DefaultsKey.notchLockScreen: false,
         DefaultsKey.notchLockSounds: false,
+        DefaultsKey.notchLockScreenAgents: false,
+        DefaultsKey.notchLockScreenAgentsHideProjects: false,
+        DefaultsKey.notchLockScreenAgentsHideAmounts: false,
+        DefaultsKey.notchLockScreenMac: false,
+        DefaultsKey.notchLockScreenMacHideEvents: false,
+        DefaultsKey.notchLockScreenTileTone: "graphite",
+        DefaultsKey.notchLockScreenWidgetOrder: "",
+        DefaultsKey.notchLockScreenHiddenWidgets: "",
+        DefaultsKey.notchLockWallpaper: false,
         DefaultsKey.notchMascotEnabled: false,
         DefaultsKey.notchMascotVisits: true,
         DefaultsKey.notchMascotReactions: true,
@@ -1685,6 +1787,7 @@ enum Defaults {
         DefaultsKey.windowReserveStageManagerSpace: false,
         DefaultsKey.windowLayoutMarginPercent: 5.0,
         DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
+        DefaultsKey.windowLayoutRepeatCyclesAll: false,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,
@@ -2011,8 +2114,15 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomLeftSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutTopLeftTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutTopRightTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutBottomLeftTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutBottomRightTwoThirds: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutMaximizeHeight: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutMakeSmaller: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutMakeLarger: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
-    ]
+    ].merging(AppSound.registeredDefaults) { current, _ in current }
 
     static func register() {
         let defaults = UserDefaults.standard
@@ -2029,6 +2139,7 @@ enum Defaults {
         migrateSwitcherPreviewSize(in: defaults)
         migrateSwitcherPreviewExcludedApps(in: defaults)
         migrateNotchWatchAvailability(in: defaults)
+        migrateRestingWindows(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         activateBetaChannelIfRunningBeta(in: defaults)
@@ -2286,6 +2397,23 @@ enum Defaults {
               defaults.object(forKey: AppFeature.notch.availabilityKey) as? Bool == false
         else { return }
         defaults.set(false, forKey: AppFeature.notchWatch.availabilityKey)
+    }
+
+    /// The resting island's session ring and weekly bar had switches of
+    /// their own; its one ring now shows the limit "Limit to show" picks.
+    /// Whoever kept only one of them, and left that choice on Most used,
+    /// keeps seeing the same limit.
+    static func migrateRestingWindows(in defaults: UserDefaults) {
+        let session = defaults.object(forKey: DefaultsKey.notchAgentsRestingSession) as? Bool
+        let weekly = defaults.object(forKey: DefaultsKey.notchAgentsRestingWeekly) as? Bool
+        guard session != nil || weekly != nil else { return }
+        let focus = defaults.string(forKey: DefaultsKey.notchAgentsLimitFocus) ?? NotchAgentLimitFocus.mostUsed.rawValue
+        if (session ?? true) != (weekly ?? true), focus == NotchAgentLimitFocus.mostUsed.rawValue {
+            defaults.set((session ?? true) ? NotchAgentLimitFocus.session.rawValue : NotchAgentLimitFocus.weekly.rawValue,
+                         forKey: DefaultsKey.notchAgentsLimitFocus)
+        }
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsRestingSession)
+        defaults.removeObject(forKey: DefaultsKey.notchAgentsRestingWeekly)
     }
 
     /// Linear scrolling reached development builds installed, before new

@@ -66,6 +66,9 @@ struct AgentPeriodUsage: Equatable {
 struct AgentBucket: Equatable, Identifiable {
     let start: Date
     var byProvider: [AgentProvider: AgentTotals] = [:]
+    /// Claude Code's sessions outside the Claude app, which an API key pays
+    /// for when one is set; a part of Claude's totals.
+    var claudeAPI = AgentTotals()
     var id: Date { start }
 
     var total: AgentTotals {
@@ -89,17 +92,29 @@ struct AgentUsageSnapshot: Equatable {
     var periods: [AgentPeriod: AgentPeriodUsage] = [:]
     /// Oldest first, ending with today.
     var days: [AgentBucket] = []
+    /// Each of `days`' models, by provider and name, for the ledger that
+    /// keeps them once their logs are gone.
+    var dayModels: [[String: AgentShare]] = []
+    /// Every day the ledger kept, all agents, filled in by the service.
+    var lifetime = AgentPeriodUsage()
     /// Today's hours, from midnight.
     var hours: [AgentBucket] = []
     var limits: [AgentProvider: AgentLimits] = [:]
     var plans: [AgentProvider: AgentPlan] = [:]
     var live: [AgentLiveSession] = []
     var claudeBlock: AgentBlock?
+    /// The same window counted from the Claude app's responses only, which the
+    /// plan pays for when an API key pays for Claude Code elsewhere.
+    var claudeAppBlock: AgentBlock?
     /// The last half hour, scaled to an hour.
     var burnRate: [AgentProvider: AgentTotals] = [:]
     var lastActivity: [AgentProvider: Date] = [:]
     /// Providers with anything on disk: usage, limits or a turn.
     var seen: Set<AgentProvider> = []
+    /// The Claude seats the person added, in their order; empty without any.
+    var claudeSeats: [ClaudeSeat] = []
+    /// The seat each Claude-app session runs under, by the session's id.
+    var claudeLiveSeats: [String: String] = [:]
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }
@@ -129,6 +144,7 @@ enum AgentUsageSummary {
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)
         let hourStarts: [Date] = (0..<24).compactMap { calendar.date(byAdding: .hour, value: $0, to: today) }
         var days = starts.map { AgentBucket(start: $0) }
+        var dayModels = [[String: AgentShare]](repeating: [:], count: starts.count)
         var hours = hourStarts.map { AgentBucket(start: $0) }
         var periods: [AgentPeriod: AgentPeriodUsage] = [:]
         var models: [AgentPeriod: [String: AgentShare]] = [:]
@@ -150,6 +166,7 @@ enum AgentUsageSummary {
             guard let first = starts.first, record.date >= first, record.date < tomorrow,
                   let day = index(of: record.date, in: starts) else { continue }
             days[day].byProvider[record.provider, default: AgentTotals()].add(record)
+            if record.provider == .claude, !record.claudeApp { days[day].claudeAPI.add(record) }
             if day == lastDay, let hour = index(of: record.date, in: hourStarts) {
                 hours[hour].byProvider[record.provider, default: AgentTotals()].add(record)
             }
@@ -163,6 +180,9 @@ enum AgentUsageSummary {
                 names[record.model] = name
             }
             let modelID = record.provider.rawValue + ":" + name
+            dayModels[day][modelID, default: AgentShare(
+                id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())]
+                .totals.add(record)
             for period in AgentPeriod.allCases where day > lastDay - period.days {
                 periods[period, default: AgentPeriodUsage()].total.add(record)
                 periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
@@ -197,8 +217,11 @@ enum AgentUsageSummary {
         }
         snapshot.periods = periods
         snapshot.days = days
+        snapshot.dayModels = dayModels
         snapshot.hours = hours
-        snapshot.claudeBlock = currentBlock(claude, now: now)
+        let start = snapshot.limits[.claude]?.sessionStart(at: now)
+        snapshot.claudeBlock = currentBlock(claude, now: now, after: start)
+        snapshot.claudeAppBlock = currentBlock(claude.filter(\.claudeApp), now: now, after: start)
         return snapshot
     }
 
@@ -230,12 +253,15 @@ enum AgentUsageSummary {
 
     /// Windows start at the first request after the previous one ended and
     /// last five hours from that moment, the renewal time the provider's own
-    /// usage page shows.
-    static func currentBlock(_ records: [AgentUsageRecord], now: Date) -> AgentBlock? {
+    /// usage page shows. A plan whose limits renew otherwise, as a Team
+    /// plan's can, says so in its readings: nothing at or before `after`
+    /// belongs to the open window.
+    static func currentBlock(_ records: [AgentUsageRecord], now: Date, after: Date? = nil) -> AgentBlock? {
         var block: AgentBlock?
         // Sorting positions moves no strings: a day of records is thousands.
         for position in records.indices.sorted(by: { records[$0].date < records[$1].date }) {
             let record = records[position]
+            if let after, record.date <= after { continue }
             if let current = block, record.date < current.end {
                 block?.totals.add(record)
                 continue
@@ -349,7 +375,9 @@ final class AgentUsageSummaryCache {
             result.burnRate[provider]!.cost *= 2
             result.burnRate[provider]!.savings *= 2
         }
-        result.claudeBlock = AgentUsageSummary.currentBlock(claude, now: now)
+        let start = result.limits[.claude]?.sessionStart(at: now)
+        result.claudeBlock = AgentUsageSummary.currentBlock(claude, now: now, after: start)
+        result.claudeAppBlock = AgentUsageSummary.currentBlock(claude.filter(\.claudeApp), now: now, after: start)
         return result
     }
 
@@ -378,12 +406,15 @@ final class AgentUsageSummaryCache {
             delta.unpriced -= previous.cost == nil ? 1 : 0
         }
         history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
+        if record.provider == .claude, !record.claudeApp { history!.days[day].claudeAPI += delta }
         if day == starts.count - 1, let hour = AgentUsageSummary.index(of: record.date, in: hourStarts) {
             history!.hours[hour].byProvider[record.provider, default: AgentTotals()] += delta
         }
         let name = names[record.model] ?? AgentPricing.displayName(record.model)
         names[record.model] = name
         let modelID = record.provider.rawValue + ":" + name
+        history!.dayModels[day][modelID, default: AgentShare(
+            id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())].totals += delta
         for period in AgentPeriod.allCases where day > starts.count - 1 - period.days {
             history!.periods[period]!.total += delta
             history!.periods[period]!.byProvider[record.provider, default: AgentTotals()] += delta
@@ -413,14 +444,20 @@ enum AgentLimitSupport {
 
     /// Once an estimate has passed, the countdown is unknown until another
     /// reading places it. That does not mean the allowance has renewed.
+    /// The time is rounded to the nearest minute: the account can give
+    /// "21:59:59.97" for a 22:00 renewal, which a clock would cut to 21:59.
     static func displayedReset(_ window: AgentLimitWindow, now: Date) -> Date? {
+        nextReset(window, now: now).map { Date(timeIntervalSince1970: ($0.timeIntervalSince1970 / 60).rounded() * 60) }
+    }
+
+    private static func nextReset(_ window: AgentLimitWindow, now: Date) -> Date? {
         guard let reset = window.estimatedResetsAt ?? window.resetsAt, reset > now else { return nil }
         return reset
     }
 
     static func pace(for window: AgentLimitWindow, now: Date) -> AgentPace? {
         guard let minutes = window.minutes, minutes > 0,
-              let resets = displayedReset(window, now: now) else { return nil }
+              let resets = nextReset(window, now: now) else { return nil }
         let length = TimeInterval(minutes) * 60
         let elapsed = now.timeIntervalSince(resets.addingTimeInterval(-length))
         guard elapsed > 0 else { return nil }

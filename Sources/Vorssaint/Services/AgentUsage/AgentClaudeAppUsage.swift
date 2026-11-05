@@ -89,7 +89,8 @@ enum AgentClaudeAppUsage {
             if resets == nil, now.timeIntervalSince(latest.date) >= 86_400 { continue }
             result.append(AgentLimitWindow(id: "claude.\(window.key)", kind: window.kind, minutes: window.minutes,
                                            scope: window.scope, usedPercent: used, resetsAt: resets,
-                                           estimatedResetsAt: session?.estimate))
+                                           estimatedResetsAt: session?.estimate,
+                                           renewedAfter: window.kind == .session ? renewal(history, used: used) : nil))
         }
         guard !result.isEmpty else { return nil }
         return AgentLimits(provider: .claude, windows: result, observedAt: latest.date, source: .claudeApp)
@@ -115,14 +116,7 @@ enum AgentClaudeAppUsage {
 
     private static func sessionEnd(_ history: [Sample], used: Double, start: Date?, length: TimeInterval)
         -> (latest: Date, estimate: Date?)? {
-        guard used > 0, var first = history.indices.last else { return nil }
-        // The run of readings above zero that ends with the latest one. A drop
-        // is a renewal too: work that goes on across one never reads zero.
-        while first > 0, let before = history[first - 1].used["fh"], before > 0,
-              before <= (history[first].used["fh"] ?? 0) + 1,
-              history[first].date.timeIntervalSince(history[first - 1].date) < length {
-            first -= 1
-        }
+        guard used > 0, let first = run(history, length: length) else { return nil }
         let latest = history[first].date
         let earliest = first > 0 ? history[first - 1].date : latest.addingTimeInterval(-length)
         if let start, start > earliest, start <= latest {
@@ -132,6 +126,31 @@ enum AgentClaudeAppUsage {
         // The midpoint can precede the real renewal. Keep the latest possible
         // end for expiring usage and alerts; only the card uses the estimate.
         return (latest.addingTimeInterval(length), estimate < latest ? estimate.addingTimeInterval(length) : nil)
+    }
+
+    /// The run of readings above zero that ends with the latest one. A drop
+    /// is a renewal too: work that goes on across one never reads zero.
+    private static func run(_ history: [Sample], length: TimeInterval) -> Int? {
+        guard var first = history.indices.last else { return nil }
+        while first > 0, let before = history[first - 1].used["fh"], before > 0,
+              before <= (history[first].used["fh"] ?? 0) + 1,
+              history[first].date.timeIntervalSince(history[first - 1].date) < length {
+            first -= 1
+        }
+        return first
+    }
+
+    /// The reading just before the session the latest one sees, which the
+    /// session had renewed after: before a run above zero, or before the
+    /// zeros that follow one.
+    private static func renewal(_ history: [Sample], used: Double) -> Date? {
+        guard var first = history.indices.last else { return nil }
+        if used > 0 {
+            first = run(history, length: TimeInterval(windows[0].minutes) * 60) ?? first
+        } else {
+            while first > 0, history[first - 1].used["fh"] == 0 { first -= 1 }
+        }
+        return first > 0 ? history[first - 1].date : nil
     }
 
     /// Where a session began when only the readings place it. Readings a few

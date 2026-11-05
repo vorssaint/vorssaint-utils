@@ -28,6 +28,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowReserveStageManagerSpace) private var reserveStageManagerSpace = false
     @AppStorage(DefaultsKey.windowLayoutMarginPercent) private var marginPercent = WindowLayoutMargin.defaultPercent
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
+    @AppStorage(DefaultsKey.windowLayoutRepeatCyclesAll) private var repeatCyclesAll = false
     @State private var directionalError: String?
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
@@ -235,8 +236,11 @@ struct WindowLayoutSettings: View {
                     actionRow(.maximize)
                     actionRow(.marginMaximize)
                     marginSlider
+                    actionRow(.maximizeHeight)
                     actionRow(.fullScreen)
                     actionRow(.center)
+                    actionRow(.makeSmaller)
+                    actionRow(.makeLarger)
                     actionRow(.previousDisplay)
                     actionRow(.nextDisplay)
                     actionRow(.restore)
@@ -363,6 +367,7 @@ struct WindowLayoutSettings: View {
     ]
     private static let cornerActions: [WindowLayoutAction] = [
         .topLeft, .topRight, .bottomLeft, .bottomRight,
+        .topLeftTwoThirds, .topRightTwoThirds, .bottomLeftTwoThirds, .bottomRightTwoThirds,
     ]
 
     /// The placement families, grouped so the form body stays within the
@@ -374,7 +379,12 @@ struct WindowLayoutSettings: View {
                 actionRow(action)
             }
             Toggle(text.sideRepeatCycle, isOn: $sideRepeatCyclesThirds)
+                .disabled(repeatCyclesAll)
             Text(text.sideRepeatCycleCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Toggle(text.repeatCycleAll, isOn: $repeatCyclesAll)
+            Text(text.repeatCycleAllCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -603,6 +603,7 @@ struct SettingsView: View {
         case .windowLayout: WindowLayoutSettings()
         case .shelf: ShelfSettings()
         case .shortcuts: ShortcutsSettings()
+        case .sounds: SoundsSettings()
         case .advanced: AdvancedSettings()
         case .about: AboutSettings()
         case .releaseNotes: ReleaseNotesSettings()

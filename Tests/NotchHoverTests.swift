@@ -24,7 +24,7 @@ enum NotchHoverTests {
     enum UserDefaults {
         static var standard = Preferences()
         struct Preferences {
-            var enabled = true, expands = true, hides = false, fullscreenHover = false
+            var enabled = true, expands = true, hides = false, pointerDriven = false, fullscreenHover = false
             var delay = NotchSupport.defaultHoverDelay
             var closeDelay = NotchSupport.defaultCloseDelay
             func bool(forKey key: String) -> Bool {
@@ -32,6 +32,7 @@ enum NotchHoverTests {
                 case DefaultsKey.notchHideUntilHover: return hides
                 case DefaultsKey.notchOpenOnHover: return enabled
                 case DefaultsKey.notchHoverInFullscreen: return fullscreenHover
+                case DefaultsKey.notchPointerDriven: return pointerDriven
                 default: return expands
                 }
             }
@@ -98,6 +99,7 @@ enum NotchHoverTests {
         var running = true, suspended = false, inside = false, hoverEmphasized = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
+        var pointerReachedOpening = false, showingCommandBar = false
         var captureControls: Bool?, notice: NotchNotice?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
@@ -239,6 +241,63 @@ enum NotchHoverTests {
                 picker.hiddenInFullscreen = true
                 suite.expect(!picker.showsCompactActivityPicker, "full-screen content hiding retains priority")
             }
+        }
+        for physical in [false, true] {
+            let driven = fixture(physical: physical)
+            UserDefaults.standard.pointerDriven = true
+            driven.compactActivity = .agents
+            driven.compactActivities = [.agents, .music]
+            driven.hover(true)
+            suite.expect(!driven.showsCompactActivityPicker && driven.hoverWork != nil,
+                         "an island driven by the pointer offers no activity choice and schedules its opening")
+            DispatchQueue.main.advance(0.26)
+            suite.expect(driven.openings == 1 && driven.requestedModule == nil,
+                         "hovering opens the reopening page instead of the activity")
+            driven.collapse()
+            leave(driven)
+            DispatchQueue.main.advance(1)
+
+            // A click opens the island under the pointer, so leaving closes it.
+            NSEvent.mouseLocation = CGPoint(x: driven.geometry.screen.midX, y: driven.geometry.screen.maxY)
+            driven.open(takeFocus: true)
+            driven.inside = true
+            driven.pointerReachedOpening = true
+            leave(driven)
+            DispatchQueue.main.advance(1)
+            suite.expect(driven.closures == 2 && !driven.expanded,
+                         "a clicked island driven by the pointer closes once the pointer leaves")
+
+            // A shortcut opens it away from the pointer: it stays until the pointer has been on it.
+            driven.open(takeFocus: true)
+            driven.inside = false
+            driven.pointerReachedOpening = false
+            leave(driven)
+            DispatchQueue.main.advance(1)
+            suite.expect(driven.expanded, "an island opened away from the pointer waits for the pointer")
+            NSEvent.mouseLocation = CGPoint(x: driven.geometry.screen.midX, y: driven.geometry.screen.maxY)
+            driven.hover(true)
+            suite.expect(driven.pointerReachedOpening, "reaching the open island lets leaving close it")
+            leave(driven)
+            DispatchQueue.main.advance(1)
+            suite.expect(!driven.expanded, "leaving after reaching it closes the island")
+
+            driven.open(takeFocus: true)
+            driven.showingCommandBar = true
+            driven.pointerReachedOpening = true
+            leave(driven)
+            DispatchQueue.main.advance(1)
+            suite.expect(driven.expanded, "the command bar belongs to the keyboard and stays")
+            driven.showingCommandBar = false
+            driven.collapse()
+
+            let sticky = fixture(physical: physical)
+            NSEvent.mouseLocation = CGPoint(x: sticky.geometry.screen.midX, y: sticky.geometry.screen.maxY)
+            sticky.open(takeFocus: true)
+            sticky.inside = true
+            sticky.pointerReachedOpening = true
+            leave(sticky)
+            DispatchQueue.main.advance(1)
+            suite.expect(sticky.expanded, "without the setting a clicked island stays when the pointer leaves")
         }
         for physical in [false, true] {
             let clickOnly = fixture(physical: physical)
