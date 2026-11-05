@@ -78,7 +78,7 @@ def main():
     write("ShortcutClearing.swift", "import AppKit\nimport Carbon.HIToolbox\nimport Combine\n"
           + "extension ShortcutClearingTests {\n"
           + shortcut_preferences(declaration("Sources/Vorssaint/Services/HotkeyManager.swift",
-                                              "final class HotkeyManager:"))
+                                              "final class HotkeyManager:")).replace("{ KeepAwakeManager.shared.sleepNow() }", "{}")
           + declaration("Sources/Vorssaint/Services/QuickTools/QuickToolHotkey.swift", "final class QuickToolHotkey {")
           + declaration("Sources/Vorssaint/Services/SystemShortcutTakeover.swift", "enum SystemShortcutTakeover {")
           + declaration("Sources/Vorssaint/Services/ShortcutCapture.swift", "enum ShortcutCapture {")
@@ -2492,6 +2492,9 @@ def main():
         "    private func saveManualSession(",
         "    private func restoreSessionIfNeeded(",
         "    func extend(minutes:",
+        "    func sleepNow(",
+        "    private func resumeAfterSleepNow(",
+        "    private func syncSessionWithScreenLock(",
         "    func resumeAfterSystemTeardown(",
         "    private func activate(end:",
         "    func deactivate(reason:",
@@ -2527,10 +2530,10 @@ def main():
           + "typealias KeepAwakeManager = Service\n"
           + "final class Service {\n"
           + "static let log = Logger(subsystem: \"vorssaint.tests\", category: \"keep-awake\")\n"
-          + "var isActive = false\nvar sessionPausedForScreenLock = false\n"
+          + "var isActive = false\nvar sessionPausedForScreenLock = false\nvar sessionPausedForSleepNow = false\n"
           + "var isTerminating = false\nvar clamshellEnablePending = false\nvar clamshellRestorePending = false\n"
           + "var clamshellOperationGeneration = 0\nvar clamshellSetupID: UUID?\n"
-          + "var lidSleepGeneration = 0\nvar lidSleepAttemptsRemaining = 0\n"
+          + "var lidSleepGeneration = 0\nvar lidSleepAttemptsRemaining = 0\nvar sleepNowGeneration: Int?\n"
           + "var clamshellSetupInProgress = false\nvar clamshellSetupFailed = false\n"
           + "var clamshellSetupRetried = false\nvar passwordlessClamshell = true\n"
           + "var recoveryCompleted = false\nvar launchActivationPending = true\nvar screenLocked = false\nvar assertionsHeld = false\n"
