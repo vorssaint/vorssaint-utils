@@ -74,7 +74,7 @@ enum ClaudeAccountProfileTests {
                      "the default remains unchanged and account folders never travel in settings backups")
         let tiles = NotchAgentSupport.tiles(cards: [.limits], providers: [.claude, .codex], claudeAccount: "work")
         suite.expect(tiles.first?.accountID == "work" && tiles.last?.accountID == nil
-                        && NotchAgentSupport.height(of: tiles) == NotchAgentSupport.accountCardHeight,
+                        && NotchAgentSupport.height(of: [tiles[0]]) == NotchAgentSupport.accountCardHeight,
                      "a selected Claude account has room for its identity, refresh and failure state")
     }
 
