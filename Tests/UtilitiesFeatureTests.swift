@@ -1512,6 +1512,13 @@ enum UtilitiesFeatureTests {
                 && !QuickTogglesSupport.finderFlag(nil, default: false)
                 && QuickTogglesSupport.finderFlag("maybe", default: true),
                "absent or unreadable values fall back to the given default")
+        suite.expect(QuickTogglesSupport.finderWarnsBeforeEmptyingTrash(nil)
+                && QuickTogglesSupport.finderWarnsBeforeEmptyingTrash("maybe"),
+               "a Finder that never changed or cannot be read keeps warning before emptying the Trash")
+        suite.expect(!QuickTogglesSupport.finderWarnsBeforeEmptyingTrash(false)
+                && !QuickTogglesSupport.finderWarnsBeforeEmptyingTrash(NSNumber(value: 0))
+                && QuickTogglesSupport.finderWarnsBeforeEmptyingTrash(true),
+               "the Finder's own Trash warning setting decides when it is set")
         suite.expect(QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
                                                     isEjectable: false, isLocal: true,
                                                     isRootFileSystem: false)
