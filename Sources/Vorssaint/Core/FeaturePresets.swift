@@ -107,6 +107,7 @@ extension AppFeature {
                 ).isEmpty
             let pointerTapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
                 || edgeSnapRuns
+                || UserDefaults.standard.bool(forKey: DefaultsKey.windowCustomZonesEnabled)
             let modifierTapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowDirectionalEnabled)
                 && UserDefaults.standard.string(forKey: DefaultsKey.windowDirectionalShortcut)
                     .flatMap(WindowDirectionalTrigger.init(storageValue:))

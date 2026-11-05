@@ -76,6 +76,7 @@ extension AppFeature {
         case .windowLayout:
             return boolFor(DefaultsKey.windowLayoutShortcutsEnabled)
                 || boolFor(DefaultsKey.windowGestureEnabled)
+                || boolFor(DefaultsKey.windowCustomZonesEnabled)
                 || (boolFor(DefaultsKey.windowEdgeSnapEnabled)
                     && !WindowEdgeSnapZone.enabledZones(
                         from: edgeSnapDisabledZones
@@ -318,6 +319,7 @@ extension AppFeature {
         let choices = self == .windowLayout
             ? [DefaultsKey.windowLayoutShortcutsEnabled, DefaultsKey.windowDirectionalEnabled,
                DefaultsKey.pointerDisplayEnabled, DefaultsKey.windowEdgeSnapEnabled,
+               DefaultsKey.windowCustomZonesEnabled,
                DefaultsKey.windowGestureEnabled]
             : enabledKeys
         guard !choices.contains(where: { savedValues[$0] != nil }) else { return }

@@ -247,6 +247,9 @@ enum WindowEdgeSnapRuntimeTests {
         var edgeSnapResolving = false
         var edgeSnapLastPointer: CGPoint?
         var edgeSnapTrail = WindowEdgeSnapPointerTrail()
+        var customZoneOptionHeld = false
+        var customZonesOptionDown = false
+        var customZonesEnabled = false
         var edgeSnapFollowsMoveGesture = false
         var edgeSnapStillCheckGeneration = 0
         var edgeSnapStillCheckPending = false
@@ -269,6 +272,16 @@ enum WindowEdgeSnapRuntimeTests {
         var placedActions: [WindowLayoutAction] = []
 
         func syncWithPreferences() {}
+        func setCustomZoneOptionHeld(_ held: Bool) {
+            customZoneOptionHeld = held
+            if !held { customZonesOptionDown = false }
+        }
+        func beginCustomZoneOptionPreview() {
+            if customZoneOptionHeld && customZonesEnabled { customZonesOptionDown = true }
+        }
+        func customZoneTarget(atQuartzPoint: CGPoint) -> WindowCustomZoneTarget? { nil }
+        func setCustomZoneHighlight(_ target: WindowCustomZoneTarget?) {}
+        func applyCustomZone(_ drag: WindowEdgeSnapDrag, target: WindowCustomZoneTarget) {}
         func edgeSnapConflictsWithWindowGesture(flags: CGEventFlags) -> Bool { false }
         func edgeSnapQuartzScreenFrames() -> [CGRect] { [CGRect(x: 0, y: 0, width: 1440, height: 900)] }
         var menuBarScreenTopY: CGFloat { NSScreen.primary.frame.maxY }
