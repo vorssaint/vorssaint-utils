@@ -980,6 +980,8 @@ extension Strings {
         cleanerTrashNote: "Das Leeren des Papierkorbs ist endgültig.",
         cleanerCatDeviceBackups: "iPhone-Backups",
         cleanerDeviceBackupsCaption: "Alte iPhone- und iPad-Backups belegen einen großen Teil des Speichers, den macOS Andere nennt. Entferne nur die, die du nicht mehr brauchst; beim nächsten Anschließen entsteht ein neues.",
+        cleanerCatLaunchCopies: "Startkopien von Browsern",
+        cleanerLaunchCopiesCaption: "Kopien, die Chrome und andere Chromium-Browser beim Start von sich anlegen und nach einem Absturz oder erzwungenen Beenden liegen lassen. Die Kopie eines laufenden Browsers wird nie aufgeführt. Kopien teilen sich Speicher, die Größen sind daher Schätzungen.",
         cleanerCatScreenshots: "Vergessene Bildschirmfotos",
         cleanerScreenshotsCaptionFormat: "Bildschirmfotos, die du seit %d Tagen nicht geöffnet hast und die noch den Namen und Ordner von macOS tragen. Umbenannte oder verschobene erscheinen hier nie.",
         cleanerScreenshotsSettingCaption: "Die Suche listet Bildschirmfotos, die du so lange nicht geöffnet hast, nicht ausgewählt und mit ihrer Gesamtgröße.",

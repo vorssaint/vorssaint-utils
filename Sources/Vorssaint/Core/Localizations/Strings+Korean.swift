@@ -981,6 +981,8 @@ extension Strings {
         cleanerTrashNote: "휴지통을 비우면 되돌릴 수 없습니다.",
         cleanerCatDeviceBackups: "iPhone 백업",
         cleanerDeviceBackupsCaption: "오래된 iPhone 및 iPad 백업은 macOS가 ‘기타’라고 부르는 공간의 큰 부분을 차지할 수 있습니다. 필요 없는 항목만 삭제하세요. 다음에 기기를 연결하면 새 백업을 만들 수 있습니다.",
+        cleanerCatLaunchCopies: "브라우저 실행 사본",
+        cleanerLaunchCopiesCaption: "Chrome 등 Chromium 브라우저가 실행할 때 자신을 복사해 두었다가 충돌이나 강제 종료 후 남긴 사본입니다. 실행 중인 브라우저가 사용하는 사본은 표시되지 않습니다. 사본은 저장 공간을 공유하므로 크기는 추정치입니다.",
         cleanerCatScreenshots: "잊힌 스크린샷",
         cleanerScreenshotsCaptionFormat: "%d일 동안 열지 않았고 macOS가 붙인 이름과 폴더 그대로인 스크린샷입니다. 이름을 바꾸거나 옮긴 스크린샷은 여기에 나타나지 않습니다.",
         cleanerScreenshotsSettingCaption: "검사하면 이 기간 동안 열지 않은 스크린샷을 선택하지 않은 상태로 전체 크기와 함께 보여 줍니다.",

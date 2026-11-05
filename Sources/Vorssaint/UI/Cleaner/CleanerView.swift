@@ -166,14 +166,14 @@ struct CleanerView: View {
     /// How the raw finds are presented: safe groups first, fully selected;
     /// judgment calls under optional, unchecked and collapsed.
     private enum DisplayGroup: Int, CaseIterable, Identifiable {
-        case loginItems, safeCaches, logs, developer
+        case loginItems, safeCaches, logs, developer, launchCopies
         case leftovers, otherCaches, deviceBackups, screenshots, trash
 
         var id: Int { rawValue }
 
         var isSafe: Bool {
             switch self {
-            case .loginItems, .safeCaches, .logs, .developer: return true
+            case .loginItems, .safeCaches, .logs, .developer, .launchCopies: return true
             case .leftovers, .otherCaches, .deviceBackups, .screenshots, .trash: return false
             }
         }
@@ -184,6 +184,7 @@ struct CleanerView: View {
             case .safeCaches, .otherCaches: return [.caches]
             case .logs: return [.logs]
             case .developer: return [.developer]
+            case .launchCopies: return [.launchCopies]
             case .leftovers: return [.leftovers]
             case .deviceBackups: return [.deviceBackups]
             case .screenshots: return [.screenshots]
@@ -197,6 +198,7 @@ struct CleanerView: View {
             case .safeCaches: return "archivebox"
             case .logs: return "doc.text"
             case .developer: return "hammer"
+            case .launchCopies: return "square.on.square"
             case .leftovers: return "puzzlepiece"
             case .otherCaches: return "internaldrive"
             case .deviceBackups: return "iphone"
@@ -220,6 +222,7 @@ struct CleanerView: View {
         case .safeCaches: return l10n.s.cleanerCatCaches
         case .logs: return l10n.s.cleanerCatLogs
         case .developer: return l10n.s.cleanerCatDeveloper
+        case .launchCopies: return l10n.s.cleanerCatLaunchCopies
         case .leftovers: return l10n.s.cleanerCatLeftovers
         case .otherCaches: return l10n.s.cleanerCatOtherCaches
         case .deviceBackups: return l10n.s.cleanerCatDeviceBackups
@@ -234,6 +237,7 @@ struct CleanerView: View {
         case .safeCaches: return l10n.s.cleanerCachesCaption
         case .logs: return l10n.s.cleanerLogsCaption
         case .developer: return l10n.s.cleanerDeveloperCaption
+        case .launchCopies: return l10n.s.cleanerLaunchCopiesCaption
         case .leftovers: return l10n.s.cleanerLeftoversCaption
         case .otherCaches: return l10n.s.cleanerOtherCachesCaption
         case .deviceBackups: return l10n.s.cleanerDeviceBackupsCaption

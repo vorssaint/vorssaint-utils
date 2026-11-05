@@ -980,6 +980,8 @@ extension Strings {
         cleanerTrashNote: "Çöp Sepetini boşaltmak kalıcıdır.",
         cleanerCatDeviceBackups: "iPhone yedekleri",
         cleanerDeviceBackupsCaption: "Eski iPhone ve iPad yedekleri, macOS’un Diğer dediği alanın büyük kısmını kaplar. Yalnızca artık gerekmeyenleri silin; aygıt yeniden bağlanınca yeni yedek alınır.",
+        cleanerCatLaunchCopies: "Tarayıcı açılış kopyaları",
+        cleanerLaunchCopiesCaption: "Chrome ve diğer Chromium tarayıcılarının açılırken kendilerinden aldığı, çökme veya zorla kapatma sonrasında geride kalan kopyalar. Çalışan bir tarayıcının kullandığı kopya hiç listelenmez. Kopyalar alanı paylaştığı için boyutlar tahminidir.",
         cleanerCatScreenshots: "Unutulan ekran görüntüleri",
         cleanerScreenshotsCaptionFormat: "%d gündür açmadığınız ve macOS’un verdiği ad ile klasörde duran ekran görüntüleri. Yeniden adlandırdıklarınız veya taşıdıklarınız burada hiç görünmez.",
         cleanerScreenshotsSettingCaption: "Tarama, bu süredir açmadığınız ekran görüntülerini işaretsiz ve toplam boyutuyla listeler.",

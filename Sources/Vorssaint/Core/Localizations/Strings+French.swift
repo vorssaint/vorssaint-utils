@@ -980,6 +980,8 @@ extension Strings {
         cleanerTrashNote: "Vider la corbeille est définitif.",
         cleanerCatDeviceBackups: "Sauvegardes iPhone",
         cleanerDeviceBackupsCaption: "Les anciennes sauvegardes d’iPhone et d’iPad occupent une grande part du stockage que macOS appelle Autre. Ne supprimez que celles devenues inutiles\u{00A0}; une nouvelle est créée au prochain branchement.",
+        cleanerCatLaunchCopies: "Copies de lancement des navigateurs",
+        cleanerLaunchCopiesCaption: "Copies que Chrome et les autres navigateurs Chromium font d’eux-mêmes au lancement et laissent après un plantage ou un arrêt forcé. La copie d’un navigateur ouvert n’est jamais listée. Les copies partagent l’espace, les tailles sont donc des estimations.",
         cleanerCatScreenshots: "Captures d’écran oubliées",
         cleanerScreenshotsCaptionFormat: "Captures d’écran que vous n’avez pas ouvertes depuis %d jours et qui gardent le nom et le dossier donnés par macOS. Celles renommées ou déplacées n’apparaissent jamais ici.",
         cleanerScreenshotsSettingCaption: "L’analyse liste, non cochées et avec leur taille totale, les captures que vous n’avez pas ouvertes depuis ce délai.",

@@ -1186,6 +1186,8 @@ struct Strings {
     let cleanerTrashNote: String
     let cleanerCatDeviceBackups: String
     let cleanerDeviceBackupsCaption: String
+    let cleanerCatLaunchCopies: String
+    let cleanerLaunchCopiesCaption: String
     let cleanerCatScreenshots: String
     let cleanerScreenshotsCaptionFormat: String
     let cleanerScreenshotsSettingCaption: String
@@ -2303,6 +2305,8 @@ extension Strings {
         cleanerTrashNote: "Esvaziar a Lixeira é permanente.",
         cleanerCatDeviceBackups: "Backups de iPhone",
         cleanerDeviceBackupsCaption: "Backups antigos de iPhone e iPad ocupam boa parte do que o macOS chama de Outros. Remova só os que você não precisa mais; um novo backup é feito quando o aparelho for conectado de novo.",
+        cleanerCatLaunchCopies: "Cópias de abertura dos navegadores",
+        cleanerLaunchCopiesCaption: "Cópias que o Chrome e outros navegadores Chromium fazem de si mesmos ao abrir e deixam para trás após uma falha ou encerramento forçado. A cópia de um navegador aberto nunca aparece. As cópias compartilham espaço, então os tamanhos são estimativas.",
         cleanerCatScreenshots: "Capturas de tela esquecidas",
         cleanerScreenshotsCaptionFormat: "Capturas de tela que você não abre há %d dias e que ainda têm o nome e a pasta que o macOS deu. As que você renomeou ou moveu nunca aparecem aqui.",
         cleanerScreenshotsSettingCaption: "A varredura lista, desmarcadas e com o tamanho total, as capturas de tela que você não abre há esse tempo.",
@@ -3421,6 +3425,8 @@ extension Strings {
         cleanerTrashNote: "Emptying the Trash is permanent.",
         cleanerCatDeviceBackups: "iPhone backups",
         cleanerDeviceBackupsCaption: "Old iPhone and iPad backups take a big slice of the storage macOS calls Other. Remove only the ones you no longer need; a new backup is made when you plug the device in again.",
+        cleanerCatLaunchCopies: "Browser launch copies",
+        cleanerLaunchCopiesCaption: "Copies Chrome and other Chromium browsers make of themselves at launch and leave behind after a crash or forced quit. The copy a running browser uses is never listed. Copies share storage, so sizes are estimates.",
         cleanerCatScreenshots: "Forgotten screenshots",
         cleanerScreenshotsCaptionFormat: "Screenshots you have not opened in %d days that still have the name and folder macOS gave them. Ones you renamed or moved never show up here.",
         cleanerScreenshotsSettingCaption: "The scan lists the screenshots you have not opened for this long, unchecked, with their total size.",

@@ -980,6 +980,8 @@ extension Strings {
         cleanerTrashNote: "Vyprázdnenie Koša je nezvratné.",
         cleanerCatDeviceBackups: "Zálohy iPhonu",
         cleanerDeviceBackupsCaption: "Staré zálohy iPhonu a iPadu zaberajú veľkú časť úložiska, ktoré macOS označuje ako Ostatné. Odstráňte len tie, ktoré už nepotrebujete; nová záloha vznikne, keď zariadenie znova pripojíte.",
+        cleanerCatLaunchCopies: "Kópie prehliadačov pri spustení",
+        cleanerLaunchCopiesCaption: "Kópie, ktoré Chrome a ďalšie prehliadače Chromium vytvárajú pri spustení a nechajú po páde alebo vynútenom ukončení. Kópia spusteného prehliadača sa nikdy nezobrazí. Kópie zdieľajú miesto, preto sú veľkosti odhadom.",
         cleanerCatScreenshots: "Zabudnuté snímky obrazovky",
         cleanerScreenshotsCaptionFormat: "Snímky obrazovky, ktoré ste neotvorili %d dní a ktoré majú stále názov a priečinok od macOS. Premenované alebo presunuté sa tu nikdy nezobrazia.",
         cleanerScreenshotsSettingCaption: "Kontrola zobrazí neoznačené snímky obrazovky, ktoré ste tak dlho neotvorili, aj s ich celkovou veľkosťou.",
