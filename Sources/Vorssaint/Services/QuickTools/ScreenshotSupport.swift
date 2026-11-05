@@ -14,6 +14,13 @@ enum ScreenCaptureTool: String, CaseIterable {
     case recording
     case text
     case color
+    case scrolling
+
+    var settingsDestination: FeatureSettingsDestination {
+        self == .scrolling
+            ? FeatureSettingsDestination(.screenshot, sectionAnchor: .screenshotScrolling)
+            : feature.settingsDestination
+    }
 
     var shortcutKey: String {
         switch self {
@@ -21,6 +28,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return "2"
         case .text: return "3"
         case .color: return "4"
+        case .scrolling: return "5"
         }
     }
 
@@ -31,7 +39,7 @@ enum ScreenCaptureTool: String, CaseIterable {
 
     var feature: AppFeature {
         switch self {
-        case .screenshot: return .screenshot
+        case .screenshot, .scrolling: return .screenshot
         case .recording: return .screenRecorder
         case .text: return .screenOCR
         case .color: return .colorPicker
@@ -57,6 +65,9 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .screenshot:
             return DedicatedShortcut(role: .screenshot,
                                      enabledKey: DefaultsKey.screenshotShortcutEnabled)
+        case .scrolling:
+            return DedicatedShortcut(role: .screenshotScrolling,
+                                     enabledKey: DefaultsKey.screenshotScrollingShortcutEnabled)
         case .recording:
             return DedicatedShortcut(role: .screenRecorder,
                                      enabledKey: DefaultsKey.recorderShortcutEnabled)
@@ -72,6 +83,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     var showCaptureMenuOnShortcutKey: String {
         switch self {
         case .screenshot: return DefaultsKey.screenshotShowCaptureMenuOnShortcut
+        case .scrolling: return DefaultsKey.screenshotScrollingShowCaptureMenuOnShortcut
         case .recording: return DefaultsKey.recorderShowCaptureMenuOnShortcut
         case .text: return DefaultsKey.screenOCRShowCaptureMenuOnShortcut
         case .color: return DefaultsKey.colorPickerShowCaptureMenuOnShortcut
@@ -92,6 +104,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     var systemImageName: String {
         switch self {
         case .screenshot: return "camera.viewfinder"
+        case .scrolling: return "rectangle.stack"
         case .recording: return "record.circle"
         case .text: return "text.viewfinder"
         case .color: return "eyedropper"
@@ -106,6 +119,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     func settingsTitle(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
         case .screenshot: return FeatureStrings.screenshot(language).pageTitle
+        case .scrolling: return FeatureStrings.screenshot(language).scrollingCaptureTitle
         case .recording: return FeatureStrings.recorder(language).pageTitle
         case .text: return strings.ocrName
         case .color: return strings.colorPickerName
@@ -151,11 +165,11 @@ enum ScreenshotSupport {
                                      screenshotHideVorssaintWindows: Bool)
         -> UnifiedCapturePolicy {
         UnifiedCapturePolicy(
-            freeze: tool == .screenshot ? screenshotFreeze : true,
+            freeze: tool == .scrolling ? false : tool == .screenshot ? screenshotFreeze : true,
             includePointer: tool == .screenshot && screenshotIncludePointer,
             hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
             keepsContentWindowsOut: tool == .recording || screenshotHideVorssaintWindows,
-            usesGeometry: tool == .recording)
+            usesGeometry: tool == .recording || tool == .scrolling)
     }
 
     static func captureAvailabilityChanged(activeTools: [ScreenCaptureTool],
@@ -571,9 +585,39 @@ enum ScreenshotSupport {
         }) {
             return .unmatched
         }
+        // An animated banner can supply a perfect overlap while most of the
+        // document stays in place. Compare both explanations over the same
+        // rows. Blank rows support neither, so sparse text still counts.
+        let evidence = scrollingMotionEvidence(previous: previous, current: current,
+                                                advance: best.advance, reversed: best.reversed,
+                                                columns: best.contentColumns)
+        if evidence.stationary > evidence.moving { return .end }
+        guard evidence.moving > 0 else { return .unmatched }
         return .advanced(overlap: height - best.advance,
                          direction: best.reversed ? .backward : .forward,
                          contentColumns: best.contentColumns)
+    }
+
+    private static func scrollingMotionEvidence(previous: ScrollingSample,
+                                                current: ScrollingSample,
+                                                advance: Int, reversed: Bool,
+                                                columns: Range<Int>) -> (moving: Int, stationary: Int) {
+        var moving = 0, stationary = 0
+        for row in 0..<(previous.height - advance) {
+            let previousRow = reversed ? row : row + advance
+            let currentRow = reversed ? row + advance : row
+            var aligned = 0, shifted = 0
+            for column in columns {
+                let pixel = Int(current.pixels[currentRow * current.width + column])
+                aligned += abs(Int(previous.pixels[currentRow * previous.width + column]) - pixel)
+                shifted += abs(Int(previous.pixels[previousRow * previous.width + column]) - pixel)
+            }
+            let alignedError = Double(aligned) / Double(columns.count)
+            let shiftedError = Double(shifted) / Double(columns.count)
+            if shiftedError <= 8 && alignedError > shiftedError + 1.5 { moving += 1 }
+            if alignedError <= 1.5 && shiftedError > alignedError + 1.5 { stationary += 1 }
+        }
+        return (moving, stationary)
     }
 
     /// A fixed footer stays at the same viewport rows while the page behind it

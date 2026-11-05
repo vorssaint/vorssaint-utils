@@ -35,9 +35,8 @@ final class ScreenCaptureSelectionOptions: ObservableObject {
     }
 }
 
-/// One entry point for screenshot, recording, screen text and color. It owns
-/// each tool's own capture shortcut and one shared selection surface; the
-/// established feature services still own what happens after selection.
+/// One selection surface for every capture tool. Each tool has its own
+/// shortcut; the feature services own what happens after selection.
 final class ScreenCaptureService: ObservableObject {
     static let shared = ScreenCaptureService()
 
@@ -115,11 +114,13 @@ final class ScreenCaptureService: ObservableObject {
     /// button merely picks the initial mode; the person can switch before
     /// selecting anything.
     func capture(initial preferred: ScreenCaptureTool? = nil, fromShortcut: Bool = false) {
+        if preferred == .scrolling, ScreenshotService.shared.finishScrollingCaptureIfActive() { return }
         let recorder = ScreenRecorderService.shared
         if preferred == .recording, AppFeature.screenRecorder.isAvailable,
            recorder.stopOrCancelActiveCapture() {
             return
         }
+        guard !ScreenshotService.shared.hasActiveScrollingCapture else { return }
         let duringRecording = recorder.hasActiveCapture
         if duringRecording {
             guard let preferred, preferred.opensDuringRecording(fromShortcut: fromShortcut) else { return }
@@ -155,7 +156,7 @@ final class ScreenCaptureService: ObservableObject {
         }
 
         let showsCaptureMenu = selected.showsCaptureMenu(fromShortcut: fromShortcut)
-        let delay = selected == .screenshot
+        let delay = selected == .screenshot || selected == .scrolling
             ? ScreenshotSupport.sanitizedDelay(
                 UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
             : 0
@@ -275,7 +276,7 @@ final class ScreenCaptureService: ObservableObject {
                 ScreenshotService.shared.receiveUnifiedCapture(capture)
             case .text:
                 ScreenTextService.shared.receiveUnifiedCapture(capture)
-            case .recording, .color:
+            case .recording, .color, .scrolling:
                 showFailure(for: selected)
             }
         case .region(let region):
@@ -286,7 +287,7 @@ final class ScreenCaptureService: ObservableObject {
             ScreenRecorderService.shared.record(region,
                                                 audioOptions: recorderAudio)
         case .scrollingRegion(let region):
-            guard selected == .screenshot else {
+            guard selected == .screenshot || selected == .scrolling else {
                 showFailure(for: selected)
                 return
             }

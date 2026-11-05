@@ -101,7 +101,7 @@ final class ScreenshotSelectionController {
         }
     }
     fileprivate var offersScrollingCapture: Bool {
-        supportsScrollingCapture && activeTool == .screenshot && activeMode == .image
+        supportsScrollingCapture && (activeTool == .screenshot || activeTool == .scrolling)
     }
     fileprivate var offersFullScreenCapture: Bool {
         acceptsCaptureInput && activeMode == .image
@@ -189,6 +189,7 @@ final class ScreenshotSelectionController {
         self.supportsScrollingCapture = supportsScrollingCapture
         self.requiresDraggedRegion = requiresDraggedRegion
         self.screenCaptureOptions = screenCaptureOptions
+        self.scrollingCaptureEnabled = screenCaptureOptions?.selectedTool == .scrolling
         let defaults = UserDefaults.standard
         self.loupeZoom = ScreenshotSupport.captureLoupeInitialZoom(
             rememberLast: defaults.bool(forKey: DefaultsKey.screenshotLoupeRememberZoom),
@@ -208,7 +209,7 @@ final class ScreenshotSelectionController {
 
     private var activeMode: Mode {
         switch activeTool {
-        case .recording: return .geometry
+        case .recording, .scrolling: return .geometry
         case .color: return .color
         case .screenshot, .text: return .image
         case .none: return baseMode
@@ -309,7 +310,7 @@ final class ScreenshotSelectionController {
                 adoptCapturePolicy(nextPolicy)
             }
         }
-        scrollingCaptureEnabled = false
+        scrollingCaptureEnabled = activeTool == .scrolling
         loupeEnabled = isPickingColor
         screenCaptureOptions?.offersRepeatLastRegion = offersRepeatLastRegion
         if isPickingColor, !freeze { loadLiveLoupeImages() }
@@ -491,7 +492,11 @@ final class ScreenshotSelectionController {
 
     private func toggleScrollingCapture() {
         guard offersScrollingCapture else { return }
-        scrollingCaptureEnabled.toggle()
+        if let screenCaptureOptions {
+            screenCaptureOptions.select(scrollingCaptureEnabled ? .screenshot : .scrolling)
+        } else {
+            scrollingCaptureEnabled.toggle()
+        }
         panels.forEach { $0.overlayView.refreshPointerState() }
     }
 
@@ -656,12 +661,12 @@ final class ScreenshotSelectionController {
               viewRect.width >= 1, viewRect.height >= 1 else { return }
         markCapturePending()
         Self.lastRegion = (panel.displayID, viewRect)
-        if activeMode == .geometry {
-            finish(.region(region(fromView: viewRect, on: panel, windowID: nil)))
-            return
-        }
         if scrollingCaptureEnabled {
             finish(.scrollingRegion(region(fromView: viewRect, on: panel, windowID: nil)))
+            return
+        }
+        if activeMode == .geometry {
+            finish(.region(region(fromView: viewRect, on: panel, windowID: nil)))
             return
         }
         let pixelRect = ScreenshotSupport.imagePixelRect(
@@ -694,12 +699,12 @@ final class ScreenshotSelectionController {
                                    on panel: ScreenshotOverlayPanel) {
         guard acceptsCaptureInput, activeMode != .color else { return }
         markCapturePending()
-        if activeMode == .geometry {
-            finish(.region(region(fromView: frame, on: panel, windowID: windowID)))
-            return
-        }
         if scrollingCaptureEnabled {
             finish(.scrollingRegion(region(fromView: frame, on: panel, windowID: windowID)))
+            return
+        }
+        if activeMode == .geometry {
+            finish(.region(region(fromView: frame, on: panel, windowID: windowID)))
             return
         }
         Task { @MainActor [weak self] in
@@ -2025,10 +2030,10 @@ private struct UnifiedCaptureGuideContent: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-            CaptureKeyHint(key: "1–4", icon: "keyboard")
+            CaptureKeyHint(key: "1–5", icon: "keyboard")
             if options.selectedTool != .color {
                 CaptureKeyHint(key: "↩", icon: "rectangle.inset.filled")
-                if offersScrollingCapture, options.selectedTool == .screenshot {
+                if offersScrollingCapture {
                     CaptureKeyHint(key: scrollingCaptureEnabled ? "S on" : "S",
                                    icon: "rectangle.stack")
                 }
@@ -2149,6 +2154,8 @@ private struct UnifiedCaptureGuideContent: View {
                 + (scrollingCaptureEnabled
                    ? strings.scrollingCaptureHintOn
                    : strings.scrollingCaptureHintOff)
+        case .scrolling:
+            return strings.scrollingCaptureSelectionHint
         case .recording:
             return FeatureStrings.recorder(l10n.language).selectionPurpose
                 + "  ·  " + strings.hintDrag + "  ·  " + strings.hintClick
