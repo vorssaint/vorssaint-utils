@@ -3,6 +3,36 @@
 
 import SwiftUI
 
+/// Shared by the history panel and island so selection never inherits a
+/// layout's content font or changes its hit area.
+struct ClipboardSelectionMarker: View {
+    let isSelected: Bool
+
+    var body: some View {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: 13))
+            .foregroundStyle(Color.accentColor.opacity(isSelected ? 1 : 0.7))
+            .frame(width: 25, height: 25)
+            .contentShape(Rectangle())
+    }
+}
+
+struct ClipboardFocusRing: View {
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        ZStack {
+            shape.strokeBorder(Color.accentColor.opacity(0.3), lineWidth: 5)
+                .blur(radius: 3)
+                .clipShape(shape)
+            shape.strokeBorder(Color.accentColor.opacity(0.9), lineWidth: 1.5)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 struct ClipboardQuickPanelView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var history = ClipboardHistoryService.shared
@@ -78,6 +108,7 @@ struct ClipboardQuickPanelView: View {
             TextField(text.search, text: $history.quickQuery)
                 .textFieldStyle(.roundedBorder)
                 .focused($searchFocused)
+                .help(text.clipboardRangeSelectionHint)
             Button {
                 history.toggleQuickPreview()
             } label: {
@@ -310,6 +341,11 @@ struct ClipboardQuickPanelView: View {
                 .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
             }
             Spacer()
+            Text("⌘⇧↑↓")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+                .help(text.clipboardRangeSelectionHint)
+                .accessibilityLabel(text.clipboardRangeSelectionHint)
             HStack(spacing: 5) {
                 Image(systemName: "doc.on.clipboard")
                 Text("\(history.entries.count)")
@@ -425,7 +461,7 @@ private struct QuickEntryView: View, Equatable {
                 isHovered = hovering
             }
             previewFollowTask?.cancel()
-            guard hovering, !previewIsEditing else { return }
+            guard hovering, !previewIsEditing, !history.quickKeyboardSelectionActive else { return }
             let id = entry.id
             previewFollowTask = Task { @MainActor in
                 try? await Task.sleep(for: Self.previewFollowDelay)
@@ -476,6 +512,9 @@ private struct QuickEntryView: View, Equatable {
                               : isSelected ? Color.accentColor.opacity(0.24) : Color.clear,
                               lineWidth: 1)
         )
+        .overlay {
+            if isSelected { ClipboardFocusRing(cornerRadius: 7) }
+        }
     }
 
     private var card: some View {
@@ -503,6 +542,9 @@ private struct QuickEntryView: View, Equatable {
                 .strokeBorder(isBatchSelected || isSelected ? Color.accentColor : Color.primary.opacity(0.1),
                               lineWidth: isBatchSelected || isSelected ? 2.5 : 0.5)
         )
+        .overlay {
+            if isSelected { ClipboardFocusRing(cornerRadius: 12) }
+        }
     }
 
     private var selectionButton: some View {
@@ -515,6 +557,8 @@ private struct QuickEntryView: View, Equatable {
         }
         .buttonStyle(.plain)
         .help(isBatchSelected ? text.unselectMultiple : text.selectMultiple)
+        .accessibilityLabel(isBatchSelected ? text.unselectMultiple : text.selectMultiple)
+        .accessibilityAddTraits(isBatchSelected ? [.isSelected] : [])
     }
 
     private var cardHeader: some View {
@@ -743,12 +787,14 @@ private struct QuickEntryView: View, Equatable {
     }
 
     private func activate(_ entry: ClipboardHistoryEntry) {
-        // Finder muscle memory: ⌘-click and ⇧-click build a selection.
-        // A plain click pastes; on a selected row it pastes the selection.
-        let modifiers = NSEvent.modifierFlags.intersection([.command, .shift])
-        if modifiers.contains(.command) {
+        // Resolve the combined chord first; ordinary clicks keep direct paste.
+        let modifiers = (NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags)
+            .intersection([.command, .shift, .option, .control])
+        if modifiers == [.command, .shift] {
+            history.extendQuickBatchSelection(to: entry, additive: true)
+        } else if modifiers == [.command] {
             history.toggleQuickBatchSelection(entry)
-        } else if modifiers.contains(.shift) {
+        } else if modifiers == [.shift] {
             history.extendQuickBatchSelection(to: entry)
         } else if history.isQuickBatchSelected(entry) {
             history.copySelectedQuickEntry()
@@ -768,14 +814,8 @@ private struct QuickEntryView: View, Equatable {
     private func leadingMarker(entry: ClipboardHistoryEntry,
                                isBatchSelected: Bool,
                                isHovered: Bool) -> some View {
-        if isBatchSelected {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 25, height: 25)
-        } else if isHovered {
-            Image(systemName: "circle")
-                .foregroundStyle(Color.accentColor.opacity(0.7))
-                .frame(width: 25, height: 25)
+        if isBatchSelected || isHovered {
+            ClipboardSelectionMarker(isSelected: isBatchSelected)
         } else if !isRow, let app = sourceApp, !showsFileIcon {
             // A row keeps the kind's symbol, as the list always showed.
             Image(nsImage: app.icon)
