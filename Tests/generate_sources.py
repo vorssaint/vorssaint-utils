@@ -417,8 +417,10 @@ def main():
           + "}\n")
     write("NowPlayingOpen.swift", "import AppKit\n"
           + "extension NowPlayingOpenContract.Application {\n"
-          + declaration("Sources/Vorssaint/Services/RadialMenu/RadialNowPlayingService.swift",
-                        "    static func open(", scope="enum RadialNowPlayingApplication {")
+          + "".join(declaration("Sources/Vorssaint/Services/RadialMenu/RadialNowPlayingService.swift",
+                               prefix, scope="enum RadialNowPlayingApplication {")
+                    for prefix in ["    static func runningApplication(",
+                                   "    static func playerApplication(", "    static func open("])
           + "}\n")
     write("WindowServerCapture.swift", "import CoreGraphics\nimport Foundation\n"
           + "extension WindowServerCaptureContract.Provider {\n"
