@@ -2,8 +2,63 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import Foundation
+
+/// Carbon callbacks own input before their replay reaches the tap. Cancelling
+/// that interval invalidates every queued press without releasing a newer one.
+struct SwitcherSecureInputReplayState {
+    private(set) var generation: UInt64 = 0
+    private(set) var pendingCount = 0
+    private(set) var shortcut: GlobalShortcut?
+    var hasPending: Bool { pendingCount > 0 }
+
+    mutating func enqueue(shortcut: GlobalShortcut) -> UInt64 {
+        if !hasPending { self.shortcut = shortcut }
+        pendingCount += 1
+        return generation
+    }
+
+    func contains(_ generation: UInt64) -> Bool {
+        self.generation == generation && hasPending
+    }
+
+    mutating func finish(_ generation: UInt64) {
+        guard contains(generation) else { return }
+        pendingCount -= 1
+        if !hasPending { shortcut = nil }
+    }
+
+    mutating func invalidate() {
+        generation &+= 1
+        pendingCount = 0
+        shortcut = nil
+    }
+}
+
+/// A shortcut already owned while the window list is being assembled. The
+/// tap can cancel it or add navigation without waiting for Accessibility.
+struct SwitcherPendingSessionStart {
+    let generation: UInt64
+    let shortcut: GlobalShortcut
+    let scope: SwitcherSessionScope
+    let reversed: Bool
+    var additionalNavigation = 0
+    var commitWhenReady = false
+    var isSecureInputReplay = false
+
+    mutating func observeModifiers(_ flags: CGEventFlags) {
+        if !shortcut.requiredModifiersHeld(in: flags) { commitWhenReady = true }
+    }
+
+    /// Carbon is delivered on main, so modifier-up can reach the tap before
+    /// its queued press creates this state. Check again before showing UI;
+    /// normal tap events retain their ordered, event-based modifier handling.
+    mutating func reconcileReplayedModifiers(_ flags: @autoclosure () -> CGEventFlags) {
+        if isSecureInputReplay { observeModifiers(flags()) }
+    }
+}
 
 struct SwitcherScrollNavigation {
     static let gestureStep: Double = 30
@@ -98,20 +153,183 @@ enum SwitcherAppActivationRoute: Equatable {
     case wholeApp
 }
 
-/// Shared by the bounded focus passes on the main thread. Once a pass sees
-/// a newer user action, the remaining passes cannot reclaim the old target.
+/// Metadata from one complete WindowServer snapshot, before filtering or caps.
+/// A cheap current ID list proves that the owner baseline is still complete:
+/// a window ID keeps its owner for its lifetime. New IDs require a fresh query.
+struct SwitcherWindowServerSnapshot: Sendable {
+    let windowIDs: Set<CGWindowID>
+    let normalLevelWindowIDs: Set<CGWindowID>
+    let normalLevelOwnerPIDs: [pid_t]
+    private let ownerWindowIDs: [pid_t: Set<CGWindowID>]?
+
+    init(windowInfo: [[String: Any]], capturesActivationBaseline: Bool) {
+        var ids: Set<CGWindowID> = []
+        var normalIDs: Set<CGWindowID> = []
+        var normalOwners: [pid_t] = []
+        var owners: [pid_t: Set<CGWindowID>] = [:]
+        var complete = true
+        for info in windowInfo {
+            let id = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+            let owner = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+            if let id { ids.insert(id) }
+            if capturesActivationBaseline {
+                if let id, let owner {
+                    owners[owner, default: []].insert(id)
+                } else {
+                    complete = false
+                }
+            }
+            if (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0 {
+                if let id { normalIDs.insert(id) }
+                if let owner { normalOwners.append(owner) }
+            }
+        }
+        windowIDs = ids
+        normalLevelWindowIDs = normalIDs
+        normalLevelOwnerPIDs = normalOwners
+        ownerWindowIDs = capturesActivationBaseline && complete ? owners : nil
+    }
+
+    func activationWindowIDs(ownerPID: pid_t, targetWindowID: CGWindowID,
+                             currentWindowIDs: Set<CGWindowID>) -> Set<CGWindowID>? {
+        guard let ownerWindowIDs,
+              currentWindowIDs.contains(targetWindowID),
+              currentWindowIDs.isSubset(of: windowIDs),
+              let known = ownerWindowIDs[ownerPID],
+              known.contains(targetWindowID) else { return nil }
+        return known.intersection(currentWindowIDs)
+    }
+}
+
+/// Where a fresh minimized state came from. The window server answers
+/// without the other app's help, so an ordinary target never waits on the
+/// Accessibility of a busy app; the app's own Accessibility is the fallback
+/// for the cases the window server cannot answer.
+enum SwitcherMinimizedStateSource: String {
+    /// The window server answered.
+    case windowServer
+    /// The app's Accessibility answered.
+    case accessibility
+}
+
+/// The Accessibility element of one activation's target window.
+///
+/// An app answers a window-list request once per copy, and every window in
+/// that list is resolved one by one, so the steps of one activation that
+/// need the same window — the minimized-state read, the minimize/restore
+/// observer and the window preparation — share one element instead of asking
+/// the app for the same list again. The element is resolved for the exact
+/// window id it belongs to, and it belongs to its own activation: it is
+/// never carried into another activation or another session, and a step that
+/// is given none resolves its own, exactly as before.
+final class SwitcherActivationTargetWindow {
+    let windowID: CGWindowID
+    private let resolveElement: () -> AXUIElement?
+    private let lock = NSLock()
+    private var resolved = false
+    private var cachedElement: AXUIElement?
+
+    init(windowID: CGWindowID, resolveElement: @escaping () -> AXUIElement?) {
+        self.windowID = windowID
+        self.resolveElement = resolveElement
+    }
+
+    /// The element for the target window, resolved at most once. Nil when
+    /// the app cannot describe the window: the step that asked falls back to
+    /// its own lookup, exactly as before.
+    func element() -> AXUIElement? {
+        lock.withLock {
+            if resolved { return cachedElement }
+            resolved = true
+            cachedElement = resolveElement()
+            return cachedElement
+        }
+    }
+
+    /// The window's minimized state as the app's Accessibility reports it.
+    /// Nil when the app cannot answer at all.
+    static func minimizedState(of axWindow: AXUIElement) -> Bool? {
+        var minimized: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axWindow, kAXMinimizedAttribute as CFString, &minimized) == .success,
+              let minimized
+        else { return nil }
+        if CFGetTypeID(minimized) == CFBooleanGetTypeID() {
+            return CFBooleanGetValue((minimized as! CFBoolean))
+        }
+        return minimized as? Bool
+    }
+}
+
+/// What one source-staging pass achieved. Only a pass whose every
+/// Accessibility operation was confirmed leaves the source window behind the
+/// target; anything else leaves it unstaged so a later retry pass stages it
+/// again.
+enum SwitcherSourceStagingOutcome: Equatable {
+    /// Nothing to stage: no session source window, no target window, or no
+    /// Accessibility permission.
+    case notApplicable
+    /// The source window is minimized, so it cannot sit behind the target yet.
+    case sourceMinimized
+    /// A window lookup, the minimized-state read or a staging operation did
+    /// not succeed.
+    case unresolved
+    /// Every staging operation was confirmed by Accessibility.
+    case staged
+}
+
+/// Whether the source window is already staged behind the target in one
+/// activation. The state belongs to a single activation generation, so a
+/// later activation starts with an unstaged source.
+final class SwitcherSourceStagingState {
+    private let lock = NSLock()
+    private let generation: UInt64
+    private var outcome: SwitcherSourceStagingOutcome = .notApplicable
+
+    init(generation: UInt64) {
+        self.generation = generation
+    }
+
+    /// The outcome of the last staging pass in this generation.
+    var lastOutcome: SwitcherSourceStagingOutcome {
+        lock.withLock { outcome }
+    }
+
+    /// Remembers a staging pass. Only a confirmed staging counts: a failed or
+    /// unresolved pass leaves the source unstaged for the next retry pass. A
+    /// pass that belongs to another generation belongs to another activation.
+    func record(_ outcome: SwitcherSourceStagingOutcome, generation: UInt64) {
+        guard generation == self.generation else { return }
+        lock.withLock { self.outcome = outcome }
+    }
+}
+
+/// Initial AX observations run on the observation lane; retry decisions run
+/// on main. Once a pass sees a newer user action, later passes cannot reclaim the old target.
 final class SwitcherWindowFocusRetryState {
     let targetStartedMinimized: Bool
+    private let targetWindowID: CGWindowID
     let knownWindowIDs: Set<CGWindowID>
     private(set) var targetWasObservedRestored: Bool
     private(set) var isActive = true
 
-    init(targetWindowID: CGWindowID, targetStartedMinimized: Bool, knownWindowIDs: Set<CGWindowID>) {
+    /// `targetWasObservedRestored` is the caller's answer to "did a read say
+    /// this window is restored?", so a state that was never read has to pass
+    /// false: an unanswered read is not evidence of a restored window.
+    init(targetWindowID: CGWindowID,
+         targetStartedMinimized: Bool,
+         targetWasObservedRestored: Bool,
+         knownWindowIDs: Set<CGWindowID>) {
+        self.targetWindowID = targetWindowID
         self.targetStartedMinimized = targetStartedMinimized
-        // The selected target is already known even if the server's snapshot
-        // missed it. An entirely unavailable snapshot still stays unavailable.
         self.knownWindowIDs = knownWindowIDs.isEmpty ? [] : knownWindowIDs.union([targetWindowID])
-        self.targetWasObservedRestored = !targetStartedMinimized
+        self.targetWasObservedRestored = targetWasObservedRestored
+    }
+
+    /// A restored-at-start target already satisfies retry state. Minimized
+    /// targets need the observation so later user minimization stops retries.
+    func observeInitialMinimizedState(_ readMinimizedState: () -> Bool?) {
+        guard targetStartedMinimized else { return }
+        observe(targetMinimizedState: readMinimizedState())
     }
 
     func observe(targetMinimizedState: Bool?) {
@@ -123,6 +341,7 @@ final class SwitcherWindowFocusRetryState {
     func shouldContinue(targetPID: pid_t,
                         sourcePID: pid_t?,
                         frontmostPID: @autoclosure () -> pid_t?,
+                        frontmostAfterFocusQueryPID: (() -> pid_t?)? = nil,
                         targetMinimizedState: Bool?,
                         targetAppWindowIDs: @autoclosure () -> Set<CGWindowID>,
                         targetAppFocusedWindowID: @autoclosure () -> CGWindowID?,
@@ -131,19 +350,46 @@ final class SwitcherWindowFocusRetryState {
                         ignoresForeground: Bool = false,
                         ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard isActive else { return false }
-        let observedFrontmostPID = frontmostPID()
+        // The foreground is the cheaper reading, so it is asked before the
+        // focus state. One sample answers both this check and the helper's
+        // first reading, so the number of foreground readings does not grow;
+        // every later reading goes back to the caller's autoclosure, which
+        // is what makes the helper's reading after the focus query a real
+        // re-read.
+        let callerFrontmostPID = frontmostPID
+        var sampledFrontmostPID: pid_t?
+        var hasSampledFrontmostPID = false
+        func readFrontmostPID() -> pid_t? {
+            if hasSampledFrontmostPID {
+                hasSampledFrontmostPID = false
+                return sampledFrontmostPID
+            }
+            return callerFrontmostPID()
+        }
+        // A minimized target keeps its retry until this pass reads it as
+        // restored. After that it is held to the same stand-down as any other
+        // target, so a restored and focused window is not raised again.
+        let minimizedStillRestoring = targetStartedMinimized
+            && targetMinimizedState != false
         if stopsWhenTargetFocused,
            !ignoresForeground,
-           !targetStartedMinimized,
-           observedFrontmostPID == targetPID,
-           targetWindowIsFocused() {
-            isActive = false
-            return false
+           !minimizedStillRestoring {
+            let observedFrontmostPID = callerFrontmostPID()
+            sampledFrontmostPID = observedFrontmostPID
+            hasSampledFrontmostPID = true
+            if observedFrontmostPID == targetPID, targetWindowIsFocused() {
+                isActive = false
+                return false
+            }
         }
         isActive = SwitcherSupport.shouldContinueFocusRetry(
             targetPID: targetPID,
             sourcePID: sourcePID,
-            frontmostPID: frontmostPID(),
+            // The sample answers the helper's first reading; a reading after
+            // the focus query goes back to the caller's autoclosure, so a
+            // slow query cannot reclaim the app after the user left it.
+            frontmostPID: readFrontmostPID(),
+            frontmostAfterFocusQueryPID: frontmostAfterFocusQueryPID,
             targetIsMinimized: targetMinimizedState == true,
             targetStartedMinimized: targetStartedMinimized,
             targetWasObservedRestored: targetWasObservedRestored,
@@ -1769,6 +2015,17 @@ enum SwitcherSupport {
         return true
     }
 
+    /// Whether a repeated source-staging pass in the same activation can be
+    /// skipped. A confirmed staging only repeats when the source app is in
+    /// front again, because a source window that came back to the front is no
+    /// longer behind the target window.
+    static func shouldSkipSourceStaging(outcome: SwitcherSourceStagingOutcome,
+                                         frontmostPID: pid_t?,
+                                         sourcePID: pid_t?) -> Bool {
+        guard outcome == .staged, let frontmostPID else { return false }
+        return frontmostPID != sourcePID
+    }
+
     /// Window identities, not a list of focusable windows: keeping every layer
     /// prevents an existing dialog or auxiliary surface from appearing new.
     static func focusRetryWindowIDs(in windows: [[String: Any]], ownerPID: pid_t) -> Set<CGWindowID> {
@@ -1796,6 +2053,7 @@ enum SwitcherSupport {
     static func shouldContinueFocusRetry(targetPID: pid_t,
                                          sourcePID: pid_t?,
                                          frontmostPID: @autoclosure () -> pid_t?,
+                                         frontmostAfterFocusQueryPID: (() -> pid_t?)? = nil,
                                          targetIsMinimized: Bool,
                                          targetStartedMinimized: Bool,
                                          targetWasObservedRestored: Bool = false,
@@ -1826,6 +2084,11 @@ enum SwitcherSupport {
            !waitingForInitialMinimizedRestore {
             return false
         }
+        if !ignoresForeground,
+           let readPostQueryFrontmost = frontmostAfterFocusQueryPID,
+           readPostQueryFrontmost() != targetPID {
+            return false
+        }
         // Z-order cannot identify keyboard focus: a new transparent helper
         // may sit above a real window. Only query Accessibility when this app
         // is active and the cheap window-server list contains something new.
@@ -1834,9 +2097,11 @@ enum SwitcherSupport {
               !knownWindowIDs.isEmpty,
               !targetAppWindowIDs().isSubset(of: knownWindowIDs) else { return true }
         let focusedWindowID = targetAppFocusedWindowID()
-        // Accessibility can wait on the other process. Do not act on the old
-        // foreground observation if the user left the app during that wait.
-        if !ignoresForeground, frontmostPID() != targetPID { return false }
+        // Accessibility can wait on the other process. Validate against the
+        // separately sampled foreground after that query when one is supplied.
+        if !ignoresForeground, frontmostAfterFocusQueryPID == nil, frontmostPID() != targetPID {
+            return false
+        }
         guard let focusedWindowID else { return true }
         return knownWindowIDs.contains(focusedWindowID)
     }
@@ -1880,9 +2145,10 @@ enum SwitcherSupport {
     ///
     /// Secure Event Input hides every key from event taps, the switcher's
     /// included, while macOS still answers its own switcher keys (measured on
-    /// 27.2: a session tap saw no key while another process held it). Asking
-    /// for nothing then keeps ⌘Tab working instead of leaving it dead until
-    /// the app holding it lets go.
+    /// 27.2: a session tap saw no key while another process held it). Callers
+    /// pass true only when no Carbon stand-in is registered, and asking for
+    /// nothing then keeps ⌘Tab working instead of leaving it dead until the
+    /// app holding it lets go.
     static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
                                 secureInputEnabled: Bool,
                                 appsShortcut: GlobalShortcut,
@@ -1900,6 +2166,75 @@ enum SwitcherSupport {
                                            windowShortcut: windowShortcut,
                                            allWindowsShortcut: allWindowsShortcut,
                                            nativeShortcuts: nativeShortcuts).map(\.rawValue))
+    }
+
+    static func secureInputHotKeysWanted(canStartSession: Bool, capturingShortcut: Bool,
+                                         takeOverSystemShortcuts: Bool, secureInputEnabled: Bool,
+                                         registrationFailed: Bool) -> Bool {
+        canStartSession && !capturingShortcut && takeOverSystemShortcuts
+            && secureInputEnabled && !registrationFailed
+    }
+
+    static func secureInputHotKeyShortcuts(appsShortcut: GlobalShortcut,
+                                           windowShortcut: GlobalShortcut,
+                                           allWindowsShortcut: GlobalShortcut? = nil) -> [GlobalShortcut] {
+        var shortcuts: [GlobalShortcut] = []
+        for shortcut in [appsShortcut, windowShortcut] + [allWindowsShortcut].compactMap({ $0 }) {
+            var variants = [shortcut]
+            if shortcut.shiftIsNavigationModifier {
+                variants.append(GlobalShortcut(keyCode: shortcut.keyCode,
+                                               modifiers: shortcut.modifiers.union(.shift)))
+            }
+            for variant in variants where !shortcuts.contains(variant) {
+                shortcuts.append(variant)
+            }
+        }
+        return shortcuts
+    }
+
+    /// Session-only guards. Carbon consumes these without replaying a letter
+    /// action: secure input still has no search or Q/W support. Include every
+    /// extra modifier and the layout's Q/W positions, so Shift-Command-Q and
+    /// layouts such as AZERTY cannot send an action to the foreground app.
+    static func secureInputActionShortcuts(
+        for shortcut: GlobalShortcut,
+        excluding registered: Set<GlobalShortcut> = [],
+        keyLabel: (Int64, Bool, Bool) -> String? = {
+            GlobalShortcut.layoutKeyLabel(for: $0, usesCommand: $1, usesShift: $2)
+        }
+    ) -> [GlobalShortcut] {
+        var shortcuts: [GlobalShortcut] = []
+        for mask in 1...GlobalShortcutModifiers.validMask.rawValue {
+            let modifiers = GlobalShortcutModifiers(rawValue: mask)
+            guard modifiers.intersection(shortcut.modifiers) == shortcut.modifiers else { continue }
+            for keyCode in Int64(0)...127 {
+                let label = keyLabel(keyCode, modifiers.contains(.command), modifiers.contains(.shift))?.lowercased()
+                guard keyCode == USKeyPosition.q || keyCode == USKeyPosition.w || label == "q" || label == "w"
+                else { continue }
+                let action = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
+                if !registered.contains(action) { shortcuts.append(action) }
+            }
+        }
+        return shortcuts
+    }
+
+    /// All-or-nothing registration is shared by the triggers and the session
+    /// guards. A partial set must never be presented as complete coverage.
+    static func registerSecureInputHotKeys<Reference>(
+        _ shortcuts: [GlobalShortcut],
+        register: (GlobalShortcut, UInt32) -> Reference?,
+        unregister: (Reference) -> Void
+    ) -> [UInt32: (ref: Reference, shortcut: GlobalShortcut)]? {
+        var registrations: [UInt32: (ref: Reference, shortcut: GlobalShortcut)] = [:]
+        for (index, shortcut) in shortcuts.enumerated() {
+            let id = UInt32(index + 1)
+            guard let ref = register(shortcut, id) else {
+                for value in registrations.values { unregister(value.ref) }
+                return nil
+            }
+            registrations[id] = (ref, shortcut)
+        }
+        return registrations
     }
 
     /// Mirrors the event tap's `allowingExtraShift` match: Shift reverses a

@@ -1321,6 +1321,7 @@ final class ClipboardHistoryService: ObservableObject {
             return
         }
         app.activate(options: [])
+        guard ClipboardHistoryPasteTarget.acceptsSyntheticPaste(bundleID: app.bundleIdentifier) else { return }
         guard AXIsProcessTrusted() else {
             if promptedForAccessibility {
                 NSSound.beep()
