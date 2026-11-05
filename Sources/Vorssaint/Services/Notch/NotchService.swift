@@ -125,6 +125,9 @@ final class NotchService: ObservableObject {
     @Published private(set) var captureSelectionInProgress = false
     @Published var pinned = false
     @Published private(set) var selected: NotchModule = .controls
+    /// A history shortcut visits Clipboard without replacing the page that
+    /// an ordinary opening would return to. Explicit navigation ends the visit.
+    private var temporaryPageReturnModule: NotchModule?
     @Published private(set) var showingAppPanel = false
     @Published private(set) var showingSections = false
     @Published private(set) var sectionQuery = ""
@@ -211,6 +214,9 @@ final class NotchService: ObservableObject {
     private var activityPickerMenuOpen = false
     private var hoverState = NotchHoverState()
     private var openedByHover = false
+    private var clipboardHoverHasKey = false
+    private weak var clipboardPreviewWindow: NSWindow?
+    private var clipboardPreviewClose: (() -> Void)?
     /// A click inside the open island, which may be what brings another app forward.
     private var clickedSinceOpening = false
     /// Whether the open detail was reached from inside the island, so Escape
@@ -231,6 +237,7 @@ final class NotchService: ObservableObject {
     private var keepsWorkingSurface: Bool { keepsSurfaceOnClick || showsCapturePreview }
     private var keepsSurfaceOnClick: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
+            || clipboardPreviewWindow != nil
             || NotchLyricsService.shared.isImporting
             // Like the lyrics chooser, these panels stand beside the island
             // instead of hanging from it; a click in them is not a click away.
@@ -1291,6 +1298,7 @@ final class NotchService: ObservableObject {
     }
 
     private func tearDownPresentation() {
+        closeClipboardPreview()
         cancelRelocation()
         screenRefreshWork?.cancel(); screenRefreshWork = nil
         stopAppFullscreenMonitoring()
@@ -1382,6 +1390,8 @@ final class NotchService: ObservableObject {
     /// presenting: a mirrored banner, or an activity unless the user turned
     /// that off. Otherwise the reopening preference decides.
     var reopeningDestination: (module: NotchModule, appPanel: Bool, sections: Bool) {
+        let remembered = temporaryPageReturnModule ?? selected
+        let previous = modules.contains(remembered) ? remembered : modules.first ?? .controls
         if !expanded {
             let opensActivity = UserDefaults.standard.object(forKey: DefaultsKey.notchOpensActivity) as? Bool ?? true
             let activity = notice?.notificationID != nil ? NotchModule.notifications
@@ -1391,14 +1401,14 @@ final class NotchService: ObservableObject {
                 let saved = UserDefaults.standard.string(forKey: DefaultsKey.notchHomeModule) ?? ""
                 switch NotchReopeningDestination(rawValue: saved) {
                 case .appPanel: return (modules.contains(.controls) ? .controls : modules.first ?? .controls, true, false)
-                case .explore: return (selected, false, true)
+                case .explore: return (previous, false, true)
                 case nil:
                     let home = NotchModule(rawValue: saved) ?? .controls
                     return (modules.contains(home) ? home : modules.first ?? .controls, false, false)
                 }
             }
         }
-        return (selected, false, false)
+        return (expanded ? selected : previous, false, false)
     }
 
     var reopeningModule: NotchModule {
@@ -1424,7 +1434,8 @@ final class NotchService: ObservableObject {
     }
 
     func open(_ module: NotchModule? = nil, pinned: Bool = false, takeFocus: Bool = true,
-              appPanel: Bool = false, metric: MetricDetailKind? = nil, feedback: Bool = true, sections: Bool = false) {
+              appPanel: Bool = false, metric: MetricDetailKind? = nil, feedback: Bool = true, sections: Bool = false,
+              rememberPage: Bool = true) {
         guard NotchSupport.isEnabled(), !suspended else { return }
         // The capture controls cover the open page and hold collapsing off, so
         // an island opened now would wait behind them and open by itself once
@@ -1438,6 +1449,11 @@ final class NotchService: ObservableObject {
         let destination = module.flatMap { modules.contains($0) ? $0 : nil } ?? reopening.module
         let appPanel = appPanel || (useReopeningSurface && reopening.appPanel)
         let sections = sections || (useReopeningSurface && reopening.sections)
+        if rememberPage {
+            temporaryPageReturnModule = nil
+        } else if temporaryPageReturnModule == nil {
+            temporaryPageReturnModule = selected
+        }
         if useReopeningSurface && reopening.appPanel { MenuPanelFocus.shared.showNormalPanel() }
         if useReopeningSurface && reopening.sections {
             sectionQuery = ""
@@ -1445,6 +1461,7 @@ final class NotchService: ObservableObject {
             highlightedSection = destination
         }
         let metric = metric.flatMap { metricIsAvailable($0) ? $0 : nil }
+        if destination != .clipboard || appPanel || sections || metric != nil { closeClipboardPreview() }
         let closesCommandBar = showingCommandBar
         let changesPresentation = !expanded || selected != destination || closesCommandBar
             || showingAppPanel != appPanel || selectedMetric != metric || showingSections != sections
@@ -1482,6 +1499,7 @@ final class NotchService: ObservableObject {
             if notice?.notificationID != nil { noticeWork?.cancel(); noticeWork = nil; notice = nil; noticeExpanded = false }
         }
         inside = windowHost?.containsHover(NSEvent.mouseLocation) == true
+        setClipboardPagePointerInside(inside)
         installEventMonitors()
         syncVisibleConsumers()
         if takeFocus { panel.makeKey() }
@@ -1491,6 +1509,7 @@ final class NotchService: ObservableObject {
 
     func collapse() {
         guard captureControls == nil, !heldDrag else { return }
+        closeClipboardPreview()
         let closeCapture = detachCaptureIfClosingOnCollapse()
         let closesCommandBar = showingCommandBar
         hoverState.close(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
@@ -1540,6 +1559,76 @@ final class NotchService: ObservableObject {
         next.makeKey()
     }
 
+    /// A hover-opened clipboard page can preview with Space while the pointer
+    /// is over the island. Borrow the panel's keyboard only for that region;
+    /// leaving gives it back immediately, before the hover-close delay ends.
+    func setClipboardPagePointerInside(_ inside: Bool) {
+        if !inside {
+            guard clipboardHoverHasKey else { return }
+            clipboardHoverHasKey = false
+            if !clickedSinceOpening, panel?.isKeyWindow == true { resignPanelKey() }
+            return
+        }
+        guard openedByHover, expanded, selected == .clipboard,
+              !showingAppPanel, !showingSections, !showingCommandBar,
+              selectedMetric == nil, captureControls == nil, clipboardPreviewWindow == nil,
+              let panel, !panel.isKeyWindow else { return }
+        clipboardHoverHasKey = true
+        panel.makeKey()
+    }
+
+    /// The enlarged clipboard preview belongs to the open island, so moving
+    /// from a card into the preview never starts the island's hover dismissal.
+    @discardableResult
+    func attachClipboardPreview(_ preview: NSWindow, close: @escaping () -> Void) -> Bool {
+        guard expanded, selected == .clipboard, !showingAppPanel,
+              !showingSections, !showingCommandBar, selectedMetric == nil,
+              captureControls == nil, let panel else { return false }
+        if clipboardPreviewWindow === preview {
+            clipboardPreviewClose = close
+            return true
+        }
+        closeClipboardPreview()
+        hoverWork?.cancel()
+        hoverWork = nil
+        clipboardHoverHasKey = false
+        clipboardPreviewWindow = preview
+        clipboardPreviewClose = close
+        panel.addChildWindow(preview, ordered: .above)
+        return true
+    }
+
+    func detachClipboardPreview(_ preview: NSWindow) {
+        guard clipboardPreviewWindow === preview else { return }
+        clipboardPreviewWindow = nil
+        clipboardPreviewClose = nil
+        panel?.removeChildWindow(preview)
+        resumeClipboardAfterPreview(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
+    }
+
+    private func resumeClipboardAfterPreview(pointerInside: Bool) {
+        guard expanded, selected == .clipboard, !showingAppPanel,
+              !showingSections, !showingCommandBar else { return }
+        if !openedByHover || clickedSinceOpening || pointerInside {
+            clipboardHoverHasKey = openedByHover && !clickedSinceOpening
+            panel?.makeKey()
+        } else {
+            resignPanelKey()
+            hover(false)
+        }
+    }
+
+    /// Clear ownership before closing: the controller's detach callback must
+    /// not restore keyboard focus while the island itself is being dismissed.
+    private func closeClipboardPreview() {
+        let preview = clipboardPreviewWindow
+        let close = clipboardPreviewClose
+        clipboardPreviewWindow = nil
+        clipboardPreviewClose = nil
+        if let preview { panel?.removeChildWindow(preview) }
+        close?()
+    }
+
     func setMusicDetailsVisible(_ visible: Bool) {
         guard visible != musicDetailVisible else { return }
         mutatePresentation { musicDetailVisible = visible }
@@ -1559,7 +1648,7 @@ final class NotchService: ObservableObject {
     func showClipboard(toggle: Bool = false) -> Bool {
         guard acceptsUserInteraction, NotchSupport.routesClipboardWindow() else { return false }
         if toggle, expanded, selected == .clipboard, !showingAppPanel, !showingSections, !showingCommandBar { collapse() }
-        else { open(.clipboard) }
+        else { open(.clipboard, rememberPage: !toggle) }
         return true
     }
 
@@ -1571,6 +1660,7 @@ final class NotchService: ObservableObject {
         inside = watchesHiddenHover ? geometry.contains(point, in: geometry.collapsed)
             && windowHost?.isConcealedForMissionControl == false
             : windowHost?.containsHover(point) == true || pointerOverChildWindow(point)
+        setClipboardPagePointerInside(inside)
         hoverState.update(pointerInside: inside)
         // The music strip names its song only while the pointer stays on the
         // island: leaving ends it, and a name left from before goes on return.
@@ -1781,7 +1871,7 @@ final class NotchService: ObservableObject {
             // The gallery opens from its top, stepping only as far as the
             // current section's row.
             sectionRow = 0
-            highlightedSection = selected
+            highlightedSection = expanded ? selected : reopeningModule
             open(appPanel: showingAppPanel, metric: selectedMetric, sections: true)
         }
     }
@@ -1995,6 +2085,10 @@ final class NotchService: ObservableObject {
     /// once nothing lies behind.
     private func stepBack() {
         guard captureControls == nil, !heldDrag else { return }
+        if let close = clipboardPreviewClose {
+            close()
+            return
+        }
         if showingAppPanel || selectedMetric != nil {
             if detailHasPage { goBack() } else { collapse() }
         } else if let close = pageLayers[selected] {
@@ -3818,6 +3912,7 @@ final class NotchService: ObservableObject {
         invalidateMenuSpace()
         let identifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         guard identifier != Bundle.main.bundleIdentifier, identifier != AssistiveKeyboard.bundleID else { return }
+        closeClipboardPreview()
         panel?.resignKey()
         if expanded, modules.contains(.clipboard) { ClipboardHistoryService.shared.rememberPasteTarget() }
         if expanded, !pinned, !keepsWorkingSurface, captureControls == nil,

@@ -93,6 +93,7 @@ final class ClipboardHistoryService: ObservableObject {
     private var copyInFlight = false
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
+    private var entryPreview: ClipboardEntryPreviewController?
     private var panelResizeObserver: NSObjectProtocol?
     private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
@@ -609,8 +610,24 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
+    func previewEntry(_ entry: ClipboardHistoryEntry) {
+        if let entryPreview {
+            if entryPreview.entryID == entry.id {
+                entryPreview.show()
+                return
+            }
+            entryPreview.close(animated: false)
+        }
+        let controller = ClipboardEntryPreviewController(entry: entry) { [weak self] closed in
+            guard self?.entryPreview === closed else { return }
+            self?.entryPreview = nil
+        }
+        self.entryPreview = controller
+        controller.show()
+    }
+
     func editImage(_ entry: ClipboardHistoryEntry) {
-        guard entry.kind == .image, AppFeature.screenshot.isAvailable,
+        guard AppFeature.screenshot.isAvailable,
               let directory = ClipboardImageStore.directory else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             let capture = autoreleasepool {
@@ -626,7 +643,7 @@ final class ClipboardHistoryService: ObservableObject {
                 self.hideHistoryWindow()
                 (NSApp.delegate as? AppDelegate)?.closePopover()
                 NotchService.shared.perform {
-                    ScreenshotService.shared.openEditor(with: capture)
+                    ScreenshotService.shared.openEditor(with: capture, clipboardImage: true)
                 }
             }
         }
@@ -691,7 +708,7 @@ final class ClipboardHistoryService: ObservableObject {
     /// What the background pasteboard read hands back to the main thread.
     private enum CapturedContent {
         case transient
-        case files([String])
+        case files([String], preview: (data: Data, width: Int, height: Int)?)
         case image((data: Data, width: Int, height: Int))
         case text(String)
     }
@@ -710,21 +727,31 @@ final class ClipboardHistoryService: ObservableObject {
         // that closes it may already have taken them away.
         let historyPanelIsKey = historyPanelClosing || panel?.isKeyWindow == true
         GeneralPasteboardAccess.shared.async(timeout: Self.pasteboardTimeout, { isExpired
-            -> (changeCount: Int, content: CapturedContent?, declaredSource: String?, remote: Bool)? in
+            -> (changeCount: Int, observedAt: TimeInterval, content: CapturedContent?,
+                declaredSource: String?, remote: Bool)? in
             let changeCount = NSPasteboard.general.changeCount
+            // Image providers and PNG conversion can take long enough for
+            // focus to move. Attribute the copy when its change was observed,
+            // before that work, while retaining later apps for exclusions.
+            let observedAt = ProcessInfo.processInfo.systemUptime
             guard !isExpired() else { return nil }
+            let shouldRead = baseline || changeCount != sinceChangeCount
+            // Keep the source metadata with this observation too, rather
+            // than reading a later writer's mark after a slow image provider.
+            let declaredSource = shouldRead ? NSPasteboard.general.string(forType: .source) : nil
+            let remote = shouldRead && NSPasteboard.general.types?.contains(.remoteClipboard) == true
             // Read during a baseline too, not only on a detected change: a
             // fresh baseline (history starting to watch again, at launch or
             // the feature toggled back on) is exactly when latestPasteboardEntry
             // is most likely wrong — stale from before a toggle-off, or still
             // nil right after launch even though the last real copy is still
             // sitting there. Matched against the saved entries below.
-            let content: CapturedContent? = (baseline || changeCount != sinceChangeCount)
+            let content: CapturedContent? = shouldRead
                 ? Self.readPasteboard(includeImagesFiles: includeImagesFiles)
                 : nil
-            return (changeCount, content,
-                    content == nil ? nil : NSPasteboard.general.string(forType: .source),
-                    content != nil && NSPasteboard.general.types?.contains(.remoteClipboard) == true)
+            return (changeCount, observedAt, content,
+                    content == nil ? nil : declaredSource,
+                    content != nil && remote)
         }, then: { [weak self] result in
             guard let self else { return }
             guard let result else {
@@ -748,7 +775,8 @@ final class ClipboardHistoryService: ObservableObject {
             // accepted check, including any read that expired in between.
             let source = ClipboardIgnoredApps.shared.sourceSinceLastCheck(
                 declared: result.declaredSource, remote: result.remote,
-                historyPanelIsKey: historyPanelIsKey, historyPanelClosing: historyPanelClosing)
+                historyPanelIsKey: historyPanelIsKey, historyPanelClosing: historyPanelClosing,
+                observedAt: result.observedAt)
             guard let accepted = ClipboardHistoryChangeCount.accepted(
                 read: result.changeCount, since: sinceChangeCount, last: self.lastChangeCount
             ) else { return }
@@ -790,7 +818,8 @@ final class ClipboardHistoryService: ObservableObject {
             }
             switch content {
             case .transient: break
-            case .files(let paths): self.promoteFiles(paths, source: source.bundleID, keepsSource: keepsSource)
+            case .files(let paths, let preview):
+                self.promoteFiles(paths, preview: preview, source: source.bundleID, keepsSource: keepsSource)
             case .image(let image): self.promoteImage(image, source: source.bundleID, keepsSource: keepsSource)
             case .text(let text): self.promote(text, source: source.bundleID, keepsSource: keepsSource)
             }
@@ -812,7 +841,7 @@ final class ClipboardHistoryService: ObservableObject {
         case .image(let image):
             let hash = Self.sha256Hex(image.data)
             return entries.first(where: { $0.kind == .image && $0.imageHash == hash })
-        case .files(let paths):
+        case .files(let paths, _):
             return entries.first(where: { $0.kind == .files && $0.filePaths == paths })
         }
     }
@@ -840,7 +869,14 @@ final class ClipboardHistoryService: ObservableObject {
                     guard let image = copiedPNGImage(from: pasteboard) else { return nil }
                     return .image(image)
                 }
-                return .files(paths)
+                // A chat app may hand over only a security-scoped image file
+                // URL. A path string loses that access before a row decodes
+                // its thumbnail, so keep its pixels while the grant is live.
+                // It remains a file copy: copying the history entry still
+                // writes the original file URL, just like a Finder copy.
+                let preview = paths.count == 1
+                    ? copiedFileImage(from: pasteboard, path: paths[0]) : nil
+                return .files(paths, preview: preview)
             }
             if let image = copiedPNGImage(from: pasteboard) { return .image(image) }
         }
@@ -855,6 +891,28 @@ final class ClipboardHistoryService: ObservableObject {
     private static let maxImageBytes = 16 * 1024 * 1024
     private static let maxRawImageBytes = 64 * 1024 * 1024
 
+    private static func copiedFileImage(from pasteboard: NSPasteboard, path: String)
+        -> (data: Data, width: Int, height: Int)? {
+        guard ClipboardHistoryImageSupport.isImageFileName(path),
+              let urls = pasteboard.readObjects(forClasses: [NSURL.self],
+                                                options: [.urlReadingFileURLsOnly: true]) as? [URL],
+              urls.count == 1, let url = urls.first,
+              url.standardizedFileURL.path == path else { return nil }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        if let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+           values.isRegularFile == true, let size = values.fileSize,
+           size > 0, size <= maxRawImageBytes,
+           let handle = try? FileHandle(forReadingFrom: url) {
+            defer { try? handle.close() }
+            if let data = try? handle.read(upToCount: maxRawImageBytes + 1),
+               let image = normalizedPNGImage(data) { return image }
+        }
+        // Some apps publish both a file URL and image bytes. The latter can
+        // still supply the preview when the source file is no longer readable.
+        return copiedPNGImage(from: pasteboard)
+    }
+
     private static func copiedFilePaths(from pasteboard: NSPasteboard) -> [String]? {
         guard let urls = pasteboard.readObjects(forClasses: [NSURL.self],
                                                 options: [.urlReadingFileURLsOnly: true]) as? [URL],
@@ -866,15 +924,27 @@ final class ClipboardHistoryService: ObservableObject {
 
     private static func copiedPNGImage(from pasteboard: NSPasteboard)
         -> (data: Data, width: Int, height: Int)? {
-        let png = pasteboard.data(forType: .png)
-        guard let source = png ?? pasteboard.data(forType: .tiff),
-              source.count <= (png == nil ? maxRawImageBytes : maxImageBytes),
+        for type in [NSPasteboard.PasteboardType.png, .tiff, .init("public.jpeg")] {
+            if let data = pasteboard.data(forType: type),
+               let image = normalizedPNGImage(data) { return image }
+        }
+        return nil
+    }
+
+    private static func normalizedPNGImage(_ source: Data)
+        -> (data: Data, width: Int, height: Int)? {
+        guard !source.isEmpty, source.count <= maxRawImageBytes,
+              let imageSource = CGImageSourceCreateWithData(source as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any],
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+              width > 0, height > 0, Double(width) * Double(height) <= 64 * 1024 * 1024,
               let rep = NSBitmapImageRep(data: source),
               rep.pixelsWide > 0, rep.pixelsHigh > 0
         else { return nil }
         let data: Data
-        if let png {
-            data = png
+        if CGImageSourceGetType(imageSource) as String? == "public.png" {
+            data = source
         } else if let converted = rep.representation(using: .png, properties: [:]) {
             data = converted
         } else {
@@ -913,23 +983,33 @@ final class ClipboardHistoryService: ObservableObject {
         save()
     }
 
-    private func promoteFiles(_ paths: [String], source: String?, keepsSource: Bool) {
+    private func promoteFiles(_ paths: [String], preview: (data: Data, width: Int, height: Int)?,
+                              source: String?, keepsSource: Bool) {
         let existing = entries.first(where: { $0.kind == .files && $0.filePaths == paths })
+        var entry = existing ?? ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths)
+        entry.copiedAt = Date()
+        entry = cachingFilePreview(preview, in: entry)
         entries.removeAll { $0.kind == .files && $0.filePaths == paths }
-        if let existing {
-            insertPromoted(ClipboardHistoryEntry(id: existing.id,
-                                                 text: "",
-                                                 copiedAt: Date(),
-                                                 pinnedAt: existing.pinnedAt,
-                                                 kind: .files,
-                                                 filePaths: paths),
-                           source: keepsSource ? existing.sourceBundleID : source)
-        } else {
-            insertPromoted(ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths), source: source)
-        }
+        insertPromoted(entry, source: keepsSource && existing != nil ? existing?.sourceBundleID : source)
         normalizeEntryOrder()
         trimToLimit()
         save()
+    }
+
+    /// Add durable pixels without changing the file's identity or copy payload.
+    private func cachingFilePreview(_ preview: (data: Data, width: Int, height: Int)?,
+                                    in entry: ClipboardHistoryEntry) -> ClipboardHistoryEntry {
+        guard entry.kind == .files, entry.filePaths.count == 1, let preview else { return entry }
+        let hash = Self.sha256Hex(preview.data)
+        guard hash != entry.imageHash || entry.imageFile == nil,
+              let name = ClipboardImageStore.store(preview.data) else { return entry }
+        var updated = ClipboardHistoryEntry(id: entry.id, text: entry.text,
+                                             copiedAt: entry.copiedAt, pinnedAt: entry.pinnedAt,
+                                             kind: entry.kind, filePaths: entry.filePaths,
+                                             imageFile: name, imageHash: hash,
+                                             imageWidth: preview.width, imageHeight: preview.height)
+        updated.sourceBundleID = entry.sourceBundleID
+        return updated
     }
 
     private static func sha256Hex(_ data: Data) -> String {

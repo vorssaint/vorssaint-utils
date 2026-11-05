@@ -126,6 +126,7 @@ enum NotchScreenRefreshContract {
         func cancelRelocation() { relocationPending = false }
     }
     class State {
+        func closeClipboardPreview() {}
         var hiddenInFullscreen = false
         func fullscreenEnvironmentDidChange() {}
         var running = true

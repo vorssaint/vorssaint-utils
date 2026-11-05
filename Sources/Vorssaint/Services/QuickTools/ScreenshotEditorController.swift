@@ -165,6 +165,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     @Published private(set) var cropLoupePoint: CGPoint?
     /// Continuous zoom (view points per image pixel); nil fits the window.
     @Published var zoomOverride: CGFloat?
+    @Published var zoomFitsWidth = false
     /// What the view actually laid out last, so pinch and scroll zoom start
     /// from the visible scale even in fit mode. Plain var on purpose: the
     /// view writes it during layout.
@@ -175,6 +176,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     @Published private(set) var isDirty = false
 
     let scale: CGFloat
+    private let clipboardImage: Bool
     /// Sampled mosaics of the base image, one per blur level in use.
     private(set) var pixelated: [Int: CGImage] = [:]
     /// Small soft blurs of the base image, one per blur level in use.
@@ -232,9 +234,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         CGSize(width: CGFloat(baseImage.width) / scale, height: CGFloat(baseImage.height) / scale)
     }
 
-    init(image: CGImage, scale: CGFloat) {
+    init(image: CGImage, scale: CGFloat, clipboardImage: Bool = false) {
         baseImage = image
         self.scale = scale
+        self.clipboardImage = clipboardImage
         let defaults = UserDefaults.standard
         tool = ScreenshotSupport.Tool.startingTool(
             remembered: defaults.string(forKey: DefaultsKey.screenshotLastTool))
@@ -258,11 +261,16 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         annotationShadowsEnabled = defaults.bool(
             forKey: DefaultsKey.screenshotAnnotationShadows)
         let rawStyle = defaults.string(forKey: DefaultsKey.screenshotBackdropStyle) ?? ""
-        backdropStyle = ScreenshotSupport.BackdropStyle.decoded(rawStyle)
+        backdropStyle = clipboardImage
+            ? ScreenshotSupport.BackdropStyle()
+            : ScreenshotSupport.BackdropStyle.decoded(rawStyle)
+        zoomFitsWidth = clipboardImage
         backdropPresets = ScreenshotSupport.decodedBackdropPresets(
             defaults.string(forKey: DefaultsKey.screenshotBackdropPresets))
-        watermarkStyle = ScreenshotSupport.WatermarkStyle.decoded(
-            defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle))
+        watermarkStyle = clipboardImage
+            ? ScreenshotSupport.WatermarkStyle()
+            : ScreenshotSupport.WatermarkStyle.decoded(
+                defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle))
         watermarkPresets = ScreenshotSupport.decodedWatermarkPresets(
             defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets))
         pixelated = [:]
@@ -1322,7 +1330,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     func exportImage(withBackdrop: Bool = true) -> ScreenshotRenderer.Export? {
         ensureBlurSamplesForAnnotations()
-        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        let downscale = !clipboardImage
+            && UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         return ScreenshotRenderer.renderExport(
             baseImage: baseImage,
             annotations: annotations,
@@ -1387,8 +1396,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         FeatureStrings.screenshot(L10n.shared.language)
     }
 
-    init(capture: ScreenshotSelectionController.Capture) {
-        model = ScreenshotEditorModel(image: capture.image, scale: capture.scale)
+    init(capture: ScreenshotSelectionController.Capture, clipboardImage: Bool = false) {
+        model = ScreenshotEditorModel(image: capture.image, scale: capture.scale,
+                                      clipboardImage: clipboardImage)
         super.init()
     }
 
@@ -1558,7 +1568,10 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             case kVK_Delete, kVK_ForwardDelete:
                 discardAndClose()
                 return true
-            case kVK_ANSI_0: model.zoomOverride = nil; return true
+            case kVK_ANSI_0:
+                model.zoomFitsWidth = false
+                model.zoomOverride = nil
+                return true
             case kVK_ANSI_1: model.zoomOverride = 1 / model.scale; return true
             case kVK_ANSI_Equal: model.adjustZoom(by: 1.25); return true
             case kVK_ANSI_Minus: model.adjustZoom(by: 0.8); return true

@@ -87,6 +87,7 @@ enum NotchDestinationContract {
     enum ShortcutCapture { static var isCapturing = false }
 
     class State {
+        func setClipboardPagePointerInside(_ inside: Bool) {}
         var acceptsUserInteraction = true
         func collapse() { expanded = false }
         var hiddenInFullscreen = false
@@ -97,6 +98,7 @@ enum NotchDestinationContract {
         var windowHost: Host? = Host()
         var modules: [NotchModule] = []
         var selected = NotchModule.controls
+        var temporaryPageReturnModule: NotchModule?
         var selectedMetric: MetricDetailKind?
         var expanded = false
         var showsKeyboardFocus = false
@@ -121,6 +123,12 @@ enum NotchDestinationContract {
         var requestedDetail: MetricDetailKind?
         var detailHasPage = false
         var pageLayers: [NotchModule: () -> Void] = [:]
+        var clipboardPreviewClose: (() -> Void)?
+        func closeClipboardPreview() {
+            let close = clipboardPreviewClose
+            clipboardPreviewClose = nil
+            close?()
+        }
         var captureControls: AnyObject?
         var heldDrag = false
         var presentationSyncs = 0
@@ -170,6 +178,7 @@ enum NotchDestinationContract {
         suite.expect(!focus.showsKeyboardFocus, "hover opening starts without an automatic focus indicator")
         scratchpadContracts(defaults: defaults, suite: suite)
         reopeningContracts(defaults: defaults, suite: suite)
+        clipboardShortcutDestinationContracts(defaults: defaults, suite: suite)
         countdownContracts(defaults: defaults, suite: suite)
         stepBackContracts(suite)
         // A page opened while the Command Bar is in the island takes its place.
@@ -373,6 +382,23 @@ enum NotchDestinationContract {
         suite.expect(layered.expanded && closes == [.music], "Escape closes the page's own layer before the island")
         layered.stepBack()
         suite.expect(!layered.expanded && closes == [.music], "only the visible page's layer answers Escape")
+
+        let previewLayer = Service()
+        previewLayer.open(.clipboard)
+        var previewCloses = 0
+        var searchCloses = 0
+        previewLayer.setPageLayer(.clipboard) { searchCloses += 1 }
+        previewLayer.clipboardPreviewClose = {
+            previewCloses += 1
+            previewLayer.clipboardPreviewClose = nil
+        }
+        previewLayer.stepBack()
+        suite.expect(previewLayer.expanded && previewCloses == 1 && searchCloses == 0,
+                     "Escape closes the attached clipboard preview before the page's search or the island")
+        previewLayer.clipboardPreviewClose = { previewCloses += 1 }
+        previewLayer.open(.system)
+        suite.expect(previewCloses == 2 && previewLayer.clipboardPreviewClose == nil && previewLayer.selected == .system,
+                     "changing island pages closes the clipboard preview instead of carrying it onto another module")
 
         let covered = Service()
         covered.open(.system)
@@ -596,6 +622,103 @@ enum NotchDestinationContract {
         defaults.set(NotchModule.controls.rawValue, forKey: DefaultsKey.notchHomeModule)
         defaults.set(false, forKey: DefaultsKey.notchReturnHome)
         activityContracts(defaults: defaults) { suite.expect($0, $1) }
+    }
+
+    private static func clipboardShortcutDestinationContracts(defaults: UserDefaults, suite: TestSuite) {
+        let keys = [DefaultsKey.notchReturnHome, DefaultsKey.notchHomeModule, DefaultsKey.notchOpensActivity,
+                    DefaultsKey.notchHiddenModules, DefaultsKey.notchModuleOrder]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        defer { for (key, value) in zip(keys, saved) { defaults.set(value, forKey: key) } }
+        defaults.set(false, forKey: DefaultsKey.notchReturnHome)
+        defaults.set(false, forKey: DefaultsKey.notchOpensActivity)
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        defaults.set("", forKey: DefaultsKey.notchModuleOrder)
+
+        for alreadyOpen in [false, true] {
+            let service = Service()
+            service.open(.files)
+            if !alreadyOpen { service.collapse() }
+            suite.expect(service.showClipboard(toggle: true) && service.expanded && service.selected == .clipboard,
+                         "the history shortcut visits Clipboard from an open or collapsed island")
+            service.collapse()
+            suite.expect(service.reopeningModule == .files,
+                         "closing shortcut history preserves the previous page for the next ordinary opening")
+            service.open()
+            suite.expect(service.expanded && service.selected == .files,
+                         "the next ordinary opening returns to the page before shortcut history")
+        }
+
+        let repeated = Service()
+        repeated.open(.music)
+        repeated.collapse()
+        for _ in 0..<3 {
+            _ = repeated.showClipboard(toggle: true)
+            _ = repeated.showClipboard(toggle: true)
+            suite.expect(!repeated.expanded && repeated.reopeningModule == .music,
+                         "repeated history shortcut toggles cannot replace the remembered page with Clipboard")
+        }
+        _ = repeated.showClipboard(toggle: true)
+        repeated.open(.timer)
+        repeated.collapse()
+        repeated.open()
+        suite.expect(repeated.selected == .timer,
+                     "explicit page navigation after shortcut history becomes the next opening destination")
+        _ = repeated.showClipboard(toggle: true)
+        repeated.open(.clipboard)
+        repeated.collapse()
+        repeated.open()
+        suite.expect(repeated.selected == .clipboard,
+                     "explicitly choosing Clipboard after the shortcut remembers Clipboard normally")
+
+        let direct = Service()
+        direct.open(.files)
+        _ = direct.showClipboard()
+        direct.collapse()
+        direct.open()
+        suite.expect(direct.selected == .clipboard,
+                     "the regular Clipboard route retains its existing remembered-page behavior")
+
+        let peek = Service()
+        peek.open(.files)
+        _ = peek.showClipboard(toggle: true)
+        peek.collapse()
+        peek.peeking = true
+        suite.expect(peek.reopeningModule == .files,
+                     "a peek after shortcut history names the page that an ordinary opening will return to")
+        peek.toggleSections()
+        suite.expect(peek.expanded && peek.showingSections && peek.selected == .files && peek.highlightedSection == .files,
+                     "Explore opened from the peek highlights the remembered page rather than temporary Clipboard")
+
+        let visible = Service()
+        visible.open(.files)
+        _ = visible.showClipboard(toggle: true)
+        visible.toggleSections()
+        suite.expect(visible.showingSections && visible.highlightedSection == .clipboard,
+                     "Explore opened from visible shortcut history still highlights its current Clipboard page")
+
+        let hidden = Service()
+        hidden.open(.music)
+        _ = hidden.showClipboard(toggle: true)
+        hidden.collapse()
+        defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
+        hidden.open()
+        suite.expect(hidden.selected == NotchSupport.modules(in: defaults).first,
+                     "a previous page hidden during shortcut history falls back to an available page")
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+
+        for destination in [NotchModule.timer.rawValue, NotchReopeningDestination.explore.rawValue] {
+            defaults.set(true, forKey: DefaultsKey.notchReturnHome)
+            defaults.set(destination, forKey: DefaultsKey.notchHomeModule)
+            let home = Service()
+            home.open(.files)
+            home.collapse()
+            _ = home.showClipboard(toggle: true)
+            home.collapse()
+            home.open()
+            suite.expect(destination == NotchModule.timer.rawValue ? home.selected == .timer
+                         : home.showingSections && home.highlightedSection == .files,
+                         "shortcut history preserves a configured home destination and Explore's previous-page highlight")
+        }
     }
 
     /// A click on the event countdown leaves its event for the Calendar page

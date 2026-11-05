@@ -141,7 +141,7 @@ struct ScreenshotEditorView: View {
                     .frame(width: canvasSize.width, height: canvasSize.height)
                     .padding(canvasInsets(available: available, canvas: canvasSize))
             }
-            .scrollIndicators(.never)
+            .scrollIndicators(.automatic)
             .frame(width: available.width, height: available.height, alignment: .topLeading)
             // Trackpad pinch, anchored at the zoom the gesture started from.
             .simultaneousGesture(
@@ -170,13 +170,10 @@ struct ScreenshotEditorView: View {
             zoom = override
         } else {
             let margin: CGFloat = model.tool == .expandCanvas ? 64 : Self.canvasMargin
-            let width = max(available.width - margin * 2, 80)
-            let height = max(available.height - margin * 2, 80)
-            let fit = min(width / max(contentPixelSize.width, 1),
-                          height / max(contentPixelSize.height, 1))
-            // Small captures grow to a practical editing size. This affects
-            // only the canvas; exported pixels stay untouched.
-            zoom = min(fit, 1)
+            zoom = ScreenshotSupport.editorFitZoom(imageSize: contentPixelSize,
+                                                    availableSize: available,
+                                                    fitWidth: model.zoomFitsWidth,
+                                                    margin: margin)
         }
         // Pinch and scroll zoom start from what is actually on screen.
         model.currentDisplayZoom = zoom
@@ -1657,12 +1654,22 @@ struct ScreenshotEditorView: View {
 
     private var zoomChip: some View {
         HStack(spacing: 3) {
-            zoomButton(active: model.zoomOverride == nil, help: "⌘0") {
+            zoomButton(active: model.zoomOverride == nil && !model.zoomFitsWidth, help: "⌘0") {
                 Image(systemName: "arrow.down.right.and.arrow.up.left")
                     .font(.system(size: 11, weight: .medium))
             } action: {
+                model.zoomFitsWidth = false
                 model.zoomOverride = nil
             }
+            zoomButton(active: model.zoomOverride == nil && model.zoomFitsWidth,
+                       help: strings.fitWidth) {
+                Image(systemName: "arrow.left.and.right")
+                    .font(.system(size: 11, weight: .medium))
+            } action: {
+                model.zoomFitsWidth = true
+                model.zoomOverride = nil
+            }
+            .accessibilityLabel(strings.fitWidth)
             Text(zoomPercentLabel)
                 .font(.system(size: 10.5, weight: .medium).monospacedDigit())
                 .foregroundStyle(.secondary)

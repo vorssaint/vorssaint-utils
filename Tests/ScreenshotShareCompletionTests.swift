@@ -183,8 +183,12 @@ enum ScreenshotShareCompletionTests {
 
     final class ScreenshotEditorController {
         let capture: Int
+        let clipboardImage: Bool
         var shown = false
-        init(capture: Int) { self.capture = capture }
+        init(capture: Int, clipboardImage: Bool = false) {
+            self.capture = capture
+            self.clipboardImage = clipboardImage
+        }
         func show() { shown = true }
     }
 
@@ -546,6 +550,18 @@ enum ScreenshotShareCompletionTests {
 
         service.records = [record]
         service.copies = []
+        let clipboardEditing = Uploader()
+        let latestToken = clipboardEditing.latestCaptureToken
+        clipboardEditing.openEditor(with: 9, clipboardImage: true)
+        suite.expect(clipboardEditing.editors.first?.clipboardImage == true
+                     && clipboardEditing.latestCaptureToken == latestToken
+                     && !clipboardEditing.latestCaptureWithheld && !ScreenshotLastCaptureStore.isWithheld,
+                     "editing a clipboard image preserves the unrelated latest screenshot and its upload token")
+        clipboardEditing.editorDidClose(clipboardEditing.editors[0])
+        clipboardEditing.uploadLastCapture()
+        suite.expect(clipboardEditing.uploadedCaptures == [1],
+                     "latest screenshot upload remains available after a clipboard image editor closes")
+
         let editing = Uploader()
         editing.openEditor(with: 1)
         editing.openEditor(with: 2)

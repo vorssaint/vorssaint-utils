@@ -1607,6 +1607,43 @@ enum ScreenshotFeatureTests {
                                                  imageSize: CGSize(width: 200, height: 100))
                 == CGPoint(x: 0, y: 100),
                "the capture loupe clamps source points at display edges")
+        let longImage = CGSize(width: 1000, height: 10000)
+        let previewViewport = CGSize(width: 828, height: 628)
+        let widthFit = ScreenshotSupport.editorFitZoom(imageSize: longImage,
+            availableSize: previewViewport, fitWidth: true)
+        let wholeFit = ScreenshotSupport.editorFitZoom(imageSize: longImage,
+            availableSize: previewViewport, fitWidth: false)
+        suite.expect(abs(widthFit - 0.8) < 0.000001
+                && longImage.height * widthFit > previewViewport.height,
+               "a scrolling screenshot fills the preview width and extends vertically to scroll")
+        suite.expect(abs(wholeFit - 0.06) < 0.000001 && widthFit > wholeFit * 10,
+               "fit to width keeps long screenshot details readable instead of shrinking the whole image")
+        let resizedFit = ScreenshotSupport.editorFitZoom(imageSize: longImage,
+            availableSize: CGSize(width: 528, height: 628), fitWidth: true)
+        let tallerFit = ScreenshotSupport.editorFitZoom(imageSize: longImage,
+            availableSize: CGSize(width: 828, height: 1028), fitWidth: true)
+        suite.expect(abs(resizedFit - 0.5) < 0.000001 && tallerFit == widthFit,
+               "width fitting follows resized width while viewport height only changes scrolling")
+        let wideImage = CGSize(width: 4000, height: 500)
+        for widthOnly in [true, false] {
+            suite.expect(abs(ScreenshotSupport.editorFitZoom(imageSize: wideImage,
+                availableSize: previewViewport, fitWidth: widthOnly) - 0.2) < 0.000001,
+               "both fit modes constrain a wide image to the available width")
+        }
+        suite.expect(ScreenshotSupport.editorFitZoom(imageSize: CGSize(width: 180, height: 100),
+            availableSize: previewViewport, fitWidth: false) == 1,
+               "ordinary fit preserves the existing no-upscale limit for small images")
+        suite.expect(abs(ScreenshotSupport.editorFitZoom(imageSize: CGSize(width: 1600, height: 1200),
+            availableSize: previewViewport, fitWidth: false) - 0.5) < 0.000001,
+               "ordinary fit still contains a landscape screenshot within both viewport dimensions")
+        for dimensions in [CGSize.zero, CGSize(width: -20, height: -100)] {
+            for widthOnly in [true, false] {
+                let zoom = ScreenshotSupport.editorFitZoom(imageSize: dimensions,
+                    availableSize: dimensions, fitWidth: widthOnly)
+                suite.expect(zoom.isFinite && zoom > 0 && zoom <= 1,
+                       "zero and negative layout dimensions never produce invalid zoom")
+            }
+        }
         let editorMinimum = ScreenshotSupport.editorMinimumContentSize(
             visibleSize: CGSize(width: 1470, height: 956))
         suite.expect(editorMinimum == CGSize(width: 980, height: 680),
