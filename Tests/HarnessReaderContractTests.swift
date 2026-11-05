@@ -109,7 +109,7 @@ enum HarnessReaderContractTests {
         let now = Date(timeIntervalSince1970: 0)
         var state = AgentLogState()
         let reader = AgentProvider.dsh.reader
-        let header = line(#"{"v":1,"type":"session","session":"session-7fe88e4c-4773-4582-ab38-d5b56f942811","ts":1790088000000,"cwd":"/Users/me/code/app","parent":null,"preset":"standard"}"#)
+        let header = line(#"{"v":1,"type":"session","session":"session-7fe88e4c-4773-4582-ab38-d5b56f942811","ts":1790088000000,"cwd":"/Users/me/code/app","preset":"standard"}"#)
         suite.expect(reader.parse(header, state: &state, now: now).isEmpty
                         && state.session == "session-7fe88e4c-4773-4582-ab38-d5b56f942811"
                         && state.project == "app" && !state.dshSubagent,
@@ -153,6 +153,13 @@ enum HarnessReaderContractTests {
         let emptyModel = line(#"{"v":1,"type":"usage","ts":1790088040000,"turn":2,"step":1,"request":"m3","model":"","tokens":{"input":5,"output":1}}"#)
         suite.expect(reader.parse(emptyModel, state: &state, now: now).isEmpty,
                      "a DeepSeek usage line without a model is ignored")
+        let booleanCost = line(#"{"v":1,"type":"usage","ts":1790088045000,"turn":2,"step":2,"request":"m4","model":"deepseek/deepseek-v4.1-flash","tokens":{"input":5,"output":1},"cost":true}"#)
+        if case .usage(_, let record, _)? = reader.parse(booleanCost, state: &state, now: now).first {
+            suite.expect(record.cost == nil && !record.reportedCost,
+                         "a DeepSeek boolean cost reads as unknown rather than as a dollar")
+        } else {
+            suite.expect(false, "a DeepSeek usage line with a boolean cost is still counted")
+        }
 
         // A file that starts mid-session holds no metadata: only usage counts.
         var midway = AgentLogState()

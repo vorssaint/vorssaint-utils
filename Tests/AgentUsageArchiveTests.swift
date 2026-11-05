@@ -58,6 +58,19 @@ enum AgentUsageArchiveTests {
         let data = AgentUsageArchive.encode(contents, build: build)
         let decoded = AgentUsageArchive.decode(data, build: build)
         suite.expect(decoded == contents, "saved progress reads back as it was written")
+        // The DeepSeek flag is false in this fixture's codex state. Setting it
+        // here catches a write/read order swap with the Codex flags, which
+        // would otherwise round-trip two falses and look correct.
+        var flagged = contents
+        let saved = flagged.cursors[0]
+        var flaggedState = saved.state
+        flaggedState.dshSubagent = true
+        flagged.cursors[0] = AgentLogCursor.Saved(
+            path: saved.path, provider: saved.provider, offset: saved.offset, identity: saved.identity,
+            discarding: saved.discarding, modified: saved.modified, state: flaggedState,
+            fingerprint: saved.fingerprint)
+        suite.expect(AgentUsageArchive.decode(AgentUsageArchive.encode(flagged, build: build), build: build) == flagged,
+                     "a cursor's DeepSeek subagent flag survives the archive")
         var sourced = contents
         sourced.store.limits = [AgentLimits.Source.sessionLog, .claudeApp, .account].map {
             AgentLimits(provider: .codex, windows: [AgentLimitWindow(id: "test", kind: .session, minutes: 300,

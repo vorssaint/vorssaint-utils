@@ -76,9 +76,10 @@ struct DSHReader: AgentHarnessReader {
 
     /// The price the plugin billed. It is the only one the feed has: a model
     /// can route through a provider the price list knows nothing about. A
-    /// damaged figure reads as unknown rather than as a charge.
+    /// damaged figure reads as unknown rather than as a charge; foundation
+    /// bridges booleans to NSNumber, so a stray `true` must not read as $1.
     private func reportedCost(_ value: Any?) -> Double? {
-        guard let number = value as? NSNumber else { return nil }
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
         let cost = number.doubleValue
         return cost.isFinite && cost >= 0 ? cost : nil
     }
