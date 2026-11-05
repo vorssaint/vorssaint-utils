@@ -87,6 +87,9 @@ final class KeepAwakeManager: ObservableObject {
     private var lastExternalDisplayConnected: Bool?
     private var screenLocked = false
     private var sessionPausedForScreenLock = false
+    /// "Sleep now" paused the session until the Mac wakes. The screen-lock
+    /// pause path does the pausing, so either reason keeps the session paused.
+    private var sessionPausedForSleepNow = false
     private var automationSuppressedUntilConditionsClear = false
     private var recoveryCompleted = false
     private var isTerminating = false
@@ -96,6 +99,9 @@ final class KeepAwakeManager: ObservableObject {
     private var clamshellSetupID: UUID?
     private var lidSleepGeneration = 0
     private var lidSleepAttemptsRemaining = 0
+    /// The lid sleep generation a "Sleep now" is waiting on while closed-lid
+    /// mode is restored; a newer session moves the generation and cancels it.
+    private var sleepNowGeneration: Int?
     private var lidDimmingNotificationPort: IONotificationPortRef?
     private var lidDimmingNotification: io_object_t = 0
     private var lidClosedForDimming: Bool?
@@ -128,6 +134,11 @@ final class KeepAwakeManager: ObservableObject {
                     self.syncWithPreferences()
                 }
             }
+        _ = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.resumeAfterSleepNow()
+        }
     }
 
     /// Refreshes (in the background) whether the closed-lid sudoers rule is installed.
@@ -200,6 +211,34 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
+    /// Pauses any session the way a locked screen does and sleeps the Mac;
+    /// the session resumes on wake. Asked for directly, so the lid and
+    /// display checks of the automatic closed-lid sleep do not apply.
+    func sleepNow() {
+        if isActive {
+            sessionPausedForSleepNow = true
+            syncSessionWithScreenLock()
+        }
+        if clamshellRestorePending {
+            sleepNowGeneration = lidSleepGeneration
+        } else if UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) {
+            // An earlier restore failed: sleep is still disabled system-wide.
+            NSSound.beep()
+            resumeAfterSleepNow()
+        } else {
+            sleepIfLidAlreadyClosed(force: true)
+        }
+    }
+
+    /// The wake after "Sleep now", or a sleep that could not happen. A locked
+    /// screen keeps the session paused until unlock; the usual end time,
+    /// automation and battery checks run as it resumes.
+    private func resumeAfterSleepNow() {
+        guard sessionPausedForSleepNow else { return }
+        sessionPausedForSleepNow = false
+        syncSessionWithScreenLock()
+    }
+
     /// Keep Awake leaving the hub ends any running session; everything else
     /// (saved duration, tint, shortcut setting) stays for its return.
     func syncWithFeatures() {
@@ -269,6 +308,7 @@ final class KeepAwakeManager: ObservableObject {
         endTimer?.invalidate()
         endTimer = nil
         syncScreenLockMonitoring()
+        sessionPausedForSleepNow = false
         sessionPausedForScreenLock = screenLocked
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
         if !sessionPausedForScreenLock { applyAssertions() }
@@ -322,6 +362,7 @@ final class KeepAwakeManager: ObservableObject {
         activeAutomationConditions.removeAll()
         isActive = false
         sessionPausedForScreenLock = false
+        sessionPausedForSleepNow = false
         stopBatteryWatch()
         stopMouseJiggleTimer()
         // An enable can still be on the serialized native queue even though
@@ -400,8 +441,8 @@ final class KeepAwakeManager: ObservableObject {
             sessionPausedForScreenLock = false
             return
         }
-        let shouldPause = screenLocked
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
+        let shouldPause = sessionPausedForSleepNow || (screenLocked
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked))
         guard shouldPause != sessionPausedForScreenLock else { return }
 
         if shouldPause {
@@ -869,14 +910,19 @@ final class KeepAwakeManager: ObservableObject {
         guard clamshellOperationGeneration == generation else { return }
         clamshellRestorePending = false
         if !usedPasswordless { passwordlessClamshell = false }
+        let sleepNow = sleepNowGeneration == lidSleepGeneration
+        sleepNowGeneration = nil
         // Keep the recovery marker on failure; never request sleep while the
         // system-wide override may still be set.
-        guard ok else { return }
+        guard ok else {
+            if sleepNow { NSSound.beep(); resumeAfterSleepNow() }
+            return
+        }
         UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
         if !isTerminating, isActive, clamshellPreferred, !sessionPausedForScreenLock {
             enableClamshell()
         } else {
-            sleepIfLidAlreadyClosed(synchronous: synchronous)
+            sleepIfLidAlreadyClosed(synchronous: synchronous, force: sleepNow)
         }
     }
 
@@ -886,29 +932,34 @@ final class KeepAwakeManager: ObservableObject {
     /// out (#1729). Request the sleep that closing the lid would have caused.
     /// `pmset` returns before powerd has handed the cleared flag to the
     /// kernel, which refuses sleep until it has, so a refusal is retried.
+    /// `force` is "Sleep now": the user asked, so the lid is not consulted.
     private func sleepIfLidAlreadyClosed(attemptsLeft: Int = 10, synchronous: Bool = false,
-                                          generation: Int? = nil) {
+                                          generation: Int? = nil, force: Bool = false) {
         let generation = generation ?? lidSleepGeneration
         guard generation == lidSleepGeneration else { return }
         lidSleepAttemptsRemaining = 0
         guard !isActive || sessionPausedForScreenLock, !clamshellActive else { return }
-        guard BrightnessService.lidClosed() == true, Self.lidSleepIsAllowed() else { return }
+        guard force || (BrightnessService.lidClosed() == true && Self.lidSleepIsAllowed()) else { return }
         let rootDomain = IOPMFindPowerManagement(kIOMainPortDefault)
         guard rootDomain != 0 else { return }
         let result = IOPMSleepSystem(rootDomain)
         IOServiceClose(rootDomain)
-        guard result != kIOReturnSuccess, attemptsLeft > 1 else { return }
+        guard result != kIOReturnSuccess, attemptsLeft > 1 else {
+            if force, result != kIOReturnSuccess { resumeAfterSleepNow() }
+            return
+        }
         if synchronous {
             // The existing bounded retry must finish before quit returns.
             // Re-read the lid and external protections after every refusal.
             Thread.sleep(forTimeInterval: 0.5)
             sleepIfLidAlreadyClosed(attemptsLeft: attemptsLeft - 1, synchronous: true,
-                                    generation: generation)
+                                    generation: generation, force: force)
         } else {
             lidSleepAttemptsRemaining = attemptsLeft - 1
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self, !self.isTerminating else { return }
-                self.sleepIfLidAlreadyClosed(attemptsLeft: attemptsLeft - 1, generation: generation)
+                self.sleepIfLidAlreadyClosed(attemptsLeft: attemptsLeft - 1, generation: generation,
+                                             force: force)
             }
         }
     }

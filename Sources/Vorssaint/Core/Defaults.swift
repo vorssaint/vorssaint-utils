@@ -43,6 +43,8 @@ enum DefaultsKey {
     static let hotkeyEnabled = "hotkeyEnabled"
     static let launchAtLoginWanted = "launchAtLoginWanted"  // the user's choice; the system record can be lost
     static let keepAwakeShortcut = "keepAwakeShortcut"    // GlobalShortcut storage value
+    static let sleepNowShortcutEnabled = "sleepNowShortcutEnabled"
+    static let sleepNowShortcut = "sleepNowShortcut"      // GlobalShortcut storage value
     static let keepAwakeIconTint = "keepAwakeIconTint"    // KeepAwakeIconTint.rawValue
     static let keepAwakeActiveIcon = "keepAwakeActiveIcon" // KeepAwakeActiveIcon.rawValue
     static let showCountdown = "showCountdownInMenuBar"
@@ -1236,6 +1238,8 @@ enum Defaults {
         DefaultsKey.hotkeyEnabled: true,
         DefaultsKey.launchAtLoginWanted: false,
         DefaultsKey.keepAwakeShortcut: "control+option+command:40",
+        DefaultsKey.sleepNowShortcutEnabled: false,
+        DefaultsKey.sleepNowShortcut: GlobalShortcut.sleepNowDefault.storageValue,
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,
         DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
         DefaultsKey.showCountdown: false,

@@ -119,7 +119,7 @@ enum KeepAwakeLidSleepContract {
         Sudoers.sleepStateProbeSuspensions = 0; Sudoers.probeWrites = []
         AdminShell.completions = []; AdminShell.prompts = 0; AdminShell.syncResult = false
         Shell.status = 0; Shell.output = nil
-        Thread.waits = 0; Thread.onWait = nil; onSleep = nil
+        Thread.waits = 0; Thread.onWait = nil; onSleep = nil; NSSound.beeps = 0
         return Service()
     }
 }

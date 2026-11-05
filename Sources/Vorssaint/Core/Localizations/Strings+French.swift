@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "«\u{00A0}Continuer écran rabattu\u{00A0}» désactive entièrement la veille tant que «\u{00A0}Garder éveillé\u{00A0}» est actif et se rétablit automatiquement à la fin de la session ou quand l’app quitte. À privilégier branché sur secteur.",
         dimScreenOnLidCloseTitle: "Assombrir complètement l’écran",
         dimScreenOnLidCloseCaption: "Assombrit l’écran à la fermeture du couvercle et restaure la luminosité à l’ouverture.",
+        sleepNowTitle: "Mettre en veille",
+        sleepNowCaption: "Met immédiatement le Mac en veille et reprend la session en cours au réveil.",
 
         scrollSection: "Défilement",
         invertMouseScroll: "Inverser le défilement de la souris",
