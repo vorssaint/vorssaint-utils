@@ -230,6 +230,18 @@ enum SmoothScrollRoutingTests {
             suite.expect(tick(unknown, event) === event && !unknown.engine.isActive && !unknown.scheduled,
                          "an event without a usable receiver passes through without swallowing distance")
         }
+        suite.expect(SmoothScrollSupport.targetsOwnWindow(targetProcessID: 77, ownProcessID: 77)
+                && !SmoothScrollSupport.targetsOwnWindow(targetProcessID: 78, ownProcessID: 77)
+                && !SmoothScrollSupport.targetsOwnWindow(targetProcessID: 0, ownProcessID: 77),
+                     "only a wheel the window server routed to this process counts as our own window")
+        // The clipboard history and the panel's lists are scroll views in our
+        // own windows, and those already apply the system's notch distance.
+        let ownWindow = Service()
+        _ = tick(ownWindow, wheel())
+        let ownTick = wheel(pid: Service.ownProcessID, window: 303)
+        suite.expect(tick(ownWindow, ownTick) === ownTick && !ownWindow.engine.isActive
+                && !ownWindow.scheduled && ownWindow.targetLatch.target == nil,
+                     "a wheel aimed at one of our own windows stays raw and drops the glide it interrupted")
         let ignored = Service()
         _ = tick(ignored, wheel())
         let synthetic = wheel()
@@ -265,8 +277,11 @@ enum SmoothScrollRoutingTests {
         defaults.set(true, forKey: AppFeature.scrollInverter.availabilityKey)
         defaults.set(true, forKey: DefaultsKey.scrollInverterEnabled)
         let ownZoom = Service()
-        suite.expect(tick(ownZoom, wheel(flags: .maskAlternate)) == nil && ownZoom.engine.remainingVertical < 0,
-                     "a declined zoom on our panel still takes the normal inverted smooth-scroll path")
+        let zoomRequestsBefore = Inverter.shared.zoomRequests
+        let ownZoomTick = wheel(pid: Service.ownProcessID, flags: .maskAlternate)
+        suite.expect(tick(ownZoom, ownZoomTick) === ownZoomTick && !ownZoom.engine.isActive
+                && Inverter.shared.zoomRequests == zoomRequestsBefore + 1,
+                     "a zoom declined over our own panel leaves the wheel raw instead of gliding it")
         Target.shared.isOwn = false
         defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
         defaults.set(false, forKey: DefaultsKey.scrollInverterEnabled)

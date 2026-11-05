@@ -271,6 +271,19 @@ final class SmoothScrollService: ObservableObject {
             if ScrollInverter.shared.consumeZoom(event, direction: direction) { return nil }
             if !ScrollWheelTarget.shared.contains(event.location) { return Unmanaged.passUnretained(event) }
         }
+        // Our own windows keep the wheel macOS gave them. The glide is a
+        // system-wide aid for apps whose wheel jumps; over a panel it only
+        // replays the notch late and at the smooth scrolling step, so the
+        // clipboard history travelled further than the wheel asked and felt
+        // laggy (issue #3780). The tap sits at the annotated stage, where the
+        // window server has already named the receiver, so the target's
+        // process is the routing decision rather than the pointer's position.
+        guard !SmoothScrollSupport.targetsOwnWindow(
+            targetProcessID: event.getIntegerValueField(.eventTargetUnixProcessID),
+            ownProcessID: Self.ownProcessID) else {
+            stopGlide()
+            return Unmanaged.passUnretained(event)
+        }
 
         guard let processID = pid_t(exactly: event.getIntegerValueField(.eventTargetUnixProcessID)),
               processID > 0,
