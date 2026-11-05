@@ -2968,11 +2968,15 @@ enum ScreenshotSupport {
 
     /// A mark of your own on every capture that leaves the editor: a line of
     /// text or a picture from disk, faded, tilted if you like and set on one
-    /// of nine places. Persisted as JSON like the backdrop, so the next
-    /// capture opens with it already on.
+    /// of nine places or tiled across the image. Persisted as JSON like the
+    /// backdrop, so the next capture opens with it already on.
     struct WatermarkStyle: Codable, Equatable {
         enum Kind: String, Codable {
             case none, text, image
+        }
+
+        enum Layout: String, Codable {
+            case single, tiled
         }
 
         /// The same nine places the recorder's captions and pictures take:
@@ -2986,6 +2990,7 @@ enum ScreenshotSupport {
         /// ColorID raw value the text is drawn in.
         var color: String
         var anchor: Anchor
+        var layout: Layout
         /// Sliders 0…1; `watermarkFontSize` and `watermarkImageWidth` turn
         /// them into pixels for a given capture.
         var size: Double
@@ -3001,15 +3006,35 @@ enum ScreenshotSupport {
              anchor: Anchor = .bottomTrailing,
              size: Double = 0.3,
              opacity: Double = 0.4,
-             rotation: Double = 0) {
+             rotation: Double = 0,
+             layout: Layout = .single) {
             self.kind = kind
             self.text = text
             self.imagePath = imagePath
             self.color = color
             self.anchor = anchor
+            self.layout = layout
             self.size = size
             self.opacity = opacity
             self.rotation = rotation
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case kind, text, imagePath, color, anchor, size, opacity, rotation, layout
+        }
+
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            self.init(kind: try values.decode(Kind.self, forKey: .kind),
+                      text: try values.decode(String.self, forKey: .text),
+                      imagePath: try values.decodeIfPresent(String.self, forKey: .imagePath),
+                      color: try values.decode(String.self, forKey: .color),
+                      anchor: try values.decode(Anchor.self, forKey: .anchor),
+                      size: try values.decode(Double.self, forKey: .size),
+                      opacity: try values.decode(Double.self, forKey: .opacity),
+                      rotation: try values.decode(Double.self, forKey: .rotation),
+                      layout: (try? values.decode(String.self, forKey: .layout))
+                        .flatMap(Layout.init(rawValue:)) ?? .single)
         }
 
         static let opacityRange: ClosedRange<Double> = 0.05...1
@@ -3114,6 +3139,7 @@ enum ScreenshotSupport {
                                    cornerRadius: CGFloat = 0) -> WatermarkPlacement? {
         guard contentSize.width.isFinite, contentSize.height.isFinite,
               contentSize.width > 0, contentSize.height > 0,
+              imageSize.width.isFinite, imageSize.height.isFinite,
               imageSize.width > 0, imageSize.height > 0, rotation.isFinite
         else { return nil }
         let radians = rotation * .pi / 180
