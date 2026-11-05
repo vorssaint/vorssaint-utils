@@ -79,7 +79,10 @@ enum SoftwareDimmingRouteTests {
 
     static func run(expect: (Bool, String) -> Void) {
         let off = dimmedDisplay()
+        off.pendingLevels[display] = 0.2
         off.setSoftwareDimmingPreferred(false, for: display)
+        expect(off.pendingLevels[display] == nil,
+               "turning software dimming off drops writes measured in the picture's old scale")
         expect(Context.UserDefaults.standard.stringArray(
             forKey: DefaultsKey.brightnessForcedSoftwarePaths) == []
                 && off.forgottenWriteOnlyPaths == [path],
@@ -97,7 +100,10 @@ enum SoftwareDimmingRouteTests {
         expect(off.refreshes == 1, "the display is rebuilt onto the DDC route once the picture is back")
 
         let on = dimmedDisplay()
+        on.pendingLevels[display] = 0.2
         on.setSoftwareDimmingPreferred(true, for: display)
+        expect(on.pendingLevels[display] == nil,
+               "turning software dimming on drops writes measured in the monitor's old scale")
         expect(Context.UserDefaults.standard.stringArray(
             forKey: DefaultsKey.brightnessForcedSoftwarePaths) == [path]
                 && on.refreshes == 1,

@@ -334,6 +334,10 @@ def main():
               "    private struct Route", "    private enum DDCProbe"])
           + "final class Service: Fixture {\n"
           + declaration(brightness, "    private func step(").replace("private ", "", 1)
+          + declaration(brightness, "    private func commitStep(").replace("private ", "", 1)
+          + declaration(brightness, "    private func forcedSoftwarePaths(")
+          + declaration(brightness, "    func setSoftwareDimmingPreferred(")
+          + declaration(brightness, "    func setExtendedDimmingPreferred(")
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private ", "", 1)
           + declaration(brightness, "    private static func writeSystemBrightness(").replace("private ", "", 1)
           + "}\n}\n")
@@ -2175,6 +2179,7 @@ def main():
           + "var lastApplied: [CGDirectDisplayID: Double] = [:]\n"
           + "var levelKnownAt: [CGDirectDisplayID: Foundation.Date] = [:]\n"
           + "var pendingLevels: [CGDirectDisplayID: Double] = [:]\n"
+          + "var ddcPendingSteps: [CGDirectDisplayID: (request: UUID, delta: Double)] = [:]\n"
           + "var softwareDims: [(id: CGDirectDisplayID, value: Double)] = []\n"
           + "struct GammaTable { var red: [CGGammaValue] = [1]; var green: [CGGammaValue] = [1]; "
           + "var blue: [CGGammaValue] = [1]; var count: UInt32 = 1; var fingerprint: String }\n"
