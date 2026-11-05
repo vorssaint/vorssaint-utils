@@ -229,6 +229,16 @@ enum SmoothScrollSupport {
         return Axes(vertical: 0, horizontal: vertical)
     }
 
+    /// A wheel the window server routed to one of this app's own windows is
+    /// left to that window. Its scroll views already apply the system's notch
+    /// distance and easing, and the glide would deliver the same notch late,
+    /// in pixels, and at the smooth scrolling step, which the clipboard
+    /// history and the panel's lists felt as laggy, longer scrolling (issue
+    /// #3780). A receiver of 0 is unknown, never ours.
+    static func targetsOwnWindow(targetProcessID: Int64, ownProcessID: Int64) -> Bool {
+        targetProcessID != 0 && targetProcessID == ownProcessID
+    }
+
     /// Exponential decay has the composition property needed here: two short
     /// elapsed intervals produce the same remaining distance as one interval
     /// with their combined duration.
