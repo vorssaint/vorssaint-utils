@@ -807,10 +807,7 @@ final class SuperKeyService: ObservableObject {
         case .capsLock:
             runOnMainIfNeeded { self.setCapsLock(!self.capsLockIsOn()) }
         case .inputSource:
-            // Must finish before this tap returns: the next keystroke is already
-            // in flight, and hopping to main (or waiting on Accessibility) left
-            // that character in the old source.
-            Self.selectNextInputSource()
+            try! Self.selectNextInputSource()
         }
     }
 
@@ -835,35 +832,76 @@ final class SuperKeyService: ObservableObject {
         return true
     }
 
-    /// Cycle enabled keyboard sources through TIS before the tap lets the next
-    /// key through. An earlier path asked another app for marked text (up to
-    /// 200 ms) and then slept 100 ms so Control-Space could commit IME
-    /// composition; that wait ran on every tap, including ones with nothing to
-    /// commit. Selecting the next source directly lets the input method commit
-    /// or cancel on its own, the same way the Input menu does.
-    private static func selectNextInputSource() {
-        let apply = {
+    /// Ask the keyboard-focus application's TSM to select the next source.
+    /// Selecting through TIS here can update the Input menu without activating
+    /// the input method in that application's text field.
+    private static func selectNextInputSource() throws {
+        let request = try DispatchQueue.main.sync { () throws -> (CFMessagePort, Data)? in
             let sources = InputSourceSelection.selectableInputSources()
             let ids = sources.compactMap {
                 InputSourceSelection.inputSourceString($0, property: kTISPropertyInputSourceID)
             }
-            guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
+            let current = TISCopyCurrentKeyboardInputSource()!.takeRetainedValue()
             let currentID = InputSourceSelection.inputSourceString(current, property: kTISPropertyInputSourceID)
             guard let nextID = SuperKeySupport.nextInputSourceID(currentID: currentID,
                                                                  enabledIDs: ids),
                   let next = sources.first(where: {
                       InputSourceSelection.inputSourceString($0, property: kTISPropertyInputSourceID) == nextID
                   })
-            else { return }
-            _ = TISSelectInputSource(next)
+            else { return nil }
+
+            typealias KeyFocus = @convention(c) (
+                UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<DarwinBoolean>
+            ) -> OSStatus
+            typealias ProcessID = @convention(c) (
+                UnsafePointer<ProcessSerialNumber>, UnsafeMutablePointer<pid_t>
+            ) -> OSStatus
+            typealias Flatten = @convention(c) (
+                TISInputSource, UnsafeMutablePointer<Unmanaged<AnyObject>?>
+            ) -> DarwinBoolean
+            typealias RemotePort = @convention(c) (
+                CFAllocator?, CFString, pid_t
+            ) -> Unmanaged<CFMessagePort>?
+            let symbols = UnsafeMutableRawPointer(bitPattern: -2)
+            let keyFocus = unsafeBitCast(dlsym(symbols, "CPSGetKeyFocusProcess")!, to: KeyFocus.self)
+            let processID = unsafeBitCast(dlsym(symbols, "GetProcessPID")!, to: ProcessID.self)
+            let flatten = unsafeBitCast(dlsym(symbols, "_CreateFlattenedInputSource")!, to: Flatten.self)
+            let remotePort = unsafeBitCast(dlsym(symbols, "CFMessagePortCreatePerProcessRemote")!,
+                                           to: RemotePort.self)
+            var process = ProcessSerialNumber()
+            var ignored: DarwinBoolean = false
+            let focusStatus = keyFocus(&process, &ignored)
+            guard focusStatus == noErr else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(focusStatus))
+            }
+            var pid: pid_t = 0
+            let processStatus = processID(&process, &pid)
+            guard processStatus == noErr else {
+                throw NSError(domain: NSOSStatusErrorDomain, code: Int(processStatus))
+            }
+            var flattened: Unmanaged<AnyObject>?
+            guard flatten(next, &flattened).boolValue else { throw CocoaError(.coderInvalidValue) }
+            let data = try PropertyListSerialization.data(
+                fromPropertyList: ["tsmInputSourceSelectedInpSrcKey": flattened!.takeRetainedValue()],
+                format: .xml, options: 0)
+            let port = remotePort(nil, "com.apple.tsm.portname" as CFString, pid)!.takeRetainedValue()
+            return (port, data)
         }
-        // TIS talks to the text-input server from the main thread. sync (not
-        // async) keeps the switch ahead of the next keystroke this tap is
-        // about to let through.
-        if Thread.isMainThread {
-            apply()
-        } else {
-            DispatchQueue.main.sync(execute: apply)
+        guard let (port, data) = request else { return }
+        // Wait on the tap thread, leaving main free to service TSM when our
+        // own panel has keyboard focus, before this tap lets the next key through.
+        var reply: Unmanaged<CFData>?
+        let status = CFMessagePortSendRequest(port, 7, data as CFData, 0.1, 0.1,
+                                             CFRunLoopMode.defaultMode.rawValue, &reply)
+        guard status == kCFMessagePortSuccess else {
+            throw NSError(domain: "VorssaintTSM", code: Int(status))
+        }
+        if let reply {
+            let result = try PropertyListSerialization.propertyList(
+                from: reply.takeRetainedValue() as Data, format: nil) as! [String: Any]
+            if let error = result["tsmInputModeReplyToServerErrorKey"] as? Int, error != noErr {
+                throw NSError(domain: NSOSStatusErrorDomain, code: error)
+            }
         }
     }
 

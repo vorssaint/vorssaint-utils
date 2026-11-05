@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Carbon.HIToolbox
 import CoreGraphics
 import Darwin
 import Foundation
@@ -33,6 +34,101 @@ enum SuperKeyTapContract {
         func onChange(_ handler: @escaping (Bool) -> Void) {}
     }
     enum ShortcutCapture { static func end() {} }
+    // The production switching body uses these C ABI doubles. Neither TIS nor
+    // a remote message port can reach the user's active input source.
+    class InputSourceState {
+        typealias TISInputSource = CFString
+        typealias CFMessagePort = CFString
+        typealias DispatchQueue = MainQueue
+        enum MainQueue {
+            static var main: MainQueue.Type { Self.self }
+            static var isPreparing = false
+            static func sync<T>(execute: () throws -> T) rethrows -> T {
+                isPreparing = true
+                defer { isPreparing = false }
+                return try execute()
+            }
+        }
+        enum InputSourceSelection {
+            static func selectableInputSources() -> [CFString] { sources.map { $0 as CFString } }
+            static func inputSourceString(_ source: CFString, property: CFString) -> String? {
+                source as String
+            }
+        }
+        static var sources = ["english", "pinyin"]
+        static var current = "english"
+        static var calls: [String] = []
+        static var focusStatus: OSStatus = noErr
+        static var processStatus: OSStatus = noErr
+        static var flattenSucceeds = true
+        static var transportStatus = kCFMessagePortSuccess
+        static var replyError = 0
+        static var sendsReply = true
+        static var targetPID: pid_t = 0
+        static var sentOnMain = false
+        static var requestID: Int32 = 0
+        static var payload: [String: Any] = [:]
+        static var portName = ""
+        static var focusProcessMatched = false
+        static func TISCopyCurrentKeyboardInputSource() -> Unmanaged<CFString>? {
+            Unmanaged.passRetained(current as CFString)
+        }
+        static func dlsym(_ handle: UnsafeMutableRawPointer?, _ name: String) -> UnsafeMutableRawPointer? {
+            switch name {
+            case "CPSGetKeyFocusProcess":
+                let function: @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>,
+                                               UnsafeMutablePointer<DarwinBoolean>) -> OSStatus = { process, _ in
+                    InputSourceState.calls.append("focus")
+                    process.pointee = ProcessSerialNumber(highLongOfPSN: 12, lowLongOfPSN: 34)
+                    return InputSourceState.focusStatus
+                }
+                return unsafeBitCast(function, to: UnsafeMutableRawPointer.self)
+            case "GetProcessPID":
+                let function: @convention(c) (UnsafePointer<ProcessSerialNumber>,
+                                               UnsafeMutablePointer<pid_t>) -> OSStatus = { process, pid in
+                    InputSourceState.calls.append("pid")
+                    InputSourceState.focusProcessMatched = process.pointee.highLongOfPSN == 12 && process.pointee.lowLongOfPSN == 34
+                    pid.pointee = 928
+                    return InputSourceState.processStatus
+                }
+                return unsafeBitCast(function, to: UnsafeMutableRawPointer.self)
+            case "_CreateFlattenedInputSource":
+                let function: @convention(c) (CFString, UnsafeMutablePointer<Unmanaged<AnyObject>?>)
+                    -> DarwinBoolean = { source, result in
+                    InputSourceState.calls.append("flatten")
+                    if InputSourceState.flattenSucceeds {
+                        result.pointee = Unmanaged.passRetained(["source": source as String] as NSDictionary)
+                    }
+                    return DarwinBoolean(InputSourceState.flattenSucceeds)
+                }
+                return unsafeBitCast(function, to: UnsafeMutableRawPointer.self)
+            case "CFMessagePortCreatePerProcessRemote":
+                let function: @convention(c) (CFAllocator?, CFString, pid_t) -> Unmanaged<CFString>? = { _, name, pid in
+                    InputSourceState.calls.append("port")
+                    InputSourceState.portName = name as String
+                    InputSourceState.targetPID = pid
+                    return Unmanaged.passRetained("test-port" as CFString)
+                }
+                return unsafeBitCast(function, to: UnsafeMutableRawPointer.self)
+            default:
+                fatalError("Unexpected symbol: \(name)")
+            }
+        }
+        static func CFMessagePortSendRequest(_ port: CFString, _ message: Int32, _ data: CFData,
+                                             _ sendTimeout: CFTimeInterval, _ receiveTimeout: CFTimeInterval,
+                                             _ mode: CFString, _ reply: UnsafeMutablePointer<Unmanaged<CFData>?>) -> Int32 {
+            calls.append("send")
+            sentOnMain = MainQueue.isPreparing
+            requestID = message
+            payload = try! PropertyListSerialization.propertyList(from: data as Data, format: nil) as! [String: Any]
+            if transportStatus == kCFMessagePortSuccess && sendsReply {
+                let data = try! PropertyListSerialization.data(
+                    fromPropertyList: ["tsmInputModeReplyToServerErrorKey": replyError], format: .xml, options: 0)
+                reply.pointee = Unmanaged.passRetained(data as CFData)
+            }
+            return transportStatus
+        }
+    }
     class State {
         typealias DispatchQueue = Queue
         static var shared = State()
@@ -122,6 +218,7 @@ enum SuperKeyTapContract {
     }
 
     static func run(_ suite: TestSuite) {
+        runInputSourceSwitch(suite)
         Tap.requests = []
         State.isEngaged = true
         let service = SuperKeyService()
@@ -246,5 +343,46 @@ enum SuperKeyTapContract {
                              "solo tap/hold timing survives the HID stage (hardware: \(hardware), ns: \(duration))")
             }
         }
+    }
+
+    static func runInputSourceSwitch(_ suite: TestSuite) {
+        for failure in ["", "no reply", "focus", "pid", "flatten", "send", "reply"] {
+            InputSourceState.calls = []
+            InputSourceState.focusStatus = failure == "focus" ? -50 : noErr
+            InputSourceState.processStatus = failure == "pid" ? -50 : noErr
+            InputSourceState.flattenSucceeds = failure != "flatten"
+            InputSourceState.transportStatus = failure == "send" ? kCFMessagePortReceiveTimeout : kCFMessagePortSuccess
+            InputSourceState.replyError = failure == "reply" ? -50 : 0
+            InputSourceState.sendsReply = failure != "no reply"
+            var error: NSError?
+            do { try InputSourceSwitch.selectNextInputSource() } catch let caught as NSError { error = caught }
+            let expectedCalls = ["focus", "pid", "flatten", "port", "send"]
+            let stop = expectedCalls.firstIndex(of: failure).map { $0 + 1 } ?? expectedCalls.count
+            suite.expect(InputSourceState.calls == Array(expectedCalls.prefix(stop)),
+                         "TSM stops at the first error without retrying or selecting a fallback (\(failure))")
+            if failure.isEmpty || failure == "no reply" {
+                let source = InputSourceState.payload["tsmInputSourceSelectedInpSrcKey"] as? [String: String]
+                suite.expect(error == nil && source == ["source": "pinyin"]
+                        && InputSourceState.requestID == 7
+                        && InputSourceState.portName == "com.apple.tsm.portname"
+                        && InputSourceState.focusProcessMatched && InputSourceState.targetPID == 928
+                        && !InputSourceState.sentOnMain,
+                             "the next input source is sent to keyboard-focus TSM after releasing the main queue")
+            } else {
+                let expectedCode = failure == "flatten" ? CocoaError.Code.coderInvalidValue.rawValue
+                    : failure == "send" ? Int(kCFMessagePortReceiveTimeout) : -50
+                suite.expect(error?.code == expectedCode, "TSM propagates \(failure) failure")
+            }
+        }
+        InputSourceState.sources = ["english"]
+        InputSourceState.calls = []
+        do {
+            try InputSourceSwitch.selectNextInputSource()
+            suite.expect(InputSourceState.calls.isEmpty, "one enabled source requires no TSM request")
+        } catch {
+            suite.expect(false, "one enabled source should be a no-op: \(error)")
+        }
+        InputSourceState.sources = ["english", "pinyin"]
+        InputSourceState.replyError = 0
     }
 }
