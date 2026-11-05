@@ -603,6 +603,7 @@ extension Strings {
         mixerUnavailable: "macOS 14.4 以降で利用できます",
         mixerPermissionBody: "アプリごとの音量を調整するには、システム設定で「画面とシステムオーディオ収録」を許可してください。オーディオが記録されることはありません。",
         mixerResetTooltip: "100% にリセット",
+        mixerMutedValue: "消音中",
         mixerOutputDefault: "デフォルト",
         mixerOutputCurrent: "現在",
         mixerOutputUnavailable: "出力を利用できません",

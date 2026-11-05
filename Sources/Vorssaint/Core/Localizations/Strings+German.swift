@@ -603,6 +603,7 @@ extension Strings {
         mixerUnavailable: "Verfügbar ab macOS 14.4",
         mixerPermissionBody: "Um die Lautstärke je App anzupassen, erlaube „Aufnahme von Bildschirm und Systemaudio“ in den Systemeinstellungen. Audio wird nie aufgenommen.",
         mixerResetTooltip: "Auf 100 % zurücksetzen",
+        mixerMutedValue: "Stummgeschaltet",
         mixerOutputDefault: "Standard",
         mixerOutputCurrent: "aktuell",
         mixerOutputUnavailable: "Ausgabe nicht verfügbar",

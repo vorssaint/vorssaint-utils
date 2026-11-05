@@ -604,6 +604,7 @@ extension Strings {
         mixerUnavailable: "Доступно в macOS 14.4 и новее",
         mixerPermissionBody: "Чтобы регулировать громкость по приложениям, разрешите «Запись экрана и системного аудио» в Системных настройках. Аудио никогда не записывается.",
         mixerResetTooltip: "Сбросить на 100%",
+        mixerMutedValue: "Звук отключён",
         mixerOutputDefault: "По умолчанию",
         mixerOutputCurrent: "текущий",
         mixerOutputUnavailable: "Выход недоступен",

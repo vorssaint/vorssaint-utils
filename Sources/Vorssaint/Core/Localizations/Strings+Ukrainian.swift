@@ -585,6 +585,7 @@ extension Strings {
         mixerUnavailable: "Доступно в macOS 14.4 та новіших",
         mixerPermissionBody: "Для регулювання гучності окремих програм дозвольте «Записування системного звуку й екрана» в Системних параметрах. Звук ніколи не записується.",
         mixerResetTooltip: "Скинути на 100%",
+        mixerMutedValue: "Звук вимкнено",
         mixerOutputDefault: "За замовчуванням",
         mixerOutputCurrent: "поточний",
         mixerOutputUnavailable: "Пристрій виведення недоступний",

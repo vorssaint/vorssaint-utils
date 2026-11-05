@@ -604,6 +604,7 @@ extension Strings {
         mixerUnavailable: "需要 macOS 14.4 及更高版本",
         mixerPermissionBody: "若要調整各 App 的音量，請在「系統設定」中允許「螢幕與系統音訊錄製」。絕不會錄製音訊。",
         mixerResetTooltip: "重設為 100%",
+        mixerMutedValue: "已靜音",
         mixerOutputDefault: "預設",
         mixerOutputCurrent: "目前",
         mixerOutputUnavailable: "輸出不可用",

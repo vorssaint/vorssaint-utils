@@ -603,6 +603,7 @@ extension Strings {
         mixerUnavailable: "Dostupné na macOS 14.4 a novšom",
         mixerPermissionBody: "Ak chcete upravovať hlasitosť jednotlivých aplikácií, povoľte „Nahrávanie obrazovky a systémového audia“ v Systémových nastaveniach. Zvuk sa nikdy nenahráva.",
         mixerResetTooltip: "Obnoviť na 100 %",
+        mixerMutedValue: "Stlmené",
         mixerOutputDefault: "Predvolený",
         mixerOutputCurrent: "aktuálny",
         mixerOutputUnavailable: "Výstup nie je dostupný",
