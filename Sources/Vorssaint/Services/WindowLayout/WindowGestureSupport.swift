@@ -407,9 +407,8 @@ enum WindowEdgeSnapZone: String, CaseIterable {
 }
 
 /// The placements a drop area can use, in the families Settings lists them
-/// in. Each one fills a fixed part of the screen, so a drag can preview it.
-/// Center, full screen, restore and the display moves depend on the window or
-/// leave the screen, so they are left out.
+/// in. Center previews the dragged window's size; the other choices fill a
+/// fixed part of the screen. Full screen, restore and display moves are left out.
 enum WindowEdgeSnapPlacementGroup: CaseIterable {
     case halves, thirds, quarterRows, quarterColumns, sixths, corners, other
 
@@ -430,7 +429,7 @@ enum WindowEdgeSnapPlacementGroup: CaseIterable {
         case .corners:
             return [.topLeft, .topRight, .bottomLeft, .bottomRight]
         case .other:
-            return [.maximize, .marginMaximize]
+            return [.maximize, .marginMaximize, .center]
         }
     }
 
@@ -532,7 +531,10 @@ struct WindowEdgeSnapLayout: Equatable {
     /// measured from the top left, for the map in Settings to draw.
     static func previewRect(for action: WindowLayoutAction) -> CGRect {
         let screen = CGRect(x: 0, y: 0, width: 1600, height: 1000)
-        let rect = WindowLayoutGeometry.rect(for: action, current: screen, visibleFrame: screen)
+        let exampleWindow = CGRect(x: 0, y: 0, width: 960, height: 600)
+        let rect = WindowLayoutGeometry.rect(for: action,
+                                             current: action == .center ? exampleWindow : screen,
+                                             visibleFrame: screen)
         return CGRect(x: rect.minX / screen.width,
                       y: (screen.maxY - rect.maxY) / screen.height,
                       width: rect.width / screen.width,
@@ -761,6 +763,7 @@ enum WindowEdgeSnapSupport {
     /// equally, the way the map in Settings draws it.
     static func target(at point: CGPoint,
                        screens: [WindowEdgeSnapScreen],
+                       currentFrame: CGRect? = nil,
                        velocity: CGVector = .zero,
                        distance: CGFloat = activationDistance,
                        enabledZones: Set<WindowEdgeSnapZone> =
@@ -853,8 +856,12 @@ enum WindowEdgeSnapSupport {
                 along = 0
             }
             let action = layout.action(for: zone, along: along)
+            let previewCurrent = action == .center
+                ? (currentFrame ?? CGRect(origin: screen.visibleFrame.origin,
+                                         size: screen.visibleFrame.size.applying(CGAffineTransform(scaleX: 0.6, y: 0.6))))
+                : screen.visibleFrame
             let targetFrame = WindowLayoutGeometry.rect(for: action,
-                                                        current: screen.visibleFrame,
+                                                        current: previewCurrent,
                                                         visibleFrame: screen.visibleFrame,
                                                         windowGap: WindowLayoutGaps.windowGap,
                                                         screenGap: WindowLayoutGaps.screenGap,
