@@ -59,11 +59,17 @@ def main():
     slider_control = "Sources/Vorssaint/UI/Notch/NotchLevelSlider.swift"
     wheel_route = "Sources/Vorssaint/Services/HorizontalWheelScrolling.swift"
     brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"
+    # Keep the representable, coordinator and cell together so native input
+    # tests exercise the same construction and tracking as the island.
+    (OUTPUT / "NotchLevelSlider.swift").unlink(missing_ok=True)
+    write("NotchLevelTrackingContract.swift", "import AppKit\nimport SwiftUI\n"
+          + declaration(slider_control, "struct NotchLevelSlider:")
+          + declaration(slider_control, "private final class NotchLevelControl:")
+              .replace("private final class NotchLevelControl", "final class NotchLevelControl", 1)
+          + declaration(slider_control, "private final class NotchLevelCell:"))
     write("SliderScrollRouting.swift", "import AppKit\n"
           + declaration(slider_area, "protocol SliderScrollTarget:")
           + declaration(slider_area, "extension SliderScroll {")
-          + declaration(slider_control, "private final class NotchLevelControl:")
-              .replace("private final class NotchLevelControl", "final class NotchLevelControl", 1)
           + "extension SliderScrollRoutingTests {\nenum Route {\n"
           + declaration(wheel_route, "    static func sidewaysStrip(")
           + declaration(wheel_route, "    private static func scrolls(")
