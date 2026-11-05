@@ -10,6 +10,7 @@ enum ScreenshotShareCompletionTests {
     final class Model {
         var deletingShare = false
         var sharing = false
+        var uploading = false
         var sharedRecord: ScreenshotShareRecord?
         var exported = false
         func exportImage() -> Export? { Export() }
