@@ -10,8 +10,13 @@ import Vision
 /// document (image, annotations, undo history) and the export paths. The
 /// SwiftUI editor view observes this model; geometry is in image pixels.
 final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
-    @Published private(set) var baseImage: CGImage
+    @Published private(set) var baseImage: CGImage {
+        didSet { inspector.setImage(baseImage, scale: scale) }
+    }
     @Published var annotations: [ScreenshotSupport.Annotation] = []
+    /// Pointer and live measurement readings. Its own object, so a moving
+    /// pointer redraws the readouts and never the whole canvas.
+    let inspector = ScreenshotEditorInspector()
     /// How dark a spotlight turns everything outside its regions,
     /// remembered between captures like the blur strength.
     @Published var spotlightDimStrength: CGFloat {
@@ -38,6 +43,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 selectedID = nil
                 editingTextID = nil
             }
+            // Picking a tool means drawing with it, not measuring.
+            if tool != oldValue { inspector.liveMode = nil }
             if tool == .crop, oldValue != .crop {
                 selectedID = nil
                 cropDraft = CGRect(origin: .zero, size: imageSize)
@@ -266,6 +273,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         watermarkPresets = ScreenshotSupport.decodedWatermarkPresets(
             defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets))
         pixelated = [:]
+        inspector.setImage(image, scale: scale)
         reloadBackdropImageIfNeeded()
         reloadWatermarkImageIfNeeded()
         recordCleanState()
@@ -814,12 +822,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             } else if let draft = cropDraft, draft.contains(point) {
                 cropMoveOrigin = draft
             }
-        case .arrow, .line:
+        case .arrow, .line, .ruler:
             registerUndo()
             dragRegistered = true
+            // A ruler keeps its unit, and its length follows its ends.
             let annotation = ScreenshotSupport.Annotation(
-                tool: tool, points: [point, point], color: color, stroke: stroke,
-                arrowStyle: arrowStyle)
+                tool: tool, points: [point, point], text: tool == .ruler ? inspector.unit.rawValue : "",
+                color: color, stroke: stroke, arrowStyle: arrowStyle)
             annotations.append(annotation)
             draftID = annotation.id
         case .freehand:
@@ -846,7 +855,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 rect: CGRect(origin: .zero, size: imageSize),
                 tolerance: ScreenshotCanvasSupport.expansionGripReach / max(currentDisplayZoom, 0.001))
             expansionStartPoint = expansionHandle == nil ? nil : point
-        case .text, .sticker, .counter, .image:
+        case .text, .sticker, .counter, .image, .guide:
             break
         }
     }
@@ -918,6 +927,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             }
         case .arrow, .line:
             updateDraft { $0.points = [dragStart, point] }
+        case .ruler:
+            let end = ScreenshotInspectionSupport.constrainedEnd(
+                from: dragStart, to: point, axisLocked: NSEvent.modifierFlags.contains(.shift))
+            updateDraft { $0.points = [dragStart, end] }
         case .freehand:
             updateDraft { $0.points.append(point) }
         case .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight:
@@ -929,7 +942,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 expansionDraft = ScreenshotCanvasSupport.expandedRect(size: imageSize, handle: handle, point: target)
                 expansionRejected = expansionDraft == nil
             }
-        case .text, .sticker, .counter, .image:
+        case .text, .sticker, .counter, .image, .guide:
             break
         }
     }
@@ -1032,7 +1045,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             annotations.append(annotation)
             annotations = ScreenshotSupport.renumberingCounters(annotations)
             selectedID = annotation.id
-        case .arrow, .line, .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight, .freehand:
+        case .arrow, .line, .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight, .freehand,
+             .ruler:
             if isTap {
                 // A tap never leaves a degenerate shape behind; treat it as
                 // picking whatever is under the cursor instead.
@@ -1051,7 +1065,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 if !commitCanvasExpansion(to: draft) { NSSound.beep() }
             }
             cancelCanvasExpansion()
-        case .image:
+        case .image, .guide:
             break
         case .select:
             finishSelectDrag(at: point, isTap: isTap)
@@ -1132,12 +1146,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// `includeShapeInteriors: false` is the creation-tap variant: area
     /// shapes (boxes, ellipses, highlights, censors) only answer near their
     /// edge, so their inside stays free for placing a new text, sticker or
-    /// counter — the tap that used to create one there must keep doing so.
+    /// counter: the tap that used to create one there must keep doing so.
     func hitTest(_ point: CGPoint, includeShapeInteriors: Bool = true) -> UUID? {
         let tolerance = 10 * scale
         for annotation in annotations.reversed() {
             switch annotation.tool {
-            case .arrow, .line:
+            case .arrow, .line, .ruler, .guide:
                 guard annotation.points.count >= 2 else { continue }
                 if ScreenshotSupport.distance(from: point,
                                               toSegment: annotation.points[0],
@@ -1368,6 +1382,30 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     }
 }
 
+// MARK: - Inspection
+
+extension ScreenshotEditorModel {
+    /// Marks what the live measurement shows: a ruler with its length, or a
+    /// guide across the capture. False when there is nothing to mark.
+    @discardableResult
+    func imprintLiveMeasurement() -> Bool {
+        guard let mode = inspector.liveMode, let span = inspector.liveSpan, span.length > 0 else { return false }
+        registerUndo()
+        let annotation: ScreenshotSupport.Annotation
+        switch mode {
+        case .guide:
+            annotation = ScreenshotSupport.Annotation(tool: .guide, points: [span.start, span.end],
+                                                      color: color, stroke: stroke)
+        case .distance:
+            annotation = ScreenshotSupport.Annotation(tool: .ruler, points: [span.start, span.end],
+                                                      text: inspector.unit.rawValue,
+                                                      color: color, stroke: stroke)
+        }
+        annotations.append(annotation)
+        return true
+    }
+}
+
 // MARK: - Window controller
 
 /// Hosts one editor window per capture and owns everything with a side
@@ -1532,6 +1570,13 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             return true
         }
 
+        // Option-S and Option-D lay a guide through the pointer.
+        if flags.intersection([.command, .control, .option, .shift]) == .option,
+           key == kVK_ANSI_S || key == kVK_ANSI_D {
+            toggleLiveMode(.guide(key == kVK_ANSI_S ? .vertical : .horizontal))
+            return true
+        }
+
         if flags.contains(.command) {
             switch key {
             case kVK_ANSI_C:
@@ -1567,6 +1612,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             }
         }
         guard flags.isDisjoint(with: [.command, .control, .option]) else { return false }
+        if handleInspectionKey(key, shift: flags.contains(.shift), isRepeat: event.isARepeat) {
+            return true
+        }
 
         switch key {
         case kVK_Delete, kVK_ForwardDelete:
@@ -1580,7 +1628,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             }
             return true
         case kVK_Escape:
-            if model.tool == .expandCanvas {
+            if model.inspector.liveMode != nil {
+                model.inspector.liveMode = nil
+            } else if model.tool == .expandCanvas {
                 model.leaveCanvasExpansion()
             } else if model.tool == .crop, model.cropDraft != nil {
                 model.tool = .select
@@ -1595,6 +1645,34 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         default:
             return false
         }
+    }
+
+    // MARK: Inspection keys
+
+    /// The measuring keys. Each answers only where it means something.
+    private func handleInspectionKey(_ key: Int, shift: Bool, isRepeat: Bool) -> Bool {
+        let inspector = model.inspector
+        switch key {
+        case kVK_LeftArrow, kVK_RightArrow:
+            guard !isRepeat else { return true }
+            toggleLiveMode(.distance(.horizontal))
+            return true
+        case kVK_UpArrow, kVK_DownArrow:
+            guard !isRepeat else { return true }
+            toggleLiveMode(.distance(.vertical))
+            return true
+        case kVK_ANSI_P where !shift:
+            guard inspector.liveMode != nil || model.tool == .ruler else { return false }
+            inspector.unit = inspector.unit.toggled
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func toggleLiveMode(_ mode: ScreenshotInspectionSupport.LiveMode) {
+        model.inspector.liveMode = ScreenshotInspectionSupport.toggledMode(model.inspector.liveMode,
+                                                                          pressing: mode)
     }
 
     // MARK: Export actions
