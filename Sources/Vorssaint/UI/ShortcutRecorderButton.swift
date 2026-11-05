@@ -402,13 +402,7 @@ struct ShortcutPreferenceRow: View {
                                 .hidden()
                                 .accessibilityHidden(true)
                         }
-                        Button(l10n.s.shortcutReset) {
-                            rawValue = role.defaultShortcut.storageValue
-                            errorText = nil
-                            pendingTakeOver = nil
-                            SystemShortcutTakeover.setTakeOver(role.storageKey, false)
-                            onChange()
-                        }
+                        Button(l10n.s.shortcutReset, action: reset)
                         .disabled(!isEnabled || (assignedShortcut == role.defaultShortcut))
                     }
                     if let alternative = superKeyAlternative {
@@ -462,6 +456,13 @@ struct ShortcutPreferenceRow: View {
         pendingTakeOver = nil
         SystemShortcutTakeover.setTakeOver(role.storageKey, false)
         onChange()
+    }
+
+    private func reset() {
+        // A cleared combination may now belong to another action. Reset has
+        // to pass the same conflict and macOS takeover checks as a new capture.
+        pendingTakeOver = nil
+        save(role.defaultShortcut)
     }
 
     private var superKeyAlternative: String? {
