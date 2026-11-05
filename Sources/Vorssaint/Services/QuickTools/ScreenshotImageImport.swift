@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
 struct ScreenshotImageImport {
     static let maximumDimension = 6_000
     private let source: CGImageSource
+    private let sourceIndex: Int
     let pixelSize: CGSize
     let sourceFormat: MediaImageFormat
     private let scale: CGFloat
@@ -23,11 +24,13 @@ struct ScreenshotImageImport {
     }
 
     private init?(source: CGImageSource) {
-        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as NSDictionary?,
+        let index = CGImageSourceGetPrimaryImageIndex(source)
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as NSDictionary?,
               let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
               let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
               width.doubleValue > 0, height.doubleValue > 0 else { return nil }
         self.source = source
+        sourceIndex = index
         let type = CGImageSourceGetType(source) as String?
         sourceFormat = CGImageSourceGetCount(source) == 1
             ? [MediaImageFormat.jpeg, .png, .heic].first(where: { $0.contentType.identifier == type }) ?? .png : .png
@@ -65,7 +68,12 @@ struct ScreenshotImageImport {
             self = input
             return
         }
-        for type in [NSPasteboard.PasteboardType.png, .tiff] {
+        // AppKit may synthesize TIFF by decoding the full JPEG or HEIC.
+        // Read encoded formats first so the size choice precedes that work.
+        let types: [NSPasteboard.PasteboardType] = [
+            .png, .init(UTType.jpeg.identifier), .init(UTType.heic.identifier), .tiff
+        ]
+        for type in types {
             if let data = pasteboard.data(forType: type), let input = Self(data: data) {
                 self = input
                 return
@@ -84,7 +92,8 @@ struct ScreenshotImageImport {
     }
 
     func decode() -> (image: CGImage, scale: CGFloat)? {
-        guard let image = MediaImageProcessing.decode(source, maximumDimension: reducedMaximumDimension) else { return nil }
+        guard let image = MediaImageProcessing.decode(source, at: sourceIndex,
+                                                      maximumDimension: reducedMaximumDimension) else { return nil }
         return (image, scale)
     }
 }
