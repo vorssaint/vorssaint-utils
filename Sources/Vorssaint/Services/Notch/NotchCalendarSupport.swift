@@ -118,6 +118,17 @@ enum NotchCalendarSupport {
         }
     }
 
+    static func hidesAllDay(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchCalendarHidesAllDay)
+    }
+
+    /// Birthdays, holidays and multi-day blocks can fill the agenda and the
+    /// month dots without being appointments (#3520). Countdowns never use
+    /// all-day events, so hiding them changes only what the pages list.
+    static func shown(_ events: [NotchCalendarEvent], hidingAllDay: Bool) -> [NotchCalendarEvent] {
+        hidingAllDay ? events.filter { !$0.allDay } : events
+    }
+
     static func requestFailed(status: EKAuthorizationStatus, hasError: Bool) -> Bool {
         hasError || ![.fullAccess, .denied, .restricted].contains(status)
     }

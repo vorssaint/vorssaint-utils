@@ -3633,6 +3633,7 @@ enum NotchTests {
                                                                  DefaultsKey.notchCalendarCountdownLead,
                                                                  DefaultsKey.notchCalendarTimeLeft,
                                                                  DefaultsKey.notchCalendarWeekNumbers,
+                                                                 DefaultsKey.notchCalendarHidesAllDay,
                                                                  AppFeature.notchCalendar.availabilityKey]),
                "calendar preferences travel in backup")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCalendarExcluded),
@@ -3677,6 +3678,15 @@ enum NotchTests {
                "the next appointment advances exactly when the previous one ends")
         suite.expect(NotchCalendarSupport.next([allDay], now: now) == nil,
                "an all-day-only calendar has no timed appointment")
+        suite.expect(!NotchCalendarSupport.hidesAllDay(in: defaults)
+                && NotchCalendarSupport.shown(entries, hidingAllDay: false) == entries,
+               "all-day events are listed until they are hidden")
+        defaults.set(true, forKey: DefaultsKey.notchCalendarHidesAllDay)
+        let withoutAllDay = NotchCalendarSupport.shown(entries, hidingAllDay: NotchCalendarSupport.hidesAllDay(in: defaults))
+        suite.expect(!withoutAllDay.contains { $0.allDay } && withoutAllDay.count == entries.count - 1
+                && NotchCalendarSupport.next(withoutAllDay, now: now) == current,
+               "hiding all-day events keeps every timed one, the current appointment included")
+        defaults.removeObject(forKey: DefaultsKey.notchCalendarHidesAllDay)
         suite.expect(NotchCalendarSupport.nextRefresh(entries, now: now) == now.addingTimeInterval(300),
                "the next refresh chooses the nearest future event boundary")
         let hour = NotchCalendarSupport.countdownLeadTime(in: defaults)
