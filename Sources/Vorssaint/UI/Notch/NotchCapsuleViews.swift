@@ -362,7 +362,7 @@ struct NotchCapsuleTimerStrip: View {
             NotchCapsuleCompanionMark(companion: companion, geometry: geometry)
         } else {
             NotchCapsuleSymbol(name: timer.session.completed ? "checkmark.circle" : timer.session.isPaused ? "pause.circle"
-                               : timer.session.countsUp ? "stopwatch" : "timer", tint: .orange)
+                               : NotchTimerSupport.ModePicker.symbol(for: timer.session.mode), tint: .orange)
         }
     }
 
