@@ -159,6 +159,95 @@ struct NotchCalendarWeekStrip: View {
     }
 }
 
+/// One week as a column of days down the side of the page, beside the agenda,
+/// for an island wider than it is tall: the agenda then has the island's full
+/// height rather than what a row above it leaves. The month, the arrows and
+/// Today are in the island's top row; a second tap on the selected day returns
+/// to the coming week, as the strip across the top does.
+struct NotchCalendarDayRail: View {
+    let focus: Date
+    let selectedDay: Date?
+    let now: Date
+    let height: CGFloat
+    let events: [NotchCalendarEvent]
+    let text: NotchCalendarStrings
+    let select: (Date) -> Void
+    let week: () -> Void
+    @Environment(\.locale) private var locale
+    private let accent = Color(red: 1, green: 0.36, blue: 0.39)
+
+    private var cellHeight: CGFloat { NotchLayout.calendarDayRailCellHeight(height: height) }
+    private var circle: CGFloat { NotchLayout.calendarDayRailCircle(cellHeight: cellHeight) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(NotchCalendarSupport.weekDays(containing: focus), id: \.self) { date in
+                dayButton(date)
+            }
+        }
+        .frame(width: NotchLayout.calendarDayRailWidth, alignment: .top)
+        .foregroundStyle(.white)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(focus, format: .dateTime.month(.wide).year()))
+    }
+
+    private var weekdaySymbols: [String] {
+        var calendar = Calendar.current
+        calendar.locale = locale
+        return calendar.veryShortStandaloneWeekdaySymbols
+    }
+
+    private func dayButton(_ date: Date) -> some View {
+        let calendar = Calendar.current
+        let isToday = calendar.isDate(date, inSameDayAs: now)
+        let selected = selectedDay.map { calendar.isDate(date, inSameDayAs: $0) } ?? false
+        let dayEvents = NotchCalendarSupport.events(events, on: date)
+        let colors = dayEvents.reduce(into: [NotchCalendarColor]()) { result, event in
+            if result.count < 3 && !result.contains(event.color) { result.append(event.color) }
+        }
+        // A second tap on the selected day returns to the coming week.
+        return Button { selected ? week() : select(date) } label: {
+            HStack(spacing: NotchLayout.calendarDayRailCellSpacing) {
+                Text(weekdaySymbols[calendar.component(.weekday, from: date) - 1])
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(width: NotchLayout.calendarDayRailLetterWidth, alignment: .trailing)
+                    .accessibilityHidden(true)
+                // The number alone, as the month grid draws it: a formatted day
+                // carries the language's suffix, which the circle cuts off.
+                Text(calendar.component(.day, from: date), format: .number)
+                    .font(.system(size: min(12, circle * 0.55), weight: isToday || selected ? .bold : .medium))
+                    .foregroundStyle(selected && !isToday ? .black : .white)
+                    .frame(width: circle, height: circle)
+                    .background(isToday ? accent : selected ? .white : .clear, in: Circle())
+                    .overlay {
+                        Circle().strokeBorder(.white.opacity(selected && isToday ? 0.8 : 0), lineWidth: 1.5)
+                    }
+                // The dots stand in a column: a day of the rail has height to
+                // spare and the width of one dot is all it can give them.
+                VStack(spacing: 1) {
+                    ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
+                        Circle().fill(color.color)
+                            .frame(width: NotchLayout.calendarDayRailDotWidth,
+                                   height: NotchLayout.calendarDayRailDotWidth)
+                    }
+                }
+                .frame(width: NotchLayout.calendarDayRailDotWidth)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: cellHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 8, lifts: false))
+        .help(date.formatted(.dateTime.weekday(.wide).day().month(.wide).year().locale(locale)))
+        .accessibilityLabel(Text(date, format: .dateTime.weekday(.wide).day().month(.wide).year()))
+        .accessibilityValue([isToday ? text.today : "", dayEvents.isEmpty ? "" : text.hasEvents]
+            .filter { !$0.isEmpty }.joined(separator: ", "))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
 /// The month in an island too short for the grid beside the agenda: the
 /// weekday line, then rows sized to what is left, under the island's top row
 /// with the title, the arrows and Today. Choosing a day returns to the week
