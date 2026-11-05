@@ -4,11 +4,15 @@
 import AppKit
 import SwiftUI
 
-/// Hosts the complete production representable and sends native input to its
-/// NSSlider. The window stays hidden; mouse events enter only this process's
-/// tracking queue. Bindings record values instead of seeking or writing hardware.
-/// This covers AppKit delivery after hit testing, not physical input or window
-/// activation. The fixture never posts CGEvents to another application.
+/// Native contract after input delivery, using the complete production
+/// representable, cell and coordinator in a hidden window. Clicks enter through
+/// mouseDown. Drags call the cell's public start/continue/stop methods, with the
+/// control dispatching its action after each update as a tracking loop would.
+/// AppKit computes every value; the fixture never assigns a mapped drag value.
+/// Keyboard checks invoke native movement commands, not keyDown transport.
+/// This does not verify physical input, event routing or window activation.
+/// Bindings record values instead of seeking or writing hardware; no CGEvents
+/// are posted outside the test process.
 enum NotchLevelTrackingTests {
     private final class State: ObservableObject {
         @Published var value = 0.0
@@ -123,80 +127,54 @@ enum NotchLevelTrackingTests {
                          "\(name): the binding and enabled state settle before native input")
             state.clearActions()
         }
-        func point(_ fraction: Double) -> NSPoint {
+        func localPoint(_ fraction: Double) -> NSPoint {
             let p = CGFloat(fraction)
-            let local = vertical
+            return vertical
                 ? NSPoint(x: track.midX, y: slider.isFlipped ? track.maxY - p * length : track.minY + p * length)
                 : NSPoint(x: track.minX + p * length, y: track.midY)
-            return slider.convert(local, to: nil)
         }
         var eventNumber = 0
         func mouse(_ type: NSEvent.EventType, _ fraction: Double) -> NSEvent? {
             eventNumber += 1
-            return NSEvent.mouseEvent(with: type, location: point(fraction), modifierFlags: [],
+            return NSEvent.mouseEvent(with: type, location: slider.convert(localPoint(fraction), to: nil), modifierFlags: [],
                                       timestamp: ProcessInfo.processInfo.systemUptime,
                                       windowNumber: window.windowNumber, context: nil,
-                                      eventNumber: eventNumber, clickCount: type == .leftMouseDragged ? 0 : 1,
+                                      eventNumber: eventNumber, clickCount: 1,
                                       pressure: type == .leftMouseUp ? 0 : 1)
         }
-        func gesture(from start: Double, to end: Double? = nil) {
-            guard let down = mouse(.leftMouseDown, start),
-                  let emergencyRelease = mouse(.leftMouseUp, end ?? start) else {
+        func click(at fraction: Double) {
+            guard let down = mouse(.leftMouseDown, fraction), let up = mouse(.leftMouseUp, fraction) else {
                 suite.expect(false, "\(name): native mouse-down and mouse-up events can be constructed")
                 return
             }
-            let enabled = slider.isEnabled
-            var postedDrag = false
-            var postedRelease = false
-            var writesBeforeDrag = 0
-            var dragDeadline = Date.distantFuture
-            // Do not offer a queued mouse-up before AppKit has handled the
-            // synthetic drag. Deliver during the native tracking loop, then
-            // wait for its action before releasing the button.
-            let delivery = Timer(timeInterval: 0.02, repeats: true) { timer in
-                MainActor.assumeIsolated {
-                    if let end, !postedDrag {
-                        suite.expect(state.edits == [true] && state.commits.isEmpty,
-                                     "\(name): the native edit is open before delivering a drag")
-                        guard let drag = mouse(.leftMouseDragged, end) else {
-                            suite.expect(false, "\(name): a native drag event can be constructed")
-                            NSApp.postEvent(emergencyRelease, atStart: false)
-                            timer.invalidate()
-                            return
-                        }
-                        writesBeforeDrag = state.values.count
-                        dragDeadline = Date().addingTimeInterval(0.5)
-                        postedDrag = true
-                        NSApp.postEvent(drag, atStart: false)
-                        return
-                    }
-                    if postedDrag {
-                        let consumed = state.values.count > writesBeforeDrag
-                        if !consumed && Date() < dragDeadline { return }
-                        suite.expect(consumed,
-                                     "\(name): AppKit must act on the posted drag before release; values \(state.values)")
-                        suite.expect(state.edits == [true] && state.commits.isEmpty,
-                                     "\(name): a native drag stays in one edit until mouse-up")
-                    }
-                    let up = mouse(.leftMouseUp, end ?? start)
-                    suite.expect(up != nil, "\(name): a native mouse-up event can be constructed")
-                    postedRelease = true
-                    NSApp.postEvent(up ?? emergencyRelease, atStart: false)
-                    timer.invalidate()
-                }
-            }
-            RunLoop.main.add(delivery, forMode: .eventTracking)
-            // Disabled controls return without entering tracking. Cancel their
-            // delivery timer, and discard any remaining events from this process.
-            defer {
-                delivery.invalidate()
-                NSApp.discardEvents(matching: [.leftMouseDragged, .leftMouseUp], before: nil)
-            }
+            NSApp.postEvent(up, atStart: false)
+            // A disabled control does not consume the release. Keep this
+            // process's queue clear before the next case.
+            defer { NSApp.discardEvents(matching: [.leftMouseUp], before: nil) }
             slider.mouseDown(with: down)
-            if enabled {
-                suite.expect(postedRelease && (end == nil || postedDrag),
-                             "\(name): native tracking consumed the scheduled gesture")
+        }
+        func drag(from start: Double, to end: Double) {
+            let first = localPoint(start)
+            let last = localPoint(end)
+            guard cell.startTracking(at: first, in: slider) else {
+                suite.expect(false, "\(name): the native cell starts continuous tracking")
+                return
             }
+            defer { cell.stopTracking(last: first, current: last, in: slider, mouseIsUp: true) }
+            suite.expect(state.edits == [true] && state.commits.isEmpty,
+                         "\(name): the production cell opens one edit before the first value")
+            // These public callbacks calculate the native slider value, but
+            // outside NSControl's event loop they do not dispatch target/action.
+            // Send the real control's action without calculating or assigning
+            // the value, so the production coordinator still owns the binding.
+            suite.expect(slider.sendAction(slider.action, to: slider.target),
+                         "\(name): the control dispatches its initial tracking value")
+            suite.expect(cell.continueTracking(last: first, current: last, in: slider),
+                         "\(name): native tracking continues, including beyond the ends")
+            suite.expect(slider.sendAction(slider.action, to: slider.target),
+                         "\(name): the control dispatches its updated tracking value")
+            suite.expect(state.edits == [true] && state.commits.isEmpty && !state.wroteOutsideEdit,
+                         "\(name): continuous updates do not finish or restart the edit")
         }
         func expectEdit(_ fraction: Double, _ action: String) {
             let expected = min(1, max(0, fraction)) * maximum
@@ -216,45 +194,37 @@ enum NotchLevelTrackingTests {
         // the old value with an offset. Quarter points expose the old scale.
         for fraction in [0.0, 0.1, 0.25, 0.525, 0.75, 0.9, 1.0] {
             reset()
-            gesture(from: fraction)
+            click(at: fraction)
             expectEdit(fraction, "click at \(fraction)")
         }
         for (start, end) in [(0.25, 0.75), (0.75, 0.25), (0.5, -0.2), (0.5, 1.2)] {
             reset()
-            gesture(from: start, to: end)
+            drag(from: start, to: end)
             expectEdit(end, "drag from \(start) to \(end)")
         }
 
-        // The preceding drag must leave editing closed for native keyboard
-        // input, which has no cell start/stop-tracking callbacks.
+        // The preceding drag must leave editing closed for native movement
+        // commands, which have no cell start/stop-tracking callbacks. Calling
+        // the command tests its value and action semantics, not keyDown routing
+        // through an inactive window.
         reset()
-        let arrow = vertical ? "\u{F700}" : "\u{F703}"
-        guard let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.numericPad, .function],
-                                         timestamp: ProcessInfo.processInfo.systemUptime,
-                                         windowNumber: window.windowNumber, context: nil,
-                                         characters: arrow, charactersIgnoringModifiers: arrow,
-                                         isARepeat: false, keyCode: vertical ? 126 : 124) else {
-            suite.expect(false, "\(name): a native arrow event can be constructed")
-            return
-        }
         let focused = window.makeFirstResponder(slider)
         suite.expect(focused && window.firstResponder === slider,
                      "\(name): the native slider becomes the keyboard responder without showing its window")
-        // Arrow keys first follow the key-equivalent path, then normal window
-        // dispatch when unhandled. Calling keyDown directly bypasses that path.
-        if !window.performKeyEquivalent(with: key) { window.sendEvent(key) }
+        if vertical { slider.moveUp(nil) } else { slider.moveRight(nil) }
         suite.expect(state.value > maximum / 2 && state.value <= maximum
                      && state.edits == [true, false] && state.commits == [state.value] && !state.wroteOutsideEdit,
-                     "\(name): an arrow after dragging increments and commits once, got \(state.value), \(state.edits)")
+                     "\(name): a native movement command after dragging increments and commits once, got \(state.value), \(state.edits)")
 
         reset(disabled: true)
         suite.expect(!slider.isEnabled, "\(name): SwiftUI disabling reaches the native control")
-        gesture(from: 0.25, to: 0.75)
+        click(at: 0.25)
+        click(at: 0.75)
         suite.expect(state.value == maximum / 2 && slider.doubleValue == maximum / 2
                      && state.values.isEmpty && state.edits.isEmpty && state.commits.isEmpty,
                      "\(name): disabled mouse input cannot change or commit a value")
         reset()
-        gesture(from: 0.75)
+        click(at: 0.75)
         expectEdit(0.75, "click after re-enabling")
     }
 }
