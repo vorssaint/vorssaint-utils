@@ -1601,6 +1601,10 @@ enum FeatureCatalogTests {
         suite.expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        suite.expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessWarmthEnabled,
+                                                   DefaultsKey.brightnessKeysEnabled,
+                                                   DefaultsKey.brightnessOSDEnabled]).contains(.brightness),
+               "warmth alone does not activate dormant brightness key permissions")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
                                strings: [DefaultsKey.brightnessKeyStep: "quarter"]).contains(.brightness)
                 && !activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
@@ -2088,13 +2092,19 @@ enum FeatureCatalogTests {
                 && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
         let brightnessEnergyKeys = [DefaultsKey.brightnessKeysEnabled, DefaultsKey.brightnessOSDEnabled,
-                                    DefaultsKey.brightnessKeyStep]
+                                    DefaultsKey.brightnessKeyStep, DefaultsKey.brightnessControlEnabled,
+                                    DefaultsKey.brightnessWarmthEnabled, DefaultsKey.brightnessWarmthFollowsNightShift]
         let previousBrightnessEnergy = brightnessEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
         func brightnessEnergy(followsPointer: Bool = false, overlay: Bool = false,
-                              step: BrightnessSupport.KeyStep = .standard) -> FeatureEnergyProfile {
+                              step: BrightnessSupport.KeyStep = .standard,
+                              controls: Bool = true, warmth: Bool = false,
+                              followsNightShift: Bool = true) -> FeatureEnergyProfile {
             UserDefaults.standard.set(followsPointer, forKey: DefaultsKey.brightnessKeysEnabled)
             UserDefaults.standard.set(overlay, forKey: DefaultsKey.brightnessOSDEnabled)
             UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.brightnessKeyStep)
+            UserDefaults.standard.set(controls, forKey: DefaultsKey.brightnessControlEnabled)
+            UserDefaults.standard.set(warmth, forKey: DefaultsKey.brightnessWarmthEnabled)
+            UserDefaults.standard.set(followsNightShift, forKey: DefaultsKey.brightnessWarmthFollowsNightShift)
             return AppFeature.brightness.energyProfile
         }
         suite.expect(brightnessEnergy() == .idle
@@ -2102,6 +2112,9 @@ enum FeatureCatalogTests {
                 && brightnessEnergy(overlay: true) == .keyboard
                 && brightnessEnergy(step: .half) == .keyboard,
                "brightness listens to the keyboard only while an option answers its keys")
+        suite.expect(brightnessEnergy(followsPointer: true, controls: false, warmth: true) == .periodic
+                && brightnessEnergy(controls: false, warmth: true, followsNightShift: false) == .idle,
+               "the independent filter counts its Night Shift observer but never dormant key options")
         for (key, value) in zip(brightnessEnergyKeys, previousBrightnessEnergy) {
             UserDefaults.standard.set(value, forKey: key)
         }

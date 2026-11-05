@@ -81,6 +81,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.panelShowBrightness) private var showBrightness = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
+    @AppStorage(DefaultsKey.brightnessWarmthEnabled) private var warmthEnabled = false
     @AppStorage(DefaultsKey.panelShowUtilities) private var showUtilities = true
     @AppStorage(DefaultsKey.panelShowControls) private var showControls = true
     @AppStorage(DefaultsKey.panelShowToggles) private var showToggles = true
@@ -363,7 +364,7 @@ struct MenuPanelView: View {
     /// The rule lives in PanelLayout; reading the @AppStorage values here is
     /// what keeps the tabs refreshing when Settings flips one of them.
     private func isSectionVisible(_ id: PanelSectionID) -> Bool {
-        _ = (showKeepAwake, showBrightness, brightnessEnabled, showMixer, showSystem, showNetwork,
+        _ = (showKeepAwake, showBrightness, brightnessEnabled, warmthEnabled, showMixer, showSystem, showNetwork,
              showDisk, showPower, showFanControl, showUtilities, showControls, showToggles, showWallpaper)
         return PanelLayout.isVisibleInPanel(id)
     }

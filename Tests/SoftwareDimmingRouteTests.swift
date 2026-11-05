@@ -78,6 +78,60 @@ enum SoftwareDimmingRouteTests {
     }
 
     static func run(expect: (Bool, String) -> Void) {
+        Context.reset()
+        let colorUpdates = Context.Service()
+        colorUpdates.requestWarmthUpdate()
+        colorUpdates.requestWarmthUpdate()
+        expect(colorUpdates.workQueue.jobs.count == 1,
+               "rapid color changes share one queued application")
+        colorUpdates.routes[display] = Context.Route()
+        colorUpdates.workQueue.drain()
+        Context.DispatchQueue.main.drain()
+        expect(colorUpdates.events == ["warmth:[7]"] && colorUpdates.refreshes == 0,
+               "color updates use routes discovered before execution without rescanning displays")
+        colorUpdates.running = false
+        colorUpdates.requestWarmthUpdate()
+        expect(colorUpdates.workQueue.jobs.isEmpty,
+               "disabled display and filter features do not enqueue color work")
+        for nightShift in [Optional(true), Optional(false), nil] {
+            expect(BrightnessSupport.effectiveWarmth(enabled: true, intensity: 0.7,
+                       followsNightShift: true, nightShiftEnabled: nightShift) == (nightShift == true ? 0.7 : 0),
+                   "scheduled warmth follows the effective system state, remaining neutral if unavailable")
+            expect(BrightnessSupport.effectiveWarmth(enabled: true, intensity: 0.7,
+                       followsNightShift: false, nightShiftEnabled: nightShift) == 0.7,
+                   "manual warmth is independent of Night Shift")
+            expect(BrightnessSupport.effectiveWarmth(enabled: false, intensity: 0.7,
+                       followsNightShift: true, nightShiftEnabled: nightShift) == 0,
+                   "disabling the filter always wins over Night Shift")
+        }
+        expect(BrightnessSupport.effectiveWarmth(enabled: true, intensity: .nan,
+                   followsNightShift: true, nightShiftEnabled: true) == 0,
+               "a corrupt scheduled intensity cannot tint the display unpredictably")
+        let baseline: [Float] = [0, 0.1, 0.5, 1]
+        let neutral = BrightnessSupport.warmthGains(0)
+        expect(neutral.red == 1 && neutral.green == 1 && neutral.blue == 1,
+               "zero warmth preserves every color channel exactly")
+        let amber = BrightnessSupport.warmthGains(1)
+        expect(amber.red == 1 && abs(amber.green - 0.4) < 0.0001
+                && abs(amber.blue - 0.02) < 0.0001,
+               "maximum warmth keeps red while strongly suppressing blue")
+        for level in [0.0, 0.25, 0.5, 0.75, 1.0] {
+            let gains = BrightnessSupport.warmthGains(level)
+            expect(gains.blue > 0 && gains.blue <= gains.green && gains.green <= gains.red,
+                   "warmth keeps all channels bounded and readable")
+            for brightness in [Float(0), 0.2, 1] {
+                let filtered = BrightnessSupport.scaledGammaTable(baseline, factor: brightness * gains.blue)
+                expect(filtered.first == 0 && abs((filtered.last ?? -1) - brightness * gains.blue) < 0.0001,
+                       "warmth composes with dimming without lifting black pixels")
+            }
+        }
+        expect(BrightnessSupport.warmthGains(-1).blue == 1
+                && BrightnessSupport.warmthGains(.nan).blue == 1
+                && BrightnessSupport.warmthGains(.infinity).blue == 1
+                && BrightnessSupport.warmthGains(2).blue == amber.blue,
+               "invalid warmth preferences stay neutral or within the supported range")
+        expect(BrightnessSupport.scaledGammaTable(baseline, factor: neutral.blue) == baseline,
+               "disabling warmth restores the original curve rather than filtering a filtered curve")
         let off = dimmedDisplay()
         off.pendingLevels[display] = 0.2
         off.setSoftwareDimmingPreferred(false, for: display)
@@ -154,10 +208,20 @@ enum SoftwareDimmingRouteTests {
             9: Context.Service.GammaTable(fingerprint: "another-monitor"),
         ]
         restoration.dimmedDisplays = [display, 9]
+        restoration.adjustedGammaDisplays = [display, 9]
         restoration.restoreAllGamma()
         expect(restoration.events == ["restore:7"]
                 && restoration.gammaBaselines.isEmpty && restoration.dimmedDisplays.isEmpty,
                "stopping restores only curves this app dimmed on the same monitor")
+
+        let tinted = Context.Service()
+        tinted.gammaBaselines = [display: Context.Service.GammaTable(fingerprint: "display-7")]
+        tinted.adjustedGammaDisplays = [display]
+        tinted.gammaPictureLevels[display] = 1
+        tinted.restoreAllGamma()
+        expect(tinted.events == ["restore:7"] && tinted.adjustedGammaDisplays.isEmpty
+                && tinted.gammaPictureLevels.isEmpty && tinted.dimmedDisplays.isEmpty,
+               "stopping restores a warmth-only display even when brightness was never dimmed")
 
         Context.reset()
         let combined = Context.Service()
