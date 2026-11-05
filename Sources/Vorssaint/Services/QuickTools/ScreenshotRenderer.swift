@@ -56,6 +56,22 @@ enum ScreenshotRenderer {
                                 spotlightDimStrength: CGFloat = 0.5) {
         blurSources.eraseCache?.beginPass(image: blurSources.image, textRuns: blurSources.textRuns)
         blurSources.imageLayerCache?.beginPass(base: blurSources.image)
+        drawAnnotationLayers(annotations, in: context, blurSources: blurSources, imageSize: imageSize,
+                             scale: scale, annotationShadowsEnabled: annotationShadowsEnabled,
+                             skippingText: editingID, spotlightDimStrength: spotlightDimStrength)
+    }
+
+    /// One pass over the marks in their drawing order. A magnifier draws
+    /// this again for the marks below it, inside the same pass, so it
+    /// enlarges what is really there, blurred areas included.
+    static func drawAnnotationLayers(_ annotations: [ScreenshotSupport.Annotation],
+                                     in context: CGContext,
+                                     blurSources: BlurSources,
+                                     imageSize: CGSize,
+                                     scale: CGFloat,
+                                     annotationShadowsEnabled: Bool,
+                                     skippingText editingID: UUID?,
+                                     spotlightDimStrength: CGFloat) {
         var precedingImages: [ScreenshotSupport.Annotation] = []
         let bounds = CGRect(origin: .zero, size: imageSize)
         let topSpotlight = annotations.lastIndex { litRegion($0, within: bounds) != nil }
@@ -126,6 +142,16 @@ enum ScreenshotRenderer {
                     drawSpotlight(annotations, dimStrength: spotlightDimStrength,
                                   imageSize: imageSize, in: context)
                 }
+            case .ruler:
+                drawRuler(annotation, in: context, imageSize: imageSize, scale: scale,
+                          shadowsEnabled: annotationShadowsEnabled)
+            case .guide:
+                drawGuide(annotation, in: context, scale: scale)
+            case .magnifier:
+                drawMagnifier(annotation, below: Array(annotations[..<index]), in: context,
+                              blurSources: blurSources, imageSize: imageSize, scale: scale,
+                              annotationShadowsEnabled: annotationShadowsEnabled,
+                              skippingText: editingID, spotlightDimStrength: spotlightDimStrength)
             case .select, .crop, .expandCanvas:
                 break
             }
@@ -446,7 +472,7 @@ enum ScreenshotRenderer {
         context.restoreGState()
     }
 
-    private static func applyShadow(_ context: CGContext,
+    static func applyShadow(_ context: CGContext,
                                     scale: CGFloat,
                                     enabled: Bool) {
         guard enabled else { return }
@@ -1162,7 +1188,7 @@ enum ScreenshotRenderer {
         }
     }
 
-    private static func resized(_ image: CGImage, to size: CGSize) -> CGImage? {
+    static func resized(_ image: CGImage, to size: CGSize) -> CGImage? {
         guard let context = CGContext(data: nil,
                                       width: Int(size.width),
                                       height: Int(size.height),
