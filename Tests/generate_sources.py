@@ -637,9 +637,10 @@ def main():
     write("ClipboardPanelPlacement.swift", "import AppKit\n"
           + "extension ClipboardFeatureTests.PanelPlacementHost {\n"
           + "".join(declaration(clipboard, prefix).replace("private func", "func", 1) for prefix in [
+              "    private func observePanelGeometry(", "    private func savePanelPosition(",
               "    private func refreshQuickLayout(", "    private func panelMinimumContentSize(",
               "    private func preferredPanelSize(", "    private func savePanelSize(",
-              "    private func position("])
+              "    private func position(", "    private func resize("])
           + "}\nextension ClipboardFeatureTests {\n"
           + declaration(clipboard, "private final class ClipboardPanelSizeLimit").replace(
               "private final class", "final class", 1)

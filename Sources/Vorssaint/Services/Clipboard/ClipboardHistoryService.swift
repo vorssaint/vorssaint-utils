@@ -1381,22 +1381,27 @@ final class ClipboardHistoryService: ObservableObject {
         // AppKit owns the window size; SwiftUI fills its content view.
         host.sizingOptions = []
         panel.contentViewController = host
+        observePanelGeometry(panel)
+        self.panel = panel
+        return panel
+    }
+
+    private func observePanelGeometry(_ panel: NSPanel) {
         panelResizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didEndLiveResizeNotification, object: panel, queue: .main
         ) { [weak self, weak panel] _ in
-            guard let self, let panel else { return }
+            guard let self, let panel, panel.isVisible, !self.adjustingPanelFrame else { return }
             self.savePanelSize(panel)
+            // Resizing from the left or bottom also moves the origin, but
+            // AppKit does not send didMove when the size changes with it.
+            self.savePanelPosition(panel)
         }
         panelMoveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: panel, queue: .main
         ) { [weak self, weak panel] _ in
-            guard let self, let panel, panel.isVisible, self.quickLayout == .list,
-                  !self.adjustingPanelFrame else { return }
-            UserDefaults.standard.set(Double(panel.frame.minX), forKey: DefaultsKey.clipboardHistoryWindowX)
-            UserDefaults.standard.set(Double(panel.frame.minY), forKey: DefaultsKey.clipboardHistoryWindowY)
+            guard let self, let panel else { return }
+            self.savePanelPosition(panel)
         }
-        self.panel = panel
-        return panel
     }
 
     /// Read on every opening, so a layout picked in Settings applies the next
@@ -1429,6 +1434,12 @@ final class ClipboardHistoryService: ObservableObject {
         else { return }
         UserDefaults.standard.set(Double(size.width), forKey: DefaultsKey.clipboardHistoryWindowWidth)
         UserDefaults.standard.set(Double(size.height), forKey: DefaultsKey.clipboardHistoryWindowHeight)
+    }
+
+    private func savePanelPosition(_ panel: NSPanel) {
+        guard panel.isVisible, quickLayout == .list, !adjustingPanelFrame else { return }
+        UserDefaults.standard.set(Double(panel.frame.minX), forKey: DefaultsKey.clipboardHistoryWindowX)
+        UserDefaults.standard.set(Double(panel.frame.minY), forKey: DefaultsKey.clipboardHistoryWindowY)
     }
 
     /// Placed again on every open, so a changed display never strands it.
