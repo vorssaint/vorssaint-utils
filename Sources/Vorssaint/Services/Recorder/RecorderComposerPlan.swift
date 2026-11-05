@@ -23,7 +23,8 @@ extension RecorderComposer {
                          sourceSize: CGSize,
                          frameRate: Int,
                          duration: Double,
-                         outputScale: CGFloat = 1) -> Plan? {
+                         outputScale: CGFloat = 1,
+                         outputSize: CGSize? = nil) -> Plan? {
         guard sourceSize.width > 0, sourceSize.height > 0, duration > 0 else { return nil }
 
         let style = document.resolvedBackdrop
@@ -35,10 +36,13 @@ extension RecorderComposer {
                                                     aspect: aspect,
                                                     cropsToAspect: !hasBackdrop)
         let scale = outputScale.isFinite ? min(1, max(0.1, outputScale)) : 1
-        let canvas = scale == 1
+        let scaledCanvas = scale == 1
             ? fullCanvas
             : RecorderSupport.evenSize(CGSize(width: fullCanvas.width * scale,
                                               height: fullCanvas.height * scale))
+        // A chosen export resolution must survive rounding and the scale
+        // floor, including large recordings reduced to small sharing videos.
+        let canvas = outputSize.map(RecorderSupport.evenSize) ?? scaledCanvas
         let card = RecorderSupport.cardRect(
             canvas: canvas,
             source: sourceSize,

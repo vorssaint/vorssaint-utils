@@ -19,6 +19,9 @@ struct RecorderEditDocument: Codable, Equatable {
     var quality: String
     /// Export only: editing, cuts and overlays stay on their original clock.
     var exportSpeed: Double
+    /// Zero keeps the preset's resolution / leaves the file size unrestricted.
+    var exportMaxDimension: Int
+    var exportTargetMegabytes: Int
     var keepsSystemAudio: Bool
     var gifSize: String
     var gifFrameRate: Int
@@ -57,6 +60,8 @@ struct RecorderEditDocument: Codable, Equatable {
          trimEnd: Double = 0,
          quality: String = RecorderSupport.Quality.balanced.rawValue,
          exportSpeed: Double = 1,
+         exportMaxDimension: Int = 0,
+         exportTargetMegabytes: Int = 0,
          keepsSystemAudio: Bool = true,
          gifSize: String = RecorderSupport.GIFSize.medium.rawValue,
          gifFrameRate: Int = 12,
@@ -82,6 +87,8 @@ struct RecorderEditDocument: Codable, Equatable {
         self.trimEnd = trimEnd
         self.quality = quality
         self.exportSpeed = exportSpeed
+        self.exportMaxDimension = exportMaxDimension
+        self.exportTargetMegabytes = exportTargetMegabytes
         self.keepsSystemAudio = keepsSystemAudio
         self.gifSize = gifSize
         self.gifFrameRate = gifFrameRate
@@ -114,6 +121,8 @@ struct RecorderEditDocument: Codable, Equatable {
         quality = try container.decodeIfPresent(String.self, forKey: .quality)
             ?? RecorderSupport.Quality.balanced.rawValue
         exportSpeed = try container.decodeIfPresent(Double.self, forKey: .exportSpeed) ?? 1
+        exportMaxDimension = try container.decodeIfPresent(Int.self, forKey: .exportMaxDimension) ?? 0
+        exportTargetMegabytes = try container.decodeIfPresent(Int.self, forKey: .exportTargetMegabytes) ?? 0
         keepsSystemAudio = try container.decodeIfPresent(Bool.self, forKey: .keepsSystemAudio) ?? true
         gifSize = try container.decodeIfPresent(String.self, forKey: .gifSize)
             ?? RecorderSupport.GIFSize.medium.rawValue
@@ -167,6 +176,52 @@ struct RecorderEditDocument: Codable, Equatable {
     /// source-time meaning. Speed is applied after trimming and cutting.
     func exportDuration(duration: Double) -> Double {
         exportTiming.outputTime(forSourceTime: outputDuration(duration: duration))
+    }
+
+    var resolvedExportMaxDimension: Int {
+        exportMaxDimension > 0 ? min(7680, max(64, exportMaxDimension)) : 0
+    }
+
+    var exportTargetBytes: Int64 {
+        exportTargetMegabytes > 0 ? MediaSupport.targetBytes(megabytes: exportTargetMegabytes) : 0
+    }
+
+    func exportCanvasSize(source: CGSize) -> CGSize {
+        let style = resolvedBackdrop
+        return RecorderSupport.canvasSize(source: source,
+            padding: style.kind == .none ? 0 : style.padding * 0.18,
+            aspect: resolvedAspect, cropsToAspect: style.kind == .none)
+    }
+
+    func exportResolution(source: CGSize) -> CGSize {
+        let canvas = exportCanvasSize(source: source)
+        guard resolvedExportMaxDimension > 0 else {
+            return RecorderSupport.outputSize(source: canvas, quality: resolvedQuality)
+        }
+        return RecorderSupport.evenSize(MediaSupport.scaledEvenSize(
+            source: canvas, maxDimension: resolvedExportMaxDimension))
+    }
+
+    /// Shared by the export UI and the encoder, including edits and speed.
+    /// The byte count is a bitrate-based estimate, not a content measurement.
+    func videoExportPlan(source: CGSize, frameRate: Int, duration: Double,
+                         hasAudio: Bool, bitRateScale: Double = 1) -> RecorderVideoExportPlan? {
+        let seconds = exportDuration(duration: duration)
+        guard source.width.isFinite, source.height.isFinite,
+              source.width > 0, source.height > 0, seconds.isFinite, seconds > 0 else { return nil }
+        let fps = RecorderSupport.sanitizedFrameRate(frameRate)
+        let size = exportResolution(source: source)
+        if exportTargetBytes > 0 {
+            guard let target = MediaSupport.videoSizePlan(targetBytes: exportTargetBytes,
+                duration: seconds, sourceSize: size, frameRate: Double(fps),
+                hasAudio: hasAudio, scale: bitRateScale) else { return nil }
+            return RecorderVideoExportPlan(size: RecorderSupport.evenSize(target.size), frameRate: fps,
+                videoBitRate: target.videoBitRate, audioBitRate: target.audioBitRate, duration: seconds)
+        }
+        return RecorderVideoExportPlan(size: size, frameRate: fps,
+            videoBitRate: RecorderSupport.averageBitRate(width: Int(size.width), height: Int(size.height),
+                                                       fps: fps, quality: resolvedQuality),
+            audioBitRate: hasAudio ? 160_000 : 0, duration: seconds)
     }
 
     /// The zooms as they will actually be applied: normalized, and empty when
@@ -313,6 +368,7 @@ struct RecorderEditDocument: Codable, Equatable {
             || !keepsMicrophone || systemAudioGain != 1 || microphoneGain != 1
             || !cuts.isEmpty || !zoomSegments.isEmpty || !texts.isEmpty || !blurs.isEmpty
             || !images.isEmpty || exportTiming.speed != 1
+            || resolvedExportMaxDimension > 0 || exportTargetBytes > 0
     }
 
     /// A damaged or hand-edited document can never wedge the editor: every
@@ -324,6 +380,9 @@ struct RecorderEditDocument: Codable, Equatable {
         document.trimEnd = trim.end
         document.quality = resolvedQuality.rawValue
         document.exportSpeed = exportTiming.speed
+        document.exportMaxDimension = resolvedExportMaxDimension
+        document.exportTargetMegabytes = exportTargetMegabytes > 0
+            ? MediaSupport.sanitizedTargetMegabytes(exportTargetMegabytes) : 0
         document.gifSize = resolvedGIFSize.rawValue
         document.gifFrameRate = resolvedGIFFrameRate
         document.aspect = resolvedAspect.rawValue

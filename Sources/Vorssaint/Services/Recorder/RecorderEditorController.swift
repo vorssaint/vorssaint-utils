@@ -573,13 +573,14 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// The size the current preset will write, for THIS recording.
     var exportSize: CGSize {
         guard sourceSize.width > 0 else { return .zero }
-        let style = document.resolvedBackdrop
-        let padding = style.kind == .none ? 0 : style.padding * 0.18
-        let canvas = RecorderSupport.canvasSize(source: sourceSize,
-                                                padding: padding,
-                                                aspect: document.resolvedAspect,
-                                                cropsToAspect: style.kind == .none)
-        return RecorderSupport.outputSize(source: canvas, quality: document.resolvedQuality)
+        return videoExportPlan(for: document)?.size ?? document.exportResolution(source: sourceSize)
+    }
+
+    func videoExportPlan(for document: RecorderEditDocument) -> RecorderVideoExportPlan? {
+        let hasAudio = (document.keepsSystemAudio && audioSources.contains(.system))
+            || (document.keepsMicrophone && audioSources.contains(.microphone))
+        return document.videoExportPlan(source: sourceSize, frameRate: sourceFrameRate,
+                                        duration: duration, hasAudio: hasAudio)
     }
 
     // MARK: - Cutting
@@ -1653,6 +1654,9 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 }
             case .cancelled:
                 break
+            case .targetSizeTooSmall:
+                NSSound.beep()
+                QuickToolHUD.show(icon: "record.circle", message: L10n.shared.s.mediaErrorTargetTooSmall)
             default:
                 NSSound.beep()
                 QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)
