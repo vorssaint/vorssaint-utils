@@ -18,6 +18,14 @@ final class AgentUsageStore {
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
     private var codexPlanObserved = Date.distantPast
+    /// What history no longer kept had counted of each harness total, by
+    /// total: a total read again counts only what it grew by since.
+    private var counterFloors: [String: AgentCounterAmount] = [:]
+    /// The accounts whose harness totals grew since `takeCounterGrowth`.
+    private var counterGrowth: Set<AgentProvider> = []
+    /// Keys of what harness totals gave start with this; a harness database
+    /// is read again at each launch, so none of it is saved.
+    static let counterPrefix = "counter\u{1E}"
     /// Open turns by log file.
     private(set) var turns: [String: AgentLiveSession] = [:]
     /// Turns gone quiet, by log file: not shown as working, but work that
@@ -59,8 +67,22 @@ final class AgentUsageStore {
     func apply(_ entries: [AgentLogEntry], file: String, provider: AgentProvider,
                tracksTurns: Bool, parent: String? = nil, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
         var events: [AgentUsageEvent] = []
+        // A harness's turns belong to the agent whose account they run on.
+        var owner = provider
         for entry in entries {
             switch entry {
+            case .turnProvider(let agent):
+                owner = agent
+                // A session that moved to another account takes its turn along.
+                guard tracksTurns else { continue }
+                for kept in [turns[file], waiting[file]].compactMap({ $0 }) where kept.provider != agent {
+                    let moved = AgentLiveSession(id: kept.id, provider: agent, started: kept.started,
+                        lastActivity: kept.lastActivity, model: kept.model, project: kept.project,
+                        tokens: kept.tokens, cost: kept.cost)
+                    if turns[file] != nil { turns[file] = moved } else { waiting[file] = moved }
+                }
+            case .usageCounters(let counters):
+                countGrowth(counters, source: file)
             case .usage(let key, let record, let billable):
                 // Copilot exposes response activity and session-wide token
                 // totals, neither of which measures the current root task.
@@ -91,7 +113,7 @@ final class AgentUsageStore {
                 // the second reading skips as repeats.
                 if let turn = turns[file] ?? waiting[file], abs(turn.started.timeIntervalSince(date)) < 1 { continue }
                 waiting[file] = nil
-                turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
+                turns[file] = AgentLiveSession(id: file, provider: owner, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
                                                model: "", project: "", tokens: AgentTokens(), cost: 0)
             case .turnContext(let model, let project):
@@ -113,7 +135,7 @@ final class AgentUsageStore {
                     turn.lastActivity = max(turn.lastActivity, moment)
                     turns[file] = turn
                 } else {
-                    turns[file] = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
+                    turns[file] = AgentLiveSession(id: file, provider: owner, started: moment, lastActivity: moment,
                                                    model: "", project: "", tokens: AgentTokens(), cost: 0)
                 }
             case .turnSettled(let date):
@@ -129,7 +151,7 @@ final class AgentUsageStore {
                 guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
                 let end = date ?? modified
                 guard now.timeIntervalSince(end) <= Self.lateEnd else { continue }
-                events.append(.finished(provider: provider,
+                events.append(.finished(provider: owner,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
             case .reset:
@@ -155,6 +177,66 @@ final class AgentUsageStore {
             waiting.removeValue(forKey: key)
         }
         return removed
+    }
+
+    /// Counts what each running total a harness database holds grew by since
+    /// it was last read, dated by the total's last growth and given to the
+    /// account it was billed to. A total that went down, as when a session is
+    /// rewound, replaces what it had given; one gone from the database, as
+    /// when a session is deleted, takes it back. A first reading, at each
+    /// launch, counts each total whole at its last growth.
+    private func countGrowth(_ counters: [AgentUsageCounter], source: String) {
+        let prefix = Self.counterPrefix + source + "\u{1E}"
+        var counted: [String: (amount: AgentCounterAmount, positions: [Int], next: Int)] = [:]
+        for (key, position) in index where key.hasPrefix(prefix) {
+            guard let mark = key.lastIndex(of: "#") else { continue }
+            let total = String(key[..<mark])
+            var entry = counted[total] ?? (AgentCounterAmount(), [], 0)
+            entry.amount.add(records[position])
+            entry.positions.append(position)
+            entry.next = max(entry.next, (Int(key[key.index(after: mark)...]) ?? 0) + 1)
+            counted[total] = entry
+        }
+        var read = Set<String>()
+        var stale = Set<Int>()
+        var grown: [(key: String, record: AgentUsageRecord, billable: AgentBillable)] = []
+        for counter in counters {
+            let total = prefix + counter.key
+            guard read.insert(total).inserted else { continue }
+            var base = counted[total]?.amount ?? AgentCounterAmount()
+            base.add(counterFloors[total] ?? AgentCounterAmount())
+            let whole = AgentCounterAmount(tokens: counter.record.tokens, requests: counter.record.requests)
+            var growth = whole.subtracting(base)
+            if growth == nil {
+                stale.formUnion(counted[total]?.positions ?? [])
+                counterFloors[total] = nil
+                growth = whole
+            }
+            guard let growth, !growth.isEmpty else { continue }
+            let billable = AgentBillable(tokens: growth.tokens, isAggregate: true)
+            let priced = AgentPricing.cost(billable, model: counter.record.model)
+            let record = AgentUsageRecord(provider: counter.record.provider, date: counter.record.date,
+                model: counter.record.model, project: counter.record.project, session: counter.record.session,
+                requests: growth.requests, tokens: growth.tokens, cost: priced.cost, savings: priced.savings)
+            grown.append(("\(total)#\(counted[total]?.next ?? 0)", record, billable))
+        }
+        for (total, entry) in counted where !read.contains(total) { stale.formUnion(entry.positions) }
+        counterFloors = counterFloors.filter { !$0.key.hasPrefix(prefix) || read.contains($0.key) }
+        if !stale.isEmpty { keepRecords { !stale.contains($0) } }
+        for item in grown {
+            summary.recordChanged(at: records.count, previous: nil)
+            index[item.key] = records.count
+            records.append(item.record)
+            billables.append(item.billable)
+            sources.append([source])
+            counterGrowth.insert(item.record.provider)
+        }
+    }
+
+    /// The accounts harness totals spent on since this was last asked.
+    func takeCounterGrowth() -> Set<AgentProvider> {
+        defer { counterGrowth = [] }
+        return counterGrowth
     }
 
     /// `source` is the log the response was read from; `file` names the log
@@ -328,7 +410,8 @@ final class AgentUsageStore {
     func closeEndedTurns(_ processes: AgentSessionRegistry, atLaunch: Bool = false) -> Bool {
         registered.formIntersection(turns.keys)
         var closed = false
-        for (file, turn) in turns where turn.provider == .claude {
+        // Hermes' Claude turns keep no Claude Code process record.
+        for (file, turn) in turns where turn.provider == .claude && !AgentHermesReader.ownsTurn(file) {
             let session = ((file as NSString).lastPathComponent as NSString).deletingPathExtension
             if processes.running.contains(session) {
                 registered.insert(file)
@@ -391,14 +474,16 @@ final class AgentUsageStore {
     var saved: Saved {
         var keys = [String](repeating: "", count: records.count)
         for (key, position) in index { keys[position] = key }
-        let kept = records.indices.filter { records[$0].provider != .opencode }.map {
+        let kept = records.indices.filter { !records[$0].provider.readsDatabase && !keys[$0].hasPrefix(Self.counterPrefix) }.map {
             Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
         }
         return Saved(records: kept,
                      limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
                      codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
-                     turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
-                     waiting: waiting.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id })
+                     turns: turns.values.filter { $0.provider != .opencode && !AgentHermesReader.ownsTurn($0.id) }
+                        .sorted { $0.id < $1.id },
+                     waiting: waiting.values.filter { $0.provider != .opencode && !AgentHermesReader.ownsTurn($0.id) }
+                        .sorted { $0.id < $1.id })
     }
 
     convenience init(saved: Saved) {
@@ -414,9 +499,20 @@ final class AgentUsageStore {
         waiting = Dictionary(saved.waiting.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
     }
 
-    /// Keeps memory bounded to the history the island can show.
+    /// What `saved` keeps of the records.
+    var savedRecordCount: Int {
+        let counters = index.keys.reduce(0) { $1.hasPrefix(Self.counterPrefix) ? $0 + 1 : $0 }
+        return records.reduce(0) { $1.provider.readsDatabase ? $0 : $0 + 1 } - counters
+    }
+
+    /// Keeps memory bounded to the history the island can show. What harness
+    /// totals gave before then still counts as given.
     func dropRecords(before date: Date) {
         guard records.contains(where: { $0.date < date }) else { return }
+        for (key, position) in index where key.hasPrefix(Self.counterPrefix) && records[position].date < date {
+            guard let mark = key.lastIndex(of: "#") else { continue }
+            counterFloors[String(key[..<mark]), default: AgentCounterAmount()].add(records[position])
+        }
         keepRecords { records[$0].date >= date }
     }
 
@@ -426,6 +522,9 @@ final class AgentUsageStore {
     /// notice.
     func forget(files: Set<String>) {
         for file in files { forget(file: file) }
+        counterFloors = counterFloors.filter { entry in
+            !files.contains { entry.key.hasPrefix(Self.counterPrefix + $0 + "\u{1E}") }
+        }
         var emptied = false
         for position in sources.indices where sources[position].contains(where: files.contains) {
             sources[position].removeAll(where: files.contains)
@@ -476,9 +575,20 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
-            AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.hermes, ".hermes")].map { provider, path in
+            let url = provider == .hermes && home == FileManager.default.homeDirectoryForCurrentUser
+                ? hermesHome(home: home) : canonical(home.appending(path: path, directoryHint: .isDirectory))
+            return AgentLogRoot(provider: provider, url: url)
         }
+    }
+
+    static func hermesHome(home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                           environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        if let path = environment["HERMES_HOME"], path.hasPrefix("/"), !path.isEmpty {
+            return canonical(URL(fileURLWithPath: path, isDirectory: true))
+        }
+        return canonical(home.appending(path: ".hermes", directoryHint: .isDirectory))
     }
 
     /// The path the file system reports for `url`; the path as given while
@@ -499,6 +609,11 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .hermes {
+            if path == url.appending(path: AgentHermesReader.database).path { return true }
+            let profiles = url.appending(path: "profiles").path + "/"
+            return path.hasPrefix(profiles) && path.hasSuffix("/" + AgentHermesReader.database)
+        }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -693,6 +808,7 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        if name == AgentHermesReader.database || name == AgentHermesReader.database + "-wal" { return true }
         return path.hasSuffix(".jsonl")
     }
 
@@ -749,6 +865,21 @@ enum AgentLogReader {
                 }
                 continue
             }
+            // Hermes keeps a database in the default home and one beside each
+            // profile; all of them are the one Hermes the person runs.
+            if root.provider == .hermes {
+                let profiles = root.url.appending(path: "profiles")
+                var paths = [root.url.appending(path: AgentHermesReader.database).path]
+                for name in (try? FileManager.default.contentsOfDirectory(atPath: profiles.path)) ?? [] {
+                    paths.append(profiles.appending(path: name).appending(path: AgentHermesReader.database).path)
+                }
+                for path in paths {
+                    if let modified = AgentOpenCodeReader.modified(path), modified >= horizon {
+                        found.append((path, root.provider, modified, false))
+                    }
+                }
+                continue
+            }
             // A Copilot session can contain a complete workspace checkout,
             // databases and checkpoints. Its log has one fixed shallow path;
             // recursively walking the workspace can delay the first snapshot
@@ -777,6 +908,10 @@ enum AgentLogReader {
                              shouldContinue: () -> Bool = { true },
                              including: ((Data, Range<Int>) -> Bool)? = nil, line: (Data) -> Void) {
         guard shouldContinue() else { return }
+        if cursor.provider == .hermes {
+            AgentHermesReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return

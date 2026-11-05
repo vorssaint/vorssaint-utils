@@ -12,6 +12,7 @@ extension AgentProvider {
         case .codex: return Color(red: 0.49, green: 0.60, blue: 1.0)
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
+        case .hermes: return Color(red: 0.90, green: 0.72, blue: 0.20)
         }
     }
 }
@@ -183,7 +184,7 @@ private struct NotchAgentGlyphBridge: NSViewRepresentable {
         case .template(let mark):
             image = mark
             markSize = size * provider.markScale
-            tint = NSColor(provider.tint)
+            tint = NSColor(provider.markColor ?? provider.tint)
         case .icon(let mark):
             image = mark
             markSize = size * 1.35
@@ -192,7 +193,7 @@ private struct NotchAgentGlyphBridge: NSViewRepresentable {
             image = NSImage(systemSymbolName: provider.symbol, accessibilityDescription: nil)?
                 .withSymbolConfiguration(.init(pointSize: size, weight: .semibold))
             markSize = size
-            tint = NSColor(provider.tint)
+            tint = NSColor(provider.markColor ?? provider.tint)
         }
         view.configureGlyph(image: image, size: markSize, tint: tint, animates: animates)
     }
@@ -361,9 +362,38 @@ enum AgentMarks {
                     }
                 }
             }
-            return .icon(NSWorkspace.shared.icon(forFile: url.path))
+            let icon = NSWorkspace.shared.icon(forFile: url.path)
+            if provider.templatesIconFigure, let image = silhouette(from: icon) {
+                return .template(image)
+            }
+            return .icon(icon)
         }
         return nil
+    }
+
+    /// Hermes ships no menu bar image; its icon is a dark figure on a light
+    /// chip, and that chip reads as a white blob on the dark island. Keep
+    /// only the figure — opaque where the icon is dark, clear where it is
+    /// light — so it draws tinted like the makers' own menu bar images.
+    private static func silhouette(from icon: NSImage) -> NSImage? {
+        guard let cg = icon.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let context = CGContext(data: nil, width: cg.width, height: cg.height,
+                                      bitsPerComponent: 8, bytesPerRow: cg.width * 4,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let pixels = context.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+        for i in stride(from: 0, to: cg.width * cg.height * 4, by: 4) {
+            let lum = (UInt32(pixels[i]) * 299 + UInt32(pixels[i + 1]) * 587 + UInt32(pixels[i + 2]) * 114) / 1000
+            pixels[i] = 0
+            pixels[i + 1] = 0
+            pixels[i + 2] = 0
+            pixels[i + 3] = UInt8((UInt32(pixels[i + 3]) * (255 - lum)) / 255)
+        }
+        guard let mask = context.makeImage() else { return nil }
+        let image = NSImage(cgImage: mask, size: icon.size)
+        image.isTemplate = true
+        return image
     }
 }
 
@@ -375,12 +405,27 @@ private extension AgentProvider {
         case .codex: return AgentCodexServer.appIdentifiers
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
+        case .hermes: return ["com.nousresearch.hermes"]
         }
     }
 
     /// The menu bar images keep a margin; the spark's thin rays need more
-    /// of the box than the knot to look the same size.
-    var markScale: CGFloat { self == .claude ? 1.45 : 1.2 }
+    /// of the box than the knot to look the same size. The Hermes figure
+    /// fills about 0.7 of its icon, so it needs a wider box to match.
+    var markScale: CGFloat {
+        if self == .claude { return 1.45 }
+        if self == .hermes { return 1.4 }
+        return 1.2
+    }
+
+    /// Whether the icon's own figure becomes the mark: apps that ship no
+    /// menu bar image can still carry artwork that reads on a dark island.
+    var templatesIconFigure: Bool { self == .hermes }
+
+    /// The Hermes mark stays monochrome, the way a menu bar icon does:
+    /// white on the dark island, black on light surfaces. Its text and
+    /// labels keep the tint.
+    var markColor: Color? { self == .hermes ? .primary : nil }
 
     /// What those apps name the mark they show in the menu bar.
     var menuBarImageNames: [String] {
@@ -390,6 +435,7 @@ private extension AgentProvider {
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
         case .opencode: return []
         case .copilot: return []
+        case .hermes: return []
         }
     }
 }
@@ -409,7 +455,7 @@ struct NotchAgentMark: View {
                 .interpolation(.high)
                 .scaledToFit()
                 .frame(width: size * provider.markScale, height: size * provider.markScale)
-                .foregroundStyle(tint ?? provider.tint)
+                .foregroundStyle(tint ?? provider.markColor ?? provider.tint)
         case .icon(let image):
             // App icons keep a margin around their artwork.
             Image(nsImage: image)
@@ -420,7 +466,7 @@ struct NotchAgentMark: View {
         case nil:
             Image(systemName: provider.symbol)
                 .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(tint ?? provider.tint)
+                .foregroundStyle(tint ?? provider.markColor ?? provider.tint)
         }
     }
 }
