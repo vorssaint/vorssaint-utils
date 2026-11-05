@@ -541,7 +541,9 @@ enum RadialNowPlayingSupport {
                           isRegularApp: (pid_t) -> Bool,
                           regularOwner: (pid_t) -> pid_t?) -> pid_t? {
         if let bundleMatch, isRegularApp(bundleMatch) { return bundleMatch }
-        guard let process = readingPID ?? bundleMatch else { return nil }
+        // A shared helper identifier cannot tell which app owns this reading.
+        // Without its pid, keep the helper fallback without resolving an owner.
+        guard let process = readingPID else { return bundleMatch }
         if isRegularApp(process) { return process }
         return regularOwner(process) ?? process
     }

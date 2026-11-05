@@ -879,6 +879,10 @@ enum UtilitiesFeatureTests {
                "a WebKit helper is shown as the app it plays for")
         suite.expect(player(27306, 1490) == 1479,
                "the reading's own helper decides the app when another app's helper shares its identifier")
+        suite.expect(player(1490, nil) == 1490 && player(27306, nil) == 27306,
+               "a shared helper stays unresolved when the reading has no pid")
+        suite.expect(player(900, nil) == 900 && player(27306, 1479) == 1479,
+               "a regular player still resolves by its bundle or its reading's pid")
         suite.expect(player(nil, 4242) == 4242 && player(nil, nil) == nil,
                "a helper no app answers for is still shown as itself")
         let nowPlayingSnapshot = RadialNowPlayingSupport.snapshot(
