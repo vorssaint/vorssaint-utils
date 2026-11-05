@@ -1072,6 +1072,15 @@ enum NotchActivityTests {
                 captureControls: false, in: defaults)
             && !NotchCameraSupport.canPresent(expanded: true, selected: .camera, appPanel: false,
                 captureControls: true, in: defaults), "collapse, section changes and replacement surfaces all stop embedded capture")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchCameraOpensDirectly] as? Bool == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCameraOpensDirectly)
+               && !NotchCameraSupport.opensDirectly(choosing: .camera, in: defaults),
+               "choosing the camera page waits for its button by default, and the choice travels in settings backups")
+        defaults.set(true, forKey: DefaultsKey.notchCameraOpensDirectly)
+        suite.expect(NotchCameraSupport.opensDirectly(choosing: .camera, in: defaults)
+               && !NotchCameraSupport.opensDirectly(choosing: .music, in: defaults),
+               "with the camera opening directly, only choosing its page starts the mirror")
+        defaults.set(false, forKey: DefaultsKey.notchCameraOpensDirectly)
         defaults.set("timer,camera", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchTimerSupport.isEnabled(in: defaults) && !NotchCameraSupport.isEnabled(in: defaults),
                "hidden activity modules release their resources")

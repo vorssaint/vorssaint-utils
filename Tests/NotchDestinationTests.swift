@@ -38,6 +38,13 @@ enum NotchDestinationContract {
         struct Reader { func rememberPasteTarget() {} }
     }
     enum QuickLauncherService { static var shared = QuickLauncherContract.Launcher() }
+    enum CameraPreviewService {
+        static let shared = Camera()
+        final class Camera {
+            var starts = 0
+            func showEmbedded() { starts += 1 }
+        }
+    }
     enum MenuPanelFocus {
         static let shared = Focus()
         final class Focus {
@@ -353,6 +360,31 @@ enum NotchDestinationContract {
         gallery.stepBack()
         suite.expect(gallery.expanded && gallery.selected == .system && gallery.selectedMetric == nil,
                      "the gallery opened over a detail keeps its way back to the page")
+
+        // The gallery stops the mirror, so going back to the camera page has
+        // to start it again when the camera opens directly.
+        CameraPreviewService.shared.starts = 0
+        let camera = Service()
+        camera.open(.camera)
+        camera.toggleSections()
+        camera.toggleSections()
+        let waited = CameraPreviewService.shared.starts == 0
+        ReviewDefaults.current.set(true, forKey: DefaultsKey.notchCameraOpensDirectly)
+        camera.toggleSections()
+        camera.toggleSections()
+        ReviewDefaults.current.set(false, forKey: DefaultsKey.notchCameraOpensDirectly)
+        suite.expect(waited && camera.selected == .camera && !camera.showingSections
+                     && CameraPreviewService.shared.starts == 1,
+                     "going back from the gallery starts the camera only when it opens directly")
+        ReviewDefaults.current.set(true, forKey: DefaultsKey.notchCameraOpensDirectly)
+        camera.collapse()
+        camera.open(takeFocus: false)
+        let hoverWaited = camera.expanded && CameraPreviewService.shared.starts == 1
+        camera.collapse()
+        camera.open()
+        ReviewDefaults.current.set(false, forKey: DefaultsKey.notchCameraOpensDirectly)
+        suite.expect(hoverWaited && camera.selected == .camera && CameraPreviewService.shared.starts == 2,
+                     "reopening the island by a click starts the camera page's mirror, opening under the pointer waits")
 
         let reopened = Service()
         reopened.open(.system)
