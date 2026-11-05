@@ -2959,11 +2959,15 @@ final class CommandBarService: ObservableObject {
         appsLoading = true
         let listsUninstallable = AppFeature.uninstaller.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
+        let appFolders = CommandBarFileSearchSupport.decodeList(
+            UserDefaults.standard.string(forKey: DefaultsKey.commandBarAppFolders) ?? "")
+            .map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true) }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let apps = SpotlightNames.enriching(InstalledApps.installedApplications(
                 includeSystemApplications: true,
                 includeBundledApplications: true,
-                spotlightPaths: Self.spotlightApplicationPaths()))
+                spotlightPaths: Self.spotlightApplicationPaths(),
+                addedFolders: appFolders))
             // The uninstall browse offers only what the uninstaller will
             // take, and its check reads the disk for every app.
             let uninstallable = listsUninstallable

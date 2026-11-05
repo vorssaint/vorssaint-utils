@@ -128,14 +128,21 @@ enum InstalledApps {
         }
     }
 
+    /// How deep a folder the person added is walked: its apps, and those one
+    /// vendor folder down, as in an application folder. A whole external disk
+    /// added as one folder would otherwise be read in full on every walk.
+    static let addedFolderDepth = 2
+
     /// `includeBundledApplications` adds the tools apps ship for people, for
     /// a search that should find them. Pickers that act on whole apps, such as
     /// the uninstaller's, leave them out. `roots` replaces the application
     /// folders, so a test can walk a fixture instead of this Mac.
+    /// `addedFolders` are walked as well, to `addedFolderDepth`.
     static func installedApplications(includeSystemApplications: Bool = false,
                                       includeBundledApplications: Bool = false,
                                       spotlightPaths: [String] = [],
-                                      roots folders: [URL]? = nil) -> [InstalledApp] {
+                                      roots folders: [URL]? = nil,
+                                      addedFolders: [URL] = []) -> [InstalledApp] {
         let fm = FileManager.default
         var roots = folders ?? [
             URL(fileURLWithPath: "/Applications", isDirectory: true),
@@ -148,7 +155,8 @@ enum InstalledApps {
         var seen = Set<String>()
         var apps: [InstalledApp] = []
 
-        for root in roots where fm.fileExists(atPath: root.path) {
+        let walks = roots.map { ($0, Int?.none) } + addedFolders.map { ($0, Optional(addedFolderDepth)) }
+        for (root, depth) in walks where fm.fileExists(atPath: root.path) {
             // Hidden entries are deliberately NOT skipped: the browser that
             // ships with macOS lives on the system volume and is exposed in
             // /Applications as a hidden symlink, so skipping them left it out
@@ -159,7 +167,10 @@ enum InstalledApps {
                 continue
             }
             for case let found as URL in enumerator {
-                guard found.pathExtension == "app" else { continue }
+                guard found.pathExtension == "app" else {
+                    if let depth, enumerator.level >= depth { enumerator.skipDescendants() }
+                    continue
+                }
                 let shipped = includeBundledApplications ? bundledApplications(in: found, fileManager: fm) : []
                 for url in [found] + shipped {
                     // A link's target decides whether the app is the system's:
