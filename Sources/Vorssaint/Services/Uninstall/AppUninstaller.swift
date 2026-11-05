@@ -542,10 +542,14 @@ final class AppUninstaller: ObservableObject {
                                 cancellation: UninstallerSupport.ScanCancellation) -> [Leftover] {
         let fm = FileManager.default
         let home = NSHomeDirectory()
+        // An app already in the Trash stays listed for context but unticked:
+        // trashing it again does nothing and would only inflate the space freed.
+        let appAlreadyTrashed = UninstallerSupport.isInTrash(
+            appURL, home: fm.homeDirectoryForCurrentUser)
         var paths = [ScanCandidate(url: appURL, category: .app,
                                    ownerBundleID: nil, ownerGroupID: nil,
                                    evidenceBundleID: nil,
-                                   confidence: .exact, include: true)]
+                                   confidence: .exact, include: !appAlreadyTrashed)]
         let bundle = Bundle(url: appURL)
         var displayNames = UninstallerSupport.displayNames(
             localizedName: fm.displayName(atPath: appURL.path),

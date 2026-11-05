@@ -371,6 +371,9 @@ enum UninstallerFlowTests {
                          "the integration starts off")
             suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.uninstallerCommandBarEnabled),
                          "backup includes the command-bar preference")
+            suite.expect(Defaults.registeredDefaults[DefaultsKey.uninstallerWatchesTrash] as? Bool == false
+                            && SettingsBackupSupport.exportKeys().contains(DefaultsKey.uninstallerWatchesTrash),
+                         "the Trash cleanup offer starts off and travels with settings backup")
         } catch {
             suite.expect(false, "uninstaller fixture failed: \(error)")
         }

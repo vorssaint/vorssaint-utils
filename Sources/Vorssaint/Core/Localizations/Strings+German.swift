@@ -354,6 +354,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Anwendung deinstallieren",
         uninstallerCommandBarToggle: "In der Befehlsleiste anzeigen",
         uninstallerCommandBarCaption: "Apps in der Befehlsleiste auswählen und deinstallieren.",
+        uninstallerWatchTrashToggle: "Bereinigung anbieten, wenn eine App im Papierkorb landet",
+        uninstallerWatchTrashCaption: "Öffnet das Deinstallationsprogramm, wenn du eine App im Finder löschst. Erfordert Festplattenvollzugriff.",
         uninstallerCommandBarFinderTitle: "Im Finder ausgewählte App deinstallieren",
         uninstallerSelectionUnavailable: "Wähle im Finder eine App, die entfernt werden kann, oder eine andere aus der Liste.",
         uninstallerRefusedNotApp: "Nur Apps können deinstalliert werden.",

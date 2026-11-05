@@ -523,6 +523,8 @@ struct Strings {
     let uninstallerCommandBarBrowseTitle: String
     let uninstallerCommandBarToggle: String
     let uninstallerCommandBarCaption: String
+    let uninstallerWatchTrashToggle: String
+    let uninstallerWatchTrashCaption: String
     let uninstallerCommandBarFinderTitle: String
     let uninstallerSelectionUnavailable: String
     let uninstallerRefusedNotApp: String
@@ -1677,6 +1679,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Desinstalar aplicativo",
         uninstallerCommandBarToggle: "Mostrar na Barra de Comandos",
         uninstallerCommandBarCaption: "Permite escolher e desinstalar aplicativos pela Barra de Comandos.",
+        uninstallerWatchTrashToggle: "Oferecer limpeza ao mover um app para o Lixo",
+        uninstallerWatchTrashCaption: "Abre o Desinstalador quando você apaga um app no Finder. Requer Acesso Total ao Disco.",
         uninstallerCommandBarFinderTitle: "Desinstalar aplicativo selecionado no Finder",
         uninstallerSelectionUnavailable: "Selecione um aplicativo que possa ser removido no Finder ou escolha outro na lista.",
         uninstallerRefusedNotApp: "Só é possível desinstalar apps.",
@@ -2795,6 +2799,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Uninstall Application",
         uninstallerCommandBarToggle: "Show in Command Bar",
         uninstallerCommandBarCaption: "Choose and uninstall apps in the Command Bar.",
+        uninstallerWatchTrashToggle: "Offer cleanup when an app is moved to the Trash",
+        uninstallerWatchTrashCaption: "Opens the Uninstaller when you delete an app in Finder. Needs Full Disk Access.",
         uninstallerCommandBarFinderTitle: "Uninstall app selected in Finder",
         uninstallerSelectionUnavailable: "Select an app that can be removed in Finder, or choose another from the list.",
         uninstallerRefusedNotApp: "Only apps can be uninstalled.",

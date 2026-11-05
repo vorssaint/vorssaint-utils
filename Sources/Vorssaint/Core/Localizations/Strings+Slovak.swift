@@ -354,6 +354,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Odinštalovať aplikáciu",
         uninstallerCommandBarToggle: "Zobraziť v príkazovej lište",
         uninstallerCommandBarCaption: "Vyberte a odinštalujte aplikácie v príkazovej lište.",
+        uninstallerWatchTrashToggle: "Ponúknuť vyčistenie pri presune aplikácie do Koša",
+        uninstallerWatchTrashCaption: "Otvorí odinštalátor, keď vymažete aplikáciu vo Finderi. Vyžaduje Plný prístup k disku.",
         uninstallerCommandBarFinderTitle: "Odinštalovať aplikáciu vybranú vo Finderi",
         uninstallerSelectionUnavailable: "Vyberte vo Finderi aplikáciu, ktorú možno odstrániť, alebo vyberte inú zo zoznamu.",
         uninstallerRefusedNotApp: "Odinštalovať možno iba aplikácie.",

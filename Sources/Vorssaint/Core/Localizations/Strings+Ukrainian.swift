@@ -342,6 +342,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Видалити програму",
         uninstallerCommandBarToggle: "Показувати в Панелі команд",
         uninstallerCommandBarCaption: "Вибирайте та видаляйте програми в Панелі команд.",
+        uninstallerWatchTrashToggle: "Пропонувати очищення, коли програму переміщено в Смітник",
+        uninstallerWatchTrashCaption: "Відкриває деінсталятор, коли ви видаляєте програму у Finder. Потрібен повний доступ до диска.",
         uninstallerCommandBarFinderTitle: "Видалити вибрану у Finder програму",
         uninstallerSelectionUnavailable: "Виберіть у Finder програму, яку можна видалити, або оберіть іншу зі списку.",
         uninstallerRefusedNotApp: "Видаляти можна лише програми.",

@@ -354,6 +354,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "卸载 App",
         uninstallerCommandBarToggle: "在命令栏中显示",
         uninstallerCommandBarCaption: "在命令栏中选择并卸载 App。",
+        uninstallerWatchTrashToggle: "将 App 移到废纸篓时提供清理",
+        uninstallerWatchTrashCaption: "在访达中删除 App 时打开卸载器。需要完全磁盘访问权限。",
         uninstallerCommandBarFinderTitle: "卸载 Finder 中选中的 App",
         uninstallerSelectionUnavailable: "请在 Finder 中选择可移除的 App，或从列表中选择其他 App。",
         uninstallerRefusedNotApp: "只能卸载 App。",

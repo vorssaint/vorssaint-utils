@@ -712,6 +712,41 @@ enum AppManagementFeatureTests {
                 URL(fileURLWithPath: "/Users/test/Downloads/Editor.app"),
                 home: URL(fileURLWithPath: "/Users/test")),
                "embedded helpers belong to the selected app while unregistered download copies never own shared data")
+        let trashHome = URL(fileURLWithPath: "/Users/test")
+        suite.expect(UninstallerSupport.applicationIsInTrustedInstallRoot(
+                URL(fileURLWithPath: "/Users/test/.Trash/Editor.app"), home: trashHome)
+            && !UninstallerSupport.applicationIsInTrustedInstallRoot(
+                URL(fileURLWithPath: "/Users/test/.Trash/Old Stuff/Editor.app"), home: trashHome)
+            && !UninstallerSupport.isInTrash(
+                URL(fileURLWithPath: "/Users/test/.Trash"), home: trashHome),
+               "an app Finder just moved to the Trash may claim shared data, an app buried in a trashed folder may not")
+        let trashedEditor = URL(fileURLWithPath: "/Users/test/.Trash/Editor.app")
+        let trashedOther = URL(fileURLWithPath: "/Users/test/.Trash/Other.app")
+        suite.expect(UninstallerSupport.newlyTrashedApps(current: [trashedEditor, trashedOther],
+                                                         known: [trashedEditor.path]) == [trashedOther],
+               "only apps that were not already in the Trash are offered")
+        let installedEditor = URL(fileURLWithPath: "/Applications/Editor.app")
+        suite.expect(!UninstallerSupport.trashedAppWasLastCopy(
+                otherCopies: [trashedEditor, installedEditor], home: trashHome, fileExists: { _ in true })
+            && UninstallerSupport.trashedAppWasLastCopy(
+                otherCopies: [trashedEditor, installedEditor], home: trashHome,
+                fileExists: { $0 != installedEditor.path })
+            && UninstallerSupport.trashedAppWasLastCopy(
+                otherCopies: [trashedEditor, trashedOther], home: trashHome, fileExists: { _ in true }),
+               "an updater replacing an app gets no cleanup offer, the last copy going to the Trash does")
+        do {
+            let fm = FileManager.default
+            let trash = fm.temporaryDirectory.appendingPathComponent("trash-\(UUID().uuidString)")
+            try fm.createDirectory(at: trash.appendingPathComponent("Editor.app"), withIntermediateDirectories: true)
+            try fm.createDirectory(at: trash.appendingPathComponent("Folder"), withIntermediateDirectories: true)
+            fm.createFile(atPath: trash.appendingPathComponent("Fake.app").path, contents: Data())
+            defer { try? fm.removeItem(at: trash) }
+            suite.expect(UninstallerSupport.trashedApps(in: trash).map(\.lastPathComponent) == ["Editor.app"]
+                    && UninstallerSupport.trashedApps(in: trash.appendingPathComponent("missing")).isEmpty,
+                   "only app bundles in the Trash are listed, and an unreadable Trash lists nothing")
+        } catch {
+            suite.expect(false, "trash fixture failed: \(error)")
+        }
         let uninstallCandidateIDs: Set<String> = ["com.vendor.editor", "com.vendor.editor.helper"]
         suite.expect(UninstallerSupport.exclusiveBundleIDs(
                    uninstallCandidateIDs,

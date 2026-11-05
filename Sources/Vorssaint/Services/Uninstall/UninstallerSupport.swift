@@ -341,7 +341,51 @@ enum UninstallerSupport {
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             home.appendingPathComponent("Applications", isDirectory: true),
         ].map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
-        return roots.contains { path.hasPrefix($0 + "/") }
+        return roots.contains { path.hasPrefix($0 + "/") } || isInTrash(url, home: home)
+    }
+
+    // MARK: - Trash
+
+    /// The user's Trash on the startup disk, where Finder moves an app
+    /// deleted from /Applications or ~/Applications.
+    static func trashURL(home: URL) -> URL {
+        home.appendingPathComponent(".Trash", isDirectory: true)
+    }
+
+    /// An item sitting directly in the Trash, the way Finder leaves an app
+    /// that was just deleted. Such an app was usually the installed copy, so
+    /// it may claim shared data; the exclusivity checks still keep anything
+    /// another installed copy owns.
+    static func isInTrash(_ url: URL, home: URL) -> Bool {
+        let parent = url.resolvingSymlinksInPath().standardizedFileURL.deletingLastPathComponent().path
+        let trash = trashURL(home: home).resolvingSymlinksInPath().standardizedFileURL.path
+        return parent == trash
+    }
+
+    /// App bundles directly in the Trash. Unreadable (no Full Disk Access)
+    /// reads as empty, so nothing is ever suggested without access.
+    static func trashedApps(in trash: URL, fileManager: FileManager = .default) -> [URL] {
+        let entries = (try? fileManager.contentsOfDirectory(
+            at: trash, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+        return entries.filter { url in
+            url.pathExtension.caseInsensitiveCompare("app") == .orderedSame
+                && (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        }
+    }
+
+    /// The apps in `current` that were not there at the last look.
+    static func newlyTrashedApps(current: [URL], known: Set<String>) -> [URL] {
+        current.filter { !known.contains($0.standardizedFileURL.path) }
+    }
+
+    /// A trashed app is worth a cleanup offer only when it was the last copy:
+    /// an updater that trashes the old version, or a spare copy thrown away,
+    /// leaves the app installed and its data in use.
+    static func trashedAppWasLastCopy(otherCopies: [URL], home: URL,
+                                      fileExists: (String) -> Bool) -> Bool {
+        !otherCopies.contains { copy in
+            !isInTrash(copy, home: home) && fileExists(copy.standardizedFileURL.path)
+        }
     }
 
     static func strippedAppName(_ raw: String) -> String {
