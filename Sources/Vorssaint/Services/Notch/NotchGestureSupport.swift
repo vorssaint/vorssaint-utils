@@ -6,11 +6,12 @@ import AppKit
 /// One decision per physical scroll sequence. No timer is needed for wheel
 /// devices without phases: the next event itself expires an old sequence.
 struct NotchGestureSupport {
-    enum Action: Equatable { case open, close, nextTrack, previousTrack }
+    enum Action: Equatable { case open, close, nextTrack, previousTrack, nextPanel, previousPanel }
     private enum Axis { case horizontal, vertical }
     private struct Origin {
         let vertical: Bool
         let horizontal: Bool
+        let panels: Bool
         let expanded: Bool
     }
     private var origin: Origin?
@@ -55,7 +56,8 @@ struct NotchGestureSupport {
 
     mutating func handle(x: Double, y: Double, timestamp: TimeInterval,
                          began: Bool, ended: Bool, momentum: Bool, precise: Bool, hasPhase: Bool,
-                         allowVertical: Bool, allowHorizontal: Bool, expanded: Bool) -> Action? {
+                         allowVertical: Bool, allowHorizontal: Bool, panels: Bool = false,
+                         expanded: Bool) -> Action? {
         guard timestamp.isFinite, x.isFinite, y.isFinite else { self = Self(); return nil }
         // A quick flick lifts the fingers before the swipe has travelled far
         // enough. Its momentum can finish the opening or closing it began,
@@ -82,7 +84,8 @@ struct NotchGestureSupport {
         if hasPhase {
             if began {
                 self = Self()
-                origin = Origin(vertical: allowVertical, horizontal: allowHorizontal, expanded: expanded)
+                origin = Origin(vertical: allowVertical, horizontal: allowHorizontal, panels: panels,
+                                expanded: expanded)
             }
             // AppKit keeps a phased scroll attached to its original view.
             // A blocked beginning stays blocked, and an interrupted sequence
@@ -97,6 +100,8 @@ struct NotchGestureSupport {
         guard !fired else { return nil }
         let allowVertical = origin?.vertical ?? allowVertical
         let allowHorizontal = origin?.horizontal ?? allowHorizontal
+        // Like the axis, what a sideways swipe moves belongs to where it began.
+        let panels = origin?.panels ?? panels
         let expanded = origin?.expanded ?? expanded
         if axis == nil {
             // Establish intent from a little accumulated travel, not the first
@@ -119,6 +124,8 @@ struct NotchGestureSupport {
         case .horizontal where allowHorizontal:
             guard abs(distance) >= 40 else { return nil }
             fired = true
+            // Fingers moving left bring in what lies to the right, as Spaces do.
+            if panels { return distance < 0 ? .nextPanel : .previousPanel }
             return distance < 0 ? .nextTrack : .previousTrack
         case .vertical where allowVertical:
             return verticalAction(expanded: expanded)
