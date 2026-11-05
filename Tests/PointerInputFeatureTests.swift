@@ -2512,6 +2512,28 @@ enum PointerInputFeatureTests {
                                               longHold: true,
                                               repeated: true) == .capsLock,
                "the input-source action switches on a quick press and reserves a hold for Caps Lock")
+        let freshWrite = SuperKeySupport.capsLockWriteWindow / 2
+        let staleWrite = SuperKeySupport.capsLockWriteWindow * 2
+        suite.expect(!SuperKeySupport.rawSourceResetsCapsLock(currentlyOn: false,
+                                                              lastWriteOn: nil,
+                                                              lastWriteAge: nil)
+                && SuperKeySupport.rawSourceResetsCapsLock(currentlyOn: true,
+                                                           lastWriteOn: nil,
+                                                           lastWriteAge: nil)
+                && !SuperKeySupport.rawSourceResetsCapsLock(currentlyOn: true,
+                                                            lastWriteOn: true,
+                                                            lastWriteAge: freshWrite)
+                && SuperKeySupport.rawSourceResetsCapsLock(currentlyOn: true,
+                                                           lastWriteOn: false,
+                                                           lastWriteAge: freshWrite)
+                && SuperKeySupport.rawSourceResetsCapsLock(currentlyOn: true,
+                                                           lastWriteOn: true,
+                                                           lastWriteAge: staleWrite)
+                && !SuperKeySupport.rawSourceResetsCapsLock(currentlyOn: false,
+                                                            lastWriteOn: true,
+                                                            lastWriteAge: freshWrite),
+               "a raw Caps Lock key leaves the lock alone while the solo tap's own write is fresh, "
+               + "and still puts an unmapped keyboard's flip back off")
         suite.expect(SuperKeySupport.nextInputSourceID(currentID: "abc",
                                                  enabledIDs: ["abc", "pinyin", "kana"]) == "pinyin"
                 && SuperKeySupport.nextInputSourceID(currentID: "kana",
