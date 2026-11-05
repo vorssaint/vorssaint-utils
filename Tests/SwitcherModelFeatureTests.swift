@@ -460,11 +460,24 @@ enum SwitcherModelFeatureTests {
         suite.expect(registeredDefaults[DefaultsKey.switcherIgnoreHoverSelection] as? Bool == false
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherIgnoreHoverSelection),
                "App Switcher keeps hover selection by default and carries ignore-hover selection in backups")
-        let ignoreHoverBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
-            key == DefaultsKey.switcherIgnoreHoverSelection ? true : nil
+        for value in [false, true] {
+            let ignoreHoverBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.switcherIgnoreHoverSelection ? value : nil
+            }
+            suite.expect(SettingsBackupSupport.sanitizedSettings(from: ignoreHoverBackup)?[DefaultsKey.switcherIgnoreHoverSelection] as? Bool == value,
+                   "App Switcher restores either ignore-hover selection choice from a settings backup")
         }
-        suite.expect(SettingsBackupSupport.sanitizedSettings(from: ignoreHoverBackup)?[DefaultsKey.switcherIgnoreHoverSelection] as? Bool == true,
-               "App Switcher restores the ignore-hover selection choice from a settings backup")
+        for value in ["true", 1, [true]] as [Any] {
+            let invalidBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.switcherIgnoreHoverSelection ? value : nil
+            }
+            suite.expect(SettingsBackupSupport.sanitizedSettings(from: invalidBackup)?[DefaultsKey.switcherIgnoreHoverSelection] == nil,
+                   "App Switcher rejects non-boolean ignore-hover selection values in backups")
+        }
+        let oldBackup = SettingsBackupSupport.payload(appVersion: "test") { _ in nil }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: oldBackup)?[DefaultsKey.switcherIgnoreHoverSelection] == nil
+                     && SettingsBackupSupport.keysToClear(whenImporting: [:]).contains(DefaultsKey.switcherIgnoreHoverSelection),
+                     "an older backup clears the ignore-hover choice back to its registered false default")
         suite.expect(SwitcherSupport.hoverMovesSelection(ignoreHoverSelection: false)
                && !SwitcherSupport.hoverMovesSelection(ignoreHoverSelection: true),
                "hover moves the highlight until ignore-hover selection is on, and then leaves it")

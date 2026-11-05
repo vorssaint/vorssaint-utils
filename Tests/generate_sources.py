@@ -1743,6 +1743,50 @@ def main():
           + "}\n}\n")
     switcher = "Sources/Vorssaint/UI/Switcher/SwitcherView.swift"
     switcher_service = "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift"
+    # Exercise the input and close paths themselves, with only OS effects,
+    # layout and scheduling supplied by the fixture. No app windows are shown.
+    click_bodies = re.findall(
+        r"(?:onCommit|onSelect): \{\n(\s+switcher\.select\(index: (?:index|entry\.offset)\)\n"
+        r"\s+switcher\.commitSession\(\)\n)\s*\}", (ROOT / switcher).read_text())
+    click_names = ["clickCard", "clickPreview", "clickTitle", "clickAppIcon", "clickWindowIcon"]
+    if len(click_bodies) != len(click_names):
+        raise ValueError("Expected all five switcher click callbacks")
+    write("SwitcherHoverSelection.swift", "import AppKit\nimport Combine\n"
+          + "extension SwitcherHoverSelectionTests {\n"
+          + declaration(switcher_service, "private struct SwitcherSourceContext").replace("private struct", "struct", 1)
+          + declaration(switcher_service, "    private enum KeyCode {").replace("private enum", "enum", 1)
+          + "final class Service: Fixture, ObservableObject {\n"
+          + declaration(switcher_service, "    @Published private(set) var selectedIndex").replace("private(set) ", "", 1)
+          + "".join(declaration(switcher_service, prefix).replace("private ", "", 1)
+                    for prefix in ["    private func handle(type:", "    private func handleKeyDown(",
+                                   "    func select(index:", "    func hoverSelect(index:",
+                                   "    func hoverSelectEnded(", "    func hoverSelectIconRow(index:",
+                                   "    func hoverSelectIconRowEnded(", "    private var selectedItemID:",
+                                   "    private func handleShiftBackNavigation(", "    private func consumesShiftBackChordTab(",
+                                   "    private func advanceSelection(", "    private func advanceAppSelection(",
+                                   "    private func advanceWindowInSelectedApp(", "    private func moveSelection(",
+                                   "    private func moveIconRowSelection(", "    private func printableSearchText(",
+                                   "    private func sanitizedSearchInput(", "    private func appendSearchText(",
+                                   "    private func removeLastSearchCharacter(", "    private func applySearchFilter(",
+                                   "    private func pinSearch(", "    func closeWindow(",
+                                   "    private func closeSelectedWindow(", "    private func finishClosingWindow(",
+                                   "    private func applyClosedWindowRemoval(", "    private func finishTrackingClose(",
+                                   "    func commitSession(", "    private func resumePendingCommitAfterClose(",
+                                   "    private func cancelSession(", "    private func endSession(",
+                                   "    private func dismissForClickOutsidePanel(", "    private var iconRowItemCount:",
+                                   "    private func iconRowIndex(", "    private func selectionIndex(forIconRowIndex",
+                                   "    private func revealSelectedIconInVisibleRow(", "    private func beginIconRowEdgeHoverIfNeeded(",
+                                   "    private func stepIconRowFromEdgeHover(", "    private func cancelIconRowEdgeHover("])
+          + "".join("func " + name + "(index: Int) {\n"
+                    + body.replace("switcher.", "self.").replace("entry.offset", "index") + "}\n"
+                    for name, body in zip(click_names, click_bodies))
+          + "}\n"
+          + "".join("struct " + name + " {\nlet window: SwitcherItem\nvar minimalPreviews = false\nvar isHovering = false\n"
+                    + declaration(switcher, "    private var showsCloseButton:", scope=scope).replace("private ", "", 1)
+                    + "}\n" for name, scope in [
+                        ("Card", "private struct WindowCard: View {"),
+                        ("Preview", "private struct SwitcherWindowPreviewTile: View {")])
+          + "}\n")
     write("SwitcherAllWindows.swift", "import AppKit\n"
           + "extension SwitcherAllWindowsTests.Model {\n"
           + "".join(declaration(switcher_service, prefix).replace("private ", "", 1)
