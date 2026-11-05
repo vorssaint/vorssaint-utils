@@ -84,8 +84,9 @@ final class TrashAppWatcher {
         let uninstaller = AppUninstaller.shared
         guard !uninstaller.isRemoving,
               let selection = UninstallerSupport.selection(for: app) else { return false }
-        // The Uninstaller trashing its own target lands here too.
-        guard selection.bundleID != uninstaller.target?.bundleID else { return false }
+        // The Uninstaller trashing its own target lands here too. A fresh
+        // install of the same app later is a different file and is offered.
+        guard !uninstaller.isTarget(selection.identity) else { return false }
         let home = FileManager.default.homeDirectoryForCurrentUser
         return UninstallerSupport.trashedAppWasLastCopy(
             otherCopies: NSWorkspace.shared.urlsForApplications(withBundleIdentifier: selection.bundleID),

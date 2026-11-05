@@ -100,6 +100,12 @@ final class AppUninstaller: ObservableObject {
             && status.isActive
     }
 
+    /// The bundle this Uninstaller was handed, wherever its removal moved it
+    /// since: a move keeps the file identity, a reinstalled copy does not.
+    func isTarget(_ identity: UninstallerSupport.FileIdentity) -> Bool {
+        identity == targetFileIdentity
+    }
+
     var isRemoving: Bool {
         phase == .removing || isRemovingWithHomebrew
     }
