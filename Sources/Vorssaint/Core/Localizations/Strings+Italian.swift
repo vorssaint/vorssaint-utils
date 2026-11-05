@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "“Continua con il coperchio chiuso” disattiva completamente lo stop mentre “Mantieni attivo” è attivo e viene ripristinato automaticamente al termine della sessione o alla chiusura dell’app. È preferibile usarlo collegato all’alimentazione.",
         dimScreenOnLidCloseTitle: "Oscura lo schermo del tutto",
         dimScreenOnLidCloseCaption: "Oscura lo schermo quando il coperchio si chiude e ripristina la luminosità alla riapertura.",
+        clamshellBatteryLimitTitle: "In batteria, stop dopo",
+        clamshellBatteryLimitCaption: "Con il coperchio chiuso e senza alimentazione, termina la sessione dopo questo tempo così il Mac può andare in stop.",
 
         scrollSection: "Scorrimento",
         invertMouseScroll: "Inverti lo scorrimento del mouse",

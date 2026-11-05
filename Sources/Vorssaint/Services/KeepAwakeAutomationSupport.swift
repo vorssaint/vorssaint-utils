@@ -40,6 +40,29 @@ enum KeepAwakeAutomationSupport {
         }
     }
 
+    /// When the lid closed with no power, or the power went with the lid
+    /// already closed; nil as soon as either stops being true.
+    static func lidClosedOnBatterySince(previous: Date?, lidClosed: Bool,
+                                        onBattery: Bool, now: Date) -> Date? {
+        guard lidClosed, onBattery else { return nil }
+        return previous ?? now
+    }
+
+    /// When a closed-lid session on battery has to end so the Mac can sleep;
+    /// nil without a limit, or while the lid is open or the Mac is on power.
+    static func clamshellBatteryDeadline(since: Date?, limitMinutes: Int) -> Date? {
+        guard limitMinutes > 0, let since else { return nil }
+        return since.addingTimeInterval(TimeInterval(limitMinutes) * 60)
+    }
+
+    /// Whether an automatic session that lost its power keeps running: only
+    /// with a closed-lid limit, on battery, and until that limit runs out.
+    static func keepsSessionOnBattery(limitMinutes: Int, onBattery: Bool,
+                                      deadline: Date?, now: Date) -> Bool {
+        guard limitMinutes > 0, onBattery else { return false }
+        return deadline.map { $0 > now } ?? true
+    }
+
     static func isScreenLocked(sessionDictionary: [String: Any]?) -> Bool {
         guard let value = sessionDictionary?[screenLockedKey] else { return false }
         if let locked = value as? Bool { return locked }

@@ -76,6 +76,7 @@ final class KeepAwakeManager: ObservableObject {
     private var hasDisplayAssertion = false
     private var endTimer: Timer?
     private var batteryTimer: Timer?
+    private var lidClosedOnBatterySince: Date?
     private var mouseJiggleTimer: Timer?
     private var pendingMouseReturn: DispatchWorkItem?
     private var defaultsObserver: AnyCancellable?
@@ -551,6 +552,10 @@ final class KeepAwakeManager: ObservableObject {
             activeAutomationConditions = matches
             activate(end: nil, trigger: .automation)
         case .deactivate:
+            // A closed-lid limit keeps an automatic session that lost its
+            // power going on battery, so unplugging and walking away does not
+            // sleep; the lid staying closed for the limit is what ends it.
+            if clamshellBatteryLimitKeepsSession() { return }
             deactivate(reason: .manual)
         }
     }
@@ -1115,21 +1120,55 @@ final class KeepAwakeManager: ObservableObject {
         stopBatteryWatch()
         let t = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
             self?.checkBattery()
+            self?.checkClamshellBatteryLimit()
         }
         t.tolerance = 5
         RunLoop.main.add(t, forMode: .common)
         batteryTimer = t
         checkBattery()
+        checkClamshellBatteryLimit()
     }
 
     private func stopBatteryWatch() {
         batteryTimer?.invalidate()
         batteryTimer = nil
+        lidClosedOnBatterySince = nil
     }
 
     private func checkBattery() {
         guard isActive, batteryProtectionPercent() != nil else { return }
         deactivate(reason: .battery)
+    }
+
+    /// Ends the session once the lid has stayed closed on battery for the
+    /// chosen limit.
+    private func checkClamshellBatteryLimit() {
+        guard isActive, let deadline = clamshellBatteryDeadline(), deadline <= Date() else { return }
+        deactivate(reason: .timer)
+    }
+
+    private func clamshellBatteryLimitKeepsSession() -> Bool {
+        guard clamshellActive, currentEnabledAutomationConditions().contains(.power) else { return false }
+        let deadline = clamshellBatteryDeadline()
+        return KeepAwakeAutomationSupport.keepsSessionOnBattery(
+            limitMinutes: clamshellBatteryLimit(),
+            onBattery: SystemInfo.batterySnapshot()?.isOnBattery == true,
+            deadline: deadline, now: Date())
+    }
+
+    private func clamshellBatteryDeadline() -> Date? {
+        lidClosedOnBatterySince = KeepAwakeAutomationSupport.lidClosedOnBatterySince(
+            previous: lidClosedOnBatterySince,
+            lidClosed: clamshellActive && BrightnessService.lidClosed() == true,
+            onBattery: SystemInfo.batterySnapshot()?.isOnBattery == true,
+            now: Date())
+        return KeepAwakeAutomationSupport.clamshellBatteryDeadline(
+            since: lidClosedOnBatterySince, limitMinutes: clamshellBatteryLimit())
+    }
+
+    private func clamshellBatteryLimit() -> Int {
+        Defaults.sanitizedClamshellBatteryLimit(
+            UserDefaults.standard.integer(forKey: DefaultsKey.clamshellBatteryLimit))
     }
 
     /// The battery level while battery protection would end any session at
