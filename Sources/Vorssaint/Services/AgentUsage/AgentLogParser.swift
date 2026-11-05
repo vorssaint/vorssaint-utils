@@ -40,6 +40,9 @@ struct AgentLogState: Equatable {
     var lastTotal: AgentTokens?
     /// Codex runs the thread on the fast tier, which bills at a premium.
     var fast = false
+    /// The DeepSeek Harness feed names a parent when the session is a
+    /// subagent's, whose turns belong to the run it serves.
+    var dshSubagent = false
     /// A Codex subagent, review or memory task owns no turn. Only the log's
     /// metadata says so: a reverted thread goes on in a log named after both
     /// the thread and a new rollout.

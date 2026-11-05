@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 4
+    private static let format = 5
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -323,6 +323,7 @@ enum AgentUsageArchive {
             bool(value.sawUsageRecords)
             optional(value.lastTotal) { $0.tokens($1) }
             bool(value.fast)
+            bool(value.dshSubagent)
             bool(value.codexSubagent)
             bool(value.codexHeaderRead)
             string(value.codexRoot)
@@ -479,7 +480,8 @@ enum AgentUsageArchive {
 
         mutating func state() throws -> AgentLogState {
             var value = AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
-                                      sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool())
+                                      sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool(),
+                                      dshSubagent: try bool())
             value.codexSubagent = try bool()
             value.codexHeaderRead = try bool()
             value.codexRoot = try string()
