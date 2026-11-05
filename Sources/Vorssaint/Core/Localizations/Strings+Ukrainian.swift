@@ -187,6 +187,8 @@ extension Strings {
         colorPickerCaption: "Візьміть колір будь-якого пікселя на екрані та скопіюйте його в обраному форматі.",
         colorPickerFormatLabel: "Формат копіювання",
         colorPickerBareHexToggle: "Копіювати без префікса #",
+        colorPickerMenuBarIconToggle: "Показувати піктограму палітри в рядку меню",
+        colorPickerPanelName: "Відкрити панель кольорів",
         colorPickerPickNow: "Взяти колір",
         micMuteName: "Вимкнути мікрофон",
         micUnmuteName: "Увімкнути мікрофон",
