@@ -11,6 +11,14 @@ struct ClaudeReader: AgentHarnessReader {
 
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         if AgentLogParser.contains(line, #""type":"assistant""#) { return claudeAssistant(line, state: &state, now: now) }
+        // A headless slash command, like a skill that forks, writes its command
+        // line and then this system line only once it has finished.
+        if AgentLogParser.contains(line, #""type":"system""#), AgentLogParser.contains(line, "<local-command-std"),
+           let json = AgentLogParser.object(line), endsTurn(localCommandOutput: json) {
+            let open = state.turnOpen
+            state.turnOpen = false
+            return open ? [.turnEnded(nil, completed: false, duration: nil)] : []
+        }
         guard AgentLogParser.contains(line, #""type":"user""#) else { return [] }
         // A local command prints its output without asking the model anything,
         // so the command line that opened a turn closes it again. Only the
@@ -127,6 +135,12 @@ struct ClaudeReader: AgentHarnessReader {
         return texts.contains {
             $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std")
         }
+    }
+
+    /// The output line a finished local command leaves as a system entry.
+    private func endsTurn(localCommandOutput json: [String: Any]) -> Bool {
+        json["type"] as? String == "system" && json["subtype"] as? String == "local_command"
+            && (json["content"] as? String)?.hasPrefix("<local-command-std") == true
     }
 
     private func adopt(_ json: [String: Any], into state: inout AgentLogState) {
