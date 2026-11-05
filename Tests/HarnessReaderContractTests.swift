@@ -164,7 +164,7 @@ enum HarnessReaderContractTests {
         }
 
         var subagent = AgentLogState()
-        let subheader = line(#"{"v":1,"type":"session","session":"s-sub","ts":1790088000000,"cwd":"/Users/me/code/app","parent":"session-7fe88e4c-4773-4582-ab38-d5b56f942811"}"#)
+        let subheader = line(#"{"v":1,"type":"session","session":"s-sub","ts":1790088000000,"cwd":"/Users/me/code/app","subagent":true,"parent":"session-7fe88e4c-4773-4582-ab38-d5b56f942811"}"#)
         suite.expect(reader.parse(subheader, state: &subagent, now: now).isEmpty && subagent.dshSubagent
                         && subagent.session == "s-sub" && subagent.project == "app",
                      "a DeepSeek session header marks a subagent session")
@@ -179,6 +179,26 @@ enum HarnessReaderContractTests {
         } else {
             suite.expect(false, "a DeepSeek subagent's usage line is counted")
         }
+
+        // DSH keeps `parent` on an ordinary fork too, so it never classifies:
+        // only the header's own subagent flag does.
+        var fork = AgentLogState()
+        let forkHeader = line(#"{"v":1,"type":"session","session":"s-fork","ts":1790088000000,"cwd":"/Users/me/code/app","parent":"session-7fe88e4c-4773-4582-ab38-d5b56f942811"}"#)
+        suite.expect(reader.parse(forkHeader, state: &fork, now: now).isEmpty && !fork.dshSubagent,
+                     "a DeepSeek fork with a parent id is not a subagent")
+        suite.expect(reader.parse(start, state: &fork, now: now)
+                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000))],
+                     "a DeepSeek fork's turn start opens its turn")
+        suite.expect(reader.parse(end, state: &fork, now: now)
+                        == [.turnEnded(Date(timeIntervalSince1970: 1_790_088_020), completed: true, duration: nil)],
+                     "a DeepSeek fork's turn end closes its turn")
+        var unflaggedFork = AgentLogState()
+        let unflaggedHeader = line(#"{"v":1,"type":"session","session":"s-fork","ts":1790088000000,"cwd":"/Users/me/code/app","parent":"session-7fe88e4c-4773-4582-ab38-d5b56f942811","subagent":false}"#)
+        suite.expect(reader.parse(unflaggedHeader, state: &unflaggedFork, now: now).isEmpty
+                        && !unflaggedFork.dshSubagent
+                        && reader.parse(start, state: &unflaggedFork, now: now)
+                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000))],
+                     "a DeepSeek fork whose subagent flag is false keeps its turns")
 
         let root = AgentLogRoot(provider: .dsh, url: URL(fileURLWithPath: "/Users/me/.vorssaint/agents/dsh", isDirectory: true))
         suite.expect(root.accepts(root.url.appending(path: "session-7fe88e4c.jsonl").path)

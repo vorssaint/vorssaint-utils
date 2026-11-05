@@ -41,8 +41,9 @@ struct DSHReader: AgentHarnessReader {
             state.project = AgentLogParser.projectName(cwd)
         }
         // The header is repeated whenever the plugin restarts on a running
-        // session, so the parent it names now is the one that counts.
-        state.dshSubagent = !(envelope.string("parent") ?? "").isEmpty
+        // session. Only its own flag marks a subagent: a fork may keep the
+        // session it came from in `parent`, which is metadata.
+        state.dshSubagent = envelope.value("subagent") as? Bool == true
     }
 
     private func usage(_ envelope: AgentLogObject, date: Date, state: AgentLogState) -> [AgentLogEntry] {
