@@ -61,7 +61,8 @@ def main():
     brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"
     # Keep the representable, coordinator and cell together so native input
     # tests exercise the same construction and tracking as the island.
-    write("NotchLevelSlider.swift", "import AppKit\nimport SwiftUI\n"
+    (OUTPUT / "NotchLevelSlider.swift").unlink(missing_ok=True)
+    write("NotchLevelTrackingContract.swift", "import AppKit\nimport SwiftUI\n"
           + declaration(slider_control, "struct NotchLevelSlider:")
           + declaration(slider_control, "private final class NotchLevelControl:")
               .replace("private final class NotchLevelControl", "final class NotchLevelControl", 1)
