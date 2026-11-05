@@ -235,6 +235,8 @@ extension Strings {
         switcherMaxColumnsAuto: "自動",
         switcherInstantSelection: "選択を即時に切り替える",
         switcherInstantSelectionCaption: "アプリやウインドウを選ぶと、ハイライトとスクロール位置をすぐに切り替えます。",
+        switcherIgnoreHoverSelection: "ホバーでは選択しない",
+        switcherIgnoreHoverSelectionCaption: "アプリやウインドウの上にポインタを動かしても、ハイライトは動きません。クリックすると開きます。",
         switcherMergeTabs: "アプリごとに1つにまとめて表示",
         switcherMergeTabsCaption: "スイッチャーで、アプリのすべてのウインドウをウインドウごとではなく1つの項目にまとめます。",
         switcherWindowlessApps: "ウインドウなしのアプリ",

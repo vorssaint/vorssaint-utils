@@ -236,6 +236,8 @@ extension Strings {
         switcherMaxColumnsAuto: "Авто",
         switcherInstantSelection: "Мгновенный выбор",
         switcherInstantSelectionCaption: "При переходе между приложениями и окнами сразу перемещает выделение и прокручивает список.",
+        switcherIgnoreHoverSelection: "Не выбирать при наведении",
+        switcherIgnoreHoverSelectionCaption: "Перемещение указателя по приложениям и окнам не сдвигает выделение. Щелчок по-прежнему открывает элемент.",
         switcherMergeTabs: "Показывать одну запись на приложение",
         switcherMergeTabsCaption: "Сводит все окна приложения в одну запись в переключателе вместо отдельной записи на каждое окно.",
         switcherWindowlessApps: "Приложения без открытых окон",

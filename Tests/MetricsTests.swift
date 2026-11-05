@@ -220,6 +220,7 @@ struct MetricsTests {
             }),
             ("spaces-order", { SpacesOrderTests.run(suite) }),
             ("switcher", {
+                SwitcherHoverSelectionTests.run(suite)
                 SwitcherAllWindowsTests.run(suite)
                 AXWindowResolverTests.run(suite)
                 SwitcherSearchLayoutTests.run(suite)

@@ -235,6 +235,8 @@ extension Strings {
         switcherMaxColumnsAuto: "Auto",
         switcherInstantSelection: "Okamžitý výber",
         switcherInstantSelectionCaption: "Pri prechádzaní aplikácií a okien okamžite presunie zvýraznenie a posunie zoznam.",
+        switcherIgnoreHoverSelection: "Ignorovať výber pri ukázaní",
+        switcherIgnoreHoverSelectionCaption: "Posun ukazovateľa po aplikáciách a oknách nechá zvýraznenie na mieste. Kliknutie stále otvorí položku.",
         switcherMergeTabs: "Zobraziť jednu položku na aplikáciu",
         switcherMergeTabsCaption: "Zlúči všetky okná aplikácie do jednej položky v prepínači namiesto jednej položky na každé okno.",
         switcherWindowlessApps: "Aplikácie bez otvoreného okna",

@@ -226,6 +226,8 @@ extension Strings {
         switcherMaxColumnsAuto: "Авто",
         switcherInstantSelection: "Миттєвий вибір",
         switcherInstantSelectionCaption: "Під час переходу між програмами та вікнами одразу переміщує виділення і прокручує список.",
+        switcherIgnoreHoverSelection: "Не вибирати при наведенні",
+        switcherIgnoreHoverSelectionCaption: "Переміщення вказівника програмами й вікнами не зсуває виділення. Клацання й далі відкриває елемент.",
         switcherMergeTabs: "Показувати один запис на програму",
         switcherMergeTabsCaption: "Зводить усі вікна програми в один запис у перемикачі замість окремого запису на кожне вікно.",
         switcherWindowlessApps: "Програми без відкритих вікон",
