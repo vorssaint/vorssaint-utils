@@ -42,7 +42,8 @@ final class WindowLayoutService: ObservableObject {
     // back, so half then maximize still returns to the size before the half.
     private var restoreFrames: [WindowLayoutWindowKey: WindowLayoutFrame] = [:]
     // Where each window's last placement left it, as requested and as read
-    // back, minimum sizes included: the side size cycle only advances from there.
+    // back, minimum sizes included. Both the side cycle and drag restoration
+    // must distinguish a settled placement from a later change by hand.
     private var settledFrames: [WindowLayoutWindowKey: WindowLayoutSettledFrame] = [:]
     private var hotKeyRefs: [WindowLayoutAction: EventHotKeyRef] = [:]
     private var eventHandler: EventHandlerRef?
@@ -376,7 +377,7 @@ final class WindowLayoutService: ObservableObject {
                                   visibleFrame: visibleFrame)
         if placement.frame == target.frame {
             lastActions[target.key] = effectiveAction
-            if let cyclePress {
+            if cyclePress != nil || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag) {
                 settledFrames[target.key] = WindowLayoutSettledFrame(requested: target.frame,
                                                                      actual: target.frame,
                                                                      pressedAction: cyclePress)
@@ -389,9 +390,9 @@ final class WindowLayoutService: ObservableObject {
         // A placement from a window that is not sitting in a snapped place
         // starts a new run, so its size is the one a drag away gives back.
         let previousRestoreFrame = restoreFrames[target.key]
-        if previousRestoreFrame == nil || !isSnapped(target) {
-            restoreFrames[target.key] = historyFrame ?? target.frame
-        }
+        let beforeDrag = WindowLayoutTarget(window: target.window, key: target.key,
+                                            frame: historyFrame ?? target.frame)
+        let startsRun = previousRestoreFrame == nil || !isSnapped(beforeDrag)
         if setFrame(placement.frame,
                     targetRect: placement.rect,
                     screenVisibleFrame: visibleFrame,
@@ -399,6 +400,7 @@ final class WindowLayoutService: ObservableObject {
                     on: target.window,
                     windowKey: target.key,
                     cyclePress: cyclePress) {
+            if startsRun { restoreFrames[target.key] = historyFrame ?? target.frame }
             lastActions[target.key] = effectiveAction
             return finish(.success(restored: false))
         }
@@ -412,11 +414,9 @@ final class WindowLayoutService: ObservableObject {
     private func isSnapped(_ target: WindowLayoutTarget) -> Bool {
         guard let action = lastActions[target.key],
               action != .fullScreen,
-              let screen = bestScreen(for: target.frame) else { return false }
-        let rect = placement(for: action,
-                             current: target.frame,
-                             visibleFrame: screen.windowLayoutVisibleFrame).rect
-        return accepted(actual: target.frame, targetRect: rect, action: action)
+              let settled = settledFrames[target.key] else { return false }
+        return target.frame.isClose(to: settled.actual, tolerance: frameTolerance)
+            || target.frame.isClose(to: settled.requested, tolerance: frameTolerance)
     }
 
     private func focusedTarget(for action: WindowLayoutAction) -> WindowLayoutTarget? {
@@ -589,9 +589,8 @@ final class WindowLayoutService: ObservableObject {
         settledFrames.removeValue(forKey: windowKey)
         if attempt(frame, targetRect: targetRect, visibleFrame: screenVisibleFrame, action: action, on: window) {
             assistiveModeSuspensions.removeValue(forKey: windowID)?.resume()
-            // Only the side size cycle uses the settled frame, so the read-back
-            // and its later refresh run only for a press that may cycle.
-            if let cyclePress {
+            // Read-back is needed only by the side cycle or opt-in drag restore.
+            if cyclePress != nil || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag) {
                 let actual = self.frame(of: window) ?? frame
                 settledFrames[windowKey] = WindowLayoutSettledFrame(requested: frame,
                                                                     actual: actual,
@@ -613,6 +612,11 @@ final class WindowLayoutService: ObservableObject {
         // the reads above can still see the old frame. Judging failure now and
         // restoring the original is what used to leave windows moved but never
         // resized (issue #334): let the window settle before deciding.
+        if UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag) {
+            settledFrames[windowKey] = WindowLayoutSettledFrame(requested: frame,
+                                                                actual: original ?? frame,
+                                                                pressedAction: cyclePress)
+        }
         scheduleSettle(SettleContext(window: window,
                                      windowID: windowID,
                                      frame: frame,
@@ -621,6 +625,7 @@ final class WindowLayoutService: ObservableObject {
                                      action: action,
                                      original: original,
                                      previousAction: lastActions[windowKey],
+                                     previousRestoreFrame: restoreFrames[windowKey],
                                      cyclePress: cyclePress,
                                      windowKey: windowKey,
                                      resultGeneration: resultGeneration + 1),
@@ -719,14 +724,15 @@ final class WindowLayoutService: ObservableObject {
     private func concludeSettle(_ context: SettleContext, success: Bool) {
         assistiveModeSuspensions.removeValue(forKey: context.windowID)?.resume()
         if success {
-            if let cyclePress = context.cyclePress {
+            if context.cyclePress != nil || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag) {
                 settledFrames[context.windowKey] = WindowLayoutSettledFrame(requested: context.frame,
                                                                             actual: frame(of: context.window) ?? context.frame,
-                                                                            pressedAction: cyclePress)
+                                                                            pressedAction: context.cyclePress)
             }
             return
         }
         settledFrames.removeValue(forKey: context.windowKey)
+        restoreFrames[context.windowKey] = context.previousRestoreFrame
         if let original = context.original {
             applyFrame(original, on: context.window)
         }
@@ -1636,19 +1642,26 @@ final class WindowLayoutService: ObservableObject {
             let followsMoveGesture = edgeSnapFollowsMoveGesture
             let velocity = edgeSnapTrail.velocity(at: time)
             // Looking the window up here waits on its app from the run loop
-            // that serves the taps. It happens only for a release over a snap
-            // zone, once the window server shows the window followed the
-            // pointer, so the release of a drag inside an app never asks that
-            // app. A modifier move needs no such evidence: Vorssaint moved
-            // that window itself. Its release only skips a lookup that has
+            // that serves the taps. It happens only over a snap zone or for
+            // an opt-in restore with a saved size, after the window server
+            // shows that the window followed the pointer. Content drags never
+            // ask the app here. A modifier move needs no such evidence:
+            // Vorssaint moved that window itself. Its release skips a lookup that has
             // already come back empty every time it was tried.
             let lookupsExhausted = edgeSnapResolveAttempts >= edgeSnapResolveAttemptLimit && !edgeSnapResolving
             let releasedOverZone = pressOrigin.map {
                 WindowGestureSupport.exceedsDragSlop(from: $0, to: location)
                     && edgeSnapTarget(atQuartzPoint: location, velocity: velocity) != nil
             } ?? false
+            let mayRestore = !followsMoveGesture
+                && UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag)
+                && pressCandidate.map { candidate in
+                    restoreFrames.keys.contains {
+                        $0.processID == candidate.pid && $0.windowID == candidate.windowID
+                    }
+                } == true
             var lookedUpAtRelease = false
-            if edgeSnapDrag == nil, releasedOverZone,
+            if edgeSnapDrag == nil, releasedOverZone || mayRestore,
                let pressOrigin, let pressCandidate,
                followsMoveGesture
                 ? !lookupsExhausted
@@ -1672,7 +1685,7 @@ final class WindowLayoutService: ObservableObject {
                 // A window whose lookup already came back empty at release is
                 // not asked a second time, and a modifier move has nothing
                 // left for the window server to show.
-                guard releasedOverZone, !lookedUpAtRelease, !followsMoveGesture,
+                guard releasedOverZone || mayRestore, !lookedUpAtRelease, !followsMoveGesture,
                       let pressOrigin, let pressCandidate
                 else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
@@ -1695,21 +1708,14 @@ final class WindowLayoutService: ObservableObject {
                 }
                 return
             }
-            guard let target = completed.target else { return }
-            // The callback has already forwarded this mouse-up. One
-            // more main-loop turn lets the target app finish its own drag
-            // before the placement writes the final frame.
-            DispatchQueue.main.async { [weak self] in
-                guard let self, generation == self.edgeSnapSequenceGeneration else { return }
-                self.applyEdgeSnap(completed, target: target)
-            }
+            finishEdgeSnapRelease(completed, target: completed.target, pointer: location)
         }
     }
 
     /// The check 40 ms after a release that left the drag undecided, which
     /// covers nearly every drag inside an app. The frame comes from the window
     /// server like every sample before it, and only a window that moved goes on
-    /// to the placement, the one step that has to ask its app.
+    /// to a placement or an opt-in size restoration that asks its app.
     private func applyDelayedEdgeSnapIfMoved(_ drag: WindowEdgeSnapDrag,
                                              releaseLocation: CGPoint,
                                              velocity: CGVector) {
@@ -1719,10 +1725,46 @@ final class WindowLayoutService: ObservableObject {
                 currentFrame: current,
                 pointerStart: drag.pointerStart,
                 pointerNow: releaseLocation
-              ) == .moving,
-              let target = edgeSnapTarget(atQuartzPoint: releaseLocation, velocity: velocity)
+              ) == .moving
         else { return }
-        applyEdgeSnap(drag, target: target)
+        var completed = drag
+        restoreSnappedWindowIfNeeded(&completed, pointer: releaseLocation)
+        finishEdgeSnapRelease(completed,
+                              target: edgeSnapTarget(atQuartzPoint: releaseLocation, velocity: velocity),
+                              pointer: releaseLocation)
+    }
+
+    /// A released drag may still be waiting for the app to commit its resize.
+    /// Observe once more, without repeating the resize or touching a newer drag.
+    private func finishEdgeSnapRelease(_ drag: WindowEdgeSnapDrag,
+                                       target: WindowEdgeSnapTarget?,
+                                       pointer: CGPoint) {
+        guard drag.restorePending || target != nil else { return }
+        let generation = edgeSnapSequenceGeneration
+        let finish = { [weak self] in
+            guard let self, generation == self.edgeSnapSequenceGeneration else { return }
+            var completed = drag
+            if completed.restorePending,
+               (!self.edgeSnapCanTrack || !self.edgeSnapWindowIsEligible(completed)) { return }
+            self.finishSnappedWindowRestore(&completed, pointer: pointer)
+            if completed.restorePending,
+               let actual = self.frame(of: completed.window) {
+                // A refusal must not consume the original size. Keep the
+                // confirmed frame for both a retry and a snap in this drag.
+                completed.initialFrame = CGRect(origin: actual.origin, size: actual.size)
+                if self.restoreFrames[completed.key] != nil {
+                    self.settledFrames[completed.key] = WindowLayoutSettledFrame(requested: actual, actual: actual)
+                }
+            }
+            if let target { self.applyEdgeSnap(completed, target: target) }
+        }
+        // The mouse-up was already forwarded. Give a pending resize one bounded
+        // read-back; ordinary snapping still takes just the next main-loop turn.
+        if drag.restorePending {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.04, execute: finish)
+        } else {
+            DispatchQueue.main.async(execute: finish)
+        }
     }
 
     /// Whether the pressed window followed the pointer, as the window server
@@ -1758,11 +1800,11 @@ final class WindowLayoutService: ObservableObject {
     /// on a real drag, that search was most of what the main thread still spent
     /// blocked, which showed up as a stall at every press.
     ///
-    /// Nothing during a drag needs that element: the rectangle comes from the
-    /// window server and the snap target is pure geometry. It is needed only to
-    /// move the window once the drag ends, so it is resolved in the background
-    /// and adopted when it arrives. A drag that ends before the answer still
-    /// snaps, because the release path looks the window up itself. That lookup
+    /// Tracking uses the window server rectangle and pure target geometry.
+    /// The AX element is needed for opt-in size restoration once movement is
+    /// confirmed, or for placement on release, so it is resolved in the
+    /// background and adopted when it arrives. A drag ending before the answer
+    /// still snaps, because the release path looks the window up itself. That lookup
     /// runs on the run loop the taps share, so it is kept for a window the
     /// window server saw follow the pointer.
     private func beginEdgeSnapResolve(pointerStart: CGPoint,
@@ -1850,6 +1892,7 @@ final class WindowLayoutService: ObservableObject {
     /// clock when no event brought it.
     private func updateEdgeSnapDrag(at location: CGPoint, forceSample: Bool, now: TimeInterval) {
         guard var drag = edgeSnapDrag else { return }
+        if drag.isMoving, forceSample { finishSnappedWindowRestore(&drag, pointer: location) }
         if !drag.isMoving {
             let sampledAt = ProcessInfo.processInfo.systemUptime
             guard forceSample || sampledAt - drag.lastSampleAt >= edgeSnapSampleInterval else { return }
@@ -1909,31 +1952,59 @@ final class WindowLayoutService: ObservableObject {
         guard !edgeSnapFollowsMoveGesture,
               UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag),
               let restore = restoreFrames[drag.key],
-              let app = NSRunningApplication(processIdentifier: drag.key.processID),
-              !WindowLayoutIgnoredApps.shared.contains(bundleID: app.bundleIdentifier,
-                                                       executablePath: app.executableURL?.path),
-              canSetFrame(on: drag.window)
+              !drag.restorePending
         else { return }
         let pressed = WindowLayoutFrame(origin: drag.initialFrame.origin, size: drag.initialFrame.size)
         let target = WindowLayoutTarget(window: drag.window, key: drag.key, frame: pressed)
         guard WindowEdgeSnapSupport.needsSizeRestore(from: pressed.size, to: restore.size),
-              isSnapped(target) else { return }
-        let screenFrame = drag.quartzScreenFrames.first { $0.contains(pointer) }
-        let frame = WindowEdgeSnapSupport.restoredFrame(snapped: drag.initialFrame,
-                                                        restoreSize: restore.size,
-                                                        pointerStart: drag.pointerStart,
-                                                        pointerNow: pointer,
-                                                        screenFrame: screenFrame)
-        let restored = WindowLayoutFrame(origin: frame.origin, size: frame.size)
+              isSnapped(target), canRestoreSnappedWindow(drag),
+              canSetFrame(on: drag.window) else { return }
         cancelSettle(for: drag.key.windowID)
-        let suspension = EnhancedUserInterfaceSuspension.suspend(forAppOf: drag.window)
-        applyFrame(restored, on: drag.window)
-        suspension?.resume()
+        let suspension = assistiveModeSuspensions.removeValue(forKey: drag.key.windowID)
+            ?? EnhancedUserInterfaceSuspension.suspend(forAppOf: drag.window)
+        defer { suspension?.resume() }
+        drag.restorePending = true
+        // Move only after the app confirms a size. A refusal must not reposition
+        // a still-large window using the width of the smaller requested frame.
+        _ = setSize(restore.size, on: drag.window)
+        finishSnappedWindowRestore(&drag, pointer: pointer)
+    }
+
+    private func canRestoreSnappedWindow(_ drag: WindowEdgeSnapDrag) -> Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag)
+            && edgeSnapCanTrack
+            && restoreFrames[drag.key] != nil
+            && lastActions[drag.key] != .fullScreen
+            && edgeSnapWindowIsEligible(drag)
+    }
+
+    private func edgeSnapWindowIsEligible(_ drag: WindowEdgeSnapDrag) -> Bool {
+        guard let app = NSRunningApplication(processIdentifier: drag.key.processID),
+              !app.isTerminated,
+              (app.launchDate?.timeIntervalSinceReferenceDate ?? 0) == drag.key.processLaunchTime,
+              !WindowLayoutIgnoredApps.shared.contains(bundleID: app.bundleIdentifier,
+                                                       executablePath: app.executableURL?.path)
+        else { return false }
+        return AXWindowResolver.windowID(for: drag.window) == drag.key.windowID
+    }
+
+    private func finishSnappedWindowRestore(_ drag: inout WindowEdgeSnapDrag, pointer: CGPoint) {
+        guard drag.restorePending, canRestoreSnappedWindow(drag),
+              let actual = frame(of: drag.window),
+              WindowEdgeSnapSupport.needsSizeRestore(from: drag.initialFrame.size, to: actual.size)
+        else { return }
+        let rect = WindowEdgeSnapSupport.restoredFrame(snapped: drag.initialFrame,
+                                                       restoreSize: actual.size,
+                                                       pointerStart: drag.pointerStart,
+                                                       pointerNow: pointer,
+                                                       screenFrame: drag.quartzScreenFrames.first { $0.contains(pointer) })
+        _ = setPosition(rect.origin, on: drag.window)
+        guard let confirmed = frame(of: drag.window) else { return }
         lastActions.removeValue(forKey: drag.key)
         settledFrames.removeValue(forKey: drag.key)
         restoreFrames.removeValue(forKey: drag.key)
-        // Snapping again in the same drag then remembers this unsnapped frame.
-        drag.initialFrame = frame
+        drag.initialFrame = CGRect(origin: confirmed.origin, size: confirmed.size)
+        drag.restorePending = false
     }
 
     /// `velocity` is in Quartz points per second, like the point.
@@ -2571,17 +2642,30 @@ final class WindowLayoutService: ObservableObject {
         // No cap here: on the system-wide element a timeout is the default for
         // every question this process asks, whoever asks it (#938).
         var rawElement: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &rawElement) == .success,
-              let element = rawElement
-        else { return nil }
-        AXUIElementSetMessagingTimeout(element, 0.25)
-
-        let window: AXUIElement?
-        if role(of: element) == (kAXWindowRole as String) {
-            window = element
-        } else {
-            window = windowAttribute(element, kAXWindowAttribute as String)
-                ?? windowAttribute(element, kAXTopLevelUIElementAttribute as String)
+        var window: AXUIElement?
+        if AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &rawElement) == .success,
+           let element = rawElement {
+            AXUIElementSetMessagingTimeout(element, 0.25)
+            if role(of: element) == (kAXWindowRole as String) {
+                window = element
+            } else {
+                window = windowAttribute(element, kAXWindowAttribute as String)
+                    ?? windowAttribute(element, kAXTopLevelUIElementAttribute as String)
+            }
+        }
+        if window == nil {
+            // Custom-drawn content may expose no AX child at the press point.
+            // Resolve the exact click receiver, never a focused or covered window.
+            guard let windowID = WindowServerSupport.receivingWindow(at: point),
+                  let pid = WindowServerSupport.ownerProcessID(ofWindowID: windowID),
+                  pid != ProcessInfo.processInfo.processIdentifier,
+                  let app = NSRunningApplication(processIdentifier: pid),
+                  !app.isTerminated, app.activationPolicy == .regular else { return nil }
+            let axApp = AXUIElementCreateApplication(pid)
+            // This extra search runs inside the mouse tap. Its whole scan must
+            // fit one short budget, not a fresh timeout for every app window.
+            window = AXWindowResolver.publishedElement(for: windowID, in: axApp,
+                deadline: ProcessInfo.processInfo.systemUptime + 0.1)
         }
         guard let window else { return nil }
         AXUIElementSetMessagingTimeout(window, 0.25)
@@ -2598,7 +2682,8 @@ final class WindowLayoutService: ObservableObject {
               app.activationPolicy == .regular,
               let frame = frame(of: window),
               frame.size.width > 80,
-              frame.size.height > 80
+              frame.size.height > 80,
+              CGRect(origin: frame.origin, size: frame.size).contains(point)
         else { return nil }
         return WindowGestureTarget(window: window, app: app, frame: frame)
     }
@@ -3110,8 +3195,9 @@ private struct SettleContext {
     let action: WindowLayoutAction
     let original: WindowLayoutFrame?
     let previousAction: WindowLayoutAction?
-    /// The side key recorded for the size cycle, nil when the placement
-    /// cannot cycle and so needs no read-back once it settles.
+    let previousRestoreFrame: WindowLayoutFrame?
+    /// The side key recorded for the size cycle, nil for other placements.
+    /// Opt-in drag restoration also uses the settled frame without a side key.
     let cyclePress: WindowLayoutAction?
     let windowKey: WindowLayoutWindowKey
     /// Which published result this settle belongs to; a late failure only
@@ -3155,6 +3241,7 @@ private struct WindowEdgeSnapDrag {
     var mismatchCount: Int
     var isMoving: Bool
     var target: WindowEdgeSnapTarget?
+    var restorePending = false
 }
 
 /// A press the tap is holding while it is still undecided. It keeps the
