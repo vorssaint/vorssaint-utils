@@ -55,6 +55,9 @@ enum ScreenshotSpotlightEditingTests {
         var blurLevel = ScreenshotSupport.BlurStrength.defaultLevel
         var blurStyle: ScreenshotSupport.BlurStyleID = .pixelate
         var blurTextOnly = false
+        var shapeFill: ScreenshotSupport.ShapeFillID = .outline
+        var sloppy = false
+        var activeCustomColor: ScreenshotSupport.CustomColor?
         var selectDrags: [CGPoint] = []
 
         let baseImage: CGImage

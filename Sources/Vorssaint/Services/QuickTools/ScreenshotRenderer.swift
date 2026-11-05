@@ -24,19 +24,57 @@ enum ScreenshotRenderer {
         return NSColor(srgbRed: c.red, green: c.green, blue: c.blue, alpha: 1)
     }
 
+    /// A mark's own color, custom or preset.
+    static func color(_ annotation: ScreenshotSupport.Annotation, alpha: CGFloat = 1) -> CGColor {
+        let c = ScreenshotSupport.components(of: annotation)
+        return CGColor(srgbRed: c.red, green: c.green, blue: c.blue, alpha: alpha)
+    }
+
+    static func nsColor(_ annotation: ScreenshotSupport.Annotation) -> NSColor {
+        let c = ScreenshotSupport.components(of: annotation)
+        return NSColor(srgbRed: c.red, green: c.green, blue: c.blue, alpha: 1)
+    }
+
     static func fontSize(for textSize: Int, scale: CGFloat) -> CGFloat {
         CGFloat(textSize) * scale
     }
 
     /// Measures a text annotation's box for hit-testing and the inline editor.
+    /// A label grows by its padding, so its whole pill answers a click.
     static func textBounds(_ text: String,
                            at origin: CGPoint,
                            textSize: Int,
-                           scale: CGFloat) -> CGRect {
+                           scale: CGFloat,
+                           style: ScreenshotSupport.TextStyleID = .plain) -> CGRect {
         let font = NSFont.systemFont(ofSize: fontSize(for: textSize, scale: scale), weight: .semibold)
         let measured = (text.isEmpty ? " " : text).size(withAttributes: [.font: font])
+        let inset = textInsets(textSize: textSize, scale: scale, style: style)
         return CGRect(origin: origin,
-                      size: CGSize(width: ceil(measured.width) + 4, height: ceil(measured.height)))
+                      size: CGSize(width: ceil(measured.width) + 4 + inset.width * 2,
+                                   height: ceil(measured.height) + inset.height * 2))
+    }
+
+    /// Room between a label's pill and its text; plain and outlined text
+    /// draw straight at their origin.
+    static func textInsets(textSize: Int,
+                           scale: CGFloat,
+                           style: ScreenshotSupport.TextStyleID) -> CGSize {
+        guard style == .label else { return .zero }
+        let size = fontSize(for: textSize, scale: scale)
+        return CGSize(width: size * 0.42, height: size * 0.2)
+    }
+
+    /// White on dark marks and near black on white or yellow ones.
+    static func contrastColor(for id: ScreenshotSupport.ColorID) -> NSColor {
+        ScreenshotSupport.prefersDarkContrast(id)
+            ? NSColor(srgbRed: 0.09, green: 0.09, blue: 0.11, alpha: 1)
+            : .white
+    }
+
+    static func contrastColor(for annotation: ScreenshotSupport.Annotation) -> NSColor {
+        ScreenshotSupport.prefersDarkContrast(annotation)
+            ? NSColor(srgbRed: 0.09, green: 0.09, blue: 0.11, alpha: 1)
+            : .white
     }
 
     // MARK: - Annotation pass
@@ -59,8 +97,19 @@ enum ScreenshotRenderer {
         var precedingImages: [ScreenshotSupport.Annotation] = []
         let bounds = CGRect(origin: .zero, size: imageSize)
         let topSpotlight = annotations.lastIndex { litRegion($0, within: bounds) != nil }
+        // Lenses must also respect censors added after them: enlarging a
+        // secret can put its pixels outside the censor's original rectangle.
+        let censors = annotations.filter { $0.tool == .pixelate || $0.tool == .redact }
         for (index, annotation) in annotations.enumerated() {
             switch annotation.tool {
+            case .magnifier:
+                drawMagnifier(annotation, in: context, source: blurSources.image,
+                              censors: censors, blurSources: blurSources,
+                              imageSize: imageSize, scale: scale,
+                              shadowsEnabled: annotationShadowsEnabled)
+            case .ruler:
+                drawRuler(annotation, in: context, scale: scale,
+                          shadowsEnabled: annotationShadowsEnabled)
             case .pixelate:
                 // Every style paints what lies below the area, pasted images
                 // included, and only images its paint reads change what that is.
@@ -80,24 +129,38 @@ enum ScreenshotRenderer {
                     context.restoreGState()
                 }
             case .redact:
-                context.setFillColor(color(annotation.color))
+                context.setFillColor(color(annotation))
                 context.fill(annotation.rect)
             case .highlight:
                 context.saveGState()
                 context.setBlendMode(.multiply)
-                context.setFillColor(color(annotation.color, alpha: 0.42))
+                context.setFillColor(color(annotation, alpha: 0.42))
                 context.fill(annotation.rect)
                 context.restoreGState()
             case .rect:
-                strokeShape(in: context, annotation: annotation, scale: scale,
-                            shadowsEnabled: annotationShadowsEnabled) {
-                    context.stroke(annotation.rect)
-                }
+                let rect = annotation.rect.standardized
+                let corner = ScreenshotSupport.shapeCornerRadius(for: rect, scale: scale)
+                let shape = CGPath(roundedRect: rect, cornerWidth: corner, cornerHeight: corner,
+                                   transform: nil)
+                drawShape(shape,
+                          ink: annotation.sloppy
+                            ? ScreenshotSupport.sloppyRectPath(
+                                rect, strokeWidth: annotation.stroke.width * scale,
+                                seed: annotation.scribbleSeed)
+                            : nil,
+                          annotation: annotation, in: context, scale: scale,
+                          shadowsEnabled: annotationShadowsEnabled)
             case .ellipse:
-                strokeShape(in: context, annotation: annotation, scale: scale,
-                            shadowsEnabled: annotationShadowsEnabled) {
-                    context.strokeEllipse(in: annotation.rect)
-                }
+                let rect = annotation.rect.standardized
+                let shape = CGPath(ellipseIn: rect, transform: nil)
+                drawShape(shape,
+                          ink: annotation.sloppy
+                            ? ScreenshotSupport.sloppyEllipsePath(
+                                rect, strokeWidth: annotation.stroke.width * scale,
+                                seed: annotation.scribbleSeed)
+                            : nil,
+                          annotation: annotation, in: context, scale: scale,
+                          shadowsEnabled: annotationShadowsEnabled)
             case .line:
                 drawLine(annotation, in: context, scale: scale,
                          shadowsEnabled: annotationShadowsEnabled)
@@ -169,18 +232,186 @@ enum ScreenshotRenderer {
         context.restoreGState()
     }
 
-    private static func strokeShape(in context: CGContext,
-                                    annotation: ScreenshotSupport.Annotation,
-                                    scale: CGFloat,
-                                    shadowsEnabled: Bool,
-                                    stroke: () -> Void) {
+    /// Fills and outlines a rectangle or ellipse in one transparency layer,
+    /// so a tinted fill and its outline cast a single shadow. A sloppy shape
+    /// fills its hand-drawn `ink` around the regular fill instead of a stroke.
+    private static func drawShape(_ path: CGPath,
+                                  ink: CGPath?,
+                                  annotation: ScreenshotSupport.Annotation,
+                                  in context: CGContext,
+                                  scale: CGFloat,
+                                  shadowsEnabled: Bool) {
         context.saveGState()
         applyShadow(context, scale: scale, enabled: shadowsEnabled)
-        context.setStrokeColor(color(annotation.color))
-        context.setLineWidth(annotation.stroke.width * scale)
-        context.setLineJoin(.round)
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        switch annotation.fill {
+        case .outline:
+            break
+        case .translucent:
+            context.addPath(path)
+            context.setFillColor(color(annotation, alpha: 0.22))
+            context.fillPath()
+        case .solid:
+            context.addPath(path)
+            context.setFillColor(color(annotation))
+            context.fillPath()
+        }
+        if let ink {
+            context.addPath(ink)
+            context.setFillColor(color(annotation))
+            context.fillPath()
+        } else {
+            context.addPath(path)
+            context.setStrokeColor(color(annotation))
+            context.setLineWidth(annotation.stroke.width * scale)
+            context.setLineJoin(.round)
+            context.setLineCap(.round)
+            context.strokePath()
+        }
+        context.endTransparencyLayer()
+        context.restoreGState()
+    }
+
+    /// A round lens that enlarges the capture under its center, ringed in
+    /// white so it reads as an object laid over the picture.
+    private static func drawMagnifier(_ annotation: ScreenshotSupport.Annotation,
+                                      in context: CGContext,
+                                      source: CGImage?,
+                                      censors: [ScreenshotSupport.Annotation],
+                                      blurSources: BlurSources,
+                                      imageSize: CGSize,
+                                      scale: CGFloat,
+                                      shadowsEnabled: Bool) {
+        let circle = ScreenshotSupport.magnifierCircle(in: annotation.rect.standardized)
+        guard circle.width > 1, let source else { return }
+        let zoom = ScreenshotSupport.magnifierZoom
+        let center = CGPoint(x: circle.midX, y: circle.midY)
+        let sampleSide = circle.width / zoom
+        let wanted = CGRect(x: center.x - sampleSide / 2, y: center.y - sampleSide / 2,
+                            width: sampleSide, height: sampleSide)
+        let sample = wanted.integral.intersection(CGRect(origin: .zero, size: imageSize))
+        let ring = max(2.5 * scale, circle.width * 0.018)
+
+        // A lens is a raised object even with mark shadows off, so it always
+        // casts a soft one; the toggle only deepens it.
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: 3 * scale),
+                          blur: (shadowsEnabled ? 14 : 9) * scale,
+                          color: CGColor(gray: 0, alpha: shadowsEnabled ? 0.5 : 0.35))
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fillEllipse(in: circle)
+        context.restoreGState()
+
+        if !sample.isEmpty,
+           let cropped = magnifierSample(source, in: sample, censors: censors,
+                                         blurSources: blurSources, imageSize: imageSize) {
+            let destination = CGRect(x: center.x + (sample.minX - center.x) * zoom,
+                                     y: center.y + (sample.minY - center.y) * zoom,
+                                     width: sample.width * zoom,
+                                     height: sample.height * zoom)
+            context.saveGState()
+            context.addEllipse(in: circle)
+            context.clip()
+            context.setBlendMode(.copy)
+            context.translateBy(x: 0, y: destination.minY + destination.maxY)
+            context.scaleBy(x: 1, y: -1)
+            context.interpolationQuality = .high
+            context.draw(cropped, in: destination)
+            context.restoreGState()
+        }
+
+        context.saveGState()
+        context.setStrokeColor(CGColor(gray: 1, alpha: 1))
+        context.setLineWidth(ring)
+        context.strokeEllipse(in: circle.insetBy(dx: ring / 2, dy: ring / 2))
+        context.setStrokeColor(CGColor(gray: 0, alpha: 0.18))
+        context.setLineWidth(max(1, scale * 0.75))
+        context.strokeEllipse(in: circle)
+        context.restoreGState()
+    }
+
+    /// Censor the sampled source pixels before enlarging them. Work only on
+    /// the small lens sample, rather than allocating another capture-sized
+    /// bitmap on every drag. Allocation failure never falls back to raw data.
+    private static func magnifierSample(_ source: CGImage,
+                                        in sample: CGRect,
+                                        censors: [ScreenshotSupport.Annotation],
+                                        blurSources: BlurSources,
+                                        imageSize: CGSize) -> CGImage? {
+        guard let cropped = source.cropping(to: sample) else { return nil }
+        let intersecting = censors.filter { $0.rect.standardized.intersects(sample) }
+        guard !intersecting.isEmpty else { return cropped }
+        guard let context = CGContext(data: nil, width: cropped.width, height: cropped.height,
+                                      bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        context.draw(cropped, in: CGRect(x: 0, y: 0, width: cropped.width, height: cropped.height))
+        context.translateBy(x: 0, y: CGFloat(cropped.height))
+        context.scaleBy(x: 1, y: -1)
+        context.translateBy(x: -sample.minX, y: -sample.minY)
+        for censor in intersecting {
+            if censor.tool == .redact {
+                context.setFillColor(color(censor.color))
+                context.fill(censor.rect)
+            } else {
+                drawBlurArea(censor, in: context, sources: blurSources, imageSize: imageSize)
+            }
+        }
+        return context.makeImage()
+    }
+
+    /// A measuring line: end ticks across the line and its length on a pill
+    /// at the middle, in capture pixels.
+    private static func drawRuler(_ annotation: ScreenshotSupport.Annotation,
+                                  in context: CGContext,
+                                  scale: CGFloat,
+                                  shadowsEnabled: Bool) {
+        guard annotation.points.count >= 2 else { return }
+        let start = annotation.points[0]
+        let end = annotation.points[1]
+        let length = hypot(end.x - start.x, end.y - start.y)
+        guard length > 0 else { return }
+        let width = max(1.5 * scale, annotation.stroke.width * scale * 0.75)
+        let normal = CGPoint(x: -(end.y - start.y) / length, y: (end.x - start.x) / length)
+        let tick = 6 * scale + width
+
+        context.saveGState()
+        applyShadow(context, scale: scale, enabled: shadowsEnabled)
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        context.setStrokeColor(color(annotation))
+        context.setLineWidth(width)
         context.setLineCap(.round)
-        stroke()
+        context.beginPath()
+        context.move(to: start)
+        context.addLine(to: end)
+        for point in [start, end] {
+            context.move(to: CGPoint(x: point.x - normal.x * tick, y: point.y - normal.y * tick))
+            context.addLine(to: CGPoint(x: point.x + normal.x * tick, y: point.y + normal.y * tick))
+        }
+        context.strokePath()
+
+        let label = "\(ScreenshotSupport.rulerLength(from: start, to: end)) px"
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 12.5 * scale, weight: .semibold)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: contrastColor(for: annotation),
+        ]
+        let textSize = label.size(withAttributes: attributes)
+        let pill = CGRect(x: (start.x + end.x) / 2 - textSize.width / 2 - 7 * scale,
+                          y: (start.y + end.y) / 2 - textSize.height / 2 - 3 * scale,
+                          width: textSize.width + 14 * scale,
+                          height: textSize.height + 6 * scale)
+        context.addPath(CGPath(roundedRect: pill, cornerWidth: pill.height / 2,
+                               cornerHeight: pill.height / 2, transform: nil))
+        context.setFillColor(color(annotation))
+        context.fillPath()
+        let previous = NSGraphicsContext.current
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+        label.draw(at: CGPoint(x: pill.minX + 7 * scale, y: pill.minY + 3 * scale),
+                   withAttributes: attributes)
+        NSGraphicsContext.current = previous
+        context.endTransparencyLayer()
         context.restoreGState()
     }
 
@@ -194,13 +425,20 @@ enum ScreenshotRenderer {
         let width = annotation.stroke.width * scale
         context.saveGState()
         applyShadow(context, scale: scale, enabled: shadowsEnabled)
-        context.setStrokeColor(color(annotation.color))
-        context.setLineWidth(width)
-        context.setLineCap(.round)
-        context.beginPath()
-        context.move(to: start)
-        context.addLine(to: end)
-        context.strokePath()
+        if annotation.sloppy {
+            context.addPath(ScreenshotSupport.sloppyLinePath(from: start, to: end,
+                                                             strokeWidth: width,
+                                                             seed: annotation.scribbleSeed))
+            context.setFillColor(color(annotation))
+            context.fillPath()
+        } else {
+            context.setStrokeColor(color(annotation))
+            context.setLineWidth(width)
+            context.setLineCap(.round)
+            context.move(to: start)
+            context.addLine(to: end)
+            context.strokePath()
+        }
         context.restoreGState()
     }
 
@@ -215,17 +453,25 @@ enum ScreenshotRenderer {
 
         context.saveGState()
         applyShadow(context, scale: scale, enabled: shadowsEnabled)
-        context.setStrokeColor(color(annotation.color))
-        context.setFillColor(color(annotation.color))
+        context.setStrokeColor(color(annotation))
+        context.setFillColor(color(annotation))
         context.setLineWidth(width)
         context.setLineJoin(.round)
         context.setLineCap(.round)
 
-        if let outline = ScreenshotSupport.arrowStrokePath(from: start,
+        let middle = annotation.points.count > 2 ? annotation.points[2] : nil
+        if annotation.arrowStyle == .scribbly {
+            context.addPath(ScreenshotSupport.scribblyArrowPath(from: start, to: end,
+                                                                strokeWidth: width,
+                                                                seed: annotation.scribbleSeed,
+                                                                through: middle))
+            context.fillPath()
+        } else if let outline = ScreenshotSupport.arrowStrokePath(from: start,
                                                            to: end,
                                                            strokeWidth: width,
                                                            style: annotation.arrowStyle,
-                                                           seed: annotation.scribbleSeed) {
+                                                           seed: annotation.scribbleSeed,
+                                                           through: middle) {
             // Shaft and head in one stroke: the shadow falls on the whole arrow
             // once, instead of the head shading the shaft where they meet.
             context.addPath(outline)
@@ -233,7 +479,8 @@ enum ScreenshotRenderer {
         } else {
             context.addPath(ScreenshotSupport.arrowSilhouette(from: start,
                                                               to: end,
-                                                              strokeWidth: width))
+                                                              strokeWidth: width,
+                                                              through: middle))
             context.fillPath()
         }
         context.restoreGState()
@@ -246,7 +493,7 @@ enum ScreenshotRenderer {
         guard annotation.points.count > 1 else { return }
         context.saveGState()
         applyShadow(context, scale: scale, enabled: shadowsEnabled)
-        context.setStrokeColor(color(annotation.color))
+        context.setStrokeColor(color(annotation))
         context.setLineWidth(annotation.stroke.width * scale)
         context.setLineJoin(.round)
         context.setLineCap(.round)
@@ -272,26 +519,55 @@ enum ScreenshotRenderer {
                                  scale: CGFloat,
                                  shadowsEnabled: Bool) {
         guard !annotation.text.isEmpty else { return }
-        let font = NSFont.systemFont(ofSize: fontSize(for: annotation.textSize, scale: scale),
-                                     weight: .semibold)
+        let size = fontSize(for: annotation.textSize, scale: scale)
+        let font = NSFont.systemFont(ofSize: size, weight: .semibold)
+        let style = annotation.textStyle
+        let inset = textInsets(textSize: annotation.textSize, scale: scale, style: style)
+        let origin = CGPoint(x: annotation.rect.minX + 2 + inset.width,
+                             y: annotation.rect.minY + inset.height)
         var attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: nsColor(annotation.color),
+            .foregroundColor: style == .label
+                ? contrastColor(for: annotation) : nsColor(annotation),
         ]
-        if shadowsEnabled {
-            let shadow = NSShadow()
-            shadow.shadowColor = NSColor.black.withAlphaComponent(0.55)
-            shadow.shadowBlurRadius = 2.5 * scale
-            shadow.shadowOffset = NSSize(width: 0, height: -1 * scale)
-            attributes[.shadow] = shadow
-        }
         context.saveGState()
+        if shadowsEnabled {
+            if style == .plain {
+                let shadow = NSShadow()
+                shadow.shadowColor = NSColor.black.withAlphaComponent(0.55)
+                shadow.shadowBlurRadius = 2.5 * scale
+                shadow.shadowOffset = NSSize(width: 0, height: -1 * scale)
+                attributes[.shadow] = shadow
+            } else {
+                // Outlines and labels are composited first, so the shadow falls
+                // on the whole mark once instead of on each layer.
+                applyShadow(context, scale: scale, enabled: true)
+            }
+        }
+        if style != .plain { context.beginTransparencyLayer(auxiliaryInfo: nil) }
+        if style == .label {
+            let pill = annotation.rect
+            let corner = min(pill.height / 2, size * 0.32)
+            context.addPath(CGPath(roundedRect: pill, cornerWidth: corner, cornerHeight: corner,
+                                   transform: nil))
+            context.setFillColor(color(annotation))
+            context.fillPath()
+        }
         // NSAttributedString draws in an unflipped space; flip locally.
         let previous = NSGraphicsContext.current
         NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
-        annotation.text.draw(at: CGPoint(x: annotation.rect.minX + 2, y: annotation.rect.minY),
-                             withAttributes: attributes)
+        if style == .outline {
+            // A stroke only pass under the glyphs; a positive stroke width
+            // draws outline without fill, and half of it hides under the fill.
+            var outline = attributes
+            outline[.foregroundColor] = NSColor.clear
+            outline[.strokeColor] = contrastColor(for: annotation)
+            outline[.strokeWidth] = 24
+            annotation.text.draw(at: origin, withAttributes: outline)
+        }
+        annotation.text.draw(at: origin, withAttributes: attributes)
         NSGraphicsContext.current = previous
+        if style != .plain { context.endTransparencyLayer() }
         context.restoreGState()
     }
 
@@ -301,23 +577,32 @@ enum ScreenshotRenderer {
                                     scale: CGFloat,
                                     shadowsEnabled: Bool) {
         let diameter = ScreenshotSupport.counterDiameter(for: annotation.renderReferenceSize ?? imageSize, scale: 1)
-        let rect = CGRect(x: annotation.rect.midX - diameter / 2,
-                          y: annotation.rect.midY - diameter / 2,
+        let center = ScreenshotSupport.counterCenter(annotation)
+        let rect = CGRect(x: center.x - diameter / 2,
+                          y: center.y - diameter / 2,
                           width: diameter,
                           height: diameter)
+        let outline = ScreenshotSupport.counterOutline(
+            center: center, diameter: diameter,
+            tip: ScreenshotSupport.counterTailTip(annotation, diameter: diameter))
+        let ring = max(1.5, diameter * 0.05)
         context.saveGState()
         applyShadow(context, scale: scale, enabled: shadowsEnabled)
-        context.setFillColor(color(annotation.color))
-        context.fillEllipse(in: rect)
-        context.setStrokeColor(CGColor(gray: 1, alpha: 0.9))
-        context.setLineWidth(max(1.5, diameter * 0.05))
-        context.strokeEllipse(in: rect.insetBy(dx: 1, dy: 1))
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        context.addPath(outline)
+        context.setStrokeColor(CGColor(gray: 1, alpha: 0.95))
+        context.setLineWidth(ring * 2)
+        context.setLineJoin(.round)
+        context.strokePath()
+        context.addPath(outline)
+        context.setFillColor(color(annotation))
+        context.fillPath()
+        context.endTransparencyLayer()
         context.restoreGState()
 
         let label = "\(annotation.number)"
         let font = NSFont.systemFont(ofSize: diameter * 0.52, weight: .bold)
-        let textColor: NSColor = annotation.color == .white
-            ? NSColor(srgbRed: 0.09, green: 0.09, blue: 0.11, alpha: 1) : .white
+        let textColor = contrastColor(for: annotation)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: textColor]
         let size = label.size(withAttributes: attributes)
         let previous = NSGraphicsContext.current

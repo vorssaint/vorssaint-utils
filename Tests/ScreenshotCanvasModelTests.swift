@@ -35,6 +35,7 @@ enum ScreenshotCanvasModelTests {
         var dragStart: CGPoint = .zero
         var moveOrigin: CGRect = .zero
         var movePoints: [CGPoint] = []
+        var activePointIndex: Int?
         init(image: CGImage) { baseImage = image }
         func clearTextSelection() {}
         func recognizeText() {}
