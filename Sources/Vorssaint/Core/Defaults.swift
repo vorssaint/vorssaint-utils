@@ -891,6 +891,7 @@ enum DefaultsKey {
     // AI agents: what the island reads from Claude Code, Codex, OpenCode and GitHub Copilot, and shows.
     static let notchAgentsEnabled = "notchAgentsEnabled"
     static let notchAgentsClaude = "notchAgentsClaude"
+    static let notchAgentsClaudeAccounts = "notchAgentsClaudeAccounts"
     static let notchAgentsClaudeProfile = "notchAgentsClaudeProfile"
     static let notchAgentsCodex = "notchAgentsCodex"
     /// The Codex homes, `CODEX_HOME` folders, that get limits cards of their own.
@@ -1491,6 +1492,7 @@ enum Defaults {
         DefaultsKey.notchAgentsEnabled: false,
         DefaultsKey.notchAgentsClaude: true,
         DefaultsKey.notchAgentsClaudeProfile: "",
+        DefaultsKey.notchAgentsClaudeAccounts: "",
         DefaultsKey.notchAgentsCodex: true,
         DefaultsKey.notchAgentsCodexProfiles: "",
         DefaultsKey.notchAgentsOpenCode: true,
