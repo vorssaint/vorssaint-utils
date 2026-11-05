@@ -17,56 +17,10 @@ struct PanelMediaView: View {
     var onClose: () -> Void
 
     var body: some View {
-        MediaWorkspaceView(compact: true, onClose: onClose)
+        // Both the menu panel and launcher already scroll their utility content.
+        MediaWorkspaceView(compact: true, onClose: onClose, scrollsContent: false)
             .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
             .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
-    }
-}
-
-/// Fit the media workspace below the enclosing panel's section title, leaving
-/// the whole workspace as the only scrolling region.
-private struct MediaPanelViewport: NSViewRepresentable {
-    var onHeightChange: (CGFloat) -> Void
-
-    func makeNSView(context: Context) -> ViewportView { ViewportView() }
-    func updateNSView(_ view: ViewportView, context: Context) {
-        view.onHeightChange = onHeightChange
-        view.measure()
-    }
-
-    final class ViewportView: NSView {
-        var onHeightChange: ((CGFloat) -> Void)?
-        private weak var clip: NSClipView?
-        private var observer: NSObjectProtocol?
-        private var reportedHeight: CGFloat?
-
-        deinit {
-            if let observer { NotificationCenter.default.removeObserver(observer) }
-        }
-
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-        override func viewDidMoveToSuperview() { super.viewDidMoveToSuperview(); measure() }
-        override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); measure() }
-        override func layout() { super.layout(); measure() }
-
-        func measure() {
-            guard let scroll = enclosingScrollView, let document = scroll.documentView else { return }
-            if clip !== scroll.contentView {
-                if let observer { NotificationCenter.default.removeObserver(observer) }
-                clip = scroll.contentView
-                scroll.contentView.postsFrameChangedNotifications = true
-                observer = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification,
-                    object: scroll.contentView, queue: .main) { [weak self] _ in
-                    DispatchQueue.main.async { self?.measure() }
-                }
-            }
-            let rect = convert(bounds, to: document)
-            let top = document.isFlipped ? rect.minY - document.bounds.minY : document.bounds.maxY - rect.maxY
-            let height = floor(scroll.contentView.bounds.height - top)
-            guard height.isFinite, height > 0, height != reportedHeight else { return }
-            reportedHeight = height
-            DispatchQueue.main.async { [weak self] in self?.onHeightChange?(height) }
-        }
     }
 }
 
@@ -167,7 +121,6 @@ struct MediaWorkspaceView: View {
     @State private var videoImportGeneration = 0
     @State private var profileName = ""
     @State private var imageMoreOptionsExpanded = false
-    @State private var viewportHeight: CGFloat?
     @State private var isImportingVideo = false
     /// Read once per chosen file. Loading it in the body meant decoding the
     /// logo from disk on every redraw, so dragging the opacity slider was
@@ -181,13 +134,15 @@ struct MediaWorkspaceView: View {
     private let preservesServiceState: Bool
     private let onContentHeightChange: ((CGFloat) -> Void)?
     private let onToolChange: (() -> Void)?
+    private let scrollsContent: Bool
 
     init(compact: Bool, onClose: (() -> Void)? = nil,
          media: MediaService = .shared, initialInputs: [URL] = [],
          initialTool: MediaTool? = nil, preservesServiceState: Bool = false,
          workspace: MediaWorkspaceSelection? = nil,
          onContentHeightChange: ((CGFloat) -> Void)? = nil,
-         onToolChange: (() -> Void)? = nil) {
+         onToolChange: (() -> Void)? = nil,
+         scrollsContent: Bool = true) {
         self.compact = compact
         self.onClose = onClose
         self.media = media
@@ -196,6 +151,7 @@ struct MediaWorkspaceView: View {
         self.preservesServiceState = preservesServiceState
         self.onContentHeightChange = onContentHeightChange
         self.onToolChange = onToolChange
+        self.scrollsContent = scrollsContent
         _workspace = StateObject(wrappedValue: workspace ?? MediaWorkspaceSelection())
     }
 
@@ -287,24 +243,23 @@ struct MediaWorkspaceView: View {
         }
     }
 
-    private var layout: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: compact ? 10 : 14) {
-                header
-                toolPicker
-                content.padding(.trailing, 1)
-            }
-            .fixedSize(horizontal: false, vertical: true)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                onContentHeightChange?($0)
-            }
+    @ViewBuilder private var layout: some View {
+        if scrollsContent {
+            ScrollView { workspaceContent }
+        } else {
+            workspaceContent
         }
-        .frame(maxHeight: compact && onContentHeightChange == nil && viewportHeight == nil ? 430 : .infinity)
-        .frame(height: compact && onContentHeightChange == nil ? viewportHeight : nil, alignment: .top)
-        .background {
-            if compact && onContentHeightChange == nil {
-                MediaPanelViewport { viewportHeight = $0 }
-            }
+    }
+
+    private var workspaceContent: some View {
+        VStack(alignment: .leading, spacing: compact ? 10 : 14) {
+            header
+            toolPicker
+            content.padding(.trailing, 1)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+            onContentHeightChange?($0)
         }
     }
 
