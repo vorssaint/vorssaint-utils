@@ -78,6 +78,11 @@ final class SuperKeyService: ObservableObject {
     private var soloAction: SuperKeySoloAction = .none
     private var eventModifiers = SuperKeySupport.defaultModifiers
     private var eventSource = SuperKeySource.capsLock
+    /// The last lock state this feature wrote, and when. A raw source key that
+    /// arrives right after the solo action turned capitals on carries that
+    /// change, not a keyboard that still needs the lock put back off.
+    /// Main thread only, like every caller of `setCapsLock`.
+    private var capsLockWrite: (on: Bool, at: TimeInterval)?
     private var wakeObserver: NSObjectProtocol?
     private var exceptionObservation: AnyCancellable?
     /// The mapping is written off the main thread, and in the order it was
@@ -678,15 +683,25 @@ final class SuperKeyService: ObservableObject {
             return nil
         case .interceptAndRemap:
             repairMappingIfStale()
-            // A missing Caps Lock mapping may already have flipped the lock
-            // state. Put it back off while the mapping repairs.
+            // A raw Caps Lock key flips the lock state, and a keyboard that is
+            // not mapped yet sends only that raw key. Put the lock back off
+            // while the mapping repairs — unless this feature just set it,
+            // which is the solo tap turning capitals on: putting that back off
+            // left a single tap doing nothing (#3745).
             DispatchQueue.main.async { [weak self] in
                 guard let self,
                       self.lifecycleLock.withLock({
                           self.tap != nil && !self.shouldStopTapThread
-                      })
+                      }),
+                      source == .capsLock
                 else { return }
-                if source == .capsLock { self.setCapsLock(false) }
+                let write = self.capsLockWrite
+                guard SuperKeySupport.rawSourceResetsCapsLock(
+                    currentlyOn: self.capsLockIsOn(),
+                    lastWriteOn: write?.on,
+                    lastWriteAge: write.map { ProcessInfo.processInfo.systemUptime - $0.at }
+                ) else { return }
+                self.setCapsLock(false)
             }
             return nil
         }
@@ -892,8 +907,9 @@ final class SuperKeyService: ObservableObject {
     }
 
     private func setCapsLock(_ on: Bool) {
-        _ = withHIDSystem { connection in
-            IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), on)
-        }
+        let applied = withHIDSystem { connection in
+            IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), on) == KERN_SUCCESS
+        } ?? false
+        if applied { capsLockWrite = (on, ProcessInfo.processInfo.systemUptime) }
     }
 }

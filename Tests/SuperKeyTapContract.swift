@@ -55,6 +55,8 @@ enum SuperKeyTapContract {
         var mappingFailure: SuperKeyMappingFailure?
         var clearedMappings = 0
         var soloHolds: [Bool] = []
+        var capsLockOn = false
+        var capsLockWrite: (on: Bool, at: TimeInterval)?
         func AXIsProcessTrusted() -> Bool { true }
         func syncWithPreferences() {}
         func clearEventTapThread() -> Bool { false }
@@ -66,6 +68,7 @@ enum SuperKeyTapContract {
         func cancelHeldKeyWatchdog() {}
         func repairMappingIfStale() {}
         func setCapsLock(_ enabled: Bool) {}
+        func capsLockIsOn() -> Bool { capsLockOn }
         func performSoloAction(longHold: Bool, repeated: Bool) { soloHolds.append(longHold) }
     }
     class RecordingState {

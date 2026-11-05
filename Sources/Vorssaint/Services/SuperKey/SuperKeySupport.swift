@@ -300,6 +300,25 @@ enum SuperKeySupport {
         }
     }
 
+    /// How long a lock state this feature wrote stays its own. A raw source key
+    /// that arrives inside the window carries the change the feature just made;
+    /// after it, the raw key belongs to a keyboard that is not mapped yet.
+    static let capsLockWriteWindow: TimeInterval = 0.25
+
+    /// Whether a raw source key should put Caps Lock back off. The lock needs
+    /// putting back only while it is on and this feature did not just turn it
+    /// on: an unmapped keyboard's Caps Lock key flips the lock, and so does the
+    /// solo tap that turns capitals on, but the tap's flip is the one the user
+    /// asked for (#3745).
+    static func rawSourceResetsCapsLock(currentlyOn: Bool,
+                                        lastWriteOn: Bool?,
+                                        lastWriteAge: TimeInterval?) -> Bool {
+        guard currentlyOn else { return false }
+        guard let lastWriteOn, let lastWriteAge, lastWriteAge <= capsLockWriteWindow
+        else { return true }
+        return lastWriteOn != currentlyOn
+    }
+
     static func nextInputSourceID(currentID: String?, enabledIDs: [String]) -> String? {
         guard enabledIDs.count > 1 else { return nil }
         guard let currentID, let index = enabledIDs.firstIndex(of: currentID) else {
