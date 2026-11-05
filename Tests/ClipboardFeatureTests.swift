@@ -69,6 +69,7 @@ enum ClipboardFeatureTests {
     final class SourceHost {
         var historyIsRunning = true
         var candidates: Set<String> = []
+        var candidateActivationTimes: [String: TimeInterval] = [:]
         var lookup: Set<String> = []
         var historyPanelWasKey = false
         let ownBundleID: String? = "com.vorssaint.utils"
@@ -97,10 +98,12 @@ enum ClipboardFeatureTests {
         ClipboardImageCaptureTests.run(suite)
         let source = SourceHost()
         func sourceCheck(declared: String? = nil, remote: Bool = false,
-                         panelIsKey: Bool = false, panelClosing: Bool = false)
+                         panelIsKey: Bool = false, panelClosing: Bool = false,
+                         observedAt: TimeInterval = .infinity)
             -> (excluded: Bool, bundleID: String?, fromHistoryPanel: Bool) {
             source.sourceSinceLastCheck(declared: declared, remote: remote,
-                                        historyPanelIsKey: panelIsKey, historyPanelClosing: panelClosing)
+                                        historyPanelIsKey: panelIsKey, historyPanelClosing: panelClosing,
+                                        observedAt: observedAt)
         }
         source.candidates = ["com.apple.Safari"]
         let single = sourceCheck()
@@ -176,6 +179,41 @@ enum ClipboardFeatureTests {
         source.historyIsRunning = false
         source.candidates = ["com.apple.Safari"]
         suite.expect(sourceCheck() == (false, nil, false), "nothing is named while the history is off")
+        source.historyIsRunning = true
+        func prepareDecodeWindow() {
+            source.candidates = []
+            source.candidateActivationTimes = [:]
+            source.lookup = []
+            source.historyPanelWasKey = false
+            source.recordActivation("com.tencent.xinWeChat", at: 1)
+            source.recordActivation("company.thebrowser.dia", at: 3)
+        }
+        prepareDecodeWindow()
+        suite.expect(sourceCheck(observedAt: 2).bundleID == "com.tencent.xinWeChat",
+                     "switching apps while an image decodes keeps the app observed before decoding")
+        prepareDecodeWindow()
+        suite.expect(sourceCheck(observedAt: 4).bundleID == nil,
+                     "a focus transition before the pasteboard observation still leaves the source ambiguous")
+        prepareDecodeWindow()
+        source.lookup = ["company.thebrowser.dia"]
+        let excludedDuringDecode = sourceCheck(observedAt: 2)
+        suite.expect(excludedDuringDecode.excluded && excludedDuringDecode.bundleID == "com.tencent.xinWeChat",
+                     "an ignored app entered during decoding still excludes the entire capture window")
+        prepareDecodeWindow()
+        suite.expect(sourceCheck(declared: "com.tencent.qq", observedAt: 2).bundleID == "com.tencent.qq",
+                     "an explicit source mark still takes precedence over the timed activation guess")
+        prepareDecodeWindow()
+        suite.expect(sourceCheck(remote: true, observedAt: 2).bundleID == nil,
+                     "a remote image remains unattributed when timed local candidates exist")
+        prepareDecodeWindow()
+        let duringPanel = sourceCheck(panelIsKey: true, observedAt: 2)
+        suite.expect(duringPanel.bundleID == nil && duringPanel.fromHistoryPanel,
+                     "timed image attribution still preserves copies made by the history panel")
+        prepareDecodeWindow()
+        source.recordActivation("com.tencent.xinWeChat", at: 5)
+        suite.expect(source.candidateActivationTimes["com.tencent.xinWeChat"] == 1
+                     && sourceCheck(observedAt: 2).bundleID == "com.tencent.xinWeChat",
+                     "repeated activations preserve the app's earliest appearance before the observed copy")
         // The link cleaner rewrites a copy in place; the app it named stays.
         let cleanerBoard = URLCleanerHost.NSPasteboard.general
         cleanerBoard.clearContents()

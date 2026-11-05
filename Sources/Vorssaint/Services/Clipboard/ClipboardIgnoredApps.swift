@@ -31,6 +31,9 @@ final class ClipboardIgnoredApps: ObservableObject {
     /// Every app that held the front since the history last looked at the
     /// pasteboard. Seeded with whoever is in front when the window opens.
     private var candidates: Set<String> = []
+    /// First activation in the current window. Attribution stops at the
+    /// pasteboard observation, before an image's potentially slow decoding.
+    private var candidateActivationTimes: [String: TimeInterval] = [:]
     private var activationObserver: NSObjectProtocol?
     /// True while the history itself is running, the only time the observer
     /// lives.
@@ -81,6 +84,7 @@ final class ClipboardIgnoredApps: ObservableObject {
         if running {
             guard activationObserver == nil else { return }
             candidates = Self.frontmostBundleID().map { [$0] } ?? []
+            candidateActivationTimes = [:]
             activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.didActivateApplicationNotification,
                 object: nil,
@@ -89,13 +93,20 @@ final class ClipboardIgnoredApps: ObservableObject {
                 guard let app = notification
                     .userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                     let bundleID = app.bundleIdentifier else { return }
-                self?.candidates.insert(bundleID)
+                self?.recordActivation(bundleID)
             }
         } else if let activationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
             self.activationObserver = nil
             candidates = []
+            candidateActivationTimes = [:]
             historyPanelWasKey = false
+        }
+    }
+
+    private func recordActivation(_ bundleID: String, at time: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        if candidates.insert(bundleID).inserted {
+            candidateActivationTimes[bundleID] = time
         }
     }
 
@@ -116,9 +127,12 @@ final class ClipboardIgnoredApps: ObservableObject {
     /// `fromHistoryPanel`. Closing the panel makes one last check of its own,
     /// so the next copy belongs to the app the user went back to; only when
     /// that check could not run does the first check after it still count
-    /// as the panel's.
+    /// as the panel's. Activations during image decoding cannot change the
+    /// app credited to that already observed copy. They still count toward
+    /// exclusion until this check finishes.
     func sourceSinceLastCheck(declared: String?, remote: Bool,
-                              historyPanelIsKey: Bool, historyPanelClosing: Bool)
+                              historyPanelIsKey: Bool, historyPanelClosing: Bool,
+                              observedAt: TimeInterval = .infinity)
         -> (excluded: Bool, bundleID: String?, fromHistoryPanel: Bool) {
         guard historyIsRunning else { return (false, nil, false) }
         // An empty mark is the convention for a writer that does not know,
@@ -126,12 +140,14 @@ final class ClipboardIgnoredApps: ObservableObject {
         let trimmed = declared?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let mark = trimmed.isEmpty || trimmed.utf8.count > 255 ? nil : trimmed
         let fromHistoryPanel = mark == nil && (historyPanelWasKey || historyPanelIsKey)
-        let guessed = candidates.count == 1 && !fromHistoryPanel ? candidates.first : nil
+        let observedCandidates = candidates.filter { (candidateActivationTimes[$0] ?? -.infinity) <= observedAt }
+        let guessed = observedCandidates.count == 1 && !fromHistoryPanel ? observedCandidates.first : nil
         let named: String? = mark.map { $0 == ownBundleID ? nil : $0 } ?? guessed
         let source = (excluded: !candidates.isDisjoint(with: lookup) || mark.map { lookup.contains($0) } == true,
                       bundleID: remote ? nil : named,
                       fromHistoryPanel: fromHistoryPanel)
         candidates = Self.frontmostBundleID().map { [$0] } ?? []
+        candidateActivationTimes = [:]
         historyPanelWasKey = historyPanelIsKey && !historyPanelClosing
         return source
     }

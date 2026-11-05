@@ -711,6 +711,8 @@ def main():
           + "extension ClipboardFeatureTests.SourceHost {\n"
           + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardIgnoredApps.swift",
                         "    func sourceSinceLastCheck(")
+          + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardIgnoredApps.swift",
+                        "    private func recordActivation(").replace("private func", "func", 1)
           + "}\n")
     disk_image = "Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerService.swift"
     write("DiskImageHomebrew.swift", "import Foundation\nimport Darwin\nextension DiskImageHomebrewTests {\n"

@@ -727,21 +727,31 @@ final class ClipboardHistoryService: ObservableObject {
         // that closes it may already have taken them away.
         let historyPanelIsKey = historyPanelClosing || panel?.isKeyWindow == true
         GeneralPasteboardAccess.shared.async(timeout: Self.pasteboardTimeout, { isExpired
-            -> (changeCount: Int, content: CapturedContent?, declaredSource: String?, remote: Bool)? in
+            -> (changeCount: Int, observedAt: TimeInterval, content: CapturedContent?,
+                declaredSource: String?, remote: Bool)? in
             let changeCount = NSPasteboard.general.changeCount
+            // Image providers and PNG conversion can take long enough for
+            // focus to move. Attribute the copy when its change was observed,
+            // before that work, while retaining later apps for exclusions.
+            let observedAt = ProcessInfo.processInfo.systemUptime
             guard !isExpired() else { return nil }
+            let shouldRead = baseline || changeCount != sinceChangeCount
+            // Keep the source metadata with this observation too, rather
+            // than reading a later writer's mark after a slow image provider.
+            let declaredSource = shouldRead ? NSPasteboard.general.string(forType: .source) : nil
+            let remote = shouldRead && NSPasteboard.general.types?.contains(.remoteClipboard) == true
             // Read during a baseline too, not only on a detected change: a
             // fresh baseline (history starting to watch again, at launch or
             // the feature toggled back on) is exactly when latestPasteboardEntry
             // is most likely wrong — stale from before a toggle-off, or still
             // nil right after launch even though the last real copy is still
             // sitting there. Matched against the saved entries below.
-            let content: CapturedContent? = (baseline || changeCount != sinceChangeCount)
+            let content: CapturedContent? = shouldRead
                 ? Self.readPasteboard(includeImagesFiles: includeImagesFiles)
                 : nil
-            return (changeCount, content,
-                    content == nil ? nil : NSPasteboard.general.string(forType: .source),
-                    content != nil && NSPasteboard.general.types?.contains(.remoteClipboard) == true)
+            return (changeCount, observedAt, content,
+                    content == nil ? nil : declaredSource,
+                    content != nil && remote)
         }, then: { [weak self] result in
             guard let self else { return }
             guard let result else {
@@ -765,7 +775,8 @@ final class ClipboardHistoryService: ObservableObject {
             // accepted check, including any read that expired in between.
             let source = ClipboardIgnoredApps.shared.sourceSinceLastCheck(
                 declared: result.declaredSource, remote: result.remote,
-                historyPanelIsKey: historyPanelIsKey, historyPanelClosing: historyPanelClosing)
+                historyPanelIsKey: historyPanelIsKey, historyPanelClosing: historyPanelClosing,
+                observedAt: result.observedAt)
             guard let accepted = ClipboardHistoryChangeCount.accepted(
                 read: result.changeCount, since: sinceChangeCount, last: self.lastChangeCount
             ) else { return }
