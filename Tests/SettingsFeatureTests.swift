@@ -24,7 +24,7 @@ enum SettingsFeatureTests {
 
     static func run(_ suite: TestSuite) {
         for (language, strings) in LocalizationTests.languages {
-            let mouse = SettingsDirectory.sections(strings, language: language)
+            let mouse = SettingsDirectory.sections(strings, language: language, hasInternalBattery: true)
                 .flatMap(\.items).first { $0.page == .mouse }!
             let zoomKeywords = zip(mouse.keywords, mouse.keywordFeatures)
                 .filter { $0.1 == .scrollZoom }.map(\.0)
@@ -41,6 +41,80 @@ enum SettingsFeatureTests {
             suite.expect(sidebar.prefix(3).map(\.id) == [.feature(.scrollInverter), .feature(.scrollHorizontal), .feature(.scrollZoom)],
                          "the sidebar places Zoom beside scrolling in \(language.rawValue)")
         }
+        func directory(battery: Bool) -> [SettingsSearchItem] {
+            SettingsDirectory.sections(.enUS, language: .enUS, hasInternalBattery: battery).flatMap(\.items).map {
+                SettingsSearchItem(id: .page($0.page), destination: FeatureSettingsDestination($0.page),
+                                   title: $0.title, icon: $0.icon,
+                                   keywords: $0.keywords, keywordFeatures: $0.keywordFeatures)
+            }
+        }
+        let alerts = FeatureStrings.monitorAlerts(.enUS)
+        for query in ["storage", "low storage", "free space", "warn"] {
+            let groups = SettingsSearchSupport.groupedMatchingItems(
+                query: query, items: directory(battery: true), isAvailable: { _ in true })
+            let monitor = groups.first { $0.id == .monitor }
+            suite.expect(monitor?.suggestions.contains {
+                [alerts.disk, alerts.diskThreshold, alerts.section].contains($0.title)
+            } == true, "searching \"\(query)\" offers the Monitor disk space alert")
+        }
+        suite.expect(SettingsSearchSupport.groupedMatchingItems(
+            query: "storage", items: directory(battery: true), isAvailable: { $0 != .monitorDisk })
+            .first { $0.id == .monitor }?.suggestions.contains { $0.title == alerts.disk } != true,
+                     "the disk alert is not offered while disk monitoring is off")
+        // The pages a search opens when it offers `label`. Another page can
+        // show a row of the same name, such as the island's own shortcut.
+        func pages(of label: String, query: String? = nil, battery: Bool = true,
+                   without missing: Set<AppFeature> = []) -> Set<SettingsPage> {
+            let isAvailable = { (feature: AppFeature) in !missing.contains(feature) }
+            return Set(SettingsSearchSupport.groupedMatchingItems(
+                query: query ?? label, items: directory(battery: battery), isAvailable: isAvailable)
+                .flatMap(\.suggestions).filter { $0.title == label }
+                .map { SettingsSearchSupport.route(for: $0, isAvailable: isAvailable).destination.page })
+        }
+        let music = FeatureStrings.notchMusicExtras(.enUS)
+        let notch = FeatureStrings.notch(.enUS)
+        let lowBattery = NotchLowBatteryStrings.localized(.enUS)
+        let captureTools: Set<AppFeature> = [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
+        // Each label is offered on its page with the `shownWithout` features
+        // off, and hidden once `hiddenWithout` goes too or the Mac has no battery.
+        let visibility: [(label: String, page: SettingsPage, shownWithout: Set<AppFeature>,
+                          hiddenWithout: Set<AppFeature>?, needsBattery: Bool)] = [
+            (music.enableLyrics, .notch, [.notchLyrics], nil, false),
+            (music.enableQueue, .notch, [.notchQueue], nil, false),
+            (music.online, .notch, [], [.notchLyrics], false),
+            (FeatureStrings.notchClipboardSize(.enUS).entrySize, .notch, [], [.clipboardHistory], false),
+            (notch.clipboardActivity, .notch, [], [.clipboardHistory], false),
+            (notch.dragReveal, .notch, [], [.shelf], false),
+            (FeatureStrings.notchCalendar(.enUS).weekNumbers, .notch, [], [.notchCalendar], false),
+            (FeatureStrings.notchActivities(.enUS).hideTimerCountdown, .notch, [], [.notchTimer], false),
+            (notch.captureActivity, .notch, captureTools.subtracting([.colorPicker]), captureTools, false),
+            (lowBattery.title, .notch, [], [.monitorPower], true),
+            (lowBattery.early, .notch, [], [.monitorPower], true),
+            (lowBattery.menuBar, .notch, [], [.monitorPower], true),
+            (Strings.enUS.globalHotkeySection, .general, [], [.keepAwake], false),
+            (Strings.enUS.batteryDisableBelow, .energy, [], [.keepAwake], true),
+            (alerts.battery, .monitor, [], [.monitorPower], true),
+            (alerts.batteryThreshold, .monitor, [], [.monitorPower], true),
+            (alerts.batteryTemperature, .monitor, [], [.monitorPower], true),
+            // The CPU alert shares this name.
+            (alerts.batteryTemperatureThreshold, .monitor, [.monitorCPU], [.monitorPower], true),
+        ]
+        for row in visibility {
+            suite.expect(pages(of: row.label, without: row.shownWithout).contains(row.page),
+                         "search offers \"\(row.label)\" on \(row.page) while Settings shows it")
+            if let hidden = row.hiddenWithout {
+                suite.expect(!pages(of: row.label, without: row.shownWithout.union(hidden)).contains(row.page),
+                             "search hides \"\(row.label)\" on \(row.page) without \(hidden.map(\.rawValue).sorted())")
+            }
+            if row.needsBattery {
+                suite.expect(!pages(of: row.label, battery: false, without: row.shownWithout).contains(row.page),
+                             "search hides \"\(row.label)\" on \(row.page) on a Mac without a battery")
+            }
+        }
+        suite.expect(pages(of: Strings.enUS.keepAwakeMouseJiggle, query: "jiggle").contains(.energy),
+                     "searching \"jiggle\" offers the Keep Awake pointer movement")
+        suite.expect(pages(of: Strings.enUS.monitorIntervalLabel, query: "interval").contains(.monitor),
+                     "searching \"interval\" offers the Monitor update interval")
         let isCodeLine: (String) -> Bool = {
             !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
         }
