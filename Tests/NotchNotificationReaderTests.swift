@@ -112,6 +112,8 @@ enum NotchNotificationReaderTests {
         centerOpening(suite)
         openingInbox(suite)
         openingRaces(suite)
+        heldArrivalHiding(suite)
+        heldArrivalMoveFailure(suite)
         arrivalHiding(suite)
         arrivalFocus(suite)
         arrivalRecovery(suite)
@@ -273,6 +275,79 @@ enum NotchNotificationReaderTests {
                          && inbox.items.map(\.id) == (focused ? [] : [second.id, first.id]),
                          "the latest focus decision rejects center history and preserves real banners in arrival order")
         }
+    }
+
+    /// The two arrival protections share real inbox and reader state: waiting
+    /// for focus must not briefly restore a banner before the island takes it.
+    private static func heldArrivalHiding(_ suite: TestSuite) {
+        for decision in ["shown", "passed", "focused", "unknown", "disabled", "persistent"] {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            if decision == "persistent" {
+                window.children.first?.strings["AXSubrole"] = "AXNotificationCenterAlert"
+            }
+            var inbox = NotchNotificationInbox()
+            _ = inbox.update([])
+            inbox.windowCreated(at: 10)
+            access.time = 10
+            reader.prehide(window)
+            guard let live = reader.read()?.items, !live.isEmpty else {
+                suite.expect(false, "a prehidden arrival can be read before its focus decision"); continue
+            }
+            _ = inbox.update(live)
+            guard let oldCheck = inbox.arrivalCheck else {
+                suite.expect(false, "the arrival is held outside the visible inbox"); continue
+            }
+            _ = reader.hideNative([], holding: Set(inbox.pendingItems.map(\.id)))
+            if decision == "persistent" {
+                suite.expect(window.frame == home && !reader.hidesWindows,
+                             "a held persistent alert is restored immediately, preserving its controls and alarm")
+                continue
+            }
+            suite.expect(window.frame != home && reader.hidesWindows && inbox.items.isEmpty,
+                         "an unconfirmed transient banner stays hidden during the opening hold")
+            // Another window extends the focus decision beyond prehideGrace.
+            inbox.windowCreated(at: 10.45)
+            access.time = 10.6
+            _ = reader.hideNative([], holding: Set(inbox.pendingItems.map(\.id)))
+            suite.expect(window.frame != home && reader.hidesWindows
+                         && inbox.settleArrivals(oldCheck, centerFocused: false, checkedAt: access.time) == nil,
+                         "a renewed hold keeps the original away past its initial grace and rejects the old decision")
+            guard let check = inbox.arrivalCheck else {
+                suite.expect(false, "the renewed opening still has a focus decision"); continue
+            }
+            access.time = 10.8
+            if decision == "focused" { access.focused = true }
+            if decision == "unknown" { access.failRead = "focused" }
+            if decision == "disabled" { access.allowClose = false }
+            let arrivals = inbox.settleArrivals(check, centerFocused: reader.centerIsFocused(), checkedAt: access.time)
+            let shown = decision == "shown" ? Set((arrivals ?? []).map(\.id)) : []
+            _ = reader.hideNative(shown, holding: Set(inbox.pendingItems.map(\.id)))
+            if decision == "shown" {
+                suite.expect(arrivals?.map(\.id) == live.map(\.id) && reader.hidesWindows && window.frame != home,
+                             "a confirmed banner passes from the hold to the island without a native flash")
+            } else {
+                suite.expect(window.frame == home && !reader.hidesWindows,
+                             "the native window returns after a \(decision) decision instead of remaining hidden")
+                if decision == "unknown" {
+                    suite.expect(arrivals == nil && inbox.items.isEmpty && !inbox.pendingItems.isEmpty,
+                                 "unknown focus restores the window while keeping its unconfirmed messages quarantined")
+                }
+            }
+        }
+    }
+
+    private static func heldArrivalMoveFailure(_ suite: TestSuite) {
+        let (access, reader, _, _) = arriving()
+        access.allowClose = true
+        access.movable = false
+        guard let item = reader.read()?.items.first else {
+            suite.expect(false, "the unmovable held-banner fixture is readable"); return
+        }
+        suite.expect(reader.hideNative([], holding: [item.id]).isEmpty,
+                     "an unconfirmed arrival cannot enter the native-close fallback before the island takes it")
+        suite.expect(reader.hideNative([item.id]) == [item.id],
+                     "the same failed move still permits the normal fallback after the island takes the banner")
     }
 
     private static func arriving() -> (access: Access, reader: NotchNotificationReaderCore<Access>, window: Node, home: CGRect) {

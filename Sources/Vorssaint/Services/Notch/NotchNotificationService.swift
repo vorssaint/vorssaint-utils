@@ -262,11 +262,13 @@ final class NotchNotificationService: ObservableObject {
             guard let self, self.generation == requested else { return }
             self.placing = false
             guard let reader = self.reader else { return }
-            let shown = NotchNotificationSupport.dismissesNative() ? self.shownIDs : []
+            let replacesNative = NotchNotificationSupport.dismissesNative()
+            let shown = replacesNative ? self.shownIDs : []
+            let held = replacesNative ? Set(self.inbox.pendingItems.map(\.id)) : []
             // Counted as hidden while the move is on its way, so stopping waits for it.
             self.hidesNative = self.hidesNative || !shown.isEmpty
             self.queue.async { [weak self] in
-                let failed = reader.hideNative(shown)
+                let failed = reader.hideNative(shown, holding: held)
                 let hidden = reader.hidesWindows
                 let retryDelay = reader.prehideRetryDelay
                 DispatchQueue.main.async {
