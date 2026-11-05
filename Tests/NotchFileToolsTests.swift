@@ -86,7 +86,7 @@ enum NotchFileToolsTests {
                                                  safeAreaTop: safeArea, cameraWidth: safeArea == 0 ? 0 : 180,
                                                  layout: layout, customWidth: width, customHeight: 400)
                     let size = geometry.expandedSize(module: .files)
-                    let area = NotchFileToolsSupport.mediaDropArea(in: geometry, size: size)
+                    let area = NotchFileToolsSupport.dropArea(index: 1, count: 2, in: geometry, size: size)
                     let content = geometry.contentSize(for: size)
                     suite.expect(area.minX > size.width / 2 && area.maxX == size.width - NotchLayout.horizontalInset,
                            "the media target is confined to the right-hand card at every island width")

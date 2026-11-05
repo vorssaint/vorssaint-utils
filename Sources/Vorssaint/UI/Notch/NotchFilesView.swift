@@ -42,10 +42,20 @@ struct NotchFilesView: View {
         VStack(spacing: NotchLayout.rowSpacing) {
             if choosesDropDestination {
                 HStack(spacing: NotchFileToolsSupport.dropSpacing) {
-                    dropDestination(FeatureStrings.notch(l10n.language).files, symbol: "tray.and.arrow.down",
-                                    selected: !service.targetsMediaDrop)
-                    dropDestination(text.optimizeMedia, symbol: "wand.and.stars", selected: service.targetsMediaDrop,
-                                    available: archives.canAcceptMediaDrop)
+                    ForEach(service.fileDropZones, id: \.self) { zone in
+                        switch zone {
+                        case .shelf:
+                            dropDestination(FeatureStrings.notch(l10n.language).files, symbol: "tray.and.arrow.down",
+                                            selected: service.fileDropZone == .shelf)
+                        case .media:
+                            dropDestination(text.optimizeMedia, symbol: "wand.and.stars",
+                                            selected: service.fileDropZone == .media,
+                                            available: archives.canAcceptMediaDrop)
+                        case .airDrop:
+                            dropDestination("AirDrop", symbol: "dot.radiowaves.left.and.right",
+                                            selected: service.fileDropZone == .airDrop)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let session = presentedMediaSession {
