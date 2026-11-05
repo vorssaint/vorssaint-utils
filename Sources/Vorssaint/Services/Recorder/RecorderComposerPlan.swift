@@ -261,6 +261,7 @@ extension RecorderComposer {
                     mask: mask,
                     texts: texts,
                     textOpacity: textOpacity,
+                    textCanvasSize: outputFormat == .gif ? fullCanvas : canvas,
                     images: images,
                     imageSprites: imageSprites,
                     imageOpacity: imageOpacity,

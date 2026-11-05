@@ -100,6 +100,7 @@ enum RecorderExportRenderingTests {
         try await gifRetainsExportSpeed(suite, take: take, folder: folder)
         try await audioAndGIF(suite, take: take)
         try await gifQuality(suite, folder: folder)
+        try await gifCaptionScale(suite, folder: folder)
         try await composedEdges(suite, take: take)
         try await orientedImports(suite, take: take)
         // The last case ends protection in the removed interval. The frame
@@ -244,6 +245,83 @@ enum RecorderExportRenderingTests {
                 "\(quality.rawValue) \(aspect) GIF uses the editor's \(width)×\(height) dimensions, got \(image.width)×\(image.height)")
             suite.expect(CGImageSourceGetCount(source) == fps,
                 "GIF bytes preserve the independently selected frame rate")
+        }
+    }
+
+    private static func gifCaptionScale(_ suite: TestSuite, folder: URL) async throws {
+        let folder = folder.appendingPathComponent("gif-caption-scale")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let take = RecorderTakeStore.Take(id: UUID(), folder: folder)
+        try await writePhaseVideo(to: take.videoURL, seconds: 1, width: 768, height: 432)
+        let sourceSize = CGSize(width: 768, height: 432)
+        var document = RecorderEditDocument(showsPointer: false, zoomEnabled: false,
+            texts: [.init(text: "this caption fits the preview at the selected size", start: 0, end: 1)])
+        let asset = AVURLAsset(url: take.videoURL)
+        let duration = try await asset.load(.duration)
+        guard let track = try await asset.loadTracks(withMediaType: .video).first,
+              let plan = RecorderComposer.makePlan(document: document, track: RecorderPointerTrack(),
+                  sourceSize: sourceSize, frameRate: 60, duration: duration.seconds),
+              let composition = await RecorderComposer.videoComposition(track: track, asset: asset,
+                  duration: duration, frameRate: 60, composer: RecorderComposer(plan: plan),
+                  sourceSize: sourceSize, outputSize: sourceSize)
+        else { throw FixtureFailure.writeFailed }
+        let preview = AVAssetImageGenerator(asset: asset)
+        defer { preview.cancelAllCGImageGeneration() }
+        preview.videoComposition = composition
+        preview.requestedTimeToleranceBefore = .zero
+        preview.requestedTimeToleranceAfter = .zero
+        let reference = try await preview.image(at: CMTime(value: 1, timescale: 2)).image
+        let context = CIContext()
+        func captionBounds(in image: CGImage) -> CGRect? {
+            let width = image.width, height = image.height
+            var pixels = [UInt8](repeating: 0, count: width * height * 4)
+            context.render(CIImage(cgImage: image), toBitmap: &pixels, rowBytes: width * 4,
+                bounds: CGRect(x: 0, y: 0, width: width, height: height),
+                format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+            var minX = width, minY = height, maxX = -1, maxY = -1
+            for y in 0..<height { for x in 0..<width {
+                let offset = (y * width + x) * 4
+                // At 0.5 s the fixture is blue and black; only the caption
+                // has all three channels lit. Include its antialiased edges.
+                if pixels[offset] > 64 && pixels[offset + 1] > 64 && pixels[offset + 2] > 64 {
+                    minX = min(minX, x); minY = min(minY, y)
+                    maxX = max(maxX, x); maxY = max(maxY, y)
+                }
+            } }
+            guard maxX >= minX, maxY >= minY else { return nil }
+            return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+        }
+        guard let expected = captionBounds(in: reference) else { throw FixtureFailure.writeFailed }
+        suite.expect(expected.minX > 0 && expected.maxX < sourceSize.width,
+            "the caption fits completely in the production preview")
+        let cases: [(Int, Int, Int)] = [
+            (100, 768, 432), (75, 576, 324), (50, 384, 216), (25, 192, 108), (1, 56, 32),
+        ]
+        for (scale, width, height) in cases {
+            document.gifScalePercent = scale
+            let url = folder.appendingPathComponent("caption-\(scale).gif")
+            let failure = await RecorderExporter().export(take: take, document: document,
+                output: .gif, to: url, progress: { _ in })
+            suite.expect(failure == nil, "captioned GIF exports at \(scale) percent")
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let frame = CGImageSourceCreateImageAtIndex(source, 6, nil),
+                  let actual = captionBounds(in: frame) else {
+                suite.expect(false, "\(scale) percent GIF contains the caption at 0.5 seconds")
+                continue
+            }
+            suite.expect(frame.width == width && frame.height == height
+                && CGImageSourceGetCount(source) == 12,
+                "caption scaling preserves GIF dimensions and frame rate at \(scale) percent")
+            // Compare decoded GIF pixels with the full-sized preview, not
+            // font-size calculations. A fresh 8 px font at 25% clips this
+            // caption; resizing the preview's layout keeps it inside the frame.
+            let scaled = expected.applying(CGAffineTransform(
+                scaleX: CGFloat(width) / sourceSize.width, y: CGFloat(height) / sourceSize.height))
+            suite.expect(abs(actual.minX - scaled.minX) <= 3
+                && abs(actual.maxX - scaled.maxX) <= 3
+                && abs(actual.minY - scaled.minY) <= 3
+                && abs(actual.maxY - scaled.maxY) <= 3,
+                "\(scale) percent GIF keeps the preview caption's proportional size and anchor, got \(actual), expected \(scaled)")
         }
     }
 
