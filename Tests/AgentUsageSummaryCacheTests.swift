@@ -14,10 +14,12 @@ enum AgentUsageSummaryCacheTests {
             let provider: AgentProvider = index % 2 == 0 ? .claude : .codex
             let date = now.addingTimeInterval(-Double(index) * 1_400 + 900)
             let model = index % 2 == 0 ? "claude-opus-5-5" : "gpt-6-sol"
-            let tokens = AgentTokens(input: index + 1, output: 10)
+            let tokens = AgentTokens(input: index + 1, cacheWrite: index % 3, cacheRead: index % 5 * 10,
+                                     output: 10, reasoning: index % 4)
             let cost: Double? = index % 13 == 0 ? nil : Double(index % 11) / 8
             return AgentUsageRecord(provider: provider, date: date, model: model, project: "p\(index % 7)",
-                                    session: "s", tokens: tokens, cost: cost, savings: 0.125)
+                                    session: "s", tokens: tokens, cost: cost, savings: 0.125,
+                                    skills: provider == .claude && index % 9 == 0 ? [AgentSkill(name: "grill-me", byPerson: index % 2 == 0): 1 + index % 2] : [:])
         }
         var providers = Set(AgentProvider.allCases)
         var live: [AgentLiveSession] = []
@@ -70,6 +72,12 @@ enum AgentUsageSummaryCacheTests {
         records[13].cost = 0.5
         records[13].tokens.output += 2
         check("streaming updates unpriced counts and model sort weights")
+        // A reply that calls a skill from a later block.
+        cache.recordChanged(at: 18, previous: records[18])
+        records[18].tokens.output += 3
+        records[18].skills[AgentSkill(name: "review", byPerson: false), default: 0] += 1
+        check("streaming updates skill calls")
+        breakdown(suite, records: records, now: now, calendar: calendar)
         now = now.addingTimeInterval(3_600)
         check("sliding windows expire and future responses become current without a history scan")
         suite.expect(cache.accumulatedRecords == 0, "clock-only updates leave historical totals cached")
@@ -91,6 +99,28 @@ enum AgentUsageSummaryCacheTests {
         cache.invalidate()
         check("repricing rebuilds cost, savings and unpriced totals")
         storeIntegration(suite, now: now, calendar: calendar)
+    }
+
+    /// Token kinds add up to the total, for each agent's ring and together;
+    /// skills sit beside them.
+    private static func breakdown(_ suite: TestSuite, records: [AgentUsageRecord], now: Date, calendar: Calendar) {
+        let all = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
+                                             providers: Set(AgentProvider.allCases), now: now, calendar: calendar)
+        let month = all.usage(.month)
+        let tokens = month.total.tokens
+        suite.expect(AgentTokenPart.allCases.reduce(0) { $0 + tokens[$1] } == tokens.total && tokens.reasoning > 0,
+                     "token kinds add up to the total without reasoning counted again")
+        suite.expect(AgentTokenPart.allCases.allSatisfy { part in
+            month.byProvider.values.reduce(0) { $0 + $1.tokens[part] } == tokens[part]
+        } && month.byProvider.count == 2, "each agent's token kinds add up to the shared total")
+        let calls = records.filter { $0.provider == .claude && $0.date > now.addingTimeInterval(-30 * 86_400) }
+        suite.expect(month.skills[AgentSkill(name: "grill-me", byPerson: true)] ?? 0 > 0 && month.skills.values.reduce(0, +) <= calls.reduce(0) {
+            $0 + $1.skills.values.reduce(0, +)
+        }, "skill calls are counted beside tokens")
+        let codex = AgentUsageSummary.snapshot(records: records.filter { $0.provider == .codex }, limits: [:], live: [],
+                                               plans: [:], providers: [.codex], now: now, calendar: calendar)
+        suite.expect(codex.usage(.month).skills.isEmpty && codex.usage(.month).total.tokens.total > 0,
+                     "an agent without skills shows only its token kinds")
     }
 
     private static func storeIntegration(_ suite: TestSuite, now: Date, calendar: Calendar) {

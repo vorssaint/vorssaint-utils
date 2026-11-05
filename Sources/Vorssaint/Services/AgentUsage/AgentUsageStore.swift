@@ -71,7 +71,8 @@ final class AgentUsageStore {
                 let old = records[position]
                 records[position] = AgentUsageRecord(provider: old.provider, date: old.date, model: model,
                     project: old.project, session: old.session, requests: old.requests,
-                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost)
+                    tokens: old.tokens, cost: old.cost, savings: old.savings, skills: old.skills,
+                    reportedCost: old.reportedCost)
                 // Incremental token updates keep the same model; attribution
                 // changes instead rebuild model buckets from the records.
                 summary.invalidate()
@@ -168,6 +169,7 @@ final class AgentUsageStore {
             if !sources[position].contains(source) { sources[position].append(source) }
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
+            let skills = old.skills.merging(record.skills, uniquingKeysWith: max)
             if merged == old.tokens {
                 if record.provider == .opencode {
                     let newCost: Double?
@@ -195,9 +197,10 @@ final class AgentUsageStore {
                         }
                     }
                 }
-                return
+                if skills == old.skills { return }
             }
             summary.recordChanged(at: position, previous: old)
+            records[position].skills = skills
             var combined = billables[position]
             combined.tokens = merged
             combined.longCacheWrite = max(combined.longCacheWrite, billable.longCacheWrite)

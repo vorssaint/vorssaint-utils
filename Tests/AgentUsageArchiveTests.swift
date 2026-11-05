@@ -292,7 +292,7 @@ enum AgentUsageArchiveTests {
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),
             ("AgentUsageStore.Saved.Record", labels(sampleRecord), ["key", "record", "billable", "sources"]),
             ("AgentUsageRecord", labels(sampleRecord.record),
-             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost"]),
+             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "skills", "reportedCost"]),
             ("AgentBillable", labels(sampleRecord.billable),
              ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),
@@ -306,7 +306,7 @@ enum AgentUsageArchiveTests {
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
             ("AgentLogState", labels(cursor.state),
-             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
+             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast", "pendingSkills", "turnSkills",
               "codexSubagent", "codexHeaderRead", "codexRoot", "codexTotalsSession",
               "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
               "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "runningCommands"])
