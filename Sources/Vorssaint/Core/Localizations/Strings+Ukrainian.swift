@@ -962,6 +962,8 @@ extension Strings {
         cleanerPanelCaption: "Залишки програм, кеші та журнали",
         cleanerSafeSection: "Безпечне очищення",
         cleanerOptionalSection: "За бажанням, спочатку перевірте",
+        cleanerExpandAll: "Розгорнути все",
+        cleanerCollapseAll: "Згорнути все",
         cleanerCatOtherCaches: "Інші кеші",
         cleanerCachesCaption: "Тимчасові файли, які програми створюють наново самі.",
         cleanerLogsCaption: "Старі журнали діагностики.",

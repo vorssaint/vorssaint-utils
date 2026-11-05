@@ -992,6 +992,8 @@ extension Strings {
         cleanerPanelCaption: "Uygulama kalıntıları, önbellekler ve günlükler",
         cleanerSafeSection: "Güvenli temizlik",
         cleanerOptionalSection: "İsteğe bağlı, önce gözden geçir",
+        cleanerExpandAll: "Tümünü genişlet",
+        cleanerCollapseAll: "Tümünü daralt",
         cleanerCatOtherCaches: "Diğer önbellekler",
         cleanerCachesCaption: "Uygulamaların kendiliğinden yeniden oluşturduğu geçici dosyalar.",
         cleanerLogsCaption: "Eski tanılama günlükleri.",

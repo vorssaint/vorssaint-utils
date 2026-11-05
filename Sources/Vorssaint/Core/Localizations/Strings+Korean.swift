@@ -993,6 +993,8 @@ extension Strings {
         cleanerPanelCaption: "앱 잔여 파일, 캐시 및 로그",
         cleanerSafeSection: "안전한 정리",
         cleanerOptionalSection: "선택 사항, 먼저 검토",
+        cleanerExpandAll: "모두 펼치기",
+        cleanerCollapseAll: "모두 접기",
         cleanerCatOtherCaches: "기타 캐시",
         cleanerCachesCaption: "앱이 자동으로 다시 만드는 임시 파일입니다.",
         cleanerLogsCaption: "오래된 진단 로그입니다.",

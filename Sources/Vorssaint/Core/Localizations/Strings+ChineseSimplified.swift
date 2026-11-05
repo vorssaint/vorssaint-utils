@@ -992,6 +992,8 @@ extension Strings {
         cleanerPanelCaption: "App 残留、缓存和日志",
         cleanerSafeSection: "安全清理",
         cleanerOptionalSection: "可选，请先确认",
+        cleanerExpandAll: "全部展开",
+        cleanerCollapseAll: "全部收起",
         cleanerCatOtherCaches: "其他缓存",
         cleanerCachesCaption: "App 会自行重建的临时文件。",
         cleanerLogsCaption: "旧的诊断日志。",
