@@ -24,9 +24,12 @@ enum KeepAwakeAutomationSupport {
 
     /// The published lid policy can lag behind a temporary assertion, so both
     /// must permit sleep. Ordinary idle-sleep assertions (including media)
-    /// must not defeat a closed-lid session's battery cutoff.
-    static func lidSleepIsAllowed(systemAllowsSleep: Bool?, assertions: [[String: Any]]?) -> Bool {
-        guard systemAllowsSleep == true, let assertions else { return false }
+    /// must not defeat a closed-lid session's battery cutoff. A closed lid
+    /// with a display attached is clamshell mode, which macOS keeps awake
+    /// itself, so only a confirmed "no external display" can sleep.
+    static func lidSleepIsAllowed(systemAllowsSleep: Bool?, assertions: [[String: Any]]?,
+                                  externalDisplay: Bool?) -> Bool {
+        guard systemAllowsSleep == true, externalDisplay == false, let assertions else { return false }
         return !assertions.contains { assertion in
             switch assertion["AssertType"] as? String {
             case "UserIsActive", "DisplayWake", "PreventSystemSleep", nil: break
