@@ -5,8 +5,9 @@ import AppKit
 
 enum ScreenshotImageLayerRendering {
     static func draw(_ annotation: ScreenshotSupport.Annotation, in context: CGContext) {
-        guard let image = annotation.imageAsset?.image else { return }
+        guard let image = annotation.imageAsset?.image, annotation.opacity > 0 else { return }
         context.saveGState()
+        context.setAlpha(min(annotation.opacity, 1))
         context.translateBy(x: 0, y: annotation.rect.minY + annotation.rect.maxY)
         context.scaleBy(x: 1, y: -1)
         context.interpolationQuality = .high
@@ -50,6 +51,7 @@ extension ScreenshotRenderer {
         private struct Layer: Equatable {
             let asset: ScreenshotSupport.ImageAsset
             let rect: CGRect
+            var opacity: CGFloat = 1
         }
 
         private struct Key: Equatable {
@@ -140,7 +142,7 @@ extension ScreenshotRenderer {
             if Self.usesCapture(annotation, below: images) { return original }
             let style = annotation.blurStyle
             let layers = images.compactMap { image in
-                image.imageAsset.map { Layer(asset: $0, rect: image.rect) }
+                image.imageAsset.map { Layer(asset: $0, rect: image.rect, opacity: image.opacity) }
             }
             // Recognition reads only the capture, so a text only area covers
             // the part of each image below it as text it could not read.
