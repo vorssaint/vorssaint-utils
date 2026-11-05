@@ -825,15 +825,22 @@ def main():
                     for prefix in ["    struct RowAction:", "    private func skinToneActions(",
                                    "    private func recordUsage(", "    private func finish("])
           + "}\n")
+    write("MixedStateCheckbox.swift", "import AppKit\nimport SwiftUI\n"
+          + declaration("Sources/Vorssaint/UI/SharedUI.swift", "struct MixedStateCheckbox:"))
     write("UninstallerFlow.swift", "import AppKit\nimport Carbon.HIToolbox\nimport Combine\n"
           + "extension UninstallerFlowTests {\n"
           + declaration(uninstall, "    enum Phase:")
+          + declaration(uninstall, "    enum Category:")
           + declaration(bar, "    enum Mode:")
           + "final class Uninstaller: UninstallerState {\nstatic let shared = Uninstaller()\n"
+          + "".join(line + "\n" for line in (ROOT / uninstall).read_text().splitlines()
+                    if line.startswith(("    var selectedSize:", "    var totalSize:")))
           + "".join(declaration(uninstall, prefix) for prefix in [
+              "    var selectedHomebrewPackage:", "    var isRemovingWithHomebrew:",
               "    var isRemoving: Bool", "    var canRemoveSelected: Bool", "    func select(appURL:",
               "    func retryHomebrewCheck()",
-              "    func reset()", "    func setInclude(", "    struct HomebrewRemovalConfirmation",
+              "    func reset()", "    func setInclude(", "    func setAllIncluded(",
+              "    var bulkSelection:", "    struct HomebrewRemovalConfirmation",
               "    var homebrewRemovalConfirmation:", "    func removeSelectedWithHomebrew("])
           + "}\nfinal class Service: ServiceState {\n"
           + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
