@@ -68,6 +68,8 @@ enum KeepAwakeLidSleepContract {
     static var closes = 0
     static var policy: Bool? = true
     static var assertions: [[String: Any]]? = []
+    static var externalDisplay: Bool? = false
+    static var onBattery = false
     static func IOPMFindPowerManagement(_ value: Int) -> Int { port }
     static func IOPMSleepSystem(_ value: Int) -> Int {
         calls += 1
@@ -106,7 +108,7 @@ enum KeepAwakeLidSleepContract {
     }
     static func reset() -> Service {
         port = 1; results = [0]; calls = 0; closes = 0
-        policy = true; assertions = []; BrightnessService.lid = true
+        policy = true; assertions = []; externalDisplay = false; onBattery = false; BrightnessService.lid = true
         LidDisplayDimmer.reading = nil; LidDisplayDimmer.written = []; LidDisplayDimmer.writeSucceeds = true
         DimmingObserver.registrations = 0; DimmingObserver.releasedObjects = 0
         DimmingObserver.destroyedPorts = 0; DimmingObserver.callback = nil
@@ -129,7 +131,8 @@ enum KeepAwakeLidSleepTests {
 
     static func run(expect: (Bool, String) -> Void) {
         func allowed(_ policy: Bool?, _ assertions: [[String: Any]]?) -> Bool {
-            KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: policy, assertions: assertions)
+            KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: policy, assertions: assertions,
+                                                         externalDisplay: false, onBattery: false)
         }
         let connection: [String: Any] = ["AssertType": "PreventSystemSleep", "AssertLevel": 1,
                                           "ProcessingHotPlug": true]
@@ -137,6 +140,27 @@ enum KeepAwakeLidSleepTests {
                "a live monitor transition overrides a stale allowed lid policy")
         expect(!allowed(false, []) && !allowed(nil, []) && !allowed(true, nil),
                "closed-display mode and unavailable system facts never authorize forced sleep")
+        expect(!KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: true, assertions: [],
+                                                             externalDisplay: true, onBattery: false),
+               "a closed lid with an external display on power is clamshell mode, so turning off is not a forced sleep")
+        expect(!KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: true, assertions: [],
+                                                             externalDisplay: nil, onBattery: false),
+               "on power an unreadable display list never authorizes forced sleep")
+        expect(!KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: false, assertions: [],
+                                                             externalDisplay: false, onBattery: false),
+               "on power the lid policy still decides without a display")
+        expect(KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: false, assertions: [],
+                                                            externalDisplay: true, onBattery: true),
+               "on battery a closed lid sleeps with a display attached even while the lid policy reads false")
+        expect(KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: false, assertions: [],
+                                                            externalDisplay: nil, onBattery: true),
+               "on battery an unreadable display list does not keep a closed lid awake")
+        expect(!KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: true, assertions: [connection],
+                                                             externalDisplay: true, onBattery: true),
+               "a live monitor transition still holds a closed lid on battery")
+        expect(!KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: true, assertions: nil,
+                                                             externalDisplay: false, onBattery: true),
+               "unreadable assertions never authorize forced sleep, on battery too")
         expect(allowed(true, []) && allowed(true, [["AssertType": "PreventUserIdleSystemSleep", "AssertLevel": 1]]),
                "media idle assertions do not defeat the closed-lid battery cutoff")
         for type in ["UserIsActive", "DisplayWake", "PreventSystemSleep"] {

@@ -921,7 +921,6 @@ final class KeepAwakeManager: ObservableObject {
         let allowsSleep = IORegistryEntryCreateCFProperty(
             service, kAppleClamshellCausesSleepKey as CFString,
             kCFAllocatorDefault, 0)?.takeRetainedValue() as? Bool
-        guard allowsSleep == true else { return false }
 
         // The kernel does not republish its lid policy for every assertion
         // change. Read live protections as well, especially display hot-plug.
@@ -932,7 +931,9 @@ final class KeepAwakeManager: ObservableObject {
               let assertions = values as? [AnyHashable: [[String: Any]]]
         else { return false }
         return KeepAwakeAutomationSupport.lidSleepIsAllowed(
-            systemAllowsSleep: allowsSleep, assertions: assertions.values.flatMap { $0 })
+            systemAllowsSleep: allowsSleep, assertions: assertions.values.flatMap { $0 },
+            externalDisplay: hasExternalDisplay(),
+            onBattery: SystemInfo.batterySnapshot()?.isOnBattery == true)
     }
 
     /// If the app died unexpectedly while sleep was disabled, restores normal

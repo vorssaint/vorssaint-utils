@@ -290,6 +290,15 @@ enum KeepAwakeClamshellTests {
                    "every synchronous retry observes newly opened lids and external protections")
         }
 
+        let unplugged = active(); C.onBattery = true; C.externalDisplay = true; C.policy = false
+        unplugged.deactivate(reason: .timer); C.drain()
+        expect(C.calls == 1 && !C.Sudoers.disabled,
+               "a closed-lid session ending on battery with a display attached restores sleep and requests it")
+        let docked = active(); C.onBattery = false; C.externalDisplay = true; C.policy = true
+        docked.deactivate(reason: .manual); C.drain()
+        expect(C.calls == 0 && !C.Sudoers.disabled,
+               "switching off while docked restores sleep without forcing it")
+
         let failed = active(); C.Sudoers.results = [false]
         failed.deactivate(reason: .quit)
         expect(C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag)
