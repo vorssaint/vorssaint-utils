@@ -130,6 +130,15 @@ enum AgentUsageReadTests {
                 #"{"id":"end","timestamp":\#(timestamp),"type":"assistant.turn_end","data":{"turnId":"0"}}"#,
                 #"{"id":"usage","timestamp":\#(timestamp),"type":"session.shutdown","data":{"modelMetrics":{"gpt-6-sol":{"requests":{"count":1},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":20},"cache_write":{"tokenCount":0},"output":{"tokenCount":5}},"usage":{"reasoningTokens":2}}}}}"#,
                 #"{"id":"final-checkpoint","timestamp":\#(timestamp),"type":"session.usage_checkpoint","data":{}}"#
+            ]),
+            (.gemini, [
+                #"{"sessionId":"s","projectHash":"h","startTime":"2026-10-27T10:00:00.000Z","kind":"main"}"#,
+                #"{"id":"u","timestamp":\#(timestamp),"type":"user","content":[{"text":"private"}]}"#,
+                #"{"id":"g","timestamp":\#(timestamp),"type":"gemini","content":"","tokens":{"input":30,"output":2,"cached":20,"thoughts":1,"tool":0,"total":33},"model":"gemini-2.5-pro"}"#,
+                #"{"$set":{"lastUpdated":"2026-10-27T10:00:01.000Z"}}"#,
+                #"{"id":"g","timestamp":\#(timestamp),"type":"gemini","content":"","tokens":{"input":30,"output":2,"cached":20,"thoughts":1,"tool":0,"total":33},"model":"gemini-2.5-pro","toolCalls":[{"id":"t","name":"read_file","status":"success"}]}"#,
+                #"{"id":"r","timestamp":\#(timestamp),"type":"user","content":[{"functionResponse":{"id":"t","name":"read_file","response":{"output":"private"}}}]}"#,
+                #"{"id":"g2","timestamp":\#(timestamp),"type":"gemini","content":"private","tokens":{"input":40,"output":5,"cached":0,"thoughts":0,"tool":0,"total":45},"model":"gemini-2.5-pro"}"#
             ])
         ]
         for (provider, lines) in cases {
@@ -146,6 +155,7 @@ enum AgentUsageReadTests {
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+                case .gemini: entries += GeminiReader().parse(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
@@ -170,7 +180,8 @@ enum AgentUsageReadTests {
                             && host.store.waiting == reference.waiting && host.store.limits == reference.limits
                             && host.store.codexPlan == reference.codexPlan && host.events == expectedEvents,
                          "streaming \(provider.rawValue) preserves duplicate merging, usage, turns, limits, plans and event order")
-            suite.expect((provider == .copilot || !expectedEvents.isEmpty)
+            // Gemini CLI marks no turn's end, so its turns end without a notice.
+            suite.expect(([.copilot, .gemini].contains(provider) || !expectedEvents.isEmpty)
                             && host.cursors[file.path]?.state == cursor.state,
                          "\(provider.rawValue) retains the same parser context without replaying historical finishes")
             suite.expect(!host.read(file.path, provider: provider) && host.events == expectedEvents,
@@ -391,7 +402,7 @@ enum AgentUsageReadTests {
                 suite.expect(false, "the startup fixture has a root for \(provider)")
                 return
             }
-            let file = root.url.appending(path: "session/events.jsonl")
+            let file = root.url.appending(path: provider == .gemini ? "project/chats/session.jsonl" : "session/events.jsonl")
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)

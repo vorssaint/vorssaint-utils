@@ -156,12 +156,15 @@ enum AgentLogParser {
         ["fast", "priority"].contains(tier.lowercased())
     }
 
-    // MARK: OpenCode
-
+    /// How long a turn goes on after a step that may have been its last.
     /// OpenCode starts the next step the moment a step's tools return, so
     /// a turn that goes this long without one after a step ended has stopped,
-    /// as when a permission was rejected or a question dismissed.
-    static let openCodeSettle: TimeInterval = 30
+    /// as when a permission was rejected or a question dismissed. Gemini CLI
+    /// writes the tools a reply asked for only once they finish, so a reply
+    /// with nothing after it for this long was the turn's last.
+    static let settle: TimeInterval = 30
+
+    // MARK: OpenCode
 
     static func parseOpenCode(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         OpenCodeReader().parse(line, state: &state, now: now)

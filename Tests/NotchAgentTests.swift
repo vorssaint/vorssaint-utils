@@ -20,6 +20,7 @@ enum NotchAgentTests {
         codexParsing(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
+        GeminiAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
@@ -168,7 +169,11 @@ enum NotchAgentTests {
                         && AgentPricing.displayName("gpt-5-2025-08-07") == "GPT-5"
                         && AgentPricing.displayName("claude-mythos-preview") == "Mythos Preview"
                         && AgentPricing.displayName("claude-3-5-sonnet-latest") == "Sonnet 3.5"
-                        && AgentPricing.displayName("gpt-daybreak-red-latest") == "GPT Daybreak Red",
+                        && AgentPricing.displayName("gpt-daybreak-red-latest") == "GPT Daybreak Red"
+                        && AgentPricing.displayName("gemini-4-argon-b") == "Gemini 4 Argon B"
+                        && AgentPricing.displayName("gemini-3.8-flash-lite") == "Gemini 3.8 Flash Lite"
+                        && AgentPricing.displayName("gemini-4-argon-20261013") == "Gemini 4 Argon"
+                        && AgentPricing.displayName("gemini-2.5-pro-preview-06-05") == "Gemini 2.5 Pro Preview",
                      "model names read the way people say them, without snapshot dates")
         suite.expect(AgentPricing.displayName("gpt-7") == "GPT-7" && AgentPricing.displayName("claude-opus-6") == "Opus 6"
                         && AgentPricing.displayName("gpt-7-codex") == "GPT-7 Codex",
@@ -3151,11 +3156,13 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .gemini], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .gemini], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .gemini], "multiple agents can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsGemini)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "Gemini CLI keeps its own preference")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)
@@ -3168,7 +3175,7 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
-                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsGemini,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
@@ -3199,6 +3206,9 @@ enum NotchAgentTests {
                      "the resets card belongs to Codex and leaves with it")
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .resets, .spend], providers: [.copilot]) == [spend],
                      "a Copilot-only dashboard never offers unavailable limits or Codex account resets")
+        suite.expect(!AgentProvider.gemini.reportsLimits
+                        && NotchAgentSupport.tiles(cards: [.limits, .resets, .spend], providers: [.gemini]) == [spend],
+                     "Gemini CLI, which keeps its quota to itself, gets no limits card")
         suite.expect(NotchAgentSupport.rows([limits, codex, spend, trend], width: 424) == [[limits, codex], [spend], [trend]]
                         && NotchAgentSupport.rows([limits, trend, codex], width: 424) == [[limits], [trend], [codex]],
                      "cards pair in reading order, and charts and lone cards take the row")
