@@ -129,7 +129,8 @@ enum KeepAwakeLidSleepTests {
 
     static func run(expect: (Bool, String) -> Void) {
         func allowed(_ policy: Bool?, _ assertions: [[String: Any]]?) -> Bool {
-            KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: policy, assertions: assertions)
+            KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: policy, assertions: assertions,
+                                                         externalDisplay: false)
         }
         let connection: [String: Any] = ["AssertType": "PreventSystemSleep", "AssertLevel": 1,
                                           "ProcessingHotPlug": true]
@@ -137,6 +138,12 @@ enum KeepAwakeLidSleepTests {
                "a live monitor transition overrides a stale allowed lid policy")
         expect(!allowed(false, []) && !allowed(nil, []) && !allowed(true, nil),
                "closed-display mode and unavailable system facts never authorize forced sleep")
+        expect(!KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: true, assertions: [],
+                                                             externalDisplay: true),
+               "a closed lid with an external display is clamshell mode, so turning off is not a forced sleep")
+        expect(!KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: true, assertions: [],
+                                                             externalDisplay: nil),
+               "an unreadable display list never authorizes forced sleep")
         expect(allowed(true, []) && allowed(true, [["AssertType": "PreventUserIdleSystemSleep", "AssertLevel": 1]]),
                "media idle assertions do not defeat the closed-lid battery cutoff")
         for type in ["UserIsActive", "DisplayWake", "PreventSystemSleep"] {

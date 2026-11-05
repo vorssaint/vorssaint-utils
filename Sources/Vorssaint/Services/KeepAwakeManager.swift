@@ -932,7 +932,8 @@ final class KeepAwakeManager: ObservableObject {
               let assertions = values as? [AnyHashable: [[String: Any]]]
         else { return false }
         return KeepAwakeAutomationSupport.lidSleepIsAllowed(
-            systemAllowsSleep: allowsSleep, assertions: assertions.values.flatMap { $0 })
+            systemAllowsSleep: allowsSleep, assertions: assertions.values.flatMap { $0 },
+            externalDisplay: hasExternalDisplay())
     }
 
     /// If the app died unexpectedly while sleep was disabled, restores normal
