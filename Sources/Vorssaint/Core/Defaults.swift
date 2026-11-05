@@ -141,6 +141,24 @@ enum DefaultsKey {
     static let spacesOrderRestartPending = "spacesOrderRestartPending" // local recovery; never backed up: "<Dock pid> <fixed|rearranging> <absent|on|off>…", the Dock process that owes the restart reading a written mru-spaces, what it runs and the values written under it
     static let middleClickEnabled = "middleClickEnabled"  // three-finger PHYSICAL click on the trackpad acts as a middle click
     static let middleClickTapFingers = "middleClickTapFingers"  // 0 = off (default); 3 or 4 = a light tap with that many fingers also middle-clicks (issue #161)
+    static let trackpadEdgesEnabled = "trackpadEdgesEnabled"
+    static let trackpadEdgeLeftAction = "trackpadEdgeLeftAction"
+    static let trackpadEdgeRightAction = "trackpadEdgeRightAction"
+    static let trackpadEdgeTopAction = "trackpadEdgeTopAction"
+    static let trackpadEdgeBottomAction = "trackpadEdgeBottomAction"
+    static let trackpadCornerTopLeftAction = "trackpadCornerTopLeftAction"
+    static let trackpadCornerTopRightAction = "trackpadCornerTopRightAction"
+    static let trackpadCornerBottomLeftAction = "trackpadCornerBottomLeftAction"
+    static let trackpadCornerBottomRightAction = "trackpadCornerBottomRightAction"
+    static let trackpadEdgeMediaStripTap = "trackpadEdgeMediaStripTap"
+    static let trackpadEdgeWidth = "trackpadEdgeWidth"
+    static let trackpadEdgeActiveArea = "trackpadEdgeActiveArea"
+    static let trackpadEdgeSensitivity = "trackpadEdgeSensitivity"
+    static let trackpadEdgePrecise = "trackpadEdgePrecise"
+    static let trackpadEdgeHaptics = "trackpadEdgeHaptics"
+    static let trackpadEdgeFreezeCursor = "trackpadEdgeFreezeCursor"
+    static let trackpadEdgeModifier = "trackpadEdgeModifier"
+    static let trackpadEdgeTapToSlide = "trackpadEdgeTapToSlide"
     static let previewSize = "previewSize"                // dock preview thumbnail size (once shared with the app switcher)
     static let switcherPreviewSize = "switcherPreviewSize" // app switcher thumbnail size
     static let autoCheckUpdates = "autoCheckUpdates"
@@ -356,6 +374,7 @@ enum DefaultsKey {
     static let panelControlMiddleClick = "panelControlMiddleClick"
     static let panelControlTextSnippets = "panelControlTextSnippets"
     static let panelControlSuperKey = "panelControlSuperKey"
+    static let panelControlTrackpadEdges = "panelControlTrackpadEdges"
     static let panelControlRadialMenu = "panelControlRadialMenu"
     static let panelControlMouseButtonShortcuts = "panelControlMouseButtonShortcuts"
     static let panelControlMouseAcceleration = "panelControlMouseAcceleration"
@@ -1313,6 +1332,24 @@ enum Defaults {
         DefaultsKey.spacesOrderEnabled: false,
         DefaultsKey.middleClickEnabled: false,
         DefaultsKey.middleClickTapFingers: 0,
+        DefaultsKey.trackpadEdgesEnabled: false,
+        DefaultsKey.trackpadEdgeLeftAction: TrackpadEdge.left.defaultAction.rawValue,
+        DefaultsKey.trackpadEdgeRightAction: TrackpadEdge.right.defaultAction.rawValue,
+        DefaultsKey.trackpadEdgeTopAction: TrackpadEdge.top.defaultAction.rawValue,
+        DefaultsKey.trackpadEdgeBottomAction: TrackpadEdge.bottom.defaultAction.rawValue,
+        DefaultsKey.trackpadCornerTopLeftAction: TrackpadCorner.topLeft.defaultAction.rawValue,
+        DefaultsKey.trackpadCornerTopRightAction: TrackpadCorner.topRight.defaultAction.rawValue,
+        DefaultsKey.trackpadCornerBottomLeftAction: TrackpadCorner.bottomLeft.defaultAction.rawValue,
+        DefaultsKey.trackpadCornerBottomRightAction: TrackpadCorner.bottomRight.defaultAction.rawValue,
+        DefaultsKey.trackpadEdgeMediaStripTap: true,
+        DefaultsKey.trackpadEdgeWidth: TrackpadEdgeConfiguration.defaultEdgeWidth,
+        DefaultsKey.trackpadEdgeActiveArea: TrackpadActiveArea.full.rawValue,
+        DefaultsKey.trackpadEdgeSensitivity: TrackpadSlideSensitivity.normal.rawValue,
+        DefaultsKey.trackpadEdgePrecise: false,
+        DefaultsKey.trackpadEdgeHaptics: true,
+        DefaultsKey.trackpadEdgeFreezeCursor: true,
+        DefaultsKey.trackpadEdgeModifier: TrackpadEdgeModifier.none.rawValue,
+        DefaultsKey.trackpadEdgeTapToSlide: false,
         DefaultsKey.previewSize: "normal",
         DefaultsKey.switcherPreviewSize: "normal",
         DefaultsKey.autoCheckUpdates: true,
@@ -1624,6 +1661,7 @@ enum Defaults {
         DefaultsKey.panelControlMiddleClick: true,
         DefaultsKey.panelControlTextSnippets: true,
         DefaultsKey.panelControlSuperKey: true,
+        DefaultsKey.panelControlTrackpadEdges: true,
         DefaultsKey.panelControlRadialMenu: true,
         DefaultsKey.panelControlMouseButtonShortcuts: true,
         DefaultsKey.panelControlMouseAcceleration: true,

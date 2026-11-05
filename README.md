@@ -132,6 +132,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Side buttons.** Use mouse Back and Forward buttons in Finder, browsers and compatible apps.
 - **Mouse button shortcuts.** Assign keys to extra buttons and side wheels, or use button-drag gestures for Spaces and Mission Control.
 - **Middle click.** Turn a three-finger trackpad press into a middle click.
+- **Trackpad edges.** Slide along the trackpad's edges for volume and brightness, and double-tap its corners to mute the sound or the microphone, with haptic feedback and an optional tap before sliding so edges never change by accident.
 - **Apps to leave alone.** Exclude chosen apps from mouse enhancements.
 - **Extra click filter.** Ignore accidental rapid clicks from worn mouse buttons without delaying normal clicks.
 - **Key debounce.** Filter repeated letters caused by a worn keyboard.

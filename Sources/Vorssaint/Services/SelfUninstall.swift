@@ -167,6 +167,9 @@ enum SelfUninstall {
         SuperKeyService.shared.suspend()
         DockClickService.shared.suspend()
         MiddleClickService.shared.suspend()
+        if AppFeature.trackpadEdges.isAvailable {
+            TrackpadEdgeService.shared.suspend()
+        }
         QuitProtectionService.shared.suspend()
         PastePlainService.shared.suspend()
         SnippetLibraryService.shared.suspend()

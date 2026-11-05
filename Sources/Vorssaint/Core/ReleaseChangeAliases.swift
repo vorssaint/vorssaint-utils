@@ -81,6 +81,7 @@ enum ReleaseChangeAliases {
             "back/forward mouse buttons"]
         case .mouseButtonShortcuts: return ["mouse button shortcuts", "button shortcuts"]
         case .middleClick: return ["middle click", "middle-click", "middle clicks"]
+        case .trackpadEdges: return ["trackpad edges", "trackpad edge", "edge controls", "edge gestures"]
         case .mouseClickDebounce: return ["extra click filter", "extra-click filter", "click filter",
             "mouse debounce", "keyboard and mouse debounce", "worn-button click filtering", "extra clicks"]
         case .keyboardDebounce: return ["keyboard debounce", "key debounce", "debounce",

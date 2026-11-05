@@ -261,6 +261,7 @@ final class FeatureRuntime: ObservableObject {
         .mouseNavigation: { MouseNavigationService.shared.syncWithPreferences() },
         .mouseButtonShortcuts: { MouseButtonShortcutService.shared.syncWithPreferences() },
         .middleClick: { MiddleClickService.shared.syncWithPreferences() },
+        .trackpadEdges: { TrackpadEdgeService.shared.syncWithPreferences() },
         .mouseClickDebounce: { MouseClickDebounceService.shared.syncWithPreferences() },
         .keyboardDebounce: { KeyboardDebounceService.shared.syncWithPreferences() },
         .quitWindowProtection: { QuitProtectionService.shared.syncWithPreferences() },

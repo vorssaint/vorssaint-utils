@@ -190,7 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 FeatureRuntime.shared.sync([
                     .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .switcher,
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
-                    .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
+                    .middleClick, .trackpadEdges, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
                     .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer, .musicBlock, .notch,
                 ])
@@ -336,6 +336,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         AppSwitcher.shared.suspend()
         MouseButtonShortcutService.shared.suspend()
         MiddleClickService.shared.suspend()
+        if AppFeature.trackpadEdges.isAvailable {
+            TrackpadEdgeService.shared.suspend()
+        }
         ScrollInverter.shared.suspend()
         SmoothScrollService.shared.suspend()
         if AppFeature.mouseAcceleration.isAvailable
