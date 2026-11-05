@@ -152,25 +152,25 @@ struct ClipboardEntryPreviewSidebar: View {
     @ViewBuilder
     private func filesPreview(_ entry: ClipboardHistoryEntry) -> some View {
         if entry.filePaths.count == 1, let path = entry.filePaths.first {
-            singleFilePreview(path)
+            singleFilePreview(path, entry: entry)
         } else {
             multipleFilesPreview(entry)
         }
     }
 
     @ViewBuilder
-    private func singleFilePreview(_ path: String) -> some View {
-        let isImage = ClipboardImageStore.isImageFile(atPath: path)
+    private func singleFilePreview(_ path: String, entry: ClipboardHistoryEntry) -> some View {
+        let source = entry.imageThumbnailSource
         let fileName = (path as NSString).lastPathComponent
 
         VStack(alignment: .leading, spacing: 10) {
-            if isImage {
-                ClipboardThumbnailImage(source: .file(path: path),
-                                        aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
+            if let source {
+                ClipboardThumbnailImage(source: source,
+                                        aspectRatio: entry.imageAspectRatio ?? ClipboardImageStore.imageAspectRatio(atPath: path))
                     .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-                let dim = ClipboardImageStore.imageDimensionsLabel(atPath: path)
+                let dim = entry.imageWidth != nil ? entry.imageDimensionsLabel : ClipboardImageStore.imageDimensionsLabel(atPath: path)
                 let size = ClipboardImageStore.fileSizeString(atPath: path)
                 let parts = [text.imageEntryLabel, dim, size].compactMap { $0 }
                 Text(parts.joined(separator: " · "))
@@ -311,7 +311,7 @@ struct ClipboardEntryPreviewSidebar: View {
 
     /// The picture an image entry or a single copied image file holds.
     private func imageURL(_ entry: ClipboardHistoryEntry) -> URL? {
-        if entry.kind == .image, let name = entry.imageFile {
+        if let source = entry.imageThumbnailSource, case .stored(let name) = source {
             return ClipboardImageStore.directory?.appendingPathComponent(name)
         }
         guard entry.kind == .files, entry.filePaths.count == 1,

@@ -90,9 +90,11 @@ enum ClipboardFeatureTests {
     }
 
     static func run(_ suite: TestSuite) {
+        ClipboardImagePreviewSourceTests.run(suite)
         ClipboardSensitiveTextPreferenceTests.run(suite)
         ClipboardPreviewContract.run(suite)
         ClipboardCaptureRestoreTests.run(suite)
+        ClipboardImageCaptureTests.run(suite)
         let source = SourceHost()
         func sourceCheck(declared: String? = nil, remote: Bool = false,
                          panelIsKey: Bool = false, panelClosing: Bool = false)

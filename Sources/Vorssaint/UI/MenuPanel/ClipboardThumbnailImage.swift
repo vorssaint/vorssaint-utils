@@ -63,6 +63,20 @@ struct ClipboardThumbnailImage: View {
 }
 
 extension ClipboardHistoryEntry {
+    /// Captured file previews stay readable after the source app's scoped
+    /// clipboard URL expires. Older entries can still load an accessible file.
+    var imageThumbnailSource: ClipboardImageStore.ThumbnailSource? {
+        guard kind == .image || (kind == .files && filePaths.count == 1
+            && ClipboardHistoryImageSupport.isImageFileName(filePaths[0])) else { return nil }
+        if let name = imageFile, !name.isEmpty, (name as NSString).lastPathComponent == name {
+            return .stored(name: name)
+        }
+        if kind == .files, let path = filePaths.first, ClipboardImageStore.isImageFile(atPath: path) {
+            return .file(path: path)
+        }
+        return nil
+    }
+
     /// Width over height of a copied image, for sizing its placeholder.
     var imageAspectRatio: CGFloat? {
         guard let imageWidth, let imageHeight, imageWidth > 0, imageHeight > 0 else { return nil }

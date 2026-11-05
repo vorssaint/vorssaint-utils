@@ -552,8 +552,7 @@ private struct QuickEntryView: View, Equatable {
     /// apart no better. A single picture shows itself in the card instead.
     private var showsFileIcon: Bool {
         guard entry.kind == .files else { return false }
-        if entry.filePaths.count == 1, let path = entry.filePaths.first,
-           ClipboardImageStore.isImageFile(atPath: path) { return false }
+        if entry.imageThumbnailSource != nil { return false }
         return fileIcon(for: entry) != nil
     }
 
@@ -616,10 +615,10 @@ private struct QuickEntryView: View, Equatable {
         case .files:
             if entry.filePaths.count == 1,
                let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path) {
+               let source = entry.imageThumbnailSource {
                 pictureStack {
-                    ClipboardThumbnailImage(source: .file(path: path),
-                                            aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
+                    ClipboardThumbnailImage(source: source,
+                                            aspectRatio: entry.imageAspectRatio ?? ClipboardImageStore.imageAspectRatio(atPath: path))
                         .frame(maxWidth: pictureMaxSize.width, maxHeight: pictureMaxSize.height)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
@@ -627,7 +626,7 @@ private struct QuickEntryView: View, Equatable {
                             .font(.system(size: 12))
                             .lineLimit(1)
                             .truncationMode(.middle)
-                        if let dim = ClipboardImageStore.imageDimensionsLabel(atPath: path) {
+                        if let dim = entry.imageWidth != nil ? entry.imageDimensionsLabel : ClipboardImageStore.imageDimensionsLabel(atPath: path) {
                             Text("\(text.imageEntryLabel) · \(dim)")
                                 .font(.system(size: 11.5))
                                 .foregroundStyle(.secondary)
@@ -783,9 +782,7 @@ private struct QuickEntryView: View, Equatable {
                 .frame(width: 18, height: 18)
                 .frame(width: 25, height: 25)
         } else if entry.kind == .files,
-                  entry.filePaths.count == 1,
-                  let path = entry.filePaths.first,
-                  ClipboardImageStore.isImageFile(atPath: path) {
+                  entry.imageThumbnailSource != nil {
             Image(systemName: entry.isPinned ? "pin.fill" : "photo")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(entry.isPinned ? Color.accentColor : Color.secondary)

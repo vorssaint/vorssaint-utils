@@ -49,9 +49,12 @@ enum ClipboardCaptureRestoreTests {
         static func copiedFilePaths(from board: AppKit.NSPasteboard) -> [String]? { nil }
         static func copiedPNGImage(from board: AppKit.NSPasteboard)
             -> (data: Data, width: Int, height: Int)? { nil }
+        static func copiedFileImage(from board: AppKit.NSPasteboard, path: String)
+            -> (data: Data, width: Int, height: Int)? { nil }
         static func webURLString(from board: AppKit.NSPasteboard) -> String? { nil }
         static func sha256Hex(_ data: Data) -> String { data.base64EncodedString() }
-        func promoteFiles(_ paths: [String], source: String?, keepsSource: Bool) {
+        func promoteFiles(_ paths: [String], preview: (data: Data, width: Int, height: Int)?,
+                          source: String?, keepsSource: Bool) {
             preconditionFailure("file capture is outside this text fixture")
         }
         func promoteImage(_ image: (data: Data, width: Int, height: Int), source: String?, keepsSource: Bool) {

@@ -173,7 +173,8 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     let kind: ClipboardHistoryEntryKind
     /// Absolute paths for `.files` entries, in the order they were copied.
     let filePaths: [String]
-    /// PNG file name inside the clipboard image store for `.image` entries.
+    /// PNG file name inside the clipboard image store, also used as a preview
+    /// snapshot for a single copied image file whose original may be private.
     let imageFile: String?
     /// SHA-256 of the PNG data, so re-copying the same image refreshes the
     /// existing entry instead of storing a duplicate file.
@@ -1174,15 +1175,19 @@ enum ClipboardHistorySensitiveText {
 
 enum ClipboardHistoryImageSupport {
     static func editorImage(for entry: ClipboardHistoryEntry, directory: URL) -> NSImage? {
+        let copiedImage = entry.kind == .files && entry.filePaths.count == 1
+            && isImageFileName(entry.filePaths[0])
+        if entry.kind == .image || copiedImage, let name = entry.imageFile,
+           !name.isEmpty, (name as NSString).lastPathComponent == name,
+           let image = NSImage(contentsOf: directory.appendingPathComponent(name)) {
+            return image
+        }
         if entry.kind == .files, entry.filePaths.count == 1,
            let path = entry.filePaths.first, (path as NSString).isAbsolutePath,
            isImageFilePath(path) {
             return NSImage(contentsOfFile: path)
         }
-        guard entry.kind == .image, let name = entry.imageFile,
-              !name.isEmpty, (name as NSString).lastPathComponent == name
-        else { return nil }
-        return NSImage(contentsOf: directory.appendingPathComponent(name))
+        return nil
     }
 
     static let imageExtensions: Set<String> = [

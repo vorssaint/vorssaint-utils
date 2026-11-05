@@ -654,12 +654,12 @@ struct NotchClipboardView: View {
         case .files:
             // One image file shows itself; anything else reads as its name
             // or its count, the way the panel lists files.
-            if entry.filePaths.count == 1, let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path) {
-                thumbnail(ClipboardThumbnailImage(source: .file(path: path),
+            if let source = entry.imageThumbnailSource {
+                thumbnail(ClipboardThumbnailImage(source: source,
+                                                  aspectRatio: entry.imageAspectRatio,
                                                   failureText: entry.fileNames.first ?? entry.preview),
                           compact: compact)
-                    .help(path)
+                    .help(entry.filePaths.first ?? "")
             } else {
                 // A count of several files is no text the search reads.
                 let name = searchText(entry.filePaths.count == 1

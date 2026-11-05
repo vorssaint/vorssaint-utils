@@ -85,6 +85,11 @@ struct ClipboardHistoryImageEditorTests {
                                                   filePaths: [directory.appendingPathComponent("older.png").path])
             suite.expect(ClipboardHistoryImageSupport.editorImage(for: imageFile, directory: directory) != nil,
                          "a single copied image file opens its original pixels in the preview")
+            let protectedFile = ClipboardHistoryEntry(text: "", kind: .files,
+                                                       filePaths: [directory.appendingPathComponent("unavailable.jpg").path],
+                                                       imageFile: "older.png", imageWidth: 960, imageHeight: 640)
+            suite.expect(ClipboardHistoryImageSupport.editorImage(for: protectedFile, directory: directory) != nil,
+                         "a copied chat image opens its stored full-size snapshot when its private source is unavailable")
             let image = ClipboardHistoryImageSupport.editorImage(for: entry, directory: directory)
             var rect = CGRect(origin: .zero, size: image?.size ?? .zero)
             let original = image?.cgImage(forProposedRect: &rect, context: nil, hints: nil)

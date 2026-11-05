@@ -201,10 +201,10 @@ struct PanelClipboardView: View {
         case .files:
             if entry.filePaths.count == 1,
                let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path) {
+               let source = entry.imageThumbnailSource {
                 HStack(alignment: .center, spacing: 7) {
-                    ClipboardThumbnailImage(source: .file(path: path),
-                                            aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
+                    ClipboardThumbnailImage(source: source,
+                                            aspectRatio: entry.imageAspectRatio ?? ClipboardImageStore.imageAspectRatio(atPath: path))
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                     SearchHighlightText.text(entry.fileNames.first ?? entry.preview, tokens: searchTokens, fontSize: 10.5)

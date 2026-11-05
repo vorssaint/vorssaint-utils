@@ -228,6 +228,14 @@ def main():
                         "enum ScreenshotScrollingCapture {").replace(
                             "    private static func stitch(", "    static func stitch(")
           + "}\n")
+    write("ClipboardImagePreviewSource.swift", "import Foundation\n"
+          + "extension ClipboardImagePreviewSourceTests.Entry {\n"
+          + declaration("Sources/Vorssaint/UI/MenuPanel/ClipboardThumbnailImage.swift",
+                        "    var imageThumbnailSource:")
+          + "}\nextension ClipboardImagePreviewSourceTests.ClipboardImageStore {\n"
+          + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
+                        "    static func isImageFile(atPath")
+          + "}\n")
     write("ClipboardHistoryImageEditor.swift", "import AppKit\nimport UniformTypeIdentifiers\n"
           + "extension ClipboardHistoryImageEditorTests {\nfinal class Host: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
@@ -521,6 +529,22 @@ def main():
                         "final class NotchAudioLevelService:")
           + "}\n")
     clipboard = "Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift"
+    write("ClipboardImageCapture.swift", "import AppKit\nimport Foundation\nimport ImageIO\n"
+          + "extension ClipboardImageCaptureTests {\nfinal class Reader: Fixture {\n"
+          + "".join(line.replace("private ", "", 1) for line in (ROOT / clipboard).read_text().splitlines(keepends=True)
+                    if line.startswith(("    private static let maxCopiedFiles",
+                                        "    private static let maxImageBytes", "    private static let maxRawImageBytes")))
+          + "".join(declaration(clipboard, prefix).replace("private ", "", 1)
+                    .replace("from pasteboard: NSPasteboard", "from pasteboard: AppKit.NSPasteboard")
+                    .replace("NSPasteboard.PasteboardType", "AppKit.NSPasteboard.PasteboardType")
+                    for prefix in [
+                        "    private enum CapturedContent", "    private static func readPasteboard(",
+                        "    private static func copiedFilePaths(",
+                        "    private static func copiedFileImage(", "    private static func copiedPNGImage(",
+                        "    private static func normalizedPNGImage(", "    private func promoteFiles(",
+                        "    private func cachingFilePreview(", "    private static func webURLString(",
+                        "    private static func isWebURL("])
+          + "}\n}\n")
     pending_restore = [line for line in (ROOT / clipboard).read_text().splitlines(keepends=True)
                        if line.startswith("    private var pendingRestore:")]
     if len(pending_restore) != 1:
