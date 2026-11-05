@@ -1100,9 +1100,9 @@ enum ScreenshotSupport {
         min(column, column + footer - editorWrappedFooterHeight)
     }
 
-    /// How the tool rail fits its height. Regular rows when every tool fits,
-    /// compact rows when only those fit, and past that the last tools move
-    /// behind an overflow button, as toolbar items that do not fit do.
+    /// How the tool rail fits its height. The roomiest rows that hold every
+    /// tool, down to tight ones, and past that the last tools move behind an
+    /// overflow button, as toolbar items that do not fit do.
     struct ToolRailLayout: Equatable {
         var rowHeight: CGFloat = 29
         var spacing: CGFloat = 2
@@ -1112,16 +1112,21 @@ enum ScreenshotSupport {
         /// The rail's padding and the divider above the gear.
         static let chromeHeight: CGFloat = 15
 
+        /// Regular rows, then in-between ones for a longer rail, then compact,
+        /// then tight. Fifteen tools land on the same regular and compact
+        /// rows they always had.
+        static let rowTiers: [(height: CGFloat, spacing: CGFloat)] = [(29, 2), (26, 1), (23, 1), (21, 1)]
+
         init(toolCount: Int, height: CGFloat) {
             visibleTools = toolCount
-            // Every tool and the gear.
-            if Self.chromeHeight + CGFloat(toolCount + 1) * (rowHeight + spacing) <= height { return }
-            // Compact rows still hold all of them in the shortest editor.
-            rowHeight = 23
-            spacing = 1
-            let rows = Int(((height - Self.chromeHeight) / (rowHeight + spacing)).rounded(.down))
-            if rows >= toolCount + 1 { return }
+            // Every tool and the gear, in the first rows that hold them all.
+            for tier in Self.rowTiers {
+                rowHeight = tier.height
+                spacing = tier.spacing
+                if Self.chromeHeight + CGFloat(toolCount + 1) * (rowHeight + spacing) <= height { return }
+            }
             // The overflow button and the gear take the last two rows.
+            let rows = Int(((height - Self.chromeHeight) / (rowHeight + spacing)).rounded(.down))
             visibleTools = max(0, rows - 2)
         }
     }
@@ -1493,10 +1498,16 @@ enum ScreenshotSupport {
         // Case order is the default rail order and therefore the default
         // mapping for keys 1 through 9. Put the common actions first.
         case select, arrow, pixelate, crop, text, sticker, rect, highlight,
-             freehand, line, ellipse, counter, redact, spotlight, expandCanvas, image
+             freehand, line, ellipse, counter, redact, spotlight, expandCanvas,
+             ruler, magnifier, image, guide
 
-        /// Content-only image annotations never appear in the tool rail.
-        static var editorTools: [Tool] { allCases.filter { $0 != .image } }
+        /// Pasted images and imprinted guides are content only: they are made
+        /// by pasting and by the guide keys, never picked in the tool rail.
+        var isContentOnly: Bool {
+            self == .image || self == .guide
+        }
+
+        static var editorTools: [Tool] { allCases.filter { !$0.isContentOnly } }
 
         static let shortcutLimit = 9
 
@@ -1507,8 +1518,9 @@ enum ScreenshotSupport {
         /// Tools that create an annotation by dragging a rectangle.
         var dragsRect: Bool {
             switch self {
-            case .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight: return true
-            case .select, .arrow, .line, .freehand, .text, .sticker, .counter, .crop, .expandCanvas, .image:
+            case .rect, .ellipse, .highlight, .pixelate, .redact, .spotlight, .magnifier: return true
+            case .select, .arrow, .line, .freehand, .text, .sticker, .counter, .crop, .expandCanvas, .image,
+                 .ruler, .guide:
                 return false
             }
         }
@@ -1523,7 +1535,7 @@ enum ScreenshotSupport {
         /// hand, so each falls back to arrow and the editor opens ready to draw.
         static func startingTool(remembered raw: String?) -> Tool {
             let tool = Tool(rawValue: raw ?? "") ?? .arrow
-            return [.select, .crop, .expandCanvas, .image].contains(tool) ? .arrow : tool
+            return [.select, .crop, .expandCanvas].contains(tool) || tool.isContentOnly ? .arrow : tool
         }
 
         /// Saved ids first, then any tools added by a later version in the
@@ -1532,7 +1544,7 @@ enum ScreenshotSupport {
             var seen = Set<Tool>()
             var result: [Tool] = []
             for id in (raw ?? "").split(separator: ",") {
-                guard let tool = Tool(rawValue: String(id)), tool != .image,
+                guard let tool = Tool(rawValue: String(id)), !tool.isContentOnly,
                       seen.insert(tool).inserted
                 else { continue }
                 result.append(tool)
@@ -1566,7 +1578,7 @@ enum ScreenshotSupport {
             var result: [Tool: GlobalShortcut] = [:]
             for entry in (raw ?? "").split(separator: ",") {
                 let pair = entry.split(separator: "=", maxSplits: 1)
-                guard pair.count == 2, let tool = Tool(rawValue: String(pair[0])), tool != .image,
+                guard pair.count == 2, let tool = Tool(rawValue: String(pair[0])), !tool.isContentOnly,
                       let shortcut = GlobalShortcut(storageValue: String(pair[1]), requiringModifier: false),
                       !isReservedEditorKey(shortcut) else { continue }
                 result[tool] = shortcut
@@ -1599,7 +1611,7 @@ enum ScreenshotSupport {
             if shortcut.modifiers.contains(.command) {
                 // The editor's Command branch also accepts extra modifiers.
                 return [kVK_ANSI_C, kVK_ANSI_V, kVK_ANSI_S, kVK_ANSI_Z, kVK_ANSI_P,
-                        kVK_ANSI_0, kVK_ANSI_1, kVK_ANSI_Equal, kVK_ANSI_Minus,
+                        kVK_ANSI_0, kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_Equal, kVK_ANSI_Minus,
                         kVK_Delete, kVK_ForwardDelete, kVK_ANSI_W, kVK_ANSI_Q].contains(key)
             }
             return !shortcut.modifiers.hasPrimaryModifier
@@ -1846,6 +1858,14 @@ enum ScreenshotSupport {
         }
     }
 
+    /// The magnifications a magnifier offers; it starts at the first.
+    static let magnifications = [2, 3, 4]
+    static let defaultMagnification = 2
+
+    static func sanitizedMagnification(_ value: Int) -> Int {
+        magnifications.contains(value) ? value : defaultMagnification
+    }
+
     static func randomScribbleSeed() -> UInt64 {
         UInt64.random(in: UInt64.min...UInt64.max)
     }
@@ -1921,6 +1941,11 @@ enum ScreenshotSupport {
         var number: Int
         var imageAsset: ImageAsset?
         var renderReferenceSize: CGSize?
+        /// How many times a magnifier enlarges what is under it.
+        var magnification: Int = ScreenshotSupport.defaultMagnification
+        /// How opaque a pasted image draws: see through to line it up with
+        /// what is below, or to show both in a comparison.
+        var opacity: CGFloat = 1
 
         init(id: UUID = UUID(),
              tool: Tool,
@@ -1977,7 +2002,7 @@ enum ScreenshotSupport {
             return SelectionStyle(color: annotation.color,
                                   stroke: annotation.stroke,
                                   arrowStyle: annotation.arrowStyle)
-        case .line, .rect, .ellipse, .freehand:
+        case .line, .rect, .ellipse, .freehand, .ruler, .magnifier:
             return SelectionStyle(color: annotation.color,
                                   stroke: annotation.stroke,
                                   arrowStyle: nil)
@@ -1986,7 +2011,7 @@ enum ScreenshotSupport {
                                   stroke: nil,
                                   arrowStyle: nil,
                                   textSize: annotation.textSize)
-        case .highlight, .counter, .redact:
+        case .highlight, .counter, .redact, .guide:
             return SelectionStyle(color: annotation.color,
                                   stroke: nil,
                                   arrowStyle: nil)
