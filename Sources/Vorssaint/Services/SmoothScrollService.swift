@@ -338,7 +338,9 @@ final class SmoothScrollService: ObservableObject {
                     step: userStep, linesPerNotch: linearLinesPerNotch) * invertVertical
                 horizontal = SmoothScrollSupport.linearContinuousDistance(
                     fixedPointDelta: horizontalFixedPoint, pointDelta: horizontalPoint,
-                    step: userStep, linesPerNotch: linearLinesPerNotch) * invertHorizontal
+                    step: userStep,
+                    linesPerNotch: ScrollWheelSupport.linearHorizontalLinesPerNotch(
+                        defaults: defaults, vertical: linearLinesPerNotch)) * invertHorizontal
             } else {
                 vertical = SmoothScrollSupport.continuousDistance(
                     fixedPointDelta: verticalFixedPoint, pointDelta: verticalPoint,
@@ -375,7 +377,8 @@ final class SmoothScrollService: ObservableObject {
                     ticks: ScrollWheelSupport.discreteTicks(line: horizontalLine,
                                                             fixedPoint: horizontalFixedPoint,
                                                             point: horizontalPoint),
-                    linesPerNotch: linearLinesPerNotch)
+                    linesPerNotch: ScrollWheelSupport.linearHorizontalLinesPerNotch(
+                        defaults: defaults, vertical: linearLinesPerNotch))
             }
             let axes = SmoothScrollSupport.axes(
                 vertical: verticalTicks,
