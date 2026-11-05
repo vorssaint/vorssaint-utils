@@ -424,6 +424,13 @@ enum PointerInputFeatureTests {
                "the middle mouse button is never consumed as navigation")
         suite.expect(MouseNavigationSupport.direction(forButtonNumber: 9) == nil,
                "unrelated extra mouse buttons pass through")
+        suite.expect(MouseNavigationSupport.direction(forButtonNumber: 3, reverseButtons: true) == .forward
+                && MouseNavigationSupport.direction(forButtonNumber: 4, reverseButtons: true) == .back,
+               "reversing side buttons swaps logical navigation before any action is chosen")
+        for button: Int64 in [0, 1, 2, 5, 9, 31] {
+            suite.expect(MouseNavigationSupport.direction(forButtonNumber: button, reverseButtons: true) == nil,
+                   "reversing navigation never claims non-navigation button \(button)")
+        }
         suite.expect(MouseNavigationSupport.commandCharacter(for: .back) == "[",
                "Back uses the standard Command left bracket menu command")
         suite.expect(MouseNavigationSupport.commandCharacter(for: .forward) == "]",
