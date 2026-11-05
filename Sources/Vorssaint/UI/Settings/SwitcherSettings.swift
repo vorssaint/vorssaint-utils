@@ -19,6 +19,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
     @AppStorage(DefaultsKey.switcherWindowlessApps) private var switcherWindowlessApps = SwitcherWindowlessApps.fallback.rawValue
+    @AppStorage(DefaultsKey.switcherWindowlessAppsMixedOrder) private var switcherWindowlessAppsMixedOrder = false
     @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
     @AppStorage(DefaultsKey.switcherTreatHiddenAppsLikeMinimized) private var switcherTreatHiddenAppsLikeMinimized = true
     @AppStorage(DefaultsKey.switcherShowFullscreenWindows) private var switcherShowFullscreenWindows = true
@@ -315,6 +316,16 @@ struct SwitcherSettings: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.leading, settingsRowTextInset)
+            }
+            // Without a windowless-app entry there is no section to dissolve,
+            // so the choice only shows when the picker above lists any.
+            if switcherWindowlessAppsSelection.wrappedValue != SwitcherWindowlessApps.off.rawValue {
+                SettingsRow(symbol: "arrow.triangle.merge",
+                            title: l10n.s.switcherWindowlessAppsMixedOrder,
+                            caption: l10n.s.switcherWindowlessAppsMixedOrderCaption) {
+                    Toggle(l10n.s.switcherWindowlessAppsMixedOrder, isOn: $switcherWindowlessAppsMixedOrder)
+                        .labelsHidden()
+                }
             }
             // Per-app rules can be prepared while the switcher is off, as
             // before the redesign; the card's disabled state stops here.

@@ -1741,6 +1741,9 @@ enum SwitcherModelFeatureTests {
         suite.expect(registeredDefaults[DefaultsKey.switcherWindowlessApps] as? String
                == SwitcherWindowlessApps.finder.rawValue,
                "the switcher offers the desktop app without windows, and nothing else, by default")
+        suite.expect(registeredDefaults[DefaultsKey.switcherWindowlessAppsMixedOrder] as? Bool == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherWindowlessAppsMixedOrder),
+               "windowless apps keep their own section by default and the mixed-order choice travels with backups (issue #3659)")
         suite.expect((registeredDefaults[DefaultsKey.switcherAppRules] as? [String: String])?.isEmpty == true,
                "per-app switcher rules start empty, so existing choices stay unchanged")
         suite.expect(registeredDefaults[DefaultsKey.switcherCurrentSpaceOnly] as? Bool == false,
@@ -5489,6 +5492,22 @@ enum SwitcherModelFeatureTests {
         suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: [SwitcherItem.appOnly(appName: "Alpha", pid: 101)]
                                                         + groupedSwitcherItems + windowlessApps) == [303],
                "an app with any real window is never marked windowless by an app-only entry")
+        // The mixed-order choice dissolves the section without touching the
+        // order itself: the same items keep their places, only unseparated.
+        suite.expect(dividerViewSource.contains("windowlessAppsMixedOrder:windowlessAppsMixedOrder")
+               && switcherCardSource.contains("DefaultsKey.switcherWindowlessAppsMixedOrder"),
+               "the switcher view lets the mixed-order choice empty the windowless boundary (issue #3659)")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: groupedSwitcherItems + windowlessApps,
+                                                              windowlessAppsMixedOrder: true) == []
+               && SwitcherSupport.windowlessAppDividerPIDs(items: [groupedSwitcherItems[0],
+                                                                   windowlessApps[0],
+                                                                   groupedSwitcherItems[2],
+                                                                   windowlessApps[1]],
+                                                           windowlessAppsMixedOrder: true) == [],
+               "mixed order draws no divider, whether the entries cluster or interleave (issue #3659)")
+        suite.expect(SwitcherSupport.windowlessAppDividerPIDs(items: [windowlessApps[0], groupedSwitcherItems[0]],
+                                                              windowlessAppsMixedOrder: true) == [],
+               "mixed order draws no divider after a leading windowless group either (issue #3659)")
         var cappedAppWindows: [SwitcherItem] = []
         var cappedAppRepresentatives: [SwitcherItem] = []
         for appIndex in 1...25 {

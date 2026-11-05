@@ -245,6 +245,8 @@ extension Strings {
         switcherWindowlessAppsFinder: "仅访达",
         switcherWindowlessAppsAll: "全部 App",
         switcherWindowlessAppsLockedFormat: "开启“%@”时，会保留所有正在运行的 App 入口。如需选择，请关闭此选项。",
+        switcherWindowlessAppsMixedOrder: "与其他 App 混排",
+        switcherWindowlessAppsMixedOrderCaption: "将没有打开窗口的 App 按最近使用顺序与其他 App 排列在一起，而不是单独分区显示。",
         switcherNoOpenWindow: "无打开的窗口",
         switcherOtherDesktop: "其他桌面",
         dockPreviewName: "程序坞预览",
