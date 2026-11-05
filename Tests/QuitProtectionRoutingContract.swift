@@ -22,6 +22,16 @@ enum QuitProtectionRoutingContract {
         static let shared = AppSwitcher()
         var keyboardInputOwnership: (isOwned: Bool, generation: UInt64) = (false, 0)
     }
+    enum SymbolicHotKeys {
+        static var snapshot: [LiveSystemShortcut]?
+        static var readCount = 0
+        static var requestedIDs: Set<Int32> = []
+        static func entries(for ids: Set<Int32>) -> [LiveSystemShortcut]? {
+            readCount += 1
+            requestedIDs = ids
+            return snapshot?.filter { ids.contains($0.id) }
+        }
+    }
     enum GlobalShortcut {
         static var keyLabels: [Int64: String] = [12: "q", 13: "w", 47: "."]
         static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool) -> String? {

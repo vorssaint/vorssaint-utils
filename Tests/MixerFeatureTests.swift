@@ -274,6 +274,33 @@ enum MixerFeatureTests {
                                                               uid: "",
                                                               dataSourceName: nil),
                "Bluetooth speakers are not treated as headphones")
+        for name in ["HUAWEI FreeClip 2", "My renamed audio device", ""] {
+            suite.expect(MixerRoutingSupport.outputLooksLikeHeadphones(
+                name: name, uid: "output", dataSourceName: nil,
+                terminalTypes: [kAudioStreamTerminalTypeHeadphones]),
+                "a headphone terminal identifies the output independently of its name: \(name)")
+        }
+        suite.expect(MixerRoutingSupport.outputLooksLikeHeadphones(
+            name: "HUAWEI FreeClip 2", uid: "output", dataSourceName: nil,
+            terminalTypes: [kAudioStreamTerminalTypeUnknown, kAudioStreamTerminalTypeHeadphones]),
+            "an unknown first stream does not hide a later headphone terminal")
+        for terminal in [kAudioStreamTerminalTypeSpeaker, kAudioStreamTerminalTypeLFESpeaker,
+                         kAudioStreamTerminalTypeReceiverSpeaker] {
+            suite.expect(!MixerRoutingSupport.outputLooksLikeHeadphones(
+                name: "Soundcore speaker", uid: "output", dataSourceName: nil, terminalTypes: [terminal]),
+                "a speaker terminal takes precedence over headphone brand keywords")
+        }
+        for terminals: [UInt32] in [[], [kAudioStreamTerminalTypeUnknown], [kAudioStreamTerminalTypeLine]] {
+            suite.expect(MixerRoutingSupport.outputLooksLikeHeadphones(
+                name: "AirPods Pro", uid: "output", dataSourceName: nil, terminalTypes: terminals),
+                "unavailable or generic terminal metadata preserves named headphone support")
+            suite.expect(MixerRoutingSupport.outputLooksLikeHeadphones(
+                name: "Built-in Output", uid: "output", dataSourceName: "Headphones", terminalTypes: terminals),
+                "unavailable or generic terminal metadata preserves wired headphone data sources")
+            suite.expect(!MixerRoutingSupport.outputLooksLikeHeadphones(
+                name: "JBL Flip", uid: "output", dataSourceName: nil, terminalTypes: terminals),
+                "an unknown terminal does not turn every output into headphones")
+        }
         // Issue #256: some browsers' audio helpers answer for themselves, so
         // the mixer walks the parent chain to the nearest regular app.
         let helperParents: [pid_t: pid_t] = [500: 100, 100: 1, 700: 1,
@@ -987,6 +1014,43 @@ enum MixerFeatureTests {
                "Studio Pro is kept out of process-tap audio routing")
         suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.spotify.client", name: "Spotify"),
                "music players remain eligible for process-tap audio routing")
+        for id in ["com.hnc.Discord", "com.hnc.Discord.helper.Renderer", "com.hnc.DiscordPTB",
+                   "com.hnc.DiscordCanary", "com.hnc.DiscordDevelopment", "COM.HNC.DISCORD",
+                   "com.microsoft.teams", "com.microsoft.teams2", "com.microsoft.teams2.helper"] {
+            suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call"),
+                         "\(id) bypasses processing before any user override, preventing screen-share echo")
+            suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call",
+                                                                allowCallAppVolume: true),
+                         "\(id) volume control is available after explicit opt-in")
+        }
+        for id in ["com.hnc.discordian", "com.microsoft.teams2000", "com.microsoft.teamspeak",
+                   "com.spotify.client", "com.apple.Safari"] {
+            suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Discord"),
+                         "\(id) is not blocked by a similar bundle prefix or app name")
+        }
+        suite.expect(!MixerRoutingSupport.needsScreenSharingProtection(bundleIdentifier: nil),
+                     "an unknown process is not assumed to be a call app")
+        suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.xos", name: "Zoom",
+                                                            allowCallAppVolume: true)
+                     && MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.apple.logic10", name: "Logic Pro",
+                                                               allowCallAppVolume: true),
+                     "the optional call app override cannot remove permanent Zoom or DAW bypasses")
+        suite.expect(MixerRoutingSupport.sanitizedCallAppVolumeIDs([
+            "com.hnc.Discord", "COM.HNC.DISCORD", "com.microsoft.teams2", "com.microsoft.teams2000", "", "us.zoom.xos"
+        ]) == ["com.hnc.discord", "com.microsoft.teams2"],
+                     "saved opt-ins normalize bundle case, deduplicate and reject unrelated apps")
+        let callSettings: [String: Any] = [DefaultsKey.mixerCallAppVolumeEnabled: ["com.hnc.discord"]]
+        let callBackup = SettingsBackupSupport.payload(appVersion: "test") { callSettings[$0] }
+        let restoredCalls = SettingsBackupSupport.sanitizedSettings(from: callBackup)
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerCallAppVolumeEnabled)
+                     && restoredCalls?[DefaultsKey.mixerCallAppVolumeEnabled] as? [String] == ["com.hnc.discord"],
+                     "explicit call app volume choices round-trip through settings backup")
+        for language in AppLanguage.allCases {
+            let strings = MixerScreenSharingStrings.localized(language)
+            suite.expect(!strings.allowVolumeControl.isEmpty && !strings.protectedCaption.isEmpty
+                         && !strings.sharingWarning.isEmpty,
+                         "\(language) explains call audio protection and the override")
+        }
         suite.expect(MixerRoutingSupport.effectiveDeviceUID(selectedUID: "ExternalDisplay",
                                                       availableUIDs: ["BuiltInSpeakerDevice"],
                                                       defaultUID: "BuiltInSpeakerDevice") == "BuiltInSpeakerDevice",
