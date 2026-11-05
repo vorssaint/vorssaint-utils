@@ -291,7 +291,7 @@ final class BrightnessService: ObservableObject {
         keyThreadLock.withLock { inputTapsSuspended }
     }
     @Published private(set) var keyboardLightLevel: Float?
-    private var keyboardNoticeWork: DispatchWorkItem?
+    private var swallowedKeyboardLightKeys = Set<Int>()
     /// A drag folds into one write of its newest value, like the display
     /// sliders. Non-nil means a write is already scheduled.
     private var keyboardLevelWork: DispatchWorkItem?
@@ -446,20 +446,46 @@ final class BrightnessService: ObservableObject {
         NotchService.shared.showKeyboardLight(Double(level))
     }
 
-    /// Observe native keys without consuming them. A bounded, coalesced read
-    /// follows the system's own adjustment and never predicts a percentage.
-    private func scheduleKeyboardLightNotice() {
-        guard keyboardNoticeWork == nil, NotchSupport.routes(.keyboardLight),
-              SessionActivity.shared.isActive, keyboardLightBridge != nil else { return }
-        let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.keyboardNoticeWork = nil
-            guard NotchSupport.routes(.keyboardLight), SessionActivity.shared.isActive else { return }
-            self.refreshKeyboardLight()
-            if let level = self.keyboardLightLevel { self.showKeyboardLightNotice(level) }
+    /// Replace the native adjustment only while the island can show feedback.
+    private func handleKeyboardLightKey(_ event: NSEvent) -> Bool {
+        guard BrightnessSupport.isKeyboardLightEvent(subtype: Int(event.subtype.rawValue),
+                                                     data1: event.data1) else { return false }
+        let code = (event.data1 >> 16) & 0xffff
+        let state = (event.data1 >> 8) & 0xff
+        if state == 11 { return swallowedKeyboardLightKeys.remove(code) != nil }
+        let isRepeat = event.data1 & 1 != 0
+        if !isRepeat { swallowedKeyboardLightKeys.remove(code) }
+        let ownsPress = swallowedKeyboardLightKeys.contains(code)
+        // A held key keeps its original owner through visibility and modifier changes.
+        guard !isRepeat || ownsPress else { return false }
+        let modifiers = event.modifierFlags
+        guard NotchSupport.routes(.keyboardLight), SessionActivity.shared.isActive,
+              NotchService.shared.acceptsSystemFeedback,
+              ownsPress || NotchService.shared.showsSystemFeedback,
+              modifiers.intersection([.command, .control]).isEmpty,
+              !modifiers.contains(.option) || modifiers.contains(.shift),
+              let keyboardLightBridge,
+              let current = keyboardLightLevel(using: keyboardLightBridge) else { return ownsPress }
+        if code == 23, isRepeat { return true }
+        finishKeyboardLightDrag()
+        let target: Float
+        if code == 23 {
+            target = current > 0 ? 0 : BrightnessSupport.keyboardLightOnLevel(lastNonzero: lastKeyboardLightLevel)
+        } else {
+            target = BrightnessSupport.steppedKeyboardLightLevel(
+                current: current, direction: code == 21 ? 1 : -1, fine: modifiers.contains(.option))
         }
-        keyboardNoticeWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: work)
+        guard keyboardLightBridge.setBrightness(target) else {
+            refreshKeyboardLight()
+            return ownsPress
+        }
+        swallowedKeyboardLightKeys.insert(code)
+        if current > 0 { lastKeyboardLightLevel = current }
+        if target > 0 { lastKeyboardLightLevel = target }
+        keyboardLightLevel = target
+        keyboardLightEnabled = target > 0
+        showKeyboardLightNotice(target)
+        return true
     }
 
     /// Read at the press, not from the last value this app wrote. Control
@@ -560,7 +586,6 @@ final class BrightnessService: ObservableObject {
         // Keep the reset guard intact while preferences or feature state
         // changes during the asynchronous permission teardown. The reset
         // owner releases it explicitly through resumeInputTaps().
-        keyboardNoticeWork?.cancel(); keyboardNoticeWork = nil
         keyboardLevelWork?.cancel(); keyboardLevelWork = nil
         keyboardDragStart = nil
         removeKeyTap()
@@ -1201,9 +1226,6 @@ final class BrightnessService: ObservableObject {
             islandShowsNotices: NotchService.shared.acceptsSystemFeedback
                 && !NotchSupport.hidesNoticesUntilHover(in: defaults)) && brightnessOSDSupported
         let wantsKeyboardLight = NotchSupport.routes(.keyboardLight) && keyboardLightBridge != nil
-        if !wantsKeyboardLight || !SessionActivity.shared.isActive {
-            keyboardNoticeWork?.cancel(); keyboardNoticeWork = nil
-        }
         let keyStep = self.keyStep
         let wantsFinerSteps = keyStep != .standard
         let wanted = SessionActivitySupport.tapShouldRun(
@@ -1277,6 +1299,7 @@ final class BrightnessService: ObservableObject {
         keyTap = nil
         keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
         swallowedMediaKeys.removeAll()
+        swallowedKeyboardLightKeys.removeAll()
     }
 
     // MARK: - Brightness keys on other keyboards
@@ -1655,14 +1678,7 @@ final class BrightnessService: ObservableObject {
         }
         guard type.rawValue == CleaningSystemKeyEvent.systemDefinedEventTypeRawValue,
               let nsEvent = NSEvent(cgEvent: event) else { return Unmanaged.passUnretained(event) }
-        if BrightnessSupport.isKeyboardLightPress(subtype: Int(nsEvent.subtype.rawValue), data1: nsEvent.data1) {
-            let modifiers = nsEvent.modifierFlags
-            if modifiers.intersection([.command, .control]).isEmpty,
-               !modifiers.contains(.option) || modifiers.contains(.shift) {
-                scheduleKeyboardLightNotice()
-            }
-            return Unmanaged.passUnretained(event)
-        }
+        if handleKeyboardLightKey(nsEvent) { return nil }
         // The quarter steps this app sends on below belong to the system.
         guard event.getIntegerValueField(.eventSourceUserData) != BrightnessSupport.systemQuarterStepMarker else {
             return Unmanaged.passUnretained(event)
