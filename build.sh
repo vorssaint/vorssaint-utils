@@ -499,6 +499,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/CommandBar/CommandBarUnits.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarColors.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarEmojiKeywords.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarLinks.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarDates.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarRowShortcuts.swift
@@ -697,6 +698,7 @@ cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
+cp THIRD-PARTY-NOTICES.md "$STAGE/Contents/Resources/THIRD-PARTY-NOTICES.md"
 for lproj in Resources/*.lproj(N); do
     cp -R "$lproj" "$STAGE/Contents/Resources/"
 done
