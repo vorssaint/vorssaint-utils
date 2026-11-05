@@ -47,6 +47,49 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    shortcut_row = "Sources/Vorssaint/UI/ShortcutRecorderButton.swift"
+    # Keep the registrars, takeover ownership and recording lifecycle intact.
+    # Only the existing preference-reader arguments point at the isolated suite;
+    # Carbon, WindowServer, windows and unrelated features are boundary doubles.
+    def shortcut_preferences(body):
+        if body.count(".assignedShortcut()") != 1:
+            raise ValueError("Expected one shortcut preference reader in the registrar")
+        return (body.replace(".assignedShortcut()",
+                             ".assignedShortcut(storedValue: { UserDefaults.standard.string(forKey: $0) })")
+                .replace("AppFeature.keepAwake.isAvailable",
+                         "AppFeature.keepAwake.isAvailable(in: UserDefaults.standard)")
+                .replace("AppFeature.textSnippets.isAvailable",
+                         "AppFeature.textSnippets.isAvailable(in: UserDefaults.standard)"))
+
+    row_actions = "".join(declaration(shortcut_row, prefix).replace("private func", "func", 1)
+                          for prefix in ["    private func clear()", "    private func reset()",
+                                         "    private func save(_ shortcut:"])
+    if row_actions.count("excluding: role,") != 1 or row_actions.count("includeInactive: includeInactiveConflicts)") != 1:
+        raise ValueError("Expected one injectable role-conflict lookup in the shortcut row")
+    row_actions = row_actions.replace(
+        "excluding: role,",
+        "excluding: role, isOn: { UserDefaults.standard.bool(forKey: $0) }, "
+        "isAvailable: { $0.isAvailable(in: UserDefaults.standard) },")
+    row_actions = row_actions.replace(
+        "includeInactive: includeInactiveConflicts)",
+        "includeInactive: includeInactiveConflicts, "
+        "radialMenuShortcuts: { [] }, "
+        "storedValue: { UserDefaults.standard.string(forKey: $0) })")
+    write("ShortcutClearing.swift", "import AppKit\nimport Carbon.HIToolbox\nimport Combine\n"
+          + "extension ShortcutClearingTests {\n"
+          + shortcut_preferences(declaration("Sources/Vorssaint/Services/HotkeyManager.swift",
+                                              "final class HotkeyManager:"))
+          + declaration("Sources/Vorssaint/Services/QuickTools/QuickToolHotkey.swift", "final class QuickToolHotkey {")
+          + declaration("Sources/Vorssaint/Services/SystemShortcutTakeover.swift", "enum SystemShortcutTakeover {")
+          + declaration("Sources/Vorssaint/Services/ShortcutCapture.swift", "enum ShortcutCapture {")
+          + declaration(shortcut_row, "final class RecorderButton:")
+          + "final class Library: LibraryState {\nstatic let shared = Library()\n"
+          + shortcut_preferences(declaration("Sources/Vorssaint/Services/Snippets/SnippetLibraryService.swift",
+                                              "    func syncWithPreferences()"))
+          + "}\nfinal class Row: RowState {\n" + row_actions
+          + "}\nenum Backup {\n"
+          + declaration("Sources/Vorssaint/Services/SettingsBackup.swift", "    static func apply(settings:")
+          + "}\n}\n")
     write("SettingsCommandDispatch.swift", "import Foundation\n"
           + "extension SettingsFeatureTests.CommandDispatchHost {\nstatic func run() {\n"
           # Both app entry points are named main.swift. Keep diagnostics in
