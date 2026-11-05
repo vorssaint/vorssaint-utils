@@ -8,7 +8,7 @@ import ImageIO
 import UniformTypeIdentifiers
 
 enum MediaTool: String, CaseIterable, Identifiable {
-    case videoCompressor, gifMaker, imageCompressor, textExtractor
+    case videoCompressor, audioConverter, gifMaker, imageCompressor, textExtractor
 
     var id: String { rawValue }
 }
@@ -477,6 +477,30 @@ enum MediaSupport {
 
     static func sanitizedTargetMegabytes(_ value: Int) -> Int {
         Swift.min(maximumTargetMegabytes, Swift.max(minimumTargetMegabytes, value))
+    }
+
+    /// The bitrates offered for MP3. The encoder has no psychoacoustic model,
+    /// so it starts where that still sounds clean rather than at the 32 kbps
+    /// the format allows.
+    static let mp3BitRates = [128, 192, 256, 320]
+    static let defaultMP3BitRate = 192
+
+    static func sanitizedMP3BitRate(_ value: Int) -> Int {
+        mp3BitRates.contains(value) ? value : defaultMP3BitRate
+    }
+
+    /// MPEG-1 audio carries 32, 44.1 or 48 kHz. A source already at one of
+    /// them keeps it; anything else is resampled to 44.1 kHz, which every
+    /// player handles.
+    static func mp3SampleRate(forSourceRate rate: Double) -> Int {
+        guard rate.isFinite, rate > 0, rate < Double(Int.max) else { return 44_100 }
+        let rounded = Int(rate.rounded())
+        return MediaMP3Encoder.sampleRates.contains(rounded) ? rounded : 44_100
+    }
+
+    /// Mono stays mono; anything wider is mixed down to the stereo MP3 holds.
+    static func mp3ChannelCount(forSourceChannels channels: Int) -> Int {
+        channels == 1 ? 1 : 2
     }
 
     /// Megabytes here are 1000 based, the way a sharing limit is written and

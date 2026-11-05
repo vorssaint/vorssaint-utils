@@ -37,6 +37,11 @@ struct MediaTextOptions: Equatable {
     var recognitionLanguages: [String]
 }
 
+struct MediaAudioOptions: Equatable {
+    /// Kilobits per second.
+    var bitRate: Int
+}
+
 struct MediaImageBatchItemResult: Identifiable, Equatable {
     let id = UUID()
     let inputURL: URL
@@ -90,6 +95,7 @@ struct MediaResult: Identifiable, Equatable {
 enum MediaFailure: Equatable {
     case noInput
     case noVideoTrack
+    case noAudioTrack
     case sameOutput
     case unsupported
     case imageTooLarge
@@ -232,6 +238,13 @@ final class MediaService: ObservableObject {
         run(.textExtractor) { [weak self] id, token in
             try self?.extractTextWork(inputURL: inputURL, outputURL: outputURL, options: options,
                                       operationID: id, token: token)
+        }
+    }
+
+    func convertAudio(inputURL: URL, outputURL: URL, options: MediaAudioOptions) {
+        run(.audioConverter) { [weak self] id, token in
+            try self?.convertAudioWork(inputURL: inputURL, outputURL: outputURL, options: options,
+                                       operationID: id, token: token)
         }
     }
 
@@ -416,6 +429,54 @@ final class MediaService: ObservableObject {
         switch error {
         case .unsupported: return .unsupported
         case .targetTooSmall: return .targetTooSmall
+        case .cancelled: return .cancelled
+        case let .failed(message): return .failed(message)
+        }
+    }
+
+    private func convertAudioWork(inputURL: URL, outputURL: URL, options: MediaAudioOptions,
+                                  operationID: UUID, token: MediaCancellationToken) throws {
+        let started = Date()
+        let stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
+        defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
+        let asset = AVURLAsset(url: inputURL)
+        var publishedPercent = -1
+        do {
+            let source = try runAsync(token: token) {
+                try await MediaAudioConverter.loadSource(from: asset)
+            }
+            try MediaAudioConverter.convert(
+                source: source,
+                bitRate: options.bitRate,
+                destination: stagedOutputURL,
+                isCancelled: { token.isCancelled },
+                progress: { value in
+                    // One report per decoded buffer would flood the main queue.
+                    let percent = Int(value * 100)
+                    guard percent != publishedPercent else { return }
+                    publishedPercent = percent
+                    self.publish(.running(progress: value, message: "audio"), operationID: operationID)
+                })
+        } catch let error as MediaAudioConverter.ConvertError {
+            throw MediaFailureBox(mediaFailure(for: error))
+        }
+
+        try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
+        MediaSupport.makeVisibleIfNeeded(outputURL)
+        let result = MediaResult(tool: .audioConverter,
+                                 inputURL: inputURL,
+                                 outputURL: outputURL,
+                                 originalBytes: fileSize(inputURL),
+                                 outputBytes: fileSize(outputURL),
+                                 elapsed: Date().timeIntervalSince(started),
+                                 text: nil)
+        publish(.completed(result), operationID: operationID)
+    }
+
+    private func mediaFailure(for error: MediaAudioConverter.ConvertError) -> MediaFailure {
+        switch error {
+        case .noAudioTrack: return .noAudioTrack
+        case .unsupported: return .unsupported
         case .cancelled: return .cancelled
         case let .failed(message): return .failed(message)
         }
