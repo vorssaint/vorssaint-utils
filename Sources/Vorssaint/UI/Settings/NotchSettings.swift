@@ -266,6 +266,15 @@ struct NotchSettings: View {
                         Text(text.withoutNotchUnreached).font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         Button(text.showOnAllDisplays) { display = NotchDisplay.all.rawValue }
+                    } else if enabled, display == NotchDisplay.all.rawValue {
+                        Picker(text.display, selection: $display) {
+                            Text(text.automatic).tag(NotchDisplay.automatic.rawValue)
+                            Text(text.builtIn).tag(NotchDisplay.builtIn.rawValue)
+                            Text(text.mainDisplay).tag(NotchDisplay.main.rawValue)
+                            Text(text.followPointer).tag(NotchDisplay.pointer.rawValue)
+                            Text(text.allDisplays).tag(NotchDisplay.all.rawValue)
+                        }
+                        .pickerStyle(.menu)
                     }
                 }
                 if NotchSilhouette(rawValue: silhouette) ?? .capsule == .capsule {
