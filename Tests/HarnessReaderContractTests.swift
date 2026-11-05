@@ -41,6 +41,23 @@ enum HarnessReaderContractTests {
         let sidechain = line(#"{"type":"user","timestamp":1790088020,"sessionId":"s","isSidechain":true,"message":{"content":"work"}}"#)
         suite.expect(reader.parse(sidechain, state: &state, now: now).isEmpty,
                      "a Claude subagent prompt never opens a turn")
+        let clear = line(#"{"type":"user","timestamp":1790088030,"sessionId":"s2","cwd":"/Users/me/code/app","message":{"content":"<command-name>/clear</command-name>\n<command-message>clear</command-message>\n<command-args></command-args>"}}"#)
+        suite.expect(reader.parse(clear, state: &state, now: now).isEmpty && !state.turnOpen,
+                     "a Claude local command like /clear never opens a turn")
+        let cleared = line(#"{"type":"system","subtype":"local_command","timestamp":1790088031,"sessionId":"s2","content":"<local-command-stdout></local-command-stdout>"}"#)
+        suite.expect(reader.parse(cleared, state: &state, now: now).isEmpty,
+                     "a Claude local command's output parses to nothing")
+        // Claude Code writes that output on a line whose outer type varies.
+        let clearedUser = line(#"{"type":"user","timestamp":1790088032,"sessionId":"s2","message":{"content":"<local-command-stdout></local-command-stdout>"}}"#)
+        suite.expect(reader.parse(clearedUser, state: &state, now: now).isEmpty && !state.turnOpen,
+                     "a Claude local command's output never opens a turn")
+        let clearedReply = line(#"{"type":"assistant","timestamp":1790088033,"sessionId":"s2","message":{"role":"assistant","content":[{"type":"text","text":"<local-command-stdout>Context cleared</local-command-stdout>"}]}}"#)
+        suite.expect(reader.parse(clearedReply, state: &state, now: now).isEmpty && !state.turnOpen,
+                     "a Claude local command's output written as a reply opens no turn")
+        let next = line(#"{"type":"user","timestamp":1790088040,"sessionId":"s2","cwd":"/Users/me/code/app","message":{"content":"work"}}"#)
+        suite.expect(reader.parse(next, state: &state, now: now)
+                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_040))],
+                     "a prompt after a local command still opens its turn")
     }
 
     private static func codexGolden(_ suite: TestSuite) {

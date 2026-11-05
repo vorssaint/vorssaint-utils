@@ -453,6 +453,8 @@ enum NotchAgentTests {
         _ = feed(claudeUser(#"<command-name>/model</command-name>"#))
         _ = feed(line(#"{"type":"user","message":{"content":"<local-command-stdout>Set model</local-command-stdout>"}}"#))
         suite.expect(store.live.isEmpty, "a local command never leaves a turn working")
+        _ = feed(claudeUser(#"<command-name>/clear</command-name>"#))
+        suite.expect(store.live.isEmpty, "a command that asks nothing, like /clear, never starts a turn")
         _ = feed(claudeUser())
         _ = feed(claudeAssistant(id: "msg_5", request: "req_5", stop: "tool_use", time: "2026-09-21T23:40:10.000Z"))
         let structured = feed(line(#"{"type":"user","timestamp":"2026-09-21T23:40:15.000Z","sessionId":"s1","message":{"role":"user","content":[{"type":"tool_result","content":"Structured output provided successfully"}]},"toolUseResult":"Structured output provided successfully","toolEndsTurn":true}"#))

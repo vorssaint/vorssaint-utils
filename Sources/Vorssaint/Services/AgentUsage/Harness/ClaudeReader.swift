@@ -5,16 +5,26 @@ import Foundation
 
 /// Reads Claude Code session logs. A prompt opens a turn, a reply keeps it
 /// going and records its usage, and an interruption, a local command's
-/// output or a turn-ending tool result closes the turn again.
+/// output or a turn-ending tool result closes the turn again. A slash command
+/// runs in the client, so the line that records it opens no turn.
 struct ClaudeReader: AgentHarnessReader {
     var provider: AgentProvider { .claude }
 
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         if AgentLogParser.contains(line, #""type":"assistant""#) { return claudeAssistant(line, state: &state, now: now) }
         guard AgentLogParser.contains(line, #""type":"user""#) else { return [] }
-        // A local command prints its output without asking the model anything,
-        // so the command line that opened a turn closes it again. Only the
-        // person's own text counts: a tool result can quote the same words.
+        // A slash command runs in the client and asks the model nothing, so
+        // the line recording it never opens a turn. `/clear` writes no output
+        // entry either: a turn opened here would count until the next reply.
+        if AgentLogParser.contains(line, "<command-"), let json = AgentLogParser.object(line),
+           json["type"] as? String == "user", json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true,
+           messageTexts(json).contains(where: { $0.hasPrefix("<command-name>") || $0.hasPrefix("<command-message>") }) {
+            adopt(json, into: &state)
+            return []
+        }
+        // A local command prints its output without asking the model anything.
+        // An output that arrives while a turn is open closes it again. Only
+        // the person's own text counts: a tool result can quote the same words.
         if AgentLogParser.contains(line, "[Request interrupted by user") || AgentLogParser.contains(line, "<local-command-std"),
            let json = AgentLogParser.object(line), json["type"] as? String == "user", endsTurn(json) {
             let open = state.turnOpen
@@ -92,6 +102,10 @@ struct ClaudeReader: AgentHarnessReader {
         }
         // A subagent's own ending is not the end of the turn it serves.
         guard json["isSidechain"] as? Bool != true else { return entries }
+        // Claude Code writes a local command's output on a line whose outer
+        // type varies, sometimes a reply. It asks the model nothing, so it
+        // never opens a turn.
+        if messageTexts(json).contains(where: { $0.hasPrefix("<local-command-std") }) { return entries }
         switch message["stop_reason"] as? String {
         case "end_turn", "stop_sequence", "max_tokens", "refusal":
             // An error written in place of a reply, like a spent limit, stops
@@ -115,18 +129,17 @@ struct ClaudeReader: AgentHarnessReader {
     /// The interruption or local command output the person's message holds,
     /// never text inside a tool result.
     private func endsTurn(_ json: [String: Any]) -> Bool {
-        let content = (json["message"] as? [String: Any])?["content"]
-        let texts: [String]
-        if let text = content as? String {
-            texts = [text]
-        } else if let blocks = content as? [[String: Any]] {
-            texts = blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
-        } else {
-            texts = []
-        }
-        return texts.contains {
+        messageTexts(json).contains {
             $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std")
         }
+    }
+
+    /// The person's own text in a message, never what a tool result quotes.
+    private func messageTexts(_ json: [String: Any]) -> [String] {
+        let content = (json["message"] as? [String: Any])?["content"]
+        if let text = content as? String { return [text] }
+        guard let blocks = content as? [[String: Any]] else { return [] }
+        return blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
     }
 
     private func adopt(_ json: [String: Any], into state: inout AgentLogState) {
