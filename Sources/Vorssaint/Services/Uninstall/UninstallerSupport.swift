@@ -154,6 +154,19 @@ enum UninstallerSupport {
         return paths.contains { path in protected.contains { path.contains($0) } }
     }
 
+    /// A bundle's Info.plist values, read from disk on every call.
+    /// Bundle(url:) caches by path for the life of the process, so a
+    /// different app that later sits at a path already read, such as a
+    /// Trash name reused after Empty Trash, would still show the old one.
+    /// This reads the same Info.plist Bundle would, wrappers included.
+    static func infoDictionary(of bundleURL: URL) -> [String: Any]? {
+        CFBundleCopyInfoDictionaryInDirectory(bundleURL as CFURL) as? [String: Any]
+    }
+
+    static func bundleIdentifier(of bundleURL: URL) -> String? {
+        infoDictionary(of: bundleURL)?["CFBundleIdentifier"] as? String
+    }
+
     static func verifiedBundleID(_ rawValue: String?) -> String? {
         guard let rawValue,
               CleanerSupport.looksLikeBundleID(rawValue),
@@ -179,13 +192,13 @@ enum UninstallerSupport {
         // Something named like an app that does not read as one is still
         // reported as an app, never as a stray document.
         let unreadable: Refusal = appURL.pathExtension.lowercased() == "app" ? .unidentified : .notAnApp
-        guard let bundle = Bundle(url: appURL) else { return .failure(unreadable) }
+        guard let info = infoDictionary(of: appURL) else { return .failure(unreadable) }
         // System apps are SIP-protected and their support data is live OS
         // state; removing either would be wrong, so refuse the selection.
         guard !InstalledApps.isSystemApplication(at: appURL) else { return .failure(.systemApp) }
         // Only a verified bundle identifier becomes a path component. A
         // display name is presentation only and can never claim user data.
-        guard let rawBundleID = bundle.bundleIdentifier,
+        guard let rawBundleID = info["CFBundleIdentifier"] as? String,
               CleanerSupport.looksLikeBundleID(rawBundleID) else { return .failure(unreadable) }
         guard let bundleID = verifiedBundleID(rawBundleID) else {
             return .failure(isOwnBundleID(rawBundleID) ? .thisApp : .sharedIdentifier)

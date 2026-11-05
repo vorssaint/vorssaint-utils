@@ -556,14 +556,14 @@ final class AppUninstaller: ObservableObject {
                                    ownerBundleID: nil, ownerGroupID: nil,
                                    evidenceBundleID: nil,
                                    confidence: .exact, include: !appAlreadyTrashed)]
-        let bundle = Bundle(url: appURL)
+        let info = UninstallerSupport.infoDictionary(of: appURL)
         var displayNames = UninstallerSupport.displayNames(
             localizedName: fm.displayName(atPath: appURL.path),
             fileName: appURL.lastPathComponent,
-            bundleName: bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String,
-            bundleDisplayName: bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            bundleName: info?["CFBundleName"] as? String,
+            bundleDisplayName: info?["CFBundleDisplayName"] as? String
         )
-        if let executable = bundle?.object(forInfoDictionaryKey: "CFBundleExecutable") as? String {
+        if let executable = info?["CFBundleExecutable"] as? String {
             displayNames.append(executable)
         }
         let identity = UninstallerSupport.identity(
@@ -716,7 +716,7 @@ final class AppUninstaller: ObservableObject {
                 children = dirListings(at: entry, remainingDepth: remainingDepth - 1, fm: fm)
             }
             let bundleIdentifier = packageExtensions.contains(entry.pathExtension.lowercased())
-                ? UninstallerSupport.verifiedBundleID(Bundle(url: entry)?.bundleIdentifier)
+                ? UninstallerSupport.verifiedBundleID(UninstallerSupport.bundleIdentifier(of: entry))
                 : nil
             return UninstallerSupport.DirListing(name: name, children: children,
                                                   bundleIdentifier: bundleIdentifier)
@@ -942,7 +942,7 @@ final class AppUninstaller: ObservableObject {
 
     private static func allBundleIDs(in appURL: URL, fm: FileManager) -> Set<String> {
         var result = Set<String>()
-        if let primary = UninstallerSupport.verifiedBundleID(Bundle(url: appURL)?.bundleIdentifier) {
+        if let primary = UninstallerSupport.verifiedBundleID(UninstallerSupport.bundleIdentifier(of: appURL)) {
             result.insert(primary)
         }
         let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
@@ -959,7 +959,7 @@ final class AppUninstaller: ObservableObject {
             }
             guard values?.isDirectory == true,
                   ownedEmbeddedCode(url, in: appURL),
-                  let id = UninstallerSupport.verifiedBundleID(Bundle(url: url)?.bundleIdentifier)
+                  let id = UninstallerSupport.verifiedBundleID(UninstallerSupport.bundleIdentifier(of: url))
             else { continue }
             inspected += 1
             guard inspected <= 256 else { break }

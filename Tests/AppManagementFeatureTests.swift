@@ -500,6 +500,19 @@ enum AppManagementFeatureTests {
         suite.expect(Bundle(url: flatApp)?.bundleIdentifier == "com.vendor.flat"
                && UninstallerSupport.selection(for: flatApp) == nil,
                "a bare iPhone-style bundle with no Contents/Info.plist is refused")
+        // Bundle(url:) caches by path for the whole process, so a different
+        // app that later sits at a path already read (a Trash name reused
+        // after Empty Trash) must still be read from disk.
+        let reusedApp = selectionFixture.appendingPathComponent("Reused.app", isDirectory: true)
+        writeInfo("com.vendor.first", to: reusedApp.appendingPathComponent("Contents/Info.plist"))
+        let firstReused = UninstallerSupport.selection(for: reusedApp)?.bundleID
+        _ = Bundle(url: reusedApp)?.bundleIdentifier
+        try? FileManager.default.removeItem(at: reusedApp)
+        writeInfo("com.vendor.second", to: reusedApp.appendingPathComponent("Contents/Info.plist"))
+        suite.expect(firstReused == "com.vendor.first"
+               && UninstallerSupport.selection(for: reusedApp)?.bundleID == "com.vendor.second"
+               && UninstallerSupport.bundleIdentifier(of: reusedApp) == "com.vendor.second",
+               "a different app at a path already read is selected by its own bundle ID")
         // An iPhone or iPad app installed on a Mac with Apple silicon (#1582):
         // the App Store keeps the real bundle in Wrapper with its Info.plist at
         // the top, and Bundle reads it through the WrappedBundle link.
