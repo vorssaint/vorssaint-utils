@@ -114,6 +114,7 @@ struct MediaWorkspaceView: View {
         nonmutating set { workspace.outputWasChosenManually = newValue }
     }
     @State private var isDropTargeted = false
+    @FocusState private var isPasteTargetFocused: Bool
     @State private var localMessage: String?
     @State private var mediaDefaultsTask: Task<Void, Never>?
     @State private var videoImportTask: Task<Void, Never>?
@@ -200,6 +201,7 @@ struct MediaWorkspaceView: View {
     var body: some View {
         layout
         .focusable()
+        .focused($isPasteTargetFocused)
         .focusEffectDisabled()
         .onPasteCommand(of: [.fileURL, .image, .png, .tiff]) { _ in
             pasteFromClipboard()
@@ -215,6 +217,8 @@ struct MediaWorkspaceView: View {
             } else {
                 applyMediaDefaults(for: inputURL, tool: selectedTool, replacingInput: false)
             }
+            // Select the workspace so Cmd+V works without a click first.
+            DispatchQueue.main.async { isPasteTargetFocused = true }
         }
         .onChange(of: currentImageOptions) { oldOptions, newOptions in
             guard selectedTool == .imageCompressor else { return }
