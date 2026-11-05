@@ -2373,13 +2373,14 @@ def main():
           + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
                     for prefix in ["private enum WindowEdgeSnapPointerInput {",
                                    "private struct WindowEdgeSnapDrag {",
-                                   "private struct WindowLayoutTarget {",
+                                   "struct WindowLayoutTarget {",
                                    "private struct WindowPointerGesture {",
                                    "private struct PendingWindowGesture {",
                                    "private struct WindowGestureTarget {"])
           + "final class Host: Fixture {\n"
           + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
                     .replace("AXIsProcessTrusted()", "WindowEdgeSnapRuntimeTests.accessibilityGranted")
+                    .replace("WindowZonesService.shared.isShowingZones", "WindowEdgeSnapRuntimeTests.zonesShowing")
                     for prefix in [
               "    private func observeEdgeSnapEvent(",
               "    private static func seconds(of event: CGEvent)",

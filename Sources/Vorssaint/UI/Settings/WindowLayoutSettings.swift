@@ -130,6 +130,8 @@ struct WindowLayoutSettings: View {
                     }
                 }
 
+                WindowZonesSettingsSection()
+
                 Section(FeatureStrings.windowLayoutIgnoredApps(l10n.language).sectionTitle) {
                     WindowLayoutIgnoredAppsList()
                 }
