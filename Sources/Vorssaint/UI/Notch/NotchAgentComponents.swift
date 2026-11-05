@@ -375,10 +375,11 @@ enum AgentMarks {
 
 private extension AgentProvider {
     /// A template mark the app ships for an agent that has no desktop app
-    /// whose menu bar image it could borrow.
+    /// whose menu bar image it could borrow. The DeepSeek whale identifies
+    /// DeepSeek Harness; it is the provider's brand mark, not ours.
     var bundledMarkName: String? {
         switch self {
-        case .dsh: return "AgentWhaleTemplate"
+        case .dsh: return "AgentDeepSeekTemplate"
         case .claude, .codex, .opencode, .copilot: return nil
         }
     }
