@@ -311,7 +311,10 @@ final class FeatureRuntime: ObservableObject {
         .micMute: { MicMuteService.shared.syncWithPreferences() },
         .quickToggles: { QuickTogglesService.shared.syncWithPreferences() },
         .quitApps: { QuickTogglesService.shared.syncWithPreferences() },
-        .musicBlock: { MusicLaunchBlocker.shared.syncWithPreferences() },
+        .musicBlock: {
+            MusicLaunchBlocker.shared.syncWithPreferences()
+            MediaKeyPlayerRouter.shared.syncWithPreferences()
+        },
         .keepAwake: {
             KeepAwakeManager.shared.syncWithFeatures()
             HotkeyManager.shared.syncWithPreferences()
