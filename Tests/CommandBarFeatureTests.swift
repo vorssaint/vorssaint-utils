@@ -3268,10 +3268,36 @@ enum CommandBarDropletContract {
         let cancelCall = retract.range(of: "cancel()")
         suite.expect(rewindCall != nil && cancelCall != nil && rewindCall!.lowerBound < cancelCall!.lowerBound,
                      "closing a drop that still falls rewinds it before anything cancels it")
+        let finish = service.components(separatedBy: "private func finish(_ entry: CommandBarEntry, value: Int?) {")
+            .dropFirst().first?.components(separatedBy: "\n    }\n").first ?? ""
+        let hides = finish.range(of: "hide()", options: .backwards)
+        let waits = finish.range(of: "CommandBarDropletMotion.runDelay(climbEnds: CommandBarDroplet.shared.climbEnds,")
+        let deferred = finish.range(of: "DispatchQueue.main.asyncAfter(deadline: .now() + wait) {")
+        let runs = finish.range(of: "entry.run(value)", options: .backwards)
+        suite.expect(hides != nil && waits != nil && deferred != nil && runs != nil
+                     && hides!.upperBound <= waits!.lowerBound && waits!.upperBound <= deferred!.lowerBound
+                     && deferred!.upperBound <= runs!.lowerBound
+                     && !retract.contains("CATransaction.flush()"),
+                     "a pick that closes the bar runs once the drop has risen, measured after the close starts it")
+        // Stage Manager's switch, started by the app a pick brings forward,
+        // would make the rising drop stutter: it waits out what is left.
+        suite.expect(CommandBarDropletMotion.runDelay(climbEnds: nil, now: 100) == 1.0 / 60
+                     && CommandBarDropletMotion.runDelay(climbEnds: 100.4, now: 100) == 100.4 - 100
+                     && CommandBarDropletMotion.runDelay(climbEnds: 100.005, now: 100) == 1.0 / 60
+                     && CommandBarDropletMotion.runDelay(climbEnds: 99, now: 100) == 1.0 / 60,
+                     "a pick waits for what is left of the rise, and about a frame when nothing rises")
+        let climbs = droplet.components(separatedBy: "climbEnds = ").count - 1
+        let climbsCleared = droplet.components(separatedBy: "climbEnds = nil").count - 1
+        suite.expect(retract.contains("climbEnds = begin + motion.duration")
+                     && retract.contains("self.climbEnds = nil")
+                     && body(droplet, "func cancel() {").contains("climbEnds = nil")
+                     && climbs == 5 && climbsCleared == 3,
+                     "only a rise in progress holds a pick back, and a finished or cancelled one never does")
 
         let rewind = body(droplet, "private func rewind(homecoming mood: NotchMascotMood) -> Bool {")
         suite.expect(rewind.contains("generation += 1") && rewind.contains("stage.removeAnimation(forKey: \"reveal\")")
                      && rewind.contains("fall.motion.rewound(from:")
+                     && rewind.contains("climbEnds = now + back.duration") && rewind.contains("self.climbEnds = nil")
                      && rewind.contains("self.panel?.orderOut(nil)")
                      && rewind.contains("NotchService.shared.setMascotInBar(false, homecoming: mood)"),
                      "a rewound drop never shows the bar, rises as motion of its own and brings the companion home")
