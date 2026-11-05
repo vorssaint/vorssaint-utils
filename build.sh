@@ -382,6 +382,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderWriter.swift
         Sources/Vorssaint/Services/Recorder/RecorderCaptureEngine.swift
         Sources/Vorssaint/Core/RecorderExportStrings.swift
+        Sources/Vorssaint/Core/RecorderExportFormatStrings.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposer.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposerPlan.swift
         Sources/Vorssaint/Services/Recorder/RecorderCursorSprite.swift
@@ -510,6 +511,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotCanvasSupport.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotImageImport.swift
+        Sources/Vorssaint/Services/Media/MediaImageProcessing.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotImageFile.swift
         Sources/Vorssaint/UI/Settings/ScreenCaptureToolPicker.swift
         Sources/Vorssaint/UI/Settings/MonitorToken.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
@@ -539,6 +543,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift
         Sources/Vorssaint/Services/Switcher/WindowUseOrder.swift
+        Sources/Vorssaint/Services/Switcher/WindowEnumeratorAccessibilityPrefetch.swift
         Sources/Vorssaint/Services/Metrics/MetricFormat.swift
         Sources/Vorssaint/Services/Metrics/VMStatisticsDecoder.swift
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift

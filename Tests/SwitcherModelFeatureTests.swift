@@ -165,11 +165,356 @@ enum SwitcherModelFeatureTests {
                      "the open switcher leaves a remote screen's scroll as it came")
     }
 
+    /// Counts the early Accessibility reads a test asks for, from any thread.
+    private final class PrefetchReads {
+        private let lock = NSLock()
+        private var count = 0
+        var total: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return count
+        }
+        func record() {
+            lock.lock()
+            count += 1
+            lock.unlock()
+        }
+    }
+
+    /// Holds one early read's answer for a test that reads it from another
+    /// thread.
+    private final class PrefetchAnswerBox {
+        private let lock = NSLock()
+        private var answer: WindowEnumeratorAccessibilityPrefetch<Int>.Query?
+
+        func set(_ answer: WindowEnumeratorAccessibilityPrefetch<Int>.Query?) {
+            lock.lock()
+            self.answer = answer
+            lock.unlock()
+        }
+
+        var value: WindowEnumeratorAccessibilityPrefetch<Int>.Query? {
+            lock.lock()
+            defer { lock.unlock() }
+            return answer
+        }
+    }
+
+    /// The early Accessibility read one app brings to a batch.
+    ///
+    /// The Accessibility server is the only double here: the read itself,
+    /// when it runs, and when it answers. What is checked is the read's own
+    /// contract — it runs once, a caller waits for the answer that came, and
+    /// a read that was given up never asks the app at all.
+    private static func accessibilityPrefetchChecks(_ suite: TestSuite) {
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+
+        // A read that answered is handed to every caller, and the app is
+        // asked once: the batch must not ask the source app a second time.
+        let reads = PrefetchReads()
+        let answered = WindowEnumeratorAccessibilityPrefetch<Int>(pid: 42) {
+            reads.record()
+            return WindowEnumeratorAccessibilityPrefetch<Int>.Query(windows: [1, 2],
+                                                                     error: .success)
+        }
+        answered.start(on: queue)
+        answered.start(on: queue)
+        queue.waitUntilAllOperationsAreFinished()
+        let first = answered.answer()
+        let second = answered.answer()
+        suite.expect(reads.total == 1
+                        && first?.windows == [1, 2] && second?.windows == [1, 2],
+                     "repeated starts and consumers share one completed app query")
+
+        // A read that was given up before it started — an app this walk does
+        // not ask, or a session that is over — never asks the app and never
+        // answers. The caller then asks the app itself, exactly as it would
+        // have without the early read.
+        let droppedReads = PrefetchReads()
+        let dropped = WindowEnumeratorAccessibilityPrefetch<Int>(pid: 7) {
+            droppedReads.record()
+            return WindowEnumeratorAccessibilityPrefetch<Int>.Query(windows: nil,
+                                                                     error: .success)
+        }
+        dropped.abandon()
+        dropped.start(on: queue)
+        suite.expect(dropped.answer() == nil,
+                     "a read that was given up before it started never answers")
+        suite.expect(droppedReads.total == 0,
+                     "a read that was given up before it started never asks the app")
+
+        // A read that is in flight is waited for: the caller takes the answer
+        // that comes, and the app is not asked a second time while it waits.
+        let gate = DispatchSemaphore(value: 0)
+        let slowStarted = DispatchSemaphore(value: 0)
+        let slowReads = PrefetchReads()
+        let slow = WindowEnumeratorAccessibilityPrefetch<Int>(pid: 9) {
+            slowReads.record()
+            slowStarted.signal()
+            gate.wait()
+            return WindowEnumeratorAccessibilityPrefetch<Int>.Query(windows: [],
+                                                                     error: .cannotComplete)
+        }
+        slow.start(on: queue)
+        _ = slowStarted.wait(timeout: .now() + 5)
+        let answeredSignal = DispatchSemaphore(value: 0)
+        let box = PrefetchAnswerBox()
+        DispatchQueue.global().async {
+            box.set(slow.answer())
+            answeredSignal.signal()
+        }
+        suite.expect(answeredSignal.wait(timeout: .now()) == .timedOut,
+                     "a caller waits for the early read that is in flight")
+        suite.expect(slowReads.total == 1,
+                     "a caller waiting for the early read does not ask the app itself")
+        gate.signal()
+        _ = answeredSignal.wait(timeout: .now() + 5)
+        suite.expect(box.value?.error == .cannotComplete && box.value?.windows == [],
+                     "the answer of the read that was in flight is the one the caller gets")
+
+        // A generation cancelled while its CG candidates are being fixed must
+        // not publish a successful AX snapshot after the gate rejects it.
+        let rejected = WindowEnumeratorAccessibilityPrefetch<Int>(pid: 10) {
+            WindowEnumeratorAccessibilityPrefetch<Int>.Query(
+                windows: [123], error: .success)
+        }
+        rejected.start(on: queue, beforeRead: { false })
+        queue.waitUntilAllOperationsAreFinished()
+        let rejectedAnswer = rejected.answer()
+        suite.expect(rejectedAnswer?.error == .cannotComplete
+                        && rejectedAnswer?.windows == nil,
+                     "a rejected candidate gate suppresses the obsolete successful source answer")
+    }
+
+    private static func secureInputRegressionChecks(_ suite: TestSuite) {
+        let optionTab = GlobalShortcut(keyCode: Int64(kVK_Tab), modifiers: [.option])
+        let commandTab = GlobalShortcut.switcherDefault
+        let commandShiftTab = GlobalShortcut(keyCode: Int64(kVK_Tab), modifiers: [.command, .shift])
+        let shortcuts = SwitcherSupport.secureInputHotKeyShortcuts(
+            appsShortcut: optionTab, windowShortcut: .switcherWindowDefault,
+            allWindowsShortcut: commandTab)
+        let native: [SwitcherNativeSymbolicHotKey: GlobalShortcut] = [
+            .commandTab: commandTab, .commandShiftTab: commandShiftTab,
+            .nextWindow: .switcherWindowDefault,
+            .previousWindow: GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave), modifiers: [.command, .shift]),
+        ]
+        let suppressed = SwitcherSupport.nativeHotkeysToSuppress(
+            takeOverSystemShortcuts: true, appsShortcut: optionTab,
+            windowShortcut: .switcherWindowDefault, allWindowsShortcut: commandTab,
+            nativeShortcuts: native)
+        suite.expect(suppressed == Set(native.keys)
+            && suppressed.allSatisfy { shortcuts.contains(native[$0]!) },
+            "every suppressed native key has a Carbon replacement when all windows owns Command-Tab")
+        suite.expect(!SwitcherSupport.secureInputHotKeyShortcuts(
+            appsShortcut: commandTab, windowShortcut: .switcherWindowDefault).contains(optionTab),
+            "a disabled all-windows shortcut never claims its default Option-Tab")
+        let duplicates = SwitcherSupport.secureInputHotKeyShortcuts(
+            appsShortcut: commandTab, windowShortcut: commandTab, allWindowsShortcut: commandShiftTab)
+        suite.expect(duplicates == [commandTab, commandShiftTab],
+            "shared all-windows and Shift combinations register exactly once")
+
+        let registrationCases: [(canStart: Bool, capturing: Bool, takeOver: Bool, secure: Bool, failed: Bool, wanted: Bool)] = [
+            (true, false, true, true, false, true),
+            (true, true, true, true, false, false),
+            (false, false, true, true, false, false),
+            (true, false, false, true, false, false),
+            (true, false, true, false, false, false),
+            (true, false, true, true, true, false),
+        ]
+        for scenario in registrationCases {
+            suite.expect(SwitcherSupport.secureInputHotKeysWanted(
+                canStartSession: scenario.canStart, capturingShortcut: scenario.capturing,
+                takeOverSystemShortcuts: scenario.takeOver, secureInputEnabled: scenario.secure,
+                registrationFailed: scenario.failed) == scenario.wanted,
+                "Carbon yields during recording, disablement and failed registration, and resumes only when usable")
+        }
+
+        var delayed = SwitcherPendingSessionStart(generation: 7, shortcut: commandTab,
+            scope: .allApps, reversed: false, additionalNavigation: 2, isSecureInputReplay: true)
+        delayed.reconcileReplayedModifiers([])
+        suite.expect(delayed.commitWhenReady && delayed.additionalNavigation == 2,
+            "a delayed Carbon press commits without showing a panel after modifier-up preceded replay")
+        var held = SwitcherPendingSessionStart(generation: 8, shortcut: commandTab,
+            scope: .allApps, reversed: true, isSecureInputReplay: true)
+        held.reconcileReplayedModifiers([.maskCommand, .maskShift])
+        suite.expect(!held.commitWhenReady && held.reversed,
+            "holding Command still opens the reversed Carbon session normally")
+        held.observeModifiers([])
+        held.reconcileReplayedModifiers(.maskCommand)
+        suite.expect(held.commitWhenReady,
+            "a modifier release after replay stays latched even when a new chord is held")
+        var shifted = SwitcherPendingSessionStart(generation: 9, shortcut: commandShiftTab,
+            scope: .allWindows, reversed: false, isSecureInputReplay: true)
+        shifted.reconcileReplayedModifiers(.maskCommand)
+        suite.expect(shifted.commitWhenReady,
+            "releasing a required Shift commits a Carbon session as well as releasing Command")
+        var flagReads = 0
+        func readFlags() -> CGEventFlags { flagReads += 1; return [] }
+        var tapped = SwitcherPendingSessionStart(generation: 10, shortcut: commandTab,
+            scope: .allApps, reversed: false)
+        tapped.reconcileReplayedModifiers(readFlags())
+        suite.expect(!tapped.commitWhenReady && flagReads == 0,
+            "ordinary tap sessions keep event ordering without polling physical modifiers")
+
+        var queued = SwitcherSecureInputReplayState()
+        let firstReplay = queued.enqueue(shortcut: commandTab)
+        let nextReplay = queued.enqueue(shortcut: optionTab)
+        suite.expect(firstReplay == nextReplay && queued.hasPending && queued.pendingCount == 2
+            && queued.shortcut == commandTab,
+            "queued Carbon presses own input and preserve their first session's guarded modifiers")
+        queued.finish(firstReplay)
+        suite.expect(queued.hasPending && queued.pendingCount == 1,
+            "Q/W guards remain needed until every queued Carbon press reaches the tap")
+        queued.invalidate()
+        suite.expect(!queued.hasPending && !queued.contains(nextReplay) && queued.shortcut == nil,
+            "a cancelling click or failure invalidates queued Carbon presses before opening")
+        let replacement = queued.enqueue(shortcut: optionTab)
+        queued.finish(nextReplay)
+        suite.expect(queued.contains(replacement) && queued.pendingCount == 1 && queued.shortcut == optionTab,
+            "completion of a cancelled replay never releases a newer session's guards")
+        queued.finish(replacement)
+        suite.expect(!queued.hasPending && queued.shortcut == nil,
+            "the final replay releases queued ownership when no session claimed it")
+
+        let guarded = SwitcherSupport.secureInputActionShortcuts(for: commandTab, keyLabel: { _, _, _ in nil })
+        let guardedModifiers: [GlobalShortcutModifiers] = [[.command], [.command, .shift], [.command, .option],
+                                                           [.command, .control, .option, .shift]]
+        for modifiers in guardedModifiers {
+            for keyCode in [Int64(kVK_ANSI_Q), Int64(kVK_ANSI_W)] {
+                suite.expect(guarded.contains(GlobalShortcut(keyCode: keyCode, modifiers: modifiers)),
+                    "secure sessions swallow Q/W including shifted and extra-modifier combinations")
+            }
+        }
+        suite.expect(guarded.count == 16 && Set(guarded).count == guarded.count
+            && guarded.allSatisfy { $0.modifiers.contains(.command) }
+            && !guarded.contains(GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [])),
+            "session guards are bounded and never claim bare password letters")
+        let localized = SwitcherSupport.secureInputActionShortcuts(for: commandTab, keyLabel: { code, command, shift in
+            if command && code == 0 { return shift ? "Q" : "q" }
+            if command && code == 6 { return "W" }
+            return nil
+        })
+        suite.expect(localized.contains(GlobalShortcut(keyCode: 0, modifiers: [.command, .shift]))
+            && localized.contains(GlobalShortcut(keyCode: 6, modifiers: [.command])),
+            "secure action guards follow the layout's Command Q/W positions")
+        let optionGuards = SwitcherSupport.secureInputActionShortcuts(for: optionTab, keyLabel: { _, _, _ in nil })
+        suite.expect(optionGuards.allSatisfy { $0.modifiers.contains(.option) }
+            && optionGuards.contains(GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [.option, .command])),
+            "custom session modifiers remain required while extra Command cannot leak a quit")
+
+        // Modifier-up may precede or follow the second Carbon callback. Both
+        // openings must be protected before either replay reaches the tap.
+        let existingGuards = Set(optionGuards)
+        let commandGuards = SwitcherSupport.secureInputActionShortcuts(
+            for: commandTab, excluding: existingGuards, keyLabel: { _, _, _ in nil })
+        let combinedGuards = existingGuards.union(commandGuards)
+        suite.expect(Set(commandGuards).isDisjoint(with: existingGuards)
+            && combinedGuards == existingGuards.union(guarded),
+            "a replacement Command trigger adds its guards without unregistering or duplicating the Option guards")
+        for modifiers: GlobalShortcutModifiers in [[.command], [.option], [.command, .option, .shift]] {
+            for keyCode in [Int64(kVK_ANSI_Q), Int64(kVK_ANSI_W)] {
+                suite.expect(combinedGuards.contains(GlobalShortcut(keyCode: keyCode, modifiers: modifiers)),
+                    "Q/W stay protected across a queued Option-to-Command replacement, before or after modifier-up")
+            }
+        }
+        suite.expect(SwitcherSupport.secureInputActionShortcuts(
+            for: commandTab, excluding: combinedGuards, keyLabel: { _, _, _ in nil }).isEmpty,
+            "a repeated replacement never registers the same Carbon action twice")
+        let commandQ = GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [.command])
+        suite.expect(!SwitcherSupport.secureInputActionShortcuts(
+            for: commandTab, excluding: [commandQ], keyLabel: { _, _, _ in nil }).contains(commandQ),
+            "an action already consumed by an opening shortcut needs no duplicate Carbon registration")
+
+        for failureIndex in shortcuts.indices {
+            var registered: [Int] = []
+            var released: [Int] = []
+            let result = SwitcherSupport.registerSecureInputHotKeys(shortcuts, register: { _, id -> Int? in
+                guard Int(id) != failureIndex + 1 else { return nil }
+                registered.append(Int(id))
+                return Int(id)
+            }, unregister: { released.append($0) })
+            suite.expect(result == nil && registered.count == failureIndex && Set(released) == Set(registered),
+                "a failed Carbon registration releases every earlier reference and reports no coverage")
+        }
+        var released: [Int] = []
+        let successful = SwitcherSupport.registerSecureInputHotKeys(shortcuts,
+            register: { _, id in Int(id) }, unregister: { released.append($0) })
+        suite.expect(successful?.count == shortcuts.count && released.isEmpty
+            && successful?[1]?.shortcut == shortcuts[0],
+            "successful Carbon registration retains the exact shortcut-to-reference mapping")
+
+        // The standalone suite links the production rules above; these checks
+        // also keep their live adapter and every cleanup path connected.
+        let source = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift",
+                                  encoding: .utf8)) ?? ""
+        func body(_ opening: String) -> String {
+            guard let start = source.range(of: opening) else { return "" }
+            let rest = source[start.upperBound...]
+            return String(rest).components(separatedBy: "\n    }").first ?? ""
+        }
+        let capture = body("func setCapturingShortcut(_ capturing: Bool) {")
+        suite.expect(capture.contains("if capturing { unregisterSecureInputHotKeys() }")
+            && capture.contains("applyNativeHotkeySuppressionIfTapLive()")
+            && source.contains("capturingShortcut: capturing")
+            && source.contains("secureInputHotKeys.isEmpty && !capturing"),
+            "recording releases Carbon but keeps native keys out of the focused field's way")
+        let begin = body("private func beginPendingSession(generation: UInt64) {")
+        let guardRange = begin.range(of: "guard guardSecureInputActions(for: requested.shortcut) else {")
+        let enumerationRange = begin.range(of: "enumerationQueue.async")
+        suite.expect(guardRange != nil && enumerationRange != nil
+            && guardRange!.lowerBound < enumerationRange!.lowerBound
+            && source.contains("if id.signature == AppSwitcher.secureInputActionHotKeySignature { return noErr }"),
+            "the live session guards Q/W before enumeration and consumes them without replay")
+        let callback = body("private func routeSecureInputHotKey(id: UInt32) {")
+        let claim = callback.range(of: "secureInputReplays.enqueue(shortcut: owner)")
+        let protection = callback.range(of: "guard guardSecureInputActions(for: accepted.shortcut)")
+        let replacementProtection = callback.range(of: "guardSecureInputActions(for: accepted.requestedShortcut)")
+        let handoff = callback.range(of: "CFRunLoopPerformBlock")
+        suite.expect(claim != nil && protection != nil && replacementProtection != nil && handoff != nil
+            && claim!.lowerBound < protection!.lowerBound
+            && protection!.lowerBound < replacementProtection!.lowerBound
+            && replacementProtection!.lowerBound < handoff!.lowerBound,
+            "the Carbon callback guards Q/W before the round-trip to the tap can be delayed")
+        let guardBody = body("private func guardSecureInputActions(for shortcut: GlobalShortcut) -> Bool {")
+        suite.expect(!guardBody.contains("unregisterSecureInputActionHotKeys()")
+            && guardBody.contains("excluding: registered")
+            && guardBody.contains("secureInputActionHotKeys[registration.shortcut] = registration.ref")
+            && body("private func unregisterSecureInputActionHotKeys() {")
+                .contains("secureInputGuardedModifiers.removeAll()"),
+            "live replacement guards accumulate until session cleanup instead of opening a modifier gap")
+        suite.expect(body("private func releaseSecureInputActionsIfIdle() {").contains("secureInputReplays.hasPending")
+            && callback.contains("self.secureInputReplays.finish(generation)")
+            && callback.contains("self?.releaseSecureInputActionsIfIdle()"),
+            "queued replay ownership keeps action guards alive and releases them when routing declines the press")
+        suite.expect(body("private func guardSecureInputActions(for shortcut: GlobalShortcut) -> Bool {")
+            .contains("secureInputRegistrationFailed = true\n            restoreNativeHotkeys()"),
+            "failed Q/W coverage restores macOS instead of showing an unsafe switcher")
+        for opening in ["private func unregisterSecureInputHotKeys() {", "private func endSession() {",
+                        "private func removeTap() {"] {
+            suite.expect(body(opening).contains("unregisterSecureInputActionHotKeys()"),
+                "\(opening) releases the session-only action guards")
+        }
+        suite.expect(body("private func discardPendingSessionStart(generation: UInt64, reason: String) {")
+            .contains("releaseSecureInputActionsIfIdle()")
+            && source.contains("if startPending, !clickPressedAKey {\n                    DispatchQueue.main.async { [weak self] in self?.releaseSecureInputActionsIfIdle() }"),
+            "failed enumeration and a cancelling click release guards without disturbing a newer session")
+        suite.expect(source.contains("pending?.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))")
+            && source.components(separatedBy: "isSecureInputReplay: secureInputReplay").count == 3,
+            "both replay start paths reconcile current modifiers before presenting the session")
+        suite.expect(source.contains("secureInputReplays.invalidate()")
+            && source.contains("self.secureInputReplays.contains(generation)"),
+            "unregistering Carbon invalidates already queued presses before they reach routing")
+    }
+
     static func run(_ suite: TestSuite) {
         SwitcherAccessibilitySnapshotTests.run(suite)
         SwitcherFullscreenScopeTests.run(suite)
+        SwitcherQuickCommitTests.run(suite)
         ScrollingTitleMotionTests.run(suite)
         scrollNavigationChecks(suite)
+        accessibilityPrefetchChecks(suite)
+        secureInputRegressionChecks(suite)
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
@@ -288,19 +633,40 @@ enum SwitcherModelFeatureTests {
             suite.expect(migrationDefaults.object(forKey: DefaultsKey.switcherWindowlessApps) == nil,
                    "a setup that kept the windowless desktop app is left exactly as it was")
 
-            migrationDefaults.set(["display|port"],
-                                  forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
-            Defaults.recheckBrightnessDDCWriteOnlyPaths(in: migrationDefaults)
-            suite.expect(migrationDefaults.object(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) == nil
-                   && migrationDefaults.bool(
-                    forKey: DefaultsKey.brightnessDDCWriteOnlyPathsRechecked),
-                   "verdicts cached before paired discovery requests are classified again")
-            migrationDefaults.set(["display|port"],
-                                  forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
-            Defaults.recheckBrightnessDDCWriteOnlyPaths(in: migrationDefaults)
-            suite.expect(migrationDefaults.stringArray(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
-                   == ["display|port"],
-                   "the recheck runs once and keeps later verdicts")
+            for pairedRecheckCompleted in [false, true] {
+                migrationDefaults.set(pairedRecheckCompleted,
+                                      forKey: DefaultsKey.brightnessDDCWriteOnlyPathsRechecked)
+                migrationDefaults.removeObject(forKey: DefaultsKey.brightnessDDCReadChecksumRechecked)
+                migrationDefaults.set(["display|port"],
+                                      forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+                migrationDefaults.set(["manual|port"],
+                                      forKey: DefaultsKey.brightnessForcedSoftwarePaths)
+                migrationDefaults.set(["display|port"],
+                                      forKey: DefaultsKey.brightnessExtendedDimmingPaths)
+                Defaults.recheckBrightnessDDCWriteOnlyPaths(in: migrationDefaults)
+                let recheckedPaths = migrationDefaults.stringArray(
+                    forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) ?? []
+                suite.expect(migrationDefaults.object(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) == nil
+                       && migrationDefaults.bool(forKey: DefaultsKey.brightnessDDCWriteOnlyPathsRechecked)
+                       && migrationDefaults.bool(forKey: DefaultsKey.brightnessDDCReadChecksumRechecked)
+                       && BrightnessSupport.shouldProbeDDC(pathKey: "display|port",
+                                                          writeOnlyPaths: Set(recheckedPaths)),
+                       "the checksum fix reopens cached paths with the paired recheck flag \(pairedRecheckCompleted)")
+                suite.expect(migrationDefaults.stringArray(forKey: DefaultsKey.brightnessForcedSoftwarePaths)
+                       == ["manual|port"]
+                       && migrationDefaults.stringArray(forKey: DefaultsKey.brightnessExtendedDimmingPaths)
+                       == ["display|port"],
+                       "rechecking DDC capability preserves manual dimming choices")
+                migrationDefaults.set(["display|port"],
+                                      forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+                Defaults.recheckBrightnessDDCWriteOnlyPaths(in: migrationDefaults)
+                let laterPaths = migrationDefaults.stringArray(
+                    forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) ?? []
+                suite.expect(laterPaths == ["display|port"]
+                       && !BrightnessSupport.shouldProbeDDC(pathKey: "display|port",
+                                                           writeOnlyPaths: Set(laterPaths)),
+                       "the checksum recheck runs once and keeps later write-only verdicts")
+            }
 
             migrationDefaults.set("microphone,panel", forKey: DefaultsKey.notchHiddenControls)
             Defaults.hideScratchpadControlOnce(in: migrationDefaults)
@@ -1047,10 +1413,6 @@ enum SwitcherModelFeatureTests {
                    describedWindowCount: 1, unansweredIDs: [], everyWindowUnanswered: false,
                    isExcludedFromWindowCycle: flagged),
                "an app that answered in full keeps the earlier windowless rule")
-        suite.expect(placementCode.contains("isUnanswered: $0.everyWindowUnanswered || $0.unansweredIDs.contains(CGWindowID(windowID))")
-               && placementCode.contains("SwitcherSupport.accessibilityAnswerShowsNoWindow(")
-               && placementCode.contains("isExcludedFromWindowCycle: {\n                    SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID))"),
-               "the enumerator applies the window server's cycle flag to timed-out windows and the windowless check")
 
         // MARK: Stale surfaces without an Accessibility witness (issue #807)
 
@@ -1471,8 +1833,6 @@ enum SwitcherModelFeatureTests {
         suite.expect(displayFilterBody.contains("NSScreen.withMouse?.displayID")
                && displayFilterBody.contains("?? -1"),
                "display filtering follows the cursor and leaves no target when the display disappears")
-        suite.expect(switcherCode.contains("guard !windows.isEmpty else {\n            discardPendingSessionStart(generation: generation)"),
-               "an empty display discards the pending session before opening a panel or committing a window")
         let otherScreenRepresentative = SwitcherSupport.groupWindowsByApp([onLeftDisplay, onRightDisplay])
         suite.expect(SwitcherSupport.itemsOnDisplay(otherScreenRepresentative,
                                                displayBounds: bothDisplays, targetIndex: 1).isEmpty,
@@ -5071,20 +5431,6 @@ enum SwitcherModelFeatureTests {
                && SwitcherSupport.iconRowSelectionIndex(after: 0, items: wrappedCurrentDesktop, windowRow: false,
                                                         columns: 2, movingDown: true) == 2,
                "a row step in current-desktop mode lands on the app's window here, not its fullscreen window elsewhere")
-        let iconRepresentativeReaders = [
-            sourceBody(of: switcherSource, from: "private func initialSelectionIndex(",
-                       to: "private func focusedWindowID("),
-            sourceBody(of: switcherSource, from: "private func advanceAppSelection(",
-                       to: "private func advanceWindowInSelectedApp("),
-            sourceBody(of: switcherSource, from: "private func selectionIndex(forIconRowIndex",
-                       to: "private func revealSelectedIconInVisibleRow("),
-            sourceBody(of: switcherSource, from: "private func moveIconRowSelection(",
-                       to: "func commitSession("),
-            sourceBody(of: switcherCardSource, from: "private var appGroups: [SwitcherAppGroup] {",
-                       to: "private var iconRowContentWidth"),
-        ]
-        suite.expect(iconRepresentativeReaders.allSatisfy { $0.contains("currentSpaceOnly: currentSpaceOnly") },
-               "the icon row's first selection, app steps, icon clicks and edge hover share the current-desktop entry")
         let windowlessApps = [SwitcherItem.appOnly(appName: "Gamma", pid: 303),
                               SwitcherItem.appOnly(appName: "Delta", pid: 404)]
         let dividerViewSource = switcherCardSource
@@ -5794,6 +6140,42 @@ enum SwitcherModelFeatureTests {
                                                               sourceWindowID: nil,
                                                               ownPID: 99),
                "App Switcher does not stage without a concrete source window")
+        suite.expect(SwitcherSupport.shouldSkipSourceStaging(outcome: .staged,
+                                                             frontmostPID: 10,
+                                                             sourcePID: 20),
+               "App Switcher stages the source window once per activation while the target stays in front")
+        suite.expect(!SwitcherSupport.shouldSkipSourceStaging(outcome: .staged,
+                                                              frontmostPID: 20,
+                                                              sourcePID: 20),
+               "App Switcher stages the source window again when the user went back to it")
+        suite.expect(!SwitcherSupport.shouldSkipSourceStaging(outcome: .staged,
+                                                              frontmostPID: nil,
+                                                              sourcePID: 20),
+               "App Switcher stages the source window again when the foreground is unknown")
+        suite.expect(!SwitcherSupport.shouldSkipSourceStaging(outcome: .unresolved,
+                                                              frontmostPID: 10,
+                                                              sourcePID: 20),
+               "App Switcher stages the source window again after an unconfirmed staging")
+        suite.expect(!SwitcherSupport.shouldSkipSourceStaging(outcome: .sourceMinimized,
+                                                              frontmostPID: 10,
+                                                              sourcePID: 20),
+               "App Switcher stages the source window again after a minimized source")
+        suite.expect(!SwitcherSupport.shouldSkipSourceStaging(outcome: .notApplicable,
+                                                              frontmostPID: 10,
+                                                              sourcePID: 20),
+               "App Switcher stages the source window again when there was nothing to stage")
+        let stagingState = SwitcherSourceStagingState(generation: 7)
+        suite.expect(stagingState.lastOutcome == .notApplicable,
+               "a new activation starts with an unstaged source window")
+        stagingState.record(.unresolved, generation: 7)
+        suite.expect(stagingState.lastOutcome == .unresolved,
+               "a failed staging leaves the source window unstaged")
+        stagingState.record(.staged, generation: 7)
+        suite.expect(stagingState.lastOutcome == .staged,
+               "a confirmed staging leaves the source window behind the target")
+        stagingState.record(.unresolved, generation: 8)
+        suite.expect(stagingState.lastOutcome == .staged,
+               "a staging pass from another generation does not change this activation")
         suite.expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                         sourcePID: 20,
                                                         frontmostPID: 10,
@@ -5904,150 +6286,6 @@ enum SwitcherModelFeatureTests {
                                                          targetAppFocusedWindowID: 777,
                                                           ownPID: 99),
                "App Switcher focus retries let go of a window the app opened after the switch")
-        // The guard only reads Accessibility once the cheap window-server list
-        // shows the app gained something. Both lists must therefore be taken
-        // in the same scope: the on-screen list lags a newly opened window,
-        // and comparing it against an all-windows snapshot reported nothing
-        // new in exactly the race the guard exists for. Comments are stripped
-        // first, so the one explaining that lag cannot satisfy the check.
-        let activatorSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowActivator.swift",
-            encoding: .utf8)) ?? ""
-        let activatorCode = activatorSource
-            .components(separatedBy: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined(separator: "\n")
-        let activateBody: String = {
-            guard let start = activatorCode.range(of: "static func activate(_ item: SwitcherItem,"),
-                  let end = activatorCode.range(of: "static func activate(pid: pid_t,",
-                                                range: start.upperBound..<activatorCode.endIndex)
-            else { return "" }
-            return activatorCode[start.lowerBound..<end.lowerBound]
-                .components(separatedBy: .whitespacesAndNewlines)
-                .filter { !$0.isEmpty }
-                .joined(separator: " ")
-        }()
-        suite.expect(activateBody.contains("focusRetrySourcePID(")
-               && !activateBody.contains("frontmostApplication"),
-               "activation never adopts the frontmost app as a source on its own")
-        suite.expect(activateBody.contains(
-                "watchTargetMinimizeIfNeeded(windowID: windowID, targetPID: item.pid, "
-                + "targetWindowOwnerPID: windowOwnerPID, sourcePID: sourcePID,")
-               && activateBody.contains("sourcePID: sourcePID, app: app)"),
-               "only the session source arms the minimize restore and Space hops")
-        suite.expect(activateBody.contains("sourcePID: sourcePID, retrySourcePID: retrySourcePID,")
-               && activateBody.contains("sourcePID: retrySourcePID, state: retryState,"),
-               "focus retry guards use the handoff source while staging keeps the session source")
-        // Issue #1503: unhiding an app that is not hidden raises every one of
-        // its windows, so the only unhide on the way to a window is guarded.
-        suite.expect(activateBody.components(separatedBy: ".unhide()").count == 2
-               && activateBody.contains("if app.isHidden { app.unhide() }"),
-               "activating a selection unhides its app only when the app is hidden")
-        suite.expect(activatorCode.contains("activate(item, retry: retry, handoffSourcePID: handoffSourcePID)"),
-               "activation by pid forwards its source only as a handoff")
-        let dockPreviewActivationCode = ((try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift",
-            encoding: .utf8)) ?? "")
-            .components(separatedBy: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined(separator: "\n")
-        let dockActivateCalls = dockPreviewActivationCode
-            .components(separatedBy: "WindowActivator.activate(")
-            .dropFirst()
-        suite.expect(dockActivateCalls.count >= 3
-               && dockActivateCalls.allSatisfy {
-                   $0.prefix(200).contains("handoffSourcePID: NSWorkspace.shared.frontmostApplication")
-                       && !$0.prefix(200).contains(" sourcePID:")
-               },
-               "Dock Preview passes the frontmost app only as a focus handoff source")
-        let commandBarWindowActivate: String = {
-            let source = ((try? String(
-                contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
-                encoding: .utf8)) ?? "")
-                .components(separatedBy: "\n")
-                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-                .joined(separator: "\n")
-            guard let start = source.range(of: "WindowActivator.activate(pid:") else { return "" }
-            let before = source[..<start.lowerBound]
-            let sourceCapture = before.range(of: "let handoffSourcePID = NSWorkspace.shared.frontmostApplication",
-                                             options: .backwards)
-            let afterBeat = before.range(of: "afterBeat(", options: .backwards)
-            let call = String(source[start.lowerBound...].prefix(320))
-            guard let sourceCapture, let afterBeat,
-                  sourceCapture.lowerBound < afterBeat.lowerBound,
-                  call.contains("handoffSourcePID: handoffSourcePID") else { return "" }
-            return call
-        }()
-        suite.expect(!commandBarWindowActivate.isEmpty,
-               "Command Bar captures its handoff source before the activation beat")
-        let commitSessionCode: String = {
-            let source = ((try? String(
-                contentsOfFile: "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift",
-                encoding: .utf8)) ?? "")
-                .components(separatedBy: "\n")
-                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-                .joined(separator: "\n")
-            guard let start = source.range(of: "func commitSession()"),
-                  let end = source.range(of: "private func resumePendingCommitAfterClose()",
-                                         range: start.upperBound..<source.endIndex)
-            else { return "" }
-            return String(source[start.lowerBound..<end.lowerBound])
-        }()
-        let handoffCapture = commitSessionCode.range(
-            of: "let handoffSourcePID = NSWorkspace.shared.frontmostApplication")
-        let sessionEnd = commitSessionCode.range(of: "endSession()")
-        suite.expect(handoffCapture != nil && sessionEnd != nil
-               && handoffCapture!.lowerBound < sessionEnd!.lowerBound
-               && commitSessionCode.contains("sourcePID: source?.pid,")
-               && commitSessionCode.contains("handoffSourcePID: handoffSourcePID,"),
-               "App Switcher sessions without a source item keep the app in front as the handoff source")
-        let windowScopes = activatorCode
-            .components(separatedBy: "windowIDs(ownerPID:")
-            .dropFirst()
-            .compactMap { $0.components(separatedBy: ")").first }
-            .filter { $0.contains("options: .") }
-        suite.expect(windowScopes.count >= 2 && windowScopes.allSatisfy { $0.contains(".optionAll") },
-               "the retry's live window list is gathered in the same scope as the snapshot it is compared against")
-        // A switch away from a fullscreen app reaches its target through a hop,
-        // whose arrival pulses raise it for up to a second. They must ask the
-        // same guard before raising, or Command-N in the app just reached is
-        // covered by the target on the next pulse. Comments are stripped, so a
-        // doc comment naming the guard cannot stand in for the call.
-        let hopFocusBody: String = {
-            guard let start = activatorCode.range(of: "static func focusAfterSpaceHop(") else { return "" }
-            let rest = activatorCode[start.upperBound...]
-            let end = rest.range(of: "static func ")?.lowerBound ?? rest.endIndex
-            return String(rest[..<end])
-        }()
-        let hopGuard = hopFocusBody.range(of: "shouldContinueFocusRetry(")
-        // Whatever the pass uses to bring the window forward, the guard comes
-        // first. Naming one of those calls would pin today's spelling and go
-        // red on a refactor that broke nothing.
-        let hopRaise = ["prepareWindowForActivation(", "activateApp(", "focusWindow("]
-            .compactMap { hopFocusBody.range(of: $0)?.lowerBound }
-            .min()
-        suite.expect(hopGuard != nil && hopRaise != nil && hopGuard!.lowerBound < hopRaise!,
-               "the hop's arrival pass consults the retry guard before it raises the target")
-        let spaceHopCode = ((try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/Switcher/SpaceHop.swift",
-            encoding: .utf8)) ?? "")
-            .components(separatedBy: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined(separator: "\n")
-        suite.expect(spaceHopCode.contains("state: self.focusState")
-               && spaceHopCode.contains("knownWindowIDs: WindowActivator.focusSnapshot(ownerPID:"),
-               "a hop snapshots the app's windows when it begins and hands that state to every pulse")
-        let pulseCheck = spaceHopCode.range(of: "SpaceHopSupport.arrivalPulseShouldFocus(")
-        let pulseFocus = spaceHopCode.range(of: "WindowActivator.focusAfterSpaceHop(")
-        suite.expect(pulseCheck != nil && pulseFocus != nil
-               && pulseCheck!.lowerBound < pulseFocus!.lowerBound,
-               "each arrival pulse asks whether the target already landed before it raises again")
-        suite.expect(spaceHopCode.contains("targetSpaceIsVisible: self.windowSpaceIsVisible()"),
-               "each arrival pulse checks that the window's Space is visible before it counts the target as landed")
-        // Review of #1578: a hop across two or more desktops arrives with
-        // whatever tops each desktop it passed in front. Reading that as "the
-        // user moved on" would leave the window they picked behind that app,
-        // so a hop's pass judges the app's own focus instead.
         suite.expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                         sourcePID: 20,
                                                         frontmostPID: 30,
@@ -6080,14 +6318,6 @@ enum SwitcherModelFeatureTests {
                                                          targetAppFocusedWindowID: 101,
                                                          ownPID: 99),
                "the ordinary passes still stand down when the user moved to another app")
-        let hopFocusCall: String = {
-            guard let start = activatorCode.range(of: "static func focusAfterSpaceHop(") else { return "" }
-            let rest = activatorCode[start.upperBound...]
-            let end = rest.range(of: "static func ")?.lowerBound ?? rest.endIndex
-            return String(rest[..<end])
-        }()
-        suite.expect(hopFocusCall.contains("ignoresForeground: true"),
-               "the hop's arrival pass asks the guard in the mode that ignores who is in front")
         suite.expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                         sourcePID: 20,
                                                         frontmostPID: 10,
@@ -6291,8 +6521,12 @@ enum SwitcherModelFeatureTests {
         let secureInputSwitcher = switcherSource.components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        suite.expect(secureInputSwitcher.components(
-                         separatedBy: "secureInputEnabled: IsSecureEventInputEnabled()").count == 3,
+        let liveTakeover = sourceBody(of: secureInputSwitcher,
+                                     from: "private func applyNativeHotkeySuppression() {", to: "\n    }")
+        let launchTakeover = sourceBody(of: secureInputSwitcher,
+                                       from: "static func launchTakeoverIDs() -> Set<Int32> {", to: "\n    }")
+        suite.expect(liveTakeover.contains("secureInputEnabled: IsSecureEventInputEnabled()")
+               && launchTakeover.contains("secureInputEnabled: IsSecureEventInputEnabled()"),
                "the live take-over and launch recovery both pass the secure input flag")
         let secureInputChange = sourceBody(of: secureInputSwitcher,
                                            from: "private func secureInputChanged(_ enabled: Bool) {",
@@ -6301,6 +6535,45 @@ enum SwitcherModelFeatureTests {
                && secureInputChange.contains("cancelSession()")
                && secureInputChange.contains("restoreNativeHotkeys()"),
                "secure input turning on gives the keys back and drops an open session, and turning off takes them again")
+        suite.expect(secureInputChange.contains("if secureInputHotKeys.isEmpty, !routeLock.withLock({ routeCapturing }) { restoreNativeHotkeys() }")
+               && secureInputSwitcher.contains(
+                   "secureInputEnabled: IsSecureEventInputEnabled() && secureInputHotKeys.isEmpty"),
+               "macOS keeps its switcher keys under secure input only while no Carbon stand-in is registered")
+        let secureInputRestore = sourceBody(of: secureInputSwitcher,
+                                            from: "private func restoreNativeHotkeys() {",
+                                            to: "\n    }")
+        suite.expect(secureInputRestore.contains("unregisterSecureInputHotKeys()"),
+               "every hand-back to macOS also drops the Carbon stand-ins, so two switchers never answer one key")
+        let secureInputReplay = sourceBody(of: secureInputSwitcher,
+                                           from: "private func routeSecureInputHotKey(id: UInt32) {",
+                                           to: "\n    }\n")
+        suite.expect((secureInputReplay.components(separatedBy: "CFRunLoopPerformBlock(runLoop").last ?? "")
+                   .contains("guard IsSecureEventInputEnabled(),")
+               && secureInputReplay.contains("CFRunLoopPerformBlock(runLoop")
+               && secureInputReplay.contains("route(type: .keyDown, event: event, secureInputReplay: true)"),
+               "a stand-in press replays through the tap's own routing on the tap thread, and only under secure input")
+        let tab = Int64(kVK_Tab)
+        let grave = Int64(kVK_ANSI_Grave)
+        suite.expect(SwitcherSupport.secureInputHotKeyShortcuts(appsShortcut: .switcherDefault,
+                                                                windowShortcut: .switcherWindowDefault)
+               == [.switcherDefault,
+                   GlobalShortcut(keyCode: tab, modifiers: [.command, .shift]),
+                   .switcherWindowDefault,
+                   GlobalShortcut(keyCode: grave, modifiers: [.command, .shift])],
+               "under secure input Carbon stands in for ⌘Tab, ⇧⌘Tab, ⌘` and ⇧⌘`")
+        let shiftedApps = GlobalShortcut(keyCode: tab, modifiers: [.option, .shift])
+        suite.expect(SwitcherSupport.secureInputHotKeyShortcuts(appsShortcut: shiftedApps,
+                                                                windowShortcut: shiftedApps)
+               == [shiftedApps],
+               "a shortcut that already uses Shift gets no backward variant, and a shared combination registers once")
+        let switcherSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/SwitcherSettings.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(switcherSettingsSource.contains(
+                         "secureInput.holder != .off, !switcherCoversSecureInput {")
+               && switcherSettingsSource.contains(
+                   ".onReceive(AppSwitcher.shared.$coversSecureInput) { switcherCoversSecureInput = $0 }"),
+               "Settings explains the macOS switcher under secure input only when no Carbon stand-in covers it")
         let secureInputSuspend = sourceBody(of: secureInputSwitcher, from: "func suspend() {",
                                             to: "\n    }")
         suite.expect(secureInputSuspend.contains("secureInputWatch.stop()")
@@ -6720,6 +6993,35 @@ enum SwitcherModelFeatureTests {
         ], ownerPID: 10)
         suite.expect(snapshot == [101, 102, 103, 104],
                "focus snapshots retain offscreen and auxiliary identities without mixing owners")
+        let alreadyRestored = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                            targetStartedMinimized: false,
+                                                            targetWasObservedRestored: true,
+                                                            knownWindowIDs: snapshot)
+        var unneededMinimizedReads = 0
+        alreadyRestored.observeInitialMinimizedState {
+            unneededMinimizedReads += 1
+            return nil
+        }
+        suite.expect(unneededMinimizedReads == 0,
+               "a window that started restored skips an initial minimized-state query")
+
+        let startedMinimized = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                             targetStartedMinimized: true,
+                                                             targetWasObservedRestored: false,
+                                                             knownWindowIDs: snapshot)
+        var requiredMinimizedReads = 0
+        startedMinimized.observeInitialMinimizedState {
+            requiredMinimizedReads += 1
+            return false
+        }
+        suite.expect(requiredMinimizedReads == 1
+                     && !startedMinimized.shouldContinue(targetPID: 10, sourcePID: 20,
+                                                         frontmostPID: 10,
+                                                         targetMinimizedState: true,
+                                                         targetAppWindowIDs: [101],
+                                                         targetAppFocusedWindowID: 101,
+                                                         ownPID: 99),
+               "a restored minimized target is not reopened if minimized again")
 
         let cases: [(String, pid_t?, Set<CGWindowID>, CGWindowID?, Set<CGWindowID>, Bool, Int, Int)] = [
             ("new keyboard window cancels", 10, [101, 500], 500, snapshot, false, 1, 1),
@@ -6754,6 +7056,7 @@ enum SwitcherModelFeatureTests {
         let withHelper = SwitcherSupport.focusRetryWindowIDs(in: [helper, window(101)], ownerPID: 10)
         let state = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                   targetStartedMinimized: false,
+                                                  targetWasObservedRestored: true,
                                                   knownWindowIDs: snapshot)
         suite.expect(!state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
                                     targetMinimizedState: false, targetAppWindowIDs: withHelper,
@@ -6763,12 +7066,47 @@ enum SwitcherModelFeatureTests {
                "a transparent helper does not justify re-raising an already focused target")
         let fullscreenState = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                             targetStartedMinimized: false,
+                                                            targetWasObservedRestored: true,
                                                             knownWindowIDs: snapshot)
         suite.expect(fullscreenState.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
                                              targetMinimizedState: false, targetAppWindowIDs: withHelper,
                                              targetAppFocusedWindowID: 101,
                                              targetWindowIsFocused: true, ownPID: 99),
                "fullscreen retries keep later passes available for an already focused target")
+        var foregroundReads = [pid_t?](arrayLiteral: 10, 99)
+        let foregroundState = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                            targetStartedMinimized: false,
+                                                            targetWasObservedRestored: true,
+                                                            knownWindowIDs: snapshot)
+        let returnedToOwnApp = foregroundState.shouldContinue(
+            targetPID: 10,
+            sourcePID: 20,
+            frontmostPID: foregroundReads.removeFirst(),
+            frontmostAfterFocusQueryPID: { foregroundReads.removeFirst() },
+            targetMinimizedState: false,
+            targetAppWindowIDs: [101],
+            targetAppFocusedWindowID: 101,
+            stopsWhenTargetFocused: true,
+            ownPID: 99
+        )
+        suite.expect(!returnedToOwnApp && foregroundReads.isEmpty,
+                     "returning to this app during focused-window AX prevents the stale retry from continuing")
+        let focusedWindowAfterSnapshot: CGWindowID = 777
+        let readingsIncludingFocusedWindow = snapshot.union([focusedWindowAfterSnapshot])
+        let laterFocusedWindowState = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                                    targetStartedMinimized: false,
+                                                                    targetWasObservedRestored: true,
+                                                                    knownWindowIDs: [101, 102])
+        suite.expect(!laterFocusedWindowState.shouldContinue(
+            targetPID: 10,
+            sourcePID: 20,
+            frontmostPID: 10,
+            frontmostAfterFocusQueryPID: { 10 },
+            targetMinimizedState: false,
+            targetAppWindowIDs: readingsIncludingFocusedWindow,
+            targetAppFocusedWindowID: focusedWindowAfterSnapshot,
+            ownPID: 99
+        ), "a newly focused AX window outside the original snapshot cancels the older retry")
         suite.expect(!fullscreenState.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
                                                targetMinimizedState: false, targetAppWindowIDs: [500],
                                                targetAppFocusedWindowID: 500, ownPID: 99),
@@ -6791,6 +7129,7 @@ enum SwitcherModelFeatureTests {
                 }
                 let pending = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                             targetStartedMinimized: false,
+                                                            targetWasObservedRestored: true,
                                                             knownWindowIDs: snapshot)
                 suite.expect(!pending.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: foreground,
                                                 targetMinimizedState: false, targetAppWindowIDs: [500],
@@ -6801,6 +7140,7 @@ enum SwitcherModelFeatureTests {
 
         let partial = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                     targetStartedMinimized: false,
+                                                    targetWasObservedRestored: true,
                                                     knownWindowIDs: [102])
         suite.expect(partial.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
                                       targetMinimizedState: false, targetAppWindowIDs: [101],
@@ -6808,6 +7148,7 @@ enum SwitcherModelFeatureTests {
                "the selected target is not new when a partial snapshot missed it")
         let focused = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                     targetStartedMinimized: false,
+                                                    targetWasObservedRestored: true,
                                                     knownWindowIDs: [102])
         suite.expect(!focused.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
                                        targetMinimizedState: false, targetAppWindowIDs: [101],
@@ -6817,6 +7158,7 @@ enum SwitcherModelFeatureTests {
                "a focused selected target does not receive a redundant retry")
         let unfocused = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                        targetStartedMinimized: false,
+                                                       targetWasObservedRestored: true,
                                                        knownWindowIDs: [101, 102])
         suite.expect(unfocused.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
                                         targetMinimizedState: false, targetAppWindowIDs: [102],
@@ -6825,6 +7167,7 @@ enum SwitcherModelFeatureTests {
                "an unfocused selected target still gets its settling retry")
         let minimized = SwitcherWindowFocusRetryState(targetWindowID: 101,
                                                       targetStartedMinimized: true,
+                                                      targetWasObservedRestored: false,
                                                       knownWindowIDs: snapshot)
         suite.expect(minimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 20,
                                         targetMinimizedState: true, targetAppWindowIDs: [],
@@ -6842,6 +7185,50 @@ enum SwitcherModelFeatureTests {
                                          targetMinimizedState: false, targetAppWindowIDs: [101],
                                          targetAppFocusedWindowID: 101, ownPID: 99),
                "later restoration cannot restart a cancelled focus chain")
+        let restoredAndFocused = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                               targetStartedMinimized: true,
+                                                               targetWasObservedRestored: false,
+                                                               knownWindowIDs: [101, 102])
+        suite.expect(!restoredAndFocused.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                                        targetMinimizedState: false,
+                                                        targetAppWindowIDs: [101],
+                                                        targetAppFocusedWindowID: 101,
+                                                        targetWindowIsFocused: true,
+                                                        stopsWhenTargetFocused: true, ownPID: 99),
+               "a restored minimized target that is already focused does not receive a redundant retry")
+        let restoredButUnfocused = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                                 targetStartedMinimized: true,
+                                                                 targetWasObservedRestored: false,
+                                                                 knownWindowIDs: [101, 102])
+        suite.expect(restoredButUnfocused.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                                         targetMinimizedState: false,
+                                                         targetAppWindowIDs: [102],
+                                                         targetAppFocusedWindowID: 102,
+                                                         targetWindowIsFocused: false,
+                                                         stopsWhenTargetFocused: true, ownPID: 99),
+               "a restored minimized target still gets the settling retry while unfocused")
+        let stillMinimized = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                           targetStartedMinimized: true,
+                                                           targetWasObservedRestored: false,
+                                                           knownWindowIDs: [101, 102])
+        suite.expect(stillMinimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                                   targetMinimizedState: true,
+                                                   targetAppWindowIDs: [101],
+                                                   targetAppFocusedWindowID: 101,
+                                                   targetWindowIsFocused: true,
+                                                   stopsWhenTargetFocused: true, ownPID: 99),
+               "a still-minimized target keeps its restoration retry")
+        let unreadableMinimized = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                                targetStartedMinimized: true,
+                                                                targetWasObservedRestored: false,
+                                                                knownWindowIDs: [101, 102])
+        suite.expect(unreadableMinimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                                        targetMinimizedState: nil,
+                                                        targetAppWindowIDs: [101],
+                                                        targetAppFocusedWindowID: 101,
+                                                        targetWindowIsFocused: true,
+                                                        stopsWhenTargetFocused: true, ownPID: 99),
+               "an unreadable minimized state keeps the restoration retry")
     }
 }
 
