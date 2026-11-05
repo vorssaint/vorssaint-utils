@@ -217,7 +217,6 @@ struct MediaWorkspaceView: View {
             } else {
                 applyMediaDefaults(for: inputURL, tool: selectedTool, replacingInput: false)
             }
-            // Select the workspace so Cmd+V works without a click first.
             DispatchQueue.main.async { isPasteTargetFocused = true }
         }
         .onChange(of: currentImageOptions) { oldOptions, newOptions in
@@ -1426,9 +1425,6 @@ struct MediaWorkspaceView: View {
         return true
     }
 
-    /// Responds to the system's Paste command (Cmd+V, or Edit > Paste): reads
-    /// the general clipboard off the main thread and feeds compatible content
-    /// into the current tool, materializing a raw image to a temporary file.
     private func pasteFromClipboard() {
         ClipboardImportService.shared.fetchSnapshot { result in
             switch result {

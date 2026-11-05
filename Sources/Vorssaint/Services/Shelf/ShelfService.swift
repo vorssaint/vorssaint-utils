@@ -1643,10 +1643,6 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    /// Pastes whatever the general clipboard carries into the shelf, the same
-    /// way a drop would. Runs the clipboard read off the main thread (via
-    /// `ClipboardImportService`) and only surfaces feedback on a failure; a
-    /// success is its own feedback, exactly like a landed drop.
     func pasteFromClipboard() {
         ClipboardImportService.shared.pasteIntoCurrentShelf { [weak self] outcome in
             guard let self else { return }
@@ -1668,8 +1664,6 @@ final class ShelfService: ObservableObject {
         alert.messageText = strings.title
         alert.informativeText = body
         alert.addButton(withTitle: strings.okButton)
-        // A failed paste must not steal focus from another app; keep the same
-        // sheet-first, modal-last order as the promise-delivery alert.
         if let window = panel, window.isVisible {
             alert.beginSheetModal(for: window)
         } else if let window = dockedPanel, window.isVisible {

@@ -3,7 +3,6 @@
 
 import Foundation
 
-/// User-facing copy when Cmd+V finds nothing the shelf can import.
 struct ClipboardImportStrings {
     let title: String
     let emptyBody: String
