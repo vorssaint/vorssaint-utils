@@ -12,6 +12,7 @@ extension AgentProvider {
         case .codex: return Color(red: 0.49, green: 0.60, blue: 1.0)
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
+        case .dsh: return Color(red: 0.30, green: 0.42, blue: 1.0)
         }
     }
 }
@@ -351,6 +352,11 @@ enum AgentMarks {
     }
 
     private static func lookUp(_ provider: AgentProvider) -> Mark? {
+        // An agent with no desktop app has its mark shipped with the app.
+        if let name = provider.bundledMarkName, let image = Bundle.main.image(forResource: name) {
+            image.isTemplate = true
+            return .template(image)
+        }
         for identifier in provider.appIdentifiers {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { continue }
             if let bundle = Bundle(url: url) {
@@ -368,6 +374,16 @@ enum AgentMarks {
 }
 
 private extension AgentProvider {
+    /// A template mark the app ships for an agent that has no desktop app
+    /// whose menu bar image it could borrow. The DeepSeek whale identifies
+    /// DeepSeek Harness; it is the provider's brand mark, not ours.
+    var bundledMarkName: String? {
+        switch self {
+        case .dsh: return "AgentDeepSeekTemplate"
+        case .claude, .codex, .opencode, .copilot: return nil
+        }
+    }
+
     /// The maker's desktop apps, the one that runs the agent first.
     var appIdentifiers: [String] {
         switch self {
@@ -375,6 +391,8 @@ private extension AgentProvider {
         case .codex: return AgentCodexServer.appIdentifiers
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
+        // The Harness keeps no desktop app to borrow a mark from.
+        case .dsh: return []
         }
     }
 
@@ -390,6 +408,7 @@ private extension AgentProvider {
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
         case .opencode: return []
         case .copilot: return []
+        case .dsh: return []
         }
     }
 }

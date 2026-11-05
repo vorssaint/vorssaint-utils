@@ -5,15 +5,16 @@ import Combine
 import Foundation
 import Network
 
-/// Reads Claude Code, Codex and GitHub Copilot usage from local session logs, and
-/// OpenCode usage from its database, while the AI section is on, along with
-/// the plan limits the Claude app saves. The files are read where they are,
-/// incrementally, and nothing is copied or sent: only counters are kept, in
-/// memory and in the app's private folder so the next launch reads only what
-/// the agents wrote meanwhile. OpenCode's stay in memory only, and its
-/// database is read again at each launch. Claude Code checks account-wide
-/// limits through its own CLI, including use on other machines. The public
-/// price list is fetched only when the person keeps prices up to date.
+/// Reads Claude Code, Codex, GitHub Copilot and the DeepSeek Harness usage
+/// feed from local files, and OpenCode usage from its database, while the AI
+/// section is on, along with the plan limits the Claude app saves. The files
+/// are read where they are, incrementally, and nothing is copied or sent: only
+/// counters are kept, in memory and in the app's private folder so the next
+/// launch reads only what the agents wrote meanwhile. OpenCode's stay in
+/// memory only, and its database is read again at each launch. Claude Code
+/// checks account-wide limits through its own CLI, including use on other
+/// machines. The public price list is fetched only when the person keeps
+/// prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
 /// work to each other asynchronously, except that a stop waits for progress

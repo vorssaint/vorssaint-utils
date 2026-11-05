@@ -298,6 +298,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/Harness/CodexReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/OpenCodeReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CopilotReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/DSHReader.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift
@@ -728,6 +729,8 @@ FAN_HELPER_VERSION="$(
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
+cp Resources/AgentDeepSeekTemplate.png Resources/AgentDeepSeekTemplate@2x.png \
+    Resources/AgentDeepSeekTemplate@3x.png "$STAGE/Contents/Resources/"
 if [[ -f build/Assets.car ]]; then
     cp build/Assets.car "$STAGE/Contents/Resources/Assets.car"
 fi

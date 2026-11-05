@@ -12,6 +12,7 @@ enum HarnessReaderContractTests {
         codexGolden(suite)
         openCodeGolden(suite)
         copilotGolden(suite)
+        dshGolden(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -102,5 +103,116 @@ enum HarnessReaderContractTests {
         let checkpoint = line(#"{"id":"c","timestamp":1790088020,"type":"session.usage_checkpoint","data":{}}"#)
         suite.expect(reader.parse(checkpoint, state: &state, now: now).isEmpty,
                      "a Copilot usage checkpoint parses to nothing")
+    }
+
+    private static func dshGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        var state = AgentLogState()
+        let reader = AgentProvider.dsh.reader
+        let header = line(#"{"v":1,"type":"session","session":"session-7fe88e4c-4773-4582-ab38-d5b56f942811","ts":1790088000000,"cwd":"/Users/me/code/app","preset":"standard"}"#)
+        suite.expect(reader.parse(header, state: &state, now: now).isEmpty
+                        && state.session == "session-7fe88e4c-4773-4582-ab38-d5b56f942811"
+                        && state.project == "app" && !state.dshSubagent,
+                     "a DeepSeek session header names the session and project")
+        let start = line(#"{"v":1,"type":"turn","ts":1790088000000,"turn":1,"phase":"start"}"#)
+        suite.expect(reader.parse(start, state: &state, now: now)
+                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000))],
+                     "a DeepSeek turn start opens its turn")
+        let usage = line(#"{"v":1,"type":"usage","ts":1790088010000,"turn":1,"step":2,"seq":20,"request":"eb7abe7f","model":"deepseek/deepseek-v4.1-flash","provider":"commandcode","tokens":{"input":100,"cacheWrite":20,"cacheRead":300,"output":40,"reasoning":10},"cost":0.001}"#)
+        let counted = reader.parse(usage, state: &state, now: now)
+        if case .usage(let key, let record, let billable)? = counted.first, counted.count == 1 {
+            suite.expect(key == "dsh:eb7abe7f"
+                            && record.provider == .dsh && record.model == "deepseek/deepseek-v4.1-flash"
+                            && record.project == "app" && record.session == state.session
+                            && record.tokens == AgentTokens(input: 100, cacheWrite: 20, cacheRead: 300, output: 40, reasoning: 10)
+                            && record.cost == 0.001 && record.reportedCost && record.savings == 0
+                            && billable.tokens == record.tokens,
+                         "a DeepSeek usage line keeps its dedupe key, counters, model, project and reported price")
+        } else {
+            suite.expect(false, "a DeepSeek usage line counts exactly one response")
+        }
+        let missingRequest = line(#"{"v":1,"type":"usage","ts":1790088015000,"turn":3,"step":4,"model":"deepseek/deepseek-v4.1-flash","tokens":{"input":10,"output":5}}"#)
+        if case .usage(let key, let record, _)? = reader.parse(missingRequest, state: &state, now: now).first {
+            suite.expect(key == "dsh:session-7fe88e4c-4773-4582-ab38-d5b56f942811:3:4:1790088015.0"
+                            && record.cost == nil && !record.reportedCost,
+                         "a DeepSeek usage line without a response id is keyed by its place in the session")
+        } else {
+            suite.expect(false, "a DeepSeek usage line without a response id is counted")
+        }
+        let end = line(#"{"v":1,"type":"turn","ts":1790088020000,"turn":1,"phase":"end","completed":true}"#)
+        suite.expect(reader.parse(end, state: &state, now: now)
+                        == [.turnEnded(Date(timeIntervalSince1970: 1_790_088_020), completed: true, duration: nil)],
+                     "a completed DeepSeek turn ends its turn")
+        let aborted = line(#"{"v":1,"type":"turn","ts":1790088030000,"turn":2,"phase":"end","completed":false}"#)
+        suite.expect(reader.parse(aborted, state: &state, now: now)
+                        == [.turnEnded(Date(timeIntervalSince1970: 1_790_088_030), completed: false, duration: nil)],
+                     "an aborted DeepSeek turn ends unfinished")
+        let unknown = line(#"{"v":1,"type":"checkpoint","ts":1790088030000}"#)
+        suite.expect(reader.parse(unknown, state: &state, now: now).isEmpty,
+                     "an unknown DeepSeek line parses to nothing")
+        let emptyModel = line(#"{"v":1,"type":"usage","ts":1790088040000,"turn":2,"step":1,"request":"m3","model":"","tokens":{"input":5,"output":1}}"#)
+        suite.expect(reader.parse(emptyModel, state: &state, now: now).isEmpty,
+                     "a DeepSeek usage line without a model is ignored")
+        let booleanCost = line(#"{"v":1,"type":"usage","ts":1790088045000,"turn":2,"step":2,"request":"m4","model":"deepseek/deepseek-v4.1-flash","tokens":{"input":5,"output":1},"cost":true}"#)
+        if case .usage(_, let record, _)? = reader.parse(booleanCost, state: &state, now: now).first {
+            suite.expect(record.cost == nil && !record.reportedCost,
+                         "a DeepSeek boolean cost reads as unknown rather than as a dollar")
+        } else {
+            suite.expect(false, "a DeepSeek usage line with a boolean cost is still counted")
+        }
+
+        // A file that starts mid-session holds no metadata: only usage counts.
+        var midway = AgentLogState()
+        if case .usage(_, let record, _)? = reader.parse(usage, state: &midway, now: now).first {
+            suite.expect(record.session.isEmpty && record.project.isEmpty,
+                         "a DeepSeek file read from the middle counts its usage without a session or project")
+        } else {
+            suite.expect(false, "a DeepSeek file read from the middle still counts its usage")
+        }
+
+        var subagent = AgentLogState()
+        let subheader = line(#"{"v":1,"type":"session","session":"s-sub","ts":1790088000000,"cwd":"/Users/me/code/app","subagent":true,"parent":"session-7fe88e4c-4773-4582-ab38-d5b56f942811"}"#)
+        suite.expect(reader.parse(subheader, state: &subagent, now: now).isEmpty && subagent.dshSubagent
+                        && subagent.session == "s-sub" && subagent.project == "app",
+                     "a DeepSeek session header marks a subagent session")
+        suite.expect(reader.parse(start, state: &subagent, now: now).isEmpty
+                        && reader.parse(end, state: &subagent, now: now).isEmpty,
+                     "a DeepSeek subagent's turns never show as work")
+        let subusage = line(#"{"v":1,"type":"usage","ts":1790088010000,"turn":1,"step":1,"request":"m2","model":"deepseek/deepseek-v4.1-flash","tokens":{"input":10,"output":5}}"#)
+        if case .usage(_, let record, _)? = reader.parse(subusage, state: &subagent, now: now).first {
+            suite.expect(record.provider == .dsh && record.session == "s-sub" && record.project == "app"
+                            && record.tokens == AgentTokens(input: 10, output: 5) && record.cost == nil,
+                         "a DeepSeek subagent's usage is counted without a turn")
+        } else {
+            suite.expect(false, "a DeepSeek subagent's usage line is counted")
+        }
+
+        // DSH keeps `parent` on an ordinary fork too, so it never classifies:
+        // only the header's own subagent flag does.
+        var fork = AgentLogState()
+        let forkHeader = line(#"{"v":1,"type":"session","session":"s-fork","ts":1790088000000,"cwd":"/Users/me/code/app","parent":"session-7fe88e4c-4773-4582-ab38-d5b56f942811"}"#)
+        suite.expect(reader.parse(forkHeader, state: &fork, now: now).isEmpty && !fork.dshSubagent,
+                     "a DeepSeek fork with a parent id is not a subagent")
+        suite.expect(reader.parse(start, state: &fork, now: now)
+                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000))],
+                     "a DeepSeek fork's turn start opens its turn")
+        suite.expect(reader.parse(end, state: &fork, now: now)
+                        == [.turnEnded(Date(timeIntervalSince1970: 1_790_088_020), completed: true, duration: nil)],
+                     "a DeepSeek fork's turn end closes its turn")
+        var unflaggedFork = AgentLogState()
+        let unflaggedHeader = line(#"{"v":1,"type":"session","session":"s-fork","ts":1790088000000,"cwd":"/Users/me/code/app","parent":"session-7fe88e4c-4773-4582-ab38-d5b56f942811","subagent":false}"#)
+        suite.expect(reader.parse(unflaggedHeader, state: &unflaggedFork, now: now).isEmpty
+                        && !unflaggedFork.dshSubagent
+                        && reader.parse(start, state: &unflaggedFork, now: now)
+                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000))],
+                     "a DeepSeek fork whose subagent flag is false keeps its turns")
+
+        let root = AgentLogRoot(provider: .dsh, url: URL(fileURLWithPath: "/Users/me/.vorssaint/agents/dsh", isDirectory: true))
+        suite.expect(root.accepts(root.url.appending(path: "session-7fe88e4c.jsonl").path)
+                        && !root.accepts(root.url.appending(path: "notes.txt").path),
+                     "the DeepSeek feed admits the JSONL files in its folder and nothing else")
+        suite.expect(AgentLogRoot.all(home: URL(fileURLWithPath: "/Users/me", isDirectory: true))
+                        .first { $0.provider == .dsh }?.url.path == "/Users/me/.vorssaint/agents/dsh",
+                     "the DeepSeek feed folder is read without configuration")
     }
 }
