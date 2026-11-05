@@ -32,8 +32,8 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var pricesUpdated: Date?
     let events = PassthroughSubject<AgentUsageEvent, Never>()
 
-    /// The history the island can show: thirteen weeks for the activity map.
-    static let horizon = TimeInterval(AgentUsageSnapshot.dayCount) * 86_400
+    /// Read all available logs; only the activity map has a fixed display span.
+    static let historyStart = Date.distantPast
     private static let tick: TimeInterval = 30
     /// File events report a written file only once it closes, and some
     /// agents keep their log open for the whole session: logs written in the
@@ -147,6 +147,16 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+    }
+
+    /// A range changes only the in-memory summary, not the log readers.
+    func refreshDateRange() {
+        guard running, !paused else { return }
+        queue.async { [self] in
+            guard readerSession >= 0 else { return }
+            let range = AgentDateRange.restore(UserDefaults.standard.string(forKey: DefaultsKey.notchAgentsDateRange) ?? "")?.interval()
+            if published.customRange != range { publish() }
+        }
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -297,7 +307,7 @@ final class AgentUsageService: ObservableObject {
             // Prices first, so the first read is already priced.
             loadPrices()
             // Keep the loading state until all initial history has been read.
-            let horizon = Date().addingTimeInterval(-Self.horizon)
+            let horizon = Self.historyStart
             let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile).filter { providers.contains($0.provider) }
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
@@ -525,7 +535,7 @@ final class AgentUsageService: ObservableObject {
         if provider.reader.readsFullHistoryFirst && cursor.offset == 0 {
             AgentLogReader.readCopilotHistory(cursor, shouldContinue: { !cancellation.isCancelled }, line: consume)
         } else {
-            AgentLogReader.readAppended(cursor, since: now.addingTimeInterval(-Self.horizon),
+            AgentLogReader.readAppended(cursor, since: Self.historyStart,
                                         shouldContinue: { !cancellation.isCancelled }, line: consume)
         }
         return changed
@@ -548,7 +558,7 @@ final class AgentUsageService: ObservableObject {
         defer { syncPolling() }
         var changed = false
         if rescan {
-            for file in AgentLogReader.discover(watchedRoots, since: Date().addingTimeInterval(-Self.horizon)) {
+            for file in AgentLogReader.discover(watchedRoots, since: Self.historyStart) {
                 if read(file.path, provider: file.provider) { changed = true }
             }
         } else {
@@ -585,7 +595,6 @@ final class AgentUsageService: ObservableObject {
             defer { syncPolling(now: now) }
             let before = inputs
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
-            store.dropRecords(before: now.addingTimeInterval(-Self.horizon))
             // A log kept open through a long pause reports nothing when work
             // resumes; the day's logs are looked at less often than recent ones.
             var changed = pollOpenLogs(within: 86_400)
@@ -594,7 +603,7 @@ final class AgentUsageService: ObservableObject {
             if now.timeIntervalSince(lastRootCheck) > 300 {
                 let roots = AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile).filter { enabled.contains($0.provider) }
                 if roots.filter(\.exists) != watchedRoots {
-                    for file in AgentLogReader.discover(roots, since: now.addingTimeInterval(-Self.horizon)) {
+                    for file in AgentLogReader.discover(roots, since: Self.historyStart) {
                         if read(file.path, provider: file.provider) { changed = true }
                     }
                     watch(roots)
@@ -639,7 +648,8 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        let range = AgentDateRange.restore(UserDefaults.standard.string(forKey: DefaultsKey.notchAgentsDateRange) ?? "")?.interval()
+        let next = store.snapshot(plans: plans, providers: enabled, now: Date(), customRange: range)
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
