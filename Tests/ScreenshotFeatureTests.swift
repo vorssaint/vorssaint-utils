@@ -4136,6 +4136,41 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.absentClaims(recorded: nil, present: ["mic-a"]).isEmpty
                 && MicMuteSupport.absentClaims(recorded: ["headset"], present: []) == ["headset"],
                "a sweep keeps the claim on a microphone this app muted that is unplugged right now, so it is released when it returns")
+        suite.expect(!MicMuteSupport.shouldReplaceSavedVolume(existing: 0.4, current: 1.0)
+                && MicMuteSupport.shouldReplaceSavedVolume(existing: nil, current: 0.4)
+                && MicMuteSupport.shouldReplaceSavedVolume(existing: 0, current: 0.4)
+                && !MicMuteSupport.shouldReplaceSavedVolume(existing: nil, current: 0),
+               "a later re-apply keeps the first real level and never saves silence")
+        suite.expect(!MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.75)
+                && MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: 0)
+                && MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.005)
+                && MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: nil)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: 0.4)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: nil, volume: 0.4)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: nil),
+               "a live volume is not silence even when the mute switch is on, and a mute-only device still counts the switch")
+        suite.expect(MicMuteSupport.shouldLeaveUntouched(owned: false, captureSilenced: true)
+                && !MicMuteSupport.shouldLeaveUntouched(owned: true, captureSilenced: true)
+                && !MicMuteSupport.shouldLeaveUntouched(owned: false, captureSilenced: false),
+               "a user-quiet microphone is left alone and one this app muted is still ours")
+        suite.expect(MicMuteSupport.restoreNeed(muteSwitch: 1, volume: 0)
+                == .restore(clearMute: true, restoreVolume: true)
+                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: 0.75)
+                == .restore(clearMute: true, restoreVolume: false)
+                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0)
+                == .restore(clearMute: false, restoreVolume: true)
+                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0.75) == .alreadyAudible
+                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil)
+                == .restore(clearMute: true, restoreVolume: false)
+                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil, hasSavedVolume: true)
+                == .unreadable
+                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: nil) == .unreadable,
+               "unmuting clears the mute switch and restores volume when each is needed, not one or the other")
+        suite.expect(MicMuteSupport.inputChannelElements(channelCount: 3) == [0, 1, 2, 3] as [UInt32]
+                && MicMuteSupport.inputChannelElements(channelCount: 1) == [0, 1, 2] as [UInt32]
+                && MicMuteSupport.inputChannelElements(channelCount: 0) == [0, 1, 2] as [UInt32]
+                && MicMuteSupport.inputChannelElements(channelCount: 2) == [0, 1, 2] as [UInt32],
+               "every input channel is muted, never fewer than the stereo pair")
         let micMuteServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/MicMuteService.swift",
             encoding: .utf8)) ?? ""

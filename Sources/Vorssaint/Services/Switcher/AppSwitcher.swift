@@ -18,18 +18,6 @@ private struct SwitcherSourceContext {
     let frame: CGRect
 }
 
-/// A shortcut press already owned by the switcher while the window list is
-/// being assembled. The tap thread can cancel or add repeated navigation
-/// without ever waiting for the main thread or Accessibility.
-private struct SwitcherPendingSessionStart {
-    let generation: UInt64
-    let shortcut: GlobalShortcut
-    let scope: SwitcherSessionScope
-    let reversed: Bool
-    var additionalNavigation = 0
-    var commitWhenReady = false
-}
-
 /// The window switcher: a global event tap takes over the configured shortcut,
 /// and while its modifiers are held a non-activating panel cycles through real
 /// windows. Releasing commits, middle-clicking a card or pressing W closes the
@@ -82,7 +70,7 @@ final class AppSwitcher: ObservableObject {
     var keyboardInputOwnership: (isOwned: Bool, generation: UInt64) {
         routeLock.withLock {
             (!routeCapturing && (routeSessionActive
-                || (routeCanStartSession && routePendingSessionStart != nil)),
+                || (routeCanStartSession && (routePendingSessionStart != nil || secureInputReplays.hasPending))),
              sessionStartGeneration)
         }
     }
@@ -93,6 +81,7 @@ final class AppSwitcher: ObservableObject {
 
     private var panel: NSPanel?
     private var sessionItems: [SwitcherItem] = []
+    private var sessionWindowServerSnapshot: SwitcherWindowServerSnapshot?
 
     // The tap lives on a dedicated thread: an active keyDown tap makes the
     // window server hold every keystroke in the login session until this
@@ -115,6 +104,20 @@ final class AppSwitcher: ObservableObject {
     }
     private var wakeObserver: NSObjectProtocol?
     private var wakeRetry: DispatchWorkItem?
+    private var secureInputHotKeys: [UInt32: (ref: EventHotKeyRef, shortcut: GlobalShortcut)] = [:] {
+        didSet {
+            if coversSecureInput == secureInputHotKeys.isEmpty {
+                coversSecureInput = !secureInputHotKeys.isEmpty
+            }
+        }
+    }
+    @Published private(set) var coversSecureInput = false
+    private var secureInputHotKeyHandler: EventHandlerRef?
+    private static let secureInputHotKeySignature: OSType = 0x5655_5357
+    private static let secureInputActionHotKeySignature: OSType = 0x5655_5341
+    private var secureInputActionHotKeys: [GlobalShortcut: EventHotKeyRef] = [:]
+    private var secureInputGuardedModifiers: Set<GlobalShortcutModifiers> = []
+    private var secureInputRegistrationFailed = false
 
     /// The little state the tap thread needs to route an event without
     /// touching the main thread; mutated only under `routeLock`.
@@ -127,6 +130,7 @@ final class AppSwitcher: ObservableObject {
     private var routeCanStartSession = false
     private var routePendingSessionStart: SwitcherPendingSessionStart?
     private var sessionStartGeneration: UInt64 = 0
+    private var secureInputReplays = SwitcherSecureInputReplayState()
 
     /// Enumeration touches every regular app through Accessibility, so it runs
     /// away from the event tap on one serial queue.
@@ -219,6 +223,7 @@ final class AppSwitcher: ObservableObject {
 
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
+        secureInputRegistrationFailed = false
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
                                             fallback: .switcherDefault)
         let windowShortcut = GlobalShortcut.saved(for: DefaultsKey.switcherWindowShortcut,
@@ -281,13 +286,17 @@ final class AppSwitcher: ObservableObject {
     /// churn the window server's keyboard path for no reason (issue #275).
     /// Main thread only, like every other write to the routing state.
     func setCapturingShortcut(_ capturing: Bool) {
-        if capturing, sessionActive { cancelSession() }
+        if capturing, sessionActive {
+            cancelSession()
+        }
         routeLock.withLock {
             routeCapturing = capturing
             if capturing {
                 routePendingSessionStart = nil
             }
         }
+        if capturing { unregisterSecureInputHotKeys() }
+        applyNativeHotkeySuppressionIfTapLive()
     }
 
     // MARK: - Event tap
@@ -299,7 +308,15 @@ final class AppSwitcher: ObservableObject {
             forName: NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
             object: nil,
             queue: .main
-        ) { _ in GlobalShortcut.refreshLayoutLabels() }
+        ) { [weak self] _ in
+            GlobalShortcut.refreshLayoutLabels()
+            // The guarded Q/W positions can change with the keyboard layout.
+            guard let self, IsSecureEventInputEnabled(), self.keyboardInputOwnership.isOwned else { return }
+            self.routeLock.withLock { self.routePendingSessionStart = nil }
+            self.invalidateSecureInputReplays()
+            if self.sessionActive { self.cancelSession() }
+            self.unregisterSecureInputActionHotKeys()
+        }
     }
 
     private func stopObservingKeyboardLayout() {
@@ -376,6 +393,8 @@ final class AppSwitcher: ObservableObject {
     private func removeTap() {
         if sessionActive { cancelSession() }
         routeLock.withLock { routePendingSessionStart = nil }
+        invalidateSecureInputReplays()
+        unregisterSecureInputActionHotKeys()
         let snapshot = lifecycleLock.withLock {
             () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
             shouldStopTapThread = true
@@ -466,15 +485,17 @@ final class AppSwitcher: ObservableObject {
     /// and only while it can hear the keyboard, so Secure Event Input never
     /// does either.
     private func applyNativeHotkeySuppression() {
-        let (apps, windows, allWindows) = routeLock.withLock {
-            (routeShortcut, routeWindowShortcut, routeAllWindowsShortcut)
+        let (apps, windows, allWindows, capturing) = routeLock.withLock {
+            (routeShortcut, routeWindowShortcut, routeAllWindowsShortcut, routeCapturing)
         }
         let takeOver = UserDefaults.standard.bool(
             forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
         SystemShortcutTakeover.setWanted(
             SwitcherSupport.nativeHotkeyIDs(
                 takeOverSystemShortcuts: takeOver,
-                secureInputEnabled: IsSecureEventInputEnabled(),
+                // Recording uses the focused AppKit field, even under secure
+                // input. Keep native keys out of its way while Carbon yields.
+                secureInputEnabled: IsSecureEventInputEnabled() && secureInputHotKeys.isEmpty && !capturing,
                 appsShortcut: apps,
                 windowShortcut: windows,
                 allWindowsShortcut: allWindows,
@@ -517,24 +538,190 @@ final class AppSwitcher: ObservableObject {
     private func applyNativeHotkeySuppressionIfTapLive() {
         let canStart = routeLock.withLock { routeCanStartSession }
         guard isTapLive, canStart else { return }
+        updateSecureInputHotKeys()
         applyNativeHotkeySuppression()
     }
 
     private func restoreNativeHotkeys() {
+        if IsSecureEventInputEnabled() {
+            routeLock.withLock { routePendingSessionStart = nil }
+            if sessionActive { cancelSession() }
+        }
+        unregisterSecureInputHotKeys()
         SystemShortcutTakeover.setWanted([], for: SystemShortcutTakeover.switcherSource)
     }
 
-    /// Secure Event Input stops every key from reaching the tap, so macOS gets
-    /// its keys back for as long as it lasts, and a session already open is
-    /// dropped: the release that would commit it can no longer arrive.
+    /// Secure Event Input stops every key press from reaching the tap, though
+    /// modifier changes still arrive. Carbon hotkeys stand in for the shortcut
+    /// keys while it lasts; if they cannot register, macOS gets its keys back
+    /// instead. A session already open is dropped either way.
     private func secureInputChanged(_ enabled: Bool) {
+        secureInputRegistrationFailed = false
         guard enabled else {
             applyNativeHotkeySuppressionIfTapLive()
             return
         }
-        routeLock.withLock { routePendingSessionStart = nil }
+        routeLock.withLock {
+            routePendingSessionStart = nil
+        }
         if sessionActive { cancelSession() }
-        restoreNativeHotkeys()
+        applyNativeHotkeySuppressionIfTapLive()
+        if secureInputHotKeys.isEmpty, !routeLock.withLock({ routeCapturing }) { restoreNativeHotkeys() }
+    }
+
+    private func updateSecureInputHotKeys() {
+        let (canStart, capturing) = routeLock.withLock { (routeCanStartSession, routeCapturing) }
+        let wanted = SwitcherSupport.secureInputHotKeysWanted(
+            canStartSession: canStart, capturingShortcut: capturing,
+            takeOverSystemShortcuts: UserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts),
+            secureInputEnabled: IsSecureEventInputEnabled(),
+            registrationFailed: secureInputRegistrationFailed)
+        guard wanted else {
+            unregisterSecureInputHotKeys()
+            return
+        }
+        let (apps, windows, allWindows) = routeLock.withLock {
+            (routeShortcut, routeWindowShortcut, routeAllWindowsShortcut)
+        }
+        let shortcuts = SwitcherSupport.secureInputHotKeyShortcuts(appsShortcut: apps,
+                                                                   windowShortcut: windows,
+                                                                   allWindowsShortcut: allWindows)
+        if !secureInputHotKeys.isEmpty,
+           Set(secureInputHotKeys.values.map(\.shortcut)) == Set(shortcuts) { return }
+        if !secureInputHotKeys.isEmpty {
+            routeLock.withLock { routePendingSessionStart = nil }
+            if sessionActive { cancelSession() }
+        }
+        unregisterSecureInputHotKeys()
+        guard installSecureInputHotKeyHandler(),
+              let registrations = registerSecureInputHotKeys(shortcuts, signature: Self.secureInputHotKeySignature)
+        else { return }
+        secureInputHotKeys = registrations
+    }
+
+    private func unregisterSecureInputHotKeys() {
+        invalidateSecureInputReplays()
+        unregisterSecureInputActionHotKeys()
+        for (ref, _) in secureInputHotKeys.values {
+            UnregisterEventHotKey(ref)
+        }
+        secureInputHotKeys.removeAll()
+    }
+
+    private func registerSecureInputHotKeys(_ shortcuts: [GlobalShortcut], signature: OSType,
+                                            firstIdentifier: UInt32 = 1)
+        -> [UInt32: (ref: EventHotKeyRef, shortcut: GlobalShortcut)]? {
+        SwitcherSupport.registerSecureInputHotKeys(shortcuts, register: { shortcut, identifier in
+            var ref: EventHotKeyRef?
+            let id = EventHotKeyID(signature: signature, id: firstIdentifier + identifier - 1)
+            guard RegisterEventHotKey(shortcut.carbonKeyCode, shortcut.carbonModifiers, id,
+                                      GetEventDispatcherTarget(), 0, &ref) == noErr else { return nil }
+            return ref
+        }, unregister: { _ = UnregisterEventHotKey($0) })
+    }
+
+    /// Q/W remain unavailable under secure input, but must never fall through
+    /// to the password app while a different app is selected in our panel.
+    private func guardSecureInputActions(for shortcut: GlobalShortcut) -> Bool {
+        guard IsSecureEventInputEnabled() else { return true }
+        if secureInputGuardedModifiers.contains(shortcut.modifiers) { return true }
+        // A queued trigger can replace an opening after its modifier is
+        // released. Keep both chords protected until all ownership ends.
+        let registered = Set(secureInputActionHotKeys.keys)
+            .union(secureInputHotKeys.values.map(\.shortcut))
+        let shortcuts = SwitcherSupport.secureInputActionShortcuts(for: shortcut, excluding: registered)
+        guard !secureInputHotKeys.isEmpty,
+              let registrations = registerSecureInputHotKeys(shortcuts, signature: Self.secureInputActionHotKeySignature,
+                                                              firstIdentifier: UInt32(secureInputActionHotKeys.count + 1))
+        else {
+            secureInputRegistrationFailed = true
+            restoreNativeHotkeys()
+            return false
+        }
+        for registration in registrations.values {
+            secureInputActionHotKeys[registration.shortcut] = registration.ref
+        }
+        secureInputGuardedModifiers.insert(shortcut.modifiers)
+        return true
+    }
+
+    private func unregisterSecureInputActionHotKeys() {
+        for ref in secureInputActionHotKeys.values { UnregisterEventHotKey(ref) }
+        secureInputActionHotKeys.removeAll()
+        secureInputGuardedModifiers.removeAll()
+    }
+
+    private func releaseSecureInputActionsIfIdle() {
+        guard !routeLock.withLock({ routeSessionActive || routePendingSessionStart != nil || secureInputReplays.hasPending })
+        else { return }
+        unregisterSecureInputActionHotKeys()
+    }
+
+    private func invalidateSecureInputReplays() {
+        routeLock.withLock { secureInputReplays.invalidate() }
+    }
+
+    private func installSecureInputHotKeyHandler() -> Bool {
+        guard secureInputHotKeyHandler == nil else { return true }
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                                 eventKind: UInt32(kEventHotKeyPressed))
+        let status = InstallEventHandler(GetEventDispatcherTarget(), { _, event, userData -> OSStatus in
+            guard let userData, let event else { return OSStatus(eventNotHandledErr) }
+            var id = EventHotKeyID()
+            GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                              EventParamType(typeEventHotKeyID), nil,
+                              MemoryLayout<EventHotKeyID>.size, nil, &id)
+            if id.signature == AppSwitcher.secureInputActionHotKeySignature { return noErr }
+            guard id.signature == AppSwitcher.secureInputHotKeySignature else {
+                return OSStatus(eventNotHandledErr)
+            }
+            Unmanaged<AppSwitcher>.fromOpaque(userData).takeUnretainedValue()
+                .routeSecureInputHotKey(id: id.id)
+            return noErr
+        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &secureInputHotKeyHandler)
+        return status == noErr && secureInputHotKeyHandler != nil
+    }
+
+    private func routeSecureInputHotKey(id: UInt32) {
+        guard let shortcut = secureInputHotKeys[id]?.shortcut,
+              IsSecureEventInputEnabled(),
+              let runLoop = lifecycleLock.withLock({ shouldStopTapThread ? nil : tapRunLoop }),
+              let event = CGEvent(keyboardEventSource: nil,
+                                  virtualKey: CGKeyCode(shortcut.keyCode),
+                                  keyDown: true)
+        else { return }
+        event.flags = shortcut.syntheticEventFlags
+        // Claim ownership and guard Q/W on this callback, before the tap or
+        // enumeration can be delayed. A click can cancel this queued start.
+        guard let accepted = routeLock.withLock({ () -> (generation: UInt64, shortcut: GlobalShortcut,
+                                                        requestedShortcut: GlobalShortcut)? in
+            guard routeCanStartSession, !routeCapturing,
+                  let match = SwitcherSupport.shortcutMatch(event: event, appsShortcut: routeShortcut,
+                                                             windowShortcut: routeWindowShortcut,
+                                                             allWindowsShortcut: routeAllWindowsShortcut)
+            else { return nil }
+            let owner = sessionShortcut ?? routePendingSessionStart?.shortcut ?? secureInputReplays.shortcut ?? match.shortcut
+            return (secureInputReplays.enqueue(shortcut: owner), owner, match.shortcut)
+        }) else { return }
+        let generation = accepted.generation
+        guard guardSecureInputActions(for: accepted.shortcut),
+              guardSecureInputActions(for: accepted.requestedShortcut),
+              routeLock.withLock({ secureInputReplays.contains(generation) })
+        else {
+            releaseSecureInputActionsIfIdle()
+            return
+        }
+        CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) { [weak self] in
+            guard let self else { return }
+            defer {
+                self.routeLock.withLock { self.secureInputReplays.finish(generation) }
+                DispatchQueue.main.async { [weak self] in self?.releaseSecureInputActionsIfIdle() }
+            }
+            guard IsSecureEventInputEnabled(),
+                  self.routeLock.withLock({ self.secureInputReplays.contains(generation) }) else { return }
+            _ = self.route(type: .keyDown, event: event, secureInputReplay: true)
+        }
+        CFRunLoopWakeUp(runLoop)
     }
 
     private func clearEventTapThread() -> Bool {
@@ -556,7 +743,7 @@ final class AppSwitcher: ObservableObject {
     /// the main thread. Only events the switcher may actually consume hop to
     /// the main thread, and those are rare by definition: one shortcut press,
     /// then the handful of keys typed while the panel is up.
-    private func route(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func route(type: CGEventType, event: CGEvent, secureInputReplay: Bool = false) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             // Never resurrect a tap that removeTap is already tearing down:
             // it switches the tap off itself, and that is reported here like
@@ -569,9 +756,11 @@ final class AppSwitcher: ObservableObject {
                 DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
             }
             routeLock.withLock { routePendingSessionStart = nil }
+            invalidateSecureInputReplays()
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.sessionActive else { return }
-                self.cancelSession()
+                guard let self else { return }
+                if self.sessionActive { self.cancelSession() }
+                self.releaseSecureInputActionsIfIdle()
             }
             return Unmanaged.passUnretained(event)
         }
@@ -593,7 +782,7 @@ final class AppSwitcher: ObservableObject {
                        !pending.shortcut.requiredModifiersHeld(in: event.flags) {
                         // A quick flick still commits once enumeration finishes,
                         // but can never flash a panel after the key was released.
-                        pending.commitWhenReady = true
+                        pending.observeModifiers(event.flags)
                         routePendingSessionStart = pending
                     }
                     return true
@@ -617,13 +806,19 @@ final class AppSwitcher: ObservableObject {
                 // scan stays off the mouse-down path of everyone who is not
                 // mid-open. Without the keyboard, only the process lookup runs.
                 let startPending = routeLock.withLock {
-                    !routeSessionActive && routePendingSessionStart != nil
+                    !routeSessionActive && (routePendingSessionStart != nil || secureInputReplays.hasPending)
                 }
                 let clickPressedAKey = startPending && AssistiveKeyboard.ownsPoint(event.location)
                 let stillInactive = routeLock.withLock { () -> Bool in
                     guard !routeSessionActive else { return false }
-                    if !clickPressedAKey { routePendingSessionStart = nil }
+                    if !clickPressedAKey {
+                        routePendingSessionStart = nil
+                        secureInputReplays.invalidate()
+                    }
                     return true
+                }
+                if startPending, !clickPressedAKey {
+                    DispatchQueue.main.async { [weak self] in self?.releaseSecureInputActionsIfIdle() }
                 }
                 if stillInactive { return Unmanaged.passUnretained(event) }
                 var verdict: Unmanaged<CGEvent>?
@@ -650,11 +845,15 @@ final class AppSwitcher: ObservableObject {
                 )
                 if decision == .cancelAndSwallow {
                     routePendingSessionStart = nil
+                    secureInputReplays.invalidate()
                 }
                 return decision
             }
             switch pendingKeyDecision {
-            case .swallow, .cancelAndSwallow:
+            case .cancelAndSwallow:
+                DispatchQueue.main.async { [weak self] in self?.releaseSecureInputActionsIfIdle() }
+                return nil
+            case .swallow:
                 return nil
             case .handleActiveSession:
                 break
@@ -673,7 +872,8 @@ final class AppSwitcher: ObservableObject {
                                 generation: generation,
                                 shortcut: requestedShortcut,
                                 scope: requestedScope,
-                                reversed: reversed
+                                reversed: reversed,
+                                isSecureInputReplay: secureInputReplay
                             )
                             generationToSchedule = generation
                             return true
@@ -691,7 +891,8 @@ final class AppSwitcher: ObservableObject {
                         generation: generation,
                         shortcut: requestedShortcut,
                         scope: requestedScope,
-                        reversed: reversed
+                        reversed: reversed,
+                        isSecureInputReplay: secureInputReplay
                     )
                     generationToSchedule = generation
                     return true
@@ -909,12 +1110,15 @@ final class AppSwitcher: ObservableObject {
                 generation: generation,
                 pendingGeneration: routePendingSessionStart?.generation
             )
-        }) else { return }
+        }) else {
+            return
+        }
         guard Permissions.shared.accessibility,
               AXIsProcessTrusted(),
               lifecycleLock.withLock({ tap != nil && !shouldStopTapThread })
         else {
-            discardPendingSessionStart(generation: generation)
+            discardPendingSessionStart(generation: generation,
+                                       reason: "accessibility_or_tap_unavailable")
             return
         }
 
@@ -925,6 +1129,10 @@ final class AppSwitcher: ObservableObject {
             ) else { return nil }
             return routePendingSessionStart
         }) else { return }
+        guard guardSecureInputActions(for: requested.shortcut) else {
+            discardPendingSessionStart(generation: generation, reason: "secure_input_guard_unavailable")
+            return
+        }
         let allApps = requested.scope == .allApps
         let mergeWindowsByApp = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
         let groupByApp = allApps && mergeWindowsByApp
@@ -933,10 +1141,31 @@ final class AppSwitcher: ObservableObject {
             mergeWindowsByApp: mergeWindowsByApp,
             simpleMode: simpleModeEnabled
         )
-        guard let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
-            discardPendingSessionStart(generation: generation)
+        guard let sourceApplication = NSWorkspace.shared.frontmostApplication else {
+            discardPendingSessionStart(generation: generation, reason: "no_frontmost_app")
             return
         }
+        let reportedFrontPID = sourceApplication.processIdentifier
+        // Both the walk and its source query stop when this session expires.
+        let isCancelled: () -> Bool = { [weak self] in
+            guard let self else { return true }
+            return !self.routeLock.withLock {
+                SwitcherSupport.isCurrentSessionStart(
+                    generation: generation,
+                    pendingGeneration: self.routePendingSessionStart?.generation
+                )
+            }
+        }
+        // Only fix the CG candidate IDs before AX; the expensive metadata and
+        // source query can then run beside this main-thread snapshot.
+        let windowServerCapture = WindowEnumerator.beginWindowServerCapture(
+            isCancelled: isCancelled)
+        let sourcePrefetch = WindowEnumerator.beginSourcePrefetch(
+            for: reportedFrontPID,
+            isRegular: sourceApplication.activationPolicy == .regular,
+            accessibilityGranted: Permissions.shared.accessibility,
+            windowServerCapture: windowServerCapture,
+            isCancelled: isCancelled)
         let enumerationSnapshot = WindowEnumerator.snapshot()
         let displayScope = currentDisplayScope
         enumerationQueue.async { [weak self] in
@@ -947,7 +1176,9 @@ final class AppSwitcher: ObservableObject {
                           pendingGeneration: self.routePendingSessionStart?.generation
                       )
                   })
-            else { return }
+            else {
+                return
+            }
             var focusedSourceWindowID: CGWindowID?
             let enumeration = WindowEnumerator.enumerateSwitcherWindows(
                 groupByApp: groupByApp,
@@ -956,6 +1187,9 @@ final class AppSwitcher: ObservableObject {
                 windowsOnly: requested.scope == .allWindows,
                 displayScope: displayScope,
                 scopedToFrontmostPID: requested.scope == .frontmostApp ? reportedFrontPID : nil,
+                sourcePID: reportedFrontPID,
+                sourcePrefetch: sourcePrefetch,
+                windowServerCapture: windowServerCapture,
                 resolveSource: { items in
                     let sourceItems = SwitcherSupport.windowsForSession(
                         items, scope: requested.scope, frontmostPID: reportedFrontPID)
@@ -969,15 +1203,7 @@ final class AppSwitcher: ObservableObject {
                                                              focusedWindowID: focusedSourceWindowID,
                                                              items: sourceItems)
                 },
-                isCancelled: { [weak self] in
-                    guard let self else { return true }
-                    return !self.routeLock.withLock {
-                        SwitcherSupport.isCurrentSessionStart(
-                            generation: generation,
-                            pendingGeneration: self.routePendingSessionStart?.generation
-                        )
-                    }
-                }
+                isCancelled: isCancelled
             )
             guard self.routeLock.withLock({
                 SwitcherSupport.isCurrentSessionStart(
@@ -992,7 +1218,8 @@ final class AppSwitcher: ObservableObject {
                                            reportedFrontPID: reportedFrontPID,
                                            focusedSourceWindowID: focusedSourceWindowID,
                                            windows: sessionWindows,
-                                           sourceItems: enumeration.sourceItems)
+                                           sourceItems: enumeration.sourceItems,
+                                           windowServerSnapshot: enumeration.activationSnapshot)
             }
         }
     }
@@ -1001,15 +1228,18 @@ final class AppSwitcher: ObservableObject {
                                       reportedFrontPID: pid_t,
                                       focusedSourceWindowID: CGWindowID?,
                                       windows: [SwitcherItem],
-                                      sourceItems: [SwitcherItem]) {
+                                      sourceItems: [SwitcherItem],
+                                      windowServerSnapshot: SwitcherWindowServerSnapshot?) {
         guard routeLock.withLock({
             SwitcherSupport.isCurrentSessionStart(
                 generation: generation,
                 pendingGeneration: routePendingSessionStart?.generation
             )
-        }) else { return }
+        }) else {
+            return
+        }
         guard !windows.isEmpty else {
-            discardPendingSessionStart(generation: generation)
+            discardPendingSessionStart(generation: generation, reason: "empty_window_list")
             return
         }
         // The foreground window is what a session is measured against, and it
@@ -1028,17 +1258,22 @@ final class AppSwitcher: ObservableObject {
         }
 
         let list = SwitcherSupport.orderedForSession(windows, currentID: listedSource?.id)
-        guard let pending = routeLock.withLock({ () -> SwitcherPendingSessionStart? in
+        let handedOverPending = routeLock.withLock({ () -> SwitcherPendingSessionStart? in
             guard SwitcherSupport.isCurrentSessionStart(
                 generation: generation,
                 pendingGeneration: routePendingSessionStart?.generation
             ) else { return nil }
-            let pending = routePendingSessionStart
+            var pending = routePendingSessionStart
+            pending?.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))
             routePendingSessionStart = nil
             routeSessionActive = true
             return pending
-        }) else { return }
+        })
+        guard let pending = handedOverPending else {
+            return
+        }
         sessionItems = list
+        sessionWindowServerSnapshot = windowServerSnapshot
         totalWindowCount = list.count
         searchQuery = ""
         isSearchPinned = false
@@ -1082,14 +1317,12 @@ final class AppSwitcher: ObservableObject {
                                                                                    items: list))
         sessionShortcut = pending.shortcut
         shiftBackNavigationHeld = pending.reversed && pending.shortcut.shiftIsNavigationModifier
-
         if pending.additionalNavigation != 0 {
             let delta = pending.additionalNavigation < 0 ? -1 : 1
             for _ in 0..<abs(pending.additionalNavigation) {
                 advanceSelection(by: delta)
             }
         }
-
         startObservingTermination(generation: generation)
         if pending.commitWhenReady {
             commitSession()
@@ -1107,14 +1340,32 @@ final class AppSwitcher: ObservableObject {
         }
     }
 
-    private func discardPendingSessionStart(generation: UInt64) {
+    private func discardPendingSessionStart(generation: UInt64, reason: String) {
+        // Only the lock that really cleared this generation may end the
+        // session: a generation that was already replaced keeps the terminal
+        // it was given then.
         routeLock.withLock {
             guard SwitcherSupport.isCurrentSessionStart(
                 generation: generation,
                 pendingGeneration: routePendingSessionStart?.generation
             ) else { return }
             routePendingSessionStart = nil
+            secureInputReplays.invalidate()
         }
+        releaseSecureInputActionsIfIdle()
+    }
+
+    private func focusedWindowID(for pid: pid_t,
+                                 accessibilityGranted: Bool) -> CGWindowID? {
+        guard accessibilityGranted else { return nil }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.35)
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            app, kAXFocusedWindowAttribute as CFString, &value)
+        guard result == .success, let value,
+              CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        return AXWindowResolver.windowID(for: value as! AXUIElement)
     }
 
     private func handleShiftBackNavigation(flags: CGEventFlags) -> Bool {
@@ -1168,21 +1419,6 @@ final class AppSwitcher: ObservableObject {
                                                                   frontmostPID: frontmostPID,
                                                                   reversed: reversed)
         return groups[groupIndex].representativeIndex
-    }
-
-    private func focusedWindowID(for pid: pid_t, accessibilityGranted: Bool) -> CGWindowID? {
-        guard accessibilityGranted else { return nil }
-        let app = AXUIElementCreateApplication(pid)
-        // This runs on the serial session enumeration queue. A hung frontmost
-        // app must not delay this session for the 6s default AX timeout.
-        AXUIElementSetMessagingTimeout(app, 0.35)
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
-              let value,
-              CFGetTypeID(value) == AXUIElementGetTypeID()
-        else { return nil }
-        let window = value as! AXUIElement
-        return AXWindowResolver.windowID(for: window)
     }
 
     /// Records a switch straight away instead of waiting for the window server
@@ -1324,7 +1560,9 @@ final class AppSwitcher: ObservableObject {
         }
         userNavigated = true
         let next = selectedIndex + delta
-        if !wrapping, !windows.indices.contains(next) { return }
+        if !wrapping, !windows.indices.contains(next) {
+            return
+        }
         selectedIndex = (next + windows.count) % windows.count
     }
 
@@ -1618,6 +1856,7 @@ final class AppSwitcher: ObservableObject {
                                                        closingItemIDs: closingItemIDs)
             .flatMap { id in windows.first { $0.id == id } }
         let source = sessionSourceContext
+        let windowServerSnapshot = sessionWindowServerSnapshot
         // A session can open without a source item (the app in front has no
         // window left); the app in front still keeps the settling retry.
         let handoffSourcePID = NSWorkspace.shared.frontmostApplication?.processIdentifier
@@ -1630,7 +1869,8 @@ final class AppSwitcher: ObservableObject {
                                      sourcePID: source?.pid,
                                      handoffSourcePID: handoffSourcePID,
                                      sourceWindowID: source?.isFullscreen == true ? nil : source?.windowID,
-                                     sourceWindowOwnerPID: source?.windowOwnerPID)
+                                     sourceWindowOwnerPID: source?.windowOwnerPID,
+                                     windowServerSnapshot: windowServerSnapshot)
         }
     }
 
@@ -1650,12 +1890,15 @@ final class AppSwitcher: ObservableObject {
         cancelLetterConfirmation()
         SwitcherAppIconCache.endSession()
         sessionActive = false
+        invalidateSecureInputReplays()
         pendingShow?.cancel()
         pendingShow = nil
         WindowPreviewProvider.shared.cancel()
         cancelPendingPreviewBatch()
         panel?.orderOut(nil)
+        unregisterSecureInputActionHotKeys()
         sessionItems = []
+        sessionWindowServerSnapshot = nil
         windows = []
         previews = [:]
         selectedIndex = 0
@@ -2061,6 +2304,7 @@ final class AppSwitcher: ObservableObject {
         self.panel = panel
         return panel
     }
+
 }
 
 /// Grid metrics for one switcher session: large cards laid out in as many
