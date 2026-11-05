@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+More reliable window switching, microphone controls, recording exports and display behavior, with safer focus recovery and remote desktop clipboard handling.
+
+### Fixed
+- The window switcher opens and switches more efficiently, reduces flashes when restoring minimized windows and cancels outdated activation requests after a newer selection. Thanks to @zhanghao87.
+- The window switcher keeps its opening shortcuts working during secure input, including All windows and quick modifier releases. Q/W remain unavailable in this mode and are blocked while the switcher owns the selection. Thanks to @phatina.
+- Focus follows mouse recovers keyboard focus when the usual no-raise activation fails, while preserving window order when Bring the window to the front is off. Thanks to @jerome-queck.
+- Window dragging and resizing find the target when an app's child controls cannot be identified through Accessibility, with bounded queries to limit delays from unresponsive apps. Thanks to @carlhuareforge.
+- Mic Mute also uses input volume and reapplies supported mute controls when another app changes them, while preserving each microphone's previous channel settings for restoration. Device and app limitations still apply. Thanks to @samueljim.
+- Volume mixer smooths volume changes and applies mute immediately across interruptions in captured audio. Thanks to @Chubi01.
+- Brightness controls correctly validate DDC replies and refresh previously cached monitor ranges. Thanks to @nikigan.
+- Recording previews and exports reuse GPU rendering resources to reduce memory growth, while preserving the orientation of imported videos. Thanks to @Zekuath and @zepeng-jin.
+- Dynamic Island hides over an app's own full screen on every display and refreshes its visibility after temporary overlays or leaving full screen. Thanks to @sugar-king.
+- Picking a clipboard entry in Windows App or Microsoft Remote Desktop leaves it copied for manual paste, avoiding a stray "v" in the remote session. Thanks to @mevichitra.
+
+### Contributors
+Thanks to @carlhuareforge, @Chubi01, @jerome-queck, @mevichitra, @nikigan, @phatina, @samueljim, @sugar-king, @Zekuath, @zepeng-jin and @zhanghao87.
+
 ## [3.4.3] - 2026-10-29
 
 ### Summary
