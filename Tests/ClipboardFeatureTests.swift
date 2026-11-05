@@ -33,7 +33,11 @@ enum ClipboardFeatureTests {
     final class QuickPasteHost {
         final class App {
             let isTerminated: Bool
-            init(isTerminated: Bool) { self.isTerminated = isTerminated }
+            let bundleIdentifier: String?
+            init(isTerminated: Bool, bundleIdentifier: String? = "com.example.writer") {
+                self.isTerminated = isTerminated
+                self.bundleIdentifier = bundleIdentifier
+            }
             func activate(options: [Int]) { host?.events.append("activate") }
         }
         typealias NSRunningApplication = App
@@ -1627,6 +1631,16 @@ enum ClipboardFeatureTests {
             suite.expect(host.events == expected,
                    "quick paste beeps or asks for Accessibility when it cannot paste, found \(host.events)")
         }
+        for bundleID in ["com.microsoft.rdc.macos", "com.microsoft.rdc.mac"] {
+            let host = QuickPasteHost()
+            host.pasteIntoPreviousApp(QuickPasteHost.App(isTerminated: false, bundleIdentifier: bundleID))
+            suite.expect(host.events == ["activate"],
+                   "quick paste into a remote desktop session leaves the pick on the clipboard, found \(host.events)")
+        }
+        let unnamed = QuickPasteHost()
+        unnamed.pasteIntoPreviousApp(QuickPasteHost.App(isTerminated: false, bundleIdentifier: nil))
+        suite.expect(unnamed.events == ["activate", "paste"],
+               "quick paste still pastes into an app without a bundle identifier, found \(unnamed.events)")
         for trusted in [true, false] {
             let host = QuickPasteHost()
             host.trusted = trusted
