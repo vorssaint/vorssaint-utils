@@ -352,8 +352,7 @@ struct ClipboardEntryPreviewSidebar: View {
             guard isLatest, pasteboardChangeCount == NSPasteboard.general.changeCount,
                   AppFeature.screenOCR.isAvailable else { return }
             if case .text(let recognized) = outcome {
-                ScreenTextService.copyToPasteboard(recognized)
-                QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied)
+                ScreenTextService.shared.presentCopiedText(recognized)
             } else {
                 QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrNoText)
             }
