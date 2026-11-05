@@ -11,9 +11,8 @@ struct SettingsDirectoryItem: Identifiable {
     /// Labels of options living inside the page, so a search finds a page by
     /// what it contains, in the user's language.
     var keywords: [String] = []
-    /// Feature ownership for keyword rows on shared pages. `nil` means the
-    /// setting belongs to the page itself and remains searchable whenever the
-    /// page is visible.
+    /// The feature each keyword's control needs, so search offers it only
+    /// while the page shows it. `nil` means the page always shows it.
     var keywordFeatures: [AppFeature?] = []
     var id: SettingsPage { page }
 
@@ -48,7 +47,8 @@ enum SettingsDirectory {
                                 isAvailable: (AppFeature) -> Bool) -> [SettingsSidebarSection] {
         let hub = FeatureStrings.hub(language)
         let grouped: [SettingsSidebarSection] = sections(
-            s, language: language, superKeySource: superKeySource
+            s, language: language, superKeySource: superKeySource,
+            hasInternalBattery: PowerSampler.hasInternalBattery
         ).enumerated().compactMap { index, section -> SettingsSidebarSection? in
                 let items = section.items.flatMap { pageItem -> [SettingsSidebarItem] in
                     var rows = SettingsSidebarSupport.items(
@@ -139,7 +139,8 @@ enum SettingsDirectory {
     static func searchItems(_ s: Strings,
                             language: AppLanguage,
                             superKeySource: SuperKeySource = SuperKeyService.shared.source) -> [SettingsSearchItem] {
-        let pageItems = sections(s, language: language, superKeySource: superKeySource)
+        let pageItems = sections(s, language: language, superKeySource: superKeySource,
+                                 hasInternalBattery: PowerSampler.hasInternalBattery)
             .flatMap(\.items).map { item in
                 SettingsSearchItem(id: .page(item.page),
                                    destination: FeatureSettingsDestination(item.page),
@@ -159,27 +160,52 @@ enum SettingsDirectory {
             destination: FeatureSettingsDestination(
                 .general, sectionAnchor: .panelConfiguration),
             title: s.menuBarSection, icon: "menubar.rectangle",
-            keywords: [s.showMenuBarIcon, FeatureStrings.generalSettings(language).menuBarIconTitle, "SF Symbols"]))
+            keywords: [s.showMenuBarIcon, FeatureStrings.generalSettings(language).menuBarIconTitle,
+                       FeatureStrings.generalSettings(language).iconMissingTitle, "SF Symbols"]))
         if BrightnessService.keyboardLightIsSupported {
             items.append(SettingsSearchSupport.keyboardBrightnessShortcutItem(language: language))
         }
         return items
     }
 
+    /// The caller says whether this Mac has a battery, as its battery
+    /// settings show only then.
     static func sections(_ s: Strings,
                          language: AppLanguage,
-                         superKeySource: SuperKeySource = SuperKeyService.shared.source)
+                         superKeySource: SuperKeySource = SuperKeyService.shared.source,
+                         hasInternalBattery: Bool)
         -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
         let quitProtection = FeatureStrings.quitProtection(language)
+        let monitorAlerts = FeatureStrings.monitorAlerts(language)
+        let previews = FeatureStrings.windowPreviewExclusions(language)
+        let notch = FeatureStrings.notch(language)
+        let notchEditor = FeatureStrings.notchEditor(language)
+        let notchMusic = FeatureStrings.notchMusicExtras(language)
+        let notchCalendar = FeatureStrings.notchCalendar(language)
+        let notchAgents = FeatureStrings.notchAgents(language)
+        let notchLowBattery = NotchLowBatteryStrings.localized(language)
+        var liquidGlass: [String] = []
+#if compiler(>=6.2)
+        if #available(macOS 26.0, *) {
+            liquidGlass = [FeatureStrings.appearance(language).liquidGlass]
+        }
+#endif
         return [
             (categories.essentials, [
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
                                        keywords: [s.launchAtLogin, s.languageLabel,
                                                   FeatureStrings.appearance(language).label,
-                                                  FeatureStrings.appearance(language).dark],
+                                                  FeatureStrings.appearance(language).dark,
+                                                  FeatureStrings.feedback(language).sectionTitle] + liquidGlass,
+                                       // The first title of each feature places its sidebar row,
+                                       // so these follow the sidebar's order.
                                        featureKeywords: [
                                         (.musicBlock, [s.musicBlockTitle, s.musicBlockSection]),
+                                        (.mixer, [s.mixerSection]),
+                                        (.soundOutputSwitcher, [s.soundOutputSwitcherTitle]),
+                                        (.audioPriority, [s.audioPrioritySection]),
+                                        (.keepAwake, [s.globalHotkeySection]),
                                        ]),
                 // Searching any feature name lands here even when the feature
                 // is hidden, so the hub is always the way back.
@@ -202,20 +228,43 @@ enum SettingsDirectory {
                                                       FeatureStrings.keepAwakeAutomation(language)
                                                         .pauseWhenLockedToggle,
                                                       FeatureStrings.keepAwakeDisplaySleep(language)
-                                                        .allowDisplaySleep]),
+                                                        .allowDisplaySleep,
+                                                      s.keepAwakeOptions, s.keepAwakeAutoStart,
+                                                      s.keepAwakeRightClickToggle, s.keepAwakeMouseJiggle,
+                                                      s.dimScreenOnLidCloseTitle]
+                                                     + (hasInternalBattery ? [s.batteryDisableBelow] : [])),
                                         (.brightness, [FeatureStrings.brightness(language).pageTitle,
                                                        FeatureStrings.brightness(language).osdToggle,
                                                        FeatureStrings.brightness(language).keyStep,
                                                        FeatureStrings.brightness(language).keyStepHalf,
-                                                       FeatureStrings.brightness(language).keyStepQuarter]),
+                                                       FeatureStrings.brightness(language).keyStepQuarter,
+                                                       FeatureStrings.brightness(language).enable,
+                                                       FeatureStrings.brightness(language).keysToggle,
+                                                       FeatureStrings.brightness(language)
+                                                        .displayBrightnessShortcuts]),
                                         (.extraBrightness, [s.extraBrightnessName]),
                                         (.bluetoothSleep, [FeatureStrings.bluetoothSleep(language).pageTitle,
-                                                           FeatureStrings.bluetoothSleep(language).enable]),
+                                                           FeatureStrings.bluetoothSleep(language).enable,
+                                                           FeatureStrings.bluetoothSleep(language).restoreToggle]),
                                        ]),
                 SettingsDirectoryItem(page: .monitor, title: s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
-                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle],
+                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle,
+                                                  monitorAlerts.section, monitorAlerts.cooldown,
+                                                  FeatureStrings.menuBarAppearance(language).label,
+                                                  s.monitorCombineTemperatures, s.monitorSeparateMenuBarMetrics,
+                                                  s.monitorIntervalLabel, s.temperatures,
+                                                  GraphScaleStrings.localized(language).title],
                                        featureKeywords: [
-                                        (.monitorMemory, [s.monitorMemoryPressureDot]),
+                                        (.monitorCPU, [monitorAlerts.cpu, monitorAlerts.cpuThreshold,
+                                                       monitorAlerts.cpuTemperature,
+                                                       monitorAlerts.cpuTemperatureThreshold]),
+                                        (.monitorMemory, [s.monitorMemoryPressureDot, monitorAlerts.memory,
+                                                          s.monitorMemoryMetricLabel]),
+                                        (.monitorDisk, [monitorAlerts.disk, monitorAlerts.diskThreshold]),
+                                        (.monitorPower, hasInternalBattery
+                                            ? [monitorAlerts.battery, monitorAlerts.batteryThreshold,
+                                               monitorAlerts.batteryTemperature,
+                                               monitorAlerts.batteryTemperatureThreshold] : []),
                                         (.monitorNetwork, [FeatureStrings.monitorLayout(language).networkSpeedUnit]),
                                         (.fanControl, [FeatureStrings.fanControl(language).menuBarTitle]),
                                        ]),
@@ -223,12 +272,13 @@ enum SettingsDirectory {
             (categories.windowsControls, [
                 SettingsDirectoryItem(page: .mouse, title: s.tabMouse, icon: "computermouse",
                                        featureKeywords: [
+                                        // The scrolling card shows while either of its features is on.
                                         (.scrollInverter, [s.invertMouseScroll, s.invertVerticalScroll,
-                                                           s.invertHorizontalScroll]),
+                                                           s.invertHorizontalScroll, s.scrollSection]),
                                         (.scrollHorizontal, [s.scrollHorizontalName,
-                                                            s.scrollHorizontalModifierLabel]),
+                                                            s.scrollHorizontalModifierLabel, s.scrollSection]),
                                         (.scrollZoom, [s.zoomSection, s.pinchZoom]),
-                                        (.middleClick, [s.middleClickTapPicker]),
+                                        (.middleClick, [s.middleClickTapPicker, s.middleClickEnable]),
                                         (.focusFollowsMouse, [s.focusFollowsMouseName,
                                                               s.focusFollowsMouseDelay,
                                                               s.focusFollowsMouseRaise,
@@ -236,12 +286,14 @@ enum SettingsDirectory {
                                         (.smoothScroll, [s.smoothScrollName]),
                                         (.linearScroll, [s.linearScrollName, s.linearScrollLinesLabel]),
                                         (.mouseAcceleration, [s.mouseAccelerationName]),
-                                        (.mouseNavigation, [s.mouseNavigationEnable]),
+                                        (.mouseNavigation, [s.mouseNavigationEnable, s.mouseNavigationSection]),
                                         (.mouseButtonShortcuts,
                                          [FeatureStrings.mouseButtons(language).pageTitle,
                                           FeatureStrings.mouseButtons(language).sideWheelLeftName,
                                           FeatureStrings.mouseButtons(language).sideWheelRightName,
-                                          FeatureStrings.mouseExceptions(language).listTitle]),
+                                          FeatureStrings.mouseExceptions(language).listTitle,
+                                          FeatureStrings.mouseButtons(language).enableLabel,
+                                          FeatureStrings.mouseButtons(language).spacesEnableLabel]),
                                         (.mouseClickDebounce,
                                          [FeatureStrings.mouseClickDebounce(language).title,
                                           FeatureStrings.mouseClickDebounce(language).windowLabel,
@@ -259,7 +311,15 @@ enum SettingsDirectory {
                                                         .showWithoutWindows,
                                                      FeatureStrings.switcherAppRules(language).windowsOnly,
                                                      FeatureStrings.switcherAppRules(language).hidden,
-                                                     FeatureStrings.windowPreviewExclusions(language).listTitle]),
+                                                     s.switcherTakeOverSystemShortcuts, s.keepAwakeOptions,
+                                                     s.switcherAppearanceDelay, s.switcherSearchPin,
+                                                     s.switcherMergeTabs, s.switcherShowFullscreenWindows,
+                                                     s.switcherMinimizedPlacementLabel,
+                                                     s.switcherTreatHiddenAppsLikeMinimized,
+                                                     s.switcherScreenPlacementLabel, s.switcherCurrentDisplayOnly,
+                                                     s.switcherCurrentSpaceOnly,
+                                                     previews.sectionTitle, s.minimalWindowPreviews,
+                                                     previews.listTitle]),
                                        ]),
                 SettingsDirectoryItem(page: .dock, title: FeatureStrings.settingsPages(language).dockTitle,
                                        icon: "dock.rectangle",
@@ -270,7 +330,9 @@ enum SettingsDirectory {
                                                         s.dockPreviewQuitAppOnClose,
                                                         s.dockPreviewKeepDockVisible,
                                                         s.dockPreviewOrderByCreation,
-                                                        FeatureStrings.windowPreviewExclusions(language).listTitle]),
+                                                        s.switcherCurrentSpaceOnly,
+                                                        previews.sectionTitle, s.minimalWindowPreviews,
+                                                        previews.listTitle]),
                                         (.dockClick, [FeatureStrings.hub(language).titleDockClick,
                                                       s.dockClickMinimize, s.dockClickHide,
                                                       s.dockClickCycleWindows]),
@@ -367,23 +429,61 @@ enum SettingsDirectory {
             ]),
             (categories.utilities, [
                 SettingsDirectoryItem(page: .notch,
-                                      title: FeatureStrings.notch(language).title,
+                                      title: notch.title,
                                       icon: "macbook",
-                                      keywords: [FeatureStrings.notch(language).description,
-                                                 FeatureStrings.notchEditor(language).hideMenuBarIcon,
+                                      keywords: [notch.description,
+                                                 notchEditor.hideMenuBarIcon,
                                                  FeatureStrings.notchActivities(language).keepAwakeActivity,
-                                                 FeatureStrings.notchActivities(language).hideTimerCountdown,
-                                                 FeatureStrings.notchCalendar(language).weekNumbers,
                                                  "notch", "camera", "music", "clipboard",
-                                                 FeatureStrings.notchAgents(language).title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens",
-                                                 FeatureStrings.notchAgents(language).resetsCard,
+                                                 notchAgents.title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens",
+                                                 notchAgents.resetsCard,
                                                  FeatureStrings.notchLockScreen(language).title,
-                                                 FeatureStrings.notchLockScreen(language).sounds]
+                                                 FeatureStrings.notchLockScreen(language).sounds,
+                                                 FeatureStrings.notchLockScreen(language).show,
+                                                 notch.size, notch.translucentBackground, notch.showOutline,
+                                                 notch.playingMusic, notchMusic.includeOtherPlayers,
+                                                 notchMusic.showVolume, notchMusic.preferredPlayer,
+                                                 notchMusic.enableLyrics, notchMusic.browserCovers,
+                                                 notchMusic.enableQueue,
+                                                 notch.files,
+                                                 notchEditor.resting, notch.coverMenus, notchEditor.feedback,
+                                                 notchEditor.opening, notchEditor.hiddenShowsActivity,
+                                                 s.quickToolShortcutToggle, notch.hapticFeedback,
+                                                 notchEditor.reopening, notchEditor.openActivity,
+                                                 notch.display, notch.hideInFullscreen, notch.hoverInFullscreen,
+                                                 notchEditor.destinations, notch.panel, notch.tools, notch.captures,
+                                                 notchEditor.privacy, notch.showInCaptures]
                                           // The fit card only appears with a camera housing to fit.
-                                          + (NotchSupport.hasNotchedDisplay ? [FeatureStrings.notch(language).cameraFit] : [])
+                                          + (NotchSupport.hasNotchedDisplay ? [notch.cameraFit, notch.hideMenuBarGap] : [])
                                           + (NotchSupport.hasDisplayWithoutNotch
-                                             ? [FeatureStrings.notch(language).withoutNotch,
-                                                FeatureStrings.notch(language).capsuleFit] : [])),
+                                             ? [notch.withoutNotch, notch.capsuleFit] : []),
+                                      featureKeywords: [
+                                        (.notchCalendar, [notchCalendar.countdown, notchCalendar.countdownLead,
+                                                          notchCalendar.timeLeft, notchCalendar.weekNumbers]),
+                                        (.notchNotifications,
+                                         [FeatureStrings.notchNotifications(language).hideSystemBanner]),
+                                        (.notchTimer, [FeatureStrings.notchActivities(language).soundEnabled,
+                                                       FeatureStrings.notchActivities(language).hideTimerCountdown]),
+                                        (.notchLyrics, [notchMusic.online]),
+                                        (.shelf, [notch.dragReveal]),
+                                        (.clipboardHistory, [notch.clipboardActivity,
+                                                             FeatureStrings.notchClipboardSize(language).entrySize]),
+                                        // The captures section shows while any capture tool is on.
+                                        (.screenshot, [notch.captureActivity]),
+                                        (.screenRecorder, [notch.captureActivity]),
+                                        (.screenOCR, [notch.captureActivity]),
+                                        (.colorPicker, [notch.captureActivity]),
+                                        // The low battery colors belong to the battery resting choice, which needs Power.
+                                        (.monitorPower, hasInternalBattery
+                                            ? [notchLowBattery.title, notchLowBattery.early, notchLowBattery.menuBar]
+                                            : []),
+                                        (.notchAgents, [notchAgents.limitsAs, notchAgents.limitFocus,
+                                                        notchAgents.liveActivity, notchAgents.readout,
+                                                        notchAgents.finishAlert, notchAgents.finishAfter,
+                                                        notchAgents.limitAlert, notchAgents.limitAt,
+                                                        notchAgents.budget, notchAgents.priceUpdates,
+                                                        FeatureStrings.claudeAccount(language).title]),
+                                      ]),
                 SettingsDirectoryItem(page: .notchMascot,
                                       title: FeatureStrings.notchMascot(language).title,
                                       icon: AppFeature.notchMascot.symbolName,
