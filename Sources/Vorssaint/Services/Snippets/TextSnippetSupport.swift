@@ -13,6 +13,8 @@ struct TextSnippet: Codable, Identifiable, Equatable {
         /// Only when space, Tab or Return follows the trigger (the delimiter
         /// itself is kept, typed after the replacement).
         case afterDelimiter
+        /// Only Tab completes the trigger; the Tab is kept after replacement.
+        case afterTab
     }
 
     var id = UUID()
@@ -136,6 +138,18 @@ enum TextSnippetSupport {
             best = snippet
         }
         return best
+    }
+
+    /// Tab-only snippets share the normal delimiter path, including longest
+    /// trigger precedence, without expanding words followed by Space/Return.
+    static func delimiterExpansionMatch(buffer: String, delimiter: Character, snippets: [TextSnippet])
+        -> (snippet: TextSnippet, deleteCount: Int, typedTrigger: String)? {
+        guard delimiters.contains(delimiter) else { return nil }
+        let ordinary = match(buffer: buffer, expansion: .afterDelimiter, snippets: snippets)
+        let tab = delimiter == "\t" ? match(buffer: buffer, expansion: .afterTab, snippets: snippets) : nil
+        let selected = (tab?.trigger.count ?? -1) > (ordinary?.trigger.count ?? -1) ? tab : ordinary
+        guard let snippet = selected else { return nil }
+        return (snippet, snippet.trigger.count, typedTrigger(snippet.trigger, buffer: buffer))
     }
 
     /// Whether the buffer just finished typing the trigger. The insensitive
