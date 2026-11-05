@@ -34,6 +34,7 @@ final class NotchLockScreenService {
     private var padlockWork: DispatchWorkItem?
     private var shownFrames = Frames()
     private var wasLocked = false
+    private var isScreenSaver = false
 
     private init() {}
 
@@ -43,13 +44,30 @@ final class NotchLockScreenService {
         let locking = session.locked && !wasLocked
         wasLocked = session.locked
         if !session.locked { model.playedWhileLocked = false }
-        if session.showsLockScreen, NotchLockScreenSupport.isEnabled() {
-            // Locked at the Mac, the padlock is seen closing; back from a
-            // dark display it is simply closed.
-            show(closingPadlock: locking)
+
+        let showLockScreen = session.showsLockScreen && NotchLockScreenSupport.isEnabled()
+        let showScreenSaver = session.showsScreenSaver && NotchLockScreenSupport.isEnabled()
+
+        if showScreenSaver {
+            if space != nil {
+                if !isScreenSaver {
+                    transitionToScreenSaver()
+                }
+            } else {
+                show(closingPadlock: false, screenSaver: true)
+            }
+            isScreenSaver = true
+        } else if showLockScreen {
+            if space != nil {
+                if isScreenSaver {
+                    transitionToLockScreen()
+                }
+            } else {
+                show(closingPadlock: locking, screenSaver: false)
+            }
+            isScreenSaver = false
         } else {
-            // Unlocked, the island owns the sources again; otherwise nothing
-            // shows them until the lock screen returns.
+            isScreenSaver = false
             hide(unlocking: !session.locked && session.canPresent, stopsSources: !session.canPresent)
         }
     }
@@ -57,6 +75,7 @@ final class NotchLockScreenService {
     /// The island is off: nothing it started keeps running.
     func close() {
         wasLocked = false
+        isScreenSaver = false
         model.playedWhileLocked = false
         hide(unlocking: false, stopsSources: true)
     }
@@ -95,7 +114,7 @@ final class NotchLockScreenService {
         return frames
     }
 
-    private func show(closingPadlock: Bool) {
+    private func show(closingPadlock: Bool, screenSaver: Bool = false) {
         guard space == nil,
               let space = NotchOverlaySpace(absoluteLevel: NotchLockScreenSupport.spaceLevel) else { return }
         let frames = Self.frames()
@@ -110,14 +129,16 @@ final class NotchLockScreenService {
             timeLeft: NotchCalendarSupport.showsTimeLeft())
         if model.gates != gates { model.gates = gates }
         var scene: [NotchLockScreenPanel] = []
-        // Without the Music section there is no player to show or to click.
-        if gates.music, let frame = frames.player {
-            // The one part that takes clicks: the player's buttons and timeline.
-            scene.append(Self.makePanel(frame: frame, interactive: true,
-                                        content: NotchLockScreenPlayer(model: model, size: frame.size)))
-        }
-        if let frame = frames.row {
-            scene.append(Self.makePanel(frame: frame, content: NotchLockScreenActivities(model: model, size: frame.size)))
+        if !screenSaver {
+            // Without the Music section there is no player to show or to click.
+            if gates.music, let frame = frames.player {
+                // The one part that takes clicks: the player's buttons and timeline.
+                scene.append(Self.makePanel(frame: frame, interactive: true,
+                                            content: NotchLockScreenPlayer(model: model, size: frame.size)))
+            }
+            if let frame = frames.row {
+                scene.append(Self.makePanel(frame: frame, content: NotchLockScreenActivities(model: model, size: frame.size)))
+            }
         }
         let island = frames.island.flatMap { frame in
             frames.islandSurface.map { surface in
@@ -129,13 +150,18 @@ final class NotchLockScreenService {
         }
         let panels = scene + [island].compactMap { $0 }
         guard !panels.isEmpty else { space.close(); return }
-        if !scene.isEmpty { startSources(gates) }
+        if !scene.isEmpty {
+            startSources(gates)
+        } else if screenSaver && gates.music {
+            NotchMusicService.shared.start()
+        }
         // Joined before they are first shown, the windows belong to this
         // Space alone and are drawn over the lock screen with it.
         for panel in panels { space.add(panel) }
         self.space = space
         self.scene = scene
         self.island = island
+        self.isScreenSaver = screenSaver
         shownFrames = frames
         if closingPadlock {
             let work = DispatchWorkItem { [weak self] in self?.model.padlockOpen = false }
@@ -161,9 +187,63 @@ final class NotchLockScreenService {
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
                 guard let self, self.space != nil, Self.frames() != self.shownFrames else { return }
+                let currentScreenSaver = self.isScreenSaver
                 self.hide(unlocking: false, stopsSources: false)
-                self.show(closingPadlock: false)
+                self.show(closingPadlock: false, screenSaver: currentScreenSaver)
             }
+    }
+
+    private func transitionToScreenSaver() {
+        guard !scene.isEmpty else { return }
+        let retiring = scene
+        scene = []
+        retiring.forEach { panel in
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.20
+                panel.animator().alphaValue = 0
+            }, completionHandler: {
+                panel.orderOut(nil)
+            })
+        }
+        NotchDownloadService.shared.stop()
+        NotchCalendarService.shared.stop()
+        AgentUsageService.shared.pause()
+        if island == nil {
+            space?.close()
+            space = nil
+        }
+    }
+
+    private func transitionToLockScreen() {
+        guard let space else { return }
+        let frames = Self.frames()
+        let gates = NotchLockScreenModel.Gates(
+            music: NotchLockScreenSupport.showsMusic(), timer: NotchTimerSupport.isEnabled(),
+            agents: NotchAgentSupport.showsLiveActivity(),
+            downloads: NotchSupport.routes(.download), countdown: NotchCalendarSupport.showsCountdown(),
+            timeLeft: NotchCalendarSupport.showsTimeLeft())
+        if model.gates != gates { model.gates = gates }
+        var newScene: [NotchLockScreenPanel] = []
+        if gates.music, let frame = frames.player {
+            newScene.append(Self.makePanel(frame: frame, interactive: true,
+                                           content: NotchLockScreenPlayer(model: model, size: frame.size)))
+        }
+        if let frame = frames.row {
+            newScene.append(Self.makePanel(frame: frame, content: NotchLockScreenActivities(model: model, size: frame.size)))
+        }
+        guard !newScene.isEmpty else { return }
+        startSources(gates)
+        for panel in newScene {
+            space.add(panel)
+            panel.alphaValue = 0
+            panel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                panel.animator().alphaValue = 1
+            }
+        }
+        self.scene = newScene
+        self.shownFrames = frames
     }
 
     private func startSources(_ gates: NotchLockScreenModel.Gates) {
@@ -177,17 +257,20 @@ final class NotchLockScreenService {
     }
 
     private func hide(unlocking: Bool, stopsSources: Bool) {
-        if stopsSources, !scene.isEmpty {
+        if stopsSources {
+            if !scene.isEmpty {
+                NotchDownloadService.shared.stop()
+                NotchCalendarService.shared.stop()
+                AgentUsageService.shared.pause()
+            }
             NotchMusicService.shared.stop()
-            NotchDownloadService.shared.stop()
-            NotchCalendarService.shared.stop()
-            AgentUsageService.shared.pause()
         }
         playbackSubscription = nil
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
         padlockWork?.cancel()
         padlockWork = nil
+        isScreenSaver = false
         guard let space else { return }
         let scene = scene, island = island
         self.scene = []

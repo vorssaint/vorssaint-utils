@@ -87,6 +87,8 @@ enum NotchDestinationContract {
     enum ShortcutCapture { static var isCapturing = false }
 
     class State {
+        var dictationPhase = DictationPhase.idle
+        var showsDictation: Bool { dictationPhase.presentsIsland }
         var acceptsUserInteraction = true
         func collapse() { expanded = false }
         var hiddenInFullscreen = false

@@ -22,6 +22,8 @@ final class CameraPreviewService: ObservableObject {
     @Published private(set) var devices: [AVCaptureDevice] = []
     @Published private(set) var selectedDeviceID: String?
     @Published private(set) var isEmbeddedPresented = false
+    @Published private(set) var isCenterStageSupported = false
+    @Published private(set) var isCenterStageEnabled = false
     private var captureGeneration = UUID()
     private var sessionRequest: CameraPreviewRequest?
     private var sessionObservers: [NSObjectProtocol] = []
@@ -195,6 +197,7 @@ final class CameraPreviewService: ObservableObject {
             return
         }
         selectedDeviceID = device.uniqueID
+        updateCenterStageSupport(for: device)
         let session = AVCaptureSession()
         let request = CameraPreviewRequest()
         sessionRequest = request
@@ -230,6 +233,7 @@ final class CameraPreviewService: ObservableObject {
     }
 
     private func stopSession() {
+        resetCenterStage()
         sessionObservers.forEach(NotificationCenter.default.removeObserver)
         sessionObservers.removeAll()
         sessionRequest?.cancel(); sessionRequest = nil
@@ -254,9 +258,46 @@ final class CameraPreviewService: ObservableObject {
         activateCamera(device, rememberChoice: true)
     }
 
+    func toggleCenterStage() {
+        guard isCenterStageSupported else { return }
+        AVCaptureDevice.centerStageControlMode = .cooperative
+        let next = !isCenterStageEnabled
+        if next, let device = devices.first(where: { $0.uniqueID == selectedDeviceID }) {
+            if !device.activeFormat.isCenterStageSupported,
+               let supportedFormat = device.formats.first(where: { $0.isCenterStageSupported }) {
+                try? device.lockForConfiguration()
+                device.activeFormat = supportedFormat
+                device.unlockForConfiguration()
+            }
+        }
+        AVCaptureDevice.isCenterStageEnabled = next
+        isCenterStageEnabled = AVCaptureDevice.isCenterStageEnabled
+    }
+
+    private func updateCenterStageSupport(for device: AVCaptureDevice?) {
+        let supported = device?.formats.contains(where: { $0.isCenterStageSupported }) == true
+        isCenterStageSupported = supported
+        if supported {
+            AVCaptureDevice.centerStageControlMode = .cooperative
+            AVCaptureDevice.isCenterStageEnabled = false
+            isCenterStageEnabled = false
+        } else {
+            isCenterStageEnabled = false
+        }
+    }
+
+    private func resetCenterStage() {
+        if isCenterStageSupported && isCenterStageEnabled {
+            AVCaptureDevice.isCenterStageEnabled = false
+        }
+        isCenterStageEnabled = false
+        isCenterStageSupported = false
+    }
+
     private func activateCamera(_ device: AVCaptureDevice, rememberChoice: Bool) {
         guard device.uniqueID != selectedDeviceID else { return }
         selectedDeviceID = device.uniqueID
+        updateCenterStageSupport(for: device)
         if rememberChoice {
             // The system remembers this choice per app, so the next preview
             // opens on the same camera without a key of our own. Only an

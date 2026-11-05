@@ -41,6 +41,9 @@ final class TransientPaste {
 
     @discardableResult
     func paste(_ text: String,
+               restoreClipboard: Bool = true,
+               suppressClipboardNotice: Bool = false,
+               canPostShortcut: (() -> Bool)? = nil,
                willPostShortcut: (() -> Void)? = nil,
                didPostShortcut: (() -> Void)? = nil,
                didFail: (() -> Void)? = nil) -> Bool {
@@ -56,7 +59,9 @@ final class TransientPaste {
             let pasteboard = NSPasteboard.general
             let originalChangeCount = pasteboard.changeCount
             let snapshot: [NSPasteboardItem]?
-            if let previous, pasteboard.changeCount == previous.changeCount {
+            if !restoreClipboard {
+                snapshot = []
+            } else if let previous, pasteboard.changeCount == previous.changeCount {
                 snapshot = previous.snapshot
             } else {
                 snapshot = Self.snapshot(of: pasteboard)
@@ -85,20 +90,25 @@ final class TransientPaste {
                 }
                 return
             }
+            if suppressClipboardNotice {
+                pasteboard.setString("1", forType: NSPasteboard.PasteboardType(ClipboardHistoryCapturePolicy.dictationOriginType))
+            }
             let changeCount = pasteboard.changeCount
 
             DispatchQueue.main.async {
-                ClipboardHistoryService.shared.ignoreNextChange(upTo: changeCount)
+                if restoreClipboard { ClipboardHistoryService.shared.ignoreNextChange(upTo: changeCount) }
                 self.pendingRestore = (snapshot, changeCount)
                 Self.postPasteWhenModifiersReleased(
                     attempt: 0,
                     expectedChangeCount: changeCount,
+                    canPost: canPostShortcut,
                     willPost: willPostShortcut,
                     didPost: didPostShortcut,
                     didFail: didFail
                 ) {
                     self.isPerforming = false
-                    self.scheduleRestore(snapshot: snapshot, changeCount: changeCount)
+                    if restoreClipboard { self.scheduleRestore(snapshot: snapshot, changeCount: changeCount) }
+                    else { self.pendingRestore = nil }
                 }
             }
         }
@@ -145,6 +155,7 @@ final class TransientPaste {
 
     private static func postPasteWhenModifiersReleased(attempt: Int,
                                                        expectedChangeCount: Int,
+                                                       canPost: (() -> Bool)? = nil,
                                                        willPost: (() -> Void)?,
                                                        didPost: (() -> Void)?,
                                                        didFail: (() -> Void)?,
@@ -153,6 +164,11 @@ final class TransientPaste {
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
         if held.isEmpty || attempt >= 100 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                guard canPost?() != false else {
+                    didFail?()
+                    completion()
+                    return
+                }
                 // A copy made while waiting belongs to the user, not this
                 // operation. Do not paste it or delete a snippet's trigger.
                 // Read on the shared lane: pboard can block even for its count.
@@ -179,6 +195,7 @@ final class TransientPaste {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
             postPasteWhenModifiersReleased(attempt: attempt + 1,
                                            expectedChangeCount: expectedChangeCount,
+                                           canPost: canPost,
                                            willPost: willPost,
                                            didPost: didPost,
                                            didFail: didFail,

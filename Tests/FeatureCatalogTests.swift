@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 79, "feature catalog has 79 features")
+        suite.expect(AppFeature.allCases.count == 80, "feature catalog has 80 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -395,7 +395,7 @@ enum FeatureCatalogTests {
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
-            "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
+            "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock", "dictation",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "quitApps", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
@@ -732,6 +732,9 @@ enum FeatureCatalogTests {
         suite.expect(AppFeature.musicBlock.permissions == [.accessibility]
                 && AppFeature.musicBlock.onboardingPermissions.isEmpty,
                "music launch blocking declares its required Accessibility access contextually")
+        suite.expect(AppFeature.dictation.permissions == [.microphone, .accessibility]
+                && AppFeature.dictation.onboardingPermissions == [.accessibility],
+               "dictation declares its microphone and Accessibility requirements")
         suite.expect(AppFeature.screenshot.permissions == [.screenRecording]
                 && AppFeature.screenshot.onboardingPermissions == [.screenRecording],
                "screenshots only need the screen recording grant")
@@ -1583,6 +1586,9 @@ enum FeatureCatalogTests {
                 && activeSet(.accessibility, available: [.musicBlock]).isEmpty
                 && activeSet(.accessibility, available: [], on: [DefaultsKey.musicBlockEnabled]).isEmpty,
                "music blocking requires access only while both enabled and installed")
+        suite.expect(activeSet(.accessibility, available: [.dictation], on: [DefaultsKey.dictationEnabled]) == [.dictation]
+                && activeSet(.microphone, available: [.dictation], on: [DefaultsKey.dictationEnabled]) == [.dictation],
+               "dictation reports its active microphone and paste permissions")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.finderRenameEnabled]).contains(.finderRename),
                "the enabled Finder rename shortcut uses accessibility")
         suite.expect(!activeSet(.accessibility, available: [], on: [DefaultsKey.scrollInverterEnabled])

@@ -99,9 +99,10 @@ enum SettingsDirectory {
             islandPages.contains($0.id)
         } ?? []
         let sound: [SettingsSidebarItem] = essentials.items.filter { item in
-            item.destination.page == .general
+            item.destination.page == .dictation
+                || (item.destination.page == .general
                 && item.destination.sectionAnchor != nil
-                && item.destination.sectionAnchor != .panelConfiguration
+                && item.destination.sectionAnchor != .panelConfiguration)
         }
         let energy: [SettingsSidebarItem] = essentials.items.filter {
             $0.destination.page == .energy
@@ -179,8 +180,11 @@ enum SettingsDirectory {
                                                   FeatureStrings.appearance(language).label,
                                                   FeatureStrings.appearance(language).dark],
                                        featureKeywords: [
-                                        (.musicBlock, [s.musicBlockTitle, s.musicBlockSection]),
+                                       (.musicBlock, [s.musicBlockTitle, s.musicBlockSection]),
                                        ]),
+                SettingsDirectoryItem(page: .dictation, title: DictationStrings.localized(language).title,
+                                      icon: "waveform", keywords: ["Handy", "speech to text", "dictation", "microphone", "Fn", "Whisper", "Parakeet",
+                                                                  DictationStrings.localized(language).history]),
                 // Searching any feature name lands here even when the feature
                 // is hidden, so the hub is always the way back.
                 SettingsDirectoryItem(page: .features, title: FeatureStrings.hub(language).pageTitle,

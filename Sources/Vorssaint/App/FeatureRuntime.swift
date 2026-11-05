@@ -338,6 +338,10 @@ final class FeatureRuntime: ObservableObject {
             RecentCaptureService.shared.syncWithPreferences()
         },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
+        .dictation: {
+            DictationService.shared.syncWithPreferences()
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+        },
         .wallpaper: { WallpaperService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
         .notch: { NotchService.shared.syncWithPreferences() },
