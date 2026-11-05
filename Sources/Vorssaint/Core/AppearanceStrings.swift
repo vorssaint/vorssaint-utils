@@ -29,6 +29,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -152,4 +154,18 @@ extension AppearanceStrings {
         dark: "Темний",
         liquidGlass: "Liquid Glass"
     )
+
+    static let ar = AppearanceStrings(
+        label: "المظهر",
+        system: "النظام",
+        light: "فاتح",
+        dark: "داكن",
+        liquidGlass: "Liquid Glass")
+
+    static let fa = AppearanceStrings(
+        label: "ظاهر",
+        system: "سیستم",
+        light: "روشن",
+        dark: "تیره",
+        liquidGlass: "Liquid Glass")
 }

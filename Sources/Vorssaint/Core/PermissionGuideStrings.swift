@@ -41,6 +41,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -241,4 +243,28 @@ extension PermissionGuideStrings {
         startOver: "重新開始",
         relaunch: "重新啟動以套用"
     )
+
+    static let ar = PermissionGuideStrings(
+        title: "بقيت خطوة واحدة",
+        stepOpen: "فتح macOS “إعدادات النظام” على القائمة الصحيحة.",
+        stepToggle: "فعّل Vorssaint في تلك القائمة.",
+        stepReturn: "عُد إلى هنا. ستلاحظ هذه البطاقة الأمر تلقائيًا.",
+        waiting: "في انتظار الإذن…",
+        granted: "تم منح الإذن!",
+        closeHelp: "إغلاق",
+        staleHint: "مفعّل أصلًا في تلك القائمة؟ ذلك المدخل يخص نسخة أقدم من التطبيق. ابدأ من جديد لاستبداله.",
+        startOver: "البدء من جديد",
+        relaunch: "أعِد التشغيل للتطبيق")
+
+    static let fa = PermissionGuideStrings(
+        title: "یک گام مانده",
+        stepOpen: "macOS تنظیمات سیستم را روی فهرست درست باز کرد.",
+        stepToggle: "Vorssaint را در آن فهرست روشن کنید.",
+        stepReturn: "برگردید. این کارت خودش متوجه می‌شود.",
+        waiting: "در انتظار مجوز…",
+        granted: "مجوز داده شد!",
+        closeHelp: "بستن",
+        staleHint: "از قبل در آن فهرست روشن است؟ آن مورد به نسخهٔ قبلی برنامه تعلق دارد. برای جایگزینی از نو شروع کنید.",
+        startOver: "از نو شروع کنید",
+        relaunch: "راه‌اندازی دوباره برای اعمال")
 }

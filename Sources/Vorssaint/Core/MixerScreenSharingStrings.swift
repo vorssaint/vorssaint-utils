@@ -68,6 +68,14 @@ struct MixerScreenSharingStrings {
             allowVolumeControl: "允許音量控制",
             protectedCaption: "音量控制已關閉，以防止分享音訊時產生回音。",
             sharingWarning: "分享音訊前請關閉音量控制，以避免回音。")
+        case .ar: return .init(
+            allowVolumeControl: "السماح بالتحكم في مستوى الصوت",
+            protectedCaption: "التحكم في مستوى الصوت متوقف لتجنب الصدى عند مشاركة الصوت.",
+            sharingWarning: "أوقف التحكم في مستوى الصوت قبل مشاركة الصوت لتجنب الصدى.")
+        case .fa: return .init(
+            allowVolumeControl: "اجازهٔ کنترل صدا",
+            protectedCaption: "کنترل صدا برای جلوگیری از پژواک هنگام هم‌رسانی صدا خاموش است.",
+            sharingWarning: "پیش از هم‌رسانی صدا، کنترل صدا را خاموش کنید تا پژواک ایجاد نشود.")
         }
     }
 }

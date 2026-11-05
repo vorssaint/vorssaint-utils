@@ -223,6 +223,34 @@ extension FeatureStrings {
                 skipPreviewCheckbox: "更新前不顯示新功能",
                 showPreviewToggle: "更新前顯示新功能",
                 showPreviewCaption: "每次更新後仍會顯示已安裝功能的變化。")
+        case .ar:
+            return WhatsNewStrings(
+                updatedFromFormat: "حُدّث من الإصدار %@",
+                newFeatures: "مزايا جديدة",
+                yourFeatures: "مزاياك",
+                notInstalled: "غير مثبّتة",
+                kindNew: "الجديد",
+                kindChanged: "التغييرات",
+                kindFixed: "الإصلاحات",
+                updated: "محدَّث",
+                chooseFeatureHint: "اختر ميزة لترى ما تغيّر فيها.",
+                skipPreviewCheckbox: "عدم إظهار الجديد قبل التحديث",
+                showPreviewToggle: "إظهار الجديد قبل التحديث",
+                showPreviewCaption: "يظل ما تغيّر في مزاياك يظهر بعد كل تحديث.")
+        case .fa:
+            return WhatsNewStrings(
+                updatedFromFormat: "به‌روزرسانی از %@",
+                newFeatures: "قابلیت‌های جدید",
+                yourFeatures: "قابلیت‌های شما",
+                notInstalled: "نصب‌نشده",
+                kindNew: "جدید",
+                kindChanged: "تغییریافته",
+                kindFixed: "رفع‌شده",
+                updated: "به‌روزرسانی‌شده",
+                chooseFeatureHint: "قابلیتی را انتخاب کنید تا ببینید چه چیزی در آن تغییر کرده است.",
+                skipPreviewCheckbox: "پیش از به‌روزرسانی تازه‌ها را نشان نده",
+                showPreviewToggle: "نمایش تازه‌ها پیش از به‌روزرسانی",
+                showPreviewCaption: "آنچه در قابلیت‌های شما تغییر کرده همچنان پس از هر به‌روزرسانی ظاهر می‌شود.")
         }
     }
 }

@@ -32,6 +32,8 @@ extension FeatureStrings {
         case .uk: return .uk
         case .zhHans: return .zhHans
         case .zhTW, .zhHK: return .zhTW
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -188,4 +190,25 @@ extension CPUCoreFeatureStrings {
         apps: "正使用 CPU 的 App",
         perCore: "每個核心"
     )
+
+    static let ar = CPUCoreFeatureStrings(
+        title: "أنوية المعالج المنطقية",
+        coreFormat: "النواة %d",
+        hint: "يمثّل كل شريط نواة منطقية واحدة. ويُظهر ارتفاع تعبئته نسبة الاستخدام، لا الأداء المتبقي.",
+        superCores: "الفائقة",
+        performanceCores: "الأداء",
+        efficiencyCores: "الكفاءة",
+        apps: "التطبيقات التي تستخدم المعالج",
+        perCore: "لكل نواة"
+    )
+
+    static let fa = CPUCoreFeatureStrings(
+        title: "هسته‌های منطقی CPU",
+        coreFormat: "هستهٔ %d",
+        hint: "هر نوار یک هستهٔ منطقی است. ارتفاع پر شدنِ آن میزان استفاده را نشان می‌دهد، نه کارایی باقی‌مانده را.",
+        superCores: "فوق‌العاده",
+        performanceCores: "کارایی",
+        efficiencyCores: "بهره‌وری",
+        apps: "برنامه‌هایی که CPU مصرف می‌کنند",
+        perCore: "برای هر هسته")
 }

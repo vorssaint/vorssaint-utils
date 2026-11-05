@@ -44,6 +44,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -392,4 +394,48 @@ extension DiskImageInstallerStrings {
         installedKeptDownloadBodyFormat: "%@ встановлено в %@. Образ диска вийнято, а завантаження збережено.",
         installingFormat: "Встановлення %@…"
     )
+
+    static let ar = DiskImageInstallerStrings(
+        title: "مثبّت صور الأقراص",
+        hubDescription: "ثبّت التطبيق الوحيد داخل صورة القرص ونظّف ملف التنزيل",
+        useUserApplications: "التثبيت في مجلد “التطبيقات” داخل مجلد المستخدم",
+        applicationsFolder: "مجلد “التطبيقات”",
+        userApplicationsFolder: "مجلد “التطبيقات” داخل مجلد المستخدم",
+        promptTitle: "تثبيت هذا التطبيق؟",
+        promptBodyFormat: "سيُنسخ %@ إلى %@ وتُخرَج صورة القرص.",
+        installButton: "تثبيت",
+        installedTitle: "تم تثبيت التطبيق",
+        installedBodyFormat: "%@ جاهز في %@. أُخرجت صورة القرص ونُقل ملف تنزيلها إلى المهملات.",
+        installedKeepingMountBodyFormat: "تم تثبيت %@ في %@، لكن تعذّر إخراج صورة القرص. وقد أُبقي على ملف تنزيلها.",
+        installedKeepingDownloadBodyFormat: "تم تثبيت %@ في %@ وأُخرجت صورة القرص، لكن تعذّر نقل ملف تنزيلها إلى المهملات.",
+        failedTitle: "تعذّر التثبيت",
+        failedBody: "لم يتغيّر أي شيء. لا يزال بإمكانك سحب التطبيق إلى “التطبيقات”.",
+        verificationFailedBody: "تعذّر على هذا الـ Mac التحقق من التطبيق، لذا لم يُثبَّت شيء.",
+        alreadyInstalledBodyFormat: "%@ موجود أصلًا في “التطبيقات”.",
+        trashDownloadOption: "نقل ملف التنزيل إلى المهملات",
+        revealAppOption: "إظهار التطبيق المثبّت في فايندر",
+        installedKeptDownloadBodyFormat: "%@ جاهز في %@. أُخرجت صورة القرص وأُبقي على ملف تنزيلها.",
+        installingFormat: "جارٍ تثبيت %@…")
+
+    static let fa = DiskImageInstallerStrings(
+        title: "نصب‌کنندهٔ دیسک‌ایمیج",
+        hubDescription: "تنها برنامهٔ داخل یک دیسک‌ایمیج را نصب کنید و دانلود را پاک‌سازی کنید",
+        useUserApplications: "نصب در پوشهٔ Applications داخل پوشهٔ خانگی شما",
+        applicationsFolder: "پوشهٔ Applications",
+        userApplicationsFolder: "پوشهٔ Applications داخل پوشهٔ خانگی شما",
+        promptTitle: "این برنامه نصب شود؟",
+        promptBodyFormat: "%@ در %@ کپی می‌شود و دیسک‌ایمیج بیرون داده می‌شود.",
+        installButton: "نصب",
+        installedTitle: "برنامه نصب شد",
+        installedBodyFormat: "%@ در %@ آماده است. دیسک‌ایمیج بیرون داده شد و دانلودش به سطل زباله رفت.",
+        installedKeepingMountBodyFormat: "%@ در %@ نصب شد، اما دیسک‌ایمیج بیرون داده نشد. دانلودش نگه داشته شد.",
+        installedKeepingDownloadBodyFormat: "%@ در %@ نصب شد و دیسک‌ایمیج بیرون داده شد، اما دانلودش به سطل زباله نرفت.",
+        failedTitle: "نصب نشد",
+        failedBody: "چیزی تغییر نکرد. همچنان می‌توانید برنامه را به Applications بکشید.",
+        verificationFailedBody: "این مک نتوانست برنامه را تأیید کند، پس چیزی نصب نشد.",
+        alreadyInstalledBodyFormat: "%@ از قبل در Applications است.",
+        trashDownloadOption: "انتقال دانلود به سطل زباله",
+        revealAppOption: "نمایش برنامهٔ نصب‌شده در Finder",
+        installedKeptDownloadBodyFormat: "%@ در %@ آماده است. دیسک‌ایمیج بیرون داده شد و دانلودش نگه داشته شد.",
+        installingFormat: "در حال نصب %@…")
 }

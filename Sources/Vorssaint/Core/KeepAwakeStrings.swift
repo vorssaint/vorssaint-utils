@@ -61,6 +61,8 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
+        case .fa: return .fa
         case .uk: return .uk
         }
     }
@@ -82,6 +84,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -160,6 +164,15 @@ extension KeepAwakeDisplaySleepStrings {
         allowDisplaySleep: "Дозволити дисплею засинати",
         allowDisplaySleepCaption: "Не дає Mac заснути, поки дисплей слідує своєму звичайному таймеру сну."
     )
+
+    static let ar = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "السماح للشاشة بالسكون",
+        allowDisplaySleepCaption: "يُبقي الـ Mac مستيقظًا بينما تتبع الشاشة مؤقّت سكونها المعتاد."
+    )
+
+    static let fa = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "اجازهٔ خواب نمایشگر",
+        allowDisplaySleepCaption: "مک را بیدار نگه می‌دارد در حالی که نمایشگر از زمان‌سنج خواب عادی‌اش پیروی می‌کند.")
 }
 
 extension KeepAwakeAutomationStrings {
@@ -491,4 +504,46 @@ extension KeepAwakeAutomationStrings {
         matchAll: "Усі",
         automationCaptionAll: "Запускається лише коли всі обрані умови активні."
     )
+
+    static let ar = KeepAwakeAutomationStrings(
+        automationSection: "الأتمتة",
+        automationCaption: "تبدأ عند تحقق أي شرط محدد.",
+        automationOff: "متوقف",
+        externalDisplayToggle: "شاشة خارجية",
+        externalDisplayActive: "نشط أثناء توصيل شاشة خارجية",
+        powerToggle: "الطاقة",
+        powerActive: "نشط أثناء التوصيل بالطاقة",
+        runningAppsToggle: "التطبيقات",
+        runningAppsActive: "نشط أثناء تشغيل تطبيق محدد",
+        runningAppsListTitle: "التطبيقات المحددة",
+        runningAppsAddButton: "إضافة تطبيق…",
+        runningAppsRemoveButton: "إزالة",
+        runningAppsListCaption: "يبدأ “الإبقاء مستيقظًا” ما دام أي من هذه التطبيقات مفتوحًا، ولو في الخلفية.",
+        automationActive: "نشط لتحقق أحد الشروط التلقائية",
+        pauseWhenLockedToggle: "الإيقاف المؤقت أثناء قفل الـ Mac",
+        pauseWhenLockedCaption: "يتبع قواعد السكون المعتادة أثناء القفل ويستأنف ما تبقى من الجلسة بعد إلغاء القفل.",
+        matchAny: "أي",
+        matchAll: "الكل",
+        automationCaptionAll: "تبدأ فقط عند تحقق كل شرط محدد.")
+
+    static let fa = KeepAwakeAutomationStrings(
+        automationSection: "خودکارسازی",
+        automationCaption: "هر وقت هر شرط انتخاب‌شده فعال باشد شروع می‌شود.",
+        automationOff: "خاموش",
+        externalDisplayToggle: "نمایشگر خارجی",
+        externalDisplayActive: "تا زمانی که نمایشگر خارجی وصل است فعال است",
+        powerToggle: "برق",
+        powerActive: "تا زمانی که به برق وصل است فعال است",
+        runningAppsToggle: "برنامه‌ها",
+        runningAppsActive: "تا زمانی که برنامه‌ای انتخاب‌شده در حال اجراست فعال است",
+        runningAppsListTitle: "برنامه‌های انتخاب‌شده",
+        runningAppsAddButton: "افزودن برنامه…",
+        runningAppsRemoveButton: "حذف",
+        runningAppsListCaption: "بیدار نگه داشتن تا زمانی که هر یک از این برنامه‌ها باز است، حتی در پس‌زمینه، شروع می‌شود.",
+        automationActive: "فعال است، زیرا یک شرط خودکار برقرار است",
+        pauseWhenLockedToggle: "توقف هنگام قفل بودن مک",
+        pauseWhenLockedCaption: "هنگام قفل بودن از قواعد خواب عادی پیروی می‌کند و پس از باز کردن قفل، نشست باقی‌مانده را ادامه می‌دهد.",
+        matchAny: "هر کدام",
+        matchAll: "همه",
+        automationCaptionAll: "فقط وقتی شروع می‌شود که همهٔ شرط‌های انتخاب‌شده فعال باشند.")
 }

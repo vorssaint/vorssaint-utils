@@ -38,6 +38,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -253,4 +255,31 @@ extension BackupFeatureStrings {
         importAction: "匯入並重新啟動",
         invalidFile: "此檔案不是有效嘅 Vorssaint 備份。"
     )
+
+    static let ar = BackupFeatureStrings(
+        title: "النسخ الاحتياطي",
+        description: "انقل إعداداتك إلى Mac آخر: صدّر كل التفضيلات إلى ملف واستوردها هناك. أما ملاحظات المفكرة وسجل الحافظة وعناصر الرف وأذونات النظام فلا تغادر هذا الـ Mac أبدًا.",
+        exportButton: "تصدير الإعدادات…",
+        importButton: "استيراد الإعدادات…",
+        exported: "تم حفظ النسخة الاحتياطية",
+        exportFailed: "تعذّر حفظ النسخة الاحتياطية.",
+        importConfirmTitle: "استيراد هذه الإعدادات؟",
+        importConfirmBody: "ستُستبدل إعداداتك الحالية بإعدادات الملف وسيُعاد تشغيل التطبيق. ولن يُمس أي شيء آخر على هذا الـ Mac.",
+        importMissingIslandBody: "لا تحتوي هذه النسخة على إعدادات الجزيرة الديناميكية. وستبقى إعدادات الجزيرة على هذا الـ Mac كما هي. أعد التصدير من الـ Mac الآخر بإصدار Vorssaint 3.4 أو أحدث لنسخها. وستُستورد بقية الإعدادات ثم يُعاد تشغيل التطبيق.",
+        importAction: "استيراد وإعادة تشغيل",
+        invalidFile: "هذا الملف ليس نسخة احتياطية صالحة من Vorssaint."
+    )
+
+    static let fa = BackupFeatureStrings(
+        title: "نسخهٔ پشتیبان",
+        description: "تنظیمات خود را به مک دیگری ببرید: همهٔ ترجیحات را در یک فایل صادر کنید و آنجا وارد کنید. یادداشت‌های Scratchpad، تاریخچهٔ کلیپ‌بورد، موارد قفسه و مجوزهای سیستم هرگز این مک را ترک نمی‌کنند.",
+        exportButton: "صدور تنظیمات…",
+        importButton: "ورود تنظیمات…",
+        exported: "نسخهٔ پشتیبان ذخیره شد",
+        exportFailed: "نسخهٔ پشتیبان ذخیره نشد.",
+        importConfirmTitle: "این تنظیمات وارد شوند؟",
+        importConfirmBody: "تنظیمات فعلی شما با تنظیمات فایل جایگزین می‌شود و برنامه دوباره راه‌اندازی می‌شود. به هیچ چیز دیگری در این مک دست زده نمی‌شود.",
+        importMissingIslandBody: "این نسخهٔ پشتیبان تنظیمات Dynamic Island ندارد. تنظیمات جزیرهٔ این مک حفظ می‌شود. برای کپی آن‌ها در مک دیگر با Vorssaint نسخهٔ 3.4 یا جدیدتر دوباره صادر کنید. سایر تنظیمات وارد می‌شوند و برنامه دوباره راه‌اندازی می‌شود.",
+        importAction: "ورود و راه‌اندازی دوباره",
+        invalidFile: "این فایل نسخهٔ پشتیبان معتبر Vorssaint نیست.")
 }

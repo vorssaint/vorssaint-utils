@@ -200,6 +200,30 @@ extension FeatureStrings {
             unavailable: "Це сповіщення більше не підтримує цю дію.",
             hideSystemBanner: "Приховувати системний банер",
             hideSystemBannerHint: "Приховує оригінальний банер, поки його показує Dynamic Island.")
+        case .ar: return NotchNotificationStrings(
+            title: "الإشعارات",
+            description: "الإشعارات الجديدة من النظام في الجزيرة الديناميكية.",
+            privacy: "تُعرض الرايات الظاهرة الجديدة فقط. وتبقى الرسائل في الذاكرة وتُمسح عند قفل هذا الـ Mac أو إيقاف هذه الميزة.",
+            empty: "ستظهر الإشعارات الجديدة هنا",
+            waiting: "في انتظار خدمة إشعارات النظام",
+            open: "فتح",
+            dismiss: "تجاهل",
+            clearAll: "مسح الكل",
+            unavailable: "لم يعد هذا الإشعار يقبل هذا الإجراء.",
+            hideSystemBanner: "إخفاء راية النظام",
+            hideSystemBannerHint: "يُخفي الراية الأصلية بينما تعرضها الجزيرة الديناميكية.")
+        case .fa: return NotchNotificationStrings(
+            title: "اعلان‌ها",
+            description: "اعلان‌های جدید سیستم در Dynamic Island.",
+            privacy: "فقط بنرهای تازهٔ قابل‌مشاهده را نشان می‌دهد. پیام‌ها در حافظه می‌مانند و با قفل شدن این مک یا خاموش کردن این گزینه پاک می‌شوند.",
+            empty: "اعلان‌های جدید اینجا ظاهر می‌شوند",
+            waiting: "در انتظار سرویس اعلان سیستم",
+            open: "باز کردن",
+            dismiss: "رد کردن",
+            clearAll: "پاک کردن همه",
+            unavailable: "این اعلان دیگر نمی‌تواند این کنش را بپذیرد.",
+            hideSystemBanner: "پنهان کردن بنر سیستم",
+            hideSystemBannerHint: "تا وقتی Dynamic Island آن را نشان می‌دهد، نسخهٔ اصلی را پنهان می‌کند.")
         }
     }
 }

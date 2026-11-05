@@ -35,6 +35,8 @@
 		<string>uk</string>
 		<string>zh-TW</string>
 		<string>zh-HK</string>
+		<string>ar</string>
+		<string>fa</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>Vorssaint</string>

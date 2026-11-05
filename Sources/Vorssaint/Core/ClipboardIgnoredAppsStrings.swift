@@ -28,6 +28,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -136,4 +138,17 @@ extension ClipboardIgnoredAppsStrings {
         removeButton: "Видалити",
         caption: "Все, що ви копіюєте в цих програмах, не зберігається в історії."
     )
+
+    static let ar = ClipboardIgnoredAppsStrings(
+        listTitle: "التطبيقات المستثناة",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        caption: "لا يُحفظ أي شيء تنسخه في هذه التطبيقات ضمن السجل."
+    )
+
+    static let fa = ClipboardIgnoredAppsStrings(
+        listTitle: "برنامه‌هایی که نادیده گرفته می‌شوند",
+        addButton: "افزودن برنامه…",
+        removeButton: "حذف",
+        caption: "هر چه در این برنامه‌ها کپی کنید در تاریخچه ذخیره نمی‌شود.")
 }

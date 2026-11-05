@@ -34,6 +34,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -232,4 +234,29 @@ extension MenuBarAppearanceStrings {
         mediumFrom: "Середній від",
         highFrom: "Високий від"
     )
+
+    static let ar = MenuBarAppearanceStrings(
+        label: "عرض الاستخدام",
+        values: "قيم",
+        bars: "أشرطة",
+        caption: "تنطبق الأشرطة على استخدام المعالج وبطاقة الرسوم والذاكرة والقرص. أما بقية القراءات فتبقى أرقامًا.",
+        customize: "ألوان الأشرطة وحدودها",
+        normalColor: "اللون العادي",
+        mediumColor: "اللون المتوسط",
+        highColor: "اللون المرتفع",
+        mediumFrom: "متوسط ابتداءً من",
+        highFrom: "مرتفع ابتداءً من"
+    )
+
+    static let fa = MenuBarAppearanceStrings(
+        label: "نمایش مصرف",
+        values: "مقادیر",
+        bars: "نوارها",
+        caption: "نوارها برای مصرف CPU، GPU، حافظه و دیسک اعمال می‌شوند. خوانش‌های دیگر عددی می‌مانند.",
+        customize: "رنگ‌ها و حدهای نوار",
+        normalColor: "رنگ عادی",
+        mediumColor: "رنگ متوسط",
+        highColor: "رنگ زیاد",
+        mediumFrom: "متوسط از",
+        highFrom: "زیاد از")
 }

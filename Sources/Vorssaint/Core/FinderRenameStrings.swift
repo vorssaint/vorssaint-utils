@@ -30,6 +30,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -168,4 +170,21 @@ extension FinderRenameFeatureStrings {
         caption: "Клавіатурне скорочення діє лише у Finder та не чіпає текстові поля. F2 працює як звичайна клавіша; на клавіатурах, де вона керує яскравістю, використовуйте Fn-F2 або оберіть інше клавіатурне скорочення.",
         shortcutLabel: "Перейменувати"
     )
+
+    static let ar = FinderRenameFeatureStrings(
+        pageTitle: "اختصارات فايندر",
+        hubTitle: "اختصار إعادة التسمية",
+        hubDescription: "أعِد تسمية الملف أو المجلد المحدد باختصار من اختيارك.",
+        enableLabel: "استخدام اختصار لإعادة التسمية",
+        caption: "يعمل الاختصار داخل فايندر فقط ولا يؤثر في حقول النص. يعمل F2 كمفتاح عادي؛ وعلى لوحات المفاتيح التي يتحكم فيها بالسطوع، استخدم Fn-F2 أو اختر اختصارًا آخر.",
+        shortcutLabel: "إعادة التسمية"
+    )
+
+    static let fa = FinderRenameFeatureStrings(
+        pageTitle: "میان‌بُرهای Finder",
+        hubTitle: "میان‌بر تغییر نام",
+        hubDescription: "نام فایل یا پوشهٔ انتخاب‌شده را با میان‌بری که انتخاب می‌کنید تغییر دهید.",
+        enableLabel: "استفاده از میان‌بر برای تغییر نام",
+        caption: "میان‌بر فقط در Finder عمل می‌کند و فیلدهای متنی را دست نمی‌زند. F2 مانند کلید عادی کار می‌کند؛ در صفحه‌کلیدهایی که روشنایی را کنترل می‌کند، از Fn-F2 استفاده کنید یا میان‌بر دیگری برگزینید.",
+        shortcutLabel: "تغییر نام")
 }

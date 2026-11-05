@@ -71,7 +71,10 @@ struct MixerAppDragSource: NSViewRepresentable {
                   source.canMove(sourceID, targetID) else { return nil }
             let point = convert(sender.draggingLocation, from: nil)
             guard bounds.contains(point) else { return nil }
-            let after = source.sideways ? point.x > bounds.midX : point.y > bounds.midY
+            let beyond = source.sideways ? point.x > bounds.midX : point.y > bounds.midY
+            let after = MixerReorderDirection.dropsAfter(
+                pointerBeyondMidpoint: beyond, sideways: source.sideways,
+                rightToLeft: L10n.shared.language.isRightToLeft)
             return (sourceID, MixerAppDropTarget(id: targetID, after: after))
         }
 

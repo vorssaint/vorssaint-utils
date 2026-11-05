@@ -52,6 +52,8 @@ struct WhatsAppOrganizerStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -550,4 +552,69 @@ extension WhatsAppOrganizerStrings {
         notificationFormat: "Впорядковано файлів: %1$d. Оброблено дублікатів: %2$d. Не вдалося: %3$d.",
         privacyNote: "Для точного виявлення дублікатів байти файлів читаються локально лише під час обчислення криптографічного дайджесту. Вміст та чати ніколи не зберігаються та не завантажуються."
     )
+
+    static let ar = WhatsAppOrganizerStrings(
+        title: "التنظيم التلقائي",
+        experimental: "تجريبي",
+        description: "ينقل تنزيلات WhatsApp المستقرة إلى مجلد مخصص ويكتشف التنزيلات المكررة تمامًا.",
+        enabled: "التنظيم تلقائيًا",
+        enabledCaption: "قد يعيد WhatsApp تنزيل ملف تم نقله. لا يستطيع Vorssaint منع التنزيل من الشبكة، لكنه يستطيع اكتشاف النسخة الإضافية المطابقة والتخلص منها.",
+        destination: "مجلد الوجهة",
+        chooseFolder: "اختيار…",
+        useDefault: "استخدام Downloads/WhatsApp",
+        invalidDestination: "اختر مجلدًا غير مجلد التنزيلات نفسه.",
+        organization: "بنية المجلدات",
+        flat: "بدون مجلدات فرعية",
+        byType: "حسب نوع الملف",
+        byMonth: "حسب السنة والشهر",
+        delay: "الانتظار قبل النقل",
+        minutesFormat: "%d د",
+        duplicateAction: "عند تنزيل الملف نفسه مجددًا",
+        trashDuplicate: "نقل النسخة الجديدة إلى المهملات",
+        keepBoth: "الاحتفاظ بالنسختين",
+        replaceExisting: "استبدال النسخة المنظَّمة",
+        duplicateCaption: "تُؤكَّد النسخ المكررة ببصمة SHA-256 محلية. ويُعاد التحقق من النسخة المنظَّمة قبل التخلص من أي نسخة أخرى.",
+        organizeNow: "تنظيم الملفات المؤهلة الآن",
+        undo: "التراجع عن آخر تنظيم",
+        waiting: "مراقبة مجلد التنزيلات",
+        working: "جارٍ تنظيم ملفات WhatsApp…",
+        resultFormat: "المنقولة: %1$d · المكررة: %2$d · الفاشلة: %3$d",
+        lastRunFormat: "آخر تنظيم %@: المنقولة %d · المكررة %d · الفاشلة %d",
+        neverRun: "لم يُجرَ أي تنظيم بعد.",
+        notificationTitle: "تنظيم WhatsApp",
+        notificationFormat: "الملفات المنظّمة: %1$d. والتنزيلات المكررة المعالجة: %2$d. والفاشلة: %3$d.",
+        privacyNote: "لتحديد النسخ المكررة تمامًا، تُقرأ بايتات الملف محليًا فقط أثناء حساب بصمة تشفيرية. ولا يُخزَّن المحتوى أو المحادثات ولا تُرفع أبدًا."
+    )
+
+    static let fa = WhatsAppOrganizerStrings(
+        title: "سازمان‌دهی خودکار",
+        experimental: "آزمایشی",
+        description: "دانلودهای پایدار WhatsApp را به پوشه‌ای اختصاصی منتقل می‌کند و دانلودهای تکراریِ دقیقاً یکسان را تشخیص می‌دهد.",
+        enabled: "سازمان‌دهی خودکار",
+        enabledCaption: "ممکن است WhatsApp فایل منتقل‌شده را دوباره دانلود کند. Vorssaint نمی‌تواند از دانلود شبکه جلوگیری کند، اما می‌تواند نسخهٔ اضافی یکسان را تشخیص دهد و دور بریزد.",
+        destination: "پوشهٔ مقصد",
+        chooseFolder: "انتخاب…",
+        useDefault: "استفاده از Downloads/WhatsApp",
+        invalidDestination: "پوشه‌ای غیر از خود Downloads انتخاب کنید.",
+        organization: "ساختار پوشه",
+        flat: "بدون زیرپوشه",
+        byType: "بر اساس نوع فایل",
+        byMonth: "بر اساس سال و ماه",
+        delay: "انتظار پیش از انتقال",
+        minutesFormat: "%d دقیقه",
+        duplicateAction: "وقتی همان فایل دوباره دانلود می‌شود",
+        trashDuplicate: "انتقال نسخهٔ جدید به سطل زباله",
+        keepBoth: "نگه داشتن هر دو نسخه",
+        replaceExisting: "جایگزین کردن نسخهٔ سازمان‌دهی‌شده",
+        duplicateCaption: "تکراری‌ها با خلاصهٔ خصوصی SHA-256 تأیید می‌شوند. نسخهٔ سازمان‌دهی‌شده پیش از دور ریختن نسخهٔ دیگر دوباره بررسی می‌شود.",
+        organizeNow: "اکنون فایل‌های واجد شرایط را سازمان بده",
+        undo: "واگرد آخرین سازمان‌دهی",
+        waiting: "در حال نظارت بر Downloads",
+        working: "در حال سازمان‌دهی فایل‌های WhatsApp…",
+        resultFormat: "%1$d منتقل‌شده · %2$d تکراری · %3$d ناموفق",
+        lastRunFormat: "آخرین سازمان‌دهی %@: %d منتقل‌شده · %d تکراری · %d ناموفق",
+        neverRun: "هنوز سازمان‌دهی‌ای اجرا نشده است.",
+        notificationTitle: "سازمان‌دهی WhatsApp",
+        notificationFormat: "%1$d فایل سازمان‌دهی شد. %2$d دانلود تکراری رسیدگی شد. %3$d ناموفق.",
+        privacyNote: "برای شناسایی تکراری‌های دقیق، بایت‌های فایل فقط هنگام محاسبهٔ خلاصهٔ رمزنگاری‌شده و به‌صورت محلی خوانده می‌شوند. محتوا و گفت‌وگوها هرگز ذخیره یا آپلود نمی‌شوند.")
 }

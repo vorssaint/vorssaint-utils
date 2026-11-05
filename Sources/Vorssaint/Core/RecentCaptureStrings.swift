@@ -32,6 +32,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -200,4 +202,25 @@ extension RecentCaptureStrings {
         remove: "Видалити з історії",
         clear: "Очистити історію"
     )
+
+    static let ar = RecentCaptureStrings(
+        title: "اللقطات الأخيرة",
+        empty: "التقط صورة للشاشة أو احفظ تسجيلًا لتجده هنا.",
+        screenshot: "لقطة شاشة",
+        recording: "تسجيل",
+        restore: "استعادة",
+        open: "فتح",
+        remove: "إزالة من السجل",
+        clear: "مسح السجل"
+    )
+
+    static let fa = RecentCaptureStrings(
+        title: "ضبط‌های اخیر",
+        empty: "اسکرین‌شات بگیرید یا ضبطی ذخیره کنید تا اینجا پیدایش کنید.",
+        screenshot: "اسکرین‌شات",
+        recording: "ضبط",
+        restore: "بازگرداندن",
+        open: "باز کردن",
+        remove: "حذف از تاریخچه",
+        clear: "پاک کردن تاریخچه")
 }

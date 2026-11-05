@@ -57,6 +57,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -555,4 +557,69 @@ extension KillProcessFeatureStrings {
         killFailedMessage: "Процес, можливо, вже завершився або потребує додаткових привілеїв.",
         adminPromptFormat: "Vorssaint потрібен адміністративний доступ для завершення «%@»."
     )
+
+    static let ar = KillProcessFeatureStrings(
+        pageTitle: "إنهاء العمليات",
+        browseSubtitle: "استعراض وإنهاء",
+        hubDescription: "ابحث في العمليات الجارية وأجبرها على الإنهاء أو أعِد تشغيلها أو أنهِ شجرة العمليات",
+        searchPlaceholder: "التصفية حسب الاسم",
+        columnProcess: "العملية",
+        columnCPU: "المعالج",
+        columnMemory: "الذاكرة",
+        columnPID: "المعرّف",
+        groupToggle: "تجميع العمليات المرتبطة",
+        groupCaption: "يجمع العمليات المساعِدة تحت التطبيق المسؤول عنها.",
+        commandBarToggle: "الإظهار في شريط الأوامر",
+        commandBarCaption: "يضيف العمليات الجارية إلى شريط الأوامر، لتتمكن من العثور عليها وإنهائها دون فتح الإعدادات.",
+        refreshTooltip: "تحديث",
+        pidLabelFormat: "المعرّف %d",
+        processCountFormat: "العمليات: %d",
+        killButton: "إنهاء",
+        forceKillButton: "إنهاء إجباري",
+        killAllFormat: "إنهاء كل “%@”",
+        killTreeButton: "إنهاء شجرة العمليات",
+        restartButton: "إعادة التشغيل",
+        copyPID: "نسخ المعرّف",
+        copyPath: "نسخ المسار",
+        emptyStateTitle: "لم يتم العثور على عمليات",
+        confirmKillFormat: "إنهاء %@؟",
+        confirmForceKillFormat: "إنهاء %@ إجباريًا؟",
+        confirmKillAllFormat: "إنهاء كل عمليات “%@”؟",
+        confirmKillTreeFormat: "إنهاء %@ وكل العمليات المتفرعة عنه؟",
+        killFailedTitle: "تعذّر إنهاء العملية",
+        killFailedMessage: "قد تكون العملية قد انتهت بالفعل أو تتطلب صلاحيات إضافية.",
+        adminPromptFormat: "يحتاج Vorssaint إلى صلاحيات المسؤول لإنهاء “%@”."
+    )
+
+    static let fa = KillProcessFeatureStrings(
+        pageTitle: "بستن فرایند",
+        browseSubtitle: "مرور و بستن",
+        hubDescription: "فرایندهای در حال اجرا را جست‌وجو کنید و به‌اجبار ببندید، دوباره راه‌اندازی کنید، یا درخت فرایند را ببندید",
+        searchPlaceholder: "فیلتر بر اساس نام",
+        columnProcess: "فرایند",
+        columnCPU: "CPU",
+        columnMemory: "حافظه",
+        columnPID: "PID",
+        groupToggle: "گروه‌بندی فرایندهای مرتبط",
+        groupCaption: "فرایندهای کمکی را زیر برنامهٔ مسئولشان گروه می‌کند.",
+        commandBarToggle: "نمایش در نوار فرمان",
+        commandBarCaption: "فرایندهای در حال اجرا را به نوار فرمان اضافه می‌کند تا بدون باز کردن تنظیمات پیدا و ببندیدشان.",
+        refreshTooltip: "تازه‌سازی",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "فرایندها: %d",
+        killButton: "بستن",
+        forceKillButton: "بستن اجباری",
+        killAllFormat: "بستن همهٔ “%@”",
+        killTreeButton: "بستن درخت فرایند",
+        restartButton: "راه‌اندازی دوباره",
+        copyPID: "کپی PID",
+        copyPath: "کپی مسیر",
+        emptyStateTitle: "فرایندی پیدا نشد",
+        confirmKillFormat: "%@ بسته شود؟",
+        confirmForceKillFormat: "%@ به‌اجبار بسته شود؟",
+        confirmKillAllFormat: "همهٔ فرایندهای “%@” بسته شوند؟",
+        confirmKillTreeFormat: "%@ و همهٔ فرایندهای فرزندش بسته شوند؟",
+        killFailedTitle: "فرایند بسته نشد",
+        killFailedMessage: "ممکن است فرایند از قبل خارج شده باشد یا به امتیازهای بیشتری نیاز داشته باشد.",
+        adminPromptFormat: "Vorssaint برای پایان دادن به “%@” به دسترسی مدیر نیاز دارد.")
 }

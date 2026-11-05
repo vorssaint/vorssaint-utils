@@ -939,7 +939,8 @@ final class AppSwitcher: ObservableObject {
                 && !MouseAppExceptions.shared.excludesPointerTarget(
                     .scrollDirection, at: event.location,
                     sourceProcessID: event.getIntegerValueField(.eventSourceUnixProcessID))
-            let delta = scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil)
+            let rightToLeft = L10n.shared.language.isRightToLeft
+            let delta = scrollNavigation.selectionDelta(for: event, direction: directionApplies ? direction : nil, rightToLeft: rightToLeft)
             if delta != 0 {
                 // Moving the row must not select the card under a stationary pointer.
                 hoverAnchor = NSEvent.mouseLocation
@@ -1061,9 +1062,11 @@ final class AppSwitcher: ObservableObject {
                 advanceWindowInSelectedApp(by: delta)
             }
         case KeyCode.rightArrow:
-            advanceSelection(by: 1)
+            advanceSelection(by: SwitcherSupport.horizontalArrowDelta(
+                towardTrailingEdge: true, rightToLeft: L10n.shared.language.isRightToLeft))
         case KeyCode.leftArrow:
-            advanceSelection(by: -1)
+            advanceSelection(by: SwitcherSupport.horizontalArrowDelta(
+                towardTrailingEdge: false, rightToLeft: L10n.shared.language.isRightToLeft))
         case KeyCode.downArrow:
             moveSelection(by: grid.columns)
         case KeyCode.upArrow:
@@ -2300,7 +2303,7 @@ final class AppSwitcher: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        panel.contentViewController = NSHostingController(rootView: SwitcherView().environmentObject(self))
+        panel.contentViewController = NSHostingController(rootView: SwitcherView().environmentObject(self).appLayoutDirection())
         self.panel = panel
         return panel
     }

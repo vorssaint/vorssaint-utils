@@ -74,9 +74,14 @@ struct NotchLockScreenIsland: View {
                 }
             }
             .frame(width: size.width, height: size.height)
+            // The padlock and the bars follow the reading order, as the music
+            // strip's cover and bars do, while the island's corner in the
+            // window is a point on screen.
+            .appLayoutDirection()
             .padding(.leading, origin.x)
             .padding(.top, origin.y)
             .frame(width: window?.width ?? size.width, height: window?.height ?? size.height, alignment: .topLeading)
+            .unmirroredLayout()
             .accessibilityHidden(true)
     }
 }
@@ -255,6 +260,9 @@ struct NotchLockScreenPlayer: View {
             }
         }
         .frame(height: 46)
+        // Media glyphs never mirror, so the row around them keeps one
+        // orientation too, the way the island's own transport row does.
+        .unmirroredLayout()
     }
 
     private func button(_ symbol: String, size: CGFloat, title: String, command: NotchMusicService.Command,

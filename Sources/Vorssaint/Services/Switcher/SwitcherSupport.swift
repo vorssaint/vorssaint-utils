@@ -70,8 +70,12 @@ struct SwitcherScrollNavigation {
     /// `direction` is Scroll Direction where it applies under the pointer.
     /// Its tap turns the wheel around only after this one has consumed it,
     /// so a mouse wheel is turned here to follow the way everything else
-    /// scrolls, as it did when that tap ran first.
-    mutating func selectionDelta(for input: CGEvent, direction: ScrollDirectionPreferences? = nil) -> Int {
+    /// scrolls, as it did when that tap ran first. A vertical wheel names next
+    /// and previous, and keeps that order in every language. A sideways swipe
+    /// names a direction on screen, so in a mirrored row it steps the other
+    /// way through the order, the way the side arrows do.
+    mutating func selectionDelta(for input: CGEvent, direction: ScrollDirectionPreferences? = nil,
+                                 rightToLeft: Bool = false) -> Int {
         guard input.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
             return 0
         }
@@ -120,7 +124,8 @@ struct SwitcherScrollNavigation {
                                 point: .scrollWheelEventPointDeltaAxis1)
         let horizontal = movement(line: .scrollWheelEventDeltaAxis2, fixed: .scrollWheelEventFixedPtDeltaAxis2,
                                   point: .scrollWheelEventPointDeltaAxis2)
-        let delta = abs(horizontal) > abs(vertical) ? horizontal : vertical
+        let sideways = abs(horizontal) > abs(vertical)
+        let delta = sideways ? horizontal : vertical
         guard delta.isFinite, delta != 0 else { return 0 }
         if accumulated * delta < 0 { accumulated = 0 }
         accumulated += delta
@@ -128,7 +133,8 @@ struct SwitcherScrollNavigation {
         guard abs(accumulated) >= step else { return 0 }
         // Each sample advances at most one item, without acceleration or momentum.
         accumulated = isMouseWheel ? accumulated.truncatingRemainder(dividingBy: step) : 0
-        return delta < 0 ? 1 : -1
+        let forward = delta < 0 ? 1 : -1
+        return sideways && rightToLeft ? -forward : forward
     }
 }
 
@@ -804,6 +810,16 @@ enum SwitcherSupport {
         SessionActivitySupport.isOnConsole(session)
             && !KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: session)
             && !displaysAsleep
+    }
+
+    /// Which way the selection index moves for a horizontal arrow key. The
+    /// arrows name a direction on screen and the grid and icon row are drawn
+    /// in reverse in a right-to-left interface, so the index follows what the
+    /// reader sees. Shortcut cycling is deliberately left out of this: it
+    /// names next and previous, not left and right, and keeps its order in
+    /// every language.
+    static func horizontalArrowDelta(towardTrailingEdge: Bool, rightToLeft: Bool) -> Int {
+        (towardTrailingEdge == rightToLeft) ? -1 : 1
     }
 
     /// How long the shortcut must be held before the panel appears. A quick
