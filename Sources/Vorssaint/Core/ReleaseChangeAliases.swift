@@ -87,6 +87,7 @@ enum ReleaseChangeAliases {
             "keyboard and mouse debounce"]
         case .textSnippets: return ["text snippets", "snippets", "snippet"]
         case .superKey: return ["super key"]
+        case .fnInputSource: return ["fn input source", "fn key", "globe key", "tap of fn"]
         case .quitWindowProtection: return ["quit protection", "quit & close protection",
             "quit and close protection", "command q and command w"]
         case .clipboardHistory: return ["clipboard history", .exact("Clipboard"), .island("clipboard"),

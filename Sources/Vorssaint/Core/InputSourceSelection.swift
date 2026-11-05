@@ -6,8 +6,9 @@ import Foundation
 
 /// Selecting an enabled keyboard input source through the system's Text
 /// Input Sources services. Shared by the paths that switch a source while
-/// their own surface is up: the Super key tap cycles to the next source, and
-/// the Command Bar borrows a Latin layout for the length of a presentation.
+/// their own surface is up: the Super key and Fn key taps cycle to the next
+/// source, and the Command Bar borrows a Latin layout for the length of a
+/// presentation.
 enum InputSourceSelection {
     /// What one enabled source looks like once read out of TIS. Plain values,
     /// so decisions over them stay pure and testable.
@@ -35,6 +36,18 @@ enum InputSourceSelection {
         return snapshots.first { $0.isASCIICapable && $0.isLayout }?.id
     }
 
+    /// The source after the current one in the enabled order, wrapping from
+    /// the last back to the first, or nil when there is nothing to cycle to.
+    /// A current source the list does not hold (one just disabled, or a
+    /// palette) starts the cycle again at the first.
+    static func nextSourceID(currentID: String?, enabledIDs: [String]) -> String? {
+        guard enabledIDs.count > 1 else { return nil }
+        guard let currentID, let index = enabledIDs.firstIndex(of: currentID) else {
+            return enabledIDs.first
+        }
+        return enabledIDs[(index + 1) % enabledIDs.count]
+    }
+
     /// The short code the island's layout notice shows: the source's first
     /// language without its script or region, so "zh-Hans" reads as ZH. Empty
     /// when a source claims no language, which leaves the notice its mark alone.
@@ -60,6 +73,34 @@ enum InputSourceSelection {
             inputSourceString($0, property: kTISPropertyInputSourceID) == sourceID
         }) else { return false }
         return TISSelectInputSource(source) == noErr
+    }
+
+    /// Cycles to the next enabled source, answering whether the system took
+    /// the request. The list and the current source are read afresh on every
+    /// call, so a source added or removed since the last one counts at once.
+    ///
+    /// A tap calls this before it lets its key event go: the next keystroke
+    /// is already in flight behind it, and hopping to main asynchronously (or
+    /// waiting on Accessibility) left that character in the old source. TIS
+    /// talks to the text-input server from the main thread, so the work runs
+    /// there synchronously. Selecting the source directly lets an input
+    /// method commit or cancel its composition on its own, the same way the
+    /// Input menu does, with no wait on every tap.
+    @discardableResult
+    static func selectNext() -> Bool {
+        let apply = { () -> Bool in
+            let sources = selectableInputSources().compactMap { source in
+                inputSourceString(source, property: kTISPropertyInputSourceID).map { (id: $0, source: source) }
+            }
+            guard let nextID = nextSourceID(currentID: currentSourceID(), enabledIDs: sources.map(\.id)),
+                  let next = sources.first(where: { $0.id == nextID })
+            else { return false }
+            return TISSelectInputSource(next.source) == noErr
+        }
+        if Thread.isMainThread {
+            return apply()
+        }
+        return DispatchQueue.main.sync(execute: apply)
     }
 
     // MARK: - Shared TIS plumbing

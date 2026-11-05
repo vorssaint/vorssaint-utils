@@ -300,14 +300,6 @@ enum SuperKeySupport {
         }
     }
 
-    static func nextInputSourceID(currentID: String?, enabledIDs: [String]) -> String? {
-        guard enabledIDs.count > 1 else { return nil }
-        guard let currentID, let index = enabledIDs.firstIndex(of: currentID) else {
-            return enabledIDs.first
-        }
-        return enabledIDs[(index + 1) % enabledIDs.count]
-    }
-
     // MARK: - What each event means
 
     /// A key event, reduced to the only distinctions the decision needs.
