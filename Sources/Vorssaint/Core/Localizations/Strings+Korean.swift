@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "덮개를 닫아도 계속 유지는 절전 방지가 켜져 있는 동안 절전을 완전히 비활성화하며, 세션이나 앱이 끝나면 자동으로 원래 상태로 되돌립니다. 전원에 연결한 상태에서 사용하는 것을 권장합니다.",
         dimScreenOnLidCloseTitle: "화면을 완전히 어둡게 하기",
         dimScreenOnLidCloseCaption: "덮개를 닫으면 화면을 어둡게 하고, 열면 밝기를 원래대로 되돌립니다.",
+        clamshellBatteryLimitTitle: "배터리 사용 시 잠자기까지",
+        clamshellBatteryLimitCaption: "덮개를 닫고 전원이 없을 때 이 시간이 지나면 세션을 끝내 Mac이 잠자기에 들어가게 합니다.",
 
         scrollSection: "스크롤",
         invertMouseScroll: "마우스 스크롤 반전",
