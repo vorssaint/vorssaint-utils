@@ -3782,7 +3782,10 @@ enum SwitcherModelFeatureTests {
                                                         panelSize: panelSize,
                                                         screenVisibleFrame: screen,
                                                         orientation: .bottom)
-        suite.expectClose(Double(bottomFrame.midX), Double(iconBottom.midX), "Dock Preview bottom panel centers on icon")
+        suite.expectClose(Double(bottomFrame.minX + DockPreviewSupport.panelPadding
+                                 + DockPreviewSupport.cardWidth / 2),
+                          Double(iconBottom.midX),
+                          "Dock Preview centers its first card on the Dock icon")
         suite.expect(bottomFrame.minY > iconBottom.maxY,
                "Dock Preview bottom panel sits above the Dock icon")
         let leftFrame = DockPreviewSupport.panelFrame(anchor: CGRect(x: 0, y: 380, width: 80, height: 80),

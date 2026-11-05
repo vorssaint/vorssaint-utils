@@ -264,6 +264,8 @@ enum SettingsDirectory {
                                        icon: "dock.rectangle",
                                        featureKeywords: [
                                         (.dockPreview, [s.dockPreviewName, s.dockPreviewEnable,
+                                                        "Preview Alignment", "Default", "Relative",
+                                                        "Controls how the Dock Preview is positioned when an app has multiple windows",
                                                         s.dockPreviewOpenDelay,
                                                         s.dockPreviewBackgroundOpacity,
                                                         s.dockPreviewQuitAppOnClose,

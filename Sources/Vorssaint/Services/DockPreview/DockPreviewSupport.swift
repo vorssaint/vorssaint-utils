@@ -41,6 +41,18 @@ enum DockPreviewOrientation: String, Equatable {
     }
 }
 
+enum DockPreviewPanelPlacement: String, CaseIterable {
+    case relativeAlignment
+    case defaultAlignment
+
+    static func sanitized(_ raw: String?) -> DockPreviewPanelPlacement {
+        guard let raw, let placement = DockPreviewPanelPlacement(rawValue: raw) else {
+            return .defaultAlignment
+        }
+        return placement
+    }
+}
+
 struct DockPreviewPreferences: Equatable {
     let orientation: DockPreviewOrientation
     let autohide: Bool
@@ -369,9 +381,10 @@ enum DockPreviewSupport {
                            panelSize: CGSize,
                            screenVisibleFrame: CGRect,
                            orientation: DockPreviewOrientation,
+                           placement: DockPreviewPanelPlacement = .relativeAlignment,
                            gap: CGFloat = panelGap,
                            padding: CGFloat = edgePadding) -> CGRect {
-        let width = min(panelSize.width, max(1, screenVisibleFrame.width - padding * 2))
+        var width = min(panelSize.width, max(1, screenVisibleFrame.width - padding * 2))
         let height = min(panelSize.height, max(1, screenVisibleFrame.height - padding * 2))
 
         func clamped(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
@@ -382,9 +395,18 @@ enum DockPreviewSupport {
         let y: CGFloat
         switch orientation {
         case .bottom:
-            x = clamped(anchor.midX - width / 2,
-                        lower: screenVisibleFrame.minX + padding,
-                        upper: screenVisibleFrame.maxX - width - padding)
+            switch placement {
+            case .relativeAlignment:
+                // Keep the first card centered over the Dock icon. As the
+                // window list grows, its trailing cards scroll.
+                let firstCardX = anchor.midX - panelPadding - cardWidth / 2
+                x = max(screenVisibleFrame.minX + padding, firstCardX)
+                width = min(width, max(1, screenVisibleFrame.maxX - padding - x))
+            case .defaultAlignment:
+                x = clamped(anchor.midX - width / 2,
+                            lower: screenVisibleFrame.minX + padding,
+                            upper: screenVisibleFrame.maxX - width - padding)
+            }
             y = clamped(anchor.maxY + gap,
                         lower: screenVisibleFrame.minY + padding,
                         upper: screenVisibleFrame.maxY - height - padding)
@@ -405,6 +427,19 @@ enum DockPreviewSupport {
         }
 
         return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    /// Expands a bottom-Dock panel to the left while holding its right edge.
+    static func panelFrameAfterDockwardSlide(openingFrame: CGRect,
+                                             distance: CGFloat,
+                                             screenVisibleFrame: CGRect,
+                                             padding: CGFloat = edgePadding) -> CGRect {
+        let maximumSlide = max(0, openingFrame.minX - screenVisibleFrame.minX - padding)
+        let slide = min(max(0, distance), maximumSlide)
+        return CGRect(x: openingFrame.minX - slide,
+                      y: openingFrame.minY,
+                      width: openingFrame.width + slide,
+                      height: openingFrame.height)
     }
 
     /// Whether the panel draws a header row. A hovered panel has no use for

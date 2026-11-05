@@ -13,6 +13,7 @@ enum HorizontalWheelScrolling {
     static func install() {
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            if DockPreviewService.shared.handlePanelScrollWheel(event) { return nil }
             // The island first offers the wheel to its own gestures.
             guard !(event.window is NotchPanel) else { return event }
             return handle(event) ? nil : event
