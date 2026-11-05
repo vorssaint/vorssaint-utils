@@ -35,6 +35,8 @@ final class NotchNotificationService: ObservableObject {
     private var closingIDs = Set<UUID>()
     private var placing = false
     private var hidesNative = false
+    private var heldCheck: NotchNotificationInbox.ArrivalCheck?
+    private var heldWork: DispatchWorkItem?
     private let notifications = [kAXWindowCreatedNotification, kAXLayoutChangedNotification,
                                  kAXUIElementDestroyedNotification, kAXFocusedWindowChangedNotification]
 
@@ -70,6 +72,8 @@ final class NotchNotificationService: ObservableObject {
             // of a second later. Reading it then lets a hidden original leave
             // before it slides in. The regular pass still follows.
             if name as String == kAXWindowCreatedNotification {
+                service.inbox.windowCreated(at: ProcessInfo.processInfo.systemUptime)
+                service.scheduleArrivalCheck()
                 service.prehide(element)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak service] in service?.scan() }
             }
@@ -180,12 +184,45 @@ final class NotchNotificationService: ObservableObject {
         let arrivals = inbox.update(live)
         trimIcons()
         for item in arrivals { received.send(item) }
+        scheduleArrivalCheck()
+    }
+
+    /// A new window replaces both the deadline and the identity of a pending
+    /// decision, including a focus query already running on the reader queue.
+    private func scheduleArrivalCheck(retryAfter: TimeInterval = 0) {
+        guard let check = inbox.arrivalCheck, heldCheck != check else { return }
+        heldWork?.cancel()
+        heldCheck = check
+        let requested = generation
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.generation == requested, self.heldCheck == check,
+                  let reader = self.reader else { return }
+            self.queue.async { [weak self] in
+                let checkedAt = ProcessInfo.processInfo.systemUptime
+                let focused = reader.centerIsFocused()
+                DispatchQueue.main.async {
+                    guard let self, self.generation == requested, self.heldCheck == check else { return }
+                    self.heldWork = nil; self.heldCheck = nil
+                    if let arrivals = self.inbox.settleArrivals(check, centerFocused: focused, checkedAt: checkedAt) {
+                        self.trimIcons()
+                        for item in arrivals { self.received.send(item) }
+                        self.placeNative()
+                    }
+                    // Unknown focus keeps the batch pending, without a busy loop.
+                    self.scheduleArrivalCheck(retryAfter: 0.12)
+                }
+            }
+        }
+        heldWork = work
+        let delay = max(retryAfter, check.delay(at: ProcessInfo.processInfo.systemUptime))
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private func trimIcons() {
-        let sources = Set(items.map { $0.content.app })
+        let retained = items + inbox.pendingItems
+        let sources = Set(retained.map { $0.content.app })
         appIcons = appIcons.filter { sources.contains($0.key) }
-        let ids = Set(items.map(\.id))
+        let ids = Set(retained.map(\.id))
         sourceApplications = sourceApplications.filter { ids.contains($0.key) }
     }
 
@@ -225,11 +262,13 @@ final class NotchNotificationService: ObservableObject {
             guard let self, self.generation == requested else { return }
             self.placing = false
             guard let reader = self.reader else { return }
-            let shown = NotchNotificationSupport.dismissesNative() ? self.shownIDs : []
+            let replacesNative = NotchNotificationSupport.dismissesNative()
+            let shown = replacesNative ? self.shownIDs : []
+            let held = replacesNative ? Set(self.inbox.pendingItems.map(\.id)) : []
             // Counted as hidden while the move is on its way, so stopping waits for it.
             self.hidesNative = self.hidesNative || !shown.isEmpty
             self.queue.async { [weak self] in
-                let failed = reader.hideNative(shown)
+                let failed = reader.hideNative(shown, holding: held)
                 let hidden = reader.hidesWindows
                 let retryDelay = reader.prehideRetryDelay
                 DispatchQueue.main.async {
@@ -297,6 +336,7 @@ final class NotchNotificationService: ObservableObject {
         // Cancelling first ends a read in flight at its next step, and the wait
         // still covers a move on its way, even one a later pass just queued.
         cancellation.cancel()
+        heldWork?.cancel(); heldWork = nil; heldCheck = nil
         reader?.restoreNativeSynchronously(on: queue)
         generation = UUID()
         pendingScan?.cancel(); pendingScan = nil

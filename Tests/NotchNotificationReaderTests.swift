@@ -109,11 +109,245 @@ enum NotchNotificationReaderTests {
         busyClosing(suite)
         nativeHiding(suite)
         hiddenWindowReturns(suite)
+        centerOpening(suite)
+        openingInbox(suite)
+        openingRaces(suite)
+        heldArrivalHiding(suite)
+        heldArrivalMoveFailure(suite)
         arrivalHiding(suite)
         arrivalFocus(suite)
         arrivalRecovery(suite)
         arrivalQueue(suite)
         arrivalRollback(suite)
+    }
+
+    /// Opening the center makes a window before the center takes the
+    /// keyboard: messages read in between wait, and the reader tells whether
+    /// the center then holds the focus.
+    private static func centerOpening(_ suite: TestSuite) {
+        let access = Access(), banner = card()
+        banner.strings["AXSubrole"] = "AXNotificationCenterBanner"
+        access.roots = [Node("AXWindow", subrole: "AXSystemDialog", children: [banner])]
+        let reader = access.reader()
+        suite.expect(reader.read() != nil && reader.centerIsFocused() == false,
+                     "a banner read with nothing focused is not the open center")
+        access.failRead = "focused"
+        suite.expect(reader.centerIsFocused() == nil && reader.read() == nil,
+                     "a failed focus query cannot reuse an earlier closed-center answer")
+        access.failRead = nil
+        access.focused = true
+        suite.expect(reader.read() == nil && reader.centerIsFocused() == true,
+                     "the center taking the keyboard is reported, so its list is not mirrored")
+        access.failRead = "focused"
+        suite.expect(reader.centerIsFocused() == nil,
+                     "a failed focus query cannot reuse an earlier open-center answer either")
+        access.failRead = "windows"
+        access.focused = false
+        suite.expect(reader.centerIsFocused() == false,
+                     "settling arrivals queries focus without traversing the notification tree")
+        access.failRead = nil
+        suite.expect(reader.read() != nil, "closing the center permits banner reads again")
+        access.allowed = false
+        suite.expect(reader.centerIsFocused() == nil, "a cancelled reader cannot authorize held arrivals")
+    }
+
+    private static func openingInbox(_ suite: TestSuite) {
+        func message() -> NotchSystemNotification {
+            NotchSystemNotification(id: UUID(), content: .init(app: "Chat", title: "Alex", subtitle: "", body: "Hello"),
+                                    received: Date(timeIntervalSince1970: 100), canOpen: true)
+        }
+        var inbox = NotchNotificationInbox()
+        _ = inbox.update([])
+        let saved = (0..<NotchNotificationSupport.maximumItems).map { _ in message() }
+        _ = inbox.update(saved)
+        let savedIDs = inbox.items.map(\.id)
+        let history = (0..<10).map { _ in message() }
+        inbox.windowCreated(at: 10)
+        suite.expect(inbox.update(history).isEmpty && inbox.items.map(\.id) == savedIDs,
+                     "the center's unconfirmed list neither publishes nor evicts saved messages from a full inbox")
+        guard let check = inbox.arrivalCheck else { suite.expect(false, "held history needs a focus check"); return }
+        suite.expect(abs(check.delay(at: 10) - 0.3) < 0.0001
+                     && abs(check.delay(at: 10.1) - 0.2) < 0.0001,
+                     "an opening waits for the remaining grace, not a new grace after each read")
+        suite.expect(inbox.update(history).isEmpty && inbox.pendingItems.map(\.id) == history.map(\.id),
+                     "repeated layout reads do not duplicate unconfirmed arrivals")
+        suite.expect(inbox.settleArrivals(check, centerFocused: true, checkedAt: 10.4)?.isEmpty == true
+                     && inbox.items.map(\.id) == savedIDs && inbox.pendingItems.isEmpty,
+                     "discarding the center's list preserves every saved message in a full inbox")
+        suite.expect(inbox.update(history).isEmpty, "discarded center items remain seen after settlement")
+
+        let banner = message()
+        inbox.windowCreated(at: 11)
+        _ = inbox.update([banner])
+        guard let bannerCheck = inbox.arrivalCheck else { suite.expect(false, "a new banner waits for focus"); return }
+        suite.expect(inbox.settleArrivals(bannerCheck, centerFocused: false, checkedAt: 11.2) == nil,
+                     "a focus sample taken before the grace cannot release a banner")
+        suite.expect(inbox.settleArrivals(bannerCheck, centerFocused: nil, checkedAt: 11.4) == nil
+                     && inbox.items.map(\.id) == savedIDs && inbox.pendingItems.map(\.id) == [banner.id],
+                     "unknown focus keeps arrivals pending and cannot alter a full inbox")
+        _ = inbox.update([])
+        let delivered = inbox.settleArrivals(bannerCheck, centerFocused: false, checkedAt: 11.5)
+        suite.expect(delivered?.map(\.id) == [banner.id] && delivered?.first?.canOpen == false
+                     && inbox.items.first?.id == banner.id && inbox.items.count == saved.count,
+                     "a verified banner is delivered once with refreshed action availability and the normal inbox limit")
+        suite.expect(inbox.settleArrivals(bannerCheck, centerFocused: false, checkedAt: 11.6) == nil
+                     && inbox.update([banner]).isEmpty,
+                     "neither a repeated focus result nor a repeated layout can redeliver a settled banner")
+        let next = message()
+        suite.expect(inbox.update([next]).map(\.id) == [next.id] && inbox.pendingItems.isEmpty,
+                     "later arrivals without another window are delivered immediately")
+
+        let cleared = message()
+        inbox.windowCreated(at: 12)
+        _ = inbox.update([cleared])
+        guard let clearedCheck = inbox.arrivalCheck else { suite.expect(false, "the clear fixture has a pending arrival"); return }
+        inbox.clear()
+        suite.expect(inbox.settleArrivals(clearedCheck, centerFocused: false, checkedAt: 12.4)?.isEmpty == true
+                     && inbox.items.isEmpty && inbox.update([cleared]).isEmpty,
+                     "clearing during the hold cannot resurrect a pending message when focus returns")
+
+        let kept = message()
+        _ = inbox.update([kept])
+        inbox.windowCreated(at: 13)
+        for _ in 0..<300 { _ = inbox.update([message()]) }
+        let pending = inbox.pendingItems
+        guard let burstCheck = inbox.arrivalCheck else { suite.expect(false, "the burst retains a focus check"); return }
+        suite.expect(pending.count == NotchNotificationSupport.maximumItems && inbox.items.map(\.id) == [kept.id],
+                     "unconfirmed bursts have a separate bounded buffer and cannot consume saved history")
+        _ = inbox.settleArrivals(burstCheck, centerFocused: true, checkedAt: 13.4)
+        suite.expect(inbox.update(pending).isEmpty && inbox.items.map(\.id) == [kept.id],
+                     "seen-set pruning retains held identities so a discarded burst cannot replay")
+
+        inbox.windowCreated(at: 14)
+        _ = inbox.update([message()])
+        guard let stale = inbox.arrivalCheck else { suite.expect(false, "the reset fixture has a pending decision"); return }
+        inbox = NotchNotificationInbox()
+        suite.expect(inbox.settleArrivals(stale, centerFocused: false, checkedAt: 14.4) == nil
+                     && inbox.items.isEmpty && inbox.pendingItems.isEmpty,
+                     "stopping or reattaching discards pending messages and rejects the old decision")
+    }
+
+    private static func openingRaces(_ suite: TestSuite) {
+        let access = Access(), banner = card()
+        banner.strings["AXSubrole"] = "AXNotificationCenterBanner"
+        access.roots = [Node("AXWindow", subrole: "AXSystemDialog", children: [banner])]
+        let reader = access.reader()
+        var inbox = NotchNotificationInbox()
+        _ = inbox.update([])
+        inbox.windowCreated(at: 10)
+        access.time = 10.03
+        access.beforeRead = { operation, _ in
+            if operation == "windows" { access.time = 10.36; access.focused = true }
+        }
+        guard let snapshot = reader.read(), !snapshot.items.isEmpty else {
+            suite.expect(false, "the delayed read starts before focus and finishes after the opening grace"); return
+        }
+        access.beforeRead = nil
+        suite.expect(inbox.update(snapshot.items).isEmpty && inbox.items.isEmpty,
+                     "a snapshot finishing after the grace still waits for the opening's focus decision")
+        guard let delayed = inbox.arrivalCheck else { suite.expect(false, "a delayed snapshot still needs checking"); return }
+        suite.expect(delayed.delay(at: access.time) == 0
+                     && inbox.settleArrivals(delayed, centerFocused: reader.centerIsFocused(), checkedAt: access.time)?.isEmpty == true
+                     && inbox.items.isEmpty,
+                     "a slow production read cannot import the list after the center has gained focus")
+
+        let first = snapshot.items[0]
+        let second = NotchSystemNotification(id: UUID(), content: first.content, received: first.received, canOpen: true)
+        for focused in [false, true] {
+            inbox = NotchNotificationInbox()
+            _ = inbox.update([])
+            inbox.windowCreated(at: 20)
+            _ = inbox.update([first])
+            guard let old = inbox.arrivalCheck else { suite.expect(false, "the first window starts a decision"); return }
+            inbox.windowCreated(at: 20.25)
+            _ = inbox.update([first, second])
+            guard let latest = inbox.arrivalCheck else { suite.expect(false, "the next window renews the decision"); return }
+            suite.expect(old != latest && abs(latest.delay(at: 20.3) - 0.25) < 0.0001,
+                         "a second window receives its own complete grace")
+            suite.expect(inbox.settleArrivals(old, centerFocused: false, checkedAt: 20.6) == nil
+                         && inbox.settleArrivals(old, centerFocused: true, checkedAt: 20.6) == nil
+                         && inbox.pendingItems.map(\.id) == [first.id, second.id],
+                         "a late result for the previous window can neither release nor discard the new batch")
+            suite.expect(inbox.settleArrivals(latest, centerFocused: false, checkedAt: 20.3) == nil,
+                         "the first window's deadline cannot release the second window's list")
+            let result = inbox.settleArrivals(latest, centerFocused: focused, checkedAt: 20.6)
+            suite.expect(result?.map(\.id) == (focused ? [] : [first.id, second.id])
+                         && inbox.items.map(\.id) == (focused ? [] : [second.id, first.id]),
+                         "the latest focus decision rejects center history and preserves real banners in arrival order")
+        }
+    }
+
+    /// The two arrival protections share real inbox and reader state: waiting
+    /// for focus must not briefly restore a banner before the island takes it.
+    private static func heldArrivalHiding(_ suite: TestSuite) {
+        for decision in ["shown", "passed", "focused", "unknown", "disabled", "persistent"] {
+            let (access, reader, window, home) = arriving()
+            access.allowClose = true
+            if decision == "persistent" {
+                window.children.first?.strings["AXSubrole"] = "AXNotificationCenterAlert"
+            }
+            var inbox = NotchNotificationInbox()
+            _ = inbox.update([])
+            inbox.windowCreated(at: 10)
+            access.time = 10
+            reader.prehide(window)
+            guard let live = reader.read()?.items, !live.isEmpty else {
+                suite.expect(false, "a prehidden arrival can be read before its focus decision"); continue
+            }
+            _ = inbox.update(live)
+            guard let oldCheck = inbox.arrivalCheck else {
+                suite.expect(false, "the arrival is held outside the visible inbox"); continue
+            }
+            _ = reader.hideNative([], holding: Set(inbox.pendingItems.map(\.id)))
+            if decision == "persistent" {
+                suite.expect(window.frame == home && !reader.hidesWindows,
+                             "a held persistent alert is restored immediately, preserving its controls and alarm")
+                continue
+            }
+            suite.expect(window.frame != home && reader.hidesWindows && inbox.items.isEmpty,
+                         "an unconfirmed transient banner stays hidden during the opening hold")
+            // Another window extends the focus decision beyond prehideGrace.
+            inbox.windowCreated(at: 10.45)
+            access.time = 10.6
+            _ = reader.hideNative([], holding: Set(inbox.pendingItems.map(\.id)))
+            suite.expect(window.frame != home && reader.hidesWindows
+                         && inbox.settleArrivals(oldCheck, centerFocused: false, checkedAt: access.time) == nil,
+                         "a renewed hold keeps the original away past its initial grace and rejects the old decision")
+            guard let check = inbox.arrivalCheck else {
+                suite.expect(false, "the renewed opening still has a focus decision"); continue
+            }
+            access.time = 10.8
+            if decision == "focused" { access.focused = true }
+            if decision == "unknown" { access.failRead = "focused" }
+            if decision == "disabled" { access.allowClose = false }
+            let arrivals = inbox.settleArrivals(check, centerFocused: reader.centerIsFocused(), checkedAt: access.time)
+            let shown = decision == "shown" ? Set((arrivals ?? []).map(\.id)) : []
+            _ = reader.hideNative(shown, holding: Set(inbox.pendingItems.map(\.id)))
+            if decision == "shown" {
+                suite.expect(arrivals?.map(\.id) == live.map(\.id) && reader.hidesWindows && window.frame != home,
+                             "a confirmed banner passes from the hold to the island without a native flash")
+            } else {
+                suite.expect(window.frame == home && !reader.hidesWindows,
+                             "the native window returns after a \(decision) decision instead of remaining hidden")
+                if decision == "unknown" {
+                    suite.expect(arrivals == nil && inbox.items.isEmpty && !inbox.pendingItems.isEmpty,
+                                 "unknown focus restores the window while keeping its unconfirmed messages quarantined")
+                }
+            }
+        }
+    }
+
+    private static func heldArrivalMoveFailure(_ suite: TestSuite) {
+        let (access, reader, _, _) = arriving()
+        access.allowClose = true
+        access.movable = false
+        guard let item = reader.read()?.items.first else {
+            suite.expect(false, "the unmovable held-banner fixture is readable"); return
+        }
+        suite.expect(reader.hideNative([], holding: [item.id]).isEmpty,
+                     "an unconfirmed arrival cannot enter the native-close fallback before the island takes it")
+        suite.expect(reader.hideNative([item.id]) == [item.id],
+                     "the same failed move still permits the normal fallback after the island takes the banner")
     }
 
     private static func arriving() -> (access: Access, reader: NotchNotificationReaderCore<Access>, window: Node, home: CGRect) {

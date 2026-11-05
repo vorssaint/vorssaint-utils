@@ -80,6 +80,15 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
 
     var hidesWindows: Bool { !hiddenWindows.isEmpty }
 
+    /// A failed query is unknown, never a cached answer from an earlier read.
+    /// Settling arrivals only needs this query, not another tree traversal.
+    func centerIsFocused() -> Bool? {
+        beginRead()
+        guard let focused = fetch({ try access.hasFocusedWindow() }) else { showNative(); return nil }
+        if focused { showNative() }
+        return focused
+    }
+
     /// Measured after the actual move, not when its work entered the queue.
     /// Failed moves and restorations retry without another AX event.
     var prehideRetryDelay: TimeInterval? {
@@ -91,10 +100,7 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     /// A focused center is not a passive banner surface. Its existing
     /// notifications must not be imported as newly received messages.
     func read() -> Snapshot? {
-        beginRead()
-        guard let focused = fetch({ try access.hasFocusedWindow() }) else { showNative(); return nil }
-        // Someone opened the center. Nothing it lays out may stay off screen.
-        guard !focused else { showNative(); return nil }
+        guard let focused = centerIsFocused(), !focused else { return nil }
         guard let windows = fetch({ try access.windows() }), windows.count <= 32 else { return nil }
         var roots: [(root: Access.Element, window: Access.Element, transient: Bool)] = []
         for window in windows {
@@ -170,8 +176,10 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     /// closing, the originals keep playing their sound and still reach the
     /// center when they expire. A window that also holds a persistent alert
     /// or a banner the island passed over stays in place, or comes back.
+    /// Unconfirmed arrivals stay hidden through their focus decision, even
+    /// when a slow read or a second window outlasts the initial arrival grace.
     /// Returns the shown banners that could not be hidden.
-    func hideNative(_ shown: Set<UUID>) -> Set<UUID> {
+    func hideNative(_ shown: Set<UUID>, holding: Set<UUID> = []) -> Set<UUID> {
         // A failed rollback is still ours to restore, even when no complete
         // read ever produced a notification target for that window.
         for window in hiddenWindows.filter(\.restoring).map(\.window) { show(window) }
@@ -192,14 +200,14 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         var kept: [Access.Element] = []
         for group in groups {
             guard !untakenWindows.contains(where: { access.same($0, group.window) }),
-                  group.targets.allSatisfy({ $0.transient && shown.contains($0.item.id) }) else {
+                  group.targets.allSatisfy({ $0.transient && (shown.contains($0.item.id) || holding.contains($0.item.id)) }) else {
                 show(group.window); continue
             }
             // Every message in the window must still be the one the island took.
             guard group.targets.allSatisfy({ validatedTarget($0.item.id) != nil }), usable else { continue }
             switch hide(group.window) {
             case true?: kept.append(group.window)
-            case false?: failed.formUnion(group.targets.map(\.item.id))
+            case false?: failed.formUnion(group.targets.map(\.item.id).filter { shown.contains($0) })
             case nil: break
             }
         }
