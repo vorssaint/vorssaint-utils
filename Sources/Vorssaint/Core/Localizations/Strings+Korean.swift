@@ -176,6 +176,7 @@ extension Strings {
         mouseNavigationSection: "탐색",
         mouseNavigationEnable: "사이드 버튼으로 뒤로 및 앞으로 이동",
         mouseNavigationCaption: "마우스의 뒤로 및 앞으로 버튼을 Finder, 브라우저 및 지원 앱의 탐색 동작으로 바꿉니다.",
+        mouseNavigationSwipe: "트랙패드 쓸어넘기기 시뮬레이션",
         middleClickSection: "트랙패드 가운데 클릭",
         middleClickEnable: "세 손가락 클릭을 가운데 클릭으로 사용",
         middleClickEnableCaption: "트랙패드를 세 손가락으로 누르면 마우스 휠 클릭과 같이 동작합니다. 링크를 새 탭으로 열거나 탭을 닫는 등 가운데 버튼으로 할 수 있는 모든 동작에 사용할 수 있습니다.",
