@@ -7,12 +7,19 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable window switching, audio, notifications and display controls, with better GIF exports, large-image editing and compact-panel behavior.
+More reliable window switching, audio, notifications and display controls, with better GIF exports, large-image editing and compact-panel behavior. New options improve window dragging, shortcut setup and uninstaller selection.
+
+### Added
+- The window switcher can ignore hover selection while preserving clicks, keyboard navigation and hovered-window closing. Overflowing icon rows still slide at their edges. The option starts off. Thanks to @victorioustr.
+- Edge snapping can restore a window's previous size when it is dragged by its title bar, preserving manual resizing and using the size confirmed by the app. The option starts off and respects ignored apps. Thanks to @nisayera.
+- Both uninstaller result views offer a Select all checkbox with a mixed state, including optional rows when explicitly selected and preserving removal safeguards. Thanks to @heyseere.
 
 ### Changed
 - GIF exports can retain the full edited resolution and offer scale and frame-rate controls, with captions kept proportional at smaller sizes. Thanks to @COMEBACKISREAL.
 - Large clipboard images can be resized before opening in the screenshot editor, preserving native image formats, the primary HEIC image and its orientation. Thanks to @kit101.
 - Supported DDC monitors can use software picture dimming instead of hardware brightness commands, with pending brightness changes cancelled when switching modes. Thanks to @yavuzmeteafsar.
+- Keep Awake and Quick Snippet Menu shortcuts can be cleared without disabling their features, remain cleared after restarts and backup imports, and check conflicts when reset. Thanks to @maxmeis.
+- Clipboard history remembers the list window's position after moves and resizes, keeping it visible when displays change. Thanks to @maxmeis.
 
 ### Fixed
 - The window switcher opens and switches more efficiently, reduces flashes when restoring minimized windows and cancels outdated activation requests after a newer selection. Thanks to @zhanghao87.
@@ -32,7 +39,7 @@ More reliable window switching, audio, notifications and display controls, with 
 - The music player shows and opens the correct Safari/WebKit app instead of its audio helper. Thanks to @Zekuath.
 
 ### Contributors
-Thanks to @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @heyseere, @jerome-queck, @kit101, @mevichitra, @nikigan, @phatina, @samueljim, @stieludv, @sugar-king, @yavuzmeteafsar, @Zekuath, @zepeng-jin and @zhanghao87.
+Thanks to @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @heyseere, @jerome-queck, @kit101, @maxmeis, @mevichitra, @nikigan, @nisayera, @phatina, @samueljim, @stieludv, @sugar-king, @victorioustr, @yavuzmeteafsar, @Zekuath, @zepeng-jin and @zhanghao87.
 
 ## [3.4.3] - 2026-10-29
 
