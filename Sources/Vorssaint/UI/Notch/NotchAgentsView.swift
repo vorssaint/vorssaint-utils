@@ -644,7 +644,7 @@ private struct NotchAgentAgyLimitsCard: View {
                                                        now: now, display: display, text: text,
                                                        observedAt: limits?.observedAt)
                             } else {
-                                emptyRow
+                                disabledSessionRow
                             }
                         }
                     }
@@ -655,15 +655,26 @@ private struct NotchAgentAgyLimitsCard: View {
         .opacity(stale ? 0.6 : 1)
     }
 
-    private var emptyRow: some View {
-        let dummy = AgentLimitWindow(id: "agy.placeholder", kind: .session, minutes: 300, scope: nil,
-                                     usedPercent: 0, resetsAt: nil)
-        return NotchAgentLimitRowView(window: dummy, label: rowLabel(dummy), provider: .agy,
-                                      now: now, display: display, text: text,
-                                      observedAt: limits?.observedAt)
-            .hidden()
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+    private var disabledSessionRow: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                Text(text.session)
+                    .font(.system(size: 10, weight: .medium))
+                    .strikethrough(true, color: .white.opacity(0.35))
+                    .foregroundStyle(.white.opacity(0.35))
+                    .lineLimit(1)
+                Spacer(minLength: 2)
+                Text(" ")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .hidden()
+            }
+            Capsule(style: .continuous)
+                .fill(.white.opacity(0.05))
+                .frame(maxWidth: .infinity)
+                .frame(height: 9)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func rowLabel(_ window: AgentLimitWindow) -> String {
