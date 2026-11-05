@@ -34,11 +34,7 @@ final class NotchNotificationService: ObservableObject {
     private var closingIDs = Set<UUID>()
     private var placing = false
     private var hidesNative = false
-    /// When the center last made a window, which can be it opening.
-    private var windowCreatedAt: TimeInterval?
-    /// Messages found just after a new window, waiting to tell a banner from
-    /// the open center's list.
-    private var heldArrivals: [NotchSystemNotification] = []
+    private var heldCheck: NotchNotificationInbox.ArrivalCheck?
     private var heldWork: DispatchWorkItem?
     private let notifications = [kAXWindowCreatedNotification, kAXLayoutChangedNotification,
                                  kAXUIElementDestroyedNotification, kAXFocusedWindowChangedNotification]
@@ -75,7 +71,8 @@ final class NotchNotificationService: ObservableObject {
             // of a second later. Reading it then lets a hidden original leave
             // before it slides in. The regular pass still follows.
             if name as String == kAXWindowCreatedNotification {
-                service.windowCreatedAt = ProcessInfo.processInfo.systemUptime
+                service.inbox.windowCreated(at: ProcessInfo.processInfo.systemUptime)
+                service.scheduleArrivalCheck()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak service] in service?.scan() }
             }
             service.scheduleScan()
@@ -149,48 +146,46 @@ final class NotchNotificationService: ObservableObject {
         closingIDs.formIntersection(liveIDs)
         let arrivals = inbox.update(live)
         trimIcons()
-        if !arrivals.isEmpty, let hold = NotchNotificationSupport.arrivalHold(
-            windowCreatedAt: windowCreatedAt, now: ProcessInfo.processInfo.systemUptime) {
-            holdUntilSettled(arrivals, for: hold)
-            return
-        }
         for item in arrivals { received.send(item) }
+        scheduleArrivalCheck()
     }
 
-    /// Messages found right after the center made a window wait until it has
-    /// had time to take the keyboard. If it did, the center was opening and
-    /// they belong to its list; otherwise they are banners after all.
-    private func holdUntilSettled(_ arrivals: [NotchSystemNotification], for delay: TimeInterval) {
-        heldArrivals += arrivals
-        guard heldWork == nil else { return }
+    /// A new window replaces both the deadline and the identity of a pending
+    /// decision, including a focus query already running on the reader queue.
+    private func scheduleArrivalCheck(retryAfter: TimeInterval = 0) {
+        guard let check = inbox.arrivalCheck, heldCheck != check else { return }
+        heldWork?.cancel()
+        heldCheck = check
         let requested = generation
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.generation == requested, let reader = self.reader else { return }
+            guard let self, self.generation == requested, self.heldCheck == check,
+                  let reader = self.reader else { return }
             self.queue.async { [weak self] in
-                _ = reader.read()
-                let opened = reader.centerFocused
+                let checkedAt = ProcessInfo.processInfo.systemUptime
+                let focused = reader.centerIsFocused()
                 DispatchQueue.main.async {
-                    guard let self, self.generation == requested else { return }
-                    let held = self.heldArrivals
-                    self.heldArrivals = []
-                    self.heldWork = nil
-                    if opened {
-                        for item in held { self.inbox.dismiss(item.id) }
+                    guard let self, self.generation == requested, self.heldCheck == check else { return }
+                    self.heldWork = nil; self.heldCheck = nil
+                    if let arrivals = self.inbox.settleArrivals(check, centerFocused: focused, checkedAt: checkedAt) {
                         self.trimIcons()
-                    } else {
-                        for item in held where self.items.contains(where: { $0.id == item.id }) { self.received.send(item) }
+                        for item in arrivals { self.received.send(item) }
+                        self.placeNative()
                     }
+                    // Unknown focus keeps the batch pending, without a busy loop.
+                    self.scheduleArrivalCheck(retryAfter: 0.12)
                 }
             }
         }
         heldWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + max(0.05, delay), execute: work)
+        let delay = max(retryAfter, check.delay(at: ProcessInfo.processInfo.systemUptime))
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private func trimIcons() {
-        let sources = Set(items.map { $0.content.app })
+        let retained = items + inbox.pendingItems
+        let sources = Set(retained.map { $0.content.app })
         appIcons = appIcons.filter { sources.contains($0.key) }
-        let ids = Set(items.map(\.id))
+        let ids = Set(retained.map(\.id))
         sourceApplications = sourceApplications.filter { ids.contains($0.key) }
     }
 
@@ -300,7 +295,7 @@ final class NotchNotificationService: ObservableObject {
         // Cancelling first ends a read in flight at its next step, and the wait
         // still covers a move on its way, even one a later pass just queued.
         cancellation.cancel()
-        heldWork?.cancel(); heldWork = nil; heldArrivals = []; windowCreatedAt = nil
+        heldWork?.cancel(); heldWork = nil; heldCheck = nil
         if let reader, hidesNative || !shownIDs.isEmpty { queue.sync { reader.showNative() } }
         generation = UUID()
         pendingScan?.cancel(); pendingScan = nil
