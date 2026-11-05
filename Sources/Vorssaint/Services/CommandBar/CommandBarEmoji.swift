@@ -7,8 +7,8 @@ import Foundation
 /// them. Pure Foundation, so the set and its names are pinned by the tests.
 enum CommandBarEmoji {
     /// One emoji as the bar offers it: the character, and the words that find
-    /// it. Names come from Unicode itself, so there is no list of names to
-    /// maintain and nothing to fall out of date.
+    /// it. The name and most words are the Unicode CLDR annotations made for
+    /// emoji pickers, generated into `keywordTable`.
     struct Emoji {
         let character: String
         let identity: String
@@ -48,8 +48,10 @@ enum CommandBarEmoji {
     /// The emoji people reach for most, in the order they are usually wanted.
     /// They lead browsing and break equally good search ties; the Unicode set
     /// below supplies the long tail without displacing these familiar rows.
+    /// 😂 is the most used emoji of all, so it comes before the other faces
+    /// that carry "lol" and "haha".
     private static let popularEmojiCharacters = [
-        "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", "😉", "😊",
+        "😀", "😂", "😃", "😄", "😁", "😆", "😅", "🤣", "🙂", "🙃", "😉", "😊",
         "😍", "🥰", "😘", "😗", "😜", "🤪", "🤔", "🤗", "🤩", "🥳", "😎", "🤓",
         "😐", "😑", "😶", "🙄", "😏", "😥", "😮", "😴", "😌", "😔", "😪", "🤤",
         "😭", "😢", "😤", "😠", "😡", "🤬", "🤯", "😳", "🥺", "😱", "😨", "😰", "💀", "☠️",
@@ -68,58 +70,47 @@ enum CommandBarEmoji {
         "⏰", "⏳", "📅", "📈", "📉", "📊", "💰", "💳", "🏆", "🥇", "🎯", "🧩",
     ]
 
-    /// Human search terms that Unicode's formal names do not carry. Keep this
-    /// deliberately compact: names cover literal searches, aliases cover the
-    /// common intent words people actually type into an emoji picker.
+    /// Words people type that neither CLDR nor Slack's shortcodes carry for
+    /// that emoji. Add one only when the generated tables lack it.
     private static let aliases: [String: String] = [
-        "😂": "haha lol roflmao laugh laughing tears funny",
-        "🤣": "haha lol rofl roflmao laugh laughing funny",
-        "😊": "happy smile blush",
-        "🥰": "love affection hearts",
-        "😘": "kiss love",
-        "😎": "cool sunglasses",
-        "🤔": "think thinking hmm",
-        "🙄": "eyeroll whatever",
-        "😭": "cry crying sad sob",
-        "🥺": "please pleading puppy eyes",
-        "😡": "angry mad rage",
-        "🤬": "swear cursing angry",
-        "🤷": "idk shrug whatever",
-        "💀": "dead death dying skeleton halloween",
-        "☠️": "dead death danger poison pirate",
-        "🙏": "appreciate please thanks thank thx you pray prayer high five",
-        "👍": "yes good approve like okay",
-        "👎": "no bad disapprove dislike",
-        "👌": "okay perfect good",
-        "👏": "clap applause congrats congratulations",
-        "🙌": "hooray celebrate praise",
-        "🫶": "love heart hands",
-        "👀": "look looking eyes see",
-        "❤️": "love heart red",
-        "💔": "heartbreak broken heart sad",
-        "🔥": "fire hot lit trending",
-        "✨": "sparkle sparkles magic clean",
-        "🎉": "party celebrate celebration congrats congratulations",
-        "✅": "check done yes complete success",
-        "❌": "cross no wrong error fail",
-        "⚠️": "warning caution alert",
-        "💡": "idea lightbulb tip",
-        "🚀": "launch ship rocket fast",
+        "😂": "laughing",
+        "😊": "happy",
+        "🥰": "affection",
+        "🤬": "angry",
+        "💀": "dying skeleton halloween",
+        "☠️": "danger poison pirate",
+        "🙏": "thank you prayer",
+        "👍": "approve okay",
+        "👎": "disapprove",
+        "👌": "perfect good",
+        "🙌": "celebrate",
+        "💔": "heartbreak",
+        "🔥": "trending",
+        "✨": "clean",
+        "🎉": "congrats congratulations",
+        "✅": "yes success",
+        "❌": "no wrong error fail",
+        "⚠️": "alert",
+        "💡": "lightbulb tip",
+        "🚀": "ship fast",
     ]
 
     /// Popular emoji first, followed by every single-scalar emoji in Unicode
     /// sorted by name. Resolved once, so searching the larger set does not
-    /// repeat Unicode-name work on each keystroke.
+    /// repeat the table and Unicode-name work on each keystroke.
     static let emoji: [Emoji] = {
+        let words = keywordEntries()
         var seen: Set<String> = []
         func makeEmoji(_ character: String, aliasCharacter: String? = nil) -> Emoji? {
             let canonical = canonicalCharacter(character)
             guard seen.insert(canonical).inserted else { return nil }
-            guard let name = unicodeName(of: character) else { return nil }
+            let table = words[canonical]
+            guard let name = table?.name ?? unicodeName(of: character) else { return nil }
             return Emoji(character: character,
                          identity: aliasCharacter ?? character,
                          name: name,
-                         keywords: aliases[aliasCharacter ?? character] ?? "")
+                         keywords: [table?.keywords, aliases[aliasCharacter ?? character]]
+                             .compactMap { $0 }.joined(separator: " "))
         }
 
         let popular = popularEmojiCharacters.compactMap { character in
@@ -180,8 +171,19 @@ enum CommandBarEmoji {
         String(character.unicodeScalars.filter { $0.value != 0xFE0F && $0.value != 0xFE0E })
     }
 
-    /// "❤️" becomes "heavy black heart". Foundation exposes the Unicode name
-    /// table, so the words that find an emoji cost nothing to ship.
+    /// The generated table, keyed by the emoji without its presentation
+    /// selector.
+    private static func keywordEntries() -> [String: (name: String, keywords: String)] {
+        var entries: [String: (name: String, keywords: String)] = [:]
+        for line in keywordTable.split(separator: "\n") {
+            let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
+            entries[String(fields[0])] = (String(fields[1]), fields.count > 2 ? String(fields[2]) : "")
+        }
+        return entries
+    }
+
+    /// "🫪" becomes "distorted face". The name an emoji gets when the OS
+    /// knows it and the generated tables do not, so a newer emoji is still found.
     private static func unicodeName(of character: String) -> String? {
         // Skin tone and variation selectors carry names of their own that
         // would only add noise.
