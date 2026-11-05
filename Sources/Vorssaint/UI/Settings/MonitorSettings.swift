@@ -394,6 +394,7 @@ private struct MenuBarMetricTile: View {
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var uploadFirst = false
     @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
+    @AppStorage(DefaultsKey.tMobileMenuBarComponents) private var gatewayComponents = 7
 
     init(metric: MenuBarMetric) {
         self.metric = metric
@@ -412,6 +413,7 @@ private struct MenuBarMetricTile: View {
             return Defaults.sanitizedMenuBarMemoryStyle(memoryStyle) != "percent"
                 ? l10n.s.monitorMemoryPressureDot : FeatureStrings.mouseClickDebounce(l10n.language).moreOptions
         case .network: return uploadFirst ? "↑ ↓" : "↓ ↑"
+        case .tMobile: return TMobileGatewayMenuBarComponents.sanitized(gatewayComponents).summary(gatewayStrings)
         case .diskUsage:
             switch diskStyle {
             case DiskMenuBarStyle.free: return l10n.s.diskMenuBarAvailableSpace
@@ -435,6 +437,21 @@ private struct MenuBarMetricTile: View {
             return AnyView(MonitorTokenOption(symbol: "arrow.up.arrow.down",
                                                  title: l10n.s.monitorNetworkUploadFirst,
                                                  isOn: $uploadFirst))
+        case .tMobile:
+            return AnyView(VStack(alignment: .leading, spacing: 10) {
+                gatewayComponentToggle(gatewayStrings.technology, component: .technology)
+                gatewayComponentToggle(gatewayStrings.signalBars, component: .bars)
+                gatewayComponentToggle(gatewayStrings.bands, component: .bands)
+                Text(gatewayStrings.technologyHelp)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(gatewayStrings.keepOneSelected)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading))
         case .diskUsage:
             return AnyView(Picker(l10n.s.diskMenuBarStyleLabel, selection: $diskStyle) {
                 Text(l10n.s.diskMenuBarUsedPercentage).tag(DiskMenuBarStyle.percent)
@@ -446,6 +463,20 @@ private struct MenuBarMetricTile: View {
             return nil
         }
     }
+
+    private func gatewayComponentToggle(_ title: String,
+                                        component: TMobileGatewayMenuBarComponents) -> some View {
+        let selected = TMobileGatewayMenuBarComponents.sanitized(gatewayComponents)
+        return Toggle(title, isOn: Binding(
+            get: { TMobileGatewayMenuBarComponents.sanitized(gatewayComponents).contains(component) },
+            set: { gatewayComponents = TMobileGatewayMenuBarComponents.sanitized(gatewayComponents)
+                .setting(component, enabled: $0).rawValue }))
+            .toggleStyle(.checkbox)
+            .disabled(selected == component)
+            .help(selected == component ? gatewayStrings.keepOneHelp : title)
+    }
+
+    private var gatewayStrings: TMobileGatewayStrings { .localized(l10n.language) }
 }
 
 private struct MenuBarUsageBarSettings: View {

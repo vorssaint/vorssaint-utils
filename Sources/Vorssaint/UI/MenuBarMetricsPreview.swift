@@ -8,6 +8,7 @@ import SwiftUI
 /// visual cost before they occupy the actual menu bar.
 struct MenuBarMetricsPreview: View {
     @ObservedObject private var monitor = SystemMonitor.shared
+    @ObservedObject private var gateway = TMobileGatewayMonitor.shared.service
     @AppStorage(DefaultsKey.menuBarCPU) private var cpu = false
     @AppStorage(DefaultsKey.menuBarGPU) private var gpu = false
     @AppStorage(DefaultsKey.menuBarMemory) private var memory = false
@@ -15,6 +16,8 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarGPUTemperature) private var gpuTemperature = false
     @AppStorage(DefaultsKey.menuBarBatteryTemperature) private var batteryTemperature = false
     @AppStorage(DefaultsKey.menuBarNetwork) private var network = false
+    @AppStorage(DefaultsKey.menuBarTMobile) private var tMobile = false
+    @AppStorage(DefaultsKey.tMobileMenuBarComponents) private var gatewayComponents = 7
     @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
     @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
@@ -59,12 +62,12 @@ struct MenuBarMetricsPreview: View {
         let _ = networkSpeedUnit
         let _ = metricSpacing
         let metrics = activeMetrics
-        let lines = separateMetrics ? [] : MenuBarRenderer.lines(for: monitor.snapshot, metrics: metrics)
+        let lines = separateMetrics ? [] : MenuBarRenderer.lines(for: monitor.snapshot, metrics: metrics, gatewaySnapshot: gateway.snapshot)
         // Separate items are their own status items, which macOS seats to
         // the left of the one that was there first.
         let items = separateMetrics
             ? StatusItemController.metricStatusGroups(for: metrics, strings: l10n.s)
-                .map { MenuBarRenderer.lines(for: monitor.snapshot, metrics: $0.metrics) }
+                .map { MenuBarRenderer.lines(for: monitor.snapshot, metrics: $0.metrics, gatewaySnapshot: gateway.snapshot) }
                 .filter { !$0.isEmpty }
             : []
         // The steady state of the hide option: a pending update, a running
@@ -128,6 +131,8 @@ struct MenuBarMetricsPreview: View {
         let _ = gpuTemperature
         let _ = batteryTemperature
         let _ = network
+        let _ = tMobile
+        let _ = gatewayComponents
         let _ = diskUsage
         let _ = diskActivity
         let _ = battery
@@ -142,6 +147,10 @@ struct MenuBarMetricsPreview: View {
     @ViewBuilder
     private func segmentView(_ segment: MenuBarSegment, stacked: Bool) -> some View {
         switch segment {
+        case let .cellularBlock(display, style):
+            Image(nsImage: TMobileGatewayIndicatorDrawing.image(display, style: style))
+                .renderingMode(.template).foregroundStyle(.white)
+                .accessibilityLabel(display.accessibilityValue)
         case let .text(string):
             Text(string)
                 .font(.system(size: MenuBarRenderer.statusFontSize(stacked: stacked),

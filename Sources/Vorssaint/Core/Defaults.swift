@@ -396,6 +396,8 @@ enum DefaultsKey {
     static let menuBarBatteryTemperature = "menuBarBatteryTemperature"
     static let menuBarTemperature = "menuBarTemperature" // legacy Developer key for the old generic temperature metric
     static let menuBarNetwork = "menuBarNetwork"
+    static let menuBarTMobile = "menuBarTMobile"
+    static let tMobileMenuBarComponents = "tMobileMenuBarComponents" // technology 1 | bars 2 | bands 4
     static let menuBarDiskUsage = "menuBarDiskUsage"
     static let menuBarDiskActivity = "menuBarDiskActivity"
     static let menuBarBattery = "menuBarBattery"
@@ -469,6 +471,8 @@ enum DefaultsKey {
     static let monitorNetTotals = "monitorNetTotals"
     static let monitorNetAddresses = "monitorNetAddresses"
     static let monitorNetTest = "monitorNetTest"
+    static let monitorNetTMobile = "monitorNetTMobile"
+    static let tMobileGatewayAddress = "tMobileGatewayAddress"
     static let networkSpeedUnit = "networkSpeedUnit" // bytes | bits, for every live network speed readout
     static let monitorDiskUsage = "monitorDiskUsage"
     static let monitorDiskActivity = "monitorDiskActivity"
@@ -1198,7 +1202,8 @@ enum Defaults {
         "gpu", "gpuTemperature",
         "memory",
         "battery", "batteryTime", "batteryTemperature", "peripheralBattery",
-        "network", "diskUsage", "diskActivity", "connectedDevices", "power", "fanSpeed",
+        "network", "tMobile",
+        "diskUsage", "diskActivity", "connectedDevices", "power", "fanSpeed",
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
@@ -1659,6 +1664,8 @@ enum Defaults {
         DefaultsKey.menuBarGPUTemperature: false,
         DefaultsKey.menuBarBatteryTemperature: false,
         DefaultsKey.menuBarBatteryTime: false,
+        DefaultsKey.menuBarTMobile: false,
+        DefaultsKey.tMobileMenuBarComponents: 7,
         DefaultsKey.menuBarDiskUsage: false,
         DefaultsKey.menuBarDiskActivity: false,
         DefaultsKey.menuBarPeripheralBattery: false,
@@ -1725,6 +1732,8 @@ enum Defaults {
         DefaultsKey.monitorNetTotals: true,
         DefaultsKey.monitorNetAddresses: true,
         DefaultsKey.monitorNetTest: true,
+        DefaultsKey.monitorNetTMobile: false,
+        DefaultsKey.tMobileGatewayAddress: "http://192.168.12.1",
         DefaultsKey.networkSpeedUnit: NetworkSpeedUnit.bytes.rawValue,
         DefaultsKey.monitorDiskUsage: true,
         DefaultsKey.monitorDiskActivity: true,
