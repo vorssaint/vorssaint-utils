@@ -2591,8 +2591,9 @@ enum NotchAgentTests {
         write(".heartbeat", "1")
         let running: Set<Int32> = [100, 300]
         var registry = AgentSessionRegistry.read([folder, folder.appending(path: "missing")]) { running.contains($0) }
-        suite.expect(registry == AgentSessionRegistry(running: ["quit", "killed"], ended: [], complete: true, listed: true),
-                     "a session with a running process reads as running, even beside a killed one's record, and a container's record proves nothing")
+        suite.expect(registry == AgentSessionRegistry(running: ["quit", "killed"], ended: [], complete: true, listed: true,
+                                                         listedFolders: [folder.deletingLastPathComponent().path + "/"], foreign: ["contained"]),
+                     "a session with a running process reads as running, even beside a killed one's record, and a container's record is kept apart")
         write("400.json", #"{"pid":"#)
         registry = AgentSessionRegistry.read([folder]) { $0 == 100 }
         suite.expect(registry.running == ["quit"] && registry.ended == ["killed"] && !registry.complete,
@@ -2628,12 +2629,36 @@ enum NotchAgentTests {
         suite.expect(relaunched.live.count == 2, "at launch, a Claude Code that keeps no records leaves turns to the quiet wait")
         relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: false, listed: true), atLaunch: true)
         suite.expect(relaunched.live.count == 2, "at launch, an incomplete read ends nothing")
-        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true, listed: true))
+        relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true, listed: true), now: start)
         suite.expect(relaunched.live.count == 2, "after launch, a record never seen running ends nothing")
         let ended = relaunched.closeEndedTurns(AgentSessionRegistry(running: ["alive"], ended: [], complete: true, listed: true),
                                                atLaunch: true)
         suite.expect(ended && relaunched.live.map(\.id) == ["/p/alive.jsonl"],
                      "at launch, a turn left open by a session that quit ends at once")
+
+        // Another app calls the CLI in the background: its sessions never
+        // show a record, and their turns must not keep the timer running.
+        let background = AgentUsageStore()
+        for name in ["dayflow", "chat", "container", "cleared"] {
+            background.apply([.turnBegan(start)], file: "/p/\(name).jsonl", provider: .claude, tracksTurns: true, modified: start)
+        }
+        let records = AgentSessionRegistry(running: ["chat", "cleared"], ended: [], complete: true, listed: true,
+                                           listedFolders: ["/p/"], foreign: ["container"])
+        let late = start.addingTimeInterval(AgentUsageStore.recordGrace)
+        background.closeEndedTurns(records, now: late.addingTimeInterval(-1))
+        suite.expect(background.live.count == 4, "a turn gets a short grace to write its process record")
+        background.closeEndedTurns(AgentSessionRegistry(running: ["chat", "cleared"], ended: [], complete: false, listed: true),
+                                   now: late)
+        background.closeEndedTurns(AgentSessionRegistry(running: ["chat", "cleared"], ended: [], complete: true, listed: false),
+                                   now: late)
+        suite.expect(background.live.count == 4, "an unread or absent records folder proves nothing")
+        let elsewhere = AgentSessionRegistry(running: ["chat", "cleared"], ended: [], complete: true, listed: true,
+                                             listedFolders: ["/other/"], foreign: ["container"])
+        background.closeEndedTurns(elsewhere, now: late)
+        suite.expect(background.live.count == 4, "a log in a folder whose sessions folder was not listed keeps its turn")
+        let hidden = background.closeEndedTurns(records, now: late)
+        suite.expect(hidden && Set(background.live.map(\.id)) == ["/p/chat.jsonl", "/p/cleared.jsonl", "/p/container.jsonl"],
+                     "a turn with no process record ends, a running or remote session stays")
 
         let copilot = AgentUsageStore()
         copilot.apply([.turnBegan(start)], file: "/p/session/events.jsonl", provider: .copilot,
