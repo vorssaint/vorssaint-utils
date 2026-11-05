@@ -352,6 +352,11 @@ enum AgentMarks {
     }
 
     private static func lookUp(_ provider: AgentProvider) -> Mark? {
+        // An agent with no desktop app has its mark shipped with the app.
+        if let name = provider.bundledMarkName, let image = Bundle.main.image(forResource: name) {
+            image.isTemplate = true
+            return .template(image)
+        }
         for identifier in provider.appIdentifiers {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { continue }
             if let bundle = Bundle(url: url) {
@@ -369,6 +374,15 @@ enum AgentMarks {
 }
 
 private extension AgentProvider {
+    /// A template mark the app ships for an agent that has no desktop app
+    /// whose menu bar image it could borrow.
+    var bundledMarkName: String? {
+        switch self {
+        case .dsh: return "AgentWhaleTemplate"
+        case .claude, .codex, .opencode, .copilot: return nil
+        }
+    }
+
     /// The maker's desktop apps, the one that runs the agent first.
     var appIdentifiers: [String] {
         switch self {

@@ -729,6 +729,8 @@ FAN_HELPER_VERSION="$(
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
+cp Resources/AgentWhaleTemplate.png Resources/AgentWhaleTemplate@2x.png Resources/AgentWhaleTemplate@3x.png \
+    "$STAGE/Contents/Resources/"
 if [[ -f build/Assets.car ]]; then
     cp build/Assets.car "$STAGE/Contents/Resources/Assets.car"
 fi

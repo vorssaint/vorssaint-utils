@@ -26,7 +26,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
-        case .dsh: return "water.waves"
+        case .dsh: return "fish"
         }
     }
 
