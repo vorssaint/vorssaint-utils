@@ -929,6 +929,28 @@ enum FeatureCatalogTests {
             for: URL(fileURLWithPath: "/Volumes/Installer/Example.app"),
             applicationsURLs: []) == nil,
             "missing application-domain resolutions fail closed")
+        // Images a script mounts for itself are not offered (#3592).
+        let testDownloads = URL(fileURLWithPath: "/Users/test/Downloads", isDirectory: true)
+        func offers(_ path: String, browsable: Bool = true, quarantined: Bool = false,
+                    downloads: URL? = testDownloads) -> Bool {
+            DiskImageInstallerSupport.offersInstall(volumeIsBrowsable: browsable, imageIsQuarantined: quarantined,
+                                                    imageURL: URL(fileURLWithPath: path), downloadsURL: downloads)
+        }
+        suite.expect(offers("/Users/test/Projects/build/App.dmg", quarantined: true),
+               "a downloaded image is offered wherever it was saved")
+        suite.expect(offers("/Users/test/Downloads/App.dmg")
+                && offers("/Users/test/Downloads/Apps/App.dmg"),
+               "an image in Downloads is offered without a quarantine attribute")
+        suite.expect(!offers("/Users/test/Projects/build/App.dmg")
+                && !offers("/private/tmp/App.dmg"),
+               "an image a build script made itself is not offered")
+        suite.expect(!offers("/Users/test/DownloadsBackup/App.dmg") && !offers("/Users/test/Downloads"),
+               "only what is inside Downloads counts as being there")
+        suite.expect(!offers("/Users/test/Downloads/App.dmg", browsable: false, quarantined: true),
+               "a -nobrowse mount is never offered")
+        suite.expect(!offers("/Users/test/Downloads/App.dmg", downloads: nil)
+                && offers("/Users/test/Downloads/App.dmg", quarantined: true, downloads: nil),
+               "without a Downloads folder only a quarantined image is offered")
         let installerFixture = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorss-installer-\(UUID().uuidString)", isDirectory: true)
         let installerFM = InstallerFileManager(root: installerFixture)
