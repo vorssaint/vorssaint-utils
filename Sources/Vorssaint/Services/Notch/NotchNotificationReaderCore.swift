@@ -44,7 +44,8 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     private let displays: () -> [CGRect]
     private var targets: [Target] = []
     /// Windows moved off screen, with the place the center had given them.
-    private var hiddenWindows: [(window: Access.Element, origin: CGPoint)] = []
+    /// An unconfirmed move or return keeps restoring set until it is visible.
+    private var hiddenWindows: [(window: Access.Element, origin: CGPoint, restoring: Bool)] = []
     /// Windows that also hold an alert the reader could not take apart. The
     /// island never showed it, so such a window stays in sight.
     private var untakenWindows: [Access.Element] = []
@@ -79,11 +80,19 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
 
     var hidesWindows: Bool { !hiddenWindows.isEmpty }
 
+    /// Measured after the actual move, not when its work entered the queue.
+    /// Failed moves and restorations retry without another AX event.
+    var prehideRetryDelay: TimeInterval? {
+        if hiddenWindows.contains(where: { $0.restoring }) { return 0.1 }
+        let now = clock()
+        return prehiddenWindows.map { max(0.1, $0.since + Self.prehideGrace - now) }.min()
+    }
+
     /// A focused center is not a passive banner surface. Its existing
     /// notifications must not be imported as newly received messages.
     func read() -> Snapshot? {
         beginRead()
-        guard let focused = fetch({ try access.hasFocusedWindow() }) else { return nil }
+        guard let focused = fetch({ try access.hasFocusedWindow() }) else { showNative(); return nil }
         // Someone opened the center. Nothing it lays out may stay off screen.
         guard !focused else { showNative(); return nil }
         guard let windows = fetch({ try access.windows() }), windows.count <= 32 else { return nil }
@@ -163,10 +172,13 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     /// or a banner the island passed over stays in place, or comes back.
     /// Returns the shown banners that could not be hidden.
     func hideNative(_ shown: Set<UUID>) -> Set<UUID> {
+        // A failed rollback is still ours to restore, even when no complete
+        // read ever produced a notification target for that window.
+        for window in hiddenWindows.filter(\.restoring).map(\.window) { show(window) }
         guard allowsNativeClose() else { showNative(); return [] }
         beginRead()
         // The open center keeps its banners in the same window as its list.
-        guard let focused = fetch({ try access.hasFocusedWindow() }) else { return [] }
+        guard let focused = fetch({ try access.hasFocusedWindow() }) else { showNative(); return [] }
         guard !focused else { showNative(); return [] }
         var groups: [(window: Access.Element, targets: [Target])] = []
         for target in targets where liveIDs.contains(target.item.id) {
@@ -198,8 +210,7 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
             if kept.contains(where: { access.same($0, record.window) }) { return true }
             let holdsBanner = groups.contains { access.same($0.window, record.window) }
             guard holdsBanner || now - record.since >= Self.prehideGrace else { return false }
-            show(record.window)
-            return true
+            return show(record.window)
         }
         // Also once its banners are gone and only such an alert is left.
         for window in untakenWindows { show(window) }
@@ -217,21 +228,32 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     func prehide(_ window: Access.Element) {
         guard allowsNativeClose() else { return }
         beginRead()
-        guard hide(window) == true else { return }
+        guard let focused = fetch({ try access.hasFocusedWindow() }), !focused else { showNative(); return }
+        guard allowsNativeClose(), hide(window) == true,
+              hiddenWindows.contains(where: { access.same($0.window, window) }) else { return }
         prehiddenWindows.removeAll { access.same($0.window, window) }
         prehiddenWindows.append((window, clock()))
+    }
+
+    /// Shutdown drains every queued move, even when a main-thread result
+    /// still describes the state before the most recent arrival.
+    func restoreNativeSynchronously(on queue: DispatchQueue) {
+        queue.sync { showNative() }
     }
 
     /// Puts back every window this reader moved. Stopping or turning the
     /// option off runs this after the reader is no longer allowed to read.
     func showNative() {
         for window in hiddenWindows.map(\.window) { show(window) }
-        prehiddenWindows.removeAll()
+        prehiddenWindows.removeAll { record in
+            !hiddenWindows.contains { access.same($0.window, record.window) }
+        }
     }
 
     /// False when the window cannot be moved. A pass that ran out of time
     /// tries again on the next one instead of closing the banner.
     private func hide(_ window: Access.Element) -> Bool? {
+        guard !hiddenWindows.contains(where: { $0.restoring && access.same($0.window, window) }) else { return nil }
         let screens = displays().reduce(CGRect.null) { $0.union($1) }
         guard !screens.isNull, let read = fetch({ try access.frame(window) }), usable else { return nil }
         guard let frame = read else { return false }
@@ -239,28 +261,42 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         guard frame.intersects(screens) else { return true }
         let away = CGPoint(x: screens.minX - frame.width - 1_000, y: screens.minY - frame.height - 1_000)
         guard access.move(window, to: away) else { return false }
+        // The move already happened. Keep its origin before any fallible
+        // confirmation, so an unsuccessful rollback cannot lose the window.
+        hiddenWindows.removeAll { access.same($0.window, window) }
+        hiddenWindows.append((window, frame.origin, restoring: true))
         // A window that ignores the move, or lands on a display anyway, goes
         // back to where it was, and its banners are closed instead.
-        guard let moved = fetch({ try access.frame(window) }) ?? nil, !moved.intersects(screens) else {
+        let moved = fetch({ try access.frame(window) }) ?? nil
+        guard let moved, !moved.intersects(screens) else {
             _ = access.move(window, to: frame.origin)
-            return false
+            if [.onScreen, .gone].contains(placement(of: window)) {
+                hiddenWindows.removeAll { access.same($0.window, window) }
+            }
+            // A failed confirmation cannot authorize closing a banner. Its
+            // pending restoration is retried outside the traversal budget.
+            return moved == nil ? nil : false
         }
-        hiddenWindows.removeAll { access.same($0.window, window) }
-        hiddenWindows.append((window, frame.origin))
+        hiddenWindows[hiddenWindows.count - 1].restoring = false
         return true
     }
 
     /// Only windows this reader moved come back, and only while the center
     /// has not placed them again itself. A window it cannot read right now
     /// stays on the list for the next attempt.
-    private func show(_ window: Access.Element) {
-        guard let index = hiddenWindows.firstIndex(where: { access.same($0.window, window) }) else { return }
+    @discardableResult
+    private func show(_ window: Access.Element) -> Bool {
+        guard let index = hiddenWindows.firstIndex(where: { access.same($0.window, window) }) else { return true }
+        hiddenWindows[index].restoring = true
         switch placement(of: window) {
-        case .unknown: return
-        case .offScreen: guard access.move(window, to: hiddenWindows[index].origin) else { return }
+        case .unknown: return false
+        case .offScreen:
+            guard access.move(window, to: hiddenWindows[index].origin),
+                  [.onScreen, .gone].contains(placement(of: window)) else { return false }
         case .onScreen, .gone: break
         }
         hiddenWindows.remove(at: index)
+        return true
     }
 
     private enum Placement { case onScreen, offScreen, gone, unknown }
