@@ -390,11 +390,8 @@ struct ShortcutPreferenceRow: View {
                                 .accessibilityHidden(true)
                         }
                         Button(l10n.s.shortcutReset) {
-                            rawValue = role.defaultShortcut.storageValue
-                            errorText = nil
                             pendingTakeOver = nil
-                            SystemShortcutTakeover.setTakeOver(role.storageKey, false)
-                            onChange()
+                            save(role.defaultShortcut)
                         }
                         .disabled(!isEnabled || shortcut == role.defaultShortcut)
                     }
