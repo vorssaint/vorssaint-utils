@@ -201,12 +201,10 @@ final class ScreenshotQuickPreviewController {
         }
     }
 
-    /// Hands the code to the shared result panel, which spells out the
-    /// content before anything is copied. The preview steps aside.
     private func showQRResult() {
         guard let reading = model.qr else { return }
         close()
-        QRResultController.shared.show(reading: reading)
+        QRResultController.shared.handle(reading: reading)
     }
 
     /// The screenshot is already available at full resolution, so OCR can

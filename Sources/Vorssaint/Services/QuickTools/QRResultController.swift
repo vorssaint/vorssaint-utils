@@ -5,10 +5,6 @@ import AppKit
 import Carbon.HIToolbox
 import SwiftUI
 
-/// Shows what a scanned QR code actually holds before anything is copied: the
-/// decoded content is spelled out, with a copy action and, for a plain web
-/// link, an open action. Shared by the screen text tool and the screenshot
-/// preview and editor so a code reads the same everywhere.
 final class QRResultController {
     static let shared = QRResultController()
 
@@ -19,11 +15,24 @@ final class QRResultController {
 
     private init() {}
 
-    func show(reading: BarcodeDetector.Reading) {
+    func handle(reading: BarcodeDetector.Reading) {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async { self.show(reading: reading) }
+            DispatchQueue.main.async { self.handle(reading: reading) }
             return
         }
+        let action = QRResultAction(storedValue: UserDefaults.standard.string(
+            forKey: DefaultsKey.qrResultAction))
+        switch action.resolved(hasWebURL: reading.url != nil) {
+        case .copy:
+            copy(reading.payload)
+        case .popup:
+            show(reading: reading)
+        case .openLink:
+            if let url = reading.url { open(url) }
+        }
+    }
+
+    private func show(reading: BarcodeDetector.Reading) {
         close()
 
         let strings = L10n.shared.s

@@ -316,6 +316,29 @@ enum UpdateFeatureTests {
                     keywords: captureSearchKeywords),
                "Screen capture tools and their options find the one settings page")
 
+        for (language, strings) in LocalizationTests.languages {
+            let qrItem = SettingsSearchSupport.qrResultItem(strings)
+            let pageItem = SettingsSearchItem(id: .page(.screenshot),
+                destination: FeatureSettingsDestination(.screenshot),
+                title: FeatureStrings.screenshot(language).screenCaptureTitle,
+                icon: "camera.viewfinder")
+            for feature in [AppFeature.screenshot, .screenOCR] {
+                for query in [strings.qrResultActionLabel] + QRResultAction.allCases.map({ $0.label(strings) }) {
+                    let groups = SettingsSearchSupport.groupedMatchingItems(
+                        query: query, items: [pageItem, qrItem], isAvailable: { $0 == feature })
+                    let result = groups.flatMap(\.suggestions).first { $0.item.id == qrItem.id }
+                    suite.expect(result.map { SettingsSearchSupport.route(for: $0, isAvailable: { $0 == feature }).destination }
+                                 == FeatureSettingsDestination(.screenshot, sectionAnchor: .qrResult),
+                                 "QR action search reveals its shared section with \(feature.rawValue) in \(language.rawValue)")
+                }
+            }
+            let recordingOnly = SettingsSearchSupport.groupedMatchingItems(
+                query: strings.qrResultActionLabel, items: [pageItem, qrItem],
+                isAvailable: { $0 == .screenRecorder })
+            suite.expect(recordingOnly.flatMap(\.suggestions).allSatisfy { $0.item.id != qrItem.id },
+                         "QR action search is hidden when only recording is available in \(language.rawValue)")
+        }
+
         let quickToolFeatures: [AppFeature] = [.quickLauncher, .micMute, .scratchpad, .cleaningMode]
         let quickToolRows = SettingsSidebarSupport.items(
             page: .quickTools, title: "Quick panel", icon: "wand.and.rays",
