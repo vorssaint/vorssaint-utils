@@ -202,7 +202,7 @@ enum MenuBarSegment {
     case usageBarBlock(label: String, fraction: Double?, style: MenuBarBlockStyle, pressure: MemoryPressure?)
     case networkBlock(down: String, up: String, style: MenuBarBlockStyle)
     case diskActivityBlock(read: String, write: String, style: MenuBarBlockStyle)
-    case batteryBlock(percent: Int, isCharging: Bool, externalConnected: Bool,
+    case batteryBlock(percent: Int, showsBolt: Bool, externalConnected: Bool,
                       warning: BatteryWarning = .none, style: MenuBarBlockStyle)
     case dot(MemoryPressure)
     case separator
@@ -499,36 +499,32 @@ enum MenuBarRenderer {
                                                       style: style)])
                 }
             case .battery, .batteryTemperature:
+                // macOS keeps the bolt at full charge while connected to power.
+                let showsBolt = (snapshot.power?.isCharging ?? false)
+                    || ((snapshot.power?.externalConnected ?? false) && (snapshot.power?.isFullyCharged ?? false))
                 if combineTemperatures {
                     guard !renderedBattery else { break }
                     renderedBattery = true
-                    let charge = enabled.contains(.battery)
-                        ? snapshot.power?.chargePercent.map { "\(max(0, min(100, $0)))%" }
-                        : nil
-                    let temperature = enabled.contains(.batteryTemperature)
-                        ? snapshot.batteryTemperature.map(temperatureCompact)
-                        : nil
-                    if charge != nil, temperature != nil,
-                       let value = combinedComponentValue(primary: charge, temperature: temperature) {
-                        groups.append([.metricBlock(label: "BAT",
-                                                    value: value,
-                                                    minimumValue: "100% 999°",
-                                                    style: style,
-                                                    pressure: nil,
-                                                    warning: batteryWarning(for: snapshot.power))])
-                    } else if let chargePercent = enabled.contains(.battery) ? snapshot.power?.chargePercent : nil {
-                        groups.append([.batteryBlock(percent: chargePercent,
-                                                     isCharging: snapshot.power?.isCharging ?? false,
-                                                     externalConnected: snapshot.power?.externalConnected ?? false,
-                                                     warning: batteryWarning(for: snapshot.power),
-                                                     style: style)])
-                    } else if let temperature {
-                        groups.append([.metricBlock(label: temperatureLabel("BAT"),
-                                                    value: temperature,
-                                                    minimumValue: "999°",
-                                                    style: style,
-                                                    pressure: nil)])
+                    var group: [MenuBarSegment] = []
+                    if enabled.contains(.battery), let charge = snapshot.power?.chargePercent {
+                        group.append(.batteryBlock(percent: charge,
+                                                   showsBolt: showsBolt,
+                                                   externalConnected: snapshot.power?.externalConnected ?? false,
+                                                   warning: batteryWarning(for: snapshot.power),
+                                                   style: style))
                     }
+                    if enabled.contains(.batteryTemperature), let temperature = snapshot.batteryTemperature {
+                        if !group.isEmpty {
+                            group.append(.text(MenuBarSpacingSupport.blockGlue(readableStyle: style == .readable,
+                                                                              spacing: MenuBarMetricSpacing.current)))
+                        }
+                        group.append(.metricBlock(label: temperatureLabel("BAT"),
+                                                  value: temperatureCompact(temperature),
+                                                  minimumValue: "999°",
+                                                  style: style,
+                                                  pressure: nil))
+                    }
+                    if !group.isEmpty { groups.append(group) }
                     break
                 }
                 guard metric == .battery else {
@@ -543,7 +539,7 @@ enum MenuBarRenderer {
                 }
                 if let charge = snapshot.power?.chargePercent {
                     groups.append([.batteryBlock(percent: charge,
-                                                 isCharging: snapshot.power?.isCharging ?? false,
+                                                 showsBolt: showsBolt,
                                                  externalConnected: snapshot.power?.externalConnected ?? false,
                                                  warning: batteryWarning(for: snapshot.power),
                                                  style: style)])
@@ -745,9 +741,9 @@ enum MenuBarRenderer {
                 result.append(networkBlockAttachment(down: down, up: up, style: style))
             case let .diskActivityBlock(read, write, style):
                 result.append(diskActivityBlockAttachment(read: read, write: write, style: style))
-            case let .batteryBlock(percent, isCharging, externalConnected, warning, style):
+            case let .batteryBlock(percent, showsBolt, externalConnected, warning, style):
                 result.append(batteryBlockAttachment(percent: percent,
-                                                     isCharging: isCharging,
+                                                     showsBolt: showsBolt,
                                                      externalConnected: externalConnected,
                                                      warning: warning,
                                                      style: style))
@@ -854,12 +850,12 @@ enum MenuBarRenderer {
     }
 
     private static func batteryBlockAttachment(percent: Int,
-                                               isCharging: Bool,
+                                               showsBolt: Bool,
                                                externalConnected: Bool,
                                                warning: BatteryWarning,
                                                style: MenuBarBlockStyle) -> NSAttributedString {
         let image = batteryBlockImage(percent: percent,
-                                      isCharging: isCharging,
+                                      showsBolt: showsBolt,
                                       externalConnected: externalConnected,
                                       warning: warning,
                                       style: style)
@@ -1086,58 +1082,21 @@ enum MenuBarRenderer {
     }
 
     private static func batteryBlockImage(percent: Int,
-                                          isCharging: Bool,
+                                          showsBolt: Bool,
                                           externalConnected: Bool,
                                           warning: BatteryWarning,
                                           style: MenuBarBlockStyle) -> NSImage {
+        let showPercentage = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarBatteryPercentage)
         let clampedPercent = max(0, min(100, percent))
-        let cacheKey = "battery|\(clampedPercent)|\(isCharging)|\(externalConnected)|\(warning)|\(style)" as NSString
+        let cacheKey = "battery|\(clampedPercent)|\(showsBolt)|\(externalConnected)|\(showPercentage)|\(warning)|\(style)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
-        let symbolName = BatteryPowerSupport.menuBarSymbol(percent: percent,
-                                                           isCharging: isCharging,
-                                                           externalConnected: externalConnected)
-        let warningColor = nsColor(for: warning)
-        let symbolPointSize: CGFloat = style == .readable ? 17.0 : 15.5
-        let valueFont = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 13.0 : 12.0,
-                                                         weight: .semibold)
-        let value = "\(clampedPercent)%"
-        let sizingValueAttrs: [NSAttributedString.Key: Any] = [.font: valueFont]
-        let valueSize = (value as NSString).size(withAttributes: sizingValueAttrs)
-        let reservedValueSize = max(valueSize.width, ("100%" as NSString).size(withAttributes: sizingValueAttrs).width)
-        let symbolWidth: CGFloat = style == .readable ? 20 : 18
-        let gap: CGFloat = style == .readable ? 5 : 4
-        let height: CGFloat = style == .readable ? 22 : 20
-        let imageSize = NSSize(width: ceil(symbolWidth + gap + reservedValueSize), height: height)
-        let image = NSImage(size: imageSize, flipped: false) { rect in
-            NSColor.clear.setFill()
-            rect.fill()
-            let symbolConfig = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .regular)
-                .applying(NSImage.SymbolConfiguration(paletteColors: [warningColor ?? .labelColor]))
-            if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-                .withSymbolConfiguration(symbolConfig) {
-                let symbolSize = symbol.size
-                // draw(in:) stretches the image to exactly fill the rect, so
-                // clamping only the width while leaving height at
-                // the symbol's full natural size squished wide glyphs like
-                // the battery icon. Scale both dimensions together to keep
-                // the glyph's own proportions.
-                let scale = min(symbolWidth / symbolSize.width, 1)
-                let drawSize = NSSize(width: symbolSize.width * scale, height: symbolSize.height * scale)
-                let symbolRect = NSRect(x: 0,
-                                        y: (height - drawSize.height) / 2,
-                                        width: drawSize.width,
-                                        height: drawSize.height)
-                symbol.draw(in: symbolRect)
-            }
-            var valueAttrs = dynamicTextAttributes(font: valueFont)
-            if let warningColor { valueAttrs[.foregroundColor] = warningColor }
-            let valueY = (height - valueSize.height) / 2
-            (value as NSString).draw(at: NSPoint(x: symbolWidth + gap, y: valueY),
-                                     withAttributes: valueAttrs)
-            return true
-        }
-        image.isTemplate = false
+        let image = BatteryMenuBarImage.make(percent: clampedPercent,
+                                             showsBolt: showsBolt,
+                                             externalConnected: externalConnected,
+                                             showPercentage: showPercentage,
+                                             readable: style == .readable,
+                                             color: nsColor(for: warning) ?? .labelColor)
         blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))
         return image
     }
