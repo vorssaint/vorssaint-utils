@@ -22,6 +22,7 @@ struct WindowEdgeSnapRestoreStrings {
         case .zhTW: return .init(title: "拖離貼齊的視窗時還原原本大小", caption: "將貼齊的視窗拖離原位時，視窗會還原為貼齊前的大小，指標保持在標題列的同一位置。「忽略的 App」中的 App 不受影響。")
         case .zhHK: return .init(title: "拖離貼齊的視窗時還原原本大小", caption: "將貼齊的視窗拖離原位時，視窗會還原為貼齊前的大小，指標保持在標題列的同一位置。「忽略的 App」中的 App 不受影響。")
         case .uk: return .init(title: "Повертати розмір, коли витягуєте прикріплене вікно", caption: "Якщо витягти прикріплене вікно з його місця, воно повернеться до розміру, який мало до прикріплення, а вказівник залишиться в тій самій точці заголовка. Програми з розділу «Ігноровані програми» пропускаються.")
+        case .ca: return .init(title: "Restaura la mida en arrossegar una finestra ancorada", caption: "Si arrossegues una finestra ancorada per treure-la de la seva posició, torna a la mida que tenia abans d’ancorar-la, i el punter es manté al mateix lloc de la barra de títol. No s’aplica a les apps de la llista “Apps ignorades”.")
         }
     }
 }
