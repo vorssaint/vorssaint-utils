@@ -811,6 +811,8 @@ final class SuperKeyService: ObservableObject {
             // in flight, and hopping to main (or waiting on Accessibility) left
             // that character in the old source.
             Self.selectNextInputSource()
+        case .fixLayout:
+            DispatchQueue.main.async { LayoutFixService.shared.performExternalTrigger() }
         }
     }
 

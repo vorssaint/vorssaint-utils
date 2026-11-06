@@ -74,6 +74,9 @@ struct SuperKeySettings: View {
                     Text(text.soloCapsLock).tag(SuperKeySoloAction.capsLock)
                     Text(text.soloInputSource).tag(SuperKeySoloAction.inputSource)
                     Text(text.soloEscape).tag(SuperKeySoloAction.escape)
+                    if AppFeature.layoutFix.isAvailable {
+                        Text(text.soloFixLayout).tag(SuperKeySoloAction.fixLayout)
+                    }
                 }
                 .labelsHidden()
                 .pickerStyle(.radioGroup)

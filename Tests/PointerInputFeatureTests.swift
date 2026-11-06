@@ -2512,6 +2512,11 @@ enum PointerInputFeatureTests {
                                               longHold: true,
                                               repeated: true) == .capsLock,
                "the input-source action switches on a quick press and reserves a hold for Caps Lock")
+        suite.expect(SuperKeySupport.soloEffect(action: .fixLayout, longHold: false, repeated: false) == .fixLayout
+                && SuperKeySupport.soloEffect(action: .fixLayout, longHold: false, repeated: true) == .none
+                && SuperKeySupport.soloEffect(action: .fixLayout, longHold: true, repeated: false) == .none
+                && SuperKeySoloAction.sanitized("fixLayout") == .fixLayout,
+               "the layout fix action runs on a quick tap only, never on a hold or a repeat")
         suite.expect(SuperKeySupport.nextInputSourceID(currentID: "abc",
                                                  enabledIDs: ["abc", "pinyin", "kana"]) == "pinyin"
                 && SuperKeySupport.nextInputSourceID(currentID: "kana",

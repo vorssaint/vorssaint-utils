@@ -57,7 +57,7 @@ enum SuperKeySource: String, CaseIterable, Identifiable {
 /// What a tap of the super key on its own does, when no other key was pressed
 /// while it was held.
 enum SuperKeySoloAction: String, CaseIterable, Identifiable {
-    case none, capsLock, inputSource, escape
+    case none, capsLock, inputSource, escape, fixLayout
 
     var id: String { rawValue }
 
@@ -297,6 +297,8 @@ enum SuperKeySupport {
             return repeated ? .none : .capsLock
         case .inputSource:
             return longHold ? .capsLock : .inputSource
+        case .fixLayout:
+            return longHold || repeated ? .none : .fixLayout
         }
     }
 
