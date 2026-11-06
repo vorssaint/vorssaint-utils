@@ -224,6 +224,10 @@ enum DefaultsKey {
     static let displayBrightnessShortcutsEnabled = "displayBrightnessShortcutsEnabled"
     static let displayBrightnessDecreaseShortcut = "displayBrightnessDecreaseShortcut"
     static let displayBrightnessIncreaseShortcut = "displayBrightnessIncreaseShortcut"
+    static let displayInputShortcutEnabled = "displayInputShortcutEnabled"
+    static let displayInputShortcut = "displayInputShortcut"
+    // [monitor fingerprint: [DisplayInput.id]] inputs the shortcut skips.
+    static let displayInputCycleExclusions = "displayInputCycleExclusions"
     static let keyboardBrightnessShortcutsEnabled = "keyboardBrightnessShortcutsEnabled"
     static let keyboardBrightnessDecreaseShortcut = "keyboardBrightnessDecreaseShortcut"
     static let keyboardBrightnessIncreaseShortcut = "keyboardBrightnessIncreaseShortcut"
@@ -1390,6 +1394,9 @@ enum Defaults {
         DefaultsKey.displayBrightnessShortcutsEnabled: false,
         DefaultsKey.displayBrightnessDecreaseShortcut: "shift+command:27",
         DefaultsKey.displayBrightnessIncreaseShortcut: "shift+command:24",
+        DefaultsKey.displayInputShortcutEnabled: false,
+        DefaultsKey.displayInputShortcut: GlobalShortcut.displayInputNextDefault.storageValue,
+        DefaultsKey.displayInputCycleExclusions: [String: [String]](),
         DefaultsKey.keyboardBrightnessShortcutsEnabled: false,
         DefaultsKey.keyboardBrightnessDecreaseShortcut: "option+command:27",
         DefaultsKey.keyboardBrightnessIncreaseShortcut: "option+command:24",
