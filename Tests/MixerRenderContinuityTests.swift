@@ -26,6 +26,7 @@ enum MixerRenderContinuityTests {
         let compensation = FloatBox(1)
         let release = FloatBox(BoostLimiter.release(sampleRate: 48_000))
         let ramp = TapLevelRamp()
+        let appliedGain = MixerRender.AppliedGain()
         let cycles = Counter()
         let configuration = Configuration()
         let tapChannels: Int
@@ -100,20 +101,27 @@ enum MixerRenderContinuityTests {
         }
         let renderer = Renderer()
         var rendered: [Float] = [], expected: [Float] = [], protected: [Bool] = []
+        var previousGain: Float = 1
         for (frames, gain) in [(300, Float(1)), (127, Float(1.15)), (300, Float(1)),
-                               (111, Float(0.5)), (129, Float(1.5)), (300, Float(1))] {
+                               (111, Float(0.5)), (129, Float(1.5)), (300, Float(1)),
+                               (300, Float(1))] {
             renderer.box.value = gain
             let source = Array(repeating: [Float(0.99), Float(0.7)], count: frames).flatMap { $0 }
             rendered += renderer.render(source, frames: frames, layout: [2])
-            expected += source.map { $0 * gain }
-            protected += Array(repeating: gain > 1, count: frames * 2)
+            for frame in 0..<frames {
+                let fraction = Float(frame) / Float(frames)
+                let applied = previousGain + fraction * (gain - previousGain)
+                expected += [source[frame * 2] * applied, source[frame * 2 + 1] * applied]
+                protected += [applied > 1, applied > 1]
+            }
+            previousGain = gain
         }
         renderer.box.value = 1
         rendered += renderer.render(Array(repeating: 0, count: 256 * 2), frames: 256, layout: [2])
         let aligned = Array(rendered.dropFirst(256 * 2))
         suite.expect(aligned.count == expected.count && zip(aligned.indices, aligned).allSatisfy { index, value in
-            protected[index] ? abs(value) <= BoostLimiter.ceiling + 0.0001 : value == expected[index]
-        }, "boost protection follows delayed frames across100% transitions without attenuating unboosted samples")
+            protected[index] ? abs(value) <= BoostLimiter.ceiling + 0.0001 : abs(value - expected[index]) < 0.00001
+        }, "boost protection follows ramped and delayed frames across 100% without attenuating unboosted samples")
         suite.expect(aligned.allSatisfy { $0 > 0 },
                      "switching limiter protection across100% keeps the same filled delay and introduces no silent gap")
         let compensated = Renderer()
@@ -130,6 +138,7 @@ enum MixerRenderContinuityTests {
 
     static func run(_ suite: TestSuite) {
         transparentUnity(suite)
+        muteDuringSilentCallbacks(suite)
         for channels in [2, 8, 16, 32] {
             let frames = 768
             var source: [Float] = []
@@ -257,14 +266,63 @@ enum MixerRenderContinuityTests {
         for index in 0..<2 {
             output[index] = AudioBuffer(mNumberChannels: 1, mDataByteSize: 0, mData: nil)
         }
-        limiter.process(output, release: BoostLimiter.release(sampleRate: 48_000), limiting: true)
+        limiter.process(output, release: BoostLimiter.release(sampleRate: 48_000), requestedGain: 1.5, renderedFrames: 0)
         output[0] = AudioBuffer(mNumberChannels: 1, mDataByteSize: 64 * 4, mData: left)
         output[1] = AudioBuffer(mNumberChannels: 1, mDataByteSize: 32 * 4, mData: right)
-        limiter.process(output, release: BoostLimiter.release(sampleRate: 48_000), limiting: true)
+        limiter.process(output, release: BoostLimiter.release(sampleRate: 48_000), requestedGain: 1.5, renderedFrames: 32)
         suite.expect(Array(UnsafeBufferPointer(start: left, count: 65))
                         == Array(repeating: 0, count: 32) + Array(repeating: 0.4, count: 33)
                      && Array(UnsafeBufferPointer(start: right, count: 65))
                         == Array(repeating: 0, count: 32) + Array(repeating: 0.2, count: 33),
                      "inactive outputs leave the delay untouched and unequal buffers stop at their common writable bound")
+    }
+
+    /// A mute can arrive long before the next tap buffer. The production
+    /// callback must forget the audible gain across a gap, while a later
+    /// unmute during continuous rendering must still fade in normally.
+    private static func muteDuringSilentCallbacks(_ suite: TestSuite) {
+        let frames = 512
+        let source = Array(repeating: Float(0.4), count: frames * 2)
+        let gaps: [(name: String, source: [Float]?, suspended: Bool)] = [
+            ("missing tap", nil, false),
+            ("empty tap", [], false),
+            ("suspended callback", source, true),
+        ]
+        for layout: [UInt32] in [[2], [1, 1], [1]] {
+            let channels = Int(layout.reduce(0, +))
+            for gap in gaps {
+                let renderer = Renderer()
+                renderer.box.value = 0.5
+                _ = renderer.render(source, frames: frames, layout: layout)
+                renderer.configuration.canRender = !gap.suspended
+                _ = renderer.render(gap.source, frames: frames, layout: layout)
+                renderer.box.value = 0
+                let silent = renderer.render(gap.source, frames: frames, layout: layout)
+                let progressDuringGap = renderer.cycles.value
+                renderer.configuration.canRender = true
+                let resumed = renderer.render(source, frames: frames, layout: layout)
+                let held = renderer.render(source, frames: frames, layout: layout)
+                suite.expect(silent.allSatisfy { $0 == 0 }
+                                && resumed.allSatisfy { $0 == 0 }
+                                && held.allSatisfy { $0 == 0 },
+                             "muting during a \(gap.name) keeps resumed audio silent (layout \(layout))")
+                suite.expect(progressDuringGap == 1 && renderer.cycles.value == 3,
+                             "a \(gap.name) does not advance capture progress while a resumed muted tap does")
+
+                renderer.box.value = 0.5
+                let faded = renderer.render(source, frames: frames, layout: layout)
+                let settled = renderer.render(source, frames: frames, layout: layout)
+                let expected = (0..<(2 * frames)).flatMap { frame -> [Float] in
+                    let sourceFrame = frame - BoostLookaheadLimiter.lookaheadFrames
+                    let gain: Float = sourceFrame < 0
+                        ? 0 : min(Float(sourceFrame) / Float(frames), 1) * 0.5
+                    return Array(repeating: Float(0.4) * gain, count: channels)
+                }
+                let actual = faded + settled
+                let error = zip(actual, expected).map { abs($0 - $1) }.max() ?? .infinity
+                suite.expect(actual.count == expected.count && error < 0.000001,
+                             "unmuting after a \(gap.name) still slides across the next continuous block (layout \(layout), maximum error \(error))")
+            }
+        }
     }
 }

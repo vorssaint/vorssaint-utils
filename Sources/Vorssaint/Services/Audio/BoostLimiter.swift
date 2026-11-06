@@ -205,7 +205,7 @@ final class BoostLookaheadBufferListLimiter {
     @discardableResult
     func process(_ buffers: UnsafeMutableAudioBufferListPointer,
                  frames: Int,
-                 release: Float, limiting: Bool = true) -> Bool {
+                 release: Float, limitingFrames: Range<Int>? = nil) -> Bool {
         let channels = buffers.reduce(0) { partial, buffer in
             partial + (buffer.mData == nil ? 0 : Int(buffer.mNumberChannels))
         }
@@ -229,6 +229,7 @@ final class BoostLookaheadBufferListLimiter {
 
         let ceiling = BoostLimiter.ceiling
         for frame in 0..<frames {
+            let limiting = limitingFrames?.contains(frame) ?? true
             var peak: Float = 0
             for buffer in buffers {
                 let count = Int(buffer.mNumberChannels)
@@ -297,9 +298,13 @@ struct BoostBufferListLimiter {
 
     mutating func process(_ buffers: UnsafeMutableAudioBufferListPointer,
                           frames: Int,
-                          release: Float) {
+                          release: Float, limitingFrames: Range<Int>? = nil) {
         guard frames > 0 else { return }
         for frame in 0..<frames {
+            guard limitingFrames?.contains(frame) ?? true else {
+                envelope = 0
+                continue
+            }
             var peak: Float = 0
             for buffer in buffers {
                 let channels = Int(buffer.mNumberChannels)

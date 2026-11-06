@@ -3362,6 +3362,7 @@ private final class TapGainEngine: GainEngine {
     private final class LimiterBox {
         let lookahead: BoostLookaheadBufferListLimiter
         var fallback = BoostBufferListLimiter()
+        private var previousRequestedGain: Float?
         init(channelCapacity: Int) {
             lookahead = BoostLookaheadBufferListLimiter(channelCapacity: channelCapacity)
         }
@@ -3369,19 +3370,33 @@ private final class TapGainEngine: GainEngine {
         func reset() {
             lookahead.reset()
             fallback = BoostBufferListLimiter()
+            previousRequestedGain = nil
         }
 
-        func process(_ output: UnsafeMutableAudioBufferListPointer, release: Float, limiting: Bool) {
+        func process(_ output: UnsafeMutableAudioBufferListPointer, release: Float,
+                     requestedGain: Float, renderedFrames: Int) {
+            let startGain = previousRequestedGain ?? requestedGain
+            previousRequestedGain = renderedFrames > 0 ? requestedGain : nil
             var frames = Int.max
             for buffer in output where buffer.mData != nil && buffer.mNumberChannels > 0 {
                 frames = min(frames, MixerRender.frames(bytes: buffer.mDataByteSize,
                                                         channels: buffer.mNumberChannels))
             }
             guard frames > 0, frames < Int.max else { return }
-            if !lookahead.process(output, frames: frames, release: release, limiting: limiting) {
-                if limiting { fallback.process(output, frames: frames, release: release) }
-                else { fallback = BoostBufferListLimiter() }
+            let limited = boostedFrames(from: startGain, to: requestedGain, count: min(frames, renderedFrames))
+            if !lookahead.process(output, frames: frames, release: release, limitingFrames: limited) {
+                fallback.process(output, frames: frames, release: release, limitingFrames: limited)
             }
+        }
+
+        /// Match the render ramp, which starts at the previous gain and reaches
+        /// the target at the next block. Tap compensation alone is not a boost.
+        private func boostedFrames(from start: Float, to target: Float, count: Int) -> Range<Int> {
+            guard count > 0, start.isFinite, target.isFinite, start > 1 || target > 1 else { return 0..<0 }
+            if start > 1, target > 1 { return 0..<count }
+            let crossing = Double(count) * (1 - Double(start)) / (Double(target) - Double(start))
+            if start > 1 { return 0..<min(count, Int(crossing.rounded(.up))) }
+            return min(count, Int(crossing.rounded(.down)) + 1)..<count
         }
     }
 
@@ -3455,6 +3470,7 @@ private final class TapGainEngine: GainEngine {
         }
         self.configuration = configuration
         let ramp = TapLevelRamp()
+        let appliedGain = MixerRender.AppliedGain()
         // A boost pushes loud samples past full scale, and clamping the
         // overshoot flattens every peak into audible crackle (issue #326).
         // The limiter turns the whole signal down for just the moment a peak
@@ -3473,6 +3489,7 @@ private final class TapGainEngine: GainEngine {
             guard configuration.canRender else {
                 MixerRender.silence(outputBuffers)
                 limiterBox.reset()
+                appliedGain.reset()
                 return
             }
             // The output clock keeps moving through a short or missing tap
@@ -3481,23 +3498,32 @@ private final class TapGainEngine: GainEngine {
             // Read once: sample scaling and delayed protection must describe
             // the same user gain even if the slider moves during this callback.
             let requestedGain = box.value
-            defer { limiterBox.process(outputBuffers, release: release.value, limiting: requestedGain > 1) }
+            var frames = 0
+            defer {
+                limiterBox.process(outputBuffers, release: release.value,
+                                   requestedGain: requestedGain, renderedFrames: frames)
+            }
             guard let tapIndex = MixerRender.tapBufferIndex(in: inputBuffers,
                                                             tapChannels: tapChannels) else {
                 // No samples to put in the buffer is not a reason to leave it:
                 // whatever the HAL left there plays otherwise (issue #326).
                 MixerRender.silence(outputBuffers)
+                appliedGain.reset()
                 return
             }
             let gain = requestedGain * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)
             // `render` silences whatever it does not fill, so every path from
             // here on leaves the output written.
-            let frames = MixerRender.render(source: inputBuffers[tapIndex],
-                                            into: outputBuffers,
-                                            gain: gain)
+            frames = MixerRender.render(source: inputBuffers[tapIndex],
+                                        into: outputBuffers,
+                                        gain: gain,
+                                        rampingFrom: appliedGain)
             // Draining delayed audio alone must not hide a stalled capture
             // from the engine's recovery check.
-            guard frames > 0 else { return }
+            guard frames > 0 else {
+                appliedGain.reset()
+                return
+            }
             cycles.increment()
         }) == noErr else {
             ioProc = nil
