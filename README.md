@@ -142,6 +142,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 
 - **Clipboard history.** Search local text, image and file history, pin favorites, preview entries and paste with shortcuts.
 - **Auto clear clipboard.** Clear the system clipboard after a delay, sleep or lock, while keeping saved history.
+- **Copy on select.** Copy text as soon as it is selected with the mouse, with no ⌘C.
 - **Paste as plain text.** Paste without formatting while preserving the original clipboard content.
 - **Shelf.** Park files, text and links near your cursor while dragging, then drop or share them later.
 - **Finder shortcuts.** Move files with ⌘X and ⌘V, rename with F2, or paste copied images as PNG files.
