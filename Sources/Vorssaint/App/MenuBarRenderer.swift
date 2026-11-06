@@ -273,9 +273,29 @@ enum MenuBarRenderer {
         lines(for: snapshot, metrics: metrics, allowStacked: allowStacked).count > 1
     }
 
-    static func statusFont(stacked: Bool) -> NSFont {
+    static func statusFont(stacked: Bool, fontWeight: MenuBarFontWeight = .automatic) -> NSFont {
         NSFont.monospacedSystemFont(ofSize: statusFontSize(stacked: stacked),
-                                    weight: stacked ? .semibold : .medium)
+                                    weight: fontWeight.resolve(stacked ? .semibold : .medium))
+    }
+
+    static func metricLabelFont(style: MenuBarBlockStyle) -> NSFont {
+        NSFont.systemFont(ofSize: style == .readable ? 7.2 : 6.6,
+                          weight: MenuBarFontWeight.current().resolve(.medium))
+    }
+
+    static func metricValueFont(style: MenuBarBlockStyle) -> NSFont {
+        NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 13 : 12,
+                                         weight: MenuBarFontWeight.current().resolve(.semibold))
+    }
+
+    static func usageBarLabelFont(style: MenuBarBlockStyle) -> NSFont {
+        NSFont.systemFont(ofSize: style == .readable ? 6.5 : 6.1,
+                          weight: MenuBarFontWeight.current().resolve(.semibold))
+    }
+
+    static func rateFont(style: MenuBarBlockStyle) -> NSFont {
+        NSFont.monospacedSystemFont(ofSize: networkBlockFontSize(style: style),
+                                    weight: MenuBarFontWeight.current().resolve(.semibold))
     }
 
     static func statusFontSize(stacked: Bool) -> CGFloat {
@@ -311,7 +331,7 @@ enum MenuBarRenderer {
         let stacked = !includesCountdown && estimatedUsesStackedLayout(for: metrics,
                                                                        preset: preset,
                                                                        allowStacked: allowStacked)
-        let font = statusFont(stacked: stacked)
+        let font = statusFont(stacked: stacked, fontWeight: .current())
         let estimated = NSMutableAttributedString()
         if includesCountdown {
             estimated.append(NSAttributedString(string: "888 min  "))
@@ -886,12 +906,11 @@ enum MenuBarRenderer {
             ? MenuBarSpacingSupport.compactReserve(label: label, value: value)
             : reservedValue
         let pressureKey = pressure.map(String.init(describing:)) ?? "none"
-        let cacheKey = "metric|\(label)|\(value)|\(minimumValue)|\(style)|\(pressureKey)|\(warning)" as NSString
+        let cacheKey = "metric|\(label)|\(value)|\(minimumValue)|\(style)|\(pressureKey)|\(warning)|\(MenuBarFontWeight.current().rawValue)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
-        let labelFont = NSFont.systemFont(ofSize: style == .readable ? 7.2 : 6.6, weight: .medium)
-        let valueFont = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 13.0 : 12.0,
-                                                         weight: .semibold)
+        let labelFont = metricLabelFont(style: style)
+        let valueFont = metricValueFont(style: style)
         let sizingLabelAttrs: [NSAttributedString.Key: Any] = [.font: labelFont]
         let sizingValueAttrs: [NSAttributedString.Key: Any] = [.font: valueFont]
         let labelSize = (label as NSString).size(withAttributes: sizingLabelAttrs)
@@ -943,11 +962,11 @@ enum MenuBarRenderer {
         } ?? "missing"
         let pressureKey = pressure.map(String.init(describing:)) ?? "none"
         let levelKey = fillLevel.map(String.init) ?? "missing"
-        let cacheKey = "usageBar|\(label)|\(levelKey)|\(fillColorHex)|\(style)|\(pressureKey)" as NSString
+        let cacheKey = "usageBar|\(label)|\(levelKey)|\(fillColorHex)|\(style)|\(pressureKey)|\(MenuBarFontWeight.current().rawValue)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
         let size = usageBarSize(style: style, showsPressure: pressure != nil)
-        let labelFont = NSFont.systemFont(ofSize: style == .readable ? 6.5 : 6.1, weight: .semibold)
+        let labelFont = usageBarLabelFont(style: style)
         let labelAttributes = dynamicTextAttributes(font: labelFont)
         let labelWidth: CGFloat = style == .readable ? 6.5 : 6
         let labelGap: CGFloat = 2
@@ -1026,7 +1045,7 @@ enum MenuBarRenderer {
 
     private static func networkBlockImage(down: String, up: String, style: MenuBarBlockStyle) -> NSImage {
         let uploadFirst = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarNetworkUploadFirst)
-        let cacheKey = "network|\(down)|\(up)|\(style)|\(uploadFirst)" as NSString
+        let cacheKey = "network|\(down)|\(up)|\(style)|\(uploadFirst)|\(MenuBarFontWeight.current().rawValue)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
         let lines = uploadFirst ? ["↑\(up)", "↓\(down)"] : ["↓\(down)", "↑\(up)"]
@@ -1039,7 +1058,7 @@ enum MenuBarRenderer {
     private static func diskActivityBlockImage(read: String,
                                                write: String,
                                                style: MenuBarBlockStyle) -> NSImage {
-        let cacheKey = "diskActivity|\(read)|\(write)|\(style)" as NSString
+        let cacheKey = "diskActivity|\(read)|\(write)|\(style)|\(MenuBarFontWeight.current().rawValue)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
         return stackedRatesImage(lines: ["R\(read)", "W\(write)"],
@@ -1052,8 +1071,7 @@ enum MenuBarRenderer {
                                           reservedLines: [String],
                                           cacheKey: NSString,
                                           style: MenuBarBlockStyle) -> NSImage {
-        let font = NSFont.monospacedSystemFont(ofSize: networkBlockFontSize(style: style),
-                                               weight: .semibold)
+        let font = rateFont(style: style)
         let lineHeight = networkBlockLineHeight(style: style)
         let height: CGFloat = style == .readable ? 22 : 20
         let imageSize = NSSize(width: rateBlockWidth(style: style), height: height)
@@ -1078,8 +1096,7 @@ enum MenuBarRenderer {
     }
 
     private static func rateBlockWidth(candidates: [String], style: MenuBarBlockStyle) -> CGFloat {
-        let font = NSFont.monospacedSystemFont(ofSize: networkBlockFontSize(style: style),
-                                               weight: .semibold)
+        let font = rateFont(style: style)
         let sizingAttrs: [NSAttributedString.Key: Any] = [.font: font]
         let contentWidth = candidates.map { ($0 as NSString).size(withAttributes: sizingAttrs).width }.max() ?? 22
         return ceil(contentWidth + (style == .readable ? 1.5 : 1.0))
@@ -1091,7 +1108,7 @@ enum MenuBarRenderer {
                                           warning: BatteryWarning,
                                           style: MenuBarBlockStyle) -> NSImage {
         let clampedPercent = max(0, min(100, percent))
-        let cacheKey = "battery|\(clampedPercent)|\(isCharging)|\(externalConnected)|\(warning)|\(style)" as NSString
+        let cacheKey = "battery|\(clampedPercent)|\(isCharging)|\(externalConnected)|\(warning)|\(style)|\(MenuBarFontWeight.current().rawValue)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
         let symbolName = BatteryPowerSupport.menuBarSymbol(percent: percent,
@@ -1099,8 +1116,7 @@ enum MenuBarRenderer {
                                                            externalConnected: externalConnected)
         let warningColor = nsColor(for: warning)
         let symbolPointSize: CGFloat = style == .readable ? 17.0 : 15.5
-        let valueFont = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 13.0 : 12.0,
-                                                         weight: .semibold)
+        let valueFont = metricValueFont(style: style)
         let value = "\(clampedPercent)%"
         let sizingValueAttrs: [NSAttributedString.Key: Any] = [.font: valueFont]
         let valueSize = (value as NSString).size(withAttributes: sizingValueAttrs)
