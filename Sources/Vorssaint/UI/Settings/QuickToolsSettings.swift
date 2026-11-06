@@ -26,6 +26,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadTextSize) private var scratchpadTextSize = ScratchpadSupport.defaultTextSize
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
+    @AppStorage(DefaultsKey.cleaningModeBuiltInOnly) private var cleaningModeBuiltInOnly = false
 
     var body: some View {
         Form {
@@ -326,6 +327,10 @@ struct QuickToolsSettings: View {
                         .foregroundStyle(.secondary)
                     Toggle(l10n.s.cleaningKeepScreenVisibleToggle, isOn: $cleaningModeKeepScreenVisible)
                     Text(l10n.s.cleaningKeepScreenVisibleCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(l10n.s.cleaningBuiltInOnlyToggle, isOn: $cleaningModeBuiltInOnly)
+                    Text(l10n.s.cleaningBuiltInOnlyCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } header: {
