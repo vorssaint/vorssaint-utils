@@ -1434,6 +1434,7 @@ def main():
               "    private var hoverOpeningEnabled:", "    private var watchesHiddenHover:", "    func hover(",
               "    func shelfDragMoved(",
               "    private func syncHoverExitMonitoring(", "    private func removeHoverExitMonitors(",
+              "    private var closesOnPointerExit:", "    private var pointerDriven:",
               "    var showsCompactActivityPicker:",
               "    private func missionControlDidRestore()",
               "    private var holdsNotification:", "    private func holdNotification(",
@@ -1490,7 +1491,8 @@ def main():
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private var screenEdgeClickArea:", "    private func syncScreenEdgeClicks(",
               "    private func handleScreenEdgeEvent(", "    private func handleScreenEdgeClick(",
-              "    private func removeScreenEdgeClickMonitors("])
+              "    private func removeScreenEdgeClickMonitors(", "    private func syncScreenEdgeHover(",
+              "    private func handleScreenEdgeMove(", "    private func removeScreenEdgeHoverMonitors("])
           + "}\n}\n")
     write("NotchClickElsewhere.swift", "import AppKit\nextension NotchClickElsewhereTests {\nfinal class Service: State {\n"
           + declaration(notch, "    private func clickedElsewhere(").replace("    private ", "    ", 1)
@@ -1675,6 +1677,8 @@ def main():
           + declaration(notch, "    func setPageLayer(")
           + declaration(notch, "    func openAppPanel(")
           + declaration(notch, "    func showMetric(")
+          + declaration(notch, "    private var pointerDriven:").replace("    private ", "    ", 1)
+              .replace("UserDefaults.standard", "ReviewDefaults.current!")
           + declaration(notch, "    var reopeningDestination:")
               .replace("UserDefaults.standard", "ReviewDefaults.current!")
           + declaration(notch, "    func openActivity(")
@@ -2665,16 +2669,19 @@ def main():
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
                     .replace("private func", "func", 1)
                     .replace("func read(", "@discardableResult func read(", 1)
-                    for prefix in ["    private func start(", "    private func read(", "    private func filesChanged("])
+                    for prefix in ["    private func start(", "    private func read(", "    private func filesChanged(",
+                                   "    private var logRoots:", "    private func isHistory(",
+                                   "    private func readHistory("])
           + "}\n}\n")
 
     write("AgentClaudeServerService.swift", "import Foundation\n"
           + "extension AgentClaudeServerTests {\nfinal class Host: Fixture {\n"
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
                     .replace("private func", "func", 1)
-                    for prefix in ["    private func readClaudePlan(", "    private func readClaudeApp(", "    private func checkLimits(",
+                    for prefix in ["    private func readClaudeApp(", "    private func checkLimits(",
                                    "    private func reportRenewals(", "    private func claudeLimitsDue(",
-                                   "    private func noteClaudeCheck(", "    private func networkChanged("])
+                                   "    private func noteClaudeCheck(", "    private func networkChanged(",
+                                   "    private func noteClaudeCache(", "    private func takeClaudeCache("])
           + "}\n}\n")
 
     write("AgentUsagePolling.swift", "import Foundation\n"

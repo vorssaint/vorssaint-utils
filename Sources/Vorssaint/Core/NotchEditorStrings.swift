@@ -35,6 +35,8 @@ struct NotchEditorStrings {
     let lastPage: String
     let openActivity: String
     let openActivityHint: String
+    let pointerDriven: String
+    let pointerDrivenHint: String
     let activationTime: String
     let activationTimeHint: String
     let activationTimeFormat: String
@@ -94,6 +96,8 @@ struct NotchEditorStrings {
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
         case .watch: return watchSummary
+        // Only the top bar opens these, so the sections list never describes them.
+        case .keepAwake, .microphone, .battery: return ""
         }
     }
 }
@@ -133,6 +137,8 @@ extension FeatureStrings {
             lastPage: "Last page",
             openActivity: "Open the visible activity",
             openActivityHint: "When the closed island shows music, a timer or another activity, it opens on that page instead.",
+            pointerDriven: "Open and close with the pointer",
+            pointerDrivenHint: "Hovering opens the last page you used instead of offering a choice, and the island closes when the pointer leaves it, even after a click.",
             activationTime: "Activation time",
             activationTimeHint: "Keep the pointer over the island for this long to open it.",
             activationTimeFormat: "%.2f s",
@@ -201,6 +207,8 @@ extension FeatureStrings {
             lastPage: "Última página",
             openActivity: "Abrir a atividade visível",
             openActivityHint: "Quando a ilha fechada mostra música, um temporizador ou outra atividade, ela abre na página dessa atividade.",
+            pointerDriven: "Abrir e fechar com o ponteiro",
+            pointerDrivenHint: "Passar o ponteiro abre a última página usada em vez de oferecer uma escolha, e a ilha fecha quando o ponteiro sai dela, mesmo depois de um clique.",
             activationTime: "Tempo de ativação",
             activationTimeHint: "Mantenha o ponteiro sobre a ilha por esse tempo para abrir.",
             activationTimeFormat: "%.2f s",
@@ -269,6 +277,8 @@ extension FeatureStrings {
             lastPage: "Última página",
             openActivity: "Abrir la actividad visible",
             openActivityHint: "Cuando la isla cerrada muestra música, un temporizador u otra actividad, se abre en la página de esa actividad.",
+            pointerDriven: "Abrir y cerrar con el puntero",
+            pointerDrivenHint: "Al pasar el puntero se abre la última página usada en lugar de ofrecer una elección, y la isla se cierra cuando el puntero sale de ella, incluso después de un clic.",
             activationTime: "Tiempo de activación",
             activationTimeHint: "Mantén el puntero sobre la isla durante este tiempo para abrirla.",
             activationTimeFormat: "%.2f s",
@@ -337,6 +347,8 @@ extension FeatureStrings {
             lastPage: "Posledná stránka",
             openActivity: "Otvoriť zobrazenú aktivitu",
             openActivityHint: "Keď zatvorený Dynamic Island zobrazuje hudbu, časovač alebo inú aktivitu, otvorí sa na stránke tejto aktivity.",
+            pointerDriven: "Otvárať a zatvárať ukazovateľom",
+            pointerDrivenHint: "Prejdenie ukazovateľom otvorí naposledy použitú stránku namiesto ponuky na výber a ostrov sa zatvorí, keď ho ukazovateľ opustí, aj po kliknutí.",
             activationTime: "Čas aktivácie",
             activationTimeHint: "Podržte kurzor nad Dynamic Island takto dlho, aby sa otvoril.",
             activationTimeFormat: "%.2f s",
@@ -405,6 +417,8 @@ extension FeatureStrings {
             lastPage: "Letzte Seite",
             openActivity: "Sichtbare Aktivität öffnen",
             openActivityHint: "Zeigt die geschlossene Insel Musik, einen Timer oder eine andere Aktivität, öffnet sie sich stattdessen auf der Seite dieser Aktivität.",
+            pointerDriven: "Mit dem Zeiger öffnen und schließen",
+            pointerDrivenHint: "Beim Darüberfahren öffnet sich die zuletzt genutzte Seite statt einer Auswahl, und die Insel schließt sich, sobald der Zeiger sie verlässt, auch nach einem Klick.",
             activationTime: "Aktivierungszeit",
             activationTimeHint: "Halte den Zeiger so lange über der Insel, um sie zu öffnen.",
             activationTimeFormat: "%.2f s",
@@ -473,6 +487,8 @@ extension FeatureStrings {
             lastPage: "Dernière page",
             openActivity: "Ouvrir l’activité visible",
             openActivityHint: "Quand l’île fermée affiche de la musique, un minuteur ou une autre activité, elle s’ouvre plutôt sur la page de cette activité.",
+            pointerDriven: "Ouvrir et fermer avec le pointeur",
+            pointerDrivenHint: "Le survol ouvre la dernière page utilisée au lieu de proposer un choix, et l’île se ferme quand le pointeur la quitte, même après un clic.",
             activationTime: "Délai d’activation",
             activationTimeHint: "Laissez le pointeur sur l’île pendant cette durée pour l’ouvrir.",
             activationTimeFormat: "%.2f s",
@@ -541,6 +557,8 @@ extension FeatureStrings {
             lastPage: "Ultima pagina",
             openActivity: "Apri l’attività visibile",
             openActivityHint: "Quando l’isola chiusa mostra musica, un timer o un’altra attività, si apre invece sulla pagina di quell’attività.",
+            pointerDriven: "Apri e chiudi con il puntatore",
+            pointerDrivenHint: "Passando il puntatore si apre l’ultima pagina usata invece di offrire una scelta, e l’isola si chiude quando il puntatore la lascia, anche dopo un clic.",
             activationTime: "Tempo di attivazione",
             activationTimeHint: "Mantieni il puntatore sull’isola per questo tempo per aprirla.",
             activationTimeFormat: "%.2f s",
@@ -609,6 +627,8 @@ extension FeatureStrings {
             lastPage: "Последняя страница",
             openActivity: "Открывать видимую активность",
             openActivityHint: "Когда закрытый остров показывает музыку, таймер или другую активность, он открывается на странице этой активности.",
+            pointerDriven: "Открывать и закрывать указателем",
+            pointerDrivenHint: "При наведении открывается последняя страница вместо выбора, а остров закрывается, когда указатель его покидает, даже после щелчка.",
             activationTime: "Время активации",
             activationTimeHint: "Удерживайте указатель над островом в течение этого времени, чтобы открыть его.",
             activationTimeFormat: "%.2f с",
@@ -677,6 +697,8 @@ extension FeatureStrings {
             lastPage: "Son sayfa",
             openActivity: "Görünen etkinliği aç",
             openActivityHint: "Kapalı ada müzik, zamanlayıcı veya başka bir etkinlik gösterdiğinde bunun yerine o etkinliğin sayfasında açılır.",
+            pointerDriven: "İşaretçiyle aç ve kapat",
+            pointerDrivenHint: "Üzerine gelmek bir seçim sunmak yerine son kullanılan sayfayı açar ve işaretçi adadan ayrıldığında, tıklamadan sonra bile ada kapanır.",
             activationTime: "Etkinleştirme süresi",
             activationTimeHint: "Açmak için imleci bu süre boyunca adanın üzerinde tutun.",
             activationTimeFormat: "%.2f sn",
@@ -745,6 +767,8 @@ extension FeatureStrings {
             lastPage: "前回のページ",
             openActivity: "表示中のアクティビティを開く",
             openActivityHint: "閉じた島にミュージックやタイマーなどのアクティビティが表示されているときは、代わりにそのページで開きます。",
+            pointerDriven: "ポインタで開閉",
+            pointerDrivenHint: "ポインタを重ねると選択肢を表示せずに最後に使ったページが開き、クリックで開いたときもポインタが離れると島が閉じます。",
             activationTime: "開くまでの時間",
             activationTimeHint: "島の上にポインタをこの時間置くと開きます。",
             activationTimeFormat: "%.2f 秒",
@@ -813,6 +837,8 @@ extension FeatureStrings {
             lastPage: "마지막 페이지",
             openActivity: "표시 중인 활동 열기",
             openActivityHint: "닫힌 섬에 음악, 타이머 등 활동이 표시되면 대신 해당 활동의 페이지로 열립니다.",
+            pointerDriven: "포인터로 열고 닫기",
+            pointerDrivenHint: "포인터를 올리면 선택지 대신 마지막으로 사용한 페이지가 열리고, 클릭으로 열었더라도 포인터가 벗어나면 섬이 닫힙니다.",
             activationTime: "활성화 시간",
             activationTimeHint: "이 시간 동안 섬 위에 포인터를 두면 열립니다.",
             activationTimeFormat: "%.2f초",
@@ -881,6 +907,8 @@ extension FeatureStrings {
             lastPage: "上次的页面",
             openActivity: "打开显示中的活动",
             openActivityHint: "收起的岛显示音乐、计时器或其他活动时，会改为在该活动的页面打开。",
+            pointerDriven: "随指针打开和关闭",
+            pointerDrivenHint: "悬停时直接打开上次使用的页面，不再提供选择；指针离开时岛会关闭，即使是点击打开的。",
             activationTime: "激活时间",
             activationTimeHint: "将指针在岛上停留此时长即可打开。",
             activationTimeFormat: "%.2f 秒",
@@ -949,6 +977,8 @@ extension FeatureStrings {
             lastPage: "上次的頁面",
             openActivity: "開啟顯示中的活動",
             openActivityHint: "收合的島顯示音樂、計時器或其他活動時，會改為在該活動的頁面開啟。",
+            pointerDriven: "隨指標開啟和關閉",
+            pointerDrivenHint: "懸停時直接開啟上次使用的頁面，不再提供選擇；指標離開時島會關閉，即使是點按開啟的。",
             activationTime: "啟用時間",
             activationTimeHint: "將指標停留在島上達此時間即可開啟。",
             activationTimeFormat: "%.2f 秒",
@@ -1017,6 +1047,8 @@ extension FeatureStrings {
             lastPage: "上次的頁面",
             openActivity: "開啟顯示中的活動",
             openActivityHint: "收合的島顯示音樂、計時器或其他活動時，會改為在該活動的頁面開啟。",
+            pointerDriven: "隨指標開啟和關閉",
+            pointerDrivenHint: "懸停時直接開啟上次使用的頁面，不再提供選擇；指標離開時島會關閉，即使是點按開啟的。",
             activationTime: "啟用時間",
             activationTimeHint: "將指標停留在島上達此時間即可開啟。",
             activationTimeFormat: "%.2f 秒",
@@ -1085,6 +1117,8 @@ extension FeatureStrings {
             lastPage: "Остання сторінка",
             openActivity: "Відкривати видиму активність",
             openActivityHint: "Коли закритий острівець показує музику, таймер або іншу активність, він відкривається на сторінці цієї активності.",
+            pointerDriven: "Відкривати й закривати вказівником",
+            pointerDrivenHint: "Наведення відкриває останню сторінку замість вибору, а острівець закривається, коли вказівник його покидає, навіть після клацання.",
             activationTime: "Час активації",
             activationTimeHint: "Тримайте вказівник над острівцем стільки часу, щоб відкрити його.",
             activationTimeFormat: "%.2f с",

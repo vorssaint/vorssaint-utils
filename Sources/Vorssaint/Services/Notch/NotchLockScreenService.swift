@@ -2,13 +2,12 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
-import AudioToolbox
-import Combine
 import SwiftUI
 
-/// The island over the lock screen: music on a pane of Liquid Glass between
-/// the clock and the login controls, the activities as a line under the
-/// clock, the padlock at the camera, and the padlock sounds. The
+/// The island over the lock screen: the calendar over music on a stage
+/// between the clock and the login controls, This Mac's rail left of it and
+/// the AI rail right of it, the activities as a line under the clock, the
+/// padlock at the camera, and the padlock sounds. The
 /// island drives it from its own session state. On locking it follows the
 /// island's teardown, which stops the sources this service then restarts.
 /// On unlocking the scene starts leaving before the island comes back, and
@@ -17,8 +16,7 @@ final class NotchLockScreenService {
     static let shared = NotchLockScreenService()
 
     private struct Frames: Equatable {
-        var player: CGRect?
-        var row: CGRect?
+        var scene = NotchLockScreenScene()
         var island: CGRect?
         /// The island itself inside its window, at the camera's fitted size.
         var islandSurface: CGRect?
@@ -29,7 +27,6 @@ final class NotchLockScreenService {
     private var scene: [NotchLockScreenPanel] = []
     private var island: NotchLockScreenPanel?
     private var space: NotchOverlaySpace?
-    private var playbackSubscription: AnyCancellable?
     private var screenObserver: NSObjectProtocol?
     private var padlockWork: DispatchWorkItem?
     private var shownFrames = Frames()
@@ -42,7 +39,6 @@ final class NotchLockScreenService {
     func sync(_ session: NotchSessionState) {
         let locking = session.locked && !wasLocked
         wasLocked = session.locked
-        if !session.locked { model.playedWhileLocked = false }
         if session.showsLockScreen, NotchLockScreenSupport.isEnabled() {
             // Locked at the Mac, the padlock is seen closing; back from a
             // dark display it is simply closed.
@@ -57,21 +53,14 @@ final class NotchLockScreenService {
     /// The island is off: nothing it started keeps running.
     func close() {
         wasLocked = false
-        model.playedWhileLocked = false
         hide(unlocking: false, stopsSources: true)
     }
 
+    /// The sound chosen on the Sounds page; the padlock, by default, opens
+    /// on unlocking rather than closing.
     func playSound(locking: Bool) {
-        guard let url = NotchLockScreenSupport.soundURL(locking: locking) else { return }
-        var sound: SystemSoundID = 0
-        guard AudioServicesCreateSystemSoundID(url as CFURL, &sound) == noErr else { return }
-        // Asked for here, so it plays even with interface sound effects off
-        // in System Settings. The alert volume and the sound effects output
-        // still apply, as they do to the Mac's own sounds.
-        var interface: UInt32 = 0
-        AudioServicesSetProperty(kAudioServicesPropertyIsUISound, UInt32(MemoryLayout<SystemSoundID>.size), &sound,
-                                 UInt32(MemoryLayout<UInt32>.size), &interface)
-        AudioServicesPlaySystemSoundWithCompletion(sound) { AudioServicesDisposeSystemSoundID(sound) }
+        AppSoundService.shared.play(.screenLock,
+                                    swapping: locking ? [:] : [AppSoundChoice.padlockClosing: AppSoundChoice.padlockOpening])
     }
 
     /// Where each part goes on the displays as they are now.
@@ -80,8 +69,12 @@ final class NotchLockScreenService {
         // macOS draws the clock and the password field on the main display.
         let main = CGMainDisplayID()
         if let screen = (NSScreen.screens.first(where: { $0.notchDisplayID == main }) ?? NSScreen.screens.first)?.frame {
-            frames.player = NotchLockScreenLayout.playerFrame(in: screen)
-            frames.row = NotchLockScreenLayout.rowFrame(in: screen)
+            // With the Calendar section on the card stays, saying so when the
+            // app may not read calendars, rather than leaving a gap to explain.
+            frames.scene = NotchLockScreenLayout.scene(in: screen, calendar: NotchCalendarSupport.isEnabled(),
+                                                       mac: NotchLockScreenSupport.showsMac(),
+                                                       ai: NotchLockScreenSupport.showsAgents(),
+                                                       widgets: NotchLockScreenWidgets.stored().leavingOutHiddenLimits())
         }
         // The island's own reading of its camera, with the fit the person set.
         let geometry = NotchService.shared.geometry
@@ -99,24 +92,50 @@ final class NotchLockScreenService {
         guard space == nil,
               let space = NotchOverlaySpace(absoluteLevel: NotchLockScreenSupport.spaceLevel) else { return }
         let frames = Self.frames()
+        let layout = frames.scene
         // Settled before any view reads it, so a padlock about to close is
         // drawn open from its first frame.
         padlockWork?.cancel()
         model.padlockOpen = closingPadlock
+        var widgets = Set(layout.widgets.map(\.widget))
+        if layout.calendar != nil { widgets.insert(.calendar) }
+        if layout.player != nil { widgets.insert(.nowPlaying) }
         let gates = NotchLockScreenModel.Gates(
             music: NotchLockScreenSupport.showsMusic(), timer: NotchTimerSupport.isEnabled(),
             agents: NotchAgentSupport.showsLiveActivity(),
             downloads: NotchSupport.routes(.download), countdown: NotchCalendarSupport.showsCountdown(),
-            timeLeft: NotchCalendarSupport.showsTimeLeft())
+            timeLeft: NotchCalendarSupport.showsTimeLeft(), widgets: widgets,
+            hidesEventTitles: NotchLockScreenSupport.hidesEventTitles(), privacy: NotchLockScreenSupport.agentPrivacy())
         if model.gates != gates { model.gates = gates }
+        let privacy = gates.privacy
         var scene: [NotchLockScreenPanel] = []
         // Without the Music section there is no player to show or to click.
-        if gates.music, let frame = frames.player {
-            // The one part that takes clicks: the player's buttons and timeline.
-            scene.append(Self.makePanel(frame: frame, interactive: true,
-                                        content: NotchLockScreenPlayer(model: model, size: frame.size)))
+        // Its buttons and timeline are one of three things that take the
+        // pointer, along with scrolling Agents at work and hovering Streak.
+        if gates.music, let frame = layout.player, let fit = layout.playerFit {
+            let glow = NotchLockScreenLayout.playerGlow
+            scene.append(Self.makePanel(frame: frame.insetBy(dx: -glow, dy: -glow), interactive: true,
+                                        content: NotchLockScreenPlayer(model: model, fit: fit, size: frame.size)
+                                            .padding(glow)))
         }
-        if let frame = frames.row {
+        // Everything else is read-only, so every click passes to the lock screen.
+        if let frame = layout.calendar {
+            scene.append(Self.makePanel(frame: frame, content: NotchLockScreenCalendarCard(
+                hidesTitles: gates.hidesEventTitles, size: frame.size)))
+        }
+        for panel in layout.panels {
+            let content: AnyView
+            switch panel.widgets.first?.widget {
+            case .agents: content = AnyView(NotchLockScreenAgentsAtWork(size: panel.frame.size, privacy: privacy))
+            case .streak: content = AnyView(NotchLockScreenStreak(size: panel.frame.size, privacy: privacy))
+            case let widget? where widget.place == .mac:
+                content = AnyView(NotchLockScreenMacRail(size: panel.frame.size, widgets: panel.widgets))
+            default:
+                content = AnyView(NotchLockScreenAICards(size: panel.frame.size, widgets: panel.widgets, privacy: privacy))
+            }
+            scene.append(Self.makePanel(frame: panel.frame, interactive: panel.interactive, content: content))
+        }
+        if let frame = layout.row {
             scene.append(Self.makePanel(frame: frame, content: NotchLockScreenActivities(model: model, size: frame.size)))
         }
         let island = frames.island.flatMap { frame in
@@ -127,9 +146,14 @@ final class NotchLockScreenService {
                     window: frame.size, origin: CGPoint(x: surface.minX - frame.minX, y: frame.maxY - surface.maxY)))
             }
         }
+        if !scene.isEmpty { startSources(gates) }
+        // What moves on the moon wallpaper, over the still frame and under
+        // every widget: shown first, so the widgets are ordered over it.
+        if let live = NotchLockWallpaper.liveScene() {
+            scene.insert(Self.makePanel(frame: live.frame, content: NotchLockWallpaperLayer(scene: live.scene)), at: 0)
+        }
         let panels = scene + [island].compactMap { $0 }
         guard !panels.isEmpty else { space.close(); return }
-        if !scene.isEmpty { startSources(gates) }
         // Joined before they are first shown, the windows belong to this
         // Space alone and are drawn over the lock screen with it.
         for panel in panels { space.add(panel) }
@@ -150,12 +174,6 @@ final class NotchLockScreenService {
                 panel.animator().alphaValue = 1
             }
         }
-        playbackSubscription = NotchMusicService.shared.$playback
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] playback in
-                guard let self, playback?.isPlaying == true, !self.model.playedWhileLocked else { return }
-                self.model.playedWhileLocked = true
-            }
         // A display attached or rearranged while locked moves the clock, the
         // login controls and the camera; the scene and the padlock follow.
         screenObserver = NotificationCenter.default.addObserver(
@@ -166,24 +184,50 @@ final class NotchLockScreenService {
             }
     }
 
+    /// What This Mac's widgets read from the system monitor, only for those
+    /// shown: memory brings its pressure, the GPU its temperature, and
+    /// accessories are polled only for their card. The feature hub still
+    /// gates each family, as it does for every surface.
+    static func macNeeds(_ widgets: Set<NotchLockScreenWidget>) -> SystemMonitorPanelNeeds {
+        SystemMonitorPanelNeeds(
+            network: widgets.contains(.network), power: widgets.contains(.battery), cpu: widgets.contains(.cpu),
+            gpu: widgets.contains(.gpu), memory: widgets.contains(.memory), battery: widgets.contains(.battery),
+            peripheralBattery: widgets.contains(.accessories), cpuTemperature: widgets.contains(.cpu),
+            gpuTemperature: widgets.contains(.gpu), fanSpeed: widgets.contains(.cpu))
+    }
+
+    /// Claude's and Codex's cards count as the AI page shown, so their limits
+    /// refresh as they do in the open island.
+    private static func showsLimits(_ gates: NotchLockScreenModel.Gates) -> Bool {
+        gates.widgets.contains(.claude) || gates.widgets.contains(.codex)
+    }
+
     private func startSources(_ gates: NotchLockScreenModel.Gates) {
         if gates.music { NotchMusicService.shared.start() }
         if gates.downloads { NotchDownloadService.shared.syncWithPreferences() }
         // An event chosen from its menu counts down with the countdown for every event off.
-        if gates.countdown || gates.timeLeft || !NotchCalendarSupport.chosenCountdowns().isEmpty {
+        if gates.countdown || gates.timeLeft || gates.calendar || !NotchCalendarSupport.chosenCountdowns().isEmpty {
             NotchCalendarService.shared.syncWithPreferences()
         }
-        if gates.agents { AgentUsageService.shared.syncWithPreferences() }
+        if gates.agents || gates.page { AgentUsageService.shared.syncWithPreferences() }
+        if Self.showsLimits(gates) { AgentUsageService.shared.pageDidAppear() }
+        if gates.widgets.contains(.codex) { CodexProfileLimitsService.shared.pageDidAppear() }
+        if gates.mac { SystemMonitor.shared.setLockScreenNeeds(Self.macNeeds(gates.widgets)) }
     }
 
     private func hide(unlocking: Bool, stopsSources: Bool) {
+        // Before the island returns on unlocking, so an AI page it opens on
+        // reports itself shown after the lock screen's rail has left.
+        if space != nil, Self.showsLimits(model.gates) { AgentUsageService.shared.pageDidDisappear() }
+        if space != nil, model.gates.widgets.contains(.codex) { CodexProfileLimitsService.shared.pageDidDisappear() }
+        // The island takes the monitor back with its own needs as it returns.
+        if space != nil, model.gates.mac { SystemMonitor.shared.setLockScreenNeeds(.none) }
         if stopsSources, !scene.isEmpty {
             NotchMusicService.shared.stop()
             NotchDownloadService.shared.stop()
             NotchCalendarService.shared.stop()
             AgentUsageService.shared.pause()
         }
-        playbackSubscription = nil
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
         padlockWork?.cancel()
@@ -253,9 +297,10 @@ final class NotchLockScreenService {
         panel.appearance = NSAppearance(named: .darkAqua)
         panel.level = NotchPanel.normalLevel
         panel.collectionBehavior = NotchPanel.overlayCollectionBehavior
-        // Only the player's pane takes clicks, where it draws. Left unset, a
-        // window lets clicks through its clear pixels, so the room around the
-        // pane and a player with no song pass them to the lock screen beneath.
+        // An interactive panel takes the pointer only where it draws. Left
+        // unset, a window lets clicks through its clear pixels, so the room
+        // around the player's pane and a player with no song pass them to
+        // the lock screen beneath.
         // Set to false, the whole frame would take them even with nothing shown.
         if !interactive { panel.ignoresMouseEvents = true }
         let host = NotchLockScreenHostingView(rootView: AnyView(content))

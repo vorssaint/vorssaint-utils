@@ -76,7 +76,7 @@ struct CopilotReader: AgentHarnessReader {
             guard state.turnOpen else { return [] }
             state.turnOpen = false
             state.copilotFinalResponse = false
-            return [.turnEnded(date, completed: false, duration: nil)]
+            return [.turnEnded(date, completed: false, duration: nil), .turnAwaiting(.interrupted, date, inferred: false)]
         case "session.shutdown":
             var entries = copilotUsage(data.value("modelMetrics") as? [String: Any], event: envelope.string("id"),
                                        date: date, state: &state)

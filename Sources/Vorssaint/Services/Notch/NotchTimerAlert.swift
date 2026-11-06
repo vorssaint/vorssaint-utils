@@ -14,12 +14,11 @@ final class NotchTimerAlert {
     private let sound: () -> Void
     private let stopSound: () -> Void
 
+    /// Rings the sound chosen for the timer on the Sounds page, letting a
+    /// sound set to repeat finish before the next ring.
     convenience init() {
-        let tone = NSSound(contentsOfFile: "/System/Library/Sounds/Glass.aiff", byReference: false)
-        self.init(sound: {
-            if let tone { tone.stop(); tone.play() }
-            else { NSSound.beep() }
-        }, stopSound: { tone?.stop() })
+        self.init(sound: { AppSoundService.shared.ring(.timerFinished) },
+                  stopSound: { AppSoundService.shared.stop(.timerFinished) })
     }
 
     init(interval: Duration = .seconds(2), now: @escaping () -> ContinuousClock.Instant = { .now },

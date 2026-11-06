@@ -428,7 +428,8 @@ enum WindowEdgeSnapPlacementGroup: CaseIterable {
             return [.topLeftSixth, .topCenterSixth, .topRightSixth,
                     .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth]
         case .corners:
-            return [.topLeft, .topRight, .bottomLeft, .bottomRight]
+            return [.topLeft, .topRight, .bottomLeft, .bottomRight,
+                    .topLeftTwoThirds, .topRightTwoThirds, .bottomLeftTwoThirds, .bottomRightTwoThirds]
         case .other:
             return [.maximize, .marginMaximize]
         }

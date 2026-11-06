@@ -87,6 +87,7 @@ enum NotchDestinationContract {
     enum ShortcutCapture { static var isCapturing = false }
 
     class State {
+        func followTopBarStart() {}
         var acceptsUserInteraction = true
         func collapse() { expanded = false }
         var hiddenInFullscreen = false
@@ -111,6 +112,7 @@ enum NotchDestinationContract {
         var peeking = false
         var pinned = false
         var openedByHover = false
+        var pointerReachedOpening = false
         var inside = false
         var notice: NotchNotice?
         var noticeExpanded = false
@@ -156,6 +158,8 @@ enum NotchDestinationContract {
             NotchTimerService.shared = Timer()
         }
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        // These checks cover the sections and the floating buttons.
+        defaults.set(NotchNavigationStyle.sideButtons.rawValue, forKey: DefaultsKey.notchNavigationStyle)
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         let focus = Service()
@@ -595,6 +599,19 @@ enum NotchDestinationContract {
         suite.expect(invalid.selected == .controls, "a malformed saved page falls back to Controls")
         defaults.set(NotchModule.controls.rawValue, forKey: DefaultsKey.notchHomeModule)
         defaults.set(false, forKey: DefaultsKey.notchReturnHome)
+        let pointerKeys = [DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverExpands, DefaultsKey.notchPointerDriven]
+        for key in pointerKeys { defaults.set(true, forKey: key) }
+        let pointer = Service()
+        pointer.open(.music)
+        pointer.expanded = false
+        pointer.compactActivity = .timer
+        pointer.open()
+        suite.expect(pointer.selected == .music,
+               "an island driven by the pointer reopens the last page over a visible activity")
+        pointer.expanded = false
+        pointer.openActivity(.timer)
+        suite.expect(pointer.selected == .timer, "a tap on the activity's strip still opens its page")
+        for key in pointerKeys { defaults.removeObject(forKey: key) }
         activityContracts(defaults: defaults) { suite.expect($0, $1) }
     }
 

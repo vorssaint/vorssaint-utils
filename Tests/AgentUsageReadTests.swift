@@ -18,6 +18,9 @@ enum AgentUsageReadTests {
         static func copilotHistoryLine(_ buffer: Data, range: Range<Int>) -> Bool {
             AgentUsageProductionLogReader.copilotHistoryLine(buffer, range: range)
         }
+        static func codexHistoryLine(_ buffer: Data, range: Range<Int>) -> Bool {
+            AgentUsageProductionLogReader.codexHistoryLine(buffer, range: range)
+        }
         static func readCopilotHistory(_ cursor: AgentLogCursor, shouldContinue: () -> Bool,
                                        line: (Data) -> Void) {
             AgentUsageProductionLogReader.readCopilotHistory(cursor, shouldContinue: shouldContinue) {
@@ -65,11 +68,11 @@ enum AgentUsageReadTests {
         var home = FileManager.default.temporaryDirectory
         var readerSession = 1
         var watchedRoots: [AgentLogRoot] = []
+        var syncedRoots: [AgentLogRoot] = []
         var readerCancellation: Cancellation? = Cancellation()
         var cursors: [String: AgentLogCursor] = [:]
         var store = AgentUsageStore()
         var enabled: Set<AgentProvider> = []
-        var readerClaudeProfile = ClaudeAccountProfile()
         var previousLimits: [AgentProvider: AgentLimits] = [:]
         var budgetDay: Date?
         var snapshot = AgentUsageSnapshot()
@@ -91,7 +94,18 @@ enum AgentUsageReadTests {
             snapshot = store.snapshot(plans: [:], providers: enabled, now: Date())
             publications.append(snapshot)
         }
-        func report(_ event: AgentUsageEvent) { events.append(event) }
+        func report(_ event: AgentUsageEvent, allDone: Bool = false) {
+            events.append(event)
+            if allDone { allDoneEvents.append(event) }
+        }
+        var allDoneEvents: [AgentUsageEvent] = []
+        var peakTurns = 0
+        var attentionSchedule = AgentAttentionSchedule()
+        var starts: [AgentProvider] = []
+        func reportStart(_ provider: AgentProvider) { starts.append(provider) }
+        var interrupts: [AgentProvider] = []
+        func reportInterrupt(_ provider: AgentProvider) { interrupts.append(provider) }
+        func observeFrontmost() {}
         func checkLimits() {}
         func schedulePublish() {}
     }
@@ -180,6 +194,7 @@ enum AgentUsageReadTests {
         }
         startup(suite, folder: folder.appending(path: "home"), cases: cases)
         codexThreads(suite, folder: folder)
+        allDone(suite, folder: folder)
 
         let openFile = folder.appending(path: "copilot-open.jsonl")
         let openLines = [
@@ -232,6 +247,31 @@ enum AgentUsageReadTests {
         watcher.filesChanged([], rescan: true)
         suite.expect(Set(watcher.cursors.keys) == [real.path] && watcher.store.records.count == 1,
                      "Copilot rescans use the same path boundary and do not duplicate live activity")
+    }
+
+    /// The last of several turns that ran together is heard as all done;
+    /// a turn that ran alone, or one that left others working, is not.
+    private static func allDone(_ suite: TestSuite, folder: URL) {
+        let now = Date().timeIntervalSince1970
+        let host = Host()
+        host.store.reportsTransitions = true
+        func write(_ name: String, _ lines: [String]) {
+            let file = folder.appending(path: "all-done-\(name).jsonl")
+            let old = (try? Data(contentsOf: file)) ?? Data()
+            try? (old + Data((lines.joined(separator: "\n") + "\n").utf8)).write(to: file)
+            _ = host.read(file.path, provider: .codex)
+        }
+        let start = #"{"type":"event_msg","timestamp":\#(now - 60),"payload":{"type":"task_started"}}"#
+        let done = #"{"type":"event_msg","timestamp":\#(now),"payload":{"type":"task_complete"}}"#
+        write("solo", [start])
+        write("solo", [done])
+        suite.expect(host.events.count == 1 && host.allDoneEvents.isEmpty, "a turn that ran alone is only finished")
+        write("a", [start])
+        write("b", [start])
+        write("a", [done])
+        suite.expect(host.events.count == 2 && host.allDoneEvents.isEmpty, "a turn that leaves another working is only finished")
+        write("b", [done])
+        suite.expect(host.events.count == 3 && host.allDoneEvents.count == 1, "the last of two turns that ran together is all done")
     }
 
     private static func codexThreads(_ suite: TestSuite, folder: URL) {
@@ -409,7 +449,7 @@ enum AgentUsageReadTests {
             AgentLogReader.beforeLine = {
                 readings.append((host.snapshot.loaded, host.publications.count, host.store.records.count))
             }
-            host.start(session: index + 1, providers: [provider], cancellation: Cancellation())
+            host.start(session: index + 1, providers: [provider], synced: [], cancellation: Cancellation())
             suite.expect(!readings.isEmpty && readings.allSatisfy { !$0.loaded && $0.publications == 0 },
                          "\(provider) startup stays in Reading usage until the entire history pass finishes")
             suite.expect(readings.contains { $0.records > 0 },
@@ -429,19 +469,19 @@ enum AgentUsageReadTests {
                 cancelledDuringRead = true
             }
         }
-        cancelled.start(session: 1, providers: [.copilot], cancellation: cancellation)
+        cancelled.start(session: 1, providers: [.copilot], synced: [], cancellation: cancellation)
         suite.expect(cancelledDuringRead && !cancelled.snapshot.loaded && cancelled.publications.isEmpty,
                      "cancelling during the initial pass never publishes partial history as loaded")
         AgentLogReader.beforeLine = nil
         let stopped = Host()
         stopped.home = folder
-        stopped.start(session: 2, providers: [.copilot], cancellation: cancellation)
+        stopped.start(session: 2, providers: [.copilot], synced: [], cancellation: cancellation)
         suite.expect(!stopped.snapshot.loaded && stopped.publications.isEmpty && stopped.store.records.isEmpty,
                      "an already cancelled startup cannot publish an empty loaded snapshot")
 
         let empty = Host()
         empty.home = folder.appending(path: "empty-home")
-        empty.start(session: 1, providers: Set(AgentProvider.allCases), cancellation: Cancellation())
+        empty.start(session: 1, providers: Set(AgentProvider.allCases), synced: [], cancellation: Cancellation())
         suite.expect(empty.publications.count == 1 && empty.snapshot.loaded && empty.snapshot.seen.isEmpty,
                      "a completed pass with genuinely no history leaves the loading state")
     }

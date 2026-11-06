@@ -242,6 +242,9 @@ struct OpenCodeReader: AgentHarnessReader {
                 sessionState.activeUserMessageID = ""
                 entries.append(.turnEnded(date, completed: json["outcome"] as? String == "succeeded",
                                           duration: duration))
+                if json["outcome"] as? String == "interrupted" {
+                    entries.append(.turnAwaiting(.interrupted, date, inferred: false))
+                }
             }
             state.openCodeSessions[sessionID] = sessionState
             state.turnOpen = false

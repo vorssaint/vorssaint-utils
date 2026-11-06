@@ -6,7 +6,19 @@ import AppKit
 /// Production routing and lifecycle with controlled event delivery, never posted input.
 enum NotchScreenEdgeClickTests {
     final class Panel { var isVisible = true; var ignoresMouseEvents = false }
-    final class Host { var acceptsPoint = true; func containsDestination(_ point: CGPoint) -> Bool { acceptsPoint } }
+    final class Host {
+        var acceptsPoint = true
+        var hoverFrame = CGRect.zero
+        func containsDestination(_ point: CGPoint) -> Bool { acceptsPoint }
+        func containsHover(_ point: CGPoint) -> Bool { NSMouseInRect(point, hoverFrame, false) }
+    }
+    enum UserDefaults {
+        static var standard = Preferences()
+        struct Preferences {
+            var opensOnHover = true
+            func bool(forKey key: String) -> Bool { key == DefaultsKey.notchOpenOnHover && opensOnHover }
+        }
+    }
     enum NSScreen {
         static var withMenuBar: Screen? = Screen()
         struct Screen { let frame = CGRect(x: 0, y: 0, width: 1470, height: 956) }
@@ -23,6 +35,7 @@ enum NotchScreenEdgeClickTests {
             cgEvent = CGEvent(location: CGPoint(x: point.x, y: 956 - point.y))
             self.window = window
         }
+        static var mouseLocation = CGPoint.zero
         static var global: [Int: (NSEvent) -> Void] = [:]
         static var local: [Int: (NSEvent) -> NSEvent?] = [:]
         static var nextID = 0
@@ -50,6 +63,13 @@ enum NotchScreenEdgeClickTests {
         }
         var screenEdgeClickMonitors: [Any] = []
         var screenEdgePressArea: CGRect?
+        var screenEdgeHoverMonitors: [Any] = []
+        var inside = false
+        var hovers = 0
+        func hover(_ entered: Bool) {
+            hovers += 1
+            inside = windowHost?.containsHover(NSEvent.mouseLocation) == true
+        }
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
         var compactActivity: NotchCompactActivity?
@@ -162,6 +182,43 @@ enum NotchScreenEdgeClickTests {
         countdown.handleScreenEdgeClick(.leftMouseUp, at: countdownPoint, isNotchWindow: false)
         suite.expect(countdown.countdownOpenings == 1 && countdown.openings == 0,
                      "clicking the top edge over an event countdown opens on its event")
+        for screen in [CGRect(x: 0, y: 0, width: 1470, height: 956),
+                       CGRect(x: -1920, y: 956, width: 1920, height: 1080)] {
+            let edge = Service()
+            edge.geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180)
+            let island = edge.geometry.frame(for: edge.surfaceSize)
+            edge.windowHost?.hoverFrame = island
+            let others = NSEvent.global.count + NSEvent.local.count
+            edge.syncScreenEdgeHover()
+            for _ in 0..<100 { edge.syncScreenEdgeHover() }
+            suite.expect(edge.screenEdgeHoverMonitors.count == 2, "refreshes keep exactly one pair of top-row hover monitors")
+            func move(to point: CGPoint) {
+                NSEvent.mouseLocation = point
+                let event = NSEvent(.mouseMoved, point: point)
+                for handler in Array(NSEvent.global.values) { handler(event) }
+            }
+            move(to: CGPoint(x: island.midX, y: island.minY + 4))
+            move(to: CGPoint(x: island.minX - 4, y: screen.maxY))
+            move(to: CGPoint(x: island.midX, y: screen.maxY + 0.5))
+            suite.expect(edge.hovers == 0, "below the top row, beside the island and on a display above, AppKit reports hover")
+            move(to: CGPoint(x: island.midX, y: screen.maxY))
+            suite.expect(edge.hovers == 1 && edge.inside, "a pointer thrown onto the island's top row starts its hover")
+            move(to: CGPoint(x: island.midX + 8, y: screen.maxY - 0.5))
+            suite.expect(edge.hovers == 1, "moves along the top row after entering leave hover to its own following")
+            edge.inside = false
+            edge.expanded = true
+            edge.syncScreenEdgeHover()
+            suite.expect(edge.screenEdgeHoverMonitors.isEmpty, "an open island stops watching the top row")
+            edge.expanded = false
+            UserDefaults.standard.opensOnHover = false
+            edge.syncScreenEdgeHover()
+            suite.expect(edge.screenEdgeHoverMonitors.isEmpty, "the top row is watched only while hovering opens the island")
+            UserDefaults.standard.opensOnHover = true
+            edge.syncScreenEdgeHover()
+            edge.removeScreenEdgeHoverMonitors()
+            suite.expect(edge.screenEdgeHoverMonitors.isEmpty && NSEvent.global.count + NSEvent.local.count == others,
+                         "removing the hover monitors leaves none behind")
+        }
         // A capsule floats below the top edge; the menu bar above it still
         // opens it, and the capsule itself takes its own clicks.
         for (depth, opens) in [(CGFloat(0), true), (1.5, true), (2.5, true), (3.5, false)] {
