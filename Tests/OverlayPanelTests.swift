@@ -41,6 +41,7 @@ enum OverlayPanelTests {
             "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift",
             "Sources/Vorssaint/Services/RadialMenu/RadialMenuService.swift",
             "Sources/Vorssaint/Services/RadialMenu/RadialNowPlayingService.swift",
+            "Sources/Vorssaint/Services/RadialMenu/RadialMenuPeekController.swift",
             "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift",
             "Sources/Vorssaint/Services/WindowLayout/WindowLayoutService.swift",
             "Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerService.swift",

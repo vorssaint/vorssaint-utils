@@ -15,6 +15,7 @@ struct RadialMenuSettings: View {
     @AppStorage(DefaultsKey.radialMenuAtPointer) private var atPointer = true
     @AppStorage(DefaultsKey.radialMenuActivationMode) private var activationModeRaw =
         RadialMenuActivationMode.pressOrHold.rawValue
+    @AppStorage(DefaultsKey.radialMenuPeekEnabled) private var peekEnabled = true
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
 
@@ -90,6 +91,11 @@ struct RadialMenuSettings: View {
                     Text(text.positionCenter).tag(false)
                 }
                 .pickerStyle(.segmented)
+                Toggle(text.peekLabel, isOn: $peekEnabled)
+                    .disabled(!enabled)
+                Text(text.peekCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Button(text.tryButton) {
                     RadialMenuService.shared.presentPreview(for: selectedProfile)
                 }

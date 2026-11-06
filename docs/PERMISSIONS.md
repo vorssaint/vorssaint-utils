@@ -13,7 +13,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
 | Calendars | Yes | Upcoming appointments in the notch |
 | Bluetooth | Yes | Accessory battery levels in Monitor, optional accessory alerts in the notch and Bluetooth on sleep |
-| Files and Folders | Yes | Monitoring downloads in a folder you choose |
+| Files and Folders | Yes | Monitoring downloads in a folder you choose, and listing a folder you put on the radial menu |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
@@ -107,6 +107,8 @@ The optional notch calendar asks for access when you press its permission button
 ## Files and Folders
 
 Download monitoring watches only the folder you choose in the system picker. Folder access is stored as a local bookmark and does not travel in a settings backup. If the folder becomes unavailable or access is revoked, the notch asks you to choose it again. It does not scan other folders or need Full Disk Access for this feature.
+
+The radial menu lists the inside of a folder you put on the wheel when you rest the pointer on that folder. It only reads names, dates, sizes and kinds, one folder at a time and only while the list is open. Picking, copying or dragging a file out of the list never moves, renames or deletes it. macOS asks the first time it lists Downloads, Desktop, Documents or another protected place; if you say no, the list says it cannot read that folder and everything else on the wheel keeps working.
 
 ## Notifications
 
