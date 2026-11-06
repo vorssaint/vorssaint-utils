@@ -179,6 +179,9 @@ final class BrightnessService: ObservableObject {
     private let workQueue = DispatchQueue(label: "com.vorssaint.utils.brightness", qos: .userInitiated)
     private let stateLock = NSLock()
     private var routes: [CGDirectDisplayID: Route] = [:]
+    /// The DDC channel of an external display whose brightness runs on the
+    /// system pipeline, found only for controls that are not brightness.
+    private var volumeChannels: [CGDirectDisplayID: CFTypeRef] = [:]
     private struct PendingWrite {
         let value: Double
         let showOSD: Bool
@@ -245,7 +248,7 @@ final class BrightnessService: ObservableObject {
     }
 
     /// Identifies the physical monitor behind a display number.
-    private static func displayFingerprint(_ id: CGDirectDisplayID) -> String {
+    static func displayFingerprint(_ id: CGDirectDisplayID) -> String {
         "\(CGDisplayVendorNumber(id)):\(CGDisplayModelNumber(id)):\(CGDisplaySerialNumber(id))"
     }
 
@@ -688,6 +691,105 @@ final class BrightnessService: ObservableObject {
         guard schedule else { return }
         workQueue.async { [weak self] in
             self?.drainPendingLevels()
+        }
+    }
+
+    // MARK: - Other DDC controls
+
+    /// What the DDC route of a display allows another control, such as the
+    /// monitor's speaker volume, to do over the same channel.
+    struct DDCChannel: Equatable {
+        /// Whether the monitor answers readings at all, which says whether
+        /// a control's support can be learned from it.
+        let readable: Bool
+        let fingerprint: String
+    }
+
+    func ddcChannel(for id: CGDirectDisplayID) -> DDCChannel? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        if let route = routes[id], route.method == .ddc, route.service != nil {
+            return DDCChannel(readable: route.ddcReadable, fingerprint: Self.displayFingerprint(id))
+        }
+        // A channel found beside the system route is never read: whether it
+        // answers is unknown, and a person confirms such a control by ear.
+        guard routes[id]?.method == .system, volumeChannels[id] != nil else { return nil }
+        return DDCChannel(readable: false, fingerprint: Self.displayFingerprint(id))
+    }
+
+    private func ddcService(for id: CGDirectDisplayID) -> CFTypeRef? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        if let route = routes[id], route.method == .ddc { return route.service }
+        return routes[id]?.method == .system ? volumeChannels[id] : nil
+    }
+
+    /// Pairs external displays with the DDC services left after the brightness
+    /// routes took theirs, the way those routes are paired.
+    private static func volumeChannels(
+        for candidates: [(id: CGDirectDisplayID, identity: BrightnessSupport.DisplayIdentity)],
+        excluding used: Set<Int>
+    ) -> [CGDirectDisplayID: CFTypeRef] {
+        guard !candidates.isEmpty, BrightnessBridge.ddcAvailable else { return [:] }
+        let services = externalServices().filter { !used.contains($0.identity.ordinal) }
+        guard !services.isEmpty else { return [:] }
+        var scores: [(displayIndex: Int, serviceOrdinal: Int, score: Int)] = []
+        for (index, candidate) in candidates.enumerated() {
+            for service in services {
+                scores.append((index, service.identity.ordinal,
+                               BrightnessSupport.matchScore(service: service.identity, display: candidate.identity)))
+            }
+        }
+        var assignment = BrightnessSupport.assignServices(scores: scores)
+        if assignment.isEmpty, candidates.count == 1, services.count == 1 {
+            assignment = [0: services[0].identity.ordinal]
+        }
+        var result: [CGDirectDisplayID: CFTypeRef] = [:]
+        for (index, ordinal) in assignment {
+            if let service = services.first(where: { $0.identity.ordinal == ordinal }) {
+                result[candidates[index].id] = service.service
+            }
+        }
+        return result
+    }
+
+    /// Sends packets to a display's own DDC channel on the queue every other
+    /// brightness transaction uses, so a volume write can never interleave
+    /// with a brightness one. `completion` runs on the main queue with whether
+    /// every packet was accepted; a display without a DDC route accepts none.
+    func sendDDC(_ packets: [[UInt8]], to id: CGDirectDisplayID,
+                 completion: ((Bool) -> Void)? = nil) {
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            var accepted = false
+            if let service = self.ddcService(for: id) {
+                accepted = true
+                for packet in packets where !self.ddcSend(to: id, service: service, packet: packet) {
+                    accepted = false
+                    break
+                }
+            }
+            Self.log.log("ddc write display \(id) packets \(packets.count) accepted \(accepted)")
+            if let completion { DispatchQueue.main.async { completion(accepted) } }
+        }
+    }
+
+    /// Asks the monitor for one control's current and maximum value. Nil when
+    /// it did not answer, which is no proof it lacks the control: some answer
+    /// no readings and still take writes. `completion` runs on the main queue.
+    func readDDC(code: UInt8, from id: CGDirectDisplayID,
+                 completion: @escaping ((current: UInt16, maximum: UInt16)?) -> Void) {
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            self.stateLock.lock()
+            let route = self.routes[id]
+            self.stateLock.unlock()
+            var answer: (current: UInt16, maximum: UInt16)?
+            if let route, route.method == .ddc, route.ddcReadable, let service = route.service,
+               case let .replied(current, maximum) = self.ddcProbeLuminance(for: id, service: service, code: code) {
+                answer = (current, maximum)
+            }
+            DispatchQueue.main.async { completion(answer) }
         }
     }
 
@@ -1201,13 +1303,15 @@ final class BrightnessService: ObservableObject {
             islandShowsNotices: NotchService.shared.acceptsSystemFeedback
                 && !NotchSupport.hidesNoticesUntilHover(in: defaults)) && brightnessOSDSupported
         let wantsKeyboardLight = NotchSupport.routes(.keyboardLight) && keyboardLightBridge != nil
+        let wantsMonitorVolume = defaults.bool(forKey: DefaultsKey.monitorVolumeKeysEnabled)
         if !wantsKeyboardLight || !SessionActivity.shared.isActive {
             keyboardNoticeWork?.cancel(); keyboardNoticeWork = nil
         }
         let keyStep = self.keyStep
         let wantsFinerSteps = keyStep != .standard
         let wanted = SessionActivitySupport.tapShouldRun(
-            featureWanted: (running && (wantsKeyRouting || wantsBrightnessOSD || wantsFinerSteps))
+            featureWanted: (running && (wantsKeyRouting || wantsBrightnessOSD || wantsFinerSteps
+                                        || wantsMonitorVolume))
                 || wantsKeyboardLight,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive)
@@ -1679,6 +1783,12 @@ final class BrightnessService: ObservableObject {
                 scheduleKeyboardLightNotice()
             }
             return Unmanaged.passUnretained(event)
+        }
+        // A volume key goes to a monitor's own speakers when the sound goes out
+        // through that monitor, and to the system otherwise.
+        if let volume = MonitorVolumeSupport.keyPress(subtype: Int(nsEvent.subtype.rawValue), data1: nsEvent.data1) {
+            return MonitorVolumeService.shared.consumes(volume, flags: event.flags)
+                ? nil : Unmanaged.passUnretained(event)
         }
         // The quarter steps this app sends on below belong to the system.
         guard event.getIntegerValueField(.eventSourceUserData) != BrightnessSupport.systemQuarterStepMarker else {
@@ -2181,6 +2291,7 @@ final class BrightnessService: ObservableObject {
         var forcedSoftwareIDs = Set<CGDirectDisplayID>()
         var extendedDimmingIDs = Set<CGDirectDisplayID>()
         var softwarePathKeys: [CGDirectDisplayID: String] = [:]
+        var usedServiceOrdinals = Set<Int>()
         if !ddcCandidates.isEmpty, BrightnessBridge.ddcAvailable {
             let services = Self.externalServices()
             var scores: [(displayIndex: Int, serviceOrdinal: Int, score: Int)] = []
@@ -2203,6 +2314,7 @@ final class BrightnessService: ObservableObject {
                     continue
                 }
                 let id = built[candidate.index].id
+                usedServiceOrdinals.insert(ordinal)
                 let ioDisplayLocation = candidate.identity.ioDisplayLocation.flatMap {
                     $0.isEmpty ? nil : $0
                 } ?? matched.identity.ioDisplayLocation
@@ -2299,6 +2411,20 @@ final class BrightnessService: ObservableObject {
             }
         }
 
+        // An external display the system pipeline drives for brightness still
+        // has its own DDC channel, which other controls such as the speaker
+        // volume use. Its brightness stays on the system route; only the
+        // channel is found, among the services no DDC route took.
+        let volumeChannels = Self.volumeChannels(
+            for: built.indices.compactMap { index -> (id: CGDirectDisplayID, identity: BrightnessSupport.DisplayIdentity)? in
+                let display = built[index]
+                guard display.isActive, !display.isBuiltIn, newRoutes[display.id]?.method == .system else { return nil }
+                return (display.id, Self.displayIdentity(display.id, info: Self.displayInfoDictionary(display.id)))
+            }, excluding: usedServiceOrdinals)
+        for id in volumeChannels.keys.sorted() {
+            Self.log.log("ddc channel found beside the system route of display \(id)")
+        }
+
         // Software route for everything left over: capture the display's
         // clean gamma curve and put back a dim this app applied itself
         // (reconfigurations and wake reset gamma behind our back).
@@ -2385,6 +2511,7 @@ final class BrightnessService: ObservableObject {
                 }
             }
             routes = newRoutes
+            self.volumeChannels = volumeChannels
             recordDiscoveredTopology(online: seenTopology, active: activeTopology,
                                      mirrorSources: topology.mirrorSources,
                                      fingerprints: fingerprints)
@@ -2761,12 +2888,13 @@ final class BrightnessService: ObservableObject {
     /// write, while their reads "succeed" with cached EDID bytes).
     private func ddcProbeLuminance(for id: CGDirectDisplayID,
                                    service: CFTypeRef,
-                                   classifyingChannel: Bool = false) -> DDCProbe {
+                                   classifyingChannel: Bool = false,
+                                   code: UInt8 = BrightnessSupport.luminanceCode) -> DDCProbe {
         guard let write = BrightnessBridge.writeI2C,
               let read = BrightnessBridge.readI2C else { return .dead }
         paceDDCCommand(for: id)
         defer { recordDDCCommandEnd(for: id) }
-        var request = BrightnessSupport.readRequestPacket(code: BrightnessSupport.luminanceCode)
+        var request = BrightnessSupport.readRequestPacket(code: code)
         var writeAccepted = false
         let attempts = BrightnessSupport.ddcProbeAttempts()
         for attempt in 0..<attempts {
@@ -2785,7 +2913,7 @@ final class BrightnessService: ObservableObject {
             var reply = [UInt8](repeating: 0, count: BrightnessSupport.replyLength)
             if read(service, BrightnessSupport.chipAddress, 0,
                     &reply, UInt32(reply.count)) == KERN_SUCCESS,
-               let parsed = BrightnessSupport.parseReply(reply, code: BrightnessSupport.luminanceCode) {
+               let parsed = BrightnessSupport.parseReply(reply, code: code) {
                 return .replied(current: parsed.current, maximum: parsed.maximum)
             }
             if attempt + 1 < attempts {
