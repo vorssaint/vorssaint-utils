@@ -15,7 +15,7 @@ final class KeepAwakeManager: ObservableObject {
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "keep-awake")
 
-    enum EndReason { case manual, timer, battery, quit }
+    enum EndReason { case manual, timer, battery, quit, agentsFinished }
     enum SessionTrigger { case manual, automation }
 
     @Published private(set) var isActive = false
@@ -25,6 +25,10 @@ final class KeepAwakeManager: ObservableObject {
     @Published private(set) var sessionMinutes: Int?
     @Published private(set) var runningAppBundleIDs: [String] = []
     @Published private(set) var activeAutomationConditions = Set<KeepAwakeAutomationCondition>()
+    /// The session lasts until no AI agent has been working for a while.
+    @Published private(set) var waitsForAgents = false
+    /// The task the session follows; nil follows every agent.
+    @Published private(set) var followedAgent: AgentLiveSession?
     @Published private(set) var clamshellActive = false {
         didSet {
             guard clamshellActive != oldValue else { return }
@@ -77,6 +81,8 @@ final class KeepAwakeManager: ObservableObject {
     private var endTimer: Timer?
     private var batteryTimer: Timer?
     private var mouseJiggleTimer: Timer?
+    private var agentTimer: Timer?
+    private var agentsQuietSince = Date()
     private var pendingMouseReturn: DispatchWorkItem?
     private var defaultsObserver: AnyCancellable?
     private var screenParametersObserver: NSObjectProtocol?
@@ -249,6 +255,27 @@ final class KeepAwakeManager: ObservableObject {
         UserDefaults.standard.set(date.timeIntervalSinceReferenceDate, forKey: DefaultsKey.keepAwakeUntilTime)
     }
 
+    /// Holds the Mac awake while AI agents work, as for a run left overnight,
+    /// and optionally shuts it down once they are done.
+    func activateUntilAgentsFinish(following task: AgentLiveSession? = nil) {
+        automationSuppressedUntilConditionsClear = false
+        activate(end: nil, trigger: .manual, waitingForAgents: true)
+        sessionMinutes = nil
+        followedAgent = isActive ? task : nil
+        agentsQuietSince = Date()
+        if isActive, UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeShutDownAfterAgents) {
+            Self.askForShutDownPermission()
+        }
+    }
+
+    /// Shutting down goes through System Events. Ask for it now, while
+    /// someone is here to answer, rather than at night.
+    static func askForShutDownPermission() {
+        DispatchQueue.global(qos: .utility).async {
+            AppleScriptRunner.run("tell application \"System Events\" to get name")
+        }
+    }
+
     /// Restarts the last pick: the saved end time while it is still ahead,
     /// otherwise the saved duration. A passed end time never rolls to
     /// tomorrow here, which would silently start a session of almost a day.
@@ -262,14 +289,20 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
-    private func activate(end: Date?, trigger: SessionTrigger) {
+    private func activate(end: Date?, trigger: SessionTrigger, waitingForAgents: Bool = false) {
         guard !isTerminating, AppFeature.keepAwake.isAvailable else { return }
+        if waitsForAgents != waitingForAgents {
+            // The assertion's name tells other tools, such as agent hooks, that no one is at the Mac.
+            releaseAssertions()
+            waitsForAgents = waitingForAgents
+        }
+        if !waitingForAgents { followedAgent = nil }
         lidSleepGeneration &+= 1
         lidSleepAttemptsRemaining = 0
         endTimer?.invalidate()
         endTimer = nil
         syncScreenLockMonitoring()
-        sessionPausedForScreenLock = screenLocked
+        sessionPausedForScreenLock = screenLocked && !waitsForAgents
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
         if !sessionPausedForScreenLock { applyAssertions() }
         sessionTrigger = trigger
@@ -285,6 +318,7 @@ final class KeepAwakeManager: ObservableObject {
         }
         if !sessionPausedForScreenLock { startBatteryWatch() }
         syncMouseJiggleTimer()
+        syncAgentWatch()
         if clamshellPreferred, !sessionPausedForScreenLock {
             applyClamshellPreference()
         }
@@ -321,6 +355,9 @@ final class KeepAwakeManager: ObservableObject {
         sessionMinutes = nil
         activeAutomationConditions.removeAll()
         isActive = false
+        waitsForAgents = false
+        followedAgent = nil
+        syncAgentWatch()
         sessionPausedForScreenLock = false
         stopBatteryWatch()
         stopMouseJiggleTimer()
@@ -400,7 +437,7 @@ final class KeepAwakeManager: ObservableObject {
             sessionPausedForScreenLock = false
             return
         }
-        let shouldPause = screenLocked
+        let shouldPause = screenLocked && !waitsForAgents
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
         guard shouldPause != sessionPausedForScreenLock else { return }
 
@@ -668,6 +705,37 @@ final class KeepAwakeManager: ObservableObject {
         endTimer = t
     }
 
+    // MARK: - AI agents
+
+    private func syncAgentWatch() {
+        guard isActive, waitsForAgents else {
+            agentTimer?.invalidate()
+            agentTimer = nil
+            return
+        }
+        guard agentTimer == nil else { return }
+        agentsQuietSince = Date()
+        let t = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
+            self?.checkAgents()
+        }
+        t.tolerance = 5
+        RunLoop.main.add(t, forMode: .common)
+        agentTimer = t
+    }
+
+    private func checkAgents() {
+        let snapshot = AgentUsageService.shared.snapshot
+        let working = KeepAwakeAutomationSupport.agentsWorking(snapshot.live.map(\.id), following: followedAgent?.id)
+        let wait = KeepAwakeAutomationSupport.agentWait(quietSince: agentsQuietSince, loaded: snapshot.loaded,
+                                                        working: working, now: Date())
+        agentsQuietSince = wait.quietSince
+        guard wait.finished else { return }
+        let shutDown = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeShutDownAfterAgents)
+        Self.log.log("AI agents finished, shut down: \(shutDown)")
+        deactivate(reason: .agentsFinished)
+        if shutDown { CommandBarExtras.run(.shutDown) }
+    }
+
     // MARK: - IOKit assertions
 
     private func applyAssertions() {
@@ -675,7 +743,8 @@ final class KeepAwakeManager: ObservableObject {
             var id = IOPMAssertionID(0)
             let ok = IOPMAssertionCreateWithName("PreventUserIdleSystemSleep" as CFString,
                                                  IOPMAssertionLevel(kIOPMAssertionLevelOn),
-                                                 "Vorssaint: keep the Mac awake" as CFString,
+                                                 (waitsForAgents ? "Vorssaint: keep the Mac awake until AI agents finish"
+                                                    : "Vorssaint: keep the Mac awake") as CFString,
                                                  &id)
             if ok == kIOReturnSuccess {
                 systemAssertion = id
