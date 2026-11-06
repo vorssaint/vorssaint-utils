@@ -258,7 +258,7 @@ enum MediaFeatureTests {
                "A size targeted GIF starts from the source width, capped at the tool maximum")
 
         let sizeTargetStrings: [(String, Strings)] = [
-            ("en-US", .enUS), ("pt-BR", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es),
+            ("en-US", .enUS), ("nl", .nl), ("pt-BR", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es),
             ("de", .de), ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko),
             ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW),
         ]
