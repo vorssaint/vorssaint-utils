@@ -97,6 +97,20 @@ extension FeatureStrings {
                 skipPreviewCheckbox: "No mostrar novedades antes de actualizar",
                 showPreviewToggle: "Mostrar novedades antes de actualizar",
                 showPreviewCaption: "Los cambios en tus funciones seguirán apareciendo después de cada actualización.")
+        case .ca:
+            return WhatsNewStrings(
+                updatedFromFormat: "Actualitzat des de %@",
+                newFeatures: "Funcions noves",
+                yourFeatures: "Les teves funcions",
+                notInstalled: "No instal·lades",
+                kindNew: "Novetats",
+                kindChanged: "Canvis",
+                kindFixed: "Correccions",
+                updated: "Actualitzat",
+                chooseFeatureHint: "Tria una funció per veure què hi ha canviat.",
+                skipPreviewCheckbox: "No mostris les novetats abans d’actualitzar",
+                showPreviewToggle: "Mostra les novetats abans d’actualitzar",
+                showPreviewCaption: "Els canvis de les teves funcions continuen apareixent després de cada actualització.")
         case .sk:
             return WhatsNewStrings(
                 updatedFromFormat: "Aktualizované z verzie %@",

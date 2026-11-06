@@ -37,6 +37,11 @@ struct NotchLowBatteryStrings {
                          threshold: "Nivel rojo", early: "Poner en ámbar antes",
                          earlyCaption: "Muestra la carga en ámbar en un nivel más alto o por debajo, como primer aviso.",
                          earlyThreshold: "Nivel ámbar", menuBar: "También en la barra de menús")
+        case .ca:
+            return .init(title: "Vermell amb poca bateria", caption: "Mostra la càrrega en vermell quan és igual o inferior a aquest nivell mentre el Mac funciona amb la bateria.",
+                         threshold: "Nivell vermell", early: "Avís previ en ambre",
+                         earlyCaption: "Mostra la càrrega en ambre quan és igual o inferior a un nivell més alt, com a primer avís.",
+                         earlyThreshold: "Nivell ambre", menuBar: "També a la barra de menús")
         case .sk:
             return .init(title: "Sčervenať pri nízkej batérii", caption: "Pri napájaní z batérie zobrazí nabitie červenou na tejto úrovni alebo pod ňou.",
                          threshold: "Červená úroveň", early: "Najprv jantárová",

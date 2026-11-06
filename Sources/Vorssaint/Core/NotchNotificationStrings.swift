@@ -56,6 +56,18 @@ extension FeatureStrings {
             unavailable: "Esta notificación ya no admite esta acción.",
             hideSystemBanner: "Ocultar el aviso del sistema",
             hideSystemBannerHint: "Oculta el aviso original mientras el Dynamic Island lo muestra.")
+        case .ca: return NotchNotificationStrings(
+            title: "Notificacions",
+            description: "Les notificacions noves del sistema a la Dynamic Island.",
+            privacy: "Mostra només els bàners nous visibles. Els missatges es mantenen a la memòria i s’esborren quan bloqueges aquest Mac o desactives aquesta opció.",
+            empty: "Les notificacions noves apareixeran aquí",
+            waiting: "S’està esperant el servei de notificacions del sistema",
+            open: "Obre",
+            dismiss: "Tanca",
+            clearAll: "Esborra-ho tot",
+            unavailable: "Aquesta notificació ja no admet aquesta acció.",
+            hideSystemBanner: "Oculta el bàner del sistema",
+            hideSystemBannerHint: "Oculta l’original mentre la Dynamic Island el mostra.")
         case .sk: return NotchNotificationStrings(
             title: "Hlásenia",
             description: "Nové systémové hlásenia v Dynamic Island.",

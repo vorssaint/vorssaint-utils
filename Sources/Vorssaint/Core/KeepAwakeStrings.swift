@@ -52,6 +52,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -72,6 +73,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -110,6 +112,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let es = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Permitir que la pantalla se apague",
         allowDisplaySleepCaption: "Mantiene el Mac activo mientras la pantalla sigue su temporizador de reposo habitual."
+    )
+
+    static let ca = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Permet que la pantalla entri en repòs",
+        allowDisplaySleepCaption: "Manté el Mac actiu mentre la pantalla segueix el temporitzador de repòs habitual."
     )
 
     static let sk = KeepAwakeDisplaySleepStrings(
@@ -271,6 +278,28 @@ extension KeepAwakeAutomationStrings {
         matchAny: "Cualquiera",
         matchAll: "Todas",
         automationCaptionAll: "Se activa solo cuando todas las condiciones seleccionadas están activas."
+    )
+
+    static let ca = KeepAwakeAutomationStrings(
+        automationSection: "Automatització",
+        automationCaption: "S’inicia quan es compleix alguna de les condicions seleccionades.",
+        automationOff: "Desactivat",
+        externalDisplayToggle: "Pantalla externa",
+        externalDisplayActive: "Actiu mentre hi hagi una pantalla externa connectada",
+        powerToggle: "Corrent",
+        powerActive: "Actiu mentre estigui connectat al corrent",
+        runningAppsToggle: "Apps",
+        runningAppsActive: "Actiu mentre s’executi una app seleccionada",
+        runningAppsListTitle: "Apps seleccionades",
+        runningAppsAddButton: "Afegeix una app…",
+        runningAppsRemoveButton: "Elimina",
+        runningAppsListCaption: "“Mantenir actiu” s’inicia mentre alguna d’aquestes apps estigui oberta, fins i tot en segon pla.",
+        automationActive: "Actiu perquè es compleix una condició automàtica",
+        pauseWhenLockedToggle: "Posa en pausa mentre el Mac estigui bloquejat",
+        pauseWhenLockedCaption: "Segueix les regles de repòs habituals mentre està bloquejat i reprèn el que queda de sessió quan el desbloqueges.",
+        matchAny: "Qualsevol",
+        matchAll: "Totes",
+        automationCaptionAll: "S’inicia només quan es compleixen totes les condicions seleccionades."
     )
 
     static let sk = KeepAwakeAutomationStrings(
