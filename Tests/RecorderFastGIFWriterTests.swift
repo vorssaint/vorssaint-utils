@@ -132,6 +132,16 @@ enum RecorderFastGIFWriterTests {
                 suite.expect(true, "a submitted compression batch honors cancellation before finalizing")
             }
         }
+        // An 8K recording exported at 25% keeps each pending frame's decoded
+        // source alive, so the batch is bounded by those bytes as well.
+        let scaled = RecorderFastGIFWriter(writer: cancelled, size: CGSize(width: 1_920, height: 1_080),
+            sourceSize: CGSize(width: 7_680, height: 4_320), isCancelled: { false })
+        let native = RecorderFastGIFWriter(writer: cancelled, size: CGSize(width: 1_920, height: 1_080),
+            isCancelled: { false })
+        if let scaled, let native {
+            suite.expect(scaled.framesPerBatch == 8 && native.framesPerBatch == 16,
+                         "large decoded sources shrink the GPU batch, got \(scaled.framesPerBatch) and \(native.framesPerBatch)")
+        }
         suite.expect(RecorderFastGIFWriter(writer: cancelled,
             size: CGSize(width: CGFloat.infinity, height: 32), isCancelled: { false }) == nil,
                      "invalid GPU canvases request fallback")

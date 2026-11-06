@@ -24,7 +24,7 @@ final class RecorderFastGIFWriter {
     private var thumbnails: [CGImage] = []
     private var inFlight: Compression?
 
-    init?(writer: RecorderGIFWriter, size: CGSize,
+    init?(writer: RecorderGIFWriter, size: CGSize, sourceSize: CGSize = .zero,
           isCancelled: @escaping @Sendable () -> Bool) {
         guard size.width.isFinite, size.height.isFinite,
               size.width >= 1, size.height >= 1,
@@ -44,9 +44,14 @@ final class RecorderFastGIFWriter {
         self.width = width
         self.height = height
         self.isCancelled = isCancelled
-        // At most ~120 MB of indices per batch; decoded sources, the GPU
-        // texture and one compressing batch are additional live allocations.
-        framesPerBatch = min(16, max(1, 120_000_000 / (width * height)))
+        // At most ~120 MB of indices per batch. Pending frames also keep
+        // their decoded 4:2:0 sources alive, so a large recording exported
+        // small batches by ~400 MB of those too. The GPU texture and one
+        // compressing batch are additional live allocations.
+        let sourceBytes = sourceSize.width.isFinite && sourceSize.height.isFinite
+            ? max(1, Int(sourceSize.width * sourceSize.height * 1.5)) : 1
+        framesPerBatch = min(16, max(1, min(120_000_000 / (width * height),
+                                            400_000_000 / sourceBytes)))
     }
 
     deinit { inFlight?.wait() }

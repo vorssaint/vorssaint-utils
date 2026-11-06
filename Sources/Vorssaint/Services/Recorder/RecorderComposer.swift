@@ -56,6 +56,9 @@ final class RecorderComposer {
         /// once like everything else, so a frame is a lookup.
         let texts: [RecorderTextOverlay]
         let textOpacity: [[Double]]
+        /// GIF captions keep the preview's font metrics and minimum font size,
+        /// then scale with the picture instead of being laid out again smaller.
+        let textCanvasSize: CGSize
         /// Pictures laid over the recording, each already resized to the
         /// pixels it is drawn at, with the same per-frame solidity.
         let images: [RecorderImageOverlay]
@@ -142,6 +145,8 @@ final class RecorderComposer {
     /// frame the moment the zoom moved.
     private func drawTexts(on content: CIImage, index: Int) -> CIImage {
         guard !plan.texts.isEmpty else { return content }
+        let scale = CGAffineTransform(scaleX: plan.canvasSize.width / plan.textCanvasSize.width,
+                                      y: plan.canvasSize.height / plan.textCanvasSize.height)
         var result = content
         for (order, overlay) in plan.texts.enumerated() {
             guard plan.textOpacity.indices.contains(order),
@@ -149,12 +154,13 @@ final class RecorderComposer {
             let opacity = plan.textOpacity[order][index]
             guard opacity > 0.01,
                   let image = RecorderTextRenderer.image(for: overlay,
-                                                         canvasHeight: plan.canvasSize.height)
+                                                         canvasHeight: plan.textCanvasSize.height)
             else { continue }
             let size = CGSize(width: image.width, height: image.height)
-            let origin = overlay.anchor.origin(of: size, in: plan.canvasSize)
+            let origin = overlay.anchor.origin(of: size, in: plan.textCanvasSize)
             result = faded(CIImage(cgImage: image), opacity: opacity)
                 .transformed(by: CGAffineTransform(translationX: origin.x, y: origin.y))
+                .transformed(by: scale)
                 .composited(over: result)
         }
         return result

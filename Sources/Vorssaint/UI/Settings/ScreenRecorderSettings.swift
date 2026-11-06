@@ -119,9 +119,12 @@ struct ScreenRecordingCaptureSettings: View {
                     Group {
                         VStack(alignment: .leading, spacing: 4) {
                             Picker(strings.qualityLabel, selection: $qualityRaw) {
-                                Text(strings.qualitySmall).tag(RecorderSupport.Quality.small.rawValue)
-                                Text(strings.qualityBalanced).tag(RecorderSupport.Quality.balanced.rawValue)
-                                Text(strings.qualityHigh).tag(RecorderSupport.Quality.high.rawValue)
+                                Text(strings.qualitySmall)
+                                    .tag(RecorderSupport.Quality.small.rawValue)
+                                Text(strings.qualityBalanced)
+                                    .tag(RecorderSupport.Quality.balanced.rawValue)
+                                Text(strings.qualityHigh)
+                                    .tag(RecorderSupport.Quality.high.rawValue)
                             }
                             Text(strings.qualityCaption)
                                 .font(.caption)

@@ -575,8 +575,7 @@ final class RecorderExporter {
         guard frameCount > 0 else { return .noVideo }
 
         // Rendered through the same composer as the video, so a background and
-        // a smoothed pointer are in it too, at the size the editor's quality
-        // shows for the video.
+        // a smoothed pointer are in it too, at the editor's GIF scale.
         let frameRate = Int(((try? await videoTrack.load(.nominalFrameRate)) ?? 60).rounded())
         let track = RecorderPointerTrack.decoded(try? Data(contentsOf: pointerURL))
         let plan = RecorderComposer.makePlan(document: document,
@@ -584,23 +583,29 @@ final class RecorderExporter {
                                              sourceSize: sourceSize,
                                              frameRate: RecorderSupport.sanitizedFrameRate(frameRate),
                                              duration: duration,
-                                             outputScale: document.resolvedQuality.outputScale)
+                                             outputScale: CGFloat(document.outputScale(for: .gif)),
+                                             outputFormat: .gif)
         let composer = plan.map { RecorderComposer(plan: $0) }
+        // Pure resizing stays after decoding: AV video composition can replace
+        // corrupt input frames with black rather than reporting a missing frame.
+        let scaleOnly = composer != nil && RecorderComposer.makePlan(
+            document: document, track: track, sourceSize: sourceSize,
+            frameRate: RecorderSupport.sanitizedFrameRate(frameRate), duration: duration) == nil
+        let resizeContext = scaleOnly ? CIContext() : nil
+        // GIF dimensions are independent of the video bitrate and size preset.
         let canvas = composer?.canvasSize
-            ?? RecorderSupport.outputSize(source: RecorderSupport.evenSize(sourceSize),
-                                          quality: document.resolvedQuality)
+            ?? RecorderSupport.gifOutputSize(source: RecorderSupport.evenSize(sourceSize),
+                scalePercent: document.resolvedGIFScalePercent)
 
         guard let workspace = try? RecorderGIFWorkspace() else { return .writeFailed }
         defer { workspace.discard() }
-        guard let writer = try? RecorderGIFWriter(url: workspace.fileURL, fps: fps,
-            framesPerChunk: RecorderGIFWriter.framesPerChunk(width: Int(canvas.width),
-                                                             height: Int(canvas.height)))
+        guard let writer = try? RecorderGIFWriter(url: workspace.fileURL, fps: fps)
         else { return .writeFailed }
         let formats = (try? await videoTrack.load(.formatDescriptions)) ?? []
         let cancellation = cancelled
         var fastWriter = useFastEncoding && canvas.width * canvas.height >= 512 * 512
             && Self.supportsFastGIF(formats)
-            ? RecorderFastGIFWriter(writer: writer, size: canvas,
+            ? RecorderFastGIFWriter(writer: writer, size: canvas, sourceSize: sourceSize,
                                     isCancelled: { cancellation.isCancelled }) : nil
 
         let generator = AVAssetImageGenerator(asset: timeline)
@@ -608,7 +613,7 @@ final class RecorderExporter {
         generator.appliesPreferredTrackTransform = true
         generator.requestedTimeToleranceBefore = .zero
         generator.requestedTimeToleranceAfter = .zero
-        generator.maximumSize = canvas
+        generator.maximumSize = composer == nil ? canvas : .zero
         // Decode in one pass. Keep only the source frame covering the next
         // GIF timestamp and one look-ahead sample, not every decoded frame.
         let reader = try? AVAssetReader(asset: timeline)
@@ -633,7 +638,7 @@ final class RecorderExporter {
         let imageContext = CIContext(options: [.cacheIntermediates: false])
         var currentSample: CMSampleBuffer?
         var nextSample: CMSampleBuffer?
-        if let composer {
+        if let composer, !scaleOnly {
             guard let composition = await RecorderComposer.videoComposition(
                 track: timelineVideo,
                 asset: timeline,
@@ -705,6 +710,11 @@ final class RecorderExporter {
                 if cancelled.isCancelled { return .cancelled }
                 if decoded == nil && renderedFast == nil {
                     decoded = try? await generator.image(at: time).image
+                    if let image = decoded, let resizeContext, let composer {
+                        decoded = resizeContext.createCGImage(
+                            composer.render(CIImage(cgImage: image), at: seconds),
+                            from: CGRect(origin: .zero, size: canvas))
+                    }
                 }
                 if cancelled.isCancelled { return .cancelled }
                 if let fastWriter {

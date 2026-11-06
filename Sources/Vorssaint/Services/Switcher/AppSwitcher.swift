@@ -1445,6 +1445,10 @@ final class AppSwitcher: ObservableObject {
             guard hypot(mouse.x - anchor.x, mouse.y - anchor.y) > 4 else { return }
             hoverAnchor = nil
         }
+        // The edge slide starts only after the anchor clears, and it selects on its own.
+        guard SwitcherSupport.hoverMovesSelection(
+            ignoreHoverSelection: UserDefaults.standard.bool(forKey: DefaultsKey.switcherIgnoreHoverSelection))
+        else { return }
         select(index: index)
     }
 
@@ -1452,8 +1456,8 @@ final class AppSwitcher: ObservableObject {
         if hoveredWindowIndex == index { hoveredWindowIndex = nil }
     }
 
-    /// Icon-row hover. Selects the tile, then only the last visible overflow
-    /// icon may start the one-by-one slide.
+    /// Icon-row hover. Selects the tile unless hover selection is ignored,
+    /// then only the last visible overflow icon may start the one-by-one slide.
     func hoverSelectIconRow(index: Int) {
         hoverSelect(index: index)
         guard hoverAnchor == nil else { return }
@@ -1532,8 +1536,10 @@ final class AppSwitcher: ObservableObject {
         else { return }
 
         closingItemIDs.insert(item.id)
+        let generation = routeLock.withLock { sessionStartGeneration }
         WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
-            guard let self else { return }
+            guard let self, self.sessionActive,
+                  self.routeLock.withLock({ self.sessionStartGeneration == generation }) else { return }
             guard didClose else {
                 self.closingItemIDs.remove(item.id)
                 self.resumePendingCommitAfterClose()
@@ -1543,7 +1549,8 @@ final class AppSwitcher: ObservableObject {
                 self?.finishClosingWindow(itemID: item.id,
                                           windowID: windowID,
                                           pid: item.pid,
-                                          attempt: 0)
+                                          attempt: 0,
+                                          generation: generation)
             }
         }
     }
@@ -1724,8 +1731,12 @@ final class AppSwitcher: ObservableObject {
         resumePendingCommitAfterClose()
     }
 
-    private func finishClosingWindow(itemID: String, windowID: CGWindowID, pid: pid_t, attempt: Int) {
-        guard sessionActive else { return }
+    private func finishClosingWindow(itemID: String, windowID: CGWindowID, pid: pid_t,
+                                     attempt: Int, generation: UInt64) {
+        // Closing can finish after Escape and another shortcut press. Only
+        // the session that requested it may change its list or pending commit.
+        guard sessionActive,
+              routeLock.withLock({ sessionStartGeneration == generation }) else { return }
         guard sessionItems.contains(where: { $0.id == itemID }) else {
             finishTrackingClose(itemID: itemID)
             return
@@ -1744,7 +1755,8 @@ final class AppSwitcher: ObservableObject {
                 self?.finishClosingWindow(itemID: itemID,
                                           windowID: windowID,
                                           pid: pid,
-                                          attempt: attempt + 1)
+                                          attempt: attempt + 1,
+                                          generation: generation)
             }
             return
         }

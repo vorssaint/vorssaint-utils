@@ -191,7 +191,6 @@ enum RecorderFastGIFExportTests {
         let cut = (start: 0.9, end: 1.4)
         let blur = (start: 0.6, end: 1.7)
         var document = plainDocument()
-        document.quality = RecorderSupport.Quality.high.rawValue
         document.gifFrameRate = 15
         document.exportSpeed = speed
         document.trimStart = trimStart
@@ -390,6 +389,8 @@ enum RecorderFastGIFExportTests {
         var document = RecorderEditDocument()
         document.showsPointer = false
         document.zoomEnabled = false
+        // Compare frames at native size; GIF scaling has separate coverage.
+        document.gifScalePercent = 100
         return document
     }
 
