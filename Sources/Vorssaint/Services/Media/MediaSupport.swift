@@ -51,6 +51,15 @@ enum MediaImageFormat: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
+    var contentType: UTType {
+        switch self {
+        case .jpeg: return .jpeg
+        case .heic: return .heic
+        case .png: return .png
+        case .pdf: return .pdf
+        }
+    }
+
     var fileExtension: String {
         switch self {
         case .jpeg: return "jpg"

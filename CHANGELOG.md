@@ -7,7 +7,19 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable window switching, microphone controls, recording exports and display behavior, with safer focus recovery and remote desktop clipboard handling.
+More reliable window switching, audio, notifications and display controls, with better GIF exports, large-image editing and compact-panel behavior. New options improve window dragging, shortcut setup and uninstaller selection.
+
+### Added
+- The window switcher can ignore hover selection while preserving clicks, keyboard navigation and hovered-window closing. Overflowing icon rows still slide at their edges. The option starts off. Thanks to @victorioustr.
+- Edge snapping can restore a window's previous size when it is dragged by its title bar, preserving manual resizing and using the size confirmed by the app. The option starts off and respects ignored apps. Thanks to @nisayera.
+- Both uninstaller result views offer a Select all checkbox with a mixed state, including optional rows when explicitly selected and preserving removal safeguards. Thanks to @heyseere.
+
+### Changed
+- GIF exports can retain the full edited resolution and offer scale and frame-rate controls, with captions kept proportional at smaller sizes. Thanks to @COMEBACKISREAL.
+- Large clipboard images can be resized before opening in the screenshot editor, preserving native image formats, the primary HEIC image and its orientation. Thanks to @kit101.
+- Supported DDC monitors can use software picture dimming instead of hardware brightness commands, with pending brightness changes cancelled when switching modes. Thanks to @yavuzmeteafsar.
+- Keep Awake and Quick Snippet Menu shortcuts can be cleared without disabling their features, remain cleared after restarts and backup imports, and check conflicts when reset. Thanks to @maxmeis.
+- Clipboard history remembers the list window's position after moves and resizes, keeping it visible when displays change. Thanks to @maxmeis.
 
 ### Fixed
 - The window switcher opens and switches more efficiently, reduces flashes when restoring minimized windows and cancels outdated activation requests after a newer selection. Thanks to @zhanghao87.
@@ -20,9 +32,14 @@ More reliable window switching, microphone controls, recording exports and displ
 - Recording previews and exports reuse GPU rendering resources to reduce memory growth, while preserving the orientation of imported videos. Thanks to @Zekuath and @zepeng-jin.
 - Dynamic Island hides over an app's own full screen on every display and refreshes its visibility after temporary overlays or leaving full screen. Thanks to @sugar-king.
 - Picking a clipboard entry in Windows App or Microsoft Remote Desktop leaves it copied for manual paste, avoiding a stray "v" in the remote session. Thanks to @mevichitra.
+- Dynamic Island hides native notification banners on macOS 26, avoids flashes on arrival and keeps Notification Center history out of new notifications, while restoring banners when needed. Thanks to @heyseere and @CanSonmezz.
+- Compact media workspaces use one scroll region, keeping controls reachable and allowing floating panels to grow again when more space becomes available. Thanks to @kit101.
+- Playback, volume and brightness sliders follow the pointer across their full track. Thanks to @stieludv.
+- Command Bar outlines selected results and actions so the selection remains visible on dark surfaces, preserving red for destructive actions. Thanks to @heyseere.
+- The music player shows and opens the correct Safari/WebKit app instead of its audio helper. Thanks to @Zekuath.
 
 ### Contributors
-Thanks to @carlhuareforge, @Chubi01, @jerome-queck, @mevichitra, @nikigan, @phatina, @samueljim, @sugar-king, @Zekuath, @zepeng-jin and @zhanghao87.
+Thanks to @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @heyseere, @jerome-queck, @kit101, @maxmeis, @mevichitra, @nikigan, @nisayera, @phatina, @samueljim, @stieludv, @sugar-king, @victorioustr, @yavuzmeteafsar, @Zekuath, @zepeng-jin and @zhanghao87.
 
 ## [3.4.3] - 2026-10-29
 
