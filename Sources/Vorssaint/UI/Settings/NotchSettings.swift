@@ -545,7 +545,7 @@ struct NotchSettings: View {
         case .watch:
             NotchWatchSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())
-        case .mixer, .system, .tools:
+        case .mixer, .system, .tools, .keyboardTyper:
             EmptyView()
         }
     }
@@ -882,6 +882,7 @@ struct NotchSettings: View {
         case .camera: return .cameraPreview
         case .downloads: return .notchDownloads
         case .scratchpad: return .scratchpad
+        case .keyboardTyper: return .keyboardTyper
         case .agents: return .notchAgents
         case .watch: return .notchWatch
         }

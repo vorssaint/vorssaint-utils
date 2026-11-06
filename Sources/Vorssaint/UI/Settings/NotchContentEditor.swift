@@ -169,6 +169,10 @@ struct NotchPagePreview: View {
         case .system: NotchSystemView(size: size) { _ in }
         case .tools: QuickLauncherView(notchSize: size)
         case .scratchpad: NotchScratchpadStill()
+        // A still: typing here would go to the real typer's text.
+        case .keyboardTyper:
+            NotchEmptyView(symbol: NotchModule.keyboardTyper.symbol,
+                           message: FeatureStrings.notchEditor(l10n.language).summary(.keyboardTyper))
         case .agents:
             // Off, nothing reads the logs, so the page would wait forever.
             if NotchAgentSupport.isEnabled() {
@@ -404,6 +408,7 @@ extension NotchModule {
         case .camera: return .teal
         case .downloads: return .blue
         case .scratchpad: return .yellow
+        case .keyboardTyper: return Color(red: 0.3, green: 0.55, blue: 0.75)
         case .agents: return Color(red: 0.85, green: 0.47, blue: 0.34)
         case .watch: return .purple
         }

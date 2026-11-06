@@ -2330,6 +2330,16 @@ enum NotchTests {
                && !NotchQuickAction.control(.scratchpad).isAvailable(in: defaults),
                "an uninstalled scratchpad leaves no island shortcut")
         defaults.set(true, forKey: AppFeature.scratchpad.availabilityKey)
+        defaults.set(false, forKey: AppFeature.keyboardTyper.availabilityKey)
+        suite.expect(NotchQuickAction(id: "keyboardTyper") == .module(.keyboardTyper)
+               && NotchQuickAction.optionalActions.contains(.module(.keyboardTyper))
+               && !NotchQuickAction.module(.keyboardTyper).isAvailable(in: defaults)
+               && !NotchSupport.routesKeyboardTyper(in: defaults),
+               "the keyboard typer's page and button leave with the typer")
+        defaults.set(true, forKey: AppFeature.keyboardTyper.availabilityKey)
+        suite.expect(NotchQuickAction.module(.keyboardTyper).isAvailable(in: defaults)
+               && NotchSupport.modules(in: defaults).contains(.keyboardTyper),
+               "an installed keyboard typer gets a page and can be placed as a floating button")
         defaults.set("mixer,commandBar", forKey: DefaultsKey.notchHiddenControls)
         defaults.set("", forKey: DefaultsKey.notchControlOrder)
         let allModules = NotchModule.allCases
@@ -2528,7 +2538,7 @@ enum NotchTests {
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
-        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
+        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch, .keyboardTyper],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
         suite.expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")

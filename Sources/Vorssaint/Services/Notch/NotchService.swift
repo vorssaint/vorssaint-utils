@@ -1929,6 +1929,20 @@ final class NotchService: ObservableObject {
         if !showScratchpad() { perform { ScratchpadService.shared.show() } }
     }
 
+    /// Like the scratchpad: the island's own page when it has one, otherwise
+    /// the floating pad, opened once the island has folded so Send types into
+    /// the app behind it.
+    func openKeyboardTyper() {
+        if !showKeyboardTyper() { perform { KeyboardTyperService.shared.show() } }
+    }
+
+    @discardableResult
+    func showKeyboardTyper() -> Bool {
+        guard NotchSupport.routesKeyboardTyper(), acceptsUserInteraction else { return false }
+        open(.keyboardTyper)
+        return true
+    }
+
     @discardableResult
     func showScratchpad(toggle: Bool = false) -> Bool {
         guard NotchSupport.routesScratchpad(), acceptsUserInteraction else { return false }

@@ -76,6 +76,7 @@ enum QuickLauncherContract {
     enum ColorSamplerService { static let shared = Spy(name: "colorPicker") }
     enum CameraPreviewService { static let shared = Spy(name: "camera") }
     enum ScratchpadService { static let shared = Spy(name: "scratchpad") }
+    enum KeyboardTyperService { static let shared = Spy(name: "keyboardTyper") }
     enum ClipboardHistoryService { static let shared = Spy(name: "clipboard") }
     enum CleaningModeManager { static let shared = Spy(name: "cleaning") }
 
@@ -99,6 +100,7 @@ enum QuickLauncherContract {
             (.colorPicker, .colorPicker, "colorPicker.pick", 0.15),
             (.cameraPreview, .cameraPreview, "camera.show", 0.15),
             (.scratchpad, .scratchpad, "scratchpad.show", 0.15),
+            (.keyboardTyper, .keyboardTyper, "keyboardTyper.show", 0.15),
             (.clipboard, .clipboardHistory, "clipboard.showHistoryWindow", 0.1),
             (.cleaning, .cleaningMode, "cleaning.activate", 0.1),
             (.windowLayout, .windowLayout, nil, nil),

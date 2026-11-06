@@ -68,6 +68,7 @@ struct NotchEditorStrings {
     let cameraSummary: String
     let downloadsSummary: String
     let scratchpadSummary: String
+    let keyboardTyperSummary: String
     let agentsSummary: String
     let watchSummary: String
 
@@ -92,6 +93,7 @@ struct NotchEditorStrings {
         case .camera: return cameraSummary
         case .downloads: return downloadsSummary
         case .scratchpad: return scratchpadSummary
+        case .keyboardTyper: return keyboardTyperSummary
         case .agents: return agentsSummary
         case .watch: return watchSummary
         }
@@ -166,6 +168,7 @@ extension FeatureStrings {
             cameraSummary: "A mirror to check yourself before a call.",
             downloadsSummary: "Downloads in progress and just finished.",
             scratchpadSummary: "Quick notes that save by themselves.",
+            keyboardTyperSummary: "Text typed key by key where pasting is blocked.",
             agentsSummary: "Claude Code, Codex, OpenCode and GitHub Copilot usage, limits and costs.",
             watchSummary: "Any part of a window, read live, with an alert when it changes."
         )
@@ -234,6 +237,7 @@ extension FeatureStrings {
             cameraSummary: "Um espelho para se ver antes de uma chamada.",
             downloadsSummary: "Downloads em andamento e os que acabaram de terminar.",
             scratchpadSummary: "Anotações rápidas que se salvam sozinhas.",
+            keyboardTyperSummary: "Texto digitado tecla por tecla onde colar é bloqueado.",
             agentsSummary: "Uso, limites e custos do Claude Code, do Codex, do OpenCode e do GitHub Copilot.",
             watchSummary: "Qualquer parte de uma janela, lida ao vivo, com aviso quando mudar."
         )
@@ -302,6 +306,7 @@ extension FeatureStrings {
             cameraSummary: "Un espejo para verte antes de una llamada.",
             downloadsSummary: "Descargas en curso y las recién terminadas.",
             scratchpadSummary: "Notas rápidas que se guardan solas.",
+            keyboardTyperSummary: "Texto escrito tecla a tecla donde pegar está bloqueado.",
             agentsSummary: "Uso, límites y costes de Claude Code, Codex, OpenCode y GitHub Copilot.",
             watchSummary: "Cualquier parte de una ventana, leída en directo, con aviso cuando cambie."
         )
@@ -370,6 +375,7 @@ extension FeatureStrings {
             cameraSummary: "Zrkadlo, v ktorom sa pred hovorom skontrolujete.",
             downloadsSummary: "Prebiehajúce a práve dokončené sťahovania.",
             scratchpadSummary: "Rýchle poznámky, ktoré sa ukladajú samy.",
+            keyboardTyperSummary: "Text písaný kláves po klávese tam, kde je vkladanie zablokované.",
             agentsSummary: "Využitie, limity a náklady Claude Code, Codexu, OpenCode a GitHub Copilot.",
             watchSummary: "Ľubovoľná časť okna čítaná naživo s upozornením, keď sa zmení."
         )
@@ -438,6 +444,7 @@ extension FeatureStrings {
             cameraSummary: "Ein Spiegel, um dich vor einem Anruf zu sehen.",
             downloadsSummary: "Laufende und gerade fertige Downloads.",
             scratchpadSummary: "Schnelle Notizen, die sich selbst sichern.",
+            keyboardTyperSummary: "Text, Taste für Taste getippt, wo Einfügen gesperrt ist.",
             agentsSummary: "Nutzung, Limits und Kosten von Claude Code, Codex, OpenCode und GitHub Copilot.",
             watchSummary: "Ein beliebiger Teil eines Fensters, live gelesen, mit Hinweis bei Änderungen."
         )
@@ -506,6 +513,7 @@ extension FeatureStrings {
             cameraSummary: "Un miroir pour vous voir avant un appel.",
             downloadsSummary: "Les téléchargements en cours et ceux qui viennent de finir.",
             scratchpadSummary: "Des notes rapides qui s’enregistrent seules.",
+            keyboardTyperSummary: "Du texte tapé touche par touche là où coller est bloqué.",
             agentsSummary: "Utilisation, limites et coûts de Claude Code, Codex, OpenCode et GitHub Copilot.",
             watchSummary: "N’importe quelle partie d’une fenêtre, lue en direct, avec une alerte quand elle change."
         )
@@ -574,6 +582,7 @@ extension FeatureStrings {
             cameraSummary: "Uno specchio per guardarti prima di una chiamata.",
             downloadsSummary: "Download in corso e appena completati.",
             scratchpadSummary: "Note veloci che si salvano da sole.",
+            keyboardTyperSummary: "Testo digitato tasto per tasto dove incollare è bloccato.",
             agentsSummary: "Uso, limiti e costi di Claude Code, Codex, OpenCode e GitHub Copilot.",
             watchSummary: "Qualsiasi parte di una finestra, letta dal vivo, con un avviso quando cambia."
         )
@@ -642,6 +651,7 @@ extension FeatureStrings {
             cameraSummary: "Зеркало, чтобы посмотреть на себя перед звонком.",
             downloadsSummary: "Текущие и только что завершённые загрузки.",
             scratchpadSummary: "Быстрые заметки, которые сохраняются сами.",
+            keyboardTyperSummary: "Текст, набираемый по клавише там, где вставка запрещена.",
             agentsSummary: "Использование, лимиты и стоимость Claude Code, Codex, OpenCode и GitHub Copilot.",
             watchSummary: "Любая часть окна, читаемая вживую, с оповещением об изменениях."
         )
@@ -710,6 +720,7 @@ extension FeatureStrings {
             cameraSummary: "Aramadan önce kendinize bakmak için bir ayna.",
             downloadsSummary: "Süren ve yeni biten indirmeler.",
             scratchpadSummary: "Kendi kendine kaydedilen hızlı notlar.",
+            keyboardTyperSummary: "Yapıştırmanın engellendiği yerde tuş tuş yazılan metin.",
             agentsSummary: "Claude Code, Codex, GitHub Copilot ve OpenCode kullanımı, sınırları ve maliyetleri.",
             watchSummary: "Bir pencerenin herhangi bir bölümü, canlı okunur ve değişince haber verilir."
         )
@@ -778,6 +789,7 @@ extension FeatureStrings {
             cameraSummary: "通話前に身だしなみを確認できるミラー。",
             downloadsSummary: "進行中と完了したばかりのダウンロード。",
             scratchpadSummary: "自動で保存されるクイックメモ。",
+            keyboardTyperSummary: "ペーストできない場所に、1キーずつ入力するテキスト。",
             agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilotの使用量、上限、コスト。",
             watchSummary: "ウインドウの好きな部分をライブで読み取り、変化したら知らせます。"
         )
@@ -846,6 +858,7 @@ extension FeatureStrings {
             cameraSummary: "통화 전에 모습을 확인하는 거울.",
             downloadsSummary: "진행 중이거나 방금 끝난 다운로드.",
             scratchpadSummary: "저절로 저장되는 빠른 메모.",
+            keyboardTyperSummary: "붙여넣기가 막힌 곳에 한 키씩 입력하는 텍스트.",
             agentsSummary: "Claude Code, Codex, OpenCode, GitHub Copilot의 사용량, 한도, 비용.",
             watchSummary: "윈도우의 원하는 부분을 실시간으로 읽고 바뀌면 알려 줍니다."
         )
@@ -914,6 +927,7 @@ extension FeatureStrings {
             cameraSummary: "通话前照一照的镜子。",
             downloadsSummary: "进行中和刚完成的下载。",
             scratchpadSummary: "自动保存的快速笔记。",
+            keyboardTyperSummary: "在无法粘贴的地方逐键输入文本。",
             agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限额和费用。",
             watchSummary: "实时读取窗口的任意部分，变化时提醒你。"
         )
@@ -982,6 +996,7 @@ extension FeatureStrings {
             cameraSummary: "通話前照一照的鏡子。",
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
+            keyboardTyperSummary: "在無法貼上的地方逐鍵輸入文字。",
             agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限額和費用。",
             watchSummary: "即時讀取視窗的任何部分，變化時提醒你。"
         )
@@ -1050,6 +1065,7 @@ extension FeatureStrings {
             cameraSummary: "通話前照一照的鏡子。",
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
+            keyboardTyperSummary: "喺唔可以貼上嘅地方逐個鍵輸入文字。",
             agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限額和費用。",
             watchSummary: "即時讀取視窗的任何部分，變化時提醒你。"
         )
@@ -1118,6 +1134,7 @@ extension FeatureStrings {
             cameraSummary: "Дзеркало, щоб перевірити себе перед викликом.",
             downloadsSummary: "Завантаження, що тривають або щойно завершилися.",
             scratchpadSummary: "Швидкі нотатки, що зберігаються автоматично.",
+            keyboardTyperSummary: "Текст, що набирається клавіша за клавішею там, де вставлення заблоковано.",
             agentsSummary: "Використання Claude Code, Codex, OpenCode і GitHub Copilot, ліміти й витрати.",
             watchSummary: "Будь-яка частина вікна, яку читають наживо, зі сповіщенням про зміни."
         )
