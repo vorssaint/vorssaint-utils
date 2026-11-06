@@ -470,13 +470,20 @@ struct NotchClipboardView: View {
         .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 4)
     }
 
-    /// The quick panel's row menu: paste when the app may type, copy, pin,
-    /// move within the list and delete.
+    /// The quick panel's row menu: paste when the app may type, copy, case
+    /// transforms for text, pin, move within the list and delete.
     @ViewBuilder private func actions(_ entry: ClipboardHistoryEntry) -> some View {
         if permissions.accessibility {
             Button(l10n.s.menuPaste) { paste(entry) }
         }
         Button(text.copy) { copy(entry) }
+        if entry.kind == .text {
+            Menu(text.transformText) {
+                ForEach(ClipboardTextCaseTransform.allCases, id: \.self) { transform in
+                    Button(transform.menuTitle(text)) { copy(entry, transform: transform) }
+                }
+            }
+        }
         Divider()
         Button(entry.isPinned ? text.unpin : text.pin) { history.togglePin(entry) }
         Button(text.moveUp) { move(entry, .up) }
@@ -576,6 +583,17 @@ struct NotchClipboardView: View {
         if let event = NSApp.currentEvent, [.leftMouseDown, .leftMouseUp].contains(event.type),
            event.clickCount > 1 { return }
         history.copy(entry) { copied in
+            if copied {
+                copiedID = entry.id
+            } else {
+                NSSound.beep()
+            }
+        }
+    }
+
+    /// A transform copies the rewritten text without touching the saved entry.
+    private func copy(_ entry: ClipboardHistoryEntry, transform: ClipboardTextCaseTransform) {
+        history.copy(ClipboardHistoryEntry(text: transform.apply(entry.text))) { copied in
             if copied {
                 copiedID = entry.id
             } else {
