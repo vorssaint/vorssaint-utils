@@ -14,6 +14,7 @@ import Darwin
 /// a source carrying its own marker.
 enum OwnKeyEvent {
     static let quitProtectionMarker: Int64 = 0x5652535341494E54 // "VRSSAINT"
+    static let keyboardRemapMarker: Int64 = 0x56524D4150 // "VRMAP"
     static let textSnippetMarker: Int64 = 0x564F5253 // "VORS"
 
     private static let ownProcessID = Int64(getpid())
@@ -21,6 +22,7 @@ enum OwnKeyEvent {
     static func isPosted(sourceProcessID: Int64, userData: Int64, ownProcessID: Int64) -> Bool {
         sourceProcessID == ownProcessID
             || userData == quitProtectionMarker
+            || userData == keyboardRemapMarker
             || userData == textSnippetMarker
     }
 

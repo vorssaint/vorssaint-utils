@@ -98,7 +98,8 @@ enum SettingsFeatureTests {
                      "a real cleanup invocation remains on its normal startup path")
         let startup = (try? String(contentsOfFile: "Sources/Vorssaint/main.swift", encoding: .utf8)) ?? ""
         let backupDispatch = startup.range(of: "if let command = SettingsBackupSupport.command(")
-        suite.expect(backupDispatch != nil && ["SuperKeyMappingGuard.", "Defaults.register()",
+        suite.expect(backupDispatch != nil && ["KeyboardRemapGuard.", "KeyboardRemapService.",
+                     "SuperKeyMappingGuard.", "Defaults.register()",
                      "MouseAccelerationGuard.", "MouseAccelerationService.", "SelfTest.", "Uninstaller."]
             .allSatisfy { name in
                 guard let handler = startup.range(of: name), let backupDispatch else { return false }

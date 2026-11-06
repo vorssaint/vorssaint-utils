@@ -195,6 +195,15 @@ final class QuitProtectionService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
+        // An active remap rule owns bare Command-Q. Yield before a
+        // hold/double-press can consume it and later confirm a quit,
+        // regardless of which tap was installed first.
+        if shouldYieldToKeyboardRemap(type: type, event: event) {
+            if pending?.shortcut == .quit { cancelPending() }
+            if swallowShortcut == .quit { swallowShortcut = nil }
+            return Unmanaged.passUnretained(event)
+        }
+
         // The native switcher keeps the original app frontmost while another
         // app is selected. Its Q must reach the Dock, never a confirmation
         // targeting that original app. Track the Command chord without an AX
@@ -227,6 +236,16 @@ final class QuitProtectionService: ObservableObject {
         default:
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    private func shouldYieldToKeyboardRemap(type: CGEventType, event: CGEvent) -> Bool {
+        type == .keyDown
+            && AppFeature.keyboardRemap.isAvailable
+            && KeyboardRemapService.shared.ownsNativeQuit
+            && GlobalShortcutModifiers(cgFlags: event.flags) == .command
+            && GlobalShortcut.layoutKeyLabel(
+                for: event.getIntegerValueField(.keyboardEventKeycode), usesCommand: true
+            )?.lowercased() == "q"
     }
 
     /// Read only the two app-switcher rows on Command key downs. Both the
@@ -630,6 +649,7 @@ final class QuitProtectionService: ObservableObject {
 
     private func isSynthetic(_ event: CGEvent) -> Bool {
         event.getIntegerValueField(.eventSourceUserData) == Self.syntheticMarker
+            || event.getIntegerValueField(.eventSourceUserData) == OwnKeyEvent.keyboardRemapMarker
     }
 
     private func confirm(shortcut: QuitProtectionShortcut,
