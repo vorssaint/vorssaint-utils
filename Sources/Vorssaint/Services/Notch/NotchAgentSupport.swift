@@ -95,6 +95,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .antigravity: return DefaultsKey.notchAgentsAntigravity
         }
     }
 
@@ -143,13 +144,25 @@ enum NotchAgentSupport {
     /// The plan-wide window of the chosen kind; nil for the most used one or
     /// while the account reports no such window.
     private static func chosenLimit(_ limits: AgentLimits?, focus: NotchAgentLimitFocus, now: Date) -> AgentLimitWindow? {
+        guard let limits else { return nil }
         let kind: AgentLimitWindow.Kind
         switch focus {
         case .mostUsed: return nil
         case .session: kind = .session
         case .weekly: kind = .weekly
         }
-        return limits?.windows.first { $0.kind == kind && $0.scope == nil }.map { AgentLimitSupport.current($0, at: now) }
+        let direct = limits.windows
+            .filter { $0.kind == kind && (limits.provider == .antigravity || $0.scope == nil) }
+            .map { AgentLimitSupport.current($0, at: now) }
+            .max { $0.usedPercent < $1.usedPercent }
+        if let direct { return direct }
+        if limits.provider == .antigravity, kind == .session {
+            return limits.windows
+                .filter { $0.kind == .other && ($0.minutes ?? 0) <= 1_440 }
+                .map { AgentLimitSupport.current($0, at: now) }
+                .max { $0.usedPercent < $1.usedPercent }
+        }
+        return nil
     }
 
     /// The resting island's allowance across every account: the most spent

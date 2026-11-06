@@ -106,6 +106,10 @@ enum AgentUsageReadTests {
         catch { suite.expect(false, "the streaming fixture creates its folder: \(error)"); return }
         let now = Date()
         let timestamp = now.timeIntervalSince1970
+        let isoStart = ISO8601DateFormatter().string(from: now.addingTimeInterval(-10))
+        let isoMid = ISO8601DateFormatter().string(from: now.addingTimeInterval(-6))
+        let isoTool = ISO8601DateFormatter().string(from: now.addingTimeInterval(-3))
+        let isoEnd = ISO8601DateFormatter().string(from: now.addingTimeInterval(-1))
         let cases: [(AgentProvider, [String])] = [
             (.claude, [
                 #"{"type":"user","timestamp":\#(timestamp),"sessionId":"s","message":{"content":"work"}}"#,
@@ -130,12 +134,24 @@ enum AgentUsageReadTests {
                 #"{"id":"end","timestamp":\#(timestamp),"type":"assistant.turn_end","data":{"turnId":"0"}}"#,
                 #"{"id":"usage","timestamp":\#(timestamp),"type":"session.shutdown","data":{"modelMetrics":{"gpt-6-sol":{"requests":{"count":1},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":20},"cache_write":{"tokenCount":0},"output":{"tokenCount":5}},"usage":{"reasoningTokens":2}}}}}"#,
                 #"{"id":"final-checkpoint","timestamp":\#(timestamp),"type":"session.usage_checkpoint","data":{}}"#
+            ]),
+            (.antigravity, [
+                #"{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"\#(isoStart)","content":"<USER_REQUEST>\nwork\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nActive Workspaces:\n- /tmp/example\n<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to Gemini 4 Argon (High).\n</USER_SETTINGS_CHANGE>\n</ADDITIONAL_METADATA>"}"#,
+                #"{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(isoMid)","input_tokens":10,"output_tokens":2,"tool_calls":[{"id":"c1","name":"read_file","args":{"Path":"/tmp/a"}}]}"#,
+                #"{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(isoMid)","input_tokens":10,"output_tokens":5,"tool_calls":[{"id":"c1","name":"read_file","args":{"Path":"/tmp/a"}}]}"#,
+                #"{"step_index":2,"source":"MODEL","type":"GENERIC","status":"DONE","created_at":"\#(isoTool)","content":"ok"}"#,
+                #"{"step_index":3,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(isoEnd)","input_tokens":12,"cache_read_tokens":8,"output_tokens":7}"#
             ])
         ]
         for (provider, lines) in cases {
             // A canonical filename, not a Codex side-thread filename.
-            let file = folder.appending(path: "\(provider.rawValue).jsonl")
-            do { try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file) }
+            let file = provider == .antigravity
+                ? folder.appending(path: "antigravity-brain/s/.system_generated/logs/transcript.jsonl")
+                : folder.appending(path: "\(provider.rawValue).jsonl")
+            do {
+                try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
+            }
             catch { suite.expect(false, "the streaming fixture writes its log: \(error)"); continue }
 
             let cursor = AgentLogCursor(path: file.path, provider: provider)
@@ -146,6 +162,7 @@ enum AgentUsageReadTests {
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+                case .antigravity: entries += AgentLogParser.parseAntigravity(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
@@ -391,7 +408,9 @@ enum AgentUsageReadTests {
                 suite.expect(false, "the startup fixture has a root for \(provider)")
                 return
             }
-            let file = root.url.appending(path: "session/events.jsonl")
+            let file = root.url.appending(path: provider == .antigravity
+                ? "session/.system_generated/logs/transcript.jsonl"
+                : "session/events.jsonl")
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
