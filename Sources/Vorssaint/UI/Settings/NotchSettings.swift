@@ -105,6 +105,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
     @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = true
     @AppStorage(DefaultsKey.notchQuickAccessLayout) private var accessData = Data()
+    @AppStorage(DefaultsKey.notchNavigationStyle) private var navigationStyle = NotchNavigationStyle.sideButtons.rawValue
     @State private var tab = NotchSettingsTab.layout
     @State private var selectedModule = NotchModule.controls
     @State private var draggingModule: NotchModule?
@@ -143,7 +144,7 @@ struct NotchSettings: View {
     private var orderedModules: [NotchModule] {
         let stored = order.split(separator: ",").compactMap { NotchModule(rawValue: String($0)) }
         var seen = Set<NotchModule>()
-        return (stored + NotchModule.allCases).filter { seen.insert($0).inserted }
+        return (stored + NotchModule.allCases).filter { !$0.isTopBarOnly && seen.insert($0).inserted }
     }
 
     var body: some View {
@@ -202,6 +203,7 @@ struct NotchSettings: View {
             Group {
                 switch tab {
                 case .layout: layoutPage
+                case .navigation: NotchNavigationSettings { tab = .layout }
                 case .content: EmptyView()
                 case .activity: activityPage
                 case .behavior: behaviorPage
@@ -228,8 +230,11 @@ struct NotchSettings: View {
 
     private var layoutPage: some View {
         VStack(alignment: .leading, spacing: 20) {
-            NotchLayoutEditor(configuration: access, size: $size, width: $customWidth, height: $customHeight) {
-                selectedModule = .controls; tab = .content
+            // The floating buttons are arranged here only while they show.
+            if navigationStyle == NotchNavigationStyle.sideButtons.rawValue {
+                NotchLayoutEditor(configuration: access, size: $size, width: $customWidth, height: $customHeight) {
+                    selectedModule = .controls; tab = .content
+                }
             }
             SettingsCard(title: text.size) {
                 HStack(spacing: 10) {
@@ -397,7 +402,7 @@ struct NotchSettings: View {
 
     /// The mixer, the system page and the tools arrange themselves in the island.
     private func hasOptions(_ module: NotchModule) -> Bool {
-        ![.mixer, .system, .tools].contains(module)
+        ![.mixer, .system, .tools, .keepAwake, .microphone, .battery].contains(module)
     }
 
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
@@ -545,7 +550,7 @@ struct NotchSettings: View {
         case .watch:
             NotchWatchSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())
-        case .mixer, .system, .tools:
+        case .mixer, .system, .tools, .keepAwake, .microphone, .battery:
             EmptyView()
         }
     }
@@ -884,6 +889,9 @@ struct NotchSettings: View {
         case .scratchpad: return .scratchpad
         case .agents: return .notchAgents
         case .watch: return .notchWatch
+        case .keepAwake: return .keepAwake
+        case .microphone: return .micMute
+        case .battery: return .monitorPower
         }
     }
 
