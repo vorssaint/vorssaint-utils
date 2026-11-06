@@ -2368,6 +2368,9 @@ def main():
         "    func activate(minutes:",
         "    func activate(until date:",
         "    func startLastPick(",
+        "    func sleepNow(",
+        "    private func resumeAfterSleepNow(",
+        "    private func syncSessionWithScreenLock(",
         "    func resumeAfterSystemTeardown(",
         "    private func activate(end:",
         "    func deactivate(reason:",
@@ -2395,10 +2398,10 @@ def main():
           + "typealias KeepAwakeManager = Service\n"
           + "final class Service {\n"
           + "static let log = Logger(subsystem: \"vorssaint.tests\", category: \"keep-awake\")\n"
-          + "var isActive = false\nvar sessionPausedForScreenLock = false\n"
+          + "var isActive = false\nvar sessionPausedForScreenLock = false\nvar sessionPausedForSleepNow = false\n"
           + "var isTerminating = false\nvar clamshellEnablePending = false\nvar clamshellRestorePending = false\n"
           + "var clamshellOperationGeneration = 0\nvar clamshellSetupID: UUID?\n"
-          + "var lidSleepGeneration = 0\nvar lidSleepAttemptsRemaining = 0\n"
+          + "var lidSleepGeneration = 0\nvar lidSleepAttemptsRemaining = 0\nvar sleepNowGeneration: Int?\n"
           + "var clamshellSetupInProgress = false\nvar clamshellSetupFailed = false\n"
           + "var clamshellSetupRetried = false\nvar passwordlessClamshell = true\n"
           + "var recoveryCompleted = false\nvar screenLocked = false\nvar assertionsHeld = false\n"
@@ -2417,6 +2420,8 @@ def main():
           + "func releaseAssertions() { assertionsHeld = false }\nfunc scheduleEnd(at date: Date) {}\n"
           + "func startBatteryWatch() {}\nfunc stopBatteryWatch() {}\nfunc syncMouseJiggleTimer() {}\n"
           + "func stopMouseJiggleTimer() {}\nfunc stopAutomationMonitoring() {}\nfunc syncWithPreferences() {}\n"
+          + "var automationHolds = false\nfunc automationConditionsHold() -> Bool { automationHolds }\n"
+          + "func continueAutomaticallyAfterTimerIfNeeded() -> Bool { false }\n"
           + "static func lidSleepIsAllowed() -> Bool { KeepAwakeAutomationSupport.lidSleepIsAllowed("
           + "systemAllowsSleep: policy, assertions: assertions) }\n"
           + "".join(declaration(keep_awake, prefix).replace("private ", "", 1) for prefix in keep_awake_methods)

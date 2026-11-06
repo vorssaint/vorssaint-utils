@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "“合盖后继续运行”会在“保持唤醒”启用期间完全禁用睡眠，并在会话结束或 App 退出时自动恢复。建议在接通电源时使用。",
         dimScreenOnLidCloseTitle: "将显示器完全调暗",
         dimScreenOnLidCloseCaption: "合盖时调暗显示器，开盖时恢复亮度。",
+        sleepNowTitle: "立即睡眠",
+        sleepNowCaption: "立即让 Mac 进入睡眠，并在唤醒后继续当前会话。",
 
         scrollSection: "滚动",
         invertMouseScroll: "反转鼠标滚动",
