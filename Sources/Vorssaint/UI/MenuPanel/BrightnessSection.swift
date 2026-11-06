@@ -12,6 +12,7 @@ struct BrightnessSection: View {
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
+    @AppStorage(DefaultsKey.ddcVolumeEnabled) private var ddcVolumeEnabled = false
     @State private var optionsExpanded = false
     var collapsible = true
 
@@ -105,6 +106,23 @@ struct BrightnessSection: View {
                         .buttonStyle(.link)
                     }
                     DisplayBrightnessShortcutControls()
+                    Toggle(strings.speakersToggle, isOn: $ddcVolumeEnabled)
+                        .onChange(of: ddcVolumeEnabled) { _, isOn in
+                            if isOn { permissions.requestAccessibility() }
+                            DDCVolumeService.shared.syncWithPreferences()
+                        }
+                    Text(strings.speakersCaption)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if ddcVolumeEnabled, !permissions.accessibility {
+                        Button {
+                            permissions.openAccessibilitySettings()
+                        } label: {
+                            Label(l10n.s.permissionOpenSettings, systemImage: "hand.raised")
+                        }
+                        .buttonStyle(.link)
+                    }
                 }
                 .font(.system(size: 11.5, weight: .medium))
                 .toggleStyle(.checkbox)
