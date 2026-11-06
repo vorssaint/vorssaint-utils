@@ -12,6 +12,7 @@ struct QuickToolsSettings: View {
     @ObservedObject private var quickToggles = QuickTogglesService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var cameraPreview = CameraPreviewService.shared
+    @ObservedObject private var continuityCapture = ContinuityCaptureService.shared
     @ObservedObject private var scratchpad = ScratchpadService.shared
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
@@ -19,6 +20,8 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.quitAppsShortcutEnabled) private var quitAllShortcutEnabled = false
     @AppStorage(DefaultsKey.quitAppsExceptFrontShortcutEnabled) private var quitOthersShortcutEnabled = false
     @AppStorage(DefaultsKey.cameraPreviewShortcutEnabled) private var cameraShortcutEnabled = false
+    @AppStorage(DefaultsKey.continuityCaptureShortcutEnabled) private var continuityCaptureShortcutEnabled = false
+    @AppStorage(DefaultsKey.continuityCaptureAutoPasteEnabled) private var continuityCaptureAutoPaste = true
     @AppStorage(DefaultsKey.scratchpadShortcutEnabled) private var scratchpadShortcutEnabled = false
     @AppStorage(DefaultsKey.scratchpadRetention) private var scratchpadRetention = ScratchpadRetention.never.rawValue
     @AppStorage(DefaultsKey.scratchpadCloseOnClickOutside) private var scratchpadCloseOnClickOutside = true
@@ -215,6 +218,28 @@ struct QuickToolsSettings: View {
                     if permissions.camera == .denied {
                         CameraPermissionRow()
                     }
+                    Button {
+                        ContinuityCaptureService.shared.capture()
+                    } label: {
+                        Label(FeatureStrings.cameraPreview(l10n.language).continuityCaptureButton,
+                              systemImage: "iphone.and.arrow.forward")
+                    }
+                    Toggle(FeatureStrings.cameraPreview(l10n.language).continuityCaptureShortcutTitle,
+                           isOn: $continuityCaptureShortcutEnabled)
+                        .onChange(of: continuityCaptureShortcutEnabled) { _, _ in
+                            ContinuityCaptureService.shared.syncWithPreferences()
+                        }
+                    ShortcutPreferenceRow(role: .continuityCapture,
+                                          isEnabled: continuityCaptureShortcutEnabled) {
+                        ContinuityCaptureService.shared.syncWithPreferences()
+                    }
+                    if continuityCaptureShortcutEnabled, continuityCapture.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    Toggle(FeatureStrings.cameraPreview(l10n.language).continuityCaptureAutoPaste,
+                           isOn: $continuityCaptureAutoPaste)
                 } header: {
                     Text(FeatureStrings.cameraPreview(l10n.language).pageTitle)
                 }

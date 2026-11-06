@@ -337,7 +337,10 @@ final class FeatureRuntime: ObservableObject {
             ScreenRecorderService.shared.syncWithPreferences()
             RecentCaptureService.shared.syncWithPreferences()
         },
-        .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
+        .cameraPreview: {
+            CameraPreviewService.shared.syncWithPreferences()
+            ContinuityCaptureService.shared.syncWithPreferences()
+        },
         .wallpaper: { WallpaperService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
         .notch: { NotchService.shared.syncWithPreferences() },
