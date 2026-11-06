@@ -68,6 +68,18 @@ extension FeatureStrings {
             unavailable: "Toto hlásenie už túto akciu neumožňuje.",
             hideSystemBanner: "Skryť systémové hlásenie",
             hideSystemBannerHint: "Skryje pôvodné hlásenie, kým ho zobrazuje Dynamic Island.")
+        case .cs: return NotchNotificationStrings(
+            title: "Oznámení",
+            description: "Nová systémová oznámení v Dynamic Island.",
+            privacy: "Zobrazuje pouze nová viditelná oznámení. Zprávy zůstávají v paměti a smažou se při zamčení tohoto Macu nebo při vypnutí této funkce.",
+            empty: "Nová oznámení se zobrazí zde",
+            waiting: "Čeká se na systémovou službu oznámení",
+            open: "Otevřít",
+            dismiss: "Zavřít",
+            clearAll: "Smazat vše",
+            unavailable: "Toto oznámení už tuto akci neumožňuje.",
+            hideSystemBanner: "Skrýt systémové oznámení",
+            hideSystemBannerHint: "Skryje původní oznámení, dokud ho zobrazuje Dynamic Island.")
         case .de: return NotchNotificationStrings(
             title: "Mitteilungen",
             description: "Neue Systemmitteilungen im Dynamic Island.",

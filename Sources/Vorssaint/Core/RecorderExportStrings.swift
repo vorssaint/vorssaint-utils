@@ -37,6 +37,10 @@ extension FeatureStrings {
             return RecorderExportStrings(
                 speed: "Rýchlosť exportu", custom: "Vlastná rýchlosť", duration: "Dĺžka exportu",
                 previewNote: "Platí pre video, GIF a zdieľané odkazy. Náhľad úprav zostáva na 1×, pôvodná nahrávka sa nemení.")
+        case .cs:
+            return RecorderExportStrings(
+                speed: "Rychlost exportu", custom: "Vlastní rychlost", duration: "Délka exportu",
+                previewNote: "Platí pro video, GIF a sdílené odkazy. Náhled úprav zůstává na 1×, původní nahrávka se nemění.")
         case .de:
             return RecorderExportStrings(
                 speed: "Exportgeschwindigkeit", custom: "Eigene Geschwindigkeit", duration: "Exportdauer",

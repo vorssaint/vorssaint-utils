@@ -63,6 +63,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -212,6 +213,41 @@ extension QuitProtectionStrings {
         extraCloseHUDFormat: "Použite %@ na zatvorenie",
         cancelHint: "Esc zruší",
         releaseHint: "Uvoľnením potvrdíte",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
+    static let cs = QuitProtectionStrings(
+        name: "Ochrana před ukončením a zavřením",
+        description: "Chrání ⌘Q a ⌘W před náhodným stisknutím",
+        intro: "Nastavte každou zkratku samostatně. Původní akce se provede až po zvoleném potvrzení.",
+        enabled: "Chránit tuto zkratku",
+        enabledCaption: "Ostatní zkratky s Command fungují beze změny.",
+        mode: "Režim potvrzení",
+        hold: "Podržet pro potvrzení",
+        doublePress: "Dvojité stisknutí",
+        extraModifier: "Vyžadovat další modifikátor",
+        holdDuration: "Doba podržení",
+        doublePressInterval: "Interval mezi stisky",
+        modifier: "Další modifikátor",
+        appScope: "Aplikace",
+        allApps: "Všechny aplikace",
+        selectedOnly: "Pouze vybrané aplikace",
+        allExceptSelected: "Všechny kromě vybraných aplikací",
+        exceptions: "Vybrané aplikace",
+        noExceptions: "Nejsou vybrány žádné aplikace",
+        addApp: "Přidat aplikaci…",
+        feedback: "Zobrazit vizuální zpětnou vazbu",
+        accessibilityCaption: "Ochrana používá Zpřístupnění ke sledování pouze ⌘Q a ⌘W globálně.",
+        holdQuitHUDFormat: "Podržte %@ pro ukončení",
+        holdCloseHUDFormat: "Podržte %@ pro zavření",
+        doubleQuitHUDFormat: "Stiskněte %@ znovu pro ukončení",
+        doubleCloseHUDFormat: "Stiskněte %@ znovu pro zavření",
+        extraQuitHUDFormat: "Použijte %@ pro ukončení",
+        extraCloseHUDFormat: "Použijte %@ pro zavření",
+        cancelHint: "Esc zruší",
+        releaseHint: "Uvolněním potvrdíte",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"

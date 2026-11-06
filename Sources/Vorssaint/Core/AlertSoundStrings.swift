@@ -82,6 +82,9 @@ enum AlertSoundStrings {
         case .sk:
             return slovak
 
+        case .cs:
+            return czech
+
         case .de:
             return german
 
@@ -213,6 +216,23 @@ enum AlertSoundStrings {
         "Sosumi": "Sonumi",
         "Submarine": "Ponorenie",
         "Tink": "Pípnutie",
+    ]
+
+    private static let czech: [String: String] = [
+        "Basso": "Mezzo",
+        "Blow": "Vítr",
+        "Bottle": "Štěrk",
+        "Frog": "Skok",
+        "Funk": "Funky",
+        "Glass": "Křišťál",
+        "Hero": "Hrdinka",
+        "Morse": "Pong",
+        "Ping": "Sonar",
+        "Pop": "Bublina",
+        "Purr": "Škubnutí",
+        "Sosumi": "Sonumi",
+        "Submarine": "Ponoření",
+        "Tink": "Pípnutí",
     ]
 
     // MARK: - German
