@@ -526,6 +526,34 @@ enum RecorderMotion {
         return result
     }
 
+    // MARK: - Shown or hidden
+    /// The pointer remains hidden after typing in input fields.
+    /// Moving the pointer makes it visible again, until the system hides it once more.
+    struct PointerVisibility {
+        private var lastPoint: CGPoint?
+        private var systemWasVisible = true
+        private var movedSinceHidden = false
+
+        mutating func isShown(systemVisible: Bool, at point: CGPoint) -> Bool {
+            defer {
+                lastPoint = point
+                systemWasVisible = systemVisible
+            }
+            if systemVisible {
+                movedSinceHidden = false
+                return true
+            }
+            if systemWasVisible { movedSinceHidden = false }
+            if let lastPoint {
+                let dx = Double(point.x - lastPoint.x), dy = Double(point.y - lastPoint.y)
+                if (dx * dx + dy * dy).squareRoot() > RecorderMotion.idleTravel {
+                    movedSinceHidden = true
+                }
+            }
+            return movedSinceHidden
+        }
+    }
+
     // MARK: - Standing still
 
     /// A pointer parked in a corner for the whole video is the thing that
