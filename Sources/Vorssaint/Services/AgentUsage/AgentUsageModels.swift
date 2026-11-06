@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude, codex, opencode, copilot, cursor, grok
 
     var id: String { rawValue }
 
@@ -16,6 +16,8 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .cursor: return "Cursor"
+        case .grok: return "Grok"
         }
     }
 
@@ -25,10 +27,12 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .cursor: return "cursorarrow.rays"
+        case .grok: return "bolt.fill"
         }
     }
 
-    /// Whether the provider records a plan allowance in its local logs.
+    /// Whether the island can show a plan allowance. Copilot's log has none.
     var reportsLimits: Bool { self != .copilot }
 }
 

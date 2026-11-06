@@ -12,7 +12,9 @@ import Network
 /// memory and in the app's private folder so the next launch reads only what
 /// the agents wrote meanwhile. OpenCode's stay in memory only, and its
 /// database is read again at each launch. Claude Code checks account-wide
-/// limits through its own CLI, including use on other machines. The public
+/// limits through its own CLI, including use on other machines. Cursor and
+/// Grok Bot allowances are asked of cursor.com with the sign-in Cursor keeps
+/// on this Mac; the request carries that sign-in and nothing else. The public
 /// price list is fetched only when the person keeps prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
@@ -71,6 +73,9 @@ final class AgentUsageService: ObservableObject {
     /// When the list on disk was downloaded; nil until the queue has looked.
     private var pricesSaved: Date?
     private let claudeAccountQueue = DispatchQueue(label: "com.vorssaint.claude-limits", qos: .utility)
+    private let cursorAccountQueue = DispatchQueue(label: "com.vorssaint.cursor-limits", qos: .utility)
+    private var cursorAccountInFlight = false
+    private var cursorAccountAttempted = Date.distantPast
     private var claudeAccountRequest: AgentClaudeServer.Request?
     private var claudeAccountAttempted = Date.distantPast
     /// Checks in a row that Claude Code did not answer, counted again from
@@ -147,6 +152,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshCursorLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -255,6 +261,7 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshCursorLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -579,6 +586,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshCursorLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -717,6 +725,46 @@ final class AgentUsageService: ObservableObject {
         guard spent >= budget, budgetDay != today else { return }
         budgetDay = today
         report(.budgetReached(spent: spent, budget: budget))
+    }
+
+    /// Asks cursor.com for the Cursor plan and the Grok Bot week. A failed
+    /// check keeps the last reading. Main thread.
+    private func refreshCursorLimits(now: Date = Date(), pageShows: Bool = false) {
+        guard running, !paused, online, !cursorAccountInFlight else { return }
+        let wantCursor = providers.contains(.cursor)
+        let wantGrok = providers.contains(.grok)
+        guard wantCursor || wantGrok else { return }
+        let wait: TimeInterval = (pageVisible || pageShows) ? 60 : 5 * 60
+        guard now.timeIntervalSince(cursorAccountAttempted) >= wait else { return }
+        cursorAccountAttempted = now
+        cursorAccountInFlight = true
+        let home = self.home
+        let session = self.session
+        cursorAccountQueue.async { [weak self] in
+            let result = AgentCursorAccount.fetch(home: home, now: Date())
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.cursorAccountInFlight = false
+                guard self.running, !self.paused, self.session == session else { return }
+                self.queue.async {
+                    guard self.readerSession == session else { return }
+                    switch result {
+                    case .failure(.unreachable):
+                        break
+                    case .failure:
+                        if wantCursor { self.store.clearLimits(.cursor) }
+                        if wantGrok { self.store.clearLimits(.grok) }
+                    case .success(let reading):
+                        if wantCursor, let limits = reading.cursor { self.store.setLimits(limits) }
+                        else if wantCursor { self.store.clearLimits(.cursor) }
+                        if wantGrok, let limits = reading.grok { self.store.setLimits(limits) }
+                        else if wantGrok { self.store.clearLimits(.grok) }
+                    }
+                    self.checkLimits()
+                    self.schedulePublish()
+                }
+            }
+        }
     }
 
     // MARK: Plans and limits
