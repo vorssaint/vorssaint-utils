@@ -314,6 +314,10 @@ enum DefaultsKey {
     static let keyboardDebounceEnabled = "keyboardDebounceEnabled"
     static let keyboardDebounceWindowMs = "keyboardDebounceWindowMs"
     static let keyboardDebounceKeyWindows = "keyboardDebounceKeyWindows" // comma-separated keyCode:ms
+    static let layoutFixEnabled = "layoutFixEnabled"                     // tap retypes the last word in another layout (issue #3221)
+    static let layoutFixTrigger = "layoutFixTrigger"                     // LayoutFixTrigger raw value
+    static let layoutFixExcludedLayouts = "layoutFixExcludedLayouts"     // [input source id] left out of the fix
+    static let layoutFixExceptions = "layoutFixExceptions"               // apps where the fix stays off
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let cleaningModeKeepScreenVisible = "cleaningModeKeepScreenVisible"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
@@ -1586,6 +1590,10 @@ enum Defaults {
         DefaultsKey.keyboardDebounceEnabled: false,
         DefaultsKey.keyboardDebounceWindowMs: defaultKeyboardDebounceWindowMs,
         DefaultsKey.keyboardDebounceKeyWindows: "",
+        DefaultsKey.layoutFixEnabled: false,
+        DefaultsKey.layoutFixTrigger: LayoutFixTrigger.rightOption.rawValue,
+        DefaultsKey.layoutFixExcludedLayouts: [String](),
+        DefaultsKey.layoutFixExceptions: [String](),
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.cleaningModeKeepScreenVisible: false,
         DefaultsKey.panelUtilityURLCleaner: true,

@@ -430,6 +430,11 @@ enum SettingsDirectory {
                                       keywords: SuperKeySource.allCases.map {
                                           FeatureStrings.superKey(language).sourceLabel($0)
                                       }),
+                SettingsDirectoryItem(page: .layoutFix,
+                                      title: FeatureStrings.layoutFix(language).pageTitle,
+                                      icon: "character.cursor.ibeam",
+                                      keywords: [FeatureStrings.layoutFix(language).layoutsSection,
+                                                 FeatureStrings.layoutFix(language).triggerSection]),
                 SettingsDirectoryItem(page: .textSnippets,
                                       title: FeatureStrings.snippets(language).pageTitle,
                                       icon: "text.append",
