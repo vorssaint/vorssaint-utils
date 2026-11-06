@@ -14,9 +14,9 @@ enum BrightnessKeyRoutingTests {
         let keyCode: Int
         let data1: Int
         let repeated: Bool
-        init(down: Bool, repeated: Bool = false, increase: Bool = true) {
+        init(down: Bool, repeated: Bool = false, increase: Bool = true, media: Int? = nil) {
             keyCode = increase ? 144 : 145
-            let mediaCode = increase ? 2 : 3
+            let mediaCode = media ?? (increase ? 2 : 3)
             let state = down ? 10 : 11
             data1 = (mediaCode << 16) | (state << 8) | (repeated ? 1 : 0)
             self.repeated = repeated
@@ -60,6 +60,17 @@ enum BrightnessKeyRoutingTests {
     final class NotchService {
         static let shared = NotchService()
         let showsSystemFeedback = false
+    }
+    /// The monitor-volume path a volume key is handed to: it says whether a
+    /// monitor took the press and what it was asked.
+    final class MonitorVolumeService {
+        static let shared = MonitorVolumeService()
+        var takes = false
+        var seen: [MonitorVolumeSupport.KeyPress] = []
+        func consumes(_ press: MonitorVolumeSupport.KeyPress, flags: CGEventFlags) -> Bool {
+            seen.append(press)
+            return takes
+        }
     }
     final class SessionActivity {
         static let shared = SessionActivity()
@@ -122,6 +133,7 @@ enum BrightnessKeyRoutingTests {
     }
 
     static func run(_ suite: TestSuite) {
+        volumeKeys(suite)
         for mediaKey in [true, false] {
             func service() -> Service {
                 NSScreen.current = 1
@@ -217,5 +229,30 @@ enum BrightnessKeyRoutingTests {
                          && press(both, down: false) && press(both, down: false, increase: false),
                          "\(kind): opposite brightness keys keep independent releases")
         }
+    }
+
+    /// Volume keys share the media-key tap with brightness. They are handed to
+    /// the monitor-volume path, and brightness never sees them.
+    private static func volumeKeys(_ suite: TestSuite) {
+        NSScreen.current = 2
+        UserDefaults.standard.overlay = false
+        let host = Service()
+        let volume = MonitorVolumeService.shared
+        func press(media: Int, down: Bool = true) -> Bool {
+            host.handleKeyEvent(type: CGEventType(rawValue: 14)!, event: CGEvent(down: down, media: media)) == nil
+        }
+        volume.takes = false
+        suite.expect(!press(media: 1) && !press(media: 0) && !press(media: 7) && host.steps == 0
+                     && volume.seen.map(\.key) == [.down, .up, .mute],
+                     "volume keys go to the monitor volume path first and pass to the system when it takes none")
+        volume.takes = true
+        suite.expect(press(media: 0) && press(media: 0, down: false) && host.steps == 0,
+                     "a monitor that takes a volume key consumes it and never moves brightness")
+        suite.expect(host.focusedDisplayID == nil && host.swallowedMediaKeys.isEmpty,
+                     "a volume key leaves the brightness focus and the brightness key ownership alone")
+        volume.takes = false
+        NSScreen.current = 1
+        suite.expect(!press(media: 2) && host.steps == 0 && volume.seen.count == 5,
+                     "a brightness key is not handed to the volume path")
     }
 }

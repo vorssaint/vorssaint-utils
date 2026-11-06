@@ -41,6 +41,17 @@ This permission is used by the mixer, the optional live equalizer and system aud
 
 Finder cut and paste and the uninstaller may ask for Automation. If a Finder move does nothing after a denial, open System Settings, Privacy and Security, Automation, and allow Vorssaint for Finder.
 
+## A monitor's volume does not change
+
+Settings, Displays, More options can send the Mac's volume keys to an external monitor's own speakers. It talks to the monitor over DDC/CI, the channel its own buttons use, with VCP code `0x62` (Audio Speaker Volume). It needs Accessibility, like the brightness keys, and nothing else.
+
+- **When the keys are taken.** Only while the Mac's sound output is that monitor (a DisplayPort or HDMI output with the monitor's name), the option is on, and the monitor's volume is offered. Otherwise the keys keep the system's behaviour. macOS cannot change the volume of a display output, so they do nothing there without this option.
+- **Which monitors are offered.** One that answers a reading of `0x62` is offered on its own. Many monitors answer no readings at all while still taking writes, so their support cannot be checked by the app. For those, turn on Control this monitor's volume in the same place, press a volume key and listen: a write the monitor accepts does not prove it changes the speakers, and the OSD of its joystick is no proof either, since it can drive the volume without exposing it over DDC/CI.
+- **What is shown.** A monitor that answers no readings has no level to read, so the slider shows the last level this app set and does not follow the joystick or the monitor's own buttons. A level first set from here starts at about 12%.
+- **Mute.** F10 sets the volume to zero and remembers the level before it; pressing it again, or any volume key, brings the level back. The separate mute control (`0x8D`) is not used, because not every monitor honours it.
+- **Diagnosing.** Collect what the app decided with `log show --last 5m --predicate 'category == "display"'` and look for lines starting `ddc write`, `volume read` and `ddc channel found`. A line with `accepted false` means the monitor or the cable refused the write. No `ddc channel found` line for an external monitor means its DDC channel could not be matched to it.
+- **Not working.** The cable or dock may not carry DDC/CI, as with some HDMI adapters, and some monitors keep DDC/CI switched off in their own menu. Check that the monitor's DDC/CI setting is on.
+
 ## Clipboard history does not copy or paste
 
 First check whether a fresh copy appears in history. History must be enabled,

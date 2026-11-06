@@ -6,7 +6,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 | Permission | Optional | Powers |
 |---|---|---|
-| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
+| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback, and the volume keys for an external monitor’s speakers |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |

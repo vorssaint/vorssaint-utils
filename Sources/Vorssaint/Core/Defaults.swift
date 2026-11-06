@@ -231,6 +231,13 @@ enum DefaultsKey {
     // answer reads. Kept local so wake handling does not repeatedly probe a
     // sensitive display path.
     static let brightnessDDCWriteOnlyPaths = "brightnessDDCWriteOnlyPaths"
+    // The volume keys drive the speakers of the monitor the Mac plays through.
+    static let monitorVolumeKeysEnabled = "monitorVolumeKeysEnabled"
+    // Monitors a person turned the DDC volume on for, by monitor fingerprint,
+    // and what was last set on each: a monitor that answers no readings
+    // can only be tested by listening, and has no level to read back.
+    static let monitorVolumeChosen = "monitorVolumeChosen"
+    static let monitorVolumeStates = "monitorVolumeStates"
     // Set once the paths cached before paired discovery requests have been
     // dropped, so a monitor written off then is classified again exactly once.
     static let brightnessDDCWriteOnlyPathsRechecked = "brightnessDDCWriteOnlyPathsRechecked"

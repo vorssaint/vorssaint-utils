@@ -18,6 +18,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.monitorVolumeKeysEnabled) private var monitorVolumeKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessKeyStep)
     private var brightnessKeyStep = BrightnessSupport.KeyStep.standard.rawValue
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
@@ -343,6 +344,7 @@ struct EnergySettings: View {
                             .labelsHidden()
                         }
                         DisplayBrightnessShortcutControls(showsSettingsRow: true)
+                        MonitorVolumeSettingsRows()
                         if brightness.brightnessOSDSupported {
                             SettingsRow(symbol: "sun.max", title: strings.osdToggle, caption: strings.osdCaption) {
                                 Toggle(strings.osdToggle, isOn: $brightnessOSDEnabled)
@@ -353,7 +355,7 @@ struct EnergySettings: View {
                                     }
                             }
                         }
-                        if brightnessKeysEnabled || brightnessOSDEnabled
+                        if brightnessKeysEnabled || brightnessOSDEnabled || monitorVolumeKeysEnabled
                             || BrightnessSupport.KeyStep.sanitized(brightnessKeyStep) != .standard,
                            !permissions.accessibility {
                             PermissionRow(kind: .accessibility)
