@@ -12,6 +12,7 @@ enum HarnessReaderContractTests {
         codexGolden(suite)
         openCodeGolden(suite)
         copilotGolden(suite)
+        cursorGolden(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -102,5 +103,28 @@ enum HarnessReaderContractTests {
         let checkpoint = line(#"{"id":"c","timestamp":1790088020,"type":"session.usage_checkpoint","data":{}}"#)
         suite.expect(reader.parse(checkpoint, state: &state, now: now).isEmpty,
                      "a Copilot usage checkpoint parses to nothing")
+    }
+
+    private static func cursorGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        var state = AgentLogState()
+        state.project = "app"
+        let reader = AgentProvider.cursor.reader
+        let prompt = line(#"{"role":"user","message":{"content":[{"type":"text","text":"<timestamp>Jul 26, 2026, 1:06 PM (UTC+3)</timestamp>hello"}]}}"#)
+        let began = AgentTimestamp.parse("2026-07-26T10:06:00Z")!
+        suite.expect(reader.parse(prompt, state: &state, now: now)
+                        == [.turnBegan(began), .turnContext(model: "", project: "app")],
+                     "a Cursor prompt opens its turn at its stamped moment")
+        let reply = line(#"{"role":"assistant","timestamp":"2026-07-26T10:06:30.000Z","message":{"content":[{"type":"text","text":"answer"}],"usage":{"input_tokens":30,"output_tokens":5}}}"#)
+        let replyAt = AgentTimestamp.parse("2026-07-26T10:06:30Z")!
+        suite.expect(reader.parse(reply, state: &state, now: now).first == .turnActive(replyAt),
+                     "a Cursor reply keeps its turn active")
+        let end = line(#"{"type":"turn_ended","status":"success"}"#)
+        suite.expect(reader.parse(end, state: &state, now: now)
+                        == [.turnEnded(now, completed: true, duration: nil)],
+                     "a Cursor turn end finishes its turn")
+        let arbitrary = line(#"{"type":"bounce","who":"user"}"#)
+        suite.expect(reader.parse(arbitrary, state: &state, now: now).isEmpty,
+                     "an unknown Cursor line parses to nothing")
     }
 }

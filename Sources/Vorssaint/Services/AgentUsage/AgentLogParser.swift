@@ -233,6 +233,51 @@ enum AgentLogParser {
 
     // MARK: Shared values
 
+    // MARK: Cursor
+
+    static func parseCursor(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        CursorReader().parse(line, state: &state, now: now)
+    }
+
+    /// Cursor writes the project's absolute path into the folder
+    /// `~/.cursor/projects/<encoded>/agent-transcripts/…`, `/` becoming a
+    /// dash: `Users-me-Nextcloud-Code` stands for `/Users/me/Nextcloud/Code`.
+    /// Dashes a real folder owns are lost to the same split, so the reading
+    /// is a walk over every dash position that follows directories this Mac
+    /// has, longest first. What is gone from disk reads as the last two
+    /// names, the way a person sees the folder.
+    static func cursorProject(from path: String) -> String {
+        guard let projects = path.range(of: "/projects/"),
+              let transcripts = path.range(of: "/agent-transcripts/", range: projects.upperBound..<path.endIndex) else { return "" }
+        let encoded = String(path[projects.upperBound..<transcripts.lowerBound])
+        let parts = encoded.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count > 1 else { return parts.first.map { projectName("/" + $0) } ?? "" }
+        func directory(_ path: String) -> Bool {
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
+        }
+        // From every level the longest reading is tried first: the folder the
+        // path spells out at whole beats any part of it, matching how the
+        // dash split loses real dashes but preserves every real folder this
+        // Mac still has.
+        func walk(_ segment: Int, _ base: String) -> String? {
+            for index in stride(from: parts.count - 1, through: segment, by: -1) {
+                let candidate = (base.isEmpty ? "" : base) + "/" + parts[segment...index].joined(separator: "-")
+                if index == parts.count - 1 {
+                    if directory(candidate) { return candidate }
+                } else if directory(candidate), let forward = walk(index + 1, candidate) {
+                    return forward
+                }
+            }
+            return nil
+        }
+        if let resolved = walk(0, "") { return projectName(resolved) }
+        // What is gone from disk reads as the folder its person knows, with
+        // the dashes it was written with back where they were.
+        let remaining = parts.suffix(2).filter { !$0.isEmpty }.joined(separator: "-")
+        return remaining.isEmpty ? "" : projectName("/" + remaining)
+    }
+
     /// The folder an agent ran in names the project. A worktree kept inside
     /// the repository still belongs to that repository.
     static func projectName(_ path: String) -> String {

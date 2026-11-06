@@ -900,6 +900,7 @@ enum DefaultsKey {
     /// The Codex homes, `CODEX_HOME` folders, that get limits cards of their own.
     static let notchAgentsCodexProfiles = "notchAgentsCodexProfiles"
     static let notchAgentsOpenCode = "notchAgentsOpenCode"
+    static let notchAgentsCursor = "notchAgentsCursor"
     static let notchAgentsCopilot = "notchAgentsCopilot"
     static let notchAgentsCardOrder = "notchAgentsCardOrder"
     static let notchAgentsHiddenCards = "notchAgentsHiddenCards"
@@ -1499,6 +1500,7 @@ enum Defaults {
         DefaultsKey.notchAgentsCodex: true,
         DefaultsKey.notchAgentsCodexProfiles: "",
         DefaultsKey.notchAgentsOpenCode: true,
+        DefaultsKey.notchAgentsCursor: true,
         DefaultsKey.notchAgentsCopilot: true,
         DefaultsKey.notchAgentsCardOrder: "",
         DefaultsKey.notchAgentsHiddenCards: "",
