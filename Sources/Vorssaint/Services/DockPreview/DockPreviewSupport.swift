@@ -137,6 +137,13 @@ enum DockPreviewSupport {
         quitAppOnClose ? .quitApp : .closeWindow
     }
 
+    /// Whether hovering an app's icon opens its panel. The count is the cards
+    /// the panel would list, so minimized windows count and the desktop scope
+    /// the enumerator applied already holds.
+    static func opensPanel(windowCount: Int, multipleWindowsOnly: Bool) -> Bool {
+        windowCount >= (multipleWindowsOnly ? 2 : 1)
+    }
+
     /// Reorders Dock Preview cards. Last-use keeps the enumerator’s MRU order;
     /// creation sorts by ascending window ID (a stable creation-time proxy).
     static func orderedWindows(_ windows: [SwitcherItem],
