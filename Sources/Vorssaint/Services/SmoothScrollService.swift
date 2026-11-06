@@ -288,22 +288,38 @@ final class SmoothScrollService: ObservableObject {
         // the inverter's tap running with the direction features uninstalled
         // and their switches left on, so the flip itself comes from
         // ScrollDirectionPreferences, which reads each one's availability.
+        let targetsOwnWindow = ScrollWheelTarget.shared.contains(event.location)
         let adjustDirectionHere = ScrollInverter.shared.isRunning && !scrollTargetExcluded
+        let speed = ScrollSpeedPreferences(defaults: defaults)
+        let speedExcepted = exceptions.excludesPointerTarget(
+            .scrollSpeed, at: event.location, sourceProcessID: sourceProcessID)
+        let speedFactor = speedExcepted
+            ? nil
+            : speed.factor(for: event,
+                           horizontalModifier: direction.horizontalModifier,
+                           targetsOwnWindow: targetsOwnWindow)
+        // Consume the speed modifier before the Control-zoom guard so a
+        // Control-held speed shortcut can still glide instead of falling
+        // through as native zoom.
+        if speedFactor != nil, let modifier = speed.modifier {
+            event.flags.remove(modifier.flag)
+        }
         let redirected: Bool
         if adjustDirectionHere, let modifier = direction.horizontalModifier {
             redirected = ScrollWheelSupport.redirectVerticalScroll(event, modifier: modifier,
-                targetsOwnWindow: ScrollWheelTarget.shared.contains(event.location))
+                targetsOwnWindow: targetsOwnWindow)
         } else {
             redirected = false
         }
         // Control-scroll keeps its native zoom unless explicitly used by the
-        // horizontal-scroll setting, which consumes Control above.
+        // horizontal-scroll or speed setting, which consumes Control above.
         guard !event.flags.contains(.maskControl) else {
             stopGlide()
             return Unmanaged.passUnretained(event)
         }
         let invertVertical = adjustDirectionHere && direction.invertVertical ? -1.0 : 1.0
         let invertHorizontal = adjustDirectionHere && direction.invertHorizontal ? -1.0 : 1.0
+        let speedScale = Double(speedFactor ?? 1)
         // Linear scrolling is applied here for the same reason the flip is:
         // this tap swallows the tick before the wheel tap can see it. The cap
         // follows linear scrolling's own exception list the same way.
@@ -335,17 +351,17 @@ final class SmoothScrollService: ObservableObject {
             if let linearLinesPerNotch {
                 vertical = SmoothScrollSupport.linearContinuousDistance(
                     fixedPointDelta: verticalFixedPoint, pointDelta: verticalPoint,
-                    step: userStep, linesPerNotch: linearLinesPerNotch) * invertVertical
+                    step: userStep, linesPerNotch: linearLinesPerNotch) * invertVertical * speedScale
                 horizontal = SmoothScrollSupport.linearContinuousDistance(
                     fixedPointDelta: horizontalFixedPoint, pointDelta: horizontalPoint,
-                    step: userStep, linesPerNotch: linearLinesPerNotch) * invertHorizontal
+                    step: userStep, linesPerNotch: linearLinesPerNotch) * invertHorizontal * speedScale
             } else {
                 vertical = SmoothScrollSupport.continuousDistance(
                     fixedPointDelta: verticalFixedPoint, pointDelta: verticalPoint,
-                    step: userStep) * invertVertical
+                    step: userStep) * invertVertical * speedScale
                 horizontal = SmoothScrollSupport.continuousDistance(
                     fixedPointDelta: horizontalFixedPoint, pointDelta: horizontalPoint,
-                    step: userStep) * invertHorizontal
+                    step: userStep) * invertHorizontal * speedScale
             }
             // The distance is already in pixels; the budget must not scale it
             // a second time.
@@ -382,8 +398,8 @@ final class SmoothScrollService: ObservableObject {
                 horizontal: horizontalTicks,
                 shiftPressed: shiftPressed
             )
-            vertical = axes.vertical * invertVertical
-            horizontal = axes.horizontal * invertHorizontal
+            vertical = axes.vertical * invertVertical * speedScale
+            horizontal = axes.horizontal * invertHorizontal * speedScale
             step = Double(SmoothScrollSupport.sanitizedStep(
                 defaults.integer(forKey: DefaultsKey.smoothScrollStep)))
         }

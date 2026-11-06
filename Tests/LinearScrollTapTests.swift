@@ -80,7 +80,8 @@ enum LinearScrollTapTests {
         }
         func configure(linear: Bool = true, installed: Bool = true, lines: Int = 3,
                        invert: Bool = false, invertHorizontal: Bool = false, inverterInstalled: Bool = true,
-                       sidewaysKey: ScrollHorizontalModifier? = nil) {
+                       sidewaysKey: ScrollHorizontalModifier? = nil,
+                       speedKey: ScrollHorizontalModifier? = nil, speedFactor: Int = 3) {
             defaults.set(installed, forKey: AppFeature.linearScroll.availabilityKey)
             defaults.set(linear, forKey: DefaultsKey.linearScrollEnabled)
             defaults.set(lines, forKey: DefaultsKey.linearScrollLines)
@@ -90,6 +91,10 @@ enum LinearScrollTapTests {
             defaults.set(sidewaysKey != nil, forKey: AppFeature.scrollHorizontal.availabilityKey)
             defaults.set(sidewaysKey != nil, forKey: DefaultsKey.scrollHorizontalEnabled)
             defaults.set(sidewaysKey?.rawValue, forKey: DefaultsKey.scrollHorizontalModifier)
+            defaults.set(speedKey != nil, forKey: AppFeature.scrollSpeed.availabilityKey)
+            defaults.set(speedKey != nil, forKey: DefaultsKey.scrollSpeedEnabled)
+            defaults.set(speedKey?.rawValue, forKey: DefaultsKey.scrollSpeedModifier)
+            defaults.set(speedFactor, forKey: DefaultsKey.scrollSpeedMultiplier)
             Exceptions.shared.excepted = []
         }
         /// One event through the shipped handler; nil when it was held back.
@@ -288,6 +293,42 @@ enum LinearScrollTapTests {
         configure()
         suite.expect(SideWheel().sideWheelInput(for: push) == MouseButtonShortcutSupport.sideWheelLeftInput,
                      "a side-wheel push reads as pushed while horizontal Scroll Direction is off")
+
+        configure(linear: false, speedKey: .option, speedFactor: 4)
+        let sped = deliver(wheel(line: 2, fixed: 2, point: 20, flags: .maskAlternate))
+        suite.expect(sped.map(verticalLine) == 8 && sped?.flags.isEmpty == true,
+                     "Option-held speed multiplies the raw notch and consumes the modifier")
+        configure(speedKey: .option, speedFactor: 3)
+        let linearThenSpeed = deliver(wheel(line: 7, fixed: 7, point: 70, flags: .maskAlternate))
+        suite.expect(linearThenSpeed.map(verticalLine) == 9,
+                     "linear scrolling caps the notch before speed multiplies it")
+        configure(linear: false, sidewaysKey: .option, speedKey: .option, speedFactor: 4)
+        let horizontalWins = deliver(wheel(line: 2, fixed: 2, point: 20, flags: .maskAlternate))
+        suite.expect(horizontalWins.map(verticalLine) == 0
+                        && horizontalWins?.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 2,
+                     "horizontal redirection with the same modifier wins over speed")
+        configure(linear: false, speedKey: .option, speedFactor: 4)
+        Exceptions.shared.excepted = [.scrollSpeed]
+        let speedExcepted = deliver(wheel(line: 2, fixed: 2, point: 20, flags: .maskAlternate))
+        suite.expect(speedExcepted.map(verticalLine) == 2
+                        && speedExcepted?.flags.contains(.maskAlternate) == true,
+                     "an app on scroll speed's own list keeps the unmodified wheel")
+        configure(linear: false, speedKey: .option, speedFactor: 4)
+        Target.shared.isOwn = true
+        let ownSpeed = deliver(wheel(line: 2, fixed: 2, point: 20, flags: .maskAlternate))
+        suite.expect(ownSpeed.map(verticalLine) == 2
+                        && ownSpeed?.flags.contains(.maskAlternate) == true,
+                     "own windows skip modifier-held speed")
+        Target.shared.isOwn = false
+        configure(linear: false, speedKey: .option, speedFactor: 4)
+        let trackpadSpeed = wheel(continuous: true, line: 0, fixed: 4, point: 40, flags: .maskAlternate)
+        trackpadSpeed.setIntegerValueField(.scrollWheelEventScrollPhase, value: 1)
+        let continuousMouseSpeed = deliver(wheel(continuous: true, line: 0, fixed: 4, point: 40,
+                                                 flags: .maskAlternate))
+        suite.expect(deliver(trackpadSpeed)?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 40,
+                     "trackpad gestures stay unscaled while the speed modifier is held")
+        suite.expect(continuousMouseSpeed?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 160,
+                     "continuous mouse wheels still multiply under the speed modifier")
     }
 
     private static func verticalLine(_ event: CGEvent) -> Int64 {

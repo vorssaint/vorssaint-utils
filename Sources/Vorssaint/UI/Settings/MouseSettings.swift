@@ -32,6 +32,11 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.linearScrollEnabled) private var linearScrollEnabled = false
     @AppStorage(DefaultsKey.linearScrollLines) private var linearScrollLines =
         ScrollWheelSupport.defaultLinesPerNotch
+    @AppStorage(DefaultsKey.scrollSpeedEnabled) private var scrollSpeedEnabled = false
+    @AppStorage(DefaultsKey.scrollSpeedModifier) private var scrollSpeedModifier =
+        ScrollHorizontalModifier.option
+    @AppStorage(DefaultsKey.scrollSpeedMultiplier) private var scrollSpeedMultiplier =
+        ScrollWheelSupport.defaultSpeedMultiplier
     @AppStorage(DefaultsKey.smoothScrollResponse) private var smoothScrollResponse =
         SmoothScrollSupport.defaultResponse
     @AppStorage(DefaultsKey.smoothScrollCoast) private var smoothScrollCoast =
@@ -85,6 +90,10 @@ struct MouseSettings: View {
                     linearScrollCard
                         .settingsSectionAnchor(.linearScroll, cornerRadius: 16)
                 }
+                if AppFeature.scrollSpeed.isAvailable {
+                    scrollSpeedCard
+                        .settingsSectionAnchor(.scrollSpeed, cornerRadius: 16)
+                }
                 if AppFeature.mouseAcceleration.isAvailable {
                     accelerationCard
                         .settingsSectionAnchor(.mouseAcceleration, cornerRadius: 16)
@@ -124,7 +133,7 @@ struct MouseSettings: View {
 
     /// The mouse features on this page, in page order, for the legend.
     private var legendFeatures: [AppFeature] {
-        [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration,
+        [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration,
          .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick]
             .filter(\.isAvailable)
     }
@@ -139,6 +148,7 @@ struct MouseSettings: View {
         case .focusFollowsMouse: return focusFollowsMouseEnabled
         case .smoothScroll: return smoothScrollEnabled
         case .linearScroll: return linearScrollEnabled
+        case .scrollSpeed: return scrollSpeedEnabled
         case .mouseAcceleration: return mouseAccelerationDisabled
         case .mouseNavigation: return mouseNavigationEnabled
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
@@ -428,6 +438,80 @@ struct MouseSettings: View {
         }
     }
 
+    // MARK: - Modifier-held scroll speed
+
+    private var scrollSpeedCard: some View {
+        SettingsCard {
+            SettingsRow(symbol: AppFeature.scrollSpeed.symbolName, title: l10n.s.scrollSpeedName,
+                        caption: l10n.s.scrollSpeedCaption) {
+                Toggle(l10n.s.scrollSpeedName, isOn: $scrollSpeedEnabled)
+                    .labelsHidden()
+                    .onChange(of: scrollSpeedEnabled) { _, enabled in
+                        ScrollInverter.shared.syncWithPreferences()
+                        if enabled { permissions.requestAccessibility() }
+                    }
+            }
+            if scrollSpeedEnabled {
+                VStack(alignment: .leading, spacing: 10) {
+                    scrollSpeedModifierKeys
+                    sliderRow(l10n.s.scrollSpeedMultiplierLabel,
+                              value: scrollSpeedMultiplierBinding,
+                              range: Double(ScrollWheelSupport.speedMultiplierRange.lowerBound)
+                                  ... Double(ScrollWheelSupport.speedMultiplierRange.upperBound),
+                              step: 1,
+                              readout: "\(ScrollWheelSupport.sanitizedSpeedMultiplier(scrollSpeedMultiplier))×")
+                    MouseExceptionsList(scope: .scrollSpeed)
+                }
+                .padding(.leading, settingsRowTextInset)
+            }
+        }
+    }
+
+    /// Same keycap row as horizontal scrolling, bound to the speed modifier.
+    private var scrollSpeedModifierKeys: some View {
+        let modifierStrings = FeatureStrings.quitProtection(l10n.language)
+        let choices: [(ScrollHorizontalModifier, String, String)] = [
+            (.shift, "⇧", modifierStrings.shiftKey),
+            (.option, "⌥", modifierStrings.optionKey),
+            (.control, "⌃", modifierStrings.controlKey),
+            (.command, "⌘", l10n.s.scrollHorizontalCommandKey),
+        ]
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(l10n.s.scrollHorizontalModifierLabel)
+                .font(.subheadline.weight(.medium))
+            HStack(spacing: 8) {
+                ForEach(choices, id: \.0) { modifier, glyph, name in
+                    let selected = scrollSpeedModifier == modifier
+                    Button {
+                        scrollSpeedModifier = modifier
+                        ScrollInverter.shared.syncWithPreferences()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(glyph)
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            Text(name)
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(selected ? Color.accentColor : .primary)
+                        .padding(.horizontal, 10)
+                        .frame(height: 28)
+                        .background(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.06),
+                                    in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .strokeBorder(selected ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.14),
+                                              lineWidth: 1)
+                        }
+                        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(name)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+        }
+    }
+
     private func sliderRow(_ title: String, value: Binding<Double>, range: ClosedRange<Double>,
                            step: Double, readout: String) -> some View {
         HStack(spacing: 12) {
@@ -597,6 +681,7 @@ struct MouseSettings: View {
             || (focusFollowsMouseEnabled && AppFeature.focusFollowsMouse.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (linearScrollEnabled && AppFeature.linearScroll.isAvailable)
+            || (scrollSpeedEnabled && AppFeature.scrollSpeed.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
             || ((mouseButtonShortcutsEnabled || spacesEnabled)
                 && AppFeature.mouseButtonShortcuts.isAvailable)
@@ -644,6 +729,13 @@ struct MouseSettings: View {
         Binding(
             get: { Double(ScrollWheelSupport.sanitizedLinesPerNotch(linearScrollLines)) },
             set: { linearScrollLines = Int($0) }
+        )
+    }
+
+    private var scrollSpeedMultiplierBinding: Binding<Double> {
+        Binding(
+            get: { Double(ScrollWheelSupport.sanitizedSpeedMultiplier(scrollSpeedMultiplier)) },
+            set: { scrollSpeedMultiplier = Int($0) }
         )
     }
 
