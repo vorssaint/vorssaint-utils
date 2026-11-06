@@ -19,6 +19,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.quitAppsShortcutEnabled) private var quitAllShortcutEnabled = false
     @AppStorage(DefaultsKey.quitAppsExceptFrontShortcutEnabled) private var quitOthersShortcutEnabled = false
     @AppStorage(DefaultsKey.cameraPreviewShortcutEnabled) private var cameraShortcutEnabled = false
+    @AppStorage(DefaultsKey.keyboardTyperCountdownSeconds) private var keyboardTyperCountdown = KeyboardTyperSupport.defaultCountdown
     @AppStorage(DefaultsKey.scratchpadShortcutEnabled) private var scratchpadShortcutEnabled = false
     @AppStorage(DefaultsKey.scratchpadRetention) private var scratchpadRetention = ScratchpadRetention.never.rawValue
     @AppStorage(DefaultsKey.scratchpadCloseOnClickOutside) private var scratchpadCloseOnClickOutside = true
@@ -312,6 +313,38 @@ struct QuickToolsSettings: View {
                     Text(FeatureStrings.scratchpad(l10n.language).pageTitle)
                 }
                 .settingsFormSectionAnchor(.scratchpad)
+            }
+
+            if AppFeature.keyboardTyper.isAvailable {
+                Section {
+                    Button {
+                        KeyboardTyperService.shared.show()
+                    } label: {
+                        Label(FeatureStrings.keyboardTyper(l10n.language).openButton,
+                              systemImage: AppFeature.keyboardTyper.symbolName)
+                    }
+                    Text(FeatureStrings.keyboardTyper(l10n.language).panelCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(FeatureStrings.keyboardTyper(l10n.language).layoutsTitle)
+                        Text(FeatureStrings.keyboardTyper(l10n.language).layoutsCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        KeyboardTyperLayoutList()
+                    }
+                    Stepper(value: $keyboardTyperCountdown, in: KeyboardTyperSupport.countdownRange) {
+                        LabeledContent(FeatureStrings.keyboardTyper(l10n.language).countdownTitle,
+                                       value: String(format: FeatureStrings.keyboardTyper(l10n.language).secondsFormat,
+                                                     KeyboardTyperSupport.sanitizedCountdown(keyboardTyperCountdown)))
+                    }
+                    Text(FeatureStrings.keyboardTyper(l10n.language).countdownCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text(FeatureStrings.keyboardTyper(l10n.language).pageTitle)
+                }
+                .settingsFormSectionAnchor(.keyboardTyper)
             }
 
             if AppFeature.cleaningMode.isAvailable {

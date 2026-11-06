@@ -395,7 +395,7 @@ private enum ScratchpadDialog {
 
 /// A transparent strip over the header that moves the whole panel when
 /// dragged; everything below it stays free for text selection.
-private struct ScratchpadDragHandle: NSViewRepresentable {
+struct ScratchpadDragHandle: NSViewRepresentable {
     func makeNSView(context: Context) -> DragHandleView {
         DragHandleView()
     }
@@ -414,7 +414,7 @@ private struct ScratchpadDragHandle: NSViewRepresentable {
 /// An invisible border overlay that gives the borderless panel generous resize
 /// hitboxes on all four edges and corners, keeps the resize cursors visible,
 /// and enforces the minimum pad size during interactive dragging.
-private struct ScratchpadResizeOverlay: NSViewRepresentable {
+struct ScratchpadResizeOverlay: NSViewRepresentable {
     func makeNSView(context: Context) -> ResizeBorderOverlayView {
         ResizeBorderOverlayView()
     }
@@ -511,8 +511,9 @@ private struct ScratchpadResizeOverlay: NSViewRepresentable {
 
             let initialFrame = window.frame
             let initialMouse = NSEvent.mouseLocation
-            let minWidth: CGFloat = 280
-            let minHeight: CGFloat = 220
+            // The window's own minimum, so a pad that grows a side panel keeps room for it.
+            let minWidth = max(280, window.contentMinSize.width)
+            let minHeight = max(220, window.contentMinSize.height)
 
             while true {
                 guard let nextEvent = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) else { break }

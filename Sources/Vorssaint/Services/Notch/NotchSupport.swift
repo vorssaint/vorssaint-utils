@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, keyboardTyper
     var id: String { rawValue }
 
     var symbol: String {
@@ -29,6 +29,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         // The quick panel's own mark; the grid belongs to the sections button.
         case .tools: return AppFeature.quickLauncher.symbolName
         case .scratchpad: return "note.text"
+        case .keyboardTyper: return AppFeature.keyboardTyper.symbolName
         case .agents: return "sparkles"
         case .watch: return "eye"
         }
@@ -51,6 +52,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .camera: return "w"
         case .downloads: return "d"
         case .scratchpad: return "p"
+        case .keyboardTyper: return "k"
         case .agents: return "g"
         case .watch: return "o"
         }
@@ -74,6 +76,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
                 || AppFeature.colorPicker.isAvailable(in: defaults)
         case .files: return AppFeature.shelf.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
+        case .keyboardTyper: return AppFeature.keyboardTyper.isAvailable(in: defaults)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
         case .watch: return AppFeature.notchWatch.isAvailable(in: defaults)
         case .system:
@@ -2096,6 +2099,12 @@ enum NotchSupport {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchAppPanel)
     }
 
+    /// The typer's page is its own on/off: hidden in the island's pages, the
+    /// floating pad takes over.
+    static func routesKeyboardTyper(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) && modules(in: defaults).contains(.keyboardTyper)
+    }
+
     static func routesScratchpad(in defaults: UserDefaults = .standard) -> Bool {
         isEnabled(in: defaults) && (defaults.object(forKey: DefaultsKey.notchScratchpad) as? Bool ?? true)
             && modules(in: defaults).contains(.scratchpad)
@@ -2791,7 +2800,8 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch,
+                 .keyboardTyper:
                 contentHeight = budget
             }
         }
