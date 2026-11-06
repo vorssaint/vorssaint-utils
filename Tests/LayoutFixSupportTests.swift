@@ -184,6 +184,28 @@ enum LayoutFixSupportTests {
             suite.expect(buffer.generation == last, "an ignored key leaves the generation alone")
         }
 
+        suite.run("LayoutFix relabelWordAfterFix") {
+            var buffer = LayoutFixBuffer()
+            let typed = keys([4, 14, space] + privet + [space], in: abc.id)
+            for key in typed { buffer.apply(.append, key: key) }
+            let before = buffer.generation
+            suite.expect(buffer.relabelWord(count: privet.count, trailingSpaces: 1,
+                                            layoutID: "com.apple.keylayout.Russian"),
+                         "a word at the end of the buffer is relabeled")
+            suite.expect(buffer.keys.suffix(7).prefix(6).allSatisfy { $0.layoutID == "com.apple.keylayout.Russian" }
+                             && buffer.keys.prefix(3).allSatisfy { $0.layoutID == abc.id }
+                             && buffer.keys.last?.layoutID == abc.id,
+                         "only the word's keys move to the new layout")
+            suite.expect(buffer.generation == before, "relabeling is not typing")
+            suite.expect(!buffer.relabelWord(count: 9, trailingSpaces: 1, layoutID: "x"),
+                         "a word longer than what follows the last space is refused")
+            var original = LayoutFixBuffer()
+            for key in typed { original.apply(.append, key: key) }
+            _ = original.relabelWord(count: privet.count, trailingSpaces: 1, layoutID: "x")
+            original.restoreWord(keys(privet, in: abc.id), trailingSpaces: 1)
+            suite.expect(original.keys == typed, "restoring puts the original keys back")
+        }
+
         suite.run("LayoutFix lastWordKeepsTrailingSpaces") {
             let word = keys(privet, in: abc.id)
             let spaces = keys([space, space], in: abc.id)

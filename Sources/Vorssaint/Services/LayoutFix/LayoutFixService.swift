@@ -140,8 +140,117 @@ final class LayoutFixService: ObservableObject {
         performFix(snapshot: snapshot.0, generation: snapshot.1)
     }
 
-    /// Runs one fix on the main thread.
-    func performFix(snapshot: [LayoutFixKey], generation: UInt64) {}
+    // MARK: - Fixing (main thread)
+
+    /// The taps on the word being fixed, and the buffer generation right
+    /// after the last retype: any key typed since ends the cycle.
+    private var cycle: LayoutFixCycle?
+    private var cycleGeneration: UInt64?
+
+    /// Runs one fix on the main thread, once the trigger's modifiers are up:
+    /// typed while ⌥ is still down, every character would come out as ⌥-text.
+    func performFix(snapshot: [LayoutFixKey], generation: UInt64) {
+        whenModifiersUp(attempt: 0) { [weak self] in
+            self?.fix(snapshot: snapshot, generation: generation)
+        }
+    }
+
+    private func whenModifiersUp(attempt: Int, then work: @escaping () -> Void) {
+        let held = CGEventSource.flagsState(.combinedSessionState)
+            .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
+        if held.isEmpty { return work() }
+        guard attempt < 100 else { return NSSound.beep() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) { [weak self] in
+            self?.whenModifiersUp(attempt: attempt + 1, then: work)
+        }
+    }
+
+    private func fix(snapshot: [LayoutFixKey], generation: UInt64) {
+        guard isRunning, !IsSecureEventInputEnabled(), NSApp.keyWindow == nil,
+              let app = NSWorkspace.shared.frontmostApplication else { return }
+        let exceptions = Set(MouseAppExceptions.shared.lists[.layoutFix] ?? [])
+        guard !MouseAppExceptionSupport.isExcepted(app.bundleIdentifier, exceptions: exceptions) else { return }
+
+        let now = inputLock.withLock { buffer.generation }
+        if var current = cycle, cycleGeneration == now {
+            let shown = current.shown
+            let next = current.advance()
+            retype(current, from: shown, to: next, processID: app.processIdentifier)
+            return
+        }
+        cycle = nil
+        // Keys typed after the tap: the word it was meant for is gone.
+        guard now == generation else { return }
+        guard let (word, spaces) = LayoutFixSupport.lastWord(snapshot),
+              let originalText = LayoutFixSupport.renderOriginal(word, layouts: layouts)
+        else { return NSSound.beep() }
+        let available = Set(NSSpellChecker.shared.availableLanguages)
+        let candidates = LayoutFixSupport.candidates(keys: word, originalText: originalText,
+                                                     layouts: layouts) { text, language in
+            LayoutFixSupport.isWord(text, language: language, available: available, check: Self.spellCheck)
+        }
+        guard !candidates.isEmpty else { return NSSound.beep() }
+        var started = LayoutFixCycle(keys: word, trailingSpaces: spaces,
+                                     original: LayoutFixCandidate(text: originalText,
+                                                                  layoutIDs: word.last.map { [$0.layoutID] } ?? []),
+                                     candidates: candidates)
+        let shown = started.shown
+        let next = started.advance()
+        retype(started, from: shown, to: next, processID: app.processIdentifier)
+    }
+
+    /// Replaces what the field shows with the next candidate, after checking
+    /// that the field really ends with it, then switches the input source.
+    private func retype(_ updated: LayoutFixCycle, from shown: LayoutFixCandidate,
+                        to next: LayoutFixCandidate, processID: pid_t) {
+        let spaces = String(repeating: " ", count: updated.trailingSpaces)
+        let expected = shown.text + spaces
+        let field = SelectedTextReader.focusedTextSelection(processID: processID, timeout: 0.15)
+        if let field {
+            // A selection would be replaced by the first backspace.
+            guard field.range.length == 0 else { return abandon() }
+            let length = (expected as NSString).length
+            let start = field.range.location - length
+            let before = start >= 0 ? field.text(in: NSRange(location: start, length: length)) : ""
+            guard LayoutFixSupport.guardDecision(expected: expected, textBeforeCaret: before) != .mismatch
+            else { return abandon() }
+        }
+        let posted = TextSnippetService.postExpansion(deleteCount: shown.text.count + updated.trailingSpaces,
+                                                      typedTrigger: expected,
+                                                      text: next.text + spaces,
+                                                      trailingKeyCode: nil,
+                                                      trailingFlags: [])
+        guard posted else { return abandon() }
+        let backToOriginal = next == updated.original
+        let target = backToOriginal
+            ? (updated.keys.last?.layoutID ?? "")
+            : LayoutFixSupport.targetLayoutID(for: next, recency: recency)
+        _ = InputSourceSelection.select(sourceID: target)
+        inputLock.withLock {
+            if backToOriginal {
+                buffer.restoreWord(updated.keys, trailingSpaces: updated.trailingSpaces)
+            } else {
+                buffer.relabelWord(count: updated.keys.count, trailingSpaces: updated.trailingSpaces,
+                                   layoutID: target)
+            }
+            cycleGeneration = buffer.generation
+        }
+        cycle = updated
+    }
+
+    /// The field is not what the buffer says: nothing is deleted, and the
+    /// buffer starts over from here.
+    private func abandon() {
+        NSSound.beep()
+        cycle = nil
+        cycleGeneration = nil
+        resetBuffer()
+    }
+
+    private static func spellCheck(_ text: String, language: String) -> Bool {
+        NSSpellChecker.shared.checkSpelling(of: text, startingAt: 0, language: language, wrap: false,
+                                            inSpellDocumentWithTag: 0, wordCount: nil).location == NSNotFound
+    }
 
     // MARK: - Tap lifecycle
 

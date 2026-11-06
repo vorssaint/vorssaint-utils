@@ -63,6 +63,35 @@ struct LayoutFixBuffer {
         }
         generation &+= 1
     }
+
+    /// After a fix the same keys stand for the word in another layout. The
+    /// generation stays put: nothing new was typed, so the next tap still
+    /// belongs to the same cycle. False when the word is not where it is
+    /// expected, at the end of the buffer before `trailingSpaces` spaces.
+    @discardableResult
+    mutating func relabelWord(count: Int, trailingSpaces: Int, layoutID: String) -> Bool {
+        let end = keys.count - trailingSpaces
+        let start = end - count
+        guard count > 0, trailingSpaces >= 0, start >= 0, end <= keys.count,
+              !keys[start..<end].contains(where: { $0.keyCode == UInt16(kVK_Space) })
+        else { return false }
+        for index in start..<end {
+            let key = keys[index]
+            keys[index] = LayoutFixKey(keyCode: key.keyCode, shift: key.shift, option: key.option,
+                                       capsLock: key.capsLock, layoutID: layoutID)
+        }
+        return true
+    }
+
+    /// Puts the word's keys back as they were first typed, layouts included,
+    /// when a cycle comes back to the original.
+    mutating func restoreWord(_ word: [LayoutFixKey], trailingSpaces: Int) {
+        let end = keys.count - trailingSpaces
+        let start = end - word.count
+        guard start >= 0, end <= keys.count,
+              keys[start..<end].map(\.keyCode) == word.map(\.keyCode) else { return }
+        keys.replaceSubrange(start..<end, with: word)
+    }
 }
 
 /// One way the typed keys could read: the text and every participating layout
