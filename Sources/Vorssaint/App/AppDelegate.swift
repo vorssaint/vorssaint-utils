@@ -353,6 +353,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         AudioInputDeviceManager.shared.stop()
         // Flushes any scratchpad edit still inside the save debounce.
         ScratchpadService.shared.suspend()
+        // A run cut short leaves the Mac on the destination's layout.
+        if AppFeature.keyboardTyper.isAvailable { KeyboardTyperService.shared.stopBeforeTermination() }
         // Every macOS shortcut a feature took over goes back now, whichever
         // feature held it; not all of them suspend here.
         SystemShortcutTakeover.restoreAll()

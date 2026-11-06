@@ -760,6 +760,13 @@ enum DefaultsKey {
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
+    static let panelUtilityKeyboardTyper = "panelUtilityKeyboardTyper"
+    static let keyboardTyperDelayMs = "keyboardTyperDelayMs" // ms between typed keys (KeyboardTyperSupport.delayRange)
+    static let keyboardTyperFavoriteLayouts = "keyboardTyperFavoriteLayouts" // comma separated TIS input source ids
+    static let keyboardTyperLayout = "keyboardTyperLayout" // destination layout id; empty types with the system layout
+    static let keyboardTyperCountdownSeconds = "keyboardTyperCountdownSeconds" // delayed Send wait (KeyboardTyperSupport.countdownRange)
+    static let keyboardTyperSnippetsShown = "keyboardTyperSnippetsShown" // the snippet side panel is open
+    static let keyboardTyperMethod = "keyboardTyperMethod" // characters | keyPositions (KeyboardTyperMethod)
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1894,6 +1901,13 @@ enum Defaults {
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
+        DefaultsKey.panelUtilityKeyboardTyper: true,
+        DefaultsKey.keyboardTyperDelayMs: KeyboardTyperSupport.defaultDelay,
+        DefaultsKey.keyboardTyperFavoriteLayouts: "",
+        DefaultsKey.keyboardTyperLayout: "",
+        DefaultsKey.keyboardTyperCountdownSeconds: KeyboardTyperSupport.defaultCountdown,
+        DefaultsKey.keyboardTyperSnippetsShown: false,
+        DefaultsKey.keyboardTyperMethod: KeyboardTyperMethod.characters.rawValue,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,
