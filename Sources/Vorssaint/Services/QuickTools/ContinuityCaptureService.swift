@@ -14,8 +14,8 @@ final class ContinuityCaptureService: ObservableObject {
     private let hotkey = QuickToolHotkey(id: 62)
     @MainActor private var panel: NSPanel?
     @MainActor private var activeReceiver: ContinuityCameraReceiver?
-    @MainActor private var retiredReceivers: [ContinuityCameraReceiver] = []
     @MainActor private var targetApp: NSRunningApplication?
+    @MainActor private var captureTimeoutTask: Task<Void, Never>?
 
     private init() {
         hotkey.onPress = { [weak self] in self?.capture() }
@@ -41,10 +41,11 @@ final class ContinuityCaptureService: ObservableObject {
     func capture() {
         let currentApp = NSWorkspace.shared.frontmostApplication
         Task { @MainActor [weak self] in
+            guard let self else { return }
             if let currentApp, currentApp.processIdentifier != ProcessInfo.processInfo.processIdentifier {
-                self?.targetApp = currentApp
+                self.targetApp = currentApp
             }
-            self?.performCapture()
+            self.performCapture()
         }
     }
 
@@ -55,8 +56,13 @@ final class ContinuityCaptureService: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
 
         let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+        let screenFrame = screen?.visibleFrame ?? NSRect(x: mouse.x, y: mouse.y, width: 100, height: 100)
+        let clampedX = min(max(mouse.x - 1, screenFrame.minX), screenFrame.maxX - 2)
+        let clampedY = min(max(mouse.y - 1, screenFrame.minY), screenFrame.maxY - 2)
+
         let panel = ContinuityPanel(
-            contentRect: NSRect(x: mouse.x - 1, y: mouse.y - 1, width: 2, height: 2),
+            contentRect: NSRect(x: clampedX, y: clampedY, width: 2, height: 2),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -72,7 +78,9 @@ final class ContinuityCaptureService: ObservableObject {
 
         let receiver = ContinuityCameraReceiver(frame: NSRect(x: 0, y: 0, width: 2, height: 2))
         receiver.onImageReceived = { [weak self] image in
-            self?.handleCapturedImage(image)
+            Task { @MainActor [weak self] in
+                self?.handleCapturedImage(image)
+            }
         }
 
         panel.contentView = receiver
@@ -102,17 +110,35 @@ final class ContinuityCaptureService: ObservableObject {
 
                 let menuTitle = FeatureStrings.cameraPreview(L10n.shared.language).continuityCaptureButton
                 let menu = NSMenu(title: menuTitle)
+
+                var actionDispatched = false
+                let observer = NotificationCenter.default.addObserver(
+                    forName: NSMenu.didSendActionNotification,
+                    object: nil,
+                    queue: nil
+                ) { _ in
+                    actionDispatched = true
+                }
+
                 NSMenu.popUpContextMenu(menu, with: event, for: receiver)
 
-                // Do not order out immediately; Continuity Camera delivers photo asynchronously after menu closes.
+                NotificationCenter.default.removeObserver(observer)
+
+                // If user cancelled the menu or no device action was invoked, dismiss immediately
+                guard actionDispatched else {
+                    self.dismiss(restoreTarget: true)
+                    return
+                }
+
+                // Action was dispatched; ignore mouse events while awaiting photo delivery from device
                 panel.ignoresMouseEvents = true
 
-                // Timeout fallback after 60s if user cancels or leaves
-                DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self, weak panel] in
-                    MainActor.assumeIsolated {
-                        if let self, let panel, self.panel === panel {
-                            self.dismiss(restoreTarget: true)
-                        }
+                // Timeout fallback after 90s if photo capture is abandoned on iOS device
+                self.captureTimeoutTask?.cancel()
+                self.captureTimeoutTask = Task { @MainActor [weak self, weak panel] in
+                    try? await Task.sleep(nanoseconds: 90 * 1_000_000_000)
+                    if let self, let panel, self.panel === panel {
+                        self.dismiss(restoreTarget: true)
                     }
                 }
             }
@@ -121,6 +147,9 @@ final class ContinuityCaptureService: ObservableObject {
 
     @MainActor
     private func handleCapturedImage(_ image: NSImage) {
+        captureTimeoutTask?.cancel()
+        captureTimeoutTask = nil
+
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.writeObjects([image])
@@ -138,19 +167,12 @@ final class ContinuityCaptureService: ObservableObject {
 
             let autoPaste = UserDefaults.standard.bool(forKey: DefaultsKey.continuityCaptureAutoPasteEnabled)
             if autoPaste {
-                // Post Cmd+V to automatically paste the captured photo at current cursor
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                    let src = CGEventSource(stateID: .hidSystemState)
-                    let vKey: CGKeyCode = 0x09 // kVK_ANSI_V
-                    if let keyDown = CGEvent(keyboardEventSource: src, virtualKey: vKey, keyDown: true),
-                       let keyUp = CGEvent(keyboardEventSource: src, virtualKey: vKey, keyDown: false) {
-                        keyDown.flags = .maskCommand
-                        keyUp.flags = .maskCommand
-                        keyDown.postToPid(target.processIdentifier)
-                        keyUp.postToPid(target.processIdentifier)
-                        keyDown.post(tap: .cghidEventTap)
-                        keyUp.post(tap: .cghidEventTap)
+                if AXIsProcessTrusted() {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        TransientPaste.shared.pasteCurrentContents()
                     }
+                } else {
+                    Permissions.shared.requestAccessibility()
                 }
             }
         }
@@ -158,12 +180,13 @@ final class ContinuityCaptureService: ObservableObject {
 
     @MainActor
     private func dismiss(restoreTarget: Bool = true) {
+        captureTimeoutTask?.cancel()
+        captureTimeoutTask = nil
+
         let target = self.targetApp
         self.targetApp = nil
-        if let active = activeReceiver {
-            retiredReceivers.append(active)
-            activeReceiver = nil
-        }
+        activeReceiver = nil
+
         panel?.orderOut(nil)
         panel?.close()
         panel = nil
