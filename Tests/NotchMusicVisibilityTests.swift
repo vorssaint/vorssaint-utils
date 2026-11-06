@@ -95,6 +95,7 @@ enum NotchMusicVisibilityTests {
         var downloadName: String?
         var hasAgentActivity = false
         var hasKeepAwakeActivity = false
+        var hasTeleprompterActivity = false
         var awaitsTrackNotice = false
         var timerStripWing: CGFloat = 44
         func timerStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { timerStripWing }
@@ -106,6 +107,8 @@ enum NotchMusicVisibilityTests {
         func calendarStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { calendarStripWing }
         var keepAwakeStripWing: CGFloat = 44
         func keepAwakeStripWing(in geometry: NotchGeometry) -> CGFloat { keepAwakeStripWing }
+        var teleprompterStripWing: CGFloat = 52
+        func teleprompterStripWing(in geometry: NotchGeometry) -> CGFloat { teleprompterStripWing }
         var notchNeedsMonitor = false
         var heldDrag = false
         var pinned = false

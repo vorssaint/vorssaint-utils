@@ -94,6 +94,7 @@ struct NotchEditorStrings {
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
         case .watch: return watchSummary
+        case .teleprompter: return TeleprompterStrings.enUS.hubDescription
         }
     }
 }
