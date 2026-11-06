@@ -41,6 +41,9 @@ enum NotchVolumeFeedbackTests {
         var lastVolumeRide: TimeInterval = -.infinity
         var expanded = false
         var showsSystemFeedback = true
+        var captureControls: Bool?
+        var dragPlaceholder = false
+        var showingCommandBar = false
         var notice: NotchNotice?
         var presented: [NotchNotice] = []
         @discardableResult
@@ -198,6 +201,8 @@ enum NotchVolumeFeedbackTests {
             suite.expect(service.presented.isEmpty, "stopping observation cancels volume feedback")
         }
 
+        bannerChecks(suite, drain)
+
         // The command bar writes a level and then reports it, because the
         // observer can have nothing new to show for that write.
         let mixer = AppVolumeMixer()
@@ -298,5 +303,73 @@ enum NotchVolumeFeedbackTests {
         suite.expect(island.presented.count == 2 && island.notice?.level == 0.42 + 1.0 / 16,
                "a key press after the ramp reports from the level the ramp left behind")
         island.subscriptions.removeAll()
+    }
+
+    /// macOS raises its own volume banner for a level set outside the keys,
+    /// such as an AirPods swipe. The banner may leave only while the island
+    /// shows that level itself, so no change is left without feedback.
+    private static func bannerChecks(_ suite: TestSuite, _ drain: () -> Void) {
+        let mixer = AppVolumeMixer()
+        AppVolumeMixer.shared = mixer
+        let service = Service()
+        service.bindVolumeEvents()
+        drain()
+        suite.expect(service.volumeBanner == .quiet, "with no change shown, macOS keeps its volume banner")
+        mixer.systemOutputVolume = 0.3 + 8.0 / 127
+        drain()
+        suite.expect(service.volumeBanner == .shown,
+                     "an AirPods-sized step shows in the island, so its banner can leave")
+        let volumeNotice = service.notice
+        let covers: [(String, () -> Void, () -> Void)] = [
+            ("an island hidden mid-notice", { service.showsSystemFeedback = false }, { service.showsSystemFeedback = true }),
+            ("capture controls drawn over the notice", { service.captureControls = true }, { service.captureControls = nil }),
+            ("a file drop hint drawn over the notice", { service.dragPlaceholder = true }, { service.dragPlaceholder = false }),
+            ("the Command Bar drawn over the notice", { service.showingCommandBar = true }, { service.showingCommandBar = false }),
+            ("another notice taking the volume notice's place",
+             { service.notice = NotchNotice(event: .accessory, title: "Wireless Headphones", detail: "Connected", symbol: "headphones") },
+             { service.notice = volumeNotice })
+        ]
+        for (name, cover, uncover) in covers {
+            cover()
+            suite.expect(service.volumeBanner == .covered, "\(name) gives the banner back")
+            uncover()
+        }
+        service.notice = nil
+        // The menu bar is fading the banner out by the time the notice ends,
+        // so bringing it back then would only flash it again.
+        suite.expect(service.volumeBanner == .quiet,
+                     "a volume notice that simply ends leaves its banner to expire")
+        // Opening capture controls clears the notice in the same step.
+        service.captureControls = true
+        suite.expect(service.volumeBanner == .covered, "capture controls that clear the notice still give the banner back")
+        service.captureControls = nil
+        service.showsSystemFeedback = false
+        suite.expect(service.volumeBanner == .covered, "an island hidden after its notice cleared gives the banner back")
+        service.showsSystemFeedback = true
+        mixer.systemOutputVolume = (mixer.systemOutputVolume ?? 0) + 0.01
+        drain()
+        suite.expect(service.volumeBanner != .shown, "a change the island rides quietly keeps macOS' banner")
+        service.showsSystemFeedback = false
+        mixer.systemOutputVolume = 0.6
+        drain()
+        suite.expect(service.volumeBanner != .shown, "a hidden island keeps macOS' banner")
+        service.showsSystemFeedback = true
+        mixer.publish(device: "speakers", volume: nil, muted: nil)
+        drain()
+        mixer.systemOutputMuted = true
+        drain()
+        suite.expect(service.notice == nil && service.volumeBanner != .shown,
+                     "an output without a readable level or mute keeps macOS' banner")
+        mixer.publish(device: "speakers", volume: 0.95, muted: false)
+        drain()
+        mixer.systemOutputVolume = 1
+        drain()
+        mixer.systemOutputVolume = 1
+        drain()
+        // A swipe past the top changes nothing. The island is still showing
+        // that level, so the banner for it may leave until the notice does.
+        suite.expect(service.volumeBanner == .shown && service.notice?.level == 1,
+                     "a swipe past the top leaves the banner only while the island shows the top level")
+        service.subscriptions.removeAll()
     }
 }
