@@ -61,6 +61,16 @@ struct LayoutFixBuffer {
 
     private(set) var keys: [LayoutFixKey] = []
     private(set) var generation: UInt64 = 0
+    /// The app the keys were typed in. Switching away and back, such as to
+    /// another desktop, leaves the caret where it was, so the keys stay
+    /// until typing goes to a different app.
+    private(set) var ownerProcessID: Int32?
+
+    mutating func noteTyping(in processID: Int32) {
+        guard ownerProcessID != processID else { return }
+        if ownerProcessID != nil { apply(.reset, key: nil) }
+        ownerProcessID = processID
+    }
 
     mutating func apply(_ action: LayoutFixBufferAction, key: LayoutFixKey?) {
         switch action {
@@ -438,9 +448,10 @@ enum LayoutFixSupport {
         return ranked.map { LayoutFixCandidate(text: $0.element, layoutIDs: layoutIDs[$0.element, default: []]) }
     }
 
-    /// A selection read back through the keys that typed it: the layout that
-    /// types all of it (the current one first) is where it came from, and
-    /// every other layout gives a candidate. Whitespace and line breaks stay
+    /// A selection read back through the keys that typed it: each word is
+    /// read in the layout that types it (the current one first), so a
+    /// selection mixing `привет ghbdtn` still maps, and every layout gives a
+    /// candidate. Whitespace and line breaks stay
     /// exactly as selected. Ranked like a single word, by the share of words
     /// the dictionary knows. Nil when no layout types the text or there is
     /// nothing but whitespace.
@@ -457,17 +468,19 @@ enum LayoutFixSupport {
             }
         }
         let words = runs.filter(\.isWord).map(\.text)
-        guard !words.isEmpty,
-              let source = sourceLayout(for: words.joined(), layouts: layouts, currentID: currentID)
-        else { return nil }
-        let keysByWord = words.compactMap { keys(for: $0, in: source) }
+        guard !words.isEmpty else { return nil }
+        let sources = words.compactMap { sourceLayout(for: $0, layouts: layouts, currentID: currentID) }
+        guard sources.count == words.count else { return nil }
+        let keysByWord = zip(words, sources).compactMap { keys(for: $0, in: $1) }
         guard keysByWord.count == words.count else { return nil }
+        let source = sourceLayout(for: words.joined(), layouts: layouts, currentID: currentID)
+            ?? layouts.first { $0.id == currentID } ?? sources[0]
 
         var texts: [String] = []
         var layoutIDs: [String: [String]] = [:]
         var wordShare: [String: Double] = [:]
         var clean: [String: Bool] = [:]
-        for layout in layouts where layout.id != source.id {
+        for layout in layouts {
             let rendered = keysByWord.compactMap { render($0, in: layout) }
             guard rendered.count == words.count else { continue }
             var index = 0
@@ -545,6 +558,10 @@ enum LayoutFixSupport {
                                 expected: expected, textBefore: textBefore) ? .match : .mismatch
         }
         let length = (expected as NSString).length
+        // Keys were typed since the caret last moved, so it cannot be at the
+        // very start: a field that says so has not caught up (a freshly
+        // opened Word document does this). Backspaces there delete nothing.
+        if selection.location == 0, length > 0 { return .unknown }
         guard selection.location >= length else { return .mismatch }
         return guardDecision(expected: expected,
                              textBeforeCaret: textBefore(NSRange(location: selection.location - length,

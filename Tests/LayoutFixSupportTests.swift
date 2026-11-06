@@ -475,6 +475,37 @@ enum LayoutFixSupportTests {
                          "the layout fix marker is recognised as our own")
         }
 
+        suite.run("LayoutFix mixedScriptSelection") {
+            let layouts = [abc, ru]
+            let mixed = LayoutFixSupport.selectionCandidates(text: "привет ghbdtn", layouts: layouts,
+                                                             currentID: ru.id) { _, _ in false }
+            suite.expect(mixed?.candidates.map(\.text).contains("привет привет") == true,
+                         "each word is read in the layout that types it, got \(String(describing: mixed?.candidates))")
+            suite.expect(mixed?.candidates.map(\.text).contains("ghbdtn ghbdtn") == true,
+                         "and the other way round")
+        }
+
+        suite.run("LayoutFix caretAtStartIsUnknown") {
+            suite.expect(LayoutFixSupport.fieldGuard(selection: NSRange(location: 0, length: 0), textLength: 0,
+                                                     expected: "ghbdtn ", textBefore: { _ in nil }) == .unknown,
+                         "a caret reported at the very start cannot follow typed keys: the field is not up to date")
+            suite.expect(LayoutFixSupport.fieldGuard(selection: NSRange(location: 3, length: 0), textLength: 3,
+                                                     expected: "ghbdtn ", textBefore: { _ in "abc" }) == .mismatch,
+                         "a caret after fewer characters than the word is still a mismatch")
+        }
+
+        suite.run("LayoutFix bufferBelongsToOneApp") {
+            var buffer = LayoutFixBuffer()
+            buffer.noteTyping(in: 10)
+            for key in keys([5, 4], in: abc.id) { buffer.apply(.append, key: key) }
+            buffer.noteTyping(in: 10)
+            suite.expect(buffer.keys.count == 2 && buffer.ownerProcessID == 10,
+                         "more typing in the same app keeps the keys")
+            buffer.noteTyping(in: 20)
+            suite.expect(buffer.keys.isEmpty && buffer.ownerProcessID == 20,
+                         "typing in another app starts over")
+        }
+
         suite.run("LayoutFix deadKeysAreNotFixed") {
             let acute = LayoutFixKey(keyCode: 14, shift: false, option: true, capsLock: false, layoutID: abc.id)
             suite.expect(abc.deadChords.contains(acute.chord), "⌥e is a dead key on ABC")
