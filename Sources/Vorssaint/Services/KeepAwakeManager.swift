@@ -77,7 +77,7 @@ final class KeepAwakeManager: ObservableObject {
     private var endTimer: Timer?
     private var batteryTimer: Timer?
     private var mouseJiggleTimer: Timer?
-    private var pendingMouseReturn: DispatchWorkItem?
+    private var mouseJiggleAnimationTimer: Timer?
     private var defaultsObserver: AnyCancellable?
     private var screenParametersObserver: NSObjectProtocol?
     private var screenLockObservers: [NSObjectProtocol] = []
@@ -1145,6 +1145,29 @@ final class KeepAwakeManager: ObservableObject {
 
     // MARK: - Optional pointer activity
 
+    /// How often the idle clock is polled. Independent of the user's chosen
+    /// interval, which is re-read on every tick, so a slider change takes
+    /// effect without tearing the timer down.
+    private static let mouseJiggleIdleCheckInterval: TimeInterval = 5
+
+    /// Event types that count as "the user did something". Reusing
+    /// `MusicLaunchBlocker`'s approach of asking `.combinedSessionState` for
+    /// each type and keeping the most recent: the jiggle's own posted moves
+    /// land on this exact clock too, which is what makes one jiggle land and
+    /// the next wait a full interval rather than piling up while away.
+    private static let mouseJiggleUserInputEventTypes: [CGEventType] = [
+        .mouseMoved, .leftMouseDown, .leftMouseUp, .leftMouseDragged,
+        .rightMouseDown, .rightMouseUp, .rightMouseDragged,
+        .otherMouseDown, .otherMouseUp, .otherMouseDragged,
+        .keyDown, .keyUp, .scrollWheel,
+    ]
+
+    private static func secondsSinceUserInput() -> TimeInterval {
+        mouseJiggleUserInputEventTypes.map {
+            CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0)
+        }.min() ?? .infinity
+    }
+
     private func syncMouseJiggleTimer() {
         guard isActive,
               !sessionPausedForScreenLock,
@@ -1153,18 +1176,12 @@ final class KeepAwakeManager: ObservableObject {
             stopMouseJiggleTimer()
             return
         }
+        guard mouseJiggleTimer == nil else { return }
 
-        let minutes = Defaults.sanitizedKeepAwakeMouseJiggleInterval(
-            UserDefaults.standard.integer(forKey: DefaultsKey.keepAwakeMouseJiggleInterval)
-        )
-        let interval = TimeInterval(minutes * 60)
-        if mouseJiggleTimer?.timeInterval == interval { return }
-
-        stopMouseJiggleTimer()
-        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
-            self?.jiggleMousePointer()
+        let timer = Timer(timeInterval: Self.mouseJiggleIdleCheckInterval, repeats: true) { [weak self] _ in
+            self?.checkMouseJiggleIdle()
         }
-        timer.tolerance = min(10, interval * 0.1)
+        timer.tolerance = 1
         RunLoop.main.add(timer, forMode: .common)
         mouseJiggleTimer = timer
     }
@@ -1172,57 +1189,107 @@ final class KeepAwakeManager: ObservableObject {
     private func stopMouseJiggleTimer() {
         mouseJiggleTimer?.invalidate()
         mouseJiggleTimer = nil
-        pendingMouseReturn?.cancel()
-        pendingMouseReturn = nil
+        mouseJiggleAnimationTimer?.invalidate()
+        mouseJiggleAnimationTimer = nil
     }
 
+    /// Only jiggles once the user has given no real input for the chosen
+    /// interval — never while they are actively on the mouse or keyboard.
+    private func checkMouseJiggleIdle() {
+        guard isActive, !sessionPausedForScreenLock,
+              UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeMouseJiggleEnabled),
+              mouseJiggleAnimationTimer == nil
+        else { return }
+        let minutes = Defaults.sanitizedKeepAwakeMouseJiggleInterval(
+            UserDefaults.standard.integer(forKey: DefaultsKey.keepAwakeMouseJiggleInterval)
+        )
+        guard Self.secondsSinceUserInput() >= TimeInterval(minutes * 60) else { return }
+        jiggleMousePointer()
+    }
+
+    /// Sweeps the pointer across the screen to a far point and smoothly back,
+    /// rather than teleporting it: a plain jump reads as a glitch, and some
+    /// status tools (video calls, chat apps) only count motion that looks
+    /// like a drag.
     private func jiggleMousePointer() {
         guard isActive,
               UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeMouseJiggleEnabled),
               let original = Self.currentMouseLocation(),
               let target = Self.mouseJiggleTarget(from: original)
-        else {
-            syncMouseJiggleTimer()
-            return
-        }
+        else { return }
 
-        guard Self.postMouseMove(to: target) else { return }
-
-        pendingMouseReturn?.cancel()
-        let returnMove = DispatchWorkItem { [weak self] in
-            self?.pendingMouseReturn = nil
-            guard let current = Self.currentMouseLocation() else { return }
-            guard abs(current.x - target.x) <= 2,
-                  abs(current.y - target.y) <= 2 else { return }
-            _ = Self.postMouseMove(to: original)
+        let duration = Self.mouseJiggleAnimationDuration(
+            for: hypot(target.x - original.x, target.y - original.y))
+        animateMousePointer(from: original, to: target, duration: duration) { [weak self] in
+            guard let self else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self,
+                      self.isActive,
+                      UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeMouseJiggleEnabled),
+                      let current = Self.currentMouseLocation(),
+                      abs(current.x - target.x) <= 2,
+                      abs(current.y - target.y) <= 2
+                else { return }
+                self.animateMousePointer(from: target, to: original, duration: duration, completion: nil)
+            }
         }
-        pendingMouseReturn = returnMove
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: returnMove)
+    }
+
+    /// A constant on-screen speed rather than a fixed duration, so a short
+    /// hop and a sweep across a 5K display both read as the same deliberate
+    /// glide instead of one being instant and the other dragging on.
+    private static func mouseJiggleAnimationDuration(for distance: CGFloat) -> TimeInterval {
+        min(max(Double(distance) / 2200, 0.35), 1.1)
+    }
+
+    /// Moves the pointer along an eased path over `duration`, the same
+    /// timer-driven interpolation `WindowMaximizer` uses to animate a frame,
+    /// so the motion reads as a deliberate glide rather than a jump.
+    private func animateMousePointer(from start: CGPoint, to end: CGPoint, duration: TimeInterval,
+                                     completion: (() -> Void)?) {
+        mouseJiggleAnimationTimer?.invalidate()
+        let startedAt = Date()
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+            let progress = min(1, Date().timeIntervalSince(startedAt) / duration)
+            let eased = CGFloat(1 - pow(1 - progress, 3))
+            _ = Self.postMouseMove(to: CGPoint(x: start.x + (end.x - start.x) * eased,
+                                               y: start.y + (end.y - start.y) * eased))
+            guard progress >= 1 else { return }
+            timer.invalidate()
+            self?.mouseJiggleAnimationTimer = nil
+            completion?()
+        }
+        timer.tolerance = 0.004
+        RunLoop.main.add(timer, forMode: .common)
+        mouseJiggleAnimationTimer = timer
     }
 
     private static func currentMouseLocation() -> CGPoint? {
         CGEvent(source: nil)?.location
     }
 
+    /// A point clamped onto the display the pointer started on, at least half
+    /// its shorter side away: an actual sweep across the screen rather than a
+    /// local nudge.
     private static func mouseJiggleTarget(from original: CGPoint) -> CGPoint? {
         guard let bounds = displayBounds(containing: original) else { return nil }
-        let safeFrame = bounds.insetBy(dx: 2, dy: 2)
-        let x = min(max(original.x, safeFrame.minX), safeFrame.maxX)
-        let y = min(max(original.y, safeFrame.minY), safeFrame.maxY)
+        let margin: CGFloat = 40
+        let safeFrame = bounds.insetBy(dx: margin, dy: margin)
+        guard safeFrame.width > 1, safeFrame.height > 1 else { return nil }
 
-        if x + 1 <= safeFrame.maxX {
-            return CGPoint(x: x + 1, y: y)
+        let minDistance = min(safeFrame.width, safeFrame.height) * 0.5
+        for _ in 0..<12 {
+            let candidate = CGPoint(x: CGFloat.random(in: safeFrame.minX...safeFrame.maxX),
+                                    y: CGFloat.random(in: safeFrame.minY...safeFrame.maxY))
+            if hypot(candidate.x - original.x, candidate.y - original.y) >= minDistance {
+                return candidate
+            }
         }
-        if x - 1 >= safeFrame.minX {
-            return CGPoint(x: x - 1, y: y)
-        }
-        if y + 1 <= safeFrame.maxY {
-            return CGPoint(x: x, y: y + 1)
-        }
-        if y - 1 >= safeFrame.minY {
-            return CGPoint(x: x, y: y - 1)
-        }
-        return nil
+        // Every random point landed close to the original (a display not
+        // much bigger than that minimum distance): the opposite corner is
+        // always far away.
+        return CGPoint(x: original.x < safeFrame.midX ? safeFrame.maxX : safeFrame.minX,
+                       y: original.y < safeFrame.midY ? safeFrame.maxY : safeFrame.minY)
     }
 
     private static func displayBounds(containing point: CGPoint) -> CGRect? {

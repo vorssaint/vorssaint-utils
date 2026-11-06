@@ -238,10 +238,17 @@ struct EnergySettings: View {
             }
             if keepAwakeMouseJiggle {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
+                    HStack(spacing: 12) {
                         Text(l10n.s.keepAwakeMouseJiggleInterval)
-                        Spacer()
-                        KeepAwakeMouseJiggleIntervalPicker(selection: $keepAwakeMouseJiggleInterval)
+                            .frame(minWidth: 96, alignment: .leading)
+                        Slider(value: keepAwakeMouseJiggleIntervalBinding,
+                               in: Double(Defaults.keepAwakeMouseJiggleIntervalRange.lowerBound)
+                                   ... Double(Defaults.keepAwakeMouseJiggleIntervalRange.upperBound),
+                               step: 1)
+                        Text(KeepAwakeMouseJiggleIntervalLabel.text(forMinutes: keepAwakeMouseJiggleInterval))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 60, alignment: .trailing)
                     }
                     if !permissions.accessibility {
                         PermissionRow(kind: .accessibility)
@@ -452,6 +459,13 @@ struct EnergySettings: View {
                 }
             }
         }
+    }
+
+    private var keepAwakeMouseJiggleIntervalBinding: Binding<Double> {
+        Binding(
+            get: { Double(Defaults.sanitizedKeepAwakeMouseJiggleInterval(keepAwakeMouseJiggleInterval)) },
+            set: { keepAwakeMouseJiggleInterval = Int($0) }
+        )
     }
 
     private var extraBrightnessLevelBinding: Binding<Double> {

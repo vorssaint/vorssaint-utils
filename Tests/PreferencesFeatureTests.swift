@@ -160,8 +160,10 @@ enum PreferencesFeatureTests {
                "Keep Awake mouse movement defaults to five minutes")
         suite.expect(Defaults.sanitizedKeepAwakeMouseJiggleInterval(10) == 10,
                "valid Keep Awake mouse movement interval is preserved")
-        suite.expect(Defaults.sanitizedKeepAwakeMouseJiggleInterval(3) == 5,
-               "invalid Keep Awake mouse movement interval falls back to five minutes")
+        suite.expect(Defaults.sanitizedKeepAwakeMouseJiggleInterval(3) == 3,
+               "any interval within the 1-10 minute slider range is preserved")
+        suite.expect(Defaults.sanitizedKeepAwakeMouseJiggleInterval(15) == 5,
+               "an interval outside the 1-10 minute slider range falls back to five minutes")
         suite.expect(Defaults.sanitizedKeepAwakeIconTint("pink") == .pink,
                "valid keep-awake active icon tint is preserved")
         suite.expect(Defaults.sanitizedKeepAwakeIconTint("bad") == .orange,
