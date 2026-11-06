@@ -217,6 +217,7 @@ struct MetricsTests {
             ("dock-autohide", {
                 DockPreviewPositionTests.run(suite)
                 DockPreviewScrollTests.run(suite)
+                DockPreviewReorderTests.run(suite)
                 DockAutohideHoldTests.run(suite)
                 DockPreviewFrameRestorationTests.run(suite)
             }),
