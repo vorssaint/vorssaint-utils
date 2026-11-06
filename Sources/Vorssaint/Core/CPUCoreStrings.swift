@@ -19,6 +19,7 @@ extension FeatureStrings {
     static func cpuCores(_ language: AppLanguage) -> CPUCoreFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -46,6 +47,17 @@ extension CPUCoreFeatureStrings {
         efficiencyCores: "Efficiency",
         apps: "Apps using CPU",
         perCore: "Per core"
+    )
+
+    static let pl = CPUCoreFeatureStrings(
+        title: "Logiczne rdzenie CPU",
+        coreFormat: "Rdzeń %d",
+        hint: "Każdy słupek przedstawia jeden rdzeń logiczny. Wysokość wypełnienia pokazuje jego obciążenie, a nie pozostałą wydajność.",
+        superCores: "Super",
+        performanceCores: "Wydajne",
+        efficiencyCores: "Energooszczędne",
+        apps: "Aplikacje korzystające z CPU",
+        perCore: "Poszczególne rdzenie"
     )
 
     static let ptBR = CPUCoreFeatureStrings(

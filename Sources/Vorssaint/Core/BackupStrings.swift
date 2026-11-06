@@ -24,6 +24,7 @@ extension FeatureStrings {
     static func backup(_ language: AppLanguage) -> BackupFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -84,6 +85,20 @@ extension BackupFeatureStrings {
         importMissingIslandBody: "This backup has no Dynamic Island settings. This Mac’s island settings will be kept. Re-export with Vorssaint 3.4 or newer on the other Mac to copy them. Other settings will be imported and the app will restart.",
         importAction: "Import and restart",
         invalidFile: "This file is not a valid Vorssaint backup."
+    )
+
+    static let pl = BackupFeatureStrings(
+        title: "Kopia zapasowa",
+        description: "Przenieś konfigurację na inny komputer Mac: wyeksportuj wszystkie preferencje do pliku i zaimportuj je tam. Twoje notatki w brudnopisie, historia schowka, pozycje na półkach i uprawnienia systemowe nigdy nie opuszczają tego Maca.",
+        exportButton: "Eksportuj ustawienia…",
+        importButton: "Importuj ustawienia…",
+        exported: "Kopia zapasowa została zapisana",
+        exportFailed: "Nie można zapisać kopii zapasowej.",
+        importConfirmTitle: "Zaimportować te ustawienia?",
+        importConfirmBody: "Twoje bieżące ustawienia zostaną zastąpione ustawieniami pliku, a aplikacja uruchomi się ponownie. Nic innego na tym komputerze Mac nie jest dotykane.",
+        importMissingIslandBody: "Ta kopia zapasowa nie ma ustawień Dynamic Island. Ustawienia wyspy tego Maca zostaną zachowane. Wyeksportuj ponownie za pomocą Vorssaint 3.4 lub nowszego na drugim komputerze Mac, aby je skopiować. Inne ustawienia zostaną zaimportowane, a aplikacja uruchomi się ponownie.",
+        importAction: "Zaimportuj i uruchom ponownie",
+        invalidFile: "Ten plik nie jest prawidłową kopią zapasową Vorssaint."
     )
 
     static let ptBR = BackupFeatureStrings(

@@ -49,6 +49,25 @@ extension FeatureStrings {
             signIn: "Sign in with ChatGPT in this Codex folder.",
             update: "Update Codex to check limits.",
             failed: "Could not check limits. Try again.")
+        case .pl: return CodexAccountStrings(
+            title: "Konta Codex",
+            explanation: "Każdy dodany folder CODEX_HOME otrzymuje własną kartę limitów. Gdy strona Agentów AI jest otwarta, Codex sprawdza każde konto mniej więcej co pięć minut, korzystając z logowania w jego folderze. Żadne polecenie nie jest wysyłane do modelu.",
+            accountName: "Nazwa konta",
+            remove: "Usuń kartę tego konta",
+            find: "Znajdź lokalne konta",
+            add: "Dodaj folder…",
+            check: "Sprawdź limity",
+            fallback: "Jeśli nie dodano kont, limity Codex pochodzą z jego lokalnych sesji.",
+            resetsNote: "Karta resetów nadal dotyczy domyślnego konta Codex.",
+            chooseFolder: "Wybierz folder Codex",
+            invalidFolder: "Wybierz osobny folder CODEX_HOME zawierający config.toml lub auth.json. Folder musi należeć do Ciebie i nie może być zapisywalny przez inne osoby, a plik auth.json musi być prywatny i nie może być dowiązaniem. Codex może odświeżać w nim własne logowanie i pamięć podręczną.",
+            folderProblem: "Wybierz ponownie folder tego konta w Ustawieniach.",
+            defaultName: "Domyślne",
+            defaultAccount: "Konto domyślne",
+            refreshHint: "Odśwież, aby sprawdzić limity tego konta.",
+            signIn: "Zaloguj się przez ChatGPT w tym folderze Codex.",
+            update: "Zaktualizuj Codex, aby sprawdzić limity.",
+            failed: "Nie udało się sprawdzić limitów. Spróbuj ponownie.")
         case .ptBR: return CodexAccountStrings(
             title: "Contas do Codex",
             explanation: "Cada pasta CODEX_HOME adicionada ganha o próprio cartão de limites. Enquanto a página Agentes de IA está aberta, o Codex verifica cada uma aproximadamente a cada cinco minutos, com o login dessa pasta. Nenhum prompt é enviado.",
