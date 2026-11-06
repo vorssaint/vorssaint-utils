@@ -6,10 +6,10 @@ import Carbon.HIToolbox
 import UniformTypeIdentifiers
 
 /// Floating pinned screenshots keep a capture visible while working.
-/// Drag anywhere to move, resize from the edges keeping proportions, arrows
-/// nudge, double click or Esc closes, right click offers copy, save, opacity
-/// and click-through. A monitor exists only while a click-through pin needs
-/// its Option-click escape hatch.
+/// Drag anywhere to move, resize from the edges or by scrolling, keeping
+/// proportions, arrows nudge, double click or Esc closes, right click offers
+/// copy, save, opacity and click-through. A monitor exists only while a
+/// click-through pin needs its Option-click escape hatch.
 final class ScreenshotPinController {
     static let shared = ScreenshotPinController()
 
@@ -209,6 +209,19 @@ private final class ScreenshotPinWindow: OverlayPanel {
 
         private var strings: ScreenshotFeatureStrings {
             FeatureStrings.screenshot(L10n.shared.language)
+        }
+
+        /// Scrolling over a pin grows or shrinks it around the pointer.
+        override func scrollWheel(with event: NSEvent) {
+            guard let pinWindow else { return }
+            let delta = ScreenshotPinSupport.wheelLines(event.scrollingDeltaY,
+                                                        precise: event.hasPreciseScrollingDeltas)
+            let screen = pinWindow.screen?.visibleFrame.size ?? NSScreen.pointerVisibleFrame.size
+            let frame = ScreenshotPinSupport.zoomedFrame(
+                pinWindow.frame, scrollDelta: delta, anchor: NSEvent.mouseLocation,
+                minimumSize: pinWindow.minSize, maximumSize: screen)
+            guard frame != pinWindow.frame else { return }
+            pinWindow.setFrame(frame, display: true)
         }
 
         override func mouseDown(with event: NSEvent) {
