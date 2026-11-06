@@ -243,8 +243,8 @@ private enum NotchAudioLevelListeners {
 }
 
 /// The player's process taps, read through a private aggregate device on the
-/// default output, the same shape the recorder uses, feeding a ring of mono
-/// samples that a timer analyses off the audio thread.
+/// default output, the same shape the recorder uses, feeding a ring of the
+/// first channel's samples that a timer analyses off the audio thread.
 ///
 /// Every Core Audio call runs on this object's own queue. Creating a tap or
 /// starting a device can block for as long as a Bluetooth or USB device takes
@@ -835,15 +835,15 @@ private final class NotchAudioRing {
         let channels = Int(buffer.mNumberChannels)
         guard channels > 0, let data = buffer.mData?.assumingMemoryBound(to: Float.self) else { return }
         let frames = MixerRender.frames(bytes: buffer.mDataByteSize, channels: buffer.mNumberChannels)
-        let scale = 1 / Float(channels)
         var loudest: Float = 0
         for frame in 0..<frames {
-            var sum: Float = 0
-            for channel in 0..<channels { sum += data[frame * channels + channel] }
-            let mono = sum * scale
-            samples[head] = mono
+            // The bars read the first channel: they follow the phone's island
+            // more closely on it than on a mix of the two, and most on songs
+            // whose channels differ. Sound on any channel still proves the tap
+            // can hear.
+            samples[head] = data[frame * channels]
             head = (head + 1) % capacity
-            loudest = max(loudest, abs(mono))
+            for channel in 0..<channels { loudest = max(loudest, abs(data[frame * channels + channel])) }
         }
         filled = min(capacity, filled + frames)
         peak = max(peak, loudest)
@@ -872,9 +872,11 @@ private final class NotchAudioRing {
 
 /// A windowed discrete Fourier transform of one block of samples.
 private final class NotchAudioAnalyzer {
-    /// About 45 ms at 44.1 kHz. A shorter block left the lowest band one or
-    /// two bins wide, and the bass bar flickered instead of following the kick.
-    let size = 2048
+    /// About 93 ms at 44.1 kHz. A shorter block left the lowest band only a few
+    /// bins wide and could catch a short sound at the window's edge, so the
+    /// same note read differently from one reading to the next and the bars
+    /// flickered. This length followed the phone's island the most closely.
+    let size = 4096
     let bands: [Range<Int>]
     private let setup: vDSP_DFT_Setup
     private var window: [Float]

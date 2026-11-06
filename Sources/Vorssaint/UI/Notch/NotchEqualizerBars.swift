@@ -270,7 +270,9 @@ final class NotchEqualizerView: NSView {
             bars.indices.map { live[NotchAudioLevelSupport.barIndex($0, of: bars.count, bands: live.count)] }
         }
         var heights = bars.indices.map { index -> CGFloat in
-            if let shaped { return max(barWidth, height * CGFloat(shaped[index])) }
+            if let shaped {
+                return NotchAudioLevelSupport.barHeight(level: shaped[index], barWidth: barWidth, height: height)
+            }
             if swinging { return swingHeight(index, at: now) }
             return moving ? swings[index].low : barWidth
         }
@@ -291,12 +293,12 @@ final class NotchEqualizerView: NSView {
         }
         CATransaction.commit()
         // Live levels arrive thirty times a second. Each bar glides to its
-        // new height over one interval instead of jumping, so the motion
-        // reads as continuous rather than stepped.
+        // new height instead of jumping, so the motion reads as continuous
+        // rather than stepped. A new glide starts from where the bar is showing.
         let glides = live != nil && pinned == nil
         CATransaction.begin()
         CATransaction.setDisableActions(!glides)
-        CATransaction.setAnimationDuration(1 / NotchAudioLevelSupport.updatesPerSecond)
+        CATransaction.setAnimationDuration(NotchAudioLevelSupport.glide)
         CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .linear))
         for (index, bar) in bars.enumerated() { bar.bounds.size.height = heights[index] }
         CATransaction.commit()

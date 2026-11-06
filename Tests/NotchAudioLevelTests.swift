@@ -21,6 +21,10 @@ enum NotchAudioLevelTests {
         let levels = NotchAudioLevelSupport.bandLevels(magnitudes: magnitudes, bands: bands)
         expect(levels.count == 6 && levels[3] > 0 && levels.enumerated().allSatisfy { $0.offset == 3 || $0.element == 0 },
                "a 700 Hz tone lights only the band that holds it")
+        let kickBands = NotchAudioLevelSupport.bandRanges(sampleRate: 44_100, size: 4096)
+        expect(kickBands[0].upperBound == kickBands[1].lowerBound
+               && abs(Double(kickBands[0].upperBound) * 44_100 / 4096 - 100) < 11,
+               "the kick's band reaches up to 100 Hz, where the bass line's begins")
         typealias Smoother = NotchAudioLevelSupport.Smoother
         let quietRow = [0.3, 0.3, 0.6, 0.6, 0.6, 0.6]
         var beat = quietRow; beat[3] = 0.75
@@ -39,24 +43,67 @@ enum NotchAudioLevelTests {
         let fallen = falling.firstIndex { $0 < (settled + top) / 2 } ?? 99
         expect(abs(risen - fallen) <= 1, "a bar falls away from a beat at the pace it rose")
         var kick = Smoother(), voice = Smoother()
-        var bassRise = 0, midRise = 0
-        for frame in 0..<12 {
-            if kick.next([0.75, 0, 0, 0, 0, 0])[0] < 0.8 { bassRise = frame + 1 }
-            if voice.next([0, 0, 0.75, 0, 0, 0])[2] < 0.8 { midRise = frame + 1 }
+        var kickRise: [Double] = [], voiceRise: [Double] = []
+        for _ in 0..<12 {
+            kickRise.append(kick.next([0.75, 0, 0, 0, 0, 0])[0])
+            voiceRise.append(voice.next([0, 0, 0.75, 0, 0, 0])[2])
         }
-        expect(bassRise < midRise, "the bass bars swell quicker than the others, so a kick lands sharp")
+        expect(zip(kickRise, voiceRise).allSatisfy { abs($0 / kickRise.last! - $1 / voiceRise.last!) < 1e-9 }
+               && voiceRise[2] > 0.5,
+               "a quick voice swells as sharply as a kick, each toward its own height")
+        var fluttering = Smoother()
+        for _ in 0..<30 { _ = fluttering.next([0.75, 0, 0.6, 0, 0, 0]) }
+        let resting = fluttering.next([0.75, 0, 0.6, 0, 0, 0])[2]
+        var flutter: [Double] = []
+        for frame in 0..<60 { flutter.append(fluttering.next([0.75, 0, frame % 2 == 0 ? 0.607 : 0.593, 0, 0, 0])[2]) }
+        let takenUp = flutter.dropFirst(15)
+        expect(flutter.allSatisfy { abs($0 - resting) < 0.03 }
+               && zip(takenUp, takenUp.dropFirst()).allSatisfy { abs($1 - $0) < 1e-3 },
+               "a level fluttering by less than a pixel leaves the bar still, once the slack is taken up")
+        for _ in 0..<12 { flutter.append(fluttering.next([0.75, 0, 0.7, 0, 0, 0])[2]) }
+        expect(flutter.last! > resting + 0.1, "a real change still moves the bar")
+        var ends = Smoother()
+        var tallest = 0.0, lowest = 1.0
+        for _ in 0..<30 { tallest = ends.next([0, 0.75, 0, 0.75, 0, 0])[3] }
+        for _ in 0..<30 { lowest = ends.next([0, 0.75, 0, 0, 0, 0])[3] }
+        expect(Smoother.slackened(1, from: 0.5) == 1 && Smoother.slackened(0, from: 0.01) == 0
+               && tallest > 0.9 && lowest < 0.001,
+               "the slack never keeps a bar from its full height or from lying as a dot")
         var intro = Smoother()
         var bass: [Double] = []
         for frame in 0..<90 {
             let hit = frame % 4 == 0 ? 0.1 : 0
-            bass.append(intro.next([0.1 + 0.01 * Double(frame % 3), 0.15, 0.55, 0.6 + hit, 0.62 + hit, 0.6 + hit])[0])
+            bass.append(intro.next([0.08 + 0.01 * Double(frame % 3), 0.15, 0.7, 0.75 + hit, 0.77 + hit, 0.75 + hit])[0])
         }
         expect(bass.max()! < 0.02, "a band with nothing in it lies as a dot while the others play, its own noise not scaled up")
+        var faint = Smoother()
+        var faintBass = 0.0
+        for _ in 0..<60 { faintBass = faint.next([0.75, 0.2, 0.75, 0.75, 0.75, 0.75])[1] }
+        expect(faintBass > 0.05 && faintBass < 0.2,
+               "a faint bass line just under the scale's bottom still lifts its bar a little, as on the phone")
+        expect(Smoother.softened(0.6) == 0.6 && Smoother.softened(0.9) == 0.9 && Smoother.softened(-0.6) == 0
+               && Smoother.softened(0.2) > 0.2 && Smoother.softened(0.5) > 0.5 && Smoother.softened(0.59) < 0.6,
+               "the soft floor only touches the bottom of the scale, rising without a step into the rest")
+        expect(NotchAudioLevelSupport.barHeight(level: 0, barWidth: 2, height: 16) == 2
+               && NotchAudioLevelSupport.barHeight(level: 1, barWidth: 2, height: 16) == 16
+               && NotchAudioLevelSupport.barHeight(level: 0.05, barWidth: 2, height: 16) > 2,
+               "a bar runs from a dot to its full height, and a low level already shows above the dot")
         var row = Smoother()
         var heights: [Double] = []
-        for _ in 0..<60 { heights = row.next([0.7, 0.55, 0.7, 0.7, 0.7, 0.7]) }
-        expect(heights[1] < heights[0] - 0.25 && heights[1] > 0.2,
+        for _ in 0..<60 { heights = row.next([0.7, 0.7, 0.7, 0.55, 0.7, 0.7]) }
+        expect(heights[3] < heights[2] - 0.25 && heights[3] > 0.2,
                "a quieter band stands shorter beside a loud one instead of being stretched to the same height")
+        func standing(_ row: [Double]) -> [Double] {
+            var smoother = Smoother()
+            var heights: [Double] = []
+            for _ in 0..<60 { heights = smoother.next(row) }
+            return heights
+        }
+        let softer = standing([0.65, 0.65, 0.65, 0.65, 0.65, 0.75]), harder = standing([0.7, 0.7, 0.7, 0.7, 0.7, 0.75])
+        expect(harder[4] - softer[4] > 1.3 * 0.05 / Smoother.span,
+               "the same change of sound swings a bar further than the scale alone would, as on the phone")
+        expect(standing([0.65, 0.65, 0.65, 0.65, 0.65, 0.75])[0] < 0.75,
+               "the kick stands below where the scale alone would put it, as on the phone")
         var turnedDown = Smoother()
         for _ in 0..<30 { _ = turnedDown.next([0.75, 0.5, 0.75, 0.75, 0.75, 0.75]) }
         var before = 0.0
@@ -87,9 +134,9 @@ enum NotchAudioLevelTests {
             return NotchAudioLevelSupport.playbackDelayFrames(outputFrames: frames, sampleRate: 48_000, paintLag: paintLag)
         }
         expect(delay(0, 0, 0, 0) == 0, "an output that reports no latency keeps the bars on the newest sound")
-        expect(delay(9_600, 144, 512, 0) == 10_256 - 4_800,
+        expect(delay(9_600, 144, 512, 0) == 10_256 - 6_000,
                "Bluetooth headphones hold the bars back by what the output takes to play, less the bars' own lag")
-        expect(delay(9_600, 144, 512, 0, paintLag: 0.025) == 10_256 - 4_800 - 1_200,
+        expect(delay(9_600, 144, 512, 0, paintLag: 0.025) == 10_256 - 6_000 - 1_200,
                "the time a reading takes to reach the screen is read that much sooner")
         expect(delay(256, 0, 256, 0) == 0, "an output faster than the bars themselves is read without a delay")
         expect(delay(.max, .max, .max, .max) == 36_000,
@@ -220,6 +267,24 @@ enum NotchAudioRingContract {
         expect(ring.hasHeard(gain: 1), "later silence does not revoke the ring's proof of sound")
         expect(!NotchAudioRing(capacity: 2).hasHeard(gain: 4),
                "a new ring still has to prove its own sound")
+        let leftOnly = NotchAudioRing(capacity: 2)
+        var frames: [Float] = [0.25, 0.75, 0.5, -0.5]
+        frames.withUnsafeMutableBufferPointer { buffer in
+            leftOnly.write(AudioBuffer(mNumberChannels: 2,
+                                       mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                       mData: buffer.baseAddress))
+        }
+        var pair = [Float](repeating: 0, count: 2)
+        expect(leftOnly.latest(into: &pair) && pair == [0.25, 0.5], "the ring keeps the first channel, not a mix")
+        let rightOnly = NotchAudioRing(capacity: 2)
+        frames = [0, 0.5, 0, 0.5]
+        frames.withUnsafeMutableBufferPointer { buffer in
+            rightOnly.write(AudioBuffer(mNumberChannels: 2,
+                                        mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                        mData: buffer.baseAddress))
+        }
+        expect(rightOnly.hasHeard(gain: 1) && rightOnly.takeSound(),
+               "sound on the other channel still proves the tap can hear")
         delayContracts(expect: expect)
     }
 
