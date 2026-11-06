@@ -2184,10 +2184,14 @@ def main():
           + "func load(_ track: NotchMusicIdentity) { loads.append(track); state = .loading; session = Session() }\n"
           + declaration(lyrics, "    func update(playback:")
           + declaration(lyrics, "    func playbackChanged(")
+          + declaration(lyrics, "    private func loadSaved(")
           + declaration(lyrics, "    func hide()")
           + declaration(lyrics, "    func stop()")
           + declaration(lyrics, "    private func cancel()")
           + declaration(lyrics, "    func importLyrics()")
+          + declaration(lyrics, "    func adjustOffset(")
+          + declaration(lyrics, "    func resetOffset(")
+          + declaration(lyrics, "    private func rememberOffset(")
           + declaration(lyrics, "    private func canReturnToLyrics(")
           + "}\n}\n")
 
@@ -2201,6 +2205,7 @@ def main():
           + "var session: Session?\nvar importPanel: Panel?\n"
           + declaration(lyrics, "    func update(playback:")
           + declaration(lyrics, "    func playbackChanged(")
+          + declaration(lyrics, "    private func loadSaved(")
           + declaration(lyrics, "    func retry()")
           + declaration(lyrics, "    func hide()")
           + declaration(lyrics, "    func stop()")
