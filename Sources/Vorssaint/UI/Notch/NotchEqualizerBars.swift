@@ -9,7 +9,8 @@ import SwiftUI
 struct NotchEqualizerBars: View {
     var isPlaying = true
     var bars = 4
-    var barWidth: CGFloat = 2.5
+    /// A bar's width as a dot. It widens as it grows: see `NotchAudioLevelSupport.barWidth`.
+    var barWidth: CGFloat = 2.1
     var height: CGFloat = 14
     var tint: Color = .white
     /// The cover blurred to a few colours, `NotchArtworkTint.barField`. When
@@ -30,8 +31,7 @@ struct NotchEqualizerBars: View {
                              barWidth: barWidth, height: height, tint: NSColor(tint), field: field,
                              levels: isPlaying && !reduceMotion ? live : nil,
                              levelsReadAt: liveReadAt, onPainted: onPainted)
-            .frame(width: CGFloat(count) * barWidth + CGFloat(count - 1) * barWidth * 0.85,
-                   height: height)
+            .frame(width: NotchAudioLevelSupport.barRowWidth(bars: count, barWidth: barWidth), height: height)
             // A hosted view has no baseline of its own, so beside text it
             // would hang below the line and make the row taller. The bars
             // stand on the baseline like the glyphs next to them.
@@ -287,9 +287,8 @@ final class NotchEqualizerView: NSView {
         artwork.frame = paint.bounds
         barMask.frame = paint.bounds
         for (index, bar) in bars.enumerated() {
-            bar.bounds.size.width = barWidth
-            bar.position = CGPoint(x: CGFloat(index) * barWidth * 1.85 + barWidth / 2, y: bounds.midY)
-            bar.cornerRadius = barWidth / 2
+            let first = barWidth * NotchAudioLevelSupport.widestBar / 2
+            bar.position = CGPoint(x: first + CGFloat(index) * barWidth * NotchAudioLevelSupport.barPitch, y: bounds.midY)
         }
         CATransaction.commit()
         // Live levels arrive thirty times a second. Each bar glides to its
@@ -300,9 +299,16 @@ final class NotchEqualizerView: NSView {
         CATransaction.setDisableActions(!glides)
         CATransaction.setAnimationDuration(NotchAudioLevelSupport.glide)
         CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .linear))
-        for (index, bar) in bars.enumerated() { bar.bounds.size.height = heights[index] }
+        for (index, bar) in bars.enumerated() { shape(bar, height: heights[index]) }
         CATransaction.commit()
         if swinging { clock.start(in: self) } else { clock.stop() }
+    }
+
+    /// A bar's width and rounding follow its height, so they glide along with it.
+    private func shape(_ bar: CALayer, height drawn: CGFloat) {
+        let width = NotchAudioLevelSupport.barWidth(forHeight: drawn, barWidth: barWidth, height: height)
+        bar.bounds.size = CGSize(width: width, height: drawn)
+        bar.cornerRadius = width / 2
     }
 
     private func swingHeight(_ index: Int, at time: CFTimeInterval) -> CGFloat {
@@ -317,7 +323,7 @@ final class NotchEqualizerView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for (index, bar) in bars.enumerated() where index < swings.count {
-            bar.bounds.size.height = swingHeight(index, at: time)
+            shape(bar, height: swingHeight(index, at: time))
         }
         CATransaction.commit()
     }

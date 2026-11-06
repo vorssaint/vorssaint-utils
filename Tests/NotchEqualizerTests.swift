@@ -81,7 +81,7 @@ enum NotchEqualizerTests {
         for count in [1, 3, 4, 7] {
             configure(count: count, width: 1.8, height: 14)
             expect(layers().count == count, "changing the music indicator replaces obsolete bars")
-            let width = CGFloat(count) * 1.8 + CGFloat(count - 1) * 1.8 * 0.85
+            let width = NotchAudioLevelSupport.barRowWidth(bars: count, barWidth: 1.8)
             var lowest = Array(repeating: CGFloat.infinity, count: count)
             var highest = Array(repeating: -CGFloat.infinity, count: count)
             for frame in 0...45 {
@@ -97,7 +97,7 @@ enum NotchEqualizerTests {
             }
             expect(zip(lowest, highest).allSatisfy { $0 >= 1.8 && $1 <= 14 }
                    && highest[count / 2] > lowest[count / 2] + 1
-                   && layers().allSatisfy { $0.cornerRadius == 0.9 },
+                   && layers().allSatisfy { $0.cornerRadius == $0.bounds.width / 2 },
                    "music motion rises and falls within its reserved height with rounded ends")
         }
         view.removeFromSuperview()
@@ -213,6 +213,13 @@ enum NotchEqualizerTests {
                && abs(wave.barLayers[3].bounds.height - 20) < 0.001
                && wave.barLayers.allSatisfy { $0.bounds.height > 12 },
                "live levels keep updating the held wave without restarting its phase")
+        let tall = wave.barLayers
+        expect(tall.allSatisfy { abs($0.cornerRadius - $0.bounds.width / 2) < 0.001 } && abs(tall[3].bounds.width - 2.88) < 0.001,
+               "a bar at full height is wider than its dot, with its ends still fully round")
+        expect(zip(tall, tall.dropFirst()).allSatisfy { abs($1.position.x - $0.position.x - 4.26) < 0.001 }
+               && abs(tall[0].frame.minX) < 0.001
+               && abs((tall.last?.frame.maxX ?? 0) - NotchAudioLevelSupport.barRowWidth(bars: 7, barWidth: 2)) < 0.001,
+               "the bars widen in place, and the end bars stay inside the row at their widest")
         window.holdsWave = false
         window.notifyVisibility()
         expect(!wave.isMoving && wave.barLayers.allSatisfy { $0.bounds.height == $0.bounds.width },

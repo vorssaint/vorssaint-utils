@@ -88,6 +88,14 @@ enum NotchAudioLevelTests {
                && NotchAudioLevelSupport.barHeight(level: 1, barWidth: 2, height: 16) == 16
                && NotchAudioLevelSupport.barHeight(level: 0.05, barWidth: 2, height: 16) > 2,
                "a bar runs from a dot to its full height, and a low level already shows above the dot")
+        let widths = stride(from: 2.0, through: 16, by: 1).map { NotchAudioLevelSupport.barWidth(forHeight: CGFloat($0), barWidth: 2, height: 16) }
+        expect(widths.first == 2 && abs((widths.last ?? 0) - 2 * NotchAudioLevelSupport.widestBar) < 0.001
+               && zip(widths, widths.dropFirst()).allSatisfy { $0 < $1 },
+               "a bar widens from its dot to its widest as it grows, never narrowing on the way up")
+        expect(NotchAudioLevelSupport.barWidth(forHeight: 11.33, barWidth: 2, height: 16) > 2 + 0.88 * 0.85,
+               "a bar has nearly reached its full width by two thirds of its height, as on the phone")
+        expect(NotchAudioLevelSupport.barWidth(forHeight: 1, barWidth: 2, height: 1) == 2,
+               "a row too short for a bar to grow keeps its dots")
         var row = Smoother()
         var heights: [Double] = []
         for _ in 0..<60 { heights = row.next([0.7, 0.7, 0.7, 0.55, 0.7, 0.7]) }
