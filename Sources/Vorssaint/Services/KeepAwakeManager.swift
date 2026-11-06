@@ -100,6 +100,12 @@ final class KeepAwakeManager: ObservableObject {
     private var lidDimmingNotification: io_object_t = 0
     private var lidClosedForDimming: Bool?
     private var savedDisplayBrightness: Double?
+    /// Set when closed-lid dimming released a held display-sleep-prevent
+    /// assertion so the panel could actually power down, not just read
+    /// zero (see `requestRealDisplaySleepForDimming`). Tells the matching
+    /// restore to put the assertion back; cleared whenever assertions are
+    /// released outright so there is nothing stale left to resume.
+    private var displayAssertionSuspendedForDimming = false
     private static let screenLockNotification = Notification.Name("com.apple.screenIsLocked")
     private static let screenUnlockNotification = Notification.Name("com.apple.screenIsUnlocked")
     /// Guards the closed-lid setup against an infinite retry loop: if `pmset
@@ -710,6 +716,10 @@ final class KeepAwakeManager: ObservableObject {
             IOPMAssertionRelease(displayAssertion)
             hasDisplayAssertion = false
         }
+        // Nothing is owed to a dim that releases its own assertion separately
+        // (see `requestRealDisplaySleepForDimming`) once every assertion is
+        // gone outright — the next dim starts from a clean slate either way.
+        displayAssertionSuspendedForDimming = false
     }
 
     // MARK: - Closed lid (pmset disablesleep)
@@ -1077,12 +1087,49 @@ final class KeepAwakeManager: ObservableObject {
             savedDisplayBrightness = save
             UserDefaults.standard.set(save, forKey: DefaultsKey.dimmedDisplaySavedBrightness)
             LidDisplayDimmer.setBrightness(0)
+            requestRealDisplaySleepForDimming()
             Self.log.log("lid closed: dimmed the built-in display, saved \(save)")
         case .restore(let value):
+            resumeDisplayAssertionAfterDimming()
             attemptDisplayRestore(value)
         case .none:
             break
         }
+    }
+
+    /// Zeroing the backlight (above) only turns off the LED driver — the
+    /// panel's timing controller and the GPU's display pipe keep running,
+    /// real power draw with the lid shut and nobody able to see it. Actual
+    /// display sleep cuts that too, but `PreventUserIdleDisplaySleep` —
+    /// held for the whole session whenever `keepAwakeAllowDisplaySleep` is
+    /// off — would block the transition outright, so it is released for the
+    /// length of this closed-lid dim and restored once the lid opens again
+    /// (`resumeDisplayAssertionAfterDimming`). `pmset displaysleepnow` then
+    /// asks for that transition at once instead of waiting on the idle timer.
+    ///
+    /// `pmset displaysleepnow` has no notion of "just the built-in panel" —
+    /// it sleeps every attached display, and an external monitor is not
+    /// under the lid (`LidDisplayDimmer` leaves its brightness alone for the
+    /// same reason). So this only runs when the built-in panel reads as the
+    /// only display online; an external display, or a read that failed,
+    /// skips it and leaves the brightness-zero workaround as the only effect.
+    private func requestRealDisplaySleepForDimming() {
+        guard Self.hasExternalDisplay() == false else { return }
+        if hasDisplayAssertion {
+            IOPMAssertionRelease(displayAssertion)
+            hasDisplayAssertion = false
+            displayAssertionSuspendedForDimming = true
+        }
+        DispatchQueue.global(qos: .utility).async {
+            Shell.run("/usr/bin/pmset", ["displaysleepnow"])
+        }
+    }
+
+    private func resumeDisplayAssertionAfterDimming() {
+        guard displayAssertionSuspendedForDimming else { return }
+        displayAssertionSuspendedForDimming = false
+        guard isActive, !sessionPausedForScreenLock else { return }
+        applyAssertions()
     }
 
     /// Keeps the saved level and its recovery marker until a write actually
