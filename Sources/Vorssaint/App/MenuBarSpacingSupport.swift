@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Foundation
+import AppKit
 
 /// How tightly the menu bar metric blocks pack together. The standard reserve
 /// keeps every number rock-steady by sizing blocks for their largest possible
@@ -285,6 +285,56 @@ enum MenuBarSpacingSupport {
         if hasRenderedTitle { return true }
         guard itemExists else { return false }
         return consecutiveEmptyRenders < emptyMetricRendersBeforeRemoval
+    }
+}
+
+/// Which metric each run of the combined menu bar item shows, so a click on
+/// one can open its details the way a separate item does. The title carries
+/// the answer itself, as an attribute on each metric's run, so a click is
+/// always tested against exactly what is drawn.
+enum MenuBarReadingHitTest {
+    /// Set on a metric's run of the title; the value is the metric's raw value.
+    static let attribute = NSAttributedString.Key("VorssaintMenuBarReading")
+
+    struct Span: Equatable {
+        let reading: String
+        let minX: CGFloat
+        let maxX: CGFloat
+    }
+
+    /// Where each marked metric sits along the title, measured from the
+    /// title's start with the same text layout the button draws it with.
+    static func spans(in title: NSAttributedString) -> [Span] {
+        let storage = NSTextStorage(attributedString: title)
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(size: NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                                     height: CGFloat.greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        layout.addTextContainer(container)
+        storage.addLayoutManager(layout)
+        layout.ensureLayout(for: container)
+        var spans: [Span] = []
+        title.enumerateAttribute(attribute, in: NSRange(location: 0, length: title.length)) { value, range, _ in
+            guard let reading = value as? String else { return }
+            let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+            let rect = layout.boundingRect(forGlyphRange: glyphs, in: container)
+            spans.append(Span(reading: reading, minX: rect.minX, maxX: rect.maxX))
+        }
+        return spans.sorted { $0.minX < $1.minX }
+    }
+
+    /// The metric at `x` along the title. The glue between two metrics is
+    /// split at its middle, so no strip between them is dead. Before the
+    /// first metric (the glyph's spacing, a countdown) and after the last
+    /// there is none, and the click opens the panel as before.
+    static func reading(atX x: CGFloat, in spans: [Span]) -> String? {
+        guard let first = spans.first, let last = spans.last,
+              x >= first.minX, x <= last.maxX else { return nil }
+        for (index, span) in spans.enumerated() {
+            let end = index + 1 < spans.count ? (span.maxX + spans[index + 1].minX) / 2 : span.maxX
+            if x <= end { return span.reading }
+        }
+        return nil
     }
 }
 
