@@ -10,7 +10,8 @@ protocol SliderScrollTarget: AnyObject {
 }
 
 extension SliderScroll {
-    mutating func handle(_ event: NSEvent, current: Double, range: ClosedRange<Double>) -> Outcome {
+    mutating func handle(_ event: NSEvent, current: Double, range: ClosedRange<Double>,
+                         mirrored: Bool = false) -> Outcome {
         let phase: Phase
         if !event.momentumPhase.isEmpty { phase = .momentum }
         else if event.phase.contains(.began) { phase = .began }
@@ -19,7 +20,7 @@ extension SliderScroll {
         else { phase = .ended }
         return handle(phase, dx: Double(event.scrollingDeltaX), dy: Double(event.scrollingDeltaY),
                       precise: event.hasPreciseScrollingDeltas, inverted: event.isDirectionInvertedFromDevice,
-                      timestamp: event.timestamp, current: current, range: range)
+                      mirrored: mirrored, timestamp: event.timestamp, current: current, range: range)
     }
 
     /// A scroll the bar does not take goes on to the list around it.
@@ -40,11 +41,14 @@ struct SliderScrollArea: NSViewRepresentable {
     func updateNSView(_ view: AreaView, context: Context) {
         view.area = self
         view.isEnabled = context.environment.isEnabled
+        view.mirrored = context.environment.layoutDirection == .rightToLeft
     }
 
     final class AreaView: NSView, SliderScrollTarget {
         var area: SliderScrollArea?
         var isEnabled = true
+        /// Whether the bar underneath runs right to left.
+        var mirrored = false
         var acceptsSliderScroll: Bool { isEnabled && area != nil }
         private var scroll = SliderScroll()
 
@@ -55,7 +59,7 @@ struct SliderScrollArea: NSViewRepresentable {
 
         override func scrollWheel(with event: NSEvent) {
             guard let area, isEnabled else { return SliderScroll.pass(event, from: self) }
-            switch scroll.handle(event, current: area.value, range: area.range) {
+            switch scroll.handle(event, current: area.value, range: area.range, mirrored: mirrored) {
             case .pass: SliderScroll.pass(event, from: self)
             case .hold: break
             case .move(let value): area.value = value

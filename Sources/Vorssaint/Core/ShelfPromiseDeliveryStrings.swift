@@ -110,6 +110,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "Полиця заповнена",
                 fullBody: "Вкладення збереглося, але на полиці більше немає місця.",
                 okButton: "OK")
+        case .he:
+            return .init(
+                failedTitle: "לא ניתן להוסיף את הקובץ המצורף",
+                failedBody: "שמירת הקובץ באזור הזמני לא הושלמה.",
+                fullTitle: "האזור הזמני מלא",
+                fullBody: "הקובץ המצורף נשמר, אבל לא נשאר מקום באזור הזמני.",
+                okButton: "אישור")
         }
     }
 }

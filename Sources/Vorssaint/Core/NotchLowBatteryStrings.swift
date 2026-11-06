@@ -87,6 +87,11 @@ struct NotchLowBatteryStrings {
                          threshold: "紅色電量", early: "先顯示為琥珀色",
                          earlyCaption: "作為提前警告，電量達到或低於較高水平時顯示為琥珀色。",
                          earlyThreshold: "琥珀色電量", menuBar: "亦在選單列中顯示")
+        case .he:
+            return .init(title: "הפוך לאדום כשהסוללה חלשה", caption: "מציג את הטעינה באדום ברמה הזו ומטה בזמן עבודה על סוללה.",
+                         threshold: "רמה אדומה", early: "הפוך קודם לכתום",
+                         earlyCaption: "מציג את הטעינה בכתום ברמה גבוהה יותר ומטה, כהתראה מוקדמת.",
+                         earlyThreshold: "רמה כתומה", menuBar: "גם בשורת התפריטים")
         }
     }
 }

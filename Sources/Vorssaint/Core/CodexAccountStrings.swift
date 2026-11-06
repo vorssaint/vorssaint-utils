@@ -315,6 +315,25 @@ extension FeatureStrings {
             signIn: "請在此 Codex 資料夾中使用 ChatGPT 登入。",
             update: "請更新 Codex 以檢查額度。",
             failed: "無法檢查額度，請再試一次。")
+        case .he: return CodexAccountStrings(
+            title: "חשבונות Codex",
+            explanation: "לכל תיקיית CODEX_HOME שתוסיף יש כרטיס מגבלות משלה. כשהעמוד ״סוכני AI״ פתוח, Codex בודק כל אחת מהן בערך כל חמש דקות, עם ההתחברות של אותה תיקייה. לא נשלחת שום הנחיה.",
+            accountName: "שם החשבון",
+            remove: "הסר את הכרטיס של החשבון הזה",
+            find: "מצא חשבונות מקומיים",
+            add: "הוסף תיקייה…",
+            check: "בדוק מגבלות",
+            fallback: "כשלא נוספו חשבונות, מגבלות Codex מגיעות מהסשנים המקומיים שלו.",
+            resetsNote: "הכרטיס ״איפוסים״ עדיין שייך לחשבון ברירת המחדל של Codex.",
+            chooseFolder: "בחר תיקיית Codex",
+            invalidFolder: "בחר תיקיית CODEX_HOME נפרדת שמכילה config.toml או auth.json. התיקייה חייבת להיות שלך ולא ניתנת לכתיבה על ידי אחרים, והקובץ auth.json חייב להיות פרטי ולא קישור. Codex עשוי לרענן שם את ההתחברות והמטמון שלו.",
+            folderProblem: "בחר שוב את תיקיית החשבון הזה בהגדרות.",
+            defaultName: "ברירת מחדל",
+            defaultAccount: "חשבון ברירת מחדל",
+            refreshHint: "רענן כדי לבדוק את מגבלות החשבון הזה.",
+            signIn: "התחבר עם ChatGPT בתיקיית Codex הזו.",
+            update: "עדכן את Codex כדי לבדוק מגבלות.",
+            failed: "לא ניתן היה לבדוק את המגבלות. נסה שוב.")
         }
     }
 }

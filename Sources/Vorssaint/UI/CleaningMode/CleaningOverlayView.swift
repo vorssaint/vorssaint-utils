@@ -22,6 +22,7 @@ struct CleaningOverlayView: View {
                 fullBlackoutContent
             }
         }
+        .localizedLayoutDirection()
     }
 
     private var fullBlackoutContent: some View {

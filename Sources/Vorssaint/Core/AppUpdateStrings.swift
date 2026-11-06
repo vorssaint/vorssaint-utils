@@ -76,6 +76,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -888,5 +889,59 @@ extension AppUpdateStrings {
         noVisibleUpdates: "Немає оновлень поза вашими правилами",
         uncomparableVersions: "Не вдалося порівняти версії",
         uncomparableVersionsNote: "Оновлення не показується, якщо версію, яку повідомляє програма, не можна порівняти з каталогом. Перевірте оновлення в самій програмі."
+    )
+
+    static let he = AppUpdateStrings(
+        pageTitle: "עדכוני אפליקציות",
+        hubDescription: "מצא והתקן עדכונים לאפליקציות שלך",
+        caption: "בודק אילו אפליקציות ב-Mac זה עם גרסאות חדשות יותר ועוזר לך להשלים כל עדכון מהמקור המקורי שלו.",
+        panelCaption: "ראה אילו אפליקציות עם גרסה חדשה יותר",
+        checkNow: "בדוק עכשיו",
+        checking: "בודק",
+        lastCheckFormat: "בדיקה אחרונה %@",
+        neverChecked: "טרם נבדק",
+        upToDate: "לא נמצאו עדכונים",
+        partialUpToDate: "לא נמצאו עדכונים בבדיקה החלקית הזו",
+        coverageNote: "בודק את המקורות המקוריים של האפליקציות המותקנות וקטלוג ציבורי. עדכונים מותקנים דרך המקור המקורי שלהם.",
+        selectAll: "בחר הכל",
+        clearSelection: "נקה",
+        updateSelectedFormat: "עדכן %d",
+        updateOne: "עדכן",
+        openAppStore: "פתח את App Store",
+        appStoreBadge: "App Store",
+        storeHint: "פותח את App Store, שם מותקן עדכון זה",
+        frequencyLabel: "בדוק ברקע",
+        frequencyOff: "כבוי",
+        frequencyDaily: "כל יום",
+        frequencyWeekly: "כל שבוע",
+        nextCheckFormat: "בדיקה הבאה %@",
+        notifyToggle: "הודע לי כשיש עדכון לאפליקציה",
+        includeStoreToggle: "כלול אפליקציות מ-App Store",
+        includeStoreCaption: "בודק את הגרסאות בחנות לפי האזור של Mac זה. Apple מתקינה את העדכונים האלה.",
+        packageMissing: "Homebrew לא מותקן, כך שאפליקציות לא ניתנות לעדכון מכאן עדיין.",
+        notificationBodyFormat: "%@ אפליקציות עם גרסה חדשה יותר.",
+        notificationBodyOne: "אפליקציה אחת עם גרסה חדשה יותר.",
+        showInPanel: "הצג בפאנל",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "מקורות",
+        includeHomebrewToggle: "כלול אפליקציות Homebrew",
+        onlineBadge: "מקוון",
+        openApp: "פתח",
+        openAppHint: "פותח את האפליקציה כדי שהעדכון שלה יוכל להסתיים",
+        includeOnlineToggle: "כלול אפליקציות מותקנות אחרות",
+        includeOnlineCaption: "בודק ישירות מול מפתחי האפליקציות כשהדבר נתמך, ואז משתמש בקטלוג ציבורי. תוכנת העדכון של האפליקציה עצמה מתקינה את העדכון.",
+        incompleteCheck: "הבדיקה לא הושלמה",
+        onlineUnavailable: "הבדיקה המקוונת לא הצליחה להסתיים. תוצאות אחרות עדיין מוצגות.",
+        skipVersionFormat: "דלג על גרסה %@",
+        excludeApp: "אל תבדוק את האפליקציה הזו",
+        rulesTitle: "חריגים בעדכונים",
+        addException: "הוסף אפליקציה שלא צריך לבדוק",
+        skippedVersionFormat: "גרסה %@ מדולגת",
+        excludedApp: "לא נבדקת עד שהכלל יוסר",
+        removeRule: "הסר",
+        rulesHint: "דילוג על גרסה עדיין מאפשר מהדורות חדשות יותר. אחרי הסרת אפליקציה מהחריגים, השתמש ב״בדוק עכשיו״ כדי לרענן אותה.",
+        noVisibleUpdates: "אין עדכונים מחוץ לכללים שלך",
+        uncomparableVersions: "גרסאות שלא הושוו",
+        uncomparableVersionsNote: "לא מוצג עדכון כשאי אפשר להשוות את הגרסה של האפליקציה עצמה לקטלוג. בדוק עדכונים בתוך האפליקציה עצמה."
     )
 }

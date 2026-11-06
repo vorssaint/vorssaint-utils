@@ -52,6 +52,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -113,6 +114,35 @@ extension GeneralSettingsStrings {
         sectionUtilities: "Screenshots, cleaner, updates and other tools.",
         sectionControls: "Switches for mouse, keyboard and window features.",
         sectionToggles: "One-click actions like dark mode and muting the mic."
+    )
+
+    static let he = GeneralSettingsStrings(
+        pageDescription: "איך Vorssaint מתחיל, איך הוא נראה ומה פאנל שורת התפריטים שלו מציג.",
+        appearanceCaption: "חל על החלונות והפאנלים של Vorssaint עצמו, לא על כל ה-Mac.",
+        launchAtLoginCaption: "נפתח מעצמו בכל פעם שאתה מדליק את ה-Mac.",
+        liquidGlassCaption: "פאנלים שקופים, דמויי זכוכית.",
+        liquidGlassOtherWindows: "חלונות ופאנלים אחרים",
+        panelIntro: "לחץ על הסמל של Vorssaint בשורת התפריטים כדי לפתוח את הפאנל. הלשוניות שלו מופיעות בסדר הזה.",
+        panelReorderHint: "גרור כדי לשנות סדר. כבה כל מה שאתה לא צריך.",
+        menuBarIconTitle: "סמל שורת התפריטים",
+        menuBarIconCaption: "בחר את הסמל ש-Vorssaint מציג בשורת התפריטים.",
+        menuBarIconOther: "סמל אחר",
+        menuBarIconOtherCaption: "הקלד את השם של כל SF Symbol. השאר ריק כדי להשתמש בסמל של Vorssaint.",
+        menuBarIconUnknown: "ל-Mac הזה אין סמל בשם הזה.",
+        menuBarIconReset: "השתמש בסמל של Vorssaint",
+        iconMissingTitle: "לא מוצא את הסמל?",
+        iconMissingCaption: "שורת התפריטים העמוסה עלולה להסתיר אותו, במיוחד ב-Mac עם חריץ.",
+        sectionKeepAwake: "שומר את ה-Mac ער כמה זמן שתרצה.",
+        sectionDisplays: "בהירות הצגים שלך.",
+        sectionMixer: "עוצמת השמע של כל אפליקציה, מחוון אחד לכל אחת.",
+        sectionSystem: "מעבד, גרפיקה וזיכרון במבט אחד.",
+        sectionNetwork: "מהירות האינטרנט ואילו אפליקציות משתמשות בו.",
+        sectionDisks: "שטח פנוי ופעילות דיסק.",
+        sectionPower: "סוללה, טעינה וצריכת חשמל.",
+        sectionFanControl: "מהירויות המאווררים ועקומת המאוורר שלך.",
+        sectionUtilities: "צילומי מסך, ניקוי, עדכונים וכלים נוספים.",
+        sectionControls: "מתגים לתכונות עכבר, מקלדת וחלונות.",
+        sectionToggles: "פעולות בלחיצה אחת כמו תצוגה כהה והשתקת המיקרופון."
     )
 
     static let ptBR = GeneralSettingsStrings(

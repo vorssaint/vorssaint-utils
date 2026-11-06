@@ -254,6 +254,7 @@ enum NotchPresentationRefreshContract {
                                          timerMode: session.hasSession ? session.mode : mode)
         }
         var surfaceShift: CGFloat = 0
+        var physicalSurfaceShift: CGFloat { surfaceShift }
         var musicStripFitsInPlace = false
         var musicStripShowsControl = false
         var namedMusicWings: NotchNoticeWings?

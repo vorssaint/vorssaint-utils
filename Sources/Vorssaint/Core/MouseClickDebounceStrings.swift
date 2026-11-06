@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -151,5 +152,13 @@ extension MouseClickDebounceStrings {
         moreOptions: "Більше опцій",
         windowLabel: "Фільтрувати вікно",
         windowCaption: "Повторний клац усередині цього інтервалу вважається випадковим дублікатом."
+    )
+
+    static let he = MouseClickDebounceStrings(
+        title: "מסנן לחיצות כפולות",
+        caption: "מתעלם מלחיצות נוספות מהירות של לחצני עכבר שחוקים, בלי להאט לחיצות רגילות.",
+        moreOptions: "אפשרויות נוספות",
+        windowLabel: "חלון הסינון",
+        windowCaption: "לחיצה חוזרת בתוך הפרק הזה נחשבת לכפילות מקרית."
     )
 }

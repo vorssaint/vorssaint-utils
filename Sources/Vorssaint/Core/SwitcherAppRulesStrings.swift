@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -199,5 +200,16 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "Лише вікна",
         hidden: "Ніколи не показувати",
         caption: "Виберіть, як кожна програма з’являється. Програми без правила використовують вибір вище."
+    )
+
+    static let he = SwitcherAppRulesStrings(
+        listTitle: "כללים לפי אפליקציה",
+        addButton: "הוסף אפליקציה…",
+        removeButton: "הסר",
+        behaviorLabel: "התנהגות במחליף",
+        showWithoutWindows: "הצג ללא חלונות",
+        windowsOnly: "עם חלונות בלבד",
+        hidden: "לעולם אל תציג",
+        caption: "בחר כיצד כל אפליקציה מופיעה. אפליקציות ללא כלל משתמשות בבחירה למעלה."
     )
 }

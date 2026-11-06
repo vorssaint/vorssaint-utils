@@ -122,6 +122,13 @@ extension FeatureStrings {
             sounds: "Звуки замикання й розмикання",
             soundsHint: "Відтворювати звук замка macOS, коли Mac замикається й розмикається.",
             working: "Працює")
+        case .he: return NotchLockScreenStrings(
+            title: "מסך הנעילה",
+            show: "הצג במסך הנעילה",
+            showHint: "מוזיקה ופעילויות של Dynamic Island, כמו טיימר, סוכני AI, הורדות והאירוע הבא שלך, מופיעות מעל שדה הסיסמה. כל מי שרואה את המסך שלך יכול לקרוא אותן.",
+            sounds: "צלילי נעילה ופתיחת נעילה",
+            soundsHint: "מנגן את צליל המנעול של macOS כשה-Mac ננעל ונפתח.",
+            working: "עובד")
         }
     }
 }

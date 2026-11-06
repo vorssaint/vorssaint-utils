@@ -280,6 +280,23 @@ extension FeatureStrings {
             optimizeMedia: "Оптимізувати медіа",
             optimizeDropHint: "Перетягніть зображення або одне відео на острівець і відпустіть над «Оптимізувати медіа», щоб вибрати, як зберегти копію.",
             resumeMedia: "Повернутися до медіа")
+        case .he: return NotchFilesStrings(
+            archive: "צור ZIP",
+            archiveHint: "כל פריט שנבחר נשמר כ-ZIP נפרד. המקוריים נשארים ללא שינוי.",
+            saved: "נשמר",
+            downloadsTitle: "הורדות",
+            downloadsDescription: "ראה קבצים שמגיעים לתיקייה שבחרת, ישירות ב-Dynamic Island.",
+            downloadsHint: "בחר את התיקייה שבה הדפדפן שומר הורדות. רק התיקייה הזו במעקב.",
+            chooseFolder: "בחר תיקייה…",
+            folderUnavailable: "התיקייה הזו לא זמינה. בחר אותה שוב כדי לשחזר את הגישה.",
+            waiting: "אין קבצים בתיקייה הזו",
+            inProgress: "מוריד",
+            totalUnknown: "הגודל הכולל לא זמין",
+            completed: "ההורדה הושלמה",
+            clearFolder: "שכח את התיקייה",
+            optimizeMedia: "מטב מדיה",
+            optimizeDropHint: "גרור תמונות או סרטון אחד אל האי, ואז שחרר על ״מטב מדיה״ כדי לבחור איך לשמור עותק.",
+            resumeMedia: "חזור למדיה")
         }
     }
 }
