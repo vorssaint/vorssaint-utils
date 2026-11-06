@@ -36,6 +36,18 @@ struct NotchButtonStyle: ButtonStyle {
 
 extension NotchArtworkTint {
     var color: Color { Color(.sRGB, red: red, green: green, blue: blue, opacity: 1) }
+
+    /// The colour the music bars start their gradient from: the tint muted
+    /// and lightened as much as the cover is soft. A pale cover gives a soft
+    /// shade; hot pink on black stays hot pink.
+    var barColor: Color {
+        let rgb = NSColor(srgbRed: red, green: green, blue: blue, alpha: 1)
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        let ceiling = 0.35 + 0.65 * CGFloat(vibrance)
+        return Color(nsColor: NSColor(hue: hue, saturation: min(saturation, ceiling),
+                                      brightness: 0.86 + 0.14 * CGFloat(vibrance), alpha: 1))
+    }
 }
 
 /// The bars with the live levels attached. Only this small view observes the
@@ -43,14 +55,16 @@ extension NotchArtworkTint {
 struct NotchLiveEqualizerBars: View {
     var isPlaying = true
     var bars = 4
-    var barWidth: CGFloat = 2.5
+    var barWidth: CGFloat = 2.1
     var height: CGFloat = 14
     var tint: Color = .white
+    var field: [Double] = []
     @ObservedObject private var audio = NotchAudioLevelService.shared
 
     var body: some View {
         NotchEqualizerBars(isPlaying: isPlaying, bars: bars, barWidth: barWidth, height: height, tint: tint,
-                           live: audio.levels)
+                           field: field, live: audio.levels ?? (audio.hearsNothing ? [0] : nil),
+                           liveReadAt: audio.levelsReadAt, onPainted: audio.painted)
     }
 }
 

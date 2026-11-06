@@ -66,7 +66,7 @@ struct NotchLockScreenIsland: View {
                     Spacer(minLength: 0)
                     NotchEqualizerBars(isPlaying: playing, bars: NotchLayout.compactMusicBarCount,
                                        barWidth: NotchLayout.compactMusicBarWidth, height: geometry.compactMusicBarHeight,
-                                       tint: music.artworkTint?.color ?? .white)
+                                       tint: music.artworkTint?.barColor ?? .white, field: music.artworkTint?.field ?? [])
                         .opacity(playing ? 1 : 0)
                         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: playing)
                         .padding(.trailing, max(0, min(geometry.compactMusicBarsInset, wing - NotchLayout.compactMusicBarsWidth)))
@@ -236,7 +236,7 @@ struct NotchLockScreenPlayer: View {
 
     private func cover(size: CGFloat, playback: NotchPlayback) -> some View {
         NotchArtwork(image: music.artwork, size: size, source: playback.track)
-            .shadow(color: (music.artworkTint?.color ?? .black).opacity(0.5), radius: size * 0.28, y: size * 0.1)
+            .shadow(color: (music.artworkTint.flatMap { $0.isNeutral ? nil : $0.color } ?? .black).opacity(0.5), radius: size * 0.28, y: size * 0.1)
             .scaleEffect(playback.isPlaying || reduceMotion ? 1 : 0.92)
             .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: playback.isPlaying)
     }
