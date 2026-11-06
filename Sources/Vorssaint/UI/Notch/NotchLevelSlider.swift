@@ -269,4 +269,14 @@ private final class NotchLevelCell: NSSliderCell {
     }
 
     override func drawKnob(_ knobRect: NSRect) {}
+
+    /// The knob is never drawn, so it has no length either. AppKit then maps
+    /// the pointer across the whole track, as the fill is drawn, rather than
+    /// along a run shortened by half a hidden knob at each end, which left the
+    /// fill behind the pointer near the start and ahead of it near the end.
+    override func knobRect(flipped: Bool) -> NSRect {
+        let knob = super.knobRect(flipped: flipped)
+        return isFader ? NSRect(x: knob.minX, y: knob.midY, width: knob.width, height: 0)
+            : NSRect(x: knob.midX, y: knob.minY, width: 0, height: knob.height)
+    }
 }
