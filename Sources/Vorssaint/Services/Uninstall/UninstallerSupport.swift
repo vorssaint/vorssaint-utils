@@ -281,6 +281,28 @@ enum UninstallerSupport {
         Set(apps.lazy.filter { !$0.isSystem && selection(for: $0.url) != nil }.map(\.id))
     }
 
+    /// What shows an installed app is still the bundle whose IDs were read:
+    /// the bundle folder and its Info.plist as files, and when that
+    /// Info.plist last changed. An update replaces the bundle or rewrites
+    /// its Info.plist, so any of the three changes with it.
+    struct BundleSnapshot: Hashable {
+        let bundle: FileIdentity
+        let info: FileIdentity
+        let infoModifiedSeconds: Int
+        let infoModifiedNanoseconds: Int
+    }
+
+    static func bundleSnapshot(of appURL: URL) -> BundleSnapshot? {
+        var info = stat()
+        guard let bundle = fileIdentity(at: appURL),
+              lstat(infoPlistURL(in: appURL).path, &info) == 0 else { return nil }
+        return BundleSnapshot(
+            bundle: bundle,
+            info: FileIdentity(device: UInt64(info.st_dev), inode: UInt64(info.st_ino)),
+            infoModifiedSeconds: info.st_mtimespec.tv_sec,
+            infoModifiedNanoseconds: info.st_mtimespec.tv_nsec)
+    }
+
     static func fileIdentity(at url: URL) -> FileIdentity? {
         var info = stat()
         guard lstat(url.path, &info) == 0 else { return nil }

@@ -48,6 +48,7 @@ final class TrashAppWatcher {
         source.setCancelHandler { close(descriptor) }
         source.resume()
         self.source = source
+        AppUninstaller.prepareInstalledApplications()
     }
 
     private func stop() {
@@ -58,12 +59,13 @@ final class TrashAppWatcher {
         known = []
     }
 
-    /// Finder writes a deleted app in a few steps; look once it settles.
+    /// Finder moves an app to the Trash in one rename, but a few writes to
+    /// the folder follow it; look once they settle.
     private func scheduleCheck() {
         pendingCheck?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.check() }
         pendingCheck = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
     }
 
     private func check() {

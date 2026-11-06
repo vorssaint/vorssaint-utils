@@ -238,6 +238,14 @@ enum UninstallerFlowTests {
             suite.expect(uninstaller.phase == .results && uninstaller.items.count == 1,
                          "current scan delivers the accepted app")
             suite.expect(uninstaller.canRemoveSelected, "a verified unmanaged app can be removed")
+            // Homebrew is asked when the scan starts, so it may answer first.
+            _ = uninstaller.select(appURL: a)
+            Brew.shared.callback?(.success(nil))
+            suite.expect(uninstaller.phase == .scanning && uninstaller.items.isEmpty,
+                         "a Homebrew answer alone does not end the scan")
+            Queue.drain()
+            suite.expect(uninstaller.phase == .results && uninstaller.items.count == 1,
+                         "the scan finishing after Homebrew answered delivers the results")
             _ = uninstaller.select(appURL: a)
             Queue.drain()
             Brew.shared.callback?(.failure(.unavailable))

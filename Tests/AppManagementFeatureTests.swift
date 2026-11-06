@@ -513,6 +513,15 @@ enum AppManagementFeatureTests {
                && UninstallerSupport.selection(for: reusedApp)?.bundleID == "com.vendor.second"
                && UninstallerSupport.bundleIdentifier(of: reusedApp) == "com.vendor.second",
                "a different app at a path already read is selected by its own bundle ID")
+        // The scan keeps each installed app's bundle IDs while this snapshot
+        // stays the same, so an update to the app must change it.
+        let snapshot = UninstallerSupport.bundleSnapshot(of: reusedApp)
+        suite.expect(snapshot != nil && UninstallerSupport.bundleSnapshot(of: reusedApp) == snapshot,
+               "an untouched app keeps its bundle snapshot")
+        let reusedInfo = reusedApp.appendingPathComponent("Contents/Info.plist")
+        try? Data(contentsOf: reusedInfo).write(to: reusedInfo, options: .atomic)
+        suite.expect(UninstallerSupport.bundleSnapshot(of: reusedApp) != snapshot,
+               "an app whose Info.plist was rewritten gets a new bundle snapshot")
         // An iPhone or iPad app installed on a Mac with Apple silicon (#1582):
         // the App Store keeps the real bundle in Wrapper with its Info.plist at
         // the top, and Bundle reads it through the WrappedBundle link.
