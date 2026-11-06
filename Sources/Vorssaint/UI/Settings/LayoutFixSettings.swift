@@ -48,7 +48,7 @@ struct LayoutFixSettings: View {
 
             Section(text.triggerSection) {
                 Picker(text.triggerSection, selection: triggerBinding) {
-                    ForEach(LayoutFixTrigger.allCases.filter { $0 != .shortcut }) { trigger in
+                    ForEach(LayoutFixTrigger.allCases) { trigger in
                         Text(text.triggerLabel(trigger)).tag(trigger)
                     }
                 }

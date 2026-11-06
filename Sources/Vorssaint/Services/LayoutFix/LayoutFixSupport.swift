@@ -131,10 +131,9 @@ struct LayoutFixCycle: Equatable {
     }
 }
 
-/// What starts a fix. The modifier taps are read from the keyboard tap; the
-/// shortcut is a recorded global shortcut and never comes from a modifier.
+/// What starts a fix: a lone tap of a modifier, read from the keyboard tap.
 enum LayoutFixTrigger: String, CaseIterable, Identifiable {
-    case rightOption, leftOption, doubleShift, shortcut
+    case rightOption, leftOption, doubleShift
 
     var id: String { rawValue }
 
@@ -148,7 +147,6 @@ enum LayoutFixTrigger: String, CaseIterable, Identifiable {
         case .rightOption: [kVK_RightOption]
         case .leftOption: [kVK_Option]
         case .doubleShift: [kVK_Shift, kVK_RightShift]
-        case .shortcut: []
         }
     }
 }
@@ -181,7 +179,6 @@ struct LayoutFixTriggerState {
     }
 
     mutating func fires(_ event: LayoutFixTriggerEvent) -> Bool {
-        guard trigger != .shortcut else { return false }
         switch event {
         case .modifierDown(let keyCode, let timestamp):
             if pressedKey != nil {

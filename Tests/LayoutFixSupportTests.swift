@@ -384,10 +384,7 @@ enum LayoutFixSupportTests {
             suite.expect(fires(.doubleShift, twoPairs) == expected, "after firing, the next pair starts over")
         }
 
-        suite.run("LayoutFix shortcutTriggerNeverFiresFromModifiers") {
-            let events: [LayoutFixTriggerEvent] = [.modifierDown(keyCode: right, timestamp: t),
-                                                   .modifierUp(keyCode: right, timestamp: t + 50 * ms)]
-            suite.expect(fires(.shortcut, events) == [false, false], "the shortcut trigger ignores modifier taps")
+        suite.run("LayoutFix triggerSanitized") {
             suite.expect(LayoutFixTrigger.sanitized(nil) == .rightOption
                              && LayoutFixTrigger.sanitized("doubleShift") == .doubleShift
                              && LayoutFixTrigger.sanitized("bogus") == .rightOption,

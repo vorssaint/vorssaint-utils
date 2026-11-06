@@ -134,7 +134,7 @@ final class LayoutFixService: ObservableObject {
     }
 
     /// The buffer as the tap sees it now, for a trigger that does not come
-    /// from the tap: the Super key solo action and a recorded shortcut.
+    /// from the tap: the Super key solo action.
     func performExternalTrigger() {
         let snapshot = inputLock.withLock { (buffer.keys, buffer.generation) }
         performFix(snapshot: snapshot.0, generation: snapshot.1)

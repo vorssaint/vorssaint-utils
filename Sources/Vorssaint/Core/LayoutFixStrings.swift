@@ -14,7 +14,6 @@ struct LayoutFixStrings {
     let triggerRightOption: String
     let triggerLeftOption: String
     let triggerDoubleShift: String
-    let triggerShortcut: String
     let layoutsSection: String
     let layoutsCaption: String
 
@@ -23,7 +22,6 @@ struct LayoutFixStrings {
         case .rightOption: return triggerRightOption
         case .leftOption: return triggerLeftOption
         case .doubleShift: return triggerDoubleShift
-        case .shortcut: return triggerShortcut
         }
     }
 }
@@ -62,7 +60,6 @@ extension LayoutFixStrings {
         triggerRightOption: "Right ⌥ tap",
         triggerLeftOption: "Left ⌥ tap",
         triggerDoubleShift: "Double ⇧ tap",
-        triggerShortcut: "Keyboard shortcut",
         layoutsSection: "Layouts",
         layoutsCaption: "Layouts the fix chooses from, in the Input menu order."
     )
@@ -78,7 +75,6 @@ extension LayoutFixStrings {
         triggerRightOption: "Toque no ⌥ direito",
         triggerLeftOption: "Toque no ⌥ esquerdo",
         triggerDoubleShift: "Toque duplo no ⇧",
-        triggerShortcut: "Atalho de teclado",
         layoutsSection: "Layouts",
         layoutsCaption: "Layouts entre os quais a correção escolhe, na ordem do menu de entrada."
     )
@@ -94,7 +90,6 @@ extension LayoutFixStrings {
         triggerRightOption: "Sağ ⌥ dokunuşu",
         triggerLeftOption: "Sol ⌥ dokunuşu",
         triggerDoubleShift: "Çift ⇧ dokunuşu",
-        triggerShortcut: "Klavye kısayolu",
         layoutsSection: "Düzenler",
         layoutsCaption: "Düzeltmenin seçtiği düzenler, Giriş menüsü sırasıyla."
     )
@@ -110,7 +105,6 @@ extension LayoutFixStrings {
         triggerRightOption: "Правый ⌥",
         triggerLeftOption: "Левый ⌥",
         triggerDoubleShift: "Двойной ⇧",
-        triggerShortcut: "Сочетание клавиш",
         layoutsSection: "Раскладки",
         layoutsCaption: "Раскладки, из которых выбирает исправление, в порядке меню ввода."
     )
@@ -126,7 +120,6 @@ extension LayoutFixStrings {
         triggerRightOption: "Pulsar ⌥ derecha",
         triggerLeftOption: "Pulsar ⌥ izquierda",
         triggerDoubleShift: "Doble pulsación de ⇧",
-        triggerShortcut: "Atajo de teclado",
         layoutsSection: "Distribuciones",
         layoutsCaption: "Distribuciones entre las que elige la corrección, en el orden del menú de entrada."
     )
@@ -142,7 +135,6 @@ extension LayoutFixStrings {
         triggerRightOption: "Ťuknutie na pravý ⌥",
         triggerLeftOption: "Ťuknutie na ľavý ⌥",
         triggerDoubleShift: "Dvojité ťuknutie na ⇧",
-        triggerShortcut: "Klávesová skratka",
         layoutsSection: "Rozloženia",
         layoutsCaption: "Rozloženia, z ktorých oprava vyberá, v poradí ponuky vstupu."
     )
@@ -158,7 +150,6 @@ extension LayoutFixStrings {
         triggerRightOption: "Rechte ⌥ tippen",
         triggerLeftOption: "Linke ⌥ tippen",
         triggerDoubleShift: "Doppelt ⇧ tippen",
-        triggerShortcut: "Tastenkurzbefehl",
         layoutsSection: "Layouts",
         layoutsCaption: "Layouts, aus denen die Korrektur wählt, in der Reihenfolge des Eingabemenüs."
     )
@@ -174,7 +165,6 @@ extension LayoutFixStrings {
         triggerRightOption: "Appui sur ⌥ droite",
         triggerLeftOption: "Appui sur ⌥ gauche",
         triggerDoubleShift: "Double appui sur ⇧",
-        triggerShortcut: "Raccourci clavier",
         layoutsSection: "Dispositions",
         layoutsCaption: "Dispositions parmi lesquelles la correction choisit, dans l’ordre du menu de saisie."
     )
@@ -190,7 +180,6 @@ extension LayoutFixStrings {
         triggerRightOption: "Tocco su ⌥ destro",
         triggerLeftOption: "Tocco su ⌥ sinistro",
         triggerDoubleShift: "Doppio tocco su ⇧",
-        triggerShortcut: "Abbreviazione da tastiera",
         layoutsSection: "Layout",
         layoutsCaption: "Layout tra cui sceglie la correzione, nell’ordine del menu di input."
     )
@@ -206,7 +195,6 @@ extension LayoutFixStrings {
         triggerRightOption: "右⌥を押す",
         triggerLeftOption: "左⌥を押す",
         triggerDoubleShift: "⇧を2回押す",
-        triggerShortcut: "キーボードショートカット",
         layoutsSection: "レイアウト",
         layoutsCaption: "修正の候補となるレイアウト（入力メニューの順）。"
     )
@@ -222,7 +210,6 @@ extension LayoutFixStrings {
         triggerRightOption: "오른쪽 ⌥ 누르기",
         triggerLeftOption: "왼쪽 ⌥ 누르기",
         triggerDoubleShift: "⇧ 두 번 누르기",
-        triggerShortcut: "키보드 단축키",
         layoutsSection: "자판",
         layoutsCaption: "수정 시 선택하는 자판(입력 메뉴 순서)."
     )
@@ -238,7 +225,6 @@ extension LayoutFixStrings {
         triggerRightOption: "轻按右侧 ⌥",
         triggerLeftOption: "轻按左侧 ⌥",
         triggerDoubleShift: "连按两次 ⇧",
-        triggerShortcut: "键盘快捷键",
         layoutsSection: "布局",
         layoutsCaption: "纠正时可选的布局，按输入法菜单顺序。"
     )
@@ -254,7 +240,6 @@ extension LayoutFixStrings {
         triggerRightOption: "輕按右側 ⌥",
         triggerLeftOption: "輕按左側 ⌥",
         triggerDoubleShift: "連按兩次 ⇧",
-        triggerShortcut: "鍵盤快速鍵",
         layoutsSection: "配置",
         layoutsCaption: "修正時可選的配置，依輸入法選單順序。"
     )
@@ -270,7 +255,6 @@ extension LayoutFixStrings {
         triggerRightOption: "輕按右邊 ⌥",
         triggerLeftOption: "輕按左邊 ⌥",
         triggerDoubleShift: "連按兩次 ⇧",
-        triggerShortcut: "鍵盤快速鍵",
         layoutsSection: "配置",
         layoutsCaption: "修正時可選的配置，依輸入法選單次序。"
     )
@@ -286,7 +270,6 @@ extension LayoutFixStrings {
         triggerRightOption: "Правий ⌥",
         triggerLeftOption: "Лівий ⌥",
         triggerDoubleShift: "Подвійний ⇧",
-        triggerShortcut: "Сполучення клавіш",
         layoutsSection: "Розкладки",
         layoutsCaption: "Розкладки, з яких вибирає виправлення, у порядку меню введення."
     )
