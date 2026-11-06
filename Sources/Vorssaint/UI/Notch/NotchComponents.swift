@@ -55,7 +55,7 @@ extension NotchArtworkTint {
 struct NotchLiveEqualizerBars: View {
     var isPlaying = true
     var bars = 4
-    var barWidth: CGFloat = 2.5
+    var barWidth: CGFloat = 2.1
     var height: CGFloat = 14
     var tint: Color = .white
     var field: [Double] = []

@@ -227,6 +227,26 @@ enum NotchAudioLevelSupport {
         barWidth + max(0, height - barWidth) * CGFloat(level)
     }
 
+    /// The row's proportions in dots, measured on recordings of the phone's
+    /// island: the bars stand a fixed distance apart, and one at full height
+    /// is this much wider than the dot it grew from, which leaves it a narrow
+    /// margin where the dots have plenty of room.
+    static let barPitch: CGFloat = 2.13
+    static let widestBar: CGFloat = 1.44
+
+    /// How wide to draw a bar this tall. On the phone a bar widens quickly as
+    /// it leaves the dot and has nearly finished by two thirds of its height.
+    static func barWidth(forHeight drawn: CGFloat, barWidth: CGFloat, height: CGFloat) -> CGFloat {
+        guard height > barWidth else { return barWidth }
+        let rest = 1 - min(1, max(0, (drawn - barWidth) / (height - barWidth)))
+        return barWidth * (1 + (widestBar - 1) * (1 - rest * rest))
+    }
+
+    /// The width a row needs so its end bars have room at their widest.
+    static func barRowWidth(bars: Int, barWidth: CGFloat) -> CGFloat {
+        barWidth * (widestBar + CGFloat(max(0, bars - 1)) * barPitch)
+    }
+
     /// Turns band levels into bar heights the way the phone's island moves
     /// its bars. Fitted to a recording of the island lined up frame by frame
     /// with the song it played.

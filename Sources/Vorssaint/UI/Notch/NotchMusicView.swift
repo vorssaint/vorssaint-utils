@@ -294,7 +294,7 @@ struct NotchMusicView: View {
                 }
                 // Quiet beside the song, as the timeline's times are. The
                 // bars rest flat while paused, so the title keeps its width.
-                NotchLiveEqualizerBars(isPlaying: playback.isPlaying, bars: 4, barWidth: 2.5, height: 15,
+                NotchLiveEqualizerBars(isPlaying: playback.isPlaying, bars: 4, barWidth: 2.1, height: 15,
                                        tint: .white.opacity(0.5))
                 if band.besideCamera { sectionsButton }
             } corner: {
