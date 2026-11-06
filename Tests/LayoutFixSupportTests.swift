@@ -112,6 +112,7 @@ enum LayoutFixSupportTests {
 
         runBuffer(suite, abc: abc)
         runCandidates(suite, abc: abc, ru: ru, kz: kz)
+        runTrigger(suite)
 
         suite.run("LayoutFix renderOriginalUsesEachKeysLayout") {
             let mixed = keys([5, 4], in: abc.id) + keys([11, 2], in: ru.id)
@@ -264,6 +265,112 @@ enum LayoutFixSupportTests {
                          "an available language asks the checker")
             suite.expect(!LayoutFixSupport.isWord("", language: "ru", available: available) { _, _ in true },
                          "empty text is not a word")
+        }
+    }
+
+    static func runTrigger(_ suite: TestSuite) {
+        let ms: UInt64 = 1_000_000
+        let t: UInt64 = 1_000 * ms
+        func fires(_ trigger: LayoutFixTrigger, _ events: [LayoutFixTriggerEvent]) -> [Bool] {
+            var state = LayoutFixTriggerState(trigger: trigger)
+            return events.map { state.fires($0) }
+        }
+        let right = kVK_RightOption, left = kVK_Option, shift = kVK_Shift, rightShift = kVK_RightShift
+
+        suite.run("LayoutFix rightOptionSoloTap") {
+            suite.expect(fires(.rightOption, [.modifierDown(keyCode: right, timestamp: t),
+                                              .modifierUp(keyCode: right, timestamp: t + 100 * ms)]) == [false, true],
+                         "a quick lone tap fires on release")
+            suite.expect(fires(.rightOption, [.modifierDown(keyCode: right, timestamp: t),
+                                              .modifierUp(keyCode: right, timestamp: t + 350 * ms)]) == [false, false],
+                         "a hold longer than 0.3 s is plain Option")
+            suite.expect(LayoutFixTriggerState.soloTapMaxNanoseconds == 300 * ms, "the tap threshold is 0.3 s")
+            suite.expect(fires(.rightOption, [.modifierUp(keyCode: right, timestamp: t)]) == [false],
+                         "a release without a press does not fire")
+        }
+
+        suite.run("LayoutFix optionWithKeyIsNotATap") {
+            suite.expect(fires(.rightOption, [.modifierDown(keyCode: right, timestamp: t), .otherKey,
+                                              .modifierUp(keyCode: right, timestamp: t + 50 * ms)]).last == false,
+                         "⌥ held with a key types a character")
+            suite.expect(fires(.rightOption, [.modifierDown(keyCode: right, timestamp: t),
+                                              .modifierDown(keyCode: shift, timestamp: t + 10 * ms),
+                                              .modifierUp(keyCode: shift, timestamp: t + 20 * ms),
+                                              .modifierUp(keyCode: right, timestamp: t + 50 * ms)]).last == false,
+                         "another modifier during the press is a chord")
+        }
+
+        suite.run("LayoutFix mouseCancelsTap") {
+            suite.expect(fires(.rightOption, [.modifierDown(keyCode: right, timestamp: t), .mouse,
+                                              .modifierUp(keyCode: right, timestamp: t + 50 * ms)]).last == false,
+                         "⌥-click is not a tap")
+        }
+
+        suite.run("LayoutFix leftOptionOnlyWhenChosen") {
+            let leftTap: [LayoutFixTriggerEvent] = [.modifierDown(keyCode: left, timestamp: t),
+                                                    .modifierUp(keyCode: left, timestamp: t + 50 * ms)]
+            let rightTap: [LayoutFixTriggerEvent] = [.modifierDown(keyCode: right, timestamp: t),
+                                                     .modifierUp(keyCode: right, timestamp: t + 50 * ms)]
+            suite.expect(fires(.rightOption, leftTap).last == false, "left ⌥ is ignored for the right ⌥ trigger")
+            suite.expect(fires(.leftOption, leftTap).last == true, "left ⌥ fires when chosen")
+            suite.expect(fires(.leftOption, rightTap).last == false, "right ⌥ is ignored for the left ⌥ trigger")
+        }
+
+        suite.run("LayoutFix doubleShift") {
+            func taps(_ code: Int, at start: UInt64, gap: UInt64) -> [LayoutFixTriggerEvent] {
+                [.modifierDown(keyCode: code, timestamp: start), .modifierUp(keyCode: code, timestamp: start + 50 * ms),
+                 .modifierDown(keyCode: code, timestamp: start + 50 * ms + gap - 50 * ms),
+                 .modifierUp(keyCode: code, timestamp: start + 50 * ms + gap)]
+            }
+            suite.expect(fires(.doubleShift, taps(shift, at: t, gap: 250 * ms)) == [false, false, false, true],
+                         "two shift taps 250 ms apart fire on the second release")
+            suite.expect(fires(.doubleShift, taps(rightShift, at: t, gap: 250 * ms)).last == true,
+                         "right shift counts too")
+            suite.expect(fires(.doubleShift, taps(shift, at: t, gap: 500 * ms)).last == false,
+                         "500 ms apart is two separate presses")
+            suite.expect(fires(.doubleShift, Array(taps(shift, at: t, gap: 250 * ms).prefix(2))).last == false,
+                         "a single tap does not fire")
+            var events = taps(shift, at: t, gap: 250 * ms)
+            events.insert(.otherKey, at: 2)
+            suite.expect(fires(.doubleShift, events).last == false, "a key between the taps resets")
+            let twoPairs: [LayoutFixTriggerEvent] = taps(shift, at: t, gap: 250 * ms)
+                + taps(shift, at: t + 400 * ms, gap: 250 * ms)
+            let expected: [Bool] = [false, false, false, true, false, false, false, true]
+            suite.expect(fires(.doubleShift, twoPairs) == expected, "after firing, the next pair starts over")
+        }
+
+        suite.run("LayoutFix shortcutTriggerNeverFiresFromModifiers") {
+            let events: [LayoutFixTriggerEvent] = [.modifierDown(keyCode: right, timestamp: t),
+                                                   .modifierUp(keyCode: right, timestamp: t + 50 * ms)]
+            suite.expect(fires(.shortcut, events) == [false, false], "the shortcut trigger ignores modifier taps")
+            suite.expect(LayoutFixTrigger.sanitized(nil) == .rightOption
+                             && LayoutFixTrigger.sanitized("doubleShift") == .doubleShift
+                             && LayoutFixTrigger.sanitized("bogus") == .rightOption,
+                         "unknown stored triggers fall back to right ⌥")
+        }
+
+        suite.run("LayoutFix guardDecisions") {
+            suite.expect(LayoutFixSupport.guardDecision(expected: "ghbdtn ", textBeforeCaret: "hi ghbdtn ") == .match,
+                         "the field ends with the expected word")
+            suite.expect(LayoutFixSupport.guardDecision(expected: "ghbdtn ", textBeforeCaret: "hi ghbdt") == .mismatch,
+                         "the field shows something else")
+            suite.expect(LayoutFixSupport.guardDecision(expected: "ghbdtn ", textBeforeCaret: nil) == .unknown,
+                         "no answer from the field")
+        }
+
+        suite.run("LayoutFix targetRules") {
+            func target(_ length: Int, markers: Bool = false, app: String? = "com.apple.TextEdit",
+                        word: Bool = true) -> LayoutFixTarget {
+                LayoutFixSupport.target(selectionLength: length, selectionFromTextMarkers: markers,
+                                        bundleID: app, hasWord: word)
+            }
+            suite.expect(target(5) == .selection, "a field selection wins")
+            suite.expect(target(5, markers: true) == .lastWord, "web selections fall back to the last word")
+            suite.expect(target(5, markers: true, word: false) == .nothing, "web selection without a word")
+            suite.expect(target(5, app: "com.apple.Terminal") == .lastWord, "terminal selections are scrollback")
+            suite.expect(target(0) == .lastWord, "no selection fixes the last word")
+            suite.expect(target(0, word: false) == .nothing, "nothing to fix")
+            suite.expect(LayoutFixSupport.terminalBundleIDs.contains("com.googlecode.iterm2"), "iTerm is a terminal")
         }
     }
 }

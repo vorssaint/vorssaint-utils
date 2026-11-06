@@ -102,6 +102,105 @@ struct LayoutFixCycle: Equatable {
     }
 }
 
+/// What starts a fix. The modifier taps are read from the keyboard tap; the
+/// shortcut is a recorded global shortcut and never comes from a modifier.
+enum LayoutFixTrigger: String, CaseIterable, Identifiable {
+    case rightOption, leftOption, doubleShift, shortcut
+
+    var id: String { rawValue }
+
+    static func sanitized(_ raw: String?) -> LayoutFixTrigger {
+        raw.flatMap(LayoutFixTrigger.init(rawValue:)) ?? .rightOption
+    }
+
+    /// The modifier keys whose lone taps this trigger listens to.
+    var keyCodes: Set<Int> {
+        switch self {
+        case .rightOption: [kVK_RightOption]
+        case .leftOption: [kVK_Option]
+        case .doubleShift: [kVK_Shift, kVK_RightShift]
+        case .shortcut: []
+        }
+    }
+}
+
+/// A keyboard or mouse event, reduced to what the trigger needs.
+enum LayoutFixTriggerEvent: Equatable {
+    /// A modifier key went down or up; timestamps in nanoseconds.
+    case modifierDown(keyCode: Int, timestamp: UInt64)
+    case modifierUp(keyCode: Int, timestamp: UInt64)
+    case otherKey
+    case mouse
+}
+
+/// Tells a lone, quick tap of the trigger key from the same key used as a
+/// modifier: anything pressed or clicked while it is down, or a hold past
+/// 0.3 s, makes it plain Option (Kazakh types its digits with ⌥).
+struct LayoutFixTriggerState {
+    static let soloTapMaxNanoseconds: UInt64 = 300_000_000
+    static let doubleShiftWindowNanoseconds: UInt64 = 400_000_000
+
+    let trigger: LayoutFixTrigger
+    private var pressedKey: Int?
+    private var pressedAt: UInt64 = 0
+    private var alone = false
+    /// The release of the first lone Shift tap, while a second may follow.
+    private var firstShiftTap: UInt64?
+
+    init(trigger: LayoutFixTrigger) {
+        self.trigger = trigger
+    }
+
+    mutating func fires(_ event: LayoutFixTriggerEvent) -> Bool {
+        guard trigger != .shortcut else { return false }
+        switch event {
+        case .modifierDown(let keyCode, let timestamp):
+            if pressedKey != nil {
+                alone = false
+            } else if trigger.keyCodes.contains(keyCode) {
+                pressedKey = keyCode
+                pressedAt = timestamp
+                alone = true
+            } else {
+                firstShiftTap = nil
+            }
+            return false
+        case .modifierUp(let keyCode, let timestamp):
+            guard let key = pressedKey, key == keyCode else { return false }
+            let quick = alone && timestamp >= pressedAt
+                && timestamp - pressedAt <= Self.soloTapMaxNanoseconds
+            pressedKey = nil
+            alone = false
+            guard quick else {
+                firstShiftTap = nil
+                return false
+            }
+            guard trigger == .doubleShift else { return true }
+            if let first = firstShiftTap, timestamp >= first,
+               timestamp - first <= Self.doubleShiftWindowNanoseconds {
+                firstShiftTap = nil
+                return true
+            }
+            firstShiftTap = timestamp
+            return false
+        case .otherKey, .mouse:
+            alone = false
+            firstShiftTap = nil
+            return false
+        }
+    }
+}
+
+/// Whether the field shows what the fix is about to delete.
+enum LayoutFixGuard: Equatable {
+    case match, mismatch, unknown
+}
+
+/// What one tap fixes.
+enum LayoutFixTarget: Equatable {
+    case selection, lastWord, nothing
+}
+
 /// The pure half of Layout Fix: key tables, the keystroke buffer, ranking of
 /// the layouts a word could have been meant in, and the tap state machine.
 /// Nothing here touches events, Accessibility or the text input server.
@@ -274,6 +373,32 @@ enum LayoutFixSupport {
     /// not come out as `с2лем`.
     static func targetLayoutID(for candidate: LayoutFixCandidate, recency: [String]) -> String {
         recency.first { candidate.layoutIDs.contains($0) } ?? candidate.layoutIDs.first ?? ""
+    }
+
+    // MARK: - Safety
+
+    /// Terminals keep a selection in their scrollback while typing goes to
+    /// the prompt, so typing over a selection there would land elsewhere.
+    static let terminalBundleIDs: Set<String> = [
+        "com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable",
+        "net.kovidgoyal.kitty", "org.alacritty", "com.mitchellh.ghostty",
+    ]
+
+    /// The backspaces only go out when the field ends with the word they are
+    /// meant for. A field that does not answer cannot be checked.
+    static func guardDecision(expected: String, textBeforeCaret: String?) -> LayoutFixGuard {
+        guard let textBeforeCaret else { return .unknown }
+        return textBeforeCaret.hasSuffix(expected) ? .match : .mismatch
+    }
+
+    /// A selection is fixed only where typing replaces it: an ordinary text
+    /// field. A web page selection (text markers) and a terminal selection
+    /// fall back to the last typed word.
+    static func target(selectionLength: Int, selectionFromTextMarkers: Bool,
+                       bundleID: String?, hasWord: Bool) -> LayoutFixTarget {
+        let inTerminal = bundleID.map(terminalBundleIDs.contains) ?? false
+        if selectionLength > 0, !selectionFromTextMarkers, !inTerminal { return .selection }
+        return hasWord ? .lastWord : .nothing
     }
 
     /// The layout a selection was most likely typed in: the current one when
