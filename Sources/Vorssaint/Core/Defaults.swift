@@ -614,6 +614,8 @@ enum DefaultsKey {
     static let quitAppsKeptApps = "quitAppsKeptApps"
     static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
     static let cameraPreviewShortcut = "cameraPreviewShortcut"
+    /// The floating mirror's size, a CameraPreviewWindowSize raw value.
+    static let cameraPreviewWindowSize = "cameraPreviewWindowSize"
     static let wallpaperApplyAllDisplays = "wallpaperApplyAllDisplays"
     static let wallpaperFilter = "wallpaperFilter"
     static let wallpaperOwnBookmarks = "wallpaperOwnBookmarks"
@@ -1844,6 +1846,7 @@ enum Defaults {
         DefaultsKey.quitAppsKeptApps: mandatoryAutoQuitExceptionBundleIDs,
         DefaultsKey.cameraPreviewShortcutEnabled: false,
         DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
+        DefaultsKey.cameraPreviewWindowSize: CameraPreviewWindowSize.medium.rawValue,
         DefaultsKey.wallpaperApplyAllDisplays: true,
         DefaultsKey.wallpaperFilter: "all",
         DefaultsKey.scratchpadShortcutEnabled: false,
