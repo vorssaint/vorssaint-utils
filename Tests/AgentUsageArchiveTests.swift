@@ -306,7 +306,7 @@ enum AgentUsageArchiveTests {
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
             ("AgentLogState", labels(cursor.state),
-             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
+             ["deepseekReady", "deepseekSeeded", "deepseekSubagent", "session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
               "codexSubagent", "codexHeaderRead", "codexRoot", "codexTotalsSession",
               "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
               "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "runningCommands"])

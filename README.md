@@ -151,7 +151,8 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 ### Everyday tools
 
 - **Dynamic Island.** Keep music, notifications, calendars, timers, downloads and everyday controls around the camera cutout, or a simulated one on other Macs. Customize sections and shortcuts, with optional lyrics, a live equalizer, camera preview and file tools.
-- **AI agents.** Follow Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too, and each extra Codex account (`CODEX_HOME`) can have a limits card of its own. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates.
+- **AI agents.** Follow Claude, Codex, OpenCode, GitHub Copilot and DeepSeek Harness in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too, and each extra Codex account (`CODEX_HOME`) can have a limits card of its own. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates.
+
 - **Command Bar.** Search apps, windows, files, clipboard history, snippets and app menu commands from one field. Calculate, convert units, find emoji or run saved scripts.
 - **Quick panel.** Open a floating palette of favorite tools with ⌃⌘V.
 - **Quick toggles.** Switch appearance, hide desktop icons, eject disks, empty the Trash, lock the screen and more.
@@ -159,6 +160,12 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Radial menu.** Open a customizable wheel of apps, files, shortcuts and tools around the pointer, with profiles and submenus.
 - **Scratchpad.** Keep autosaved notes in tabs, with Markdown preview and export, in a floating window or Dynamic Island.
 - **Cleaning Mode.** Lock keyboard input while cleaning, with a black screen or a small visible indicator.
+
+#### DeepSeek Harness (local builds)
+
+DeepSeek Harness v4 session logs are read from `~/.dsh/sessions`, including uncompressed `session.v4.jsonl` and incrementally written `session.v4.jsonl.zstd`. Compressed logs require Homebrew's `zstd` library (`brew install zstd`); local builds look for it under `/opt/homebrew/lib` or `/usr/local/lib`. This optional library is not bundled, and hardened-runtime release distribution is not supported by this local integration. No DeepSeek credentials or configuration are changed. Unsupported log versions are ignored, and inherited fork history is not counted twice. Token counters and completion events come from committed logs, not process existence; streamed work before the next persisted event may not be visible. DeepSeek plan limits are not available, and costs remain unknown for models absent from the price list.
+
+The compressed reader bounds both compressed and decoded frames to 32 MiB. An incomplete, invalid or oversized frame is not consumed, so subsequent frames wait rather than producing partial counters.
 
 ### Capture and create
 

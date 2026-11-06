@@ -30,6 +30,9 @@ enum AgentLogEntry: Equatable {
 
 /// Per-file context carried from line to line.
 struct AgentLogState: Equatable {
+    var deepseekReady = false
+    var deepseekSeeded = false
+    var deepseekSubagent = false
     var session = ""
     var project = ""
     var model = ""
@@ -140,6 +143,10 @@ enum AgentLogParser {
 
     static func parseCodex(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         CodexReader().parse(line, state: &state, now: now)
+    }
+
+    static func parseDeepSeek(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        DeepSeekReader().parse(line, state: &state, now: now)
     }
 
     /// Input counts include what came from the cache.
