@@ -1564,12 +1564,32 @@ enum CommandBarCatalog {
         }
     }
 
+    /// The rows a saved script shows once it has answered. If the script output
+    /// was JSON with multiple items, each item is shown as an option row.
+    /// Otherwise, a single row is returned in the same shape as the calculator's
+    /// answer, so Return copies what it printed.
+    static func scriptAnswerEntries(link: CommandBarLink,
+                                    result: CommandBarScriptRunner.Result,
+                                    bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
+        let isSingle = result.items.count == 1
+        return result.items.enumerated().map { index, item in
+            CommandBarEntry(
+                id: index == 0 ? "link.\(link.id.uuidString)" : "link.\(link.id.uuidString).\(index)",
+                title: item.title,
+                subtitle: item.subtitle ?? bar.copyHint,
+                icon: .symbol(link.kind.symbolName),
+                isAnswer: isSingle,
+                countsUsage: false,
+                run: { _ in copyAnswer(item.value) })
+        }
+    }
+
     /// The row a saved script shows once it has answered: the same shape as
     /// the calculator's own answer, so Return copies it the same way.
     static func scriptAnswerEntry(link: CommandBarLink,
                                   result: CommandBarScriptRunner.Result,
                                   bar: CommandBarFeatureStrings) -> CommandBarEntry {
-        CommandBarEntry(
+        scriptAnswerEntries(link: link, result: result, bar: bar).first ?? CommandBarEntry(
             id: "link.\(link.id.uuidString)",
             title: result.text,
             subtitle: bar.copyHint,
