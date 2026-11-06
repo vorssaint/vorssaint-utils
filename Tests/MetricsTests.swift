@@ -221,6 +221,7 @@ struct MetricsTests {
                 DockPreviewFrameRestorationTests.run(suite)
             }),
             ("spaces-order", { SpacesOrderTests.run(suite) }),
+            ("auto-fullscreen", { AutoFullscreenTests.run(suite) }),
             ("switcher", {
                 SwitcherHoverSelectionTests.run(suite)
                 SwitcherAllWindowsTests.run(suite)

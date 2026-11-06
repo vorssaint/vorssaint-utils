@@ -1143,6 +1143,7 @@ extension AppFeature {
         case .windowMaximizer: return s.windowMaximizeName
         case .windowLayout: return FeatureStrings.windowLayout(language).title
         case .autoQuit: return s.autoQuitName
+        case .autoFullscreen: return FeatureStrings.autoFullscreen(language).name
         case .spacesOrder: return s.spacesOrderName
         case .quitWindowProtection: return FeatureStrings.quitProtection(language).name
         case .scrollInverter: return s.invertMouseScroll
@@ -1229,6 +1230,7 @@ extension AppFeature {
         case .windowMaximizer: return hub.descWindowMaximizer
         case .windowLayout: return hub.descWindowLayout
         case .autoQuit: return hub.descAutoQuit
+        case .autoFullscreen: return FeatureStrings.autoFullscreen(L10n.shared.language).hubDescription
         case .spacesOrder: return L10n.shared.s.spacesOrderCaption
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).description
         case .scrollInverter: return hub.descScrollInverter
