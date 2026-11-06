@@ -185,8 +185,8 @@ enum ScreenshotSupport {
                                                     standaloneScreenshot: Bool,
                                                     requiresDraggedRegion: Bool,
                                                     scrollingCaptureEnabled: Bool) -> Bool {
-        let isScreenshot = standaloneScreenshot || selectedTool == .screenshot
-        return isScreenshot && !requiresDraggedRegion && !scrollingCaptureEnabled
+        let supportsFullScreen = standaloneScreenshot || selectedTool == .screenshot || selectedTool == .recording
+        return supportsFullScreen && !requiresDraggedRegion && !scrollingCaptureEnabled
     }
 
     static func fullScreenCaptureControlIsVisible(isAvailable: Bool,
