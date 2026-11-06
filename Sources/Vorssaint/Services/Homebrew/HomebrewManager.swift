@@ -599,34 +599,22 @@ final class HomebrewManager: ObservableObject {
                                                    targetID: String,
                                                    finishedAt: Date?) {
         completedOperationCleanup?.cancel()
+        completedOperationCleanup = nil
+        // `log` deliberately survives the completion timer (issue #566): it
+        // used to erase the technical log after 6 – 20 seconds, while people
+        // were still reading the output. Only the status card hides itself,
+        // and a failure or terminal fallback card keeps its reason until the
+        // next operation or an explicit Clear log.
         guard result != .running,
-              let finishedAt else { return }
-        let delay: TimeInterval
-        let clearsWholeStatus: Bool
-        switch result {
-        case .succeeded:
-            delay = 8
-            clearsWholeStatus = true
-        case .cancelled:
-            delay = 6
-            clearsWholeStatus = true
-        case .failed, .needsTerminal:
-            delay = 20
-            clearsWholeStatus = false
-        case .running:
-            return
-        }
-
+              let finishedAt,
+              let delay = HomebrewCompletedOperationCleanup.cardDismissalDelay(result: result) else { return }
         let item = DispatchWorkItem { [weak self] in
             guard let self,
                   self.operation == nil,
                   self.operationStatus?.targetID == targetID,
                   self.operationStatus?.finishedAt == finishedAt else { return }
-            self.log = ""
-            if clearsWholeStatus {
-                self.terminalFallbackCommand = nil
-                self.operationStatus = nil
-            }
+            self.terminalFallbackCommand = nil
+            self.operationStatus = nil
             self.completedOperationCleanup = nil
         }
         completedOperationCleanup = item
