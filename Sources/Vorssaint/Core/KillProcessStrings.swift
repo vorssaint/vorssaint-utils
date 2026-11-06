@@ -43,6 +43,7 @@ extension FeatureStrings {
     static func killProcess(_ language: AppLanguage) -> KillProcessFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -93,6 +94,39 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "Couldn’t Kill Process",
         killFailedMessage: "The process may have already exited or require additional privileges.",
         adminPromptFormat: "Vorssaint needs administrator access to end “%@”."
+    )
+
+    static let nl = KillProcessFeatureStrings(
+        pageTitle: "Beëindig proces",
+        browseSubtitle: "Bekijk en beëindig",
+        hubDescription: "Zoek actieve processen en forceer stoppen, herstart of beëindig procesbomen",
+        searchPlaceholder: "Filter op naam",
+        columnProcess: "Proces",
+        columnCPU: "CPU",
+        columnMemory: "Geheugen",
+        columnPID: "PID",
+        groupToggle: "Groepeer verwante processen",
+        groupCaption: "Groepeert hulpprocessen onder de verantwoordelijke app.",
+        commandBarToggle: "Toon in Opdrachtenbalk",
+        commandBarCaption: "Voegt actieve processen toe aan de Opdrachtenbalk, zodat je ze kunt vinden en beëindigen zonder Instellingen te openen.",
+        refreshTooltip: "Vernieuw",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "Processen: %d",
+        killButton: "Beëindig",
+        forceKillButton: "Forceer beëindiging",
+        killAllFormat: "Beëindig alle ‘%@’",
+        killTreeButton: "Beëindig procesboom",
+        restartButton: "Herstart",
+        copyPID: "Kopieer PID",
+        copyPath: "Kopieer pad",
+        emptyStateTitle: "Geen processen gevonden",
+        confirmKillFormat: "%@ beëindigen?",
+        confirmForceKillFormat: "Beëindiging van %@ forceren?",
+        confirmKillAllFormat: "Alle processen ‘%@’ beëindigen?",
+        confirmKillTreeFormat: "%@ en alle onderliggende processen beëindigen?",
+        killFailedTitle: "Proces beëindigen mislukt",
+        killFailedMessage: "Het proces is mogelijk al gestopt of vereist extra bevoegdheden.",
+        adminPromptFormat: "Vorssaint heeft beheerderstoegang nodig om ‘%@’ te beëindigen."
     )
 
     static let ptBR = KillProcessFeatureStrings(

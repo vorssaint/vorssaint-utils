@@ -22,6 +22,7 @@ extension FeatureStrings {
     static func settingsPages(_ language: AppLanguage) -> SettingsPageStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -65,6 +66,19 @@ extension SettingsPageStrings {
         switcherLayoutWindowsCaption: "One preview per window, minimized ones included.",
         switcherLayoutIcons: "Large icons",
         switcherLayoutSimple: "Simple list"
+    )
+
+    static let nl = SettingsPageStrings(
+        energyDescription: "Houd de Mac wakker, bedien je beeldschermen en bespaar batterij.",
+        monitorDescription: "Wat de menubalk en het paneel over je Mac tonen en wanneer je wordt gewaarschuwd.",
+        mouseDescription: "Geef het wiel, de zijknoppen en het trackpad nieuwe taken.",
+        switcherDescription: "Wissel op jouw manier tussen apps en vensters.",
+        dockTitle: "Dock",
+        dockDescription: "Bekijk appvensters via het Dock-symbool en kies wat een klik erop doet.",
+        switcherLayoutWindows: "Venstervoorvertoningen",
+        switcherLayoutWindowsCaption: "Eén voorvertoning per venster, inclusief geminimaliseerde vensters.",
+        switcherLayoutIcons: "Grote symbolen",
+        switcherLayoutSimple: "Eenvoudige lijst"
     )
 
     static let ptBR = SettingsPageStrings(

@@ -49,6 +49,25 @@ extension FeatureStrings {
             signIn: "Sign in with ChatGPT in this Codex folder.",
             update: "Update Codex to check limits.",
             failed: "Could not check limits. Try again.")
+        case .nl: return CodexAccountStrings(
+            title: "Codex-accounts",
+            explanation: "Elke CODEX_HOME-map die je toevoegt, krijgt een eigen limietenkaart. Zolang de pagina ‘AI-agenten’ geopend is, controleert Codex elke map ongeveer om de vijf minuten met de eigen inloggegevens. Er wordt geen prompt verstuurd.",
+            accountName: "Accountnaam",
+            remove: "Verwijder de kaart van dit account",
+            find: "Zoek lokale accounts",
+            add: "Voeg map toe…",
+            check: "Controleer limieten",
+            fallback: "Zonder toegevoegde accounts komen de Codex-limieten uit lokale sessies.",
+            resetsNote: "De kaart ‘Herstelmomenten’ blijft bij het standaard-Codex-account horen.",
+            chooseFolder: "Kies een Codex-map",
+            invalidFolder: "Kies een aparte CODEX_HOME-map met config.toml of auth.json. De map moet van jou zijn en anderen mogen er niet in kunnen schrijven. auth.json moet privé zijn en mag geen koppeling zijn. Codex kan de inloggegevens en caches daar vernieuwen.",
+            folderProblem: "Kies de map van dit account opnieuw in Instellingen.",
+            defaultName: "Standaard",
+            defaultAccount: "Standaardaccount",
+            refreshHint: "Vernieuw om de limieten van dit account te controleren.",
+            signIn: "Log in met ChatGPT in deze Codex-map.",
+            update: "Werk Codex bij om limieten te controleren.",
+            failed: "De limieten konden niet worden gecontroleerd. Probeer het opnieuw.")
         case .ptBR: return CodexAccountStrings(
             title: "Contas do Codex",
             explanation: "Cada pasta CODEX_HOME adicionada ganha o próprio cartão de limites. Enquanto a página Agentes de IA está aberta, o Codex verifica cada uma aproximadamente a cada cinco minutos, com o login dessa pasta. Nenhum prompt é enviado.",

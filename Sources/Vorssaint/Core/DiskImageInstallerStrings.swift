@@ -30,6 +30,7 @@ extension FeatureStrings {
     static func diskImageInstaller(_ language: AppLanguage) -> DiskImageInstallerStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -70,6 +71,29 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Show the installed app in Finder",
         installedKeptDownloadBodyFormat: "%@ is ready in %@. The disk image was ejected and its download kept.",
         installingFormat: "Installing %@…"
+    )
+
+    static let nl = DiskImageInstallerStrings(
+        title: "Schijfkopie-installatie",
+        hubDescription: "Installeer de enige app in een schijfkopie en ruim de download op",
+        useUserApplications: "Installeer in de map ‘Apps’ in je thuismap",
+        applicationsFolder: "de map ‘Apps’",
+        userApplicationsFolder: "de map ‘Apps’ in je thuismap",
+        promptTitle: "Deze app installeren?",
+        promptBodyFormat: "%@ wordt naar %@ gekopieerd en de schijfkopie wordt verwijderd.",
+        installButton: "Installeer",
+        installedTitle: "App geïnstalleerd",
+        installedBodyFormat: "%@ staat klaar in %@. De schijfkopie is verwijderd en de download is naar de prullenmand verplaatst.",
+        installedKeepingMountBodyFormat: "%@ is geïnstalleerd in %@, maar de schijfkopie kon niet worden verwijderd. De download is behouden.",
+        installedKeepingDownloadBodyFormat: "%@ is geïnstalleerd in %@ en de schijfkopie is verwijderd, maar de download kon niet naar de prullenmand worden verplaatst.",
+        failedTitle: "Installeren mislukt",
+        failedBody: "Er is niets gewijzigd. Je kunt de app nog steeds naar ‘Apps’ slepen.",
+        verificationFailedBody: "Deze Mac kon de app niet verifiëren. Er is niets geïnstalleerd.",
+        alreadyInstalledBodyFormat: "%@ staat al in ‘Apps’.",
+        trashDownloadOption: "Verplaats de download naar de prullenmand",
+        revealAppOption: "Toon de geïnstalleerde app in Finder",
+        installedKeptDownloadBodyFormat: "%@ staat klaar in %@. De schijfkopie is verwijderd en de download is behouden.",
+        installingFormat: "%@ installeren…"
     )
 
     static let ptBR = DiskImageInstallerStrings(

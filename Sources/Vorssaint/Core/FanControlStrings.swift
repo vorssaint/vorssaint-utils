@@ -53,6 +53,7 @@ extension FeatureStrings {
     static func fanControl(_ language: AppLanguage) -> FanControlFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -116,6 +117,52 @@ extension FanControlFeatureStrings {
         hottestGPU: "Hottest GPU",
         helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again.",
         resumeAfterRestart: "Resume after restart or sleep"
+    )
+
+    static let nl = FanControlFeatureStrings(
+        title: "Ventilatorregeling",
+        hubDescription: "Regel ventilatoren handmatig of met temperatuurcurven en bekijk het huidige en gewenste toerental",
+        showInPanel: "Toon ventilatorregeling in het paneel",
+        settingsCaption: "Voegt handmatige ventilatorsnelheden en temperatuurcurven toe aan het menubalkpaneel.",
+        fanNameFormat: "Ventilator %d",
+        rpmFormat: "%d RPM",
+        allowControl: "Sta ventilatorregeling toe",
+        approvalCaption: "Sta Vorssaint toe bij ‘Inlogonderdelen en extensies’ om de beveiligde ventilatorregelaar te gebruiken.",
+        openSettings: "Open Systeeminstellingen",
+        noFans: "Deze Mac heeft geen regelbare ventilator.",
+        unsupported: "Ventilatorregeling is niet beschikbaar op deze Mac.",
+        alreadyControlled: "Een ander proces regelt de ventilatoren. Zet die eerst terug op systeemregeling.",
+        failed: "De ventilatoren zijn teruggezet op systeemregeling omdat de aangevraagde regeling niet kon worden geverifieerd.",
+        safetyCaption: "De regeling blijft actief totdat je terugschakelt naar ‘Systeem’. Dit gebeurt automatisch als de app de verbinding verliest, de Mac sluimert, sensoren uitvallen of de thermische druk toeneemt.",
+        safetyStopped: "Teruggezet op systeemregeling omdat de ventilatorregeling werd onderbroken.",
+        menuBarTitle: "Ventilatorsnelheid",
+        systemControl: "Systeem",
+        manualControl: "Handmatig",
+        customCurve: "Curve",
+        mode: "Regelmodus",
+        coolingIntensity: "Ventilatorsnelheid",
+        currentRPMFormat: "Huidig %d RPM",
+        targetRPMFormat: "Doel %d RPM",
+        applyManual: "Pas handmatige regeling toe",
+        applyCurve: "Pas ventilatorcurve toe",
+        returnToSystem: "Gebruik systeemregeling",
+        temperatureUnavailable: "De gekozen temperatuursensor reageert niet meer. De ventilatorregeling is teruggezet op ‘Systeem’.",
+        curveUnavailable: "Een gekozen temperatuursensor is niet beschikbaar op deze Mac.",
+        sensor: "Temperatuursensor",
+        temperature: "Temperatuur",
+        fanSpeed: "Ventilatorsnelheid",
+        addPoint: "Voeg punt toe",
+        addSensor: "Voeg sensor toe",
+        removePoint: "Verwijder punt",
+        removeSensor: "Verwijder sensor",
+        curveGraph: "Temperatuur- en ventilatorsnelheidscurve",
+        averageSoC: "Gemiddelde SoC",
+        hottestSoC: "Warmste SoC",
+        averageCPU: "Gemiddelde CPU",
+        hottestCPU: "Warmste CPU",
+        hottestGPU: "Warmste GPU",
+        helperUnavailable: "De beveiligde ventilatorregelaar is niet beschikbaar. Sta Vorssaint toe bij ‘Inlogonderdelen en extensies’ en probeer het opnieuw.",
+        resumeAfterRestart: "Hervat na herstart of sluimerstand"
     )
 
     static let ptBR = FanControlFeatureStrings(

@@ -17,6 +17,11 @@ struct NotchLowBatteryStrings {
                          threshold: "Red level", early: "Turn amber first",
                          earlyCaption: "Shows the charge in amber at or below a higher level, as an early warning.",
                          earlyThreshold: "Amber level", menuBar: "Also in the menu bar")
+        case .nl:
+            return .init(title: "Kleur rood bij lage lading", caption: "Toont de lading rood op of onder dit niveau bij gebruik van de batterij.",
+                         threshold: "Rood niveau", early: "Kleur eerst oranje",
+                         earlyCaption: "Toont de lading oranje op of onder een hoger niveau als vroege waarschuwing.",
+                         earlyThreshold: "Oranje niveau", menuBar: "Ook in de menubalk")
         case .ptBR:
             return .init(title: "Ficar vermelho com pouca bateria", caption: "Mostra a carga em vermelho neste nível ou abaixo dele enquanto estiver na bateria.",
                          threshold: "Nível vermelho", early: "Ficar âmbar antes",

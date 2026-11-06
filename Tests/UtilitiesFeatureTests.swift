@@ -174,6 +174,9 @@ enum UtilitiesFeatureTests {
                "macOS has shown Tink as Boop in Sound settings since Big Sur")
         suite.expect(AlertSoundStrings.displayName(for: "Ping", language: .enUS) == "Sonar",
                "macOS has shown Ping as Sonar in Sound settings since Big Sur")
+        suite.expect(AlertSoundStrings.displayName(for: "Tink", language: .nl) == "Tik"
+                && AlertSoundStrings.displayName(for: "Bottle", language: .nl) == "Kiezel",
+               "Dutch alert sounds use Apple's localized macOS display names")
         suite.expect(AlertSoundStrings.displayName(for: "Tink", language: .fr) == "Boop",
                "a supported language other than English gets its own translated name")
         suite.expect(AlertSoundStrings.displayName(for: "Ping", language: .ru) == "Сонар",
