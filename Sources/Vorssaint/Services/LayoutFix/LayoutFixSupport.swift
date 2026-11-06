@@ -396,6 +396,64 @@ enum LayoutFixSupport {
         return ranked.map { LayoutFixCandidate(text: $0.element, layoutIDs: layoutIDs[$0.element, default: []]) }
     }
 
+    /// A selection read back through the keys that typed it: the layout that
+    /// types all of it (the current one first) is where it came from, and
+    /// every other layout gives a candidate. Whitespace and line breaks stay
+    /// exactly as selected. Ranked like a single word, by the share of words
+    /// the dictionary knows. Nil when no layout types the text or there is
+    /// nothing but whitespace.
+    static func selectionCandidates(text: String, layouts: [LayoutFixLayout], currentID: String?,
+                                    isWord: (_ text: String, _ language: String) -> Bool)
+        -> (original: LayoutFixCandidate, candidates: [LayoutFixCandidate])? {
+        var runs: [(text: String, isWord: Bool)] = []
+        for character in text {
+            let word = !character.isWhitespace
+            if let last = runs.last, last.isWord == word {
+                runs[runs.count - 1].text.append(character)
+            } else {
+                runs.append((String(character), word))
+            }
+        }
+        let words = runs.filter(\.isWord).map(\.text)
+        guard !words.isEmpty,
+              let source = sourceLayout(for: words.joined(), layouts: layouts, currentID: currentID)
+        else { return nil }
+        let keysByWord = words.compactMap { keys(for: $0, in: source) }
+        guard keysByWord.count == words.count else { return nil }
+
+        var texts: [String] = []
+        var layoutIDs: [String: [String]] = [:]
+        var wordShare: [String: Double] = [:]
+        var clean: [String: Bool] = [:]
+        for layout in layouts where layout.id != source.id {
+            let rendered = keysByWord.compactMap { render($0, in: layout) }
+            guard rendered.count == words.count else { continue }
+            var index = 0
+            let joined = runs.map { run -> String in
+                guard run.isWord else { return run.text }
+                defer { index += 1 }
+                return rendered[index]
+            }.joined()
+            guard joined != text else { continue }
+            if layoutIDs[joined] == nil {
+                texts.append(joined)
+                wordShare[joined] = 0
+                clean[joined] = rendered.allSatisfy(isClean)
+            }
+            layoutIDs[joined, default: []].append(layout.id)
+            let known = Double(rendered.filter { isWord($0, layout.language) }.count) / Double(rendered.count)
+            wordShare[joined] = max(wordShare[joined] ?? 0, known)
+        }
+        let ranked = texts.enumerated().sorted { lhs, rhs in
+            func rank(_ entry: (offset: Int, element: String)) -> (Double, Int, Int) {
+                (-(wordShare[entry.element] ?? 0), clean[entry.element] == true ? 0 : 1, entry.offset)
+            }
+            return rank(lhs) < rank(rhs)
+        }
+        return (LayoutFixCandidate(text: text, layoutIDs: [source.id]),
+                ranked.map { LayoutFixCandidate(text: $0.element, layoutIDs: layoutIDs[$0.element, default: []]) })
+    }
+
     /// Where typing goes on after the fix: of the layouts that type the
     /// candidate, the one used most recently, else the first. Someone who
     /// writes Kazakh stays on Kazakh after `бала`, so the next `сәлем` does

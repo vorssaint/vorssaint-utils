@@ -180,15 +180,37 @@ final class LayoutFixService: ObservableObject {
         }
         cycle = nil
         // Keys typed after the tap: the word it was meant for is gone.
-        guard now == generation else { return }
-        guard let (word, spaces) = LayoutFixSupport.lastWord(snapshot),
-              let originalText = LayoutFixSupport.renderOriginal(word, layouts: layouts)
-        else { return NSSound.beep() }
-        let available = Set(NSSpellChecker.shared.availableLanguages)
-        let candidates = LayoutFixSupport.candidates(keys: word, originalText: originalText,
-                                                     layouts: layouts) { text, language in
-            LayoutFixSupport.isWord(text, language: language, available: available, check: Self.spellCheck)
+        let fresh = now == generation
+        let word = fresh ? LayoutFixSupport.lastWord(snapshot) : nil
+        let field = SelectedTextReader.focusedTextSelection(processID: app.processIdentifier, timeout: 0.15)
+        // A range selection is one typing replaces; a web page selection
+        // comes as text markers and has no range here.
+        switch LayoutFixSupport.target(selectionLength: field?.range.length ?? 0,
+                                       selectionFromTextMarkers: false,
+                                       bundleID: app.bundleIdentifier,
+                                       hasWord: word != nil) {
+        case .selection:
+            if let field, let text = field.text(in: field.range), fixSelection(text) { return }
+            guard let word else { return NSSound.beep() }
+            fixWord(word.word, trailingSpaces: word.trailingSpaces, processID: app.processIdentifier)
+        case .lastWord:
+            guard let word else { return }
+            fixWord(word.word, trailingSpaces: word.trailingSpaces, processID: app.processIdentifier)
+        case .nothing:
+            if fresh { NSSound.beep() }
         }
+    }
+
+    private func isWord(_ text: String, _ language: String) -> Bool {
+        LayoutFixSupport.isWord(text, language: language,
+                                available: Set(NSSpellChecker.shared.availableLanguages),
+                                check: Self.spellCheck)
+    }
+
+    private func fixWord(_ word: [LayoutFixKey], trailingSpaces spaces: Int, processID: pid_t) {
+        guard let originalText = LayoutFixSupport.renderOriginal(word, layouts: layouts) else { return NSSound.beep() }
+        let candidates = LayoutFixSupport.candidates(keys: word, originalText: originalText,
+                                                     layouts: layouts, isWord: isWord)
         guard !candidates.isEmpty else { return NSSound.beep() }
         var started = LayoutFixCycle(keys: word, trailingSpaces: spaces,
                                      original: LayoutFixCandidate(text: originalText,
@@ -196,7 +218,29 @@ final class LayoutFixService: ObservableObject {
                                      candidates: candidates)
         let shown = started.shown
         let next = started.advance()
-        retype(started, from: shown, to: next, processID: app.processIdentifier)
+        retype(started, from: shown, to: next, processID: processID)
+    }
+
+    /// Types the best reading over the selection. Later taps continue from
+    /// the typed text, which then sits right before the caret.
+    private func fixSelection(_ text: String) -> Bool {
+        let currentID = inputLock.withLock { currentLayoutID }
+        guard let found = LayoutFixSupport.selectionCandidates(text: text, layouts: layouts,
+                                                               currentID: currentID, isWord: isWord),
+              !found.candidates.isEmpty else { return false }
+        var started = LayoutFixCycle(keys: [], trailingSpaces: 0, original: found.original,
+                                     candidates: found.candidates)
+        let next = started.advance()
+        guard TextSnippetService.postExpansion(deleteCount: 0, typedTrigger: "", text: next.text,
+                                               trailingKeyCode: nil, trailingFlags: []) else { return false }
+        _ = InputSourceSelection.select(sourceID: LayoutFixSupport.targetLayoutID(for: next, recency: recency))
+        inputLock.withLock {
+            // What was typed before the selection is no longer before the caret.
+            buffer.apply(.reset, key: nil)
+            cycleGeneration = buffer.generation
+        }
+        cycle = started
+        return true
     }
 
     /// Replaces what the field shows with the next candidate, after checking
@@ -223,7 +267,7 @@ final class LayoutFixService: ObservableObject {
         guard posted else { return abandon() }
         let backToOriginal = next == updated.original
         let target = backToOriginal
-            ? (updated.keys.last?.layoutID ?? "")
+            ? (updated.keys.last?.layoutID ?? updated.original.layoutIDs.first ?? "")
             : LayoutFixSupport.targetLayoutID(for: next, recency: recency)
         _ = InputSourceSelection.select(sourceID: target)
         inputLock.withLock {

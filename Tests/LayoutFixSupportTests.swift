@@ -279,6 +279,29 @@ enum LayoutFixSupportTests {
             suite.expect(cycle.shown == first, "shown follows the last tap")
         }
 
+        suite.run("LayoutFix selectionCandidates") {
+            let phrase = LayoutFixSupport.selectionCandidates(text: "ghbdtn vbh", layouts: layouts,
+                                                              currentID: abc.id, isWord: isWord)
+            suite.expect(phrase?.original == LayoutFixCandidate(text: "ghbdtn vbh", layoutIDs: [abc.id]),
+                         "the selection is read in the current layout")
+            suite.expect(phrase?.candidates.first == LayoutFixCandidate(text: "привет мир", layoutIDs: [ru.id, kz.id]),
+                         "each word maps through the keys, got \(String(describing: phrase?.candidates))")
+            let lines = LayoutFixSupport.selectionCandidates(text: "ghbdtn\n\tvbh ", layouts: layouts,
+                                                             currentID: abc.id, isWord: isWord)
+            suite.expect(lines?.candidates.first?.text == "привет\n\tмир ", "whitespace is kept verbatim")
+            let kazakh = LayoutFixSupport.selectionCandidates(text: "сәлем", layouts: layouts,
+                                                              currentID: ru.id, isWord: isWord)
+            suite.expect(kazakh?.original.layoutIDs == [kz.id], "only Kazakh types ә, so it is the source")
+            suite.expect(kazakh?.candidates.map(\.text) == ["c2ktv", "с2лем"],
+                         "the other layouts follow in order, got \(String(describing: kazakh?.candidates))")
+            suite.expect(LayoutFixSupport.selectionCandidates(text: "😀", layouts: layouts,
+                                                              currentID: abc.id, isWord: isWord) == nil,
+                         "text no layout types has no candidates")
+            suite.expect(LayoutFixSupport.selectionCandidates(text: " \n", layouts: layouts,
+                                                              currentID: abc.id, isWord: isWord) == nil,
+                         "whitespace alone has nothing to fix")
+        }
+
         suite.run("LayoutFix isWordTreatsUnavailableLanguageAsUnknown") {
             let available: Set<String> = ["en", "ru"]
             suite.expect(!LayoutFixSupport.isWord("с2лем", language: "kk", available: available) { _, _ in true },
