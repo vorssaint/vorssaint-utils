@@ -164,17 +164,6 @@ enum DisplayInputSupport {
                 BrightnessSupport.dataAddress)
     }
 
-    // MARK: - Reading
-
-    /// Get VCP Feature request with the host address in its checksum, as
-    /// DDC/CI specifies. Monitors that check it ignore a request without it
-    /// and replay their previous reply instead.
-    static func readRequestPacket(code: UInt8) -> [UInt8] {
-        let bytes: [UInt8] = [0x82, 0x01, code]
-        let seed = UInt8(BrightnessSupport.chipAddress << 1) ^ UInt8(BrightnessSupport.dataAddress)
-        return bytes + [bytes.reduce(seed) { $0 ^ $1 }]
-    }
-
     // MARK: - Capabilities string
 
     static let capabilitiesRequestCode: UInt8 = 0xF3

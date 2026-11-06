@@ -34,7 +34,7 @@ enum DisplayInputTests {
                         == BrightnessSupport.packet(payload: [0x10, 0, 50]),
                      "luminance packets keep the usual host address")
         // m1ddc's `get input`; a Samsung Odyssey G5 ignored the request without 0x51.
-        suite.expect(DisplayInputSupport.readRequestPacket(code: 0x60)
+        suite.expect(BrightnessSupport.readRequestPacket(code: 0x60)
                         == [0x82, 0x01, 0x60, checksum([0x6E, 0x51, 0x82, 0x01, 0x60])],
                      "input read request's checksum covers the host address")
         suite.expect(DisplayInputSupport.capabilitiesRequestPacket(offset: 0x20)

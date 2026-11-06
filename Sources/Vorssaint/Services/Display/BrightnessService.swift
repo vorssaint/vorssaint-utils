@@ -2825,7 +2825,7 @@ final class BrightnessService: ObservableObject {
               let read = BrightnessBridge.readI2C else { return nil }
         paceDDCCommand(for: id)
         defer { recordDDCCommandEnd(for: id) }
-        var request = DisplayInputSupport.readRequestPacket(code: code)
+        var request = BrightnessSupport.readRequestPacket(code: code)
         for attempt in 0...BrightnessSupport.retryAttempts {
             usleep(BrightnessSupport.writePauseMicroseconds)
             _ = write(service, BrightnessSupport.chipAddress, BrightnessSupport.dataAddress,
