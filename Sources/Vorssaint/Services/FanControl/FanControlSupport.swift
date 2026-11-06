@@ -389,9 +389,19 @@ enum FanControlPolicy {
         return values
     }
 
+    static let stackedMenuBarFanCount = 2
+
     static func menuBarValue(for speeds: [Double]) -> String? {
+        menuBarLines(for: speeds)?.joined(separator: "/")
+    }
+
+    static func menuBarLines(for speeds: [Double]) -> [String]? {
         guard !speeds.isEmpty, speeds.allSatisfy(validReading) else { return nil }
-        return speeds.map { String(Int($0.rounded())) }.joined(separator: "/")
+        return speeds.map { String(Int($0.rounded())) }
+    }
+
+    static func menuBarStacksFans(_ speeds: [Double], stacked: Bool) -> Bool {
+        stacked && speeds.count == stackedMenuBarFanCount
     }
 
     static func menuBarWidthUnits(fanCount: Int) -> Int {
