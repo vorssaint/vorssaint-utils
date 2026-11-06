@@ -969,6 +969,22 @@ enum CommandBarCatalog {
         }
     }
 
+    /// The row under a mixed list that found more files than it shows. It
+    /// opens Files with the same words, where every answer is listed.
+    static func showAllFilesEntry(count: Int,
+                                  isCapped: Bool,
+                                  bar: CommandBarFeatureStrings,
+                                  open: @escaping () -> Void) -> CommandBarEntry {
+        CommandBarEntry(
+            id: "file.showAll",
+            title: String(format: bar.filesShowAllFormat, isCapped ? "\(count)+" : "\(count)"),
+            subtitle: bar.sourceFiles,
+            icon: .symbol("doc.text.magnifyingglass"),
+            countsUsage: false,
+            keepsBarOpen: true,
+            run: { _ in open() })
+    }
+
     // MARK: - The Mac's own Settings panes
 
     /// One row per pane System Settings shows, opened by the address macOS

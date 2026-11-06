@@ -4,8 +4,8 @@
 import CoreServices
 import Foundation
 
-/// Finds files by name in the folders the person named, through the index
-/// macOS already keeps.
+/// Finds files by name in the folders on the list, the visible folders of
+/// home unless the person changed it, through the index macOS already keeps.
 ///
 /// Nothing is indexed, watched or remembered here: an empty field does no
 /// work, a query is asked of Spotlight once and its answer is thrown away when
@@ -88,6 +88,8 @@ final class CommandBarFileSearch {
     private func execute(query: String, scopes: [String], patterns: [String],
                          cancellationGeneration runCancellationGeneration: Int) {
         guard let expression = CommandBarFileSearchSupport.expression(for: query) else { return }
+        let parsed = CommandBarFileSearchSupport.parse(query)
+        let home = NSHomeDirectory()
         pendingWorkItem = nil
         let runGeneration = generation
         inFlight.insert(query)
@@ -95,9 +97,19 @@ final class CommandBarFileSearch {
             guard let self else { return }
             let found = self.search(expression: expression,
                                     scopes: scopes,
+                                    sort: parsed.sort,
+                                    limit: parsed.isFocused
+                                        ? CommandBarFileSearchSupport.focusedCandidateLimit
+                                        : CommandBarFileSearchSupport.candidateLimit,
                                     cancellationGeneration: runCancellationGeneration)
+            // Spotlight cannot match a path, so the words that name a folder
+            // are checked here, before the order is settled.
+            let matching = found.filter {
+                CommandBarFileSearchSupport.matchesPathWords(
+                    path: $0.path, words: parsed.pathWords, homeDirectory: home)
+            }
             let paths = CommandBarFileSearchSupport.offerable(
-                paths: found,
+                paths: CommandBarFileSearchSupport.sorted(matching, by: parsed.sort),
                 patterns: patterns,
                 isPackage: { Self.isPackage(atPath: $0) })
             DispatchQueue.main.async { [weak self] in
@@ -118,7 +130,10 @@ final class CommandBarFileSearch {
     /// query object never outlives it.
     private func search(expression: String,
                         scopes: [String],
-                        cancellationGeneration runGeneration: Int) -> [String] {
+                        sort: CommandBarFileSearchSupport.SortOrder,
+                        limit: Int,
+                        cancellationGeneration runGeneration: Int)
+        -> [CommandBarFileSearchSupport.Candidate] {
         let liveScopes = scopes.filter(Self.isSearchableDirectory)
         guard !liveScopes.isEmpty else { return [] }
         guard let query = MDQueryCreate(kCFAllocatorDefault, expression as CFString, nil, nil)
@@ -134,26 +149,30 @@ final class CommandBarFileSearch {
                 if activeQuery?.generation == runGeneration { activeQuery = nil }
             }
         }
-        MDQuerySetMaxCount(query, CFIndex(CommandBarFileSearchSupport.candidateLimit))
+        MDQuerySetMaxCount(query, CFIndex(limit))
         MDQuerySetSearchScope(query, liveScopes as CFArray, 0)
         guard MDQueryExecute(query, CFOptionFlags(kMDQuerySynchronous.rawValue)) else { return [] }
         let count = MDQueryGetResultCount(query)
-        var paths: [String] = []
-        paths.reserveCapacity(min(count, CommandBarFileSearchSupport.candidateLimit))
+        var candidates: [CommandBarFileSearchSupport.Candidate] = []
+        candidates.reserveCapacity(min(count, limit))
         for index in 0..<count {
             guard let raw = MDQueryGetResultAtIndex(query, index) else { continue }
             let item = unsafeBitCast(raw, to: MDItem.self)
             guard let path = MDItemCopyAttribute(item, kMDItemPath) as? String else { continue }
-            paths.append(path)
+            var candidate = CommandBarFileSearchSupport.Candidate(path: path)
+            // Only the attribute the sort reads is asked for: each one is a
+            // round trip into the index for every answer.
+            switch sort {
+            case .size:
+                candidate.size = (MDItemCopyAttribute(item, kMDItemFSSize) as? NSNumber)?.int64Value
+            case .modified:
+                candidate.modified = MDItemCopyAttribute(item, kMDItemFSContentChangeDate) as? Date
+            case .name, .path:
+                break
+            }
+            candidates.append(candidate)
         }
-        // A name a person recognizes first, then the path, so two Macs with
-        // the same files answer in the same order.
-        return paths.sorted {
-            let left = ($0 as NSString).lastPathComponent
-            let right = ($1 as NSString).lastPathComponent
-            let byName = left.localizedCaseInsensitiveCompare(right)
-            return byName == .orderedSame ? $0 < $1 : byName == .orderedAscending
-        }
+        return candidates
     }
 
     /// Stops the synchronous Spotlight query itself, not merely its callback.

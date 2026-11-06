@@ -921,8 +921,12 @@ enum CommandBarFeatureTests {
 
         // MARK: Finding a file from the bar
         suite.expect(CommandBarFileSearchSupport.expression(for: "annual report")
-                == "kMDItemFSName == \"*annual*\"cd && kMDItemFSName == \"*report*\"cd",
+                == "(kMDItemFSName == \"*annual*\"cd || kMDItemDisplayName == \"*annual*\"cd)"
+                    + " && (kMDItemFSName == \"*report*\"cd || kMDItemDisplayName == \"*report*\"cd)",
                "every word has to be in the name, in any order")
+        suite.expect(CommandBarFileSearchSupport.expression(for: "入门")
+                == "(kMDItemFSName == \"*入门*\"cd || kMDItemDisplayName == \"*入门*\"cd)",
+               "a word is also asked of the display name, which Spotlight matches for CJK text")
         suite.expect(CommandBarFileSearchSupport.expression(for: "a") == nil
                 && CommandBarFileSearchSupport.expression(for: "   ") == nil,
                "one letter is not a search, so Spotlight is never asked")
@@ -999,9 +1003,9 @@ enum CommandBarFeatureTests {
                "a path is written the short way only where it really is inside home")
         suite.expect(CommandBarFileSearchSupport.candidateLimit >= CommandBarFileSearchSupport.resultLimit,
                "more names are asked for than are shown, since most are filtered away")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.commandBarFileScopes] as? String == ""
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.commandBarFileScopes] as? String == "~"
                 && Defaults.registeredDefaults[DefaultsKey.commandBarFileIgnores] as? String == "",
-               "out of the box the bar has been given no folder, so it looks for no files")
+               "out of the box the bar looks through the visible folders of home")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarFileScopes)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarFileIgnores),
                "folder authority stays on one Mac while ignored names remain portable")
@@ -1024,6 +1028,111 @@ enum CommandBarFeatureTests {
         ])
         suite.expect(invalidFileSearchBackup?.isEmpty == true,
                "a backup cannot restore non-text file search preferences")
+
+        // MARK: Everything-style file syntax
+        for language in AppLanguage.allCases {
+            let format = FeatureStrings.commandBar(language).filesShowAllFormat
+            suite.expect(format.components(separatedBy: "%@").count == 2
+                    && String(format: format, "200+").contains("200+"),
+                   "\(language) says how many files there are, with room for a capped count")
+        }
+        suite.expect(CommandBarPreferences.source(ofRowID: "file.showAll") == .files
+                && !CommandBarPreferences.acceptsPin(rowID: "file.showAll")
+                && !CommandBarPreferences.acceptsAlias(rowID: "file.showAll"),
+               "the show-all row belongs to Files and is never pinned or named")
+        let plainFileQuery = CommandBarFileSearchSupport.parse("annual report")
+        suite.expect(plainFileQuery.nameWords == ["annual", "report"] && !plainFileQuery.isFocused,
+               "plain words stay filename words and keep the ordinary mixed list")
+        for everyday in ["10/2", "(3+4)/2", "km/h", "AC/DC", "github.com/vorssaint",
+                         "https://github.com/", "https://x", "10:30", "localhost:3000", "/"] {
+            suite.expect(!CommandBarFileSearchSupport.parse(everyday).isFocused
+                    && !CommandBarFileSearchSupport.listsOnlyFiles(everyday),
+                   "\(everyday) keeps the ordinary list: arithmetic, units and addresses are not files")
+        }
+        suite.expect(CommandBarFileSearchSupport.listsOnlyFiles("Code/ readme")
+                && CommandBarFileSearchSupport.listsOnlyFiles("ext:pdf")
+                && !CommandBarFileSearchSupport.listsOnlyFiles("Code/")
+                && !CommandBarFileSearchSupport.listsOnlyFiles("sort:modified"),
+               "only file syntax that leaves Spotlight something to ask takes over the list")
+        suite.expect(CommandBarFileSearchSupport.sizeBound(">0.5")?.bytes == 0
+                && CommandBarFileSearchSupport.sizeBound(">=0.5")?.bytes == 1
+                && CommandBarFileSearchSupport.sizeBound("<0.5")?.bytes == 1
+                && CommandBarFileSearchSupport.sizeBound("<=0.5")?.bytes == 0,
+               "a fractional size keeps the same whole-byte files it described")
+        suite.expect(!CommandBarFileSearchSupport.matchesPathWords(
+                    path: "/Users/x/foo~/Code/a.txt", words: ["~/Code/"], homeDirectory: "/Users/x"),
+               "a tilde word starts at home, not at a tilde inside a folder name")
+        let filteredFileQuery = CommandBarFileSearchSupport.parse(
+            "ext:pdf;.DOCX kind:image size:>=10mb modified:week sort:date Code/ tax")
+        suite.expect(filteredFileQuery.extensions == ["pdf", "docx"]
+                && filteredFileQuery.contentTypes == ["public.image"]
+                && filteredFileQuery.sizeBounds
+                    == [CommandBarFileSearchSupport.SizeBound(comparison: ">=", bytes: 10_485_760)]
+                && filteredFileQuery.modified == .week
+                && filteredFileQuery.sort == .modified
+                && filteredFileQuery.pathWords == ["Code/"]
+                && filteredFileQuery.nameWords == ["tax"]
+                && filteredFileQuery.isFocused,
+               "each filter is read into its own part, and a slash makes a path word")
+        let malformedFileQuery = CommandBarFileSearchSupport.parse(
+            "size:huge size:10mb kind:spaceship modified:soon sort:color ext: note:x /")
+        suite.expect(malformedFileQuery.nameWords
+                == ["size:huge", "size:10mb", "kind:spaceship", "modified:soon",
+                    "sort:color", "ext:", "note:x"]
+                && malformedFileQuery.pathWords.isEmpty
+                && !malformedFileQuery.isFocused,
+               "anything that only looks like a filter stays a word instead of vanishing")
+        suite.expect(CommandBarFileSearchSupport.parse("sort:size").isFocused
+                && CommandBarFileSearchSupport.parse("SIZE:<1.5K").sizeBounds
+                    == [CommandBarFileSearchSupport.SizeBound(comparison: "<", bytes: 1536)],
+               "a sort alone asks for files, and keys and units ignore case")
+        suite.expect(CommandBarFileSearchSupport.expression(
+                    for: "ext:pdf;md kind:image size:>1kb invoice")
+                == "(kMDItemFSName == \"*invoice*\"cd || kMDItemDisplayName == \"*invoice*\"cd)"
+                    + " && (kMDItemFSName == \"*.pdf\"c || kMDItemFSName == \"*.md\"c)"
+                    + " && kMDItemContentTypeTree == \"public.image\""
+                    + " && kMDItemFSSize > 1024",
+               "filters become Spotlight clauses, alternatives inside one filter are OR-ed")
+        suite.expect(CommandBarFileSearchSupport.expression(for: "modified:yesterday")
+                == "kMDItemFSContentChangeDate >= $time.today(-1)"
+                    + " && kMDItemFSContentChangeDate < $time.today"
+                && CommandBarFileSearchSupport.expression(for: "modified:today")
+                    == "kMDItemFSContentChangeDate >= $time.today",
+               "a date span is asked of Spotlight in its own calendar terms")
+        suite.expect(CommandBarFileSearchSupport.expression(for: "ext:p*df")
+                    == "kMDItemFSName == \"*.p\\*df\"c"
+                && CommandBarFileSearchSupport.expression(for: "ext:p\"df")
+                    == "kMDItemFSName == \"*.p\\\"df\"c",
+               "an extension is escaped like any word, so it cannot widen the search")
+        suite.expect(CommandBarFileSearchSupport.expression(for: "Code/ Notes/") == nil
+                && CommandBarFileSearchSupport.expression(for: "sort:size") == nil,
+               "path words and a sort alone give Spotlight nothing to ask, so nothing is asked")
+        suite.expect(CommandBarFileSearchSupport.matchesPathWords(
+                    path: "/Users/x/Code/App/README.md", words: ["code/", "~/Code"],
+                    homeDirectory: "/Users/x")
+                && !CommandBarFileSearchSupport.matchesPathWords(
+                    path: "/Users/x/Notes/README.md", words: ["Code/"], homeDirectory: "/Users/x")
+                && !CommandBarFileSearchSupport.matchesPathWords(
+                    path: "/Volumes/Code/README.md", words: ["~/Code"], homeDirectory: "/Users/x")
+                && CommandBarFileSearchSupport.matchesPathWords(
+                    path: "/Users/x/Résumé/cv.pdf", words: ["resume/"], homeDirectory: "/Users/x"),
+               "path words match anywhere in the path, and a tilde means this home only")
+        let earlier = Date(timeIntervalSince1970: 1_000)
+        let later = Date(timeIntervalSince1970: 2_000)
+        let sortCandidates = [
+            CommandBarFileSearchSupport.Candidate(path: "/b/zeta.txt", size: 10, modified: later),
+            CommandBarFileSearchSupport.Candidate(path: "/a/Alpha.txt", size: 30, modified: earlier),
+            CommandBarFileSearchSupport.Candidate(path: "/c/beta.txt", size: nil, modified: nil),
+        ]
+        suite.expect(CommandBarFileSearchSupport.sorted(sortCandidates, by: .name)
+                    == ["/a/Alpha.txt", "/c/beta.txt", "/b/zeta.txt"]
+                && CommandBarFileSearchSupport.sorted(sortCandidates, by: .path)
+                    == ["/a/Alpha.txt", "/b/zeta.txt", "/c/beta.txt"]
+                && CommandBarFileSearchSupport.sorted(sortCandidates, by: .size)
+                    == ["/a/Alpha.txt", "/b/zeta.txt", "/c/beta.txt"]
+                && CommandBarFileSearchSupport.sorted(sortCandidates, by: .modified)
+                    == ["/b/zeta.txt", "/a/Alpha.txt", "/c/beta.txt"],
+               "name and path sort A to Z, size and date put the biggest and newest first")
         suite.expect(CommandBarPreferences.rankBias(for: .files)
                     < CommandBarPreferences.rankBias(for: .actions)
                 && CommandBarPreferences.rankBias(for: .apps)
