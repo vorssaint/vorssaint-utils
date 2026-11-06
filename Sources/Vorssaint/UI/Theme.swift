@@ -37,6 +37,9 @@ enum PanelMetricColor {
         scheme == .light ? Color(red: 0.68, green: 0.08, blue: 0.10) : .red
     }
 
+    /// A warm beige for brightness, read on the island's black.
+    static let brightness = Color(red: 0.92, green: 0.83, blue: 0.68)
+
     static func orange(for scheme: ColorScheme) -> Color {
         scheme == .light ? Color(red: 0.68, green: 0.30, blue: 0.00) : .orange
     }
