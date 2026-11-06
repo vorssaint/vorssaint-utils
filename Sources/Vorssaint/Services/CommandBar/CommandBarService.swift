@@ -2135,6 +2135,22 @@ final class CommandBarService: ObservableObject {
                 self?.revealInFinder(entry)
             })
         }
+        // Return runs an executable file now, so opening it in whatever app
+        // owns it moves off Return and keeps a row action of its own (issue
+        // #576), beside showing it in Finder.
+        if let revealPath = entry.revealPath,
+           CommandBarFileSearchSupport.isRunnableFile(atPath: revealPath) {
+            actions.append(RowAction(id: "openWithEditor",
+                                     title: bar.actionOpenWithEditor,
+                                     symbolName: "doc.text") { [weak self] in
+                self?.hide()
+                guard FileManager.default.fileExists(atPath: revealPath) else {
+                    QuickToolHUD.show(icon: "doc.questionmark", message: entry.title)
+                    return
+                }
+                NSWorkspace.shared.open(URL(fileURLWithPath: revealPath))
+            })
+        }
         if let process = killProcessEntry(for: entry), !process.isProtected {
             let killStrings = FeatureStrings.killProcess(L10n.shared.language)
             actions.append(RowAction(id: "forceKillProcess",

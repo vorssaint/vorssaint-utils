@@ -997,6 +997,31 @@ enum CommandBarFeatureTests {
                 && CommandBarFileSearchSupport.abbreviating("/tmp/a", homeDirectory: "/Users/x")
                 == "/tmp/a",
                "a path is written the short way only where it really is inside home")
+        do {
+            // What Return decides on a found file (issue #576). The rule is
+            // checked against the filesystem here, the way Finder asks it;
+            // the run itself is the saved scripts' runner and is not tested.
+            let folder = FileManager.default.temporaryDirectory
+                .appending(path: "vorss-runnable-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            func scriptFile(_ name: String, permissions: Int?) -> String {
+                let path = folder.appending(path: name).path
+                FileManager.default.createFile(atPath: path, contents: Data("#!/bin/sh\n".utf8),
+                                               attributes: permissions.map { [.posixPermissions: $0] })
+                return path
+            }
+            let runnable = scriptFile("deploy.sh", permissions: 0o755)
+            let binary = scriptFile("installer", permissions: 0o755)
+            let plain = scriptFile("notes.sh", permissions: 0o644)
+            suite.expect(CommandBarFileSearchSupport.isRunnableFile(atPath: runnable)
+                    && CommandBarFileSearchSupport.isRunnableFile(atPath: binary),
+                   "the executable bit makes Return run the file, whether the name ends in .sh or not")
+            suite.expect(!CommandBarFileSearchSupport.isRunnableFile(atPath: plain)
+                    && !CommandBarFileSearchSupport.isRunnableFile(atPath: folder.path)
+                    && !CommandBarFileSearchSupport.isRunnableFile(atPath: runnable + ".gone"),
+                   "a `.sh` without the bit, a folder and a path that is gone still open or say so, they never run")
+        }
         suite.expect(CommandBarFileSearchSupport.candidateLimit >= CommandBarFileSearchSupport.resultLimit,
                "more names are asked for than are shown, since most are filtered away")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.commandBarFileScopes] as? String == ""

@@ -964,6 +964,14 @@ enum CommandBarCatalog {
                         QuickToolHUD.show(icon: "doc.questionmark", message: url.lastPathComponent)
                         return
                     }
+                    // A script or a Unix executable made runnable runs for its
+                    // own effects instead of opening in whatever app owns it
+                    // (issue #576); a `.sh` without the executable bit opens
+                    // the way a found file always did.
+                    if CommandBarFileSearchSupport.isRunnableFile(atPath: path) {
+                        runExecutableFile(at: path)
+                        return
+                    }
                     NSWorkspace.shared.open(url)
                 })
         }
@@ -1510,12 +1518,18 @@ enum CommandBarCatalog {
 
     /// A global shortcut pressed on a script marked as running directly: the
     /// file runs for its side effects, with no argument and nothing on
-    /// screen — not the bar, not a result to copy. A failure beeps, the way
-    /// an app shortcut that would not open does.
+    /// screen — not the bar, not a result to copy.
     static func runScriptDirectly(_ link: CommandBarLink) {
-        let path = (link.destination as NSString).expandingTildeInPath
+        runExecutableFile(at: link.destination)
+    }
+
+    /// Runs an executable file for its own effects: nothing on screen and no
+    /// result to copy, the same bounded runner the saved scripts use. A
+    /// failure beeps, the way an app shortcut that would not open does.
+    private static func runExecutableFile(at path: String) {
+        let expanded = (path as NSString).expandingTildeInPath
         DispatchQueue.global(qos: .userInitiated).async {
-            let (status, _) = Shell.run(path, [], maxOutputBytes: 64 * 1024)
+            let (status, _) = Shell.run(expanded, [], maxOutputBytes: 64 * 1024)
             if status != 0 { DispatchQueue.main.async { NSSound.beep() } }
         }
     }
