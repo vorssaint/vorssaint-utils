@@ -114,7 +114,7 @@ enum LayoutFixSupportTests {
         runBuffer(suite, abc: abc)
         runCandidates(suite, abc: abc, ru: ru, kz: kz)
         runTrigger(suite)
-        runReviewFixes(suite, abc: abc, ru: ru)
+        runReviewFixes(suite, abc: abc, ru: ru, kz: kz)
 
         suite.run("LayoutFix renderOriginalUsesEachKeysLayout") {
             let mixed = keys([5, 4], in: abc.id) + keys([11, 2], in: ru.id)
@@ -418,7 +418,7 @@ enum LayoutFixSupportTests {
         }
     }
 
-    static func runReviewFixes(_ suite: TestSuite, abc: LayoutFixLayout, ru: LayoutFixLayout) {
+    static func runReviewFixes(_ suite: TestSuite, abc: LayoutFixLayout, ru: LayoutFixLayout, kz: LayoutFixLayout) {
         suite.run("LayoutFix fieldGuardAtCaret") {
             let field = "hi ghbdtn " as NSString
             func before(_ range: NSRange) -> String? { field.substring(with: range) }
@@ -485,6 +485,16 @@ enum LayoutFixSupportTests {
                          "and the other way round")
         }
 
+        suite.run("LayoutFix optionLayerIsNotTheSource") {
+            let all = [abc, ru, kz]
+            suite.expect(LayoutFixSupport.sourceLayout(for: "ghbdtn", layouts: all, currentID: kz.id)?.id == abc.id,
+                         "Latin reached through Kazakh's ⌥ layer is still typed on ABC, got \(LayoutFixSupport.sourceLayout(for: "ghbdtn", layouts: all, currentID: kz.id)?.id ?? "nil")")
+            let mixed = LayoutFixSupport.selectionCandidates(text: "привет ghbdtn", layouts: all,
+                                                             currentID: kz.id) { _, _ in false }
+            suite.expect(mixed?.candidates.map(\.text).contains("привет привет") == true,
+                         "a mixed selection maps with Kazakh current, got \(String(describing: mixed?.candidates))")
+        }
+
         suite.run("LayoutFix caretAtStartIsUnknown") {
             suite.expect(LayoutFixSupport.fieldGuard(selection: NSRange(location: 0, length: 0), textLength: 0,
                                                      expected: "ghbdtn ", textBefore: { _ in nil }) == .unknown,
@@ -492,6 +502,41 @@ enum LayoutFixSupportTests {
             suite.expect(LayoutFixSupport.fieldGuard(selection: NSRange(location: 3, length: 0), textLength: 3,
                                                      expected: "ghbdtn ", textBefore: { _ in "abc" }) == .mismatch,
                          "a caret after fewer characters than the word is still a mismatch")
+        }
+
+        suite.run("LayoutFix clickKeepsTheWordForAFieldCheck") {
+            func typed(_ codes: [UInt16]) -> LayoutFixBuffer {
+                var buffer = LayoutFixBuffer()
+                for key in keys(codes, in: abc.id) { buffer.apply(.append, key: key) }
+                return buffer
+            }
+            var clicked = typed([5, 4, 11, 2, 17, 45])
+            let before = clicked.generation
+            clicked.noteClick()
+            suite.expect(clicked.generation != before, "a click ends a cycle")
+            let kept = clicked.wordForFix()
+            suite.expect(kept?.word.count == 6 && kept?.needsFieldCheck == true,
+                         "the word before a toolbar click stays, but only a field that confirms it may be fixed")
+            var after = clicked
+            for key in keys([9, 11, 4], in: abc.id) { after.apply(.append, key: key) }
+            let fresh = after.wordForFix()
+            suite.expect(fresh?.word.map(\.keyCode) == [9, 11, 4] && fresh?.needsFieldCheck == false,
+                         "a word typed after the click is ordinary")
+            var split = typed([5, 4, 11])
+            split.noteClick()
+            for key in keys([2, 17, 45], in: abc.id) { split.apply(.append, key: key) }
+            suite.expect(split.wordForFix()?.word.map(\.keyCode) == [2, 17, 45],
+                         "a word never spans a click: the caret may be elsewhere")
+            var erased = typed([5, 4, 11])
+            erased.noteClick()
+            erased.apply(.deleteLast, key: nil)
+            suite.expect(erased.keys.isEmpty && erased.wordForFix() == nil,
+                         "a backspace after a click deletes at an unknown place, so the old keys go")
+            var plain = typed([5, 4])
+            suite.expect(plain.wordForFix()?.needsFieldCheck == false, "no click, no extra check")
+            plain.apply(.reset, key: nil)
+            plain.noteClick()
+            suite.expect(plain.wordForFix() == nil, "nothing typed, nothing to fix")
         }
 
         suite.run("LayoutFix bufferBelongsToOneApp") {

@@ -65,6 +65,24 @@ struct LayoutFixBuffer {
     /// another desktop, leaves the caret where it was, so the keys stay
     /// until typing goes to a different app.
     private(set) var ownerProcessID: Int32?
+    /// How many keys were typed before the last click. A click on a toolbar
+    /// leaves the caret where it was, a click in the text moves it: the keys
+    /// before it are kept, but only a field that confirms them may be fixed.
+    private(set) var clickIndex: Int?
+
+    mutating func noteClick() {
+        clickIndex = keys.count
+        generation &+= 1
+    }
+
+    /// The word a tap would fix. A word never spans a click; one typed
+    /// before the last click needs the field to confirm it.
+    func wordForFix() -> (word: [LayoutFixKey], trailingSpaces: Int, needsFieldCheck: Bool)? {
+        if let clickIndex, clickIndex < keys.count {
+            return LayoutFixSupport.lastWord(Array(keys[clickIndex...])).map { ($0.word, $0.trailingSpaces, false) }
+        }
+        return LayoutFixSupport.lastWord(keys).map { ($0.word, $0.trailingSpaces, clickIndex != nil) }
+    }
 
     mutating func noteTyping(in processID: Int32) {
         guard ownerProcessID != processID else { return }
@@ -77,11 +95,22 @@ struct LayoutFixBuffer {
         case .append:
             guard let key else { return }
             keys.append(key)
-            if keys.count > Self.capacity { keys.removeFirst(keys.count - Self.capacity) }
+            if keys.count > Self.capacity {
+                let dropped = keys.count - Self.capacity
+                keys.removeFirst(dropped)
+                clickIndex = clickIndex.map { max(0, $0 - dropped) }
+            }
         case .deleteLast:
-            if !keys.isEmpty { keys.removeLast() }
+            if let clickIndex, keys.count <= clickIndex {
+                // After a click a backspace deletes wherever the caret is now.
+                keys.removeAll()
+                self.clickIndex = nil
+            } else if !keys.isEmpty {
+                keys.removeLast()
+            }
         case .reset:
             keys.removeAll()
+            clickIndex = nil
         case .ignore:
             return
         }

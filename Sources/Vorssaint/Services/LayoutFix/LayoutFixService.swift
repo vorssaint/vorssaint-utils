@@ -171,8 +171,7 @@ final class LayoutFixService: ObservableObject {
     /// The buffer as the tap sees it now, for a trigger that does not come
     /// from the tap: the Super key solo action.
     func performExternalTrigger() {
-        let snapshot = inputLock.withLock { (buffer.keys, buffer.generation) }
-        performFix(snapshot: snapshot.0, generation: snapshot.1)
+        performFix(snapshot: inputLock.withLock { buffer })
     }
 
     // MARK: - Fixing (main thread)
@@ -181,12 +180,15 @@ final class LayoutFixService: ObservableObject {
     /// after the last retype: any key typed since ends the cycle.
     private var cycle: LayoutFixCycle?
     private var cycleGeneration: UInt64?
+    /// The cycle's word was typed before a click: only a field that shows it
+    /// may be retyped.
+    private var cycleNeedsFieldCheck = false
 
     /// Runs one fix on the main thread, once the trigger's modifiers are up:
     /// typed while ⌥ is still down, every character would come out as ⌥-text.
-    func performFix(snapshot: [LayoutFixKey], generation: UInt64) {
+    func performFix(snapshot: LayoutFixBuffer) {
         whenModifiersUp(attempt: 0) { [weak self] in
-            self?.fix(snapshot: snapshot, generation: generation)
+            self?.fix(snapshot: snapshot)
         }
     }
 
@@ -200,8 +202,9 @@ final class LayoutFixService: ObservableObject {
         }
     }
 
-    private func fix(snapshot: [LayoutFixKey], generation: UInt64) {
-        Self.log.notice("LF fix start: snapshot=\(snapshot.count, privacy: .public) gen=\(generation, privacy: .public) running=\(self.isRunning, privacy: .public) secure=\(IsSecureEventInputEnabled(), privacy: .public) ownKey=\(NSApp.keyWindow != nil, privacy: .public) app=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "-", privacy: .public)")
+    private func fix(snapshot: LayoutFixBuffer) {
+        let generation = snapshot.generation
+        Self.log.notice("LF fix start: snapshot=\(snapshot.keys.count, privacy: .public) clickIndex=\(snapshot.clickIndex ?? -1, privacy: .public) gen=\(generation, privacy: .public) running=\(self.isRunning, privacy: .public) secure=\(IsSecureEventInputEnabled(), privacy: .public) ownKey=\(NSApp.keyWindow != nil, privacy: .public) app=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "-", privacy: .public)")
         guard isRunning, !IsSecureEventInputEnabled(), NSApp.keyWindow == nil,
               let app = NSWorkspace.shared.frontmostApplication else { return }
         let exceptions = Set(MouseAppExceptions.shared.lists[.layoutFix] ?? [])
@@ -212,7 +215,8 @@ final class LayoutFixService: ObservableObject {
         if var current = cycle, cycleGeneration == now {
             let shown = current.shown
             let next = current.advance()
-            retype(current, from: shown, to: next, processID: processID, generation: now)
+            retype(current, from: shown, to: next, processID: processID, generation: now,
+                   needsFieldCheck: cycleNeedsFieldCheck)
             return
         }
         Self.log.notice("LF cycle? has=\(self.cycle != nil, privacy: .public) cycleGen=\(self.cycleGeneration ?? 0, privacy: .public) now=\(now, privacy: .public)")
@@ -220,7 +224,7 @@ final class LayoutFixService: ObservableObject {
         // Keys typed after the tap: the word it was meant for is gone.
         let fresh = now == generation
         let owner = inputLock.withLock { buffer.ownerProcessID }
-        let word = fresh && owner == processID ? LayoutFixSupport.lastWord(snapshot) : nil
+        let word = fresh && owner == processID ? snapshot.wordForFix() : nil
         let field = SelectedTextReader.focusedTextSelection(processID: processID, timeout: 0.15,
                                                             includingCaret: true)
         // A range selection is one typing replaces; a web page selection
@@ -248,7 +252,8 @@ final class LayoutFixService: ObservableObject {
             NSSound.beep()
         case .lastWord:
             guard let word else { return }
-            fixWord(word.word, trailingSpaces: word.trailingSpaces, processID: processID, generation: now)
+            fixWord(word.word, trailingSpaces: word.trailingSpaces, processID: processID, generation: now,
+                    needsFieldCheck: word.needsFieldCheck)
         case .nothing:
             // A stray tap of the key with nothing typed stays silent.
             Self.log.notice("LF nothing to fix, fresh=\(fresh, privacy: .public) owner=\(owner ?? -1, privacy: .public) app=\(processID, privacy: .public)")
@@ -256,7 +261,7 @@ final class LayoutFixService: ObservableObject {
     }
 
     private func fixWord(_ word: [LayoutFixKey], trailingSpaces spaces: Int, processID: pid_t,
-                         generation: UInt64) {
+                         generation: UInt64, needsFieldCheck: Bool) {
         // A dead key composes two keys into one character: the counts differ.
         guard !LayoutFixSupport.containsDeadKey(word, layouts: layouts),
               let originalText = LayoutFixSupport.renderOriginal(word, layouts: layouts)
@@ -276,7 +281,8 @@ final class LayoutFixService: ObservableObject {
                                      candidates: candidates)
         let shown = started.shown
         let next = started.advance()
-        retype(started, from: shown, to: next, processID: processID, generation: generation)
+        retype(started, from: shown, to: next, processID: processID, generation: generation,
+               needsFieldCheck: needsFieldCheck)
     }
 
     /// Types the best reading over the selection. Later taps continue from
@@ -293,6 +299,21 @@ final class LayoutFixService: ObservableObject {
             let uncovered = Set(text.unicodeScalars.filter { scalar in
                 !scalar.properties.isWhitespace && !self.layouts.contains { LayoutFixSupport.keys(for: String(scalar), in: $0) != nil }
             }.map { String(format: "U+%04X", $0.value) })
+            for target in self.layouts {
+                var failing: Set<String> = []
+                var same = true
+                for word in words {
+                    guard let source = LayoutFixSupport.sourceLayout(for: word, layouts: self.layouts, currentID: currentID),
+                          let wordKeys = LayoutFixSupport.keys(for: word, in: source) else { continue }
+                    for (character, key) in zip(word, wordKeys) {
+                        if LayoutFixSupport.render(key, in: target) == nil {
+                            failing.insert(character.unicodeScalars.map { String(format: "U+%04X", $0.value) }.joined())
+                        }
+                    }
+                    if LayoutFixSupport.render(wordKeys, in: target) != word { same = false }
+                }
+                Self.log.notice("LF selection target \(target.id, privacy: .public): unrenderable=\(failing.sorted().joined(separator: " "), privacy: .public) sameAsOriginal=\(same, privacy: .public)")
+            }
             Self.log.notice("LF selection: no candidates, words=\(words.count, privacy: .public) wordsWithoutSource=\(sourceless.count, privacy: .public) uncovered=\(uncovered.sorted().joined(separator: " "), privacy: .public) wholeSource=\(LayoutFixSupport.sourceLayout(for: words.joined(), layouts: self.layouts, currentID: currentID)?.id ?? "nil", privacy: .public) layouts=\(self.layouts.map(\.id).joined(separator: ","), privacy: .public) current=\(currentID ?? "-", privacy: .public)")
             return false
         }
@@ -315,13 +336,15 @@ final class LayoutFixService: ObservableObject {
         }
         if switched { noteRecent(target) }
         cycle = started
+        cycleNeedsFieldCheck = false
         return true
     }
 
     /// Replaces what the field shows with the next candidate, after checking
     /// that the field really ends with it, then switches the input source.
     private func retype(_ updated: LayoutFixCycle, from shown: LayoutFixCandidate,
-                        to next: LayoutFixCandidate, processID: pid_t, generation: UInt64) {
+                        to next: LayoutFixCandidate, processID: pid_t, generation: UInt64,
+                        needsFieldCheck: Bool) {
         let spaces = String(repeating: " ", count: updated.trailingSpaces)
         let expected = shown.text + spaces
         let field = SelectedTextReader.focusedTextSelection(processID: processID, timeout: 0.15,
@@ -334,7 +357,7 @@ final class LayoutFixService: ObservableObject {
             return field.text(in: NSRange(location: field.range.location - length, length: length))
         }
         Self.log.notice("LF guard=\(String(describing: check), privacy: .public) fieldNil=\(field == nil, privacy: .public) loc=\(field?.range.location ?? -1, privacy: .public) len=\(field?.range.length ?? -1, privacy: .public) expectedLen=\(expected.count, privacy: .public) expected=\(expected, privacy: .private(mask: .hash)) before=\(beforeText ?? "<nil>", privacy: .private(mask: .hash)) beforeLen=\(beforeText?.count ?? -1, privacy: .public)")
-        guard check != .mismatch else { return abandon() }
+        guard check != .mismatch, !(needsFieldCheck && check == .unknown) else { return abandon() }
         // Asking the field takes time; a key typed meanwhile sits after the
         // word, and the backspaces would take it instead.
         let genNow = inputLock.withLock { buffer.generation }
@@ -368,6 +391,7 @@ final class LayoutFixService: ObservableObject {
         }
         if switched { noteRecent(target) }
         cycle = updated
+        cycleNeedsFieldCheck = needsFieldCheck
     }
 
     /// The field is not what the buffer says: nothing is deleted, and the
@@ -521,11 +545,12 @@ final class LayoutFixService: ObservableObject {
         }
         if type == .leftMouseDown || type == .rightMouseDown {
             // A click on the Accessibility Keyboard types a key and leaves
-            // the caret alone; any other click moves it somewhere unknown.
+            // the caret alone. Any other click may move it (in the text) or
+            // not (a toolbar button): the word stays for a field check.
             guard !AssistiveKeyboard.ownsPoint(event.location) else { return }
-            Self.log.notice("LF reset: mouse down")
+            Self.log.notice("LF click: mouse down")
             inputLock.withLock {
-                buffer.apply(.reset, key: nil)
+                buffer.noteClick()
                 _ = triggerState.fires(.mouse)
             }
             return
@@ -541,15 +566,15 @@ final class LayoutFixService: ObservableObject {
         if type == .flagsChanged {
             let timestamp = EventTimestamp.nanoseconds(of: event)
             let down = Self.modifierIsDown(keyCode: keyCode, flags: flags)
-            let fired = inputLock.withLock { () -> (keys: [LayoutFixKey], generation: UInt64)? in
+            let fired = inputLock.withLock { () -> LayoutFixBuffer? in
                 let event: LayoutFixTriggerEvent = down
                     ? .modifierDown(keyCode: keyCode, timestamp: timestamp)
                     : .modifierUp(keyCode: keyCode, timestamp: timestamp)
-                return triggerState.fires(event) ? (buffer.keys, buffer.generation) : nil
+                return triggerState.fires(event) ? buffer : nil
             }
             if let fired {
                 DispatchQueue.main.async { [weak self] in
-                    self?.performFix(snapshot: fired.keys, generation: fired.generation)
+                    self?.performFix(snapshot: fired)
                 }
             }
             return
@@ -573,6 +598,7 @@ final class LayoutFixService: ObservableObject {
             if action == .append { buffer.noteTyping(in: frontmostProcessID) }
             buffer.apply(action, key: action == .append ? key : nil)
         }
+        Self.log.notice("LF key action=\(String(describing: action), privacy: .public) count=\(self.inputLock.withLock { self.buffer.keys.count }, privacy: .public) owner=\(self.inputLock.withLock { self.buffer.ownerProcessID ?? -1 }, privacy: .public) front=\(self.inputLock.withLock { self.frontmostProcessID }, privacy: .public)")
         if action == .reset {
             Self.log.notice("LF reset: key \(keyCode, privacy: .public) cmd=\(flags.contains(.maskCommand), privacy: .public) ctrl=\(flags.contains(.maskControl), privacy: .public)")
         }
