@@ -12,7 +12,70 @@ import ImageIO
 import VMStatisticsCompat
 
 enum UtilitiesFeatureTests {
+    private static func finderDockReplacementChecks(_ suite: TestSuite) {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("finder-dock-tests-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        do {
+            func makeApp(_ name: String, identifier: String?, executable: Bool = true) throws -> URL {
+                let app = root.appendingPathComponent(name + ".app")
+                let binaries = app.appendingPathComponent("Contents/MacOS")
+                try fm.createDirectory(at: binaries, withIntermediateDirectories: true)
+                var info = ["CFBundleExecutable": "TestApp", "CFBundlePackageType": "APPL"]
+                if let identifier { info["CFBundleIdentifier"] = identifier }
+                try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+                    .write(to: app.appendingPathComponent("Contents/Info.plist"))
+                if executable {
+                    let binary = binaries.appendingPathComponent("TestApp")
+                    try Data("#!/bin/sh\nexit 0\n".utf8).write(to: binary)
+                    try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+                }
+                return app
+            }
+
+            let chosen = try makeApp("File Works", identifier: "test.file-manager")
+            let validated = DockClickSupport.validatedFinderReplacementURL(path: chosen.path)
+            suite.expect(validated == chosen.resolvingSymlinksInPath().standardizedFileURL,
+                         "Finder replacement accepts an executable app with spaces in its path")
+            suite.expect(DockClickSupport.finderReplacementAction(
+                clickedBundleIdentifier: "com.apple.finder", replacementURL: validated)
+                    == .openFinderReplacement(chosen.resolvingSymlinksInPath().standardizedFileURL),
+                         "Finder's tile opens the chosen app independently of window state")
+            for identifier in [nil, "test.other-app", "com.vorssaint.utils"] as [String?] {
+                suite.expect(DockClickSupport.finderReplacementAction(
+                    clickedBundleIdentifier: identifier, replacementURL: validated) == nil,
+                             "other Dock icons keep their usual window actions")
+            }
+            suite.expect(DockClickSupport.finderReplacementAction(
+                clickedBundleIdentifier: "com.apple.finder", replacementURL: nil) == nil,
+                         "disabled or unavailable replacements leave Finder's click alone")
+            for identifier in ["com.apple.finder", "com.vorssaint.utils", "com.vorssaint.utils.dev"] {
+                let app = try makeApp(identifier, identifier: identifier)
+                suite.expect(DockClickSupport.validatedFinderReplacementURL(path: app.path) == nil,
+                             "Finder and both host variants cannot be selected as replacements")
+            }
+            let noIdentifier = try makeApp("NoIdentifier", identifier: nil)
+            let noExecutable = try makeApp("NoExecutable", identifier: "test.no-executable", executable: false)
+            for path in ["", "FileWorks.app", "/missing/FileWorks.app", root.path,
+                         noIdentifier.path, noExecutable.path] {
+                suite.expect(DockClickSupport.validatedFinderReplacementURL(path: path) == nil,
+                             "an invalid or incomplete replacement cannot swallow Finder's click")
+            }
+            let alias = root.appendingPathComponent("Alias.app")
+            try fm.createSymbolicLink(at: alias, withDestinationURL: chosen)
+            let resolvedAlias = DockClickSupport.validatedFinderReplacementURL(path: alias.path)
+            suite.expect(resolvedAlias?.path == validated?.path && resolvedAlias != nil,
+                         "app symlinks resolve to the validated target, got \(String(describing: resolvedAlias))")
+            try fm.removeItem(at: chosen)
+            suite.expect(DockClickSupport.validatedFinderReplacementURL(path: chosen.path) == nil,
+                         "a deleted app is rejected even if its bundle metadata was cached")
+        } catch {
+            suite.expect(false, "Finder replacement fixtures: \(error)")
+        }
+    }
+
     static func run(_ suite: TestSuite) {
+        finderDockReplacementChecks(suite)
         // MARK: Port manager parser
 
         let lsofFixture = """
