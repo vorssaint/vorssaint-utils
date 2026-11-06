@@ -9,6 +9,7 @@ struct GeneralSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var appearance = AppAppearanceController.shared
     @ObservedObject private var hotkeys = HotkeyManager.shared
+    @ObservedObject private var permissions = Permissions.shared
     // Seeded from the stored choice so the switch does not flash off while
     // the status read is still on its way.
     @State private var loginRegistration: LaunchAtLoginSupport.Registration =
@@ -17,6 +18,8 @@ struct GeneralSettings: View {
     @State private var loginPending = false
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
+    @AppStorage(DefaultsKey.statusItemMiddleClickAction) private var middleAction = StatusItemQuickAction.none.rawValue
+    @AppStorage(DefaultsKey.statusItemLongPressAction) private var holdAction = StatusItemQuickAction.none.rawValue
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
@@ -28,6 +31,7 @@ struct GeneralSettings: View {
                 Text(l10n.s.tabGeneral).font(.title2.bold())
                 basicsCard
                 appearanceCard
+                statusItemActionsCard
                 if AppFeature.keepAwake.isAvailable {
                     shortcutCard
                 }
@@ -119,6 +123,56 @@ struct GeneralSettings: View {
                 .padding(.leading, settingsRowTextInset)
             }
 #endif
+        }
+    }
+
+    private var statusItemActionsCard: some View {
+        let strings = StatusItemQuickActionStrings.localized(l10n.language)
+        return SettingsCard(title: strings.title) {
+            statusItemActionRow(strings.middleClick, caption: strings.middleHint,
+                                saved: middleAction, select: setMiddleAction)
+            if StatusItemGesture.Settings(middle: .runnable(middleAction)).needsAccessibility,
+               !permissions.accessibility {
+                PermissionRow(kind: .accessibility)
+                    .padding(.leading, settingsRowTextInset)
+            }
+            Divider()
+            statusItemActionRow(strings.longPress, caption: strings.holdHint,
+                                saved: holdAction, select: { holdAction = $0 })
+        }
+    }
+
+    /// A picker write is a user choice; observing defaults would also prompt
+    /// during launch, restore or an unrelated settings refresh.
+    private func setMiddleAction(_ value: String) {
+        guard value != middleAction else { return }
+        middleAction = value
+        if StatusItemGesture.Settings(middle: .runnable(value)).needsAccessibility,
+           !permissions.accessibility {
+            permissions.requestAccessibility()
+        }
+    }
+
+    /// An unknown saved value shows as Off, which is what it runs. A saved
+    /// assignment outlives the feature it points at: the picker still shows
+    /// it, not selectable, and the caption says why it does nothing.
+    private func statusItemActionRow(_ title: String, caption: String, saved: String,
+                                     select: @escaping (String) -> Void) -> some View {
+        let current = StatusItemQuickAction(rawValue: saved) ?? .none
+        let installed = current == .none || current.feature.isAvailable
+        let strings = StatusItemQuickActionStrings.localized(l10n.language)
+        return SettingsRow(symbol: "cursorarrow.click", title: title,
+                           caption: installed ? caption : strings.unavailable) {
+            Picker(title, selection: Binding(get: { current.rawValue }, set: select)) {
+                ForEach(StatusItemQuickAction.allCases) { action in
+                    Text(action.title(l10n.language))
+                        .tag(action.rawValue)
+                        .disabled(action != .none && !action.feature.isAvailable)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .accessibilityLabel(title)
         }
     }
 

@@ -26,6 +26,8 @@ enum DefaultsKey {
     static let batteryLimit = "batteryLimitPercent"       // 0 = never
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
     static let keepAwakeRightClickToggle = "keepAwakeRightClickToggle"
+    static let statusItemMiddleClickAction = "statusItemMiddleClickAction" // StatusItemQuickAction.rawValue
+    static let statusItemLongPressAction = "statusItemLongPressAction"     // StatusItemQuickAction.rawValue
     static let keepAwakeAllowDisplaySleep = "keepAwakeAllowDisplaySleep"
     static let keepAwakeExternalDisplay = "keepAwakeExternalDisplay"
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"

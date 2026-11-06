@@ -172,12 +172,15 @@ enum SettingsDirectory {
         -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
         let quitProtection = FeatureStrings.quitProtection(language)
+        let quickActions = StatusItemQuickActionStrings.localized(language)
         return [
             (categories.essentials, [
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
                                        keywords: [s.launchAtLogin, s.languageLabel,
                                                   FeatureStrings.appearance(language).label,
-                                                  FeatureStrings.appearance(language).dark],
+                                                  FeatureStrings.appearance(language).dark,
+                                                  quickActions.title, quickActions.middleClick,
+                                                  quickActions.longPress],
                                        featureKeywords: [
                                         (.musicBlock, [s.musicBlockTitle, s.musicBlockSection]),
                                        ]),
