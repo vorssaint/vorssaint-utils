@@ -103,6 +103,17 @@ enum InputSourceSelection {
                        name: inputSourceString(source, property: kTISPropertyLocalizedName) ?? "")
     }
 
+    /// Every enabled keyboard source with its readable name, in the order the
+    /// Input menu keeps them. The Globe key's gesture pickers choose from
+    /// this, so a saved action's id always names a source the user saw.
+    static func readings() -> [Reading] {
+        selectableInputSources().map { source in
+            Reading(id: inputSourceString(source, property: kTISPropertyInputSourceID) ?? "",
+                    code: shortCode(languages: languages(of: source)),
+                    name: inputSourceString(source, property: kTISPropertyLocalizedName) ?? "")
+        }
+    }
+
     /// The languages a source types, in the order TIS keeps them.
     static func languages(of source: TISInputSource) -> [String] {
         guard let pointer = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages),
