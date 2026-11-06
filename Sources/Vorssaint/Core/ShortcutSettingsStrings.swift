@@ -12,6 +12,7 @@ struct ShortcutSettingsStrings {
 extension FeatureStrings {
     static func shortcuts(_ language: AppLanguage) -> ShortcutSettingsStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -36,6 +37,12 @@ extension ShortcutSettingsStrings {
         active: "Active",
         inactive: "Inactive",
         superKeyAlternativeFormat: "or %@"
+    )
+
+    static let sv = ShortcutSettingsStrings(
+        active: "Aktiv",
+        inactive: "Inaktiv",
+        superKeyAlternativeFormat: "eller %@"
     )
 
     static let ptBR = ShortcutSettingsStrings(

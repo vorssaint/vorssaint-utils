@@ -52,6 +52,7 @@ struct FanControlFeatureStrings {
 extension FeatureStrings {
     static func fanControl(_ language: AppLanguage) -> FanControlFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -116,6 +117,52 @@ extension FanControlFeatureStrings {
         hottestGPU: "Hottest GPU",
         helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again.",
         resumeAfterRestart: "Resume after restart or sleep"
+    )
+
+    static let sv = FanControlFeatureStrings(
+        title: "Fläktstyrning",
+        hubDescription: "Styr fläktar manuellt eller med temperaturkurvor och se aktuellt och önskat varvtal",
+        showInPanel: "Visa Fläktstyrning i panelen",
+        settingsCaption: "Lägger till manuella fläkthastigheter och temperaturkurvor i menyradspanelen.",
+        fanNameFormat: "Fläkt %d",
+        rpmFormat: "%d RPM",
+        allowControl: "Tillåt fläktstyrning",
+        approvalCaption: "Tillåt Vorssaint under Inloggningsobjekt att använda den skyddade fläktstyrningen.",
+        openSettings: "Öppna systeminställningar",
+        noFans: "Den här datorn har inga styrbara fläktar.",
+        unsupported: "Fläktstyrning är inte tillgänglig på den här datorn.",
+        alreadyControlled: "En annan process styr fläktarna. Återställ först systemstyrningen.",
+        failed: "Fläktarna återgick till systemstyrning eftersom den begärda styrningen inte kunde verifieras.",
+        safetyCaption: "Styrningen är aktiv tills du återgår till System. Den återställs automatiskt om appen kopplas från, datorn försätts i vila, sensorerna slutar svara eller värmetrycket ökar.",
+        safetyStopped: "Återgick till systemstyrning eftersom fläktstyrningen avbröts.",
+        menuBarTitle: "Fläkthastighet",
+        systemControl: "System",
+        manualControl: "Manuell",
+        customCurve: "Kurva",
+        mode: "Styrläge",
+        coolingIntensity: "Fläkthastighet",
+        currentRPMFormat: "Aktuellt %d RPM",
+        targetRPMFormat: "Mål: %d RPM",
+        applyManual: "Använd manuell styrning",
+        applyCurve: "Använd fläktkurva",
+        returnToSystem: "Använd systemstyrning",
+        temperatureUnavailable: "Den valda temperatursensorn slutade svara. Fläktstyrningen återgick till System.",
+        curveUnavailable: "En vald temperatursensor är inte tillgänglig på den här datorn.",
+        sensor: "Temperatursensor",
+        temperature: "Temperatur",
+        fanSpeed: "Fläkthastighet",
+        addPoint: "Lägg till punkt",
+        addSensor: "Lägg till sensor",
+        removePoint: "Ta bort punkt",
+        removeSensor: "Ta bort sensor",
+        curveGraph: "Kurva för temperatur och fläkthastighet",
+        averageSoC: "Genomsnittlig SoC",
+        hottestSoC: "Varmaste SoC",
+        averageCPU: "Genomsnittlig CPU",
+        hottestCPU: "Varmaste CPU",
+        hottestGPU: "Varmaste GPU",
+        helperUnavailable: "Den skyddade fläktstyrningen är inte tillgänglig. Tillåt Vorssaint under Inloggningsobjekt och försök sedan igen.",
+        resumeAfterRestart: "Återuppta efter omstart eller vila"
     )
 
     static let ptBR = FanControlFeatureStrings(

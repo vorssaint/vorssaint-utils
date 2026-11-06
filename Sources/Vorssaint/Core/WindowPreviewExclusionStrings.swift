@@ -14,6 +14,7 @@ struct WindowPreviewExclusionStrings {
 extension FeatureStrings {
     static func windowPreviewExclusions(_ language: AppLanguage) -> WindowPreviewExclusionStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -40,6 +41,14 @@ extension WindowPreviewExclusionStrings {
         addButton: "Add an app…",
         removeButton: "Remove",
         caption: "Window thumbnails stop while one of these apps is in front."
+    )
+
+    static let sv = WindowPreviewExclusionStrings(
+        sectionTitle: "Fönsterminiatyrer",
+        listTitle: "Pausa i dessa appar",
+        addButton: "Lägg till en app...",
+        removeButton: "Ta bort",
+        caption: "Fönsterminiatyrer stannar medan en av dessa appar är framför."
     )
 
     static let ptBR = WindowPreviewExclusionStrings(

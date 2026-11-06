@@ -37,6 +37,7 @@ struct GeneralSettingsStrings {
 extension FeatureStrings {
     static func generalSettings(_ language: AppLanguage) -> GeneralSettingsStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -113,6 +114,35 @@ extension GeneralSettingsStrings {
         sectionUtilities: "Screenshots, cleaner, updates and other tools.",
         sectionControls: "Switches for mouse, keyboard and window features.",
         sectionToggles: "One-click actions like dark mode and muting the mic."
+    )
+
+    static let sv = GeneralSettingsStrings(
+        pageDescription: "Hur Vorssaint startar, ser ut och vad panelen i menyraden visar.",
+        appearanceCaption: "Gäller Vorssaints egna fönster och paneler, inte hela datorn.",
+        launchAtLoginCaption: "Öppnas automatiskt varje gång du startar datorn.",
+        liquidGlassCaption: "Genomskinliga, glasliknande paneler.",
+        liquidGlassOtherWindows: "Andra fönster och paneler",
+        panelIntro: "Klicka på Vorssaints symbol i menyraden för att öppna panelen. Flikarna visas i den här ordningen.",
+        panelReorderHint: "Dra för att ändra ordningen. Stäng av det du inte behöver.",
+        menuBarIconTitle: "Symbol i menyraden",
+        menuBarIconCaption: "Välj den symbol som Vorssaint visar i menyraden.",
+        menuBarIconOther: "Annan symbol",
+        menuBarIconOtherCaption: "Skriv namnet på en valfri SF-symbol. Lämna fältet tomt om du vill använda Vorssaints symbol.",
+        menuBarIconUnknown: "Den här datorn har ingen symbol med det namnet.",
+        menuBarIconReset: "Använd Vorssaints symbol",
+        iconMissingTitle: "Hittar du inte symbolen?",
+        iconMissingCaption: "En full menyrad kan dölja den, särskilt på datorer med skärmskåra.",
+        sectionKeepAwake: "Håller datorn vaken så länge du vill.",
+        sectionDisplays: "Ljusstyrka för dina bildskärmar.",
+        sectionMixer: "Volymen för varje app, med ett reglage per app.",
+        sectionSystem: "Processor, grafik och minne i överblick.",
+        sectionNetwork: "Internethastighet och vilka appar som använder anslutningen.",
+        sectionDisks: "Ledigt utrymme och diskaktivitet.",
+        sectionPower: "Batteri, laddning och energianvändning.",
+        sectionFanControl: "Fläkthastigheter och din egen fläktkurva.",
+        sectionUtilities: "Skärmbilder, städning, uppdateringar och andra verktyg.",
+        sectionControls: "Reglage för mus-, tangentbords- och fönsterfunktioner.",
+        sectionToggles: "Åtgärder med ett klick, som mörkt läge och att stänga av mikrofonen."
     )
 
     static let ptBR = GeneralSettingsStrings(

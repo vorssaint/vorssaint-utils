@@ -30,6 +30,25 @@ struct CodexAccountStrings {
 extension FeatureStrings {
     static func codexAccounts(_ language: AppLanguage) -> CodexAccountStrings {
         switch language {
+        case .sv: return CodexAccountStrings(
+            title: "Codex-konton",
+            explanation: "Varje CODEX_HOME-mapp du lägger till får ett eget kort för gränser. Medan sidan AI-agenter är öppen kontrollerar Codex varje konto ungefär var femte minut med mappens egen inloggning. Ingen uppmaning skickas.",
+            accountName: "Kontonamn",
+            remove: "Ta bort kortet för det här kontot",
+            find: "Hitta lokala konton",
+            add: "Lägg till mapp…",
+            check: "Kontrollera gränser",
+            fallback: "När inga konton har lagts till hämtas Codex gränser från dess lokala sessioner.",
+            resetsNote: "Kortet Återställningar tillhör fortfarande standardkontot för Codex.",
+            chooseFolder: "Välj en Codex-mapp",
+            invalidFolder: "Välj en separat CODEX_HOME-mapp med config.toml eller auth.json. Mappen måste tillhöra dig och får inte vara skrivbar för andra. auth.json måste vara privat och får inte vara en länk. Codex kan förnya sin egen inloggning och sina cachar där.",
+            folderProblem: "Välj den här kontomappen igen i Inställningar.",
+            defaultName: "Standard",
+            defaultAccount: "Standardkonto",
+            refreshHint: "Uppdatera för att kontrollera kontots gränser.",
+            signIn: "Logga in med ChatGPT i den här Codex-mappen.",
+            update: "Uppdatera Codex för att kontrollera gränser.",
+            failed: "Det gick inte att kontrollera gränserna. Försök igen.")
         case .enUS: return CodexAccountStrings(
             title: "Codex accounts",
             explanation: "Each CODEX_HOME folder you add gets its own limits card. While the AI Agents page is open, Codex checks each one about every five minutes with that folder’s own sign-in. No prompt is sent.",
