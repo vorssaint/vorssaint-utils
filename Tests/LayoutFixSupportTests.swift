@@ -269,6 +269,25 @@ enum LayoutFixSupportTests {
                          "the first in order when none was used")
         }
 
+        suite.run("LayoutFix kazakhWinsWhenRussianDoesNotKnowTheWord") {
+            let dictionaries: Set<String> = ["en", "ru"]
+            func target(_ candidate: LayoutFixCandidate, recency: [String]) -> String {
+                LayoutFixSupport.targetLayoutID(for: candidate, recency: recency, layouts: layouts,
+                                                isWord: isWord, hasDictionary: dictionaries.contains)
+            }
+            let rakhmet = LayoutFixSupport.candidates(keys: keys([4, 3, 33, 9, 17, 45], in: abc.id),
+                                                      originalText: "hf[vtn", layouts: layouts, isWord: isWord)
+            suite.expect(rakhmet.first?.text == "рахмет" && rakhmet.first?.layoutIDs == [ru.id, kz.id],
+                         "рахмет types the same in Russian and Kazakh, got \(rakhmet)")
+            suite.expect(rakhmet.first.map { target($0, recency: [ru.id, kz.id]) } == kz.id,
+                         "a word the Russian dictionary does not know goes to Kazakh, even right after Russian")
+            let privet = LayoutFixCandidate(text: "привет", layoutIDs: [ru.id, kz.id])
+            suite.expect(target(privet, recency: [kz.id, ru.id]) == ru.id,
+                         "a Russian word goes to Russian, even right after Kazakh")
+            let unknownEverywhere = LayoutFixCandidate(text: "zzz", layoutIDs: [abc.id])
+            suite.expect(target(unknownEverywhere, recency: []) == abc.id, "a single layout is the target")
+        }
+
         suite.run("LayoutFix cycleWalksAndReturns") {
             let original = LayoutFixCandidate(text: "c2ktv", layoutIDs: [abc.id])
             let first = LayoutFixCandidate(text: "сәлем", layoutIDs: [kz.id])

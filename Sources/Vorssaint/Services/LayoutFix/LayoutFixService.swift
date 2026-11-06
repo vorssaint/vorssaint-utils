@@ -326,7 +326,7 @@ final class LayoutFixService: ObservableObject {
               TextSnippetService.postExpansion(deleteCount: 0, typedTrigger: "", text: next.text,
                                                trailingKeyCode: nil, trailingFlags: [],
                                                marker: OwnKeyEvent.layoutFixMarker) else { return false }
-        let target = LayoutFixSupport.targetLayoutID(for: next, recency: recency)
+        let target = targetLayoutID(for: next)
         let switched = InputSourceSelection.select(sourceID: target)
         inputLock.withLock {
             // What was typed before the selection is no longer before the caret.
@@ -375,7 +375,7 @@ final class LayoutFixService: ObservableObject {
         let backToOriginal = next == updated.original
         let target = backToOriginal
             ? (updated.keys.last?.layoutID ?? updated.original.layoutIDs.first ?? "")
-            : LayoutFixSupport.targetLayoutID(for: next, recency: recency)
+            : targetLayoutID(for: next)
         let switched = InputSourceSelection.select(sourceID: target)
         inputLock.withLock {
             if backToOriginal {
@@ -401,6 +401,19 @@ final class LayoutFixService: ObservableObject {
         cycle = nil
         cycleGeneration = nil
         resetBuffer()
+    }
+
+    /// Where typing goes after `candidate`: a layout whose dictionary knows
+    /// the word, else one without a dictionary (Kazakh), else the rest.
+    private func targetLayoutID(for candidate: LayoutFixCandidate) -> String {
+        let available = Set(NSSpellChecker.shared.availableLanguages)
+        return LayoutFixSupport.targetLayoutID(for: candidate, recency: recency, layouts: layouts,
+                                               isWord: { text, language in
+                                                   LayoutFixSupport.isWord(text, language: language,
+                                                                           available: available,
+                                                                           check: Self.spellCheck)
+                                               },
+                                               hasDictionary: available.contains)
     }
 
     private static func spellCheck(_ text: String, language: String) -> Bool {

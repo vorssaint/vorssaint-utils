@@ -546,6 +546,25 @@ enum LayoutFixSupport {
         recency.first { candidate.layoutIDs.contains($0) } ?? candidate.layoutIDs.first ?? ""
     }
 
+    /// Where typing goes on when the candidate reads the same in several
+    /// layouts: first a layout whose dictionary knows the word, then one with
+    /// no dictionary to ask (Kazakh), and only then one whose dictionary
+    /// rejects it. Within the best of those, the most recently used.
+    /// `рахмет` goes to Kazakh because Russian does not know it; `привет`
+    /// goes to Russian.
+    static func targetLayoutID(for candidate: LayoutFixCandidate, recency: [String], layouts: [LayoutFixLayout],
+                               isWord: (_ text: String, _ language: String) -> Bool,
+                               hasDictionary: (_ language: String) -> Bool) -> String {
+        func tier(_ id: String) -> Int {
+            guard let language = layouts.first(where: { $0.id == id })?.language else { return 2 }
+            if isWord(candidate.text, language) { return 0 }
+            return hasDictionary(language) ? 2 : 1
+        }
+        guard let best = candidate.layoutIDs.map(tier).min() else { return "" }
+        let preferred = candidate.layoutIDs.filter { tier($0) == best }
+        return targetLayoutID(for: LayoutFixCandidate(text: candidate.text, layoutIDs: preferred), recency: recency)
+    }
+
     // MARK: - Safety
 
     /// Terminals keep a selection in their scrollback while typing goes to
