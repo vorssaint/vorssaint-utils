@@ -28,6 +28,17 @@ enum BatteryPowerSupport {
         return hasBattery ? .onBattery : .unavailable
     }
 
+    static func menuBarSymbol(percent: Int, isCharging: Bool, externalConnected: Bool) -> String {
+        if showsBolt(isCharging: isCharging, externalConnected: externalConnected) { return "battery.100.bolt" }
+        switch percent {
+        case 85...: return "battery.100"
+        case 60..<85: return "battery.75"
+        case 35..<60: return "battery.50"
+        case 10..<35: return "battery.25"
+        default: return "battery.0"
+        }
+    }
+
     /// The bolt belongs to external power, not to a charge in progress. A Mac
     /// held at a charge limit, and a Mac sitting at full on its adapter, both
     /// report `isCharging` false while still running off the adapter, so a
@@ -36,14 +47,13 @@ enum BatteryPowerSupport {
     /// A charge in progress keeps the bolt on its own, so an adapter the system
     /// has not reported yet still reads as external power rather than dropping
     /// back to a level.
-    static func menuBarSymbol(percent: Int, isCharging: Bool, externalConnected: Bool) -> String {
-        if isCharging || externalConnected { return "battery.100.bolt" }
-        switch percent {
-        case 85...: return "battery.100"
-        case 60..<85: return "battery.75"
-        case 35..<60: return "battery.50"
-        case 10..<35: return "battery.25"
-        default: return "battery.0"
-        }
+    static func showsBolt(isCharging: Bool, externalConnected: Bool) -> Bool {
+        isCharging || externalConnected
+    }
+
+    /// How much of the island's battery to fill: the charge itself, not one of
+    /// the menu bar glyph's five steps.
+    static func fillFraction(percent: Int) -> Double {
+        Double(min(max(percent, 0), 100)) / 100
     }
 }

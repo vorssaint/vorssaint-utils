@@ -213,12 +213,11 @@ struct NotchCapsuleRestingView: View {
             HStack(spacing: 5) {
                 switch service.idleContent {
                 case .battery:
-                    let symbol = NotchRestingBattery.symbol(for: service.power)
                     let tint = NotchRestingBattery.tint(for: service.power, tint: lowBatteryTint,
                                                         threshold: lowBatteryThreshold, early: earlyBatteryWarning,
                                                         earlyThreshold: earlyBatteryThreshold)
-                    Image(systemName: symbol).font(.system(size: CapsuleLayout.symbolSize))
-                        .capsuleCentred(symbol, weight: .regular)
+                    NotchBatteryIcon(power: service.power, size: CapsuleLayout.symbolSize)
+                        .capsuleCentred(NotchBatteryIcon.baseSymbol, weight: .regular)
                         .foregroundStyle(tint)
                     if let percent = service.power.chargePercent {
                         Text("\(percent)%").font(Font(CapsuleLayout.smallFont as CTFont)).lineLimit(1)
