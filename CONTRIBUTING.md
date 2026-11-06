@@ -69,6 +69,12 @@ prove the app builds. Build the app and run its selftest for runtime, UI or bund
 resource changes. CI also checks the optimized build, selftest, tests and packaging.
 Builds should finish without warnings.
 
+For a translation, `python3 Tools/l10n_check.py --lang <case>` compares the
+language with main without building: fields main added or removed, language
+switches, permission prompts, plural rules, format arguments, text left in
+English and English that changed after it was translated. Before asking for
+review, fix what it reports or say in the PR why a finding does not apply.
+
 For behavior involving windows, permissions or hardware, describe what you actually
 verified and on which Mac and macOS version. Include display, Spaces or language
 details when relevant, and state what remains untested. Compilation and static
