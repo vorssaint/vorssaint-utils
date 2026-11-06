@@ -192,6 +192,7 @@ extension Strings {
         ocrCaption: "Vyberte oblasť obrazovky a rozpoznaný text sa skopíruje, pripravený na vloženie.",
         ocrCopied: "Text skopírovaný",
         ocrNoText: "Nenašiel sa žiadny text",
+        ocrPickToCopyHint: "Kliknutím alebo ťahaním slov skopírujete",
         colorPickerName: "Výber farby",
         colorPickerCaption: "Zoberte farbu ľubovoľného pixelu na obrazovke a skopírujte ju vo svojom obľúbenom formáte.",
         colorPickerFormatLabel: "Formát kopírovania",

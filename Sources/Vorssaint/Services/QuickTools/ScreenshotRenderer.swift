@@ -237,6 +237,42 @@ enum ScreenshotRenderer {
             context.fillPath()
         }
         context.restoreGState()
+        if annotation.arrowStyle == .numbered, annotation.number > 0 {
+            drawNumberedArrowBadge(annotation, at: start, in: context, scale: scale)
+        }
+    }
+
+    private static func drawNumberedArrowBadge(_ annotation: ScreenshotSupport.Annotation,
+                                               at point: CGPoint,
+                                               in context: CGContext,
+                                               scale: CGFloat) {
+        let diameter = max(14, annotation.stroke.width * scale * 3.2)
+        let rect = CGRect(x: point.x - diameter / 2,
+                          y: point.y - diameter / 2,
+                          width: diameter,
+                          height: diameter)
+        context.saveGState()
+        context.setFillColor(color(annotation.color))
+        context.fillEllipse(in: rect)
+        context.setStrokeColor(CGColor(gray: 1, alpha: 0.92))
+        context.setLineWidth(max(1.2, diameter * 0.06))
+        context.strokeEllipse(in: rect.insetBy(dx: 1, dy: 1))
+        context.restoreGState()
+
+        let label = "\(annotation.number)"
+        let font = NSFont.systemFont(ofSize: diameter * 0.52, weight: .bold)
+        let textColor: NSColor = annotation.color == .white ? .black : .white
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: textColor,
+        ]
+        let size = (label as NSString).size(withAttributes: attributes)
+        let origin = CGPoint(x: rect.midX - size.width / 2,
+                             y: rect.midY - size.height / 2)
+        let previous = NSGraphicsContext.current
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+        label.draw(at: origin, withAttributes: attributes)
+        NSGraphicsContext.current = previous
     }
 
     private static func drawFreehand(_ annotation: ScreenshotSupport.Annotation,

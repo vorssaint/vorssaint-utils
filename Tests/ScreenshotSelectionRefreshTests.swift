@@ -55,6 +55,9 @@ enum ScreenshotSelectionRefreshContract {
         var loupeImage: CGImage?
         var dragOrigin: CGPoint?
         var selection = CGRect.zero
+        var isAdjusting = false
+        var activeHandle: ScreenshotSupport.Handle?
+        var annotationDragActive = false
         var hoverPoint = CGPoint.zero
         var pointerIsInside = false
         var hoveredWindow: ScreenshotSupport.PickableWindow?
@@ -69,6 +72,10 @@ enum ScreenshotSelectionRefreshContract {
         func refreshCaptureGuide() {}
         func refreshPointerState() {}
         func updateLoupeImage(_ image: CGImage?) { loupeImage = image }
+        /// Production Enter/Complete confirm for adjustable regions; unused in these doubles.
+        func confirmAdjustingSelectionIfNeeded(openEditor: Bool = false) -> Bool { false }
+        /// Mirrors production cleanup when the capture tool changes mid-session.
+        func endInlineEditingSession() { annotationDragActive = false }
     }
     @MainActor final class ScreenshotOverlayPanel {
         let displayID: CGDirectDisplayID
@@ -150,8 +157,9 @@ enum ScreenshotSelectionRefreshContract {
             let anchorRect: CGRect
         }
         enum Outcome {
-            case captured(Capture), region(RecorderSupport.Region), scrollingRegion(
-                RecorderSupport.Region), color(NSColor), failed, cancelled
+            case captured(Capture), capturedForEdit(Capture), copied(Capture),
+                region(RecorderSupport.Region),
+                scrollingRegion(RecorderSupport.Region), color(NSColor), failed, cancelled
         }
         var activeTool: ScreenCaptureTool?
         var activeMode: Mode {
@@ -218,8 +226,17 @@ enum ScreenshotSelectionRefreshContract {
             finished = true
         }
         func captureLive(
-            displayID: CGDirectDisplayID, pixelRect: CGRect?, scale: CGFloat, anchorRect: CGRect
-        ) { finish(.captured(Capture(image: CGImage(excluded: []), scale: scale, anchorRect: anchorRect))) }
+            displayID: CGDirectDisplayID, pixelRect: CGRect?, scale: CGFloat, anchorRect: CGRect,
+            openEditor: Bool = false,
+            copyOnly: Bool = false
+        ) {
+            let capture = Capture(image: CGImage(excluded: []), scale: scale, anchorRect: anchorRect)
+            if copyOnly {
+                finish(.copied(capture))
+            } else {
+                finish(openEditor ? .capturedForEdit(capture) : .captured(capture))
+            }
+        }
     }
 
     enum QuickToolsSupport {
