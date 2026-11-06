@@ -117,6 +117,13 @@ extension FeatureStrings {
                 gifSize: "GIF 大小",
                 customSize: "自訂大小",
                 frameRate: "影格率")
+        case .ca:
+            return RecorderExportFormatStrings(
+                format: "Format d’exportació",
+                video: "Vídeo",
+                gifSize: "Mida del GIF",
+                customSize: "Mida personalitzada",
+                frameRate: "Freqüència de fotogrames")
         }
     }
 }
