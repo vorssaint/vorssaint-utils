@@ -23,6 +23,7 @@ enum NotchAgentTests {
         HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
+        daylightSavingHours(suite)
         AgentUsageSummaryCacheTests.run(suite)
         limits(suite)
         strip(suite)
@@ -2334,6 +2335,39 @@ enum NotchAgentTests {
         suite.expect(AgentUsageSummary.index(of: now, in: [now.addingTimeInterval(-10), now, now.addingTimeInterval(10)]) == 1
                         && AgentUsageSummary.index(of: now.addingTimeInterval(-20), in: [now]) == nil,
                      "a time falls in the last bucket that starts at or before it")
+    }
+
+    /// A local day is 23 or 25 hours when daylight saving changes, so the
+    /// Today chart cannot assume 24 bars.
+    private static func daylightSavingHours(_ suite: TestSuite) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        // 8 March 2026 springs forward (23h); 1 November 2026 falls back (25h).
+        let changes = [(month: 3, day: 8, hours: 23), (month: 11, day: 1, hours: 25)]
+        for change in changes {
+            let today = calendar.date(from: DateComponents(year: 2026, month: change.month, day: change.day))!
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+            func at(_ hour: Int, _ minute: Int = 0) -> Date {
+                calendar.date(from: DateComponents(year: 2026, month: change.month, day: change.day,
+                                                   hour: hour, minute: minute))!
+            }
+            func hour(after date: Date) -> Date {
+                calendar.date(byAdding: .hour, value: 1, to: date) ?? .distantFuture
+            }
+            let snapshot = AgentUsageSummary.snapshot(records: [record(.claude, at(23, 30), cost: 3)],
+                                                      limits: [:], live: [], plans: [:],
+                                                      providers: [.claude], now: at(23, 45), calendar: calendar)
+            let starts = snapshot.hours.map(\.start)
+            guard let first = starts.first, let last = starts.last else {
+                suite.expect(false, "a \(change.hours)-hour day produced no hour bars")
+                continue
+            }
+            let steps = zip(starts, starts.dropFirst()).allSatisfy { hour(after: $0) == $1 }
+            suite.expect(starts.count == change.hours && first == today && last < tomorrow
+                            && steps && hour(after: last) == tomorrow
+                            && snapshot.hours.filter { $0.total.cost == 3 }.map(\.start) == [at(23)],
+                         "a \(change.hours)-hour day has one bar per local hour, and 11:30 PM stays in the 11 PM bar")
+        }
     }
 
     private static func limits(_ suite: TestSuite) {
