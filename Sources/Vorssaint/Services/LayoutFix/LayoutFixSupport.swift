@@ -32,6 +32,20 @@ struct LayoutFixLayout: Equatable {
     let language: String
     let table: [LayoutFixChord: String]
     let capsTable: [LayoutFixChord: String]
+    /// Chords that start a composed character (⌥e then e is one `é`): the
+    /// field shows fewer characters than keys, so a word with one is never
+    /// retyped.
+    var deadChords: Set<LayoutFixChord> = []
+}
+
+/// How the tap treats a key event Vorssaint posted itself.
+enum LayoutFixOwnEvent: Equatable {
+    /// This feature's own retype: already accounted for.
+    case retype
+    /// Another feature typed or pasted: the field no longer matches the buffer.
+    case otherFeature
+    /// A key from the keyboard.
+    case typing
 }
 
 /// What a key press does to the buffer of keys typed since the caret last moved.
@@ -274,6 +288,37 @@ enum LayoutFixSupport {
         return table
     }
 
+    /// The chords that leave a dead-key state behind instead of a character.
+    static func deadChords(from layoutData: Data) -> Set<LayoutFixChord> {
+        var dead: Set<LayoutFixChord> = []
+        layoutData.withUnsafeBytes { raw in
+            guard let layout = raw.bindMemory(to: UCKeyboardLayout.self).baseAddress else { return }
+            for keyCode in keyCodes {
+                for shift in [false, true] {
+                    for option in [false, true] {
+                        let modifiers = (shift ? shiftKey : 0) | (option ? optionKey : 0)
+                        var deadKeyState: UInt32 = 0
+                        var length = 0
+                        var characters = [UniChar](repeating: 0, count: 8)
+                        let status = UCKeyTranslate(layout, keyCode, UInt16(kUCKeyActionDown),
+                                                    UInt32(modifiers >> 8), UInt32(LMGetKbdType()),
+                                                    0, &deadKeyState, characters.count, &length, &characters)
+                        if status == noErr, deadKeyState != 0 {
+                            dead.insert(LayoutFixChord(keyCode: keyCode, shift: shift, option: option))
+                        }
+                    }
+                }
+            }
+        }
+        return dead
+    }
+
+    static func containsDeadKey(_ keys: [LayoutFixKey], layouts: [LayoutFixLayout]) -> Bool {
+        keys.contains { key in
+            layouts.first { $0.id == key.layoutID }?.deadChords.contains(key.chord) == true
+        }
+    }
+
     // MARK: - Rendering
 
     static func render(_ key: LayoutFixKey, in layout: LayoutFixLayout) -> String? {
@@ -475,13 +520,54 @@ enum LayoutFixSupport {
         return textBeforeCaret.hasSuffix(expected) ? .match : .mismatch
     }
 
+    /// An inline completion: the field selected what it suggests after the
+    /// typed word, up to the end of the text (an address bar does this).
+    /// The word is what was meant; the delete count clears the suggestion.
+    static func isCompletion(selection: NSRange, textLength: Int, expected: String,
+                             textBefore: (NSRange) -> String?) -> Bool {
+        let length = (expected as NSString).length
+        guard selection.length > 0, length > 0, selection.location >= length,
+              NSMaxRange(selection) == textLength,
+              let before = textBefore(NSRange(location: selection.location - length, length: length))
+        else { return false }
+        return before.compare(expected, options: .caseInsensitive) == .orderedSame
+    }
+
+    /// Whether the field shows `expected` right before where the backspaces
+    /// go. A caret is compared with the text before it; an inline completion
+    /// after the word is fine; any other selection would be deleted by the
+    /// first backspace. A field that does not answer cannot be checked.
+    static func fieldGuard(selection: NSRange?, textLength: Int, expected: String,
+                           textBefore: (NSRange) -> String?) -> LayoutFixGuard {
+        guard let selection else { return .unknown }
+        if selection.length > 0 {
+            return isCompletion(selection: selection, textLength: textLength,
+                                expected: expected, textBefore: textBefore) ? .match : .mismatch
+        }
+        let length = (expected as NSString).length
+        guard selection.location >= length else { return .mismatch }
+        return guardDecision(expected: expected,
+                             textBeforeCaret: textBefore(NSRange(location: selection.location - length,
+                                                                 length: length)))
+    }
+
+    /// Our own retype is skipped; anything else Vorssaint posts (a snippet
+    /// expansion, a pasted clip) changes the field behind the buffer's back.
+    static func ownEvent(userData: Int64, isPosted: Bool) -> LayoutFixOwnEvent {
+        guard isPosted else { return .typing }
+        return userData == OwnKeyEvent.layoutFixMarker ? .retype : .otherFeature
+    }
+
     /// A selection is fixed only where typing replaces it: an ordinary text
     /// field. A web page selection (text markers) and a terminal selection
     /// fall back to the last typed word.
     static func target(selectionLength: Int, selectionFromTextMarkers: Bool,
-                       bundleID: String?, hasWord: Bool) -> LayoutFixTarget {
+                       bundleID: String?, hasWord: Bool,
+                       selectionIsCompletion: Bool = false) -> LayoutFixTarget {
         let inTerminal = bundleID.map(terminalBundleIDs.contains) ?? false
-        if selectionLength > 0, !selectionFromTextMarkers, !inTerminal { return .selection }
+        if selectionLength > 0, !selectionFromTextMarkers, !inTerminal, !selectionIsCompletion {
+            return .selection
+        }
         return hasWord ? .lastWord : .nothing
     }
 

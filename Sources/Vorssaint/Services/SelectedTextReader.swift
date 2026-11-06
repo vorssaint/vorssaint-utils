@@ -92,7 +92,11 @@ enum SelectedTextReader {
     /// role query switches a Chromium app's renderers into full accessibility
     /// mode for the rest of its life (issue #953), and this is asked of
     /// whatever app is in front.
-    static func focusedTextSelection(processID: pid_t, timeout: TimeInterval) -> FocusedTextSelection? {
+    ///
+    /// `includingCaret` also answers for an empty selection, so a caller can
+    /// read the text right before the caret.
+    static func focusedTextSelection(processID: pid_t, timeout: TimeInterval,
+                                     includingCaret: Bool = false) -> FocusedTextSelection? {
         guard AXIsProcessTrusted(), processID != ProcessInfo.processInfo.processIdentifier
         else { return nil }
         let deadline = ProcessInfo.processInfo.systemUptime + timeout
@@ -105,7 +109,7 @@ enum SelectedTextReader {
               let rawRange = copyValue(focused, kAXSelectedTextRangeAttribute),
               CFGetTypeID(rawRange) == AXValueGetTypeID(),
               AXValueGetValue(rawRange as! AXValue, .cfRange, &range),
-              range.length > 0,
+              range.length > 0 || includingCaret,
               limit(focused, to: deadline),
               let length = copyValue(focused, kAXNumberOfCharactersAttribute) as? Int
         else { return nil }

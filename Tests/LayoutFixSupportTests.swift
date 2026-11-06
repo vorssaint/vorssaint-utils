@@ -18,7 +18,8 @@ enum LayoutFixSupportTests {
         return LayoutFixLayout(id: id,
                                language: language,
                                table: LayoutFixSupport.table(from: data, capsLock: false),
-                               capsTable: LayoutFixSupport.table(from: data, capsLock: true))
+                               capsTable: LayoutFixSupport.table(from: data, capsLock: true),
+                               deadChords: LayoutFixSupport.deadChords(from: data))
     }
 
     static func keys(_ codes: [UInt16], in id: String,
@@ -113,6 +114,7 @@ enum LayoutFixSupportTests {
         runBuffer(suite, abc: abc)
         runCandidates(suite, abc: abc, ru: ru, kz: kz)
         runTrigger(suite)
+        runReviewFixes(suite, abc: abc, ru: ru)
 
         suite.run("LayoutFix renderOriginalUsesEachKeysLayout") {
             let mixed = keys([5, 4], in: abc.id) + keys([11, 2], in: ru.id)
@@ -413,6 +415,76 @@ enum LayoutFixSupportTests {
             suite.expect(target(0) == .lastWord, "no selection fixes the last word")
             suite.expect(target(0, word: false) == .nothing, "nothing to fix")
             suite.expect(LayoutFixSupport.terminalBundleIDs.contains("com.googlecode.iterm2"), "iTerm is a terminal")
+        }
+    }
+
+    static func runReviewFixes(_ suite: TestSuite, abc: LayoutFixLayout, ru: LayoutFixLayout) {
+        suite.run("LayoutFix fieldGuardAtCaret") {
+            let field = "hi ghbdtn " as NSString
+            func before(_ range: NSRange) -> String? { field.substring(with: range) }
+            let caret = NSRange(location: field.length, length: 0)
+            suite.expect(LayoutFixSupport.fieldGuard(selection: caret, textLength: field.length,
+                                                     expected: "ghbdtn ", textBefore: before) == .match,
+                         "a caret right after the word matches")
+            suite.expect(LayoutFixSupport.fieldGuard(selection: caret, textLength: field.length,
+                                                     expected: "café ", textBefore: before) == .mismatch,
+                         "a caret after other text is a mismatch")
+            suite.expect(LayoutFixSupport.fieldGuard(selection: NSRange(location: 2, length: 0), textLength: field.length,
+                                                     expected: "ghbdtn ", textBefore: before) == .mismatch,
+                         "less text before the caret than the word is a mismatch")
+            suite.expect(LayoutFixSupport.fieldGuard(selection: caret, textLength: field.length,
+                                                     expected: "ghbdtn ", textBefore: { _ in nil }) == .unknown,
+                         "a field that does not give its text cannot be checked")
+            suite.expect(LayoutFixSupport.fieldGuard(selection: nil, textLength: 0,
+                                                     expected: "ghbdtn ", textBefore: before) == .unknown,
+                         "no answer from the field")
+            suite.expect(LayoutFixSupport.fieldGuard(selection: NSRange(location: 3, length: 2), textLength: field.length,
+                                                     expected: "ghbdtn ", textBefore: before) == .mismatch,
+                         "a selection in the middle would be deleted by the first backspace")
+        }
+
+        suite.run("LayoutFix completionIsTheWord") {
+            let field = "gitgraph" as NSString
+            func before(_ range: NSRange) -> String? { field.substring(with: range) }
+            let completion = NSRange(location: 6, length: 2)
+            suite.expect(LayoutFixSupport.isCompletion(selection: completion, textLength: field.length,
+                                                       expected: "gitgra", textBefore: before),
+                         "an inline completion after the typed word")
+            suite.expect(LayoutFixSupport.fieldGuard(selection: completion, textLength: field.length,
+                                                     expected: "gitgra", textBefore: before) == .match,
+                         "the completion is cleared by the delete count, so the word still matches")
+            suite.expect(!LayoutFixSupport.isCompletion(selection: NSRange(location: 0, length: 3), textLength: field.length,
+                                                        expected: "gitgra", textBefore: before),
+                         "a selection at the start is a real selection")
+            suite.expect(LayoutFixSupport.target(selectionLength: 2, selectionFromTextMarkers: false,
+                                                 bundleID: "com.apple.Safari", hasWord: true,
+                                                 selectionIsCompletion: true) == .lastWord,
+                         "a completion fixes the typed word, not the completed tail")
+        }
+
+        suite.run("LayoutFix ownEventsFromOtherFeaturesReset") {
+            suite.expect(LayoutFixSupport.ownEvent(userData: OwnKeyEvent.layoutFixMarker, isPosted: true) == .retype,
+                         "our own retype is skipped")
+            suite.expect(LayoutFixSupport.ownEvent(userData: OwnKeyEvent.textSnippetMarker, isPosted: true) == .otherFeature,
+                         "a snippet expansion changes the field, so the buffer resets")
+            suite.expect(LayoutFixSupport.ownEvent(userData: 0, isPosted: true) == .otherFeature,
+                         "any other key Vorssaint posts resets")
+            suite.expect(LayoutFixSupport.ownEvent(userData: 0, isPosted: false) == .typing,
+                         "hardware keys are typing")
+            suite.expect(OwnKeyEvent.isPosted(sourceProcessID: 0, userData: OwnKeyEvent.layoutFixMarker, ownProcessID: 42),
+                         "the layout fix marker is recognised as our own")
+        }
+
+        suite.run("LayoutFix deadKeysAreNotFixed") {
+            let acute = LayoutFixKey(keyCode: 14, shift: false, option: true, capsLock: false, layoutID: abc.id)
+            suite.expect(abc.deadChords.contains(acute.chord), "⌥e is a dead key on ABC")
+            suite.expect(!abc.deadChords.contains(LayoutFixChord(keyCode: 14, shift: false, option: false)),
+                         "plain e is not")
+            let cafe = keys([8, 0, 3], in: abc.id) + [acute] + keys([14], in: abc.id)
+            suite.expect(LayoutFixSupport.containsDeadKey(cafe, layouts: [abc, ru]),
+                         "a word typed with a dead key shows fewer characters than keys")
+            suite.expect(!LayoutFixSupport.containsDeadKey(keys([5, 4, 11], in: abc.id), layouts: [abc, ru]),
+                         "plain keys are fine")
         }
     }
 }
