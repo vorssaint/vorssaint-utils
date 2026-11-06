@@ -97,7 +97,7 @@ extension AppFeature {
             return .keyboard
         // The switcher's tap also takes clicks and scrolls, and the Super key
         // stamps its modifiers on mouse presses from a second tap.
-        case .switcher, .superKey, .textSnippets, .autoQuit:
+        case .switcher, .superKey, .fnLock, .textSnippets, .autoQuit:
             return .inputs
         case .windowLayout:
             let edgeSnapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)

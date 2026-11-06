@@ -33,6 +33,9 @@ if CommandLine.arguments.contains("--uninstall") {
 if NotchPresentationProbe.isRequested(by: CommandLine.arguments) {
     NotchPresentationProbe.runAndExit()
 }
+if CommandLine.arguments.contains("--fn-probe") {
+    FnLockProbe.runAndExit()
+}
 #endif
 
 let app = NSApplication.shared
