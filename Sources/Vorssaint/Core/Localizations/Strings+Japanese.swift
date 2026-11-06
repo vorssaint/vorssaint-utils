@@ -357,6 +357,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "アプリケーションをアンインストール",
         uninstallerCommandBarToggle: "コマンドバーに表示",
         uninstallerCommandBarCaption: "コマンドバーでアプリを選択してアンインストールできます。",
+        uninstallerWatchTrashToggle: "アプリをゴミ箱に入れたときにクリーンアップを提案",
+        uninstallerWatchTrashCaption: "Finderでアプリを削除するとアンインストーラが開きます。フルディスクアクセスが必要です。",
         uninstallerCommandBarFinderTitle: "Finderで選択したアプリをアンインストール",
         uninstallerSelectionUnavailable: "Finderで削除できるアプリを選択するか、リストから別のアプリを選んでください。",
         uninstallerRefusedNotApp: "アンインストールできるのはアプリだけです。",

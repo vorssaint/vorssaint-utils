@@ -357,6 +357,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Uygulamayı Kaldır",
         uninstallerCommandBarToggle: "Komut Çubuğunda Göster",
         uninstallerCommandBarCaption: "Komut Çubuğunda uygulama seçin ve kaldırın.",
+        uninstallerWatchTrashToggle: "Bir uygulama Çöp Sepeti’ne taşınınca temizlik öner",
+        uninstallerWatchTrashCaption: "Finder’da bir uygulamayı sildiğinde Kaldırıcı’yı açar. Tam Disk Erişimi gerekir.",
         uninstallerCommandBarFinderTitle: "Finder’da seçili uygulamayı kaldır",
         uninstallerSelectionUnavailable: "Finder’da kaldırılabilen bir uygulama seçin veya listeden başka bir uygulama seçin.",
         uninstallerRefusedNotApp: "Yalnızca uygulamalar kaldırılabilir.",

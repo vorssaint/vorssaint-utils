@@ -357,6 +357,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Disinstalla applicazione",
         uninstallerCommandBarToggle: "Mostra nella Barra dei Comandi",
         uninstallerCommandBarCaption: "Scegli e disinstalla le app nella Barra dei Comandi.",
+        uninstallerWatchTrashToggle: "Proponi la pulizia quando un’app finisce nel Cestino",
+        uninstallerWatchTrashCaption: "Apre il Disinstallatore quando elimini un’app nel Finder. Richiede l’Accesso completo al disco.",
         uninstallerCommandBarFinderTitle: "Disinstalla l’app selezionata nel Finder",
         uninstallerSelectionUnavailable: "Seleziona nel Finder un’app che può essere rimossa oppure scegline un’altra dall’elenco.",
         uninstallerRefusedNotApp: "Si possono disinstallare solo le app.",

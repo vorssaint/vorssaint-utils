@@ -174,6 +174,19 @@ enum UninstallerSupport {
         return paths.contains { path in protected.contains { path.contains($0) } }
     }
 
+    /// A bundle's Info.plist values, read from disk on every call.
+    /// Bundle(url:) caches by path for the life of the process, so a
+    /// different app that later sits at a path already read, such as a
+    /// Trash name reused after Empty Trash, would still show the old one.
+    /// This reads the same Info.plist Bundle would, wrappers included.
+    static func infoDictionary(of bundleURL: URL) -> [String: Any]? {
+        CFBundleCopyInfoDictionaryInDirectory(bundleURL as CFURL) as? [String: Any]
+    }
+
+    static func bundleIdentifier(of bundleURL: URL) -> String? {
+        infoDictionary(of: bundleURL)?["CFBundleIdentifier"] as? String
+    }
+
     static func verifiedBundleID(_ rawValue: String?) -> String? {
         guard let rawValue,
               CleanerSupport.looksLikeBundleID(rawValue),
@@ -199,13 +212,13 @@ enum UninstallerSupport {
         // Something named like an app that does not read as one is still
         // reported as an app, never as a stray document.
         let unreadable: Refusal = appURL.pathExtension.lowercased() == "app" ? .unidentified : .notAnApp
-        guard let bundle = Bundle(url: appURL) else { return .failure(unreadable) }
+        guard let info = infoDictionary(of: appURL) else { return .failure(unreadable) }
         // System apps are SIP-protected and their support data is live OS
         // state; removing either would be wrong, so refuse the selection.
         guard !InstalledApps.isSystemApplication(at: appURL) else { return .failure(.systemApp) }
         // Only a verified bundle identifier becomes a path component. A
         // display name is presentation only and can never claim user data.
-        guard let rawBundleID = bundle.bundleIdentifier,
+        guard let rawBundleID = info["CFBundleIdentifier"] as? String,
               CleanerSupport.looksLikeBundleID(rawBundleID) else { return .failure(unreadable) }
         guard let bundleID = verifiedBundleID(rawBundleID) else {
             return .failure(isOwnBundleID(rawBundleID) ? .thisApp : .sharedIdentifier)
@@ -288,6 +301,28 @@ enum UninstallerSupport {
         Set(apps.lazy.filter { !$0.isSystem && selection(for: $0.url) != nil }.map(\.id))
     }
 
+    /// What shows an installed app is still the bundle whose IDs were read:
+    /// the bundle folder and its Info.plist as files, and when that
+    /// Info.plist last changed. An update replaces the bundle or rewrites
+    /// its Info.plist, so any of the three changes with it.
+    struct BundleSnapshot: Hashable {
+        let bundle: FileIdentity
+        let info: FileIdentity
+        let infoModifiedSeconds: Int
+        let infoModifiedNanoseconds: Int
+    }
+
+    static func bundleSnapshot(of appURL: URL) -> BundleSnapshot? {
+        var info = stat()
+        guard let bundle = fileIdentity(at: appURL),
+              lstat(infoPlistURL(in: appURL).path, &info) == 0 else { return nil }
+        return BundleSnapshot(
+            bundle: bundle,
+            info: FileIdentity(device: UInt64(info.st_dev), inode: UInt64(info.st_ino)),
+            infoModifiedSeconds: info.st_mtimespec.tv_sec,
+            infoModifiedNanoseconds: info.st_mtimespec.tv_nsec)
+    }
+
     static func fileIdentity(at url: URL) -> FileIdentity? {
         var info = stat()
         guard lstat(url.path, &info) == 0 else { return nil }
@@ -361,7 +396,51 @@ enum UninstallerSupport {
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             home.appendingPathComponent("Applications", isDirectory: true),
         ].map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
-        return roots.contains { path.hasPrefix($0 + "/") }
+        return roots.contains { path.hasPrefix($0 + "/") } || isInTrash(url, home: home)
+    }
+
+    // MARK: - Trash
+
+    /// The user's Trash on the startup disk, where Finder moves an app
+    /// deleted from /Applications or ~/Applications.
+    static func trashURL(home: URL) -> URL {
+        home.appendingPathComponent(".Trash", isDirectory: true)
+    }
+
+    /// An item sitting directly in the Trash, the way Finder leaves an app
+    /// that was just deleted. Such an app was usually the installed copy, so
+    /// it may claim shared data; the exclusivity checks still keep anything
+    /// another installed copy owns.
+    static func isInTrash(_ url: URL, home: URL) -> Bool {
+        let parent = url.resolvingSymlinksInPath().standardizedFileURL.deletingLastPathComponent().path
+        let trash = trashURL(home: home).resolvingSymlinksInPath().standardizedFileURL.path
+        return parent == trash
+    }
+
+    /// App bundles directly in the Trash. Unreadable (no Full Disk Access)
+    /// reads as empty, so nothing is ever suggested without access.
+    static func trashedApps(in trash: URL, fileManager: FileManager = .default) -> [URL] {
+        let entries = (try? fileManager.contentsOfDirectory(
+            at: trash, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+        return entries.filter { url in
+            url.pathExtension.caseInsensitiveCompare("app") == .orderedSame
+                && (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        }
+    }
+
+    /// The apps in `current` that were not there at the last look.
+    static func newlyTrashedApps(current: [URL], known: Set<String>) -> [URL] {
+        current.filter { !known.contains($0.standardizedFileURL.path) }
+    }
+
+    /// A trashed app is worth a cleanup offer only when it was the last copy:
+    /// an updater that trashes the old version, or a spare copy thrown away,
+    /// leaves the app installed and its data in use.
+    static func trashedAppWasLastCopy(otherCopies: [URL], home: URL,
+                                      fileExists: (String) -> Bool) -> Bool {
+        !otherCopies.contains { copy in
+            !isInTrash(copy, home: home) && fileExists(copy.standardizedFileURL.path)
+        }
     }
 
     static func strippedAppName(_ raw: String) -> String {

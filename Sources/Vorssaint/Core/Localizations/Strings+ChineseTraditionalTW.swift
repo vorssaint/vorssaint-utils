@@ -358,6 +358,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "解除安裝應用程式",
         uninstallerCommandBarToggle: "在指令列中顯示",
         uninstallerCommandBarCaption: "在指令列中選取並解除安裝 App。",
+        uninstallerWatchTrashToggle: "將 App 移到垃圾桶時提供清理",
+        uninstallerWatchTrashCaption: "在 Finder 刪除 App 時開啟解除安裝器。需要完整磁碟存取權限。",
         uninstallerCommandBarFinderTitle: "解除安裝 Finder 中所選的 App",
         uninstallerSelectionUnavailable: "請在 Finder 中選取可移除的 App，或從列表中選擇其他 App。",
         uninstallerRefusedNotApp: "只能解除安裝 App。",

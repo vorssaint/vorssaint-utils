@@ -358,6 +358,8 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "애플리케이션 제거",
         uninstallerCommandBarToggle: "명령 바에 표시",
         uninstallerCommandBarCaption: "명령 바에서 앱을 선택하고 제거합니다.",
+        uninstallerWatchTrashToggle: "앱을 휴지통으로 옮기면 정리 제안",
+        uninstallerWatchTrashCaption: "Finder에서 앱을 삭제하면 앱 제거기가 열립니다. 전체 디스크 접근이 필요합니다.",
         uninstallerCommandBarFinderTitle: "Finder에서 선택한 앱 제거",
         uninstallerSelectionUnavailable: "Finder에서 제거할 수 있는 앱을 선택하거나 목록에서 다른 앱을 선택하세요.",
         uninstallerRefusedNotApp: "앱만 제거할 수 있습니다.",
