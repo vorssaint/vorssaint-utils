@@ -1,0 +1,29 @@
+keychain: "/Users/tester/Library/Keychains/login.keychain-db"
+version: 512
+class: "genp"
+attributes:
+    0x00000007 <blob>="Claude Code-credentials"
+    0x00000008 <blob>=<NULL>
+    "acct"<blob>="tester"
+    "cdat"<timedate>=0x32303236313031323038303030305A00  "20261012080000Z\000"
+    "svce"<blob>="Claude Code-credentials"
+    "type"<uint32>=<NULL>
+keychain: "/Users/tester/Library/Keychains/login.keychain-db"
+version: 512
+class: "genp"
+attributes:
+    0x00000007 <blob>="Claude Code-credentials-1a2b3c4d"
+    "acct"<blob>="tester"
+    "svce"<blob>="Claude Code-credentials-1a2b3c4d"
+keychain: "/Users/tester/Library/Keychains/login.keychain-db"
+version: 512
+class: "genp"
+attributes:
+    "acct"<blob>="1f0e/9c2d"
+    "svce"<blob>="Vorssaint Agent Account"
+keychain: "/Users/tester/Library/Keychains/login.keychain-db"
+version: 512
+class: "inet"
+attributes:
+    "acct"<blob>="someone"
+    "srvr"<blob>="Claude Code-credentials-not-a-service"

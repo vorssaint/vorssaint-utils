@@ -56,8 +56,9 @@ enum AgentCodexServer {
 
     /// Where the tool can be: inside the desktop app, in its current layout
     /// and its earlier one, then where the official installer, Homebrew and
-    /// npm put it, then along a shell's PATH when one was asked for.
-    static func candidates(apps: [URL], home: URL, searchPath: String? = nil) -> [URL] {
+    /// npm put it, then along a shell's PATH when one was asked for. `tool`
+    /// names another command-line tool to look for in those same folders.
+    static func candidates(apps: [URL], home: URL, searchPath: String? = nil, tool: String = "codex") -> [URL] {
         let bundled = apps.flatMap { app in
             ["Contents/Resources/codex-cli/bin/codex", "Contents/Resources/codex"].map {
                 app.appending(path: $0, directoryHint: .notDirectory)
@@ -65,11 +66,11 @@ enum AgentCodexServer {
         }
         let folders = [home.appending(path: ".local/bin").path, "/opt/homebrew/bin", "/usr/local/bin"]
             + (searchPath ?? "").split(separator: ":").map(String.init).filter { $0.hasPrefix("/") }
-        return bundled + folders.map { URL(fileURLWithPath: $0, isDirectory: true).appending(path: "codex") }
+        return bundled + folders.map { URL(fileURLWithPath: $0, isDirectory: true).appending(path: tool) }
     }
 
-    static func executable(apps: [URL], home: URL, searchPath: String? = nil) -> URL? {
-        candidates(apps: apps, home: home, searchPath: searchPath).first { url in
+    static func executable(apps: [URL], home: URL, searchPath: String? = nil, tool: String = "codex") -> URL? {
+        candidates(apps: apps, home: home, searchPath: searchPath, tool: tool).first { url in
             var directory: ObjCBool = false
             return FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) && !directory.boolValue
                 && FileManager.default.isExecutableFile(atPath: url.path)

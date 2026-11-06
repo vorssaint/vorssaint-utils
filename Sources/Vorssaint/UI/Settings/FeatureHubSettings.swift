@@ -1198,6 +1198,7 @@ extension AppFeature {
         case .notchAgents: return FeatureStrings.notchAgents(language).title
         case .notchWatch: return FeatureStrings.notchWatch(language).title
         case .notchMascot: return FeatureStrings.notchMascot(language).title
+        case .notchAccounts: return FeatureStrings.notchAccounts(language).title
         case .notch: return FeatureStrings.notch(language).title
         case .radialMenu: return FeatureStrings.radialMenu(language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
@@ -1284,6 +1285,7 @@ extension AppFeature {
         case .notchAgents: return FeatureStrings.notchAgents(L10n.shared.language).hubDescription
         case .notchWatch: return FeatureStrings.notchWatch(L10n.shared.language).description
         case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).hubDescription
+        case .notchAccounts: return FeatureStrings.notchAccounts(L10n.shared.language).hubDescription
         case .notch: return FeatureStrings.notch(L10n.shared.language).description
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription

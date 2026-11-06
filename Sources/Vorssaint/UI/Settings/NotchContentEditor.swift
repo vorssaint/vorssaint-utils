@@ -178,6 +178,13 @@ struct NotchPagePreview: View {
             }
         // The live area belongs to the island; the preview explains it instead.
         case .watch: NotchWatchView(size: size)
+        case .accounts:
+            // Off, no login is read, so the page would have nothing to list.
+            if NotchSupport.keepsAccounts() {
+                NotchAccountsView(size: size)
+            } else {
+                NotchEmptyView(symbol: module.symbol, message: FeatureStrings.notchEditor(l10n.language).accountsSummary)
+            }
         }
     }
 
@@ -406,6 +413,7 @@ extension NotchModule {
         case .scratchpad: return .yellow
         case .agents: return Color(red: 0.85, green: 0.47, blue: 0.34)
         case .watch: return .purple
+        case .accounts: return .indigo
         }
     }
 

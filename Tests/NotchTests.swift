@@ -2530,6 +2530,19 @@ enum NotchTests {
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
+        defaults.set(true, forKey: DefaultsKey.notchAccountsEnabled)
+        suite.expect(!NotchSupport.modules(in: defaults).contains(.accounts) && !NotchSupport.keepsAccounts(in: defaults),
+                     "AI Accounts keeps no login until it is installed, whatever its switch says")
+        defaults.set(true, forKey: AppFeature.notchAccounts.availabilityKey)
+        suite.expect(NotchSupport.modules(in: defaults).last == .accounts && NotchSupport.keepsAccounts(in: defaults)
+                        && NotchSupport.routes(.accounts, in: defaults),
+                     "installed and switched on, AI Accounts has its page, reads logins and may post a swap")
+        defaults.set("accounts", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(!NotchSupport.keepsAccounts(in: defaults) && !NotchSupport.routes(.accounts, in: defaults),
+                     "a hidden AI Accounts page reads and swaps nothing")
+        defaults.set("clipboard,unknown", forKey: DefaultsKey.notchHiddenModules)
+        defaults.set(false, forKey: DefaultsKey.notchAccountsEnabled)
+        defaults.set(false, forKey: AppFeature.notchAccounts.availabilityKey)
         suite.expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")
         defaults.set(false, forKey: DefaultsKey.notchDragReveal)
