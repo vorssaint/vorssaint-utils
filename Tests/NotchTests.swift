@@ -3515,9 +3515,11 @@ enum NotchTests {
             return (level, level, level)
         }
         let greys = NotchArtworkTint.field(of: blackWhite, side: 12, vibrance: 0, greyed: true)
-        suite.expect(greys.count == columns * rows * 3
-                     && stride(from: 0, to: greys.count, by: 3).allSatisfy { greys[$0] == greys[$0 + 1] && greys[$0] == greys[$0 + 2] },
-                     "a cover with no colour gives the bars greys, not hues")
+        let wholeField = greys.count == columns * rows * 3
+        let everyBarGrey = wholeField && stride(from: 0, to: greys.count, by: 3).allSatisfy { (start: Int) -> Bool in
+            greys[start] == greys[start + 1] && greys[start] == greys[start + 2]
+        }
+        suite.expect(everyBarGrey, "a cover with no colour gives the bars greys, not hues")
         suite.expect(greys[0] < greys[(columns - 1) * 3] - 0.15 && greys.min()! >= 0.35 && greys.max()! <= 1,
                      "the bars run from the cover's darker grey to its lighter, kept readable on black")
         suite.expect(NotchArtworkTint.field(of: blackWhite, side: 12, vibrance: 0).isEmpty
