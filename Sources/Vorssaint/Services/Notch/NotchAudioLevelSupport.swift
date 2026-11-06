@@ -10,10 +10,10 @@ enum NotchAudioLevelSupport {
     /// One band for each of the island's six bars, each a little under
     /// three times the last. Found by lining a recording of the phone's
     /// island up with the song it played, frame by frame: its first bar
-    /// follows the kick below 80 Hz, its second the bass line, the middle
+    /// follows the kick below 100 Hz, its second the bass line, the middle
     /// two the voice, and the last the hi-hats.
     static let bandCount = 6
-    static let bandEdgesHz: [Double] = [20, 80, 200, 560, 1600, 4500, 16_000]
+    static let bandEdgesHz: [Double] = [20, 100, 200, 560, 1600, 4500, 16_000]
     /// Levels below this many decibels under full scale read as silence.
     /// Deep enough for a quiet passage, or a player turned well down, to
     /// still move the bars, which scale to each band's own recent peak.
@@ -88,7 +88,12 @@ enum NotchAudioLevelSupport {
     /// block, the wait for the next reading, the glide to it and the spring.
     /// Read that much sooner, so the bars land on the beat rather than after it.
     /// Getting a reading to the screen is measured instead: see `PaintLag`.
-    static let barLag = 0.1
+    static let barLag = 0.125
+
+    /// How long a bar takes to glide to a new reading. A little over the wait
+    /// for the next one, which catches it still moving, so it never rests
+    /// between readings and turns each one's corner more softly.
+    static let glide = 1.25 / updatesPerSecond
 
     /// How long a reading takes from the analysis to the display frame it
     /// shows in, as measured while the bars run. The display's own response
@@ -185,7 +190,7 @@ enum NotchAudioLevelSupport {
     /// bass is lowered and the treble left nearly as it is. The bass line is
     /// lowered the most: on the phone its bar seldom stands more than half
     /// tall, even under a loud bass.
-    static let bandGainDecibels: [Double] = [-14, -27.5, -11, -7, -2.5, -3.5]
+    static let bandGainDecibels: [Double] = [-14, -27.5, -11.5, -7.75, -3.25, -4.5]
 
     /// Each band's energy, the sum of its bins' power, on a decibel scale
     /// with a floor, as a value from 0 to 1. Magnitudes are relative to full
@@ -216,21 +221,32 @@ enum NotchAudioLevelSupport {
         return min(bands - 1, max(0, Int(position.rounded(.down))))
     }
 
+    /// How tall to draw a bar at a level from 0 to 1. The level is measured up
+    /// from the dot, as it was on the phone, so a low level still shows.
+    static func barHeight(level: Double, barWidth: CGFloat, height: CGFloat) -> CGFloat {
+        barWidth + max(0, height - barWidth) * CGFloat(level)
+    }
+
     /// Turns band levels into bar heights the way the phone's island moves
     /// its bars. Fitted to a recording of the island lined up frame by frame
     /// with the song it played.
     ///
     /// Every band is read on one scale, `span` decibels deep, whose top sits
-    /// at the loudest the music has lately been. A band with nothing in it
-    /// lies as a dot: the hi-hats of an intro move only the treble bars, and
-    /// the bass bar waits for the kick. The scale is not stretched to each
-    /// band, so a quiet band stays short beside a loud one, as on the phone.
+    /// at the loudest the music has lately been. Its floor is soft, as on the
+    /// phone: a faint bass line still lifts its bar a little, and only a band
+    /// with next to nothing in it lies as a dot, so the bass bar still waits
+    /// for the kick under the hi-hats of an intro. The scale is not stretched to
+    /// each band, so a quiet band stays short beside a loud one, as on the phone.
     /// The top follows a louder song at once and eases down to a quieter one,
     /// a player turned down included, over some seconds.
     ///
     /// A bar then follows its level on a critically damped spring: it rises
     /// and falls at the same pace and comes to rest without running past it.
-    /// The two bass bars are quicker, so a kick lands as a sharp swell.
+    /// Every bar has the same spring, so a quick voice lands like a kick.
+    ///
+    /// A little slack comes before the spring. A level turning back by less
+    /// than `slack` leaves the bar where it is, which stills the flutter of a
+    /// held note, finer than a pixel, and takes nothing from a real change.
     struct Smoother {
         /// How deep the scale is, as a share of the level scale: 44 dB.
         static let span = 44 / floorDecibels
@@ -242,10 +258,22 @@ enum NotchAudioLevelSupport {
         /// Where the loudest starts before the music has said otherwise: 20 dB
         /// under full scale, where the phone's scale stood for this recording.
         static let startingPeak = 0.75
-        /// The springs' swings a second, the bass bars' and the others'.
-        static let bassFrequency = 12.7
-        static let frequency = 6.9
+        /// How far to either side of the scale's bottom its floor bends, as a
+        /// share of the scale: about 26 dB. Above that a bar stands as the scale says.
+        static let softFloor = 0.6
+        /// How much further each bar swings than the scale says, and where that
+        /// leaves it. The phone's bars swing about 1.4 times as far from the same
+        /// sound; going all the way there moves them faster than the phone's.
+        static let barStretch = [1.4, 1.32, 1.51, 1.42, 1.52, 1.57]
+        static let barShift = [-0.34, -0.055, -0.37, -0.325, -0.41, -0.415]
+        /// How far a level may turn back before a bar follows, as a share of
+        /// its height: under a pixel at the island's tallest.
+        static let slack = 0.025
+        /// The spring's swings a second. Past 14 the substeps below let a bar
+        /// run past its level, and by 16 they no longer hold it at all.
+        static let frequency = 12.7
         static let substeps = 4
+        private var held: [Double] = []
         private var positions: [Double] = []
         private var velocities: [Double] = []
         private var peak = startingPeak
@@ -258,26 +286,43 @@ enum NotchAudioLevelSupport {
             let bottom = peak + Self.headroom - Self.span
             // Silence stays flat however far the scale has eased down: a level
             // of nothing would otherwise rise with it, every band alike.
-            return raw.map { $0 > 0 ? min(1, max(0, ($0 - bottom) / Self.span)) : 0 }
+            return raw.indices.map { index in
+                guard raw[index] > 0 else { return 0 }
+                let place = (raw[index] - bottom) / Self.span
+                guard Self.barStretch.indices.contains(index) else { return min(1, Self.softened(place)) }
+                return min(1, Self.softened(Self.barShift[index] + Self.barStretch[index] * place))
+            }
         }
 
-        static func frequency(band: Int, of bands: Int) -> Double {
-            band < max(1, bands / 3) ? bassFrequency : frequency
+        /// A place on the scale with its floor bent into a curve.
+        static func softened(_ place: Double) -> Double {
+            if place >= softFloor { return place }
+            if place <= -softFloor { return 0 }
+            return (place + softFloor) * (place + softFloor) / (4 * softFloor)
+        }
+
+        /// What a bar follows, given what it followed last. The ends take no
+        /// slack, so a bar still reaches its full height and lies as a dot.
+        static func slackened(_ target: Double, from held: Double) -> Double {
+            if target <= 0 || target >= 1 { return target }
+            return min(target + slack, max(target - slack, held))
         }
 
         mutating func next(_ raw: [Double]) -> [Double] {
             if positions.count != raw.count {
-                positions = Array(repeating: 0, count: raw.count)
-                velocities = positions
+                held = Array(repeating: 0, count: raw.count)
+                positions = held
+                velocities = held
             }
             let targets = scaled(raw)
+            let omega = 2 * Double.pi * Self.frequency
             let step = 1 / updatesPerSecond / Double(Self.substeps)
             for index in raw.indices {
-                let omega = 2 * Double.pi * Self.frequency(band: index, of: raw.count)
+                held[index] = Self.slackened(targets[index], from: held[index])
                 // A few small steps a reading: one step a reading is too coarse
                 // for a spring this quick.
                 for _ in 0..<Self.substeps {
-                    let pull = (targets[index] - positions[index]) * omega * omega - velocities[index] * 2 * omega
+                    let pull = (held[index] - positions[index]) * omega * omega - velocities[index] * 2 * omega
                     velocities[index] += pull * step
                     positions[index] += velocities[index] * step
                 }
