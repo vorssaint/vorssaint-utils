@@ -593,6 +593,7 @@ struct SettingsView: View {
         case .killProcess: KillProcessView()
         case .portManager: PortManagerView()
         case .urlCleaner: URLCleanerSettings()
+        case .browserPicker: BrowserPickerSettings()
         case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()
         case .appUpdates: AppUpdatesSettings()
