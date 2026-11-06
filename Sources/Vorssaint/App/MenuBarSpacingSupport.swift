@@ -31,6 +31,16 @@ enum MenuBarMetricAppearance: String, CaseIterable {
     }
 }
 
+/// How the bars appearance draws the charge. The glyph stays the default so
+/// turning on bars never changes a battery reading people already know.
+enum MenuBarBatteryStyle: String, CaseIterable {
+    case icon, bar
+
+    static var current: MenuBarBatteryStyle {
+        MenuBarBatteryStyle(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.menuBarBatteryStyle) ?? "") ?? .icon
+    }
+}
+
 enum MenuBarUsageBarSupport {
     static let defaultNormalColor = "#64D2FF"
     static let defaultElevatedColor = "#FFD60A"
@@ -82,6 +92,23 @@ enum MenuBarUsageBarSupport {
         default: return .normal
         }
     }
+
+    /// Charge reads the other way round from usage: a low battery raises the
+    /// level. Below 20% is critical and below 40% elevated, the cutoffs Stats
+    /// also uses, so the panel and the menu bar agree.
+    static func batteryLevel(forPercent percent: Int) -> Level {
+        if percent < 20 { return .critical }
+        if percent < 40 { return .elevated }
+        return .normal
+    }
+
+    /// A charging bolt in a unit square, symmetric about its center point so it
+    /// sits on the bar's center line. The SF Symbol draws about half a point
+    /// left of its own bounds at this size.
+    static let chargingBoltPoints: [CGPoint] = [
+        CGPoint(x: 0.62, y: 1), CGPoint(x: 0, y: 0.42), CGPoint(x: 0.45, y: 0.42),
+        CGPoint(x: 0.38, y: 0), CGPoint(x: 1, y: 0.58), CGPoint(x: 0.55, y: 0.58)
+    ]
 
     static func currentLevel(for fraction: Double,
                              defaults: UserDefaults = .standard) -> Level {
