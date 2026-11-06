@@ -621,6 +621,8 @@ enum DefaultsKey {
     static let wallpaperExcludedOwnPaths = "wallpaperExcludedOwnPaths"
     static let scratchpadShortcutEnabled = "scratchpadShortcutEnabled"
     static let scratchpadShortcut = "scratchpadShortcut"
+    static let commandBarMenusShortcutEnabled = "commandBarMenusShortcutEnabled"
+    static let commandBarMenusShortcut = "commandBarMenusShortcut"
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
     static let commandBarShortcut = "commandBarShortcut"
     /// Compact mode: an empty field shows nothing but itself. Off by default
@@ -1848,6 +1850,8 @@ enum Defaults {
         DefaultsKey.wallpaperFilter: "all",
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
+        DefaultsKey.commandBarMenusShortcutEnabled: false,
+        DefaultsKey.commandBarMenusShortcut: GlobalShortcut.commandBarMenusDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,
         DefaultsKey.commandBarCompactMode: false,
         DefaultsKey.commandBarASCIILayoutEnabled: false,

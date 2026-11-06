@@ -1736,6 +1736,31 @@ enum FeatureCatalogTests {
                                                   boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "an alert with its metric off in the hub stays disarmed")
 
+        let menuShortcutRoles = GlobalShortcutRole.activeRoles(
+            isOn: { $0 == DefaultsKey.commandBarMenusShortcutEnabled },
+            storedValue: { _ in nil })
+        suite.expect(menuShortcutRoles.contains(.commandBarMenus)
+                     && !menuShortcutRoles.contains(.commandBar),
+                     "the menu shortcut works independently of the general command bar shortcut")
+        suite.expect(!GlobalShortcutRole.activeRoles(
+            isOn: { _ in true }, isAvailable: { $0 != .commandBar },
+            storedValue: { _ in nil }).contains(.commandBarMenus),
+                     "uninstalling Command Bar disables its menu shortcut")
+        suite.expect(GlobalShortcut.commandBarMenusDefault != .commandBarDefault,
+                     "enabling both command bar shortcuts does not collide by default")
+        let menuBackup = SettingsBackupSupport.payload(appVersion: "test") { key -> Any? in
+            switch key {
+            case DefaultsKey.commandBarMenusShortcutEnabled: return true
+            case DefaultsKey.commandBarMenusShortcut: return GlobalShortcut.commandBarMenusDefault.storageValue
+            default: return nil
+            }
+        }
+        let restoredMenuSettings = SettingsBackupSupport.sanitizedSettings(from: menuBackup)
+        suite.expect(restoredMenuSettings?[DefaultsKey.commandBarMenusShortcutEnabled] as? Bool == true
+                     && restoredMenuSettings?[DefaultsKey.commandBarMenusShortcut] as? String
+                        == GlobalShortcut.commandBarMenusDefault.storageValue,
+                     "the menu shortcut and its enabled state survive a settings backup round trip")
+
         for role in [GlobalShortcutRole.keepAwake, .snippetLibrary] {
             let key = role.storageKey
             let cleared = GlobalShortcutRole.clearedShortcutStorageValue
