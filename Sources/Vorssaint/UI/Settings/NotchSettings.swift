@@ -24,6 +24,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCalendarCountdownLead) private var calendarCountdownLead = NotchCalendarSupport.defaultCountdownLeadMinutes
     @AppStorage(DefaultsKey.notchCalendarTimeLeft) private var calendarTimeLeft = false
     @AppStorage(DefaultsKey.notchCalendarWeekNumbers) private var calendarWeekNumbers = false
+    @AppStorage(DefaultsKey.notchCalendarApp) private var calendarApp = NotchCalendarSupport.appleCalendar
     @AppStorage(DefaultsKey.notchAgentsEnabled) private var agentsEnabled = false
     @AppStorage(DefaultsKey.notchWatchEnabled) private var watchEnabled = true
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
@@ -489,6 +490,15 @@ struct NotchSettings: View {
             }
             switchRow("hourglass", calendar.timeLeft, caption: calendar.timeLeftHint, isOn: $calendarTimeLeft)
             switchRow("number", calendar.weekNumbers, isOn: $calendarWeekNumbers)
+            let calendarApps = NotchCalendarSupport.apps.filter { InstalledApps.url(for: $0) != nil }
+            if calendarApps.count > 1 {
+                SettingsRow(symbol: "arrow.up.forward.app", title: calendar.openWith) {
+                    Picker(calendar.openWith, selection: $calendarApp) {
+                        ForEach(calendarApps, id: \.self) { Text(InstalledApps.name(for: $0)).tag($0) }
+                    }
+                    .labelsHidden()
+                }
+            }
             if permissions.calendarAccess == .fullAccess { NotchCalendarSelection() }
         case .timer:
             let activities = FeatureStrings.notchActivities(l10n.language)
