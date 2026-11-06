@@ -122,6 +122,28 @@ private struct NotchNotificationRow: View {
         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
         .clipped()
         .accessibilityElement(children: .contain)
+        .notchCardHover()
+        .notchExpansionTap(id: "notification.\(item.id)")
+        .notchExpandable(id: "notification.\(item.id)", title: text.title,
+                         surface: NotchControlSurface(cornerRadius: 14, fillOpacity: 0.06),
+                         header: AnyView(Text(text.title)
+                            .font(.system(size: 11)).foregroundStyle(.white.opacity(0.6)))) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(item.content.title).font(.system(size: 14, weight: .semibold))
+                    if !item.content.subtitle.isEmpty {
+                        Text(item.content.subtitle).font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                    if !item.content.body.isEmpty {
+                        Text(item.content.body).font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+            }
+        }
     }
 }
 

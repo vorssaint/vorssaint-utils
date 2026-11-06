@@ -70,6 +70,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        #if VORSSAINT_DEVELOPMENT
+        if CommandLine.arguments.contains("--demo-agent-cards") {
+            let defaults = UserDefaults.standard
+            defaults.set(true, forKey: DefaultsKey.notchEnabled)
+            defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+            defaults.set(true, forKey: DefaultsKey.notchAgentsClaude)
+            defaults.set(true, forKey: DefaultsKey.notchAgentsCodex)
+            defaults.set(true, forKey: DefaultsKey.notchAgentsOpenCode)
+            defaults.set(true, forKey: DefaultsKey.notchAgentsCopilot)
+            defaults.set("", forKey: DefaultsKey.notchAgentsHiddenCards)
+            AgentUsageService.shared.syncWithPreferences()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                NotchService.shared.open(.agents, pinned: true)
+            }
+        }
+        #endif
         // Before any window exists, so nothing is ever built with the wrong
         // appearance and then repainted.
         AppAppearanceController.shared.apply()
