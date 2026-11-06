@@ -6,6 +6,7 @@ import SwiftUI
 
 struct NotchView: View {
     @ObservedObject var service: NotchService
+    @ObservedObject private var chat = CompanionChatService.shared
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
@@ -18,6 +19,9 @@ struct NotchView: View {
 
     var body: some View {
         surface
+            .onChange(of: service.expanded) { _, expanded in if !expanded { chat.dismiss() } }
+            .onChange(of: service.selected) { _, page in if page != chat.anchor { chat.dismiss() } }
+            .onChange(of: service.showingSections) { _, showing in if showing { chat.dismiss() } }
             // An activity arriving over the resting companion fades in as the
             // companion fades out, and one ending fades back into it, instead
             // of cutting from one to the other in a frame. A song leaving has its
@@ -532,13 +536,18 @@ struct NotchView: View {
             ? text.sectionsTitle : destination.module.title(l10n.language)
     }
 
+    /// chat takes the pages place so button above steps back
+    private var chatIsOpen: Bool {
+        chat.presented && !service.showingAppPanel && !service.showingSections && service.selectedMetric == nil
+    }
+
     private var navigation: some View {
-        Button(action: service.toggleSections) {
+        Button(action: { if chatIsOpen { chat.dismiss() } else { service.toggleSections() } }) {
             HStack(spacing: 9) {
-                Image(systemName: "square.grid.2x2")
+                Image(systemName: chatIsOpen ? "chevron.left" : "square.grid.2x2")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.white.opacity(0.7))
-                Text(navigationTitle)
+                Text(chatIsOpen ? l10n.s.obBack : navigationTitle)
                     .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)
             }
@@ -548,13 +557,15 @@ struct NotchView: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
         .accessibilityLabel(text.switchSection)
-        .accessibilityValue(navigationTitle)
+        .accessibilityValue(chatIsOpen ? "Back" : navigationTitle)
         .accessibilityIdentifier("notch.navigation")
         .help(text.switchSection + "  ⌘K")
     }
 
     @ViewBuilder private var content: some View {
-        if service.showingAppPanel {
+        if chatIsOpen {
+            CompanionChatView(service: chat)
+        } else if service.showingAppPanel {
             MenuPanelView(notchSize: pageSize)
         } else if let metric = service.selectedMetric {
             if metric == .fan {
