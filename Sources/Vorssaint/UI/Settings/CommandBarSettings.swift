@@ -8,6 +8,7 @@ struct CommandBarSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CommandBarService.shared
     @ObservedObject private var secureInput = SecureInputMonitor.shared
+    @AppStorage(DefaultsKey.commandBarMenusShortcutEnabled) private var menusShortcutEnabled = false
     @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
     @AppStorage(DefaultsKey.commandBarEmojiSkinTone) private var emojiSkinTone = ""
@@ -106,6 +107,18 @@ struct CommandBarSettings: View {
                     CommandBarService.shared.syncWithPreferences()
                 }
                 if shortcutEnabled, service.shortcutRegistrationFailed {
+                    Text(l10n.s.shortcutUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Toggle(text.kindMenu, isOn: $menusShortcutEnabled)
+                    .onChange(of: menusShortcutEnabled) { _, _ in
+                        CommandBarService.shared.syncWithPreferences()
+                    }
+                ShortcutPreferenceRow(role: .commandBarMenus, isEnabled: menusShortcutEnabled) {
+                    CommandBarService.shared.syncWithPreferences()
+                }
+                if menusShortcutEnabled, service.menusShortcutRegistrationFailed {
                     Text(l10n.s.shortcutUnavailable)
                         .font(.caption)
                         .foregroundStyle(.orange)
