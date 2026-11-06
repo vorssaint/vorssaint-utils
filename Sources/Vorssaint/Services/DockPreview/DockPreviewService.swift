@@ -14,6 +14,12 @@ private func requestDockPreviewApplicationQuit(_ item: SwitcherItem) -> Bool {
     return app.terminate()
 }
 
+/// Every window the app has, on all desktops, regardless of the panel's
+/// current-desktop filter. Two is enough to know it is not the last one.
+private func dockPreviewAppWindowCount(_ item: SwitcherItem) -> Int {
+    WindowEnumerator.listWindows(for: item.pid, maximumCount: 2, currentSpaceOnly: false).count
+}
+
 final class DockPreviewService: ObservableObject {
     static let shared = DockPreviewService()
 
@@ -236,6 +242,8 @@ final class DockPreviewService: ObservableObject {
 
         DockPreviewSupport.performCloseAction(
             quitAppOnClose: quitAppOnClose,
+            quitOnLastWindowOnly: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitOnLastWindowOnly),
+            appWindowCount: { dockPreviewAppWindowCount(item) },
             requestQuit: { [weak self] in
                 let accepted = requestDockPreviewApplicationQuit(item)
                 if accepted { self?.endSession() }
@@ -1570,6 +1578,8 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
 
         DockPreviewSupport.performCloseAction(
             quitAppOnClose: quitAppOnClose,
+            quitOnLastWindowOnly: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitOnLastWindowOnly),
+            appWindowCount: { dockPreviewAppWindowCount(item) },
             requestQuit: { [weak self] in
                 let accepted = requestDockPreviewApplicationQuit(item)
                 if accepted { self?.closePreviewPanel() }

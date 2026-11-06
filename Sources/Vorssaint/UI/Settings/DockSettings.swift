@@ -17,6 +17,7 @@ struct DockSettings: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var dockPreviewQuitAppOnClose = false
+    @AppStorage(DefaultsKey.dockPreviewQuitOnLastWindowOnly) private var dockPreviewQuitOnLastWindowOnly = false
     @AppStorage(DefaultsKey.dockPreviewOrderByCreation) private var dockPreviewOrderByCreation = false
     @AppStorage(DefaultsKey.dockPreviewKeepDockVisible) private var dockPreviewKeepDockVisible = false
     @State private var dockPreviewMoreOptionsExpanded = false
@@ -126,6 +127,12 @@ struct DockSettings: View {
                 SettingsRow(symbol: "xmark.circle", title: l10n.s.dockPreviewQuitAppOnClose,
                             caption: l10n.s.dockPreviewQuitAppOnCloseCaption) {
                     Toggle(l10n.s.dockPreviewQuitAppOnClose, isOn: $dockPreviewQuitAppOnClose).labelsHidden()
+                }
+                SettingsRow(symbol: "macwindow.on.rectangle", title: l10n.s.dockPreviewQuitOnLastWindowOnly,
+                            caption: l10n.s.dockPreviewQuitOnLastWindowOnlyCaption) {
+                    Toggle(l10n.s.dockPreviewQuitOnLastWindowOnly, isOn: $dockPreviewQuitOnLastWindowOnly)
+                        .labelsHidden()
+                        .disabled(!dockPreviewQuitAppOnClose)
                 }
                 DisclosureGroup(isExpanded: $dockPreviewMoreOptionsExpanded) {
                     SettingsRow(symbol: "dock.rectangle", title: l10n.s.dockPreviewKeepDockVisible,
