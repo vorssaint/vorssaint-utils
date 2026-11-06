@@ -111,6 +111,7 @@ enum LayoutFixSupportTests {
         }
 
         runBuffer(suite, abc: abc)
+        runCandidates(suite, abc: abc, ru: ru, kz: kz)
 
         suite.run("LayoutFix renderOriginalUsesEachKeysLayout") {
             let mixed = keys([5, 4], in: abc.id) + keys([11, 2], in: ru.id)
@@ -193,6 +194,76 @@ enum LayoutFixSupportTests {
                          "only the word after the last space")
             suite.expect(LayoutFixSupport.lastWord(spaces) == nil, "only spaces is no word")
             suite.expect(LayoutFixSupport.lastWord([]) == nil, "an empty buffer is no word")
+        }
+    }
+
+    static func runCandidates(_ suite: TestSuite, abc: LayoutFixLayout, ru: LayoutFixLayout, kz: LayoutFixLayout) {
+        let layouts = [abc, ru, kz]
+        let dictionary: Set<String> = ["привет|ru", "hello|en"]
+        let isWord: (String, String) -> Bool = { dictionary.contains("\($0)|\($1)") }
+        func candidates(_ codes: [UInt16], typedIn layout: LayoutFixLayout) -> [LayoutFixCandidate] {
+            let typed = keys(codes, in: layout.id)
+            let original = LayoutFixSupport.render(typed, in: layout) ?? ""
+            return LayoutFixSupport.candidates(keys: typed, originalText: original, layouts: layouts, isWord: isWord)
+        }
+
+        suite.run("LayoutFix isCleanRule") {
+            for (text, clean) in [("сәлем", true), ("с2лем", false), ("привет,", true), ("a.b", false),
+                                  ("2026", true), ("(hello)", true), ("don't", false)] {
+                suite.expect(LayoutFixSupport.isClean(text) == clean, "isClean(\(text)) should be \(clean)")
+            }
+        }
+
+        suite.run("LayoutFix kazakhBeatsDigitInWord") {
+            let ranked = candidates([8, 19, 40, 17, 9], typedIn: abc)
+            suite.expect(ranked == [LayoutFixCandidate(text: "сәлем", layoutIDs: [kz.id]),
+                                    LayoutFixCandidate(text: "с2лем", layoutIDs: [ru.id])],
+                         "сәлем ranks above с2лем, got \(ranked)")
+        }
+
+        suite.run("LayoutFix dictionaryWordFirst") {
+            let ranked = candidates([5, 4, 11, 2, 17, 45], typedIn: abc)
+            suite.expect(ranked == [LayoutFixCandidate(text: "привет", layoutIDs: [ru.id, kz.id])],
+                         "identical renderings merge into one candidate, got \(ranked)")
+            let english = candidates([4, 14, 37, 37, 31], typedIn: ru)
+            suite.expect(english.first == LayoutFixCandidate(text: "hello", layoutIDs: [abc.id]),
+                         "a dictionary word comes first, got \(english)")
+        }
+
+        suite.run("LayoutFix identicalToOriginalDropped") {
+            let ranked = candidates([43, 3, 40, 3], typedIn: ru)
+            suite.expect(ranked == [LayoutFixCandidate(text: ",fkf", layoutIDs: [abc.id])],
+                         "the Kazakh rendering equals the original and is dropped, got \(ranked)")
+        }
+
+        suite.run("LayoutFix targetUsesRecency") {
+            let both = LayoutFixCandidate(text: "бала", layoutIDs: [ru.id, kz.id])
+            suite.expect(LayoutFixSupport.targetLayoutID(for: both, recency: [kz.id, abc.id, ru.id]) == kz.id,
+                         "the most recently used of the merged layouts")
+            suite.expect(LayoutFixSupport.targetLayoutID(for: both, recency: []) == ru.id,
+                         "the first in order when none was used")
+        }
+
+        suite.run("LayoutFix cycleWalksAndReturns") {
+            let original = LayoutFixCandidate(text: "c2ktv", layoutIDs: [abc.id])
+            let first = LayoutFixCandidate(text: "сәлем", layoutIDs: [kz.id])
+            let second = LayoutFixCandidate(text: "с2лем", layoutIDs: [ru.id])
+            var cycle = LayoutFixCycle(keys: keys([8, 19, 40, 17, 9], in: abc.id), trailingSpaces: 0,
+                                       original: original, candidates: [first, second])
+            suite.expect(cycle.shown == original, "nothing is replaced before the first tap")
+            let walk = (0..<4).map { _ in cycle.advance() }
+            suite.expect(walk == [first, second, original, first], "taps walk the candidates and come back, got \(walk)")
+            suite.expect(cycle.shown == first, "shown follows the last tap")
+        }
+
+        suite.run("LayoutFix isWordTreatsUnavailableLanguageAsUnknown") {
+            let available: Set<String> = ["en", "ru"]
+            suite.expect(!LayoutFixSupport.isWord("с2лем", language: "kk", available: available) { _, _ in true },
+                         "a language the spell checker lacks never confirms a word")
+            suite.expect(LayoutFixSupport.isWord("привет", language: "ru", available: available) { _, _ in true },
+                         "an available language asks the checker")
+            suite.expect(!LayoutFixSupport.isWord("", language: "ru", available: available) { _, _ in true },
+                         "empty text is not a word")
         }
     }
 }
