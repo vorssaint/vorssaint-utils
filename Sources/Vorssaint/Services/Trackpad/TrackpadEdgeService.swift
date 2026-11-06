@@ -545,6 +545,8 @@ final class TrackpadEdgeService: ObservableObject {
             _ = SoundOutputSwitcher.shared.switchToNextOutput()
         case .lockScreen:
             QuickTogglesService.shared.lockScreen()
+        case .closeWindow, .minimizeWindow, .fillScreen, .fullScreen, .hideApp, .quitApp:
+            TrackpadWindowActions.shared.perform(action)
         }
     }
 

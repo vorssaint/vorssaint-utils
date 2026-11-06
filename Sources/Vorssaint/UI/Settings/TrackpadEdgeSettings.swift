@@ -190,8 +190,11 @@ struct TrackpadEdgeSettings: View {
         }
         return VStack(alignment: .leading, spacing: 2) {
             Picker(selection: cornerBinding(corner)) {
-                ForEach(choices) { action in
-                    Label(text.name(action), systemImage: action.symbolName).tag(action)
+                ForEach(Array(groupedChoices(choices).enumerated()), id: \.offset) { index, group in
+                    if index > 0 { Divider() }
+                    ForEach(group) { action in
+                        Label(text.name(action), systemImage: action.symbolName).tag(action)
+                    }
                 }
             } label: {
                 Label(text.name(corner), systemImage: cornerSymbol(corner))
@@ -200,6 +203,12 @@ struct TrackpadEdgeSettings: View {
                 missingFeatureNote(missing)
             }
         }
+    }
+
+    private func groupedChoices(_ choices: [TrackpadCornerAction]) -> [[TrackpadCornerAction]] {
+        TrackpadCornerActionGroup.allCases
+            .map { group in choices.filter { $0.group == group } }
+            .filter { !$0.isEmpty }
     }
 
     private func missingFeatureNote(_ feature: AppFeature) -> some View {

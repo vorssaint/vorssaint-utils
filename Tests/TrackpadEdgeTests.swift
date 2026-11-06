@@ -19,6 +19,7 @@ enum TrackpadEdgeTests {
         tapToSlide(suite)
         modifierGate(suite)
         preciseSteps(suite)
+        windowActions(suite)
         levels(suite)
         mediaKeys(suite)
         catalog(suite)
@@ -340,6 +341,32 @@ enum TrackpadEdgeTests {
         var fast = normal
         fast.sensitivity = .fast
         suite.expect(fast.stepDistance < normal.stepDistance, "a faster slide needs less travel per step")
+    }
+
+    private static func windowActions(_ suite: TestSuite) {
+        let windowActions: [TrackpadCornerAction] = [.closeWindow, .minimizeWindow, .fillScreen,
+                                                      .fullScreen, .hideApp, .quitApp]
+        suite.expect(windowActions.allSatisfy { $0.group == .windows && $0.requiredFeature == nil },
+               "window and app actions are offered on every corner without another feature")
+        suite.expect(TrackpadCornerAction.allCases.filter { $0.group == .none } == [.off],
+               "only Off sits outside the corner action groups")
+        let flipped = TrackpadWindowFrames.axFrame(fromAppKit: CGRect(x: 0, y: 0, width: 1440, height: 875),
+                                                   primaryScreenHeight: 900)
+        suite.expect(flipped == CGRect(x: 0, y: 25, width: 1440, height: 875),
+               "a screen's visible frame is placed below the menu bar in window coordinates")
+        let previous = CGRect(x: 200, y: 150, width: 800, height: 500)
+        let filled = CGRect(x: 0, y: 25, width: 1440, height: 875)
+        suite.expect(TrackpadWindowFrames.fillTarget(current: previous, screenFill: filled,
+                                                     rememberedFill: nil, previous: nil) == filled,
+               "the first double tap fills the screen")
+        suite.expect(TrackpadWindowFrames.fillTarget(current: CGRect(x: 1, y: 26, width: 1438, height: 874),
+                                                     screenFill: filled, rememberedFill: filled,
+                                                     previous: previous) == previous,
+               "a second double tap on the filled window puts it back where it was")
+        suite.expect(TrackpadWindowFrames.fillTarget(current: CGRect(x: 300, y: 300, width: 600, height: 400),
+                                                     screenFill: filled, rememberedFill: filled,
+                                                     previous: previous) == filled,
+               "a window moved after filling fills the screen again instead of jumping back")
     }
 
     private static func levels(_ suite: TestSuite) {

@@ -10,7 +10,7 @@ All notable changes to this project are documented here. The format follows
 More reliable window switching, microphone controls, recording exports and display behavior, with safer focus recovery and remote desktop clipboard handling.
 
 ### Added
-- Trackpad edges: slide along the trackpad's edges to change volume, display or keyboard brightness and microphone level, swipe the bottom edge to skip tracks, and double-tap corners to mute the microphone or sound, control playback, open Mission Control and more. Steps tick with haptic feedback, edges can require a tap before sliding so resting a finger there changes nothing, the pointer stays still while sliding, and changes appear in the Dynamic Island or the macOS overlay.
+- Trackpad edges: slide along the trackpad's edges to change volume, display or keyboard brightness and microphone level, swipe the bottom edge to skip tracks, and double-tap corners to mute the microphone or sound, control playback, close, minimize, fill, hide or quit the front window and app, open Mission Control and more. Steps tick with haptic feedback, edges can require a tap before sliding so resting a finger there changes nothing, the pointer stays still while sliding, and changes appear in the Dynamic Island or the macOS overlay.
 
 ### Fixed
 - The window switcher opens and switches more efficiently, reduces flashes when restoring minimized windows and cancels outdated activation requests after a newer selection. Thanks to @zhanghao87.

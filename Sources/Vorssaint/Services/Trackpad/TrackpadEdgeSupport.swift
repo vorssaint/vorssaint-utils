@@ -82,11 +82,25 @@ enum TrackpadCorner: String, CaseIterable, Identifiable {
     }
 }
 
+enum TrackpadCornerActionGroup: CaseIterable {
+    case none, sound, windows, system
+}
+
 enum TrackpadCornerAction: String, CaseIterable, Identifiable {
-    case off, microphoneMute, outputMute, playPause, nextTrack, previousTrack,
-         missionControl, appExpose, nextSoundOutput, lockScreen
+    case off, microphoneMute, outputMute, playPause, nextTrack, previousTrack, nextSoundOutput,
+         closeWindow, minimizeWindow, fillScreen, fullScreen, hideApp, quitApp,
+         missionControl, appExpose, lockScreen
 
     var id: String { rawValue }
+
+    var group: TrackpadCornerActionGroup {
+        switch self {
+        case .off: return .none
+        case .microphoneMute, .outputMute, .playPause, .nextTrack, .previousTrack, .nextSoundOutput: return .sound
+        case .closeWindow, .minimizeWindow, .fillScreen, .fullScreen, .hideApp, .quitApp: return .windows
+        case .missionControl, .appExpose, .lockScreen: return .system
+        }
+    }
 
     var symbolName: String {
         switch self {
@@ -100,6 +114,12 @@ enum TrackpadCornerAction: String, CaseIterable, Identifiable {
         case .appExpose: return "rectangle.stack"
         case .nextSoundOutput: return "hifispeaker"
         case .lockScreen: return "lock.fill"
+        case .closeWindow: return "xmark.square"
+        case .minimizeWindow: return "arrow.down.right.and.arrow.up.left"
+        case .fillScreen: return "macwindow"
+        case .fullScreen: return "arrow.up.left.and.arrow.down.right"
+        case .hideApp: return "eye.slash"
+        case .quitApp: return "power"
         }
     }
 
@@ -619,6 +639,25 @@ struct TrackpadEdgeRecognizer {
         case .idle, .ignored:
             return []
         }
+    }
+}
+
+enum TrackpadWindowFrames {
+    static let matchTolerance: CGFloat = 4
+
+    static func axFrame(fromAppKit rect: CGRect, primaryScreenHeight: CGFloat) -> CGRect {
+        CGRect(x: rect.minX, y: primaryScreenHeight - rect.maxY, width: rect.width, height: rect.height)
+    }
+
+    static func matches(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat = matchTolerance) -> Bool {
+        abs(lhs.minX - rhs.minX) <= tolerance && abs(lhs.minY - rhs.minY) <= tolerance
+            && abs(lhs.width - rhs.width) <= tolerance && abs(lhs.height - rhs.height) <= tolerance
+    }
+
+    static func fillTarget(current: CGRect, screenFill: CGRect,
+                           rememberedFill: CGRect?, previous: CGRect?) -> CGRect {
+        if let rememberedFill, let previous, matches(current, rememberedFill) { return previous }
+        return screenFill
     }
 }
 
