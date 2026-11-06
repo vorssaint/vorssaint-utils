@@ -318,7 +318,10 @@ final class HomebrewManager: ObservableObject {
 
     /// Opens the command in the person's own terminal (see
     /// `HomebrewTerminalScript`), with no Automation consent involved;
-    /// `opened` runs on the main thread once macOS has handed it over.
+    /// `opened` runs on the main thread once macOS has handed it over. The
+    /// app that runs the script is the terminal the person chose in
+    /// Settings, or the system default handler when no app is chosen or the
+    /// chosen one is gone (issue #598).
     private func openTerminal(command: String, opened: (() -> Void)? = nil) {
         let script: URL
         do {
@@ -327,7 +330,10 @@ final class HomebrewManager: ObservableObject {
             errorMessage = error.localizedDescription
             return
         }
-        NSWorkspace.shared.open(script, configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
+        let applicationURL = HomebrewTerminalChoice.applicationURL(
+            selectedBundleID: UserDefaults.standard.string(forKey: DefaultsKey.homebrewTerminalChoice),
+            appURL: { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) })
+        let report: (Error?) -> Void = { [weak self] error in
             DispatchQueue.main.async {
                 guard let error else {
                     opened?()
@@ -337,6 +343,17 @@ final class HomebrewManager: ObservableObject {
                 // already gone needs no report.
                 try? FileManager.default.removeItem(at: script)
                 self?.errorMessage = error.localizedDescription
+            }
+        }
+        if let applicationURL {
+            NSWorkspace.shared.open([script], withApplicationAt: applicationURL,
+                                    configuration: NSWorkspace.OpenConfiguration()) { _, error in
+                report(error)
+            }
+        } else {
+            NSWorkspace.shared.open(script,
+                                    configuration: NSWorkspace.OpenConfiguration()) { _, error in
+                report(error)
             }
         }
     }

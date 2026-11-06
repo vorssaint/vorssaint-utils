@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 struct HomebrewSettings: View {
@@ -9,6 +10,8 @@ struct HomebrewSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
     @AppStorage(DefaultsKey.homebrewGroupDependencies) private var homebrewGroupDependencies = true
+    @AppStorage(DefaultsKey.homebrewTerminalChoice) private var homebrewTerminalChoice = HomebrewTerminalChoice.systemDefaultBundleID
+    @State private var terminalChoiceOptions: [HomebrewTerminalChoice.Option] = []
     @State private var query = ""
     @State private var searchKind: HomebrewPackageKind = .cask
     @State private var installedFilter = HomebrewInstalledFilter.all
@@ -80,6 +83,10 @@ struct HomebrewSettings: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
             }
+            Divider()
+            terminalChoiceRow
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             Divider()
             HStack(spacing: 0) {
                 packageList
@@ -239,6 +246,51 @@ struct HomebrewSettings: View {
             }
             .controlSize(.small)
             .help(l10n.s.homebrewRefresh)
+        }
+    }
+
+    /// The terminal that opens Homebrew's sudo, installer and shell setup
+    /// commands: the person's own choice, offered as the terminals that are
+    /// actually installed on this Mac (issue #598).
+    private var terminalChoiceRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "terminal")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(l10n.s.homebrewTerminalSetting)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(l10n.s.homebrewTerminalSettingDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            Picker(l10n.s.homebrewTerminalSetting, selection: $homebrewTerminalChoice) {
+                Text(l10n.s.homebrewTerminalDefault)
+                    .tag(HomebrewTerminalChoice.systemDefaultBundleID)
+                ForEach(terminalChoiceOptions) { option in
+                    Text(option.name).tag(option.bundleID)
+                }
+            }
+            .controlSize(.small)
+            .labelsHidden()
+            .frame(width: 190)
+        }
+        .onAppear { refreshTerminalChoiceOptions() }
+        .onChange(of: homebrewTerminalChoice) { _, _ in refreshTerminalChoiceOptions() }
+    }
+
+    private func refreshTerminalChoiceOptions() {
+        terminalChoiceOptions = HomebrewTerminalChoice.installedOptions(appURL: {
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0)
+        })
+        // A chosen app that is gone falls back to the system default at
+        // launch time; the picker shows that fallback too.
+        if homebrewTerminalChoice != HomebrewTerminalChoice.systemDefaultBundleID,
+           !terminalChoiceOptions.contains(where: { $0.bundleID == homebrewTerminalChoice }) {
+            homebrewTerminalChoice = HomebrewTerminalChoice.systemDefaultBundleID
         }
     }
 

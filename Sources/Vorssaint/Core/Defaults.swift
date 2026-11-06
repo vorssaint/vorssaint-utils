@@ -326,6 +326,7 @@ enum DefaultsKey {
     static let panelUtilityCleaner = "panelUtilityCleaner"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
     static let homebrewGroupDependencies = "homebrewGroupDependencies"
+    static let homebrewTerminalChoice = "homebrewTerminalChoice" // empty: system default, else terminal bundle id
     static let panelUtilityAppUpdates = "panelUtilityAppUpdates"
     static let appUpdatesCheckFrequency = "appUpdatesCheckFrequency"  // off | daily | weekly
     static let appUpdatesIncludeHomebrewApps = "appUpdatesIncludeHomebrewApps"
@@ -1598,6 +1599,7 @@ enum Defaults {
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.homebrewGroupDependencies: true,
+        DefaultsKey.homebrewTerminalChoice: HomebrewTerminalChoice.systemDefaultBundleID,
         DefaultsKey.panelUtilityAppUpdates: true,
         // The list itself costs nothing until it is opened; only the
         // background check keeps a timer, so it starts off.
