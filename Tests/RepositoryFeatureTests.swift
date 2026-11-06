@@ -63,12 +63,7 @@ enum RepositoryFeatureTests {
     /// Runs the production `pollPasteboard` against a pasteboard the test
     /// fills, recording what would be written back.
     enum URLCleanerPollHost {
-        struct Kind: Equatable {
-            let rawValue: String
-            static let string = Kind(rawValue: "public.utf8-plain-text")
-            static let html = Kind(rawValue: "public.html")
-            static let source = Kind(rawValue: "org.nspasteboard.source")
-        }
+        typealias Kind = AppKit.NSPasteboard.PasteboardType
         final class Pasteboard {
             static let general = Pasteboard()
             var changeCount = 1
@@ -79,11 +74,16 @@ enum RepositoryFeatureTests {
             var copiedDuringRead = false
             var source: String?
             var onRead: ((Kind) -> Void)?
+            var metadata: Data?
             var pasteboardItems: [Int]? { Array(repeating: 0, count: items) }
             func string(forType type: Kind) -> String? {
                 if copiedDuringRead { changeCount += 1 }
                 onRead?(type)
                 return type == .string ? text : type == .html ? html : type == .source ? source : nil
+            }
+            func data(forType type: Kind) -> Data? {
+                onRead?(type)
+                return metadata
             }
         }
         typealias NSPasteboard = Pasteboard
@@ -97,7 +97,8 @@ enum RepositoryFeatureTests {
         static var written: [String] = []
         static var writtenSources: [String?] = []
         static var writtenRemote: [Bool] = []
-        static func writeToPasteboard(_ urlString: String, source: String? = nil, remote: Bool = false) -> Int {
+        static func writeToPasteboard(_ urlString: String, source: String? = nil, remote: Bool = false,
+                                     linkMetadata: Data? = nil) -> Int {
             written.append(urlString)
             writtenSources.append(source)
             writtenRemote.append(remote)
@@ -190,12 +191,14 @@ enum RepositoryFeatureTests {
         }
     }
 
-    /// Runs the production site switch and name removal of the rules list
+    /// Runs the production site creation, switch and name removal of the rules list
     /// against stored names the test reads back.
     final class URLCleanerSiteSwitchHost {
         var globalNames = ""
         var siteNames = ""
         var disabledNames = ""
+        var siteDraft = ""
+        var siteParameterDraft = ""
     }
 
     static func run(_ suite: TestSuite) {
@@ -420,6 +423,56 @@ enum RepositoryFeatureTests {
                "deleting a name the user added drops it from the switched off names too: \(siteSwitch.disabledNames)")
         expectEqual(URLCleaning.siteKey(from: " https://WWW.Weibo.com/path?x=1 ") ?? "",
                     "weibo.com", "the site field takes a pasted link and keeps the host")
+        expectEqual(URLCleaning.siteKey(from: "https://user@Shop.Example.com:8080/x") ?? "",
+                    "shop.example.com", "a pasted link's port and login do not become part of the host key")
+        let siteInputs: [(input: String, host: String, link: String)] = [
+            ("shop.example.com", "shop.example.com", "https://shop.example.com/x"),
+            ("shop.example.com:8080", "shop.example.com", "https://shop.example.com:8080/x"),
+            ("https://shop.example.com:8080/x?ref=a#part", "shop.example.com",
+             "https://shop.example.com:8080/x"),
+            ("https://user@shop.example.com/x", "shop.example.com", "https://user@shop.example.com/x"),
+            (" https://user:pass@WWW.Shop.Example.com:8080/x ", "shop.example.com",
+             "https://user:pass@WWW.Shop.Example.com:8080/x"),
+            ("https://192.0.2.1:8080/x", "192.0.2.1", "https://192.0.2.1:8080/x"),
+            ("[::ffff:192.0.2.1]", "[::ffff:192.0.2.1]", "https://[::ffff:192.0.2.1]/x"),
+            ("https://[::ffff:192.0.2.1]/x", "[::ffff:192.0.2.1]", "https://[::ffff:192.0.2.1]/x"),
+            ("https://user:pass@[2001:db8::192.0.2.1]:8080/x", "[2001:db8::192.0.2.1]",
+             "https://user:pass@[2001:db8::192.0.2.1]:8080/x"),
+        ]
+        for entry in siteInputs {
+            let site = URLCleanerSiteSwitchHost()
+            site.siteDraft = entry.input
+            site.siteParameterDraft = " Ref "
+            site.addSite()
+            expectEqual(site.siteNames, "\(entry.host)|ref", "site creation stores only the host from \(entry.input)")
+            suite.expect(site.siteDraft.isEmpty && site.siteParameterDraft.isEmpty,
+                         "successful site creation clears both drafts")
+            let restored = URLCleaning.rules(globalNames: site.globalNames, siteNames: site.siteNames,
+                                             disabledNames: site.disabledNames)
+            let link = entry.link + "?ref=campaign&id=42#section"
+            expectEqual(URLCleaning.clean(link, rules: restored)?.url ?? "", entry.link + "?id=42#section",
+                        "the stored rule cleans its host and preserves login, port, path and fragment")
+            let otherSite = "https://unrelated.example/?ref=campaign&id=42"
+            expectEqual(URLCleaning.clean(otherSite, rules: restored)?.url ?? "", otherSite,
+                        "a saved site rule does not reach an unrelated host")
+            if let group = URLCleaning.ruleGroups(rules: restored).first(where: { $0.site == entry.host }) {
+                site.setSite(group, enabled: false)
+                let disabled = URLCleaning.rules(globalNames: site.globalNames, siteNames: site.siteNames,
+                                                 disabledNames: site.disabledNames)
+                expectEqual(URLCleaning.clean(link, rules: disabled)?.url ?? "", link,
+                            "a disabled stored site rule preserves the original link")
+            } else {
+                suite.expect(false, "the saved site rule has a group")
+            }
+        }
+        for invalidSite in ["not a host", ".example.com", "https://user@:8080/x", "example.com|ref"] {
+            let site = URLCleanerSiteSwitchHost()
+            site.siteDraft = invalidSite
+            site.siteParameterDraft = "ref"
+            site.addSite()
+            suite.expect(site.siteNames.isEmpty && site.siteDraft == invalidSite,
+                         "invalid site creation keeps its draft and stores no rule")
+        }
         suite.expect(URLCleaning.siteKey(from: "not a host") == nil,
                "text that is not a host is refused rather than stored")
         expectEqual(URLCleaning.parameterName(from: " Ref ") ?? "", "ref",
@@ -554,6 +607,9 @@ enum RepositoryFeatureTests {
             "org.chromium.web-custom-data", "com.apple.WebKit.custom-pasteboard-data",
             "dyn.ah62d4rv4gu8y6y4grf0gn5xbrzw1gydcr7u1e3cytf2gn",
         ]), "a browser's or a messaging app's private notes about the copy do not block the rewrite")
+        suite.expect(URLCleaning.canRewritePasteboard(types: [
+            "public.utf8-plain-text", "public.url", "com.apple.linkpresentation.metadata",
+        ]), "Safari's rich-link metadata can be rewritten with the link")
         suite.expect(!URLCleaning.canRewritePasteboard(types: [
             "public.utf8-plain-text", "public.url", "public.tiff", "public.png",
         ]), "a copied picture with its source link as text is left alone")
@@ -698,10 +754,12 @@ enum RepositoryFeatureTests {
 
         // Delayed providers can answer after the cleaner was turned off or
         // another app copied. The final source read must not reopen that race.
-        for scenario in ["copy during source", "cancel during source", "cancel during HTML"] {
+        for scenario in ["copy during source", "cancel during source", "cancel during HTML",
+                         "copy during metadata", "cancel during metadata"] {
             let pasteboard = URLCleanerPollHost.Pasteboard.general
             let token = URLCleanerPollHost.PollToken()
-            pasteboard.types = chromiumTypes.map(URLCleanerPollHost.Kind.init(rawValue:))
+            pasteboard.types = (chromiumTypes + [URLCleanerLinkMetadata.pasteboardType.rawValue])
+                .map(URLCleanerPollHost.Kind.init(rawValue:))
             pasteboard.items = 1
             pasteboard.text = pollLink
             pasteboard.html = titledCopy
@@ -710,6 +768,12 @@ enum RepositoryFeatureTests {
                 if scenario == "copy during source", kind == .source { pasteboard.changeCount += 1 }
                 if scenario == "cancel during source", kind == .source { token.isCancelled = true }
                 if scenario == "cancel during HTML", kind == .html { token.isCancelled = true }
+                if scenario == "copy during metadata", kind == URLCleanerLinkMetadata.pasteboardType {
+                    pasteboard.changeCount += 1
+                }
+                if scenario == "cancel during metadata", kind == URLCleanerLinkMetadata.pasteboardType {
+                    token.isCancelled = true
+                }
             }
             URLCleanerPollHost.written = []
             _ = URLCleanerPollHost.pollPasteboard(sinceChangeCount: 0, token: token)
@@ -838,6 +902,66 @@ enum RepositoryFeatureTests {
                "sudo terminal error triggers Homebrew terminal fallback")
         suite.expect(HomebrewCommandBuilder.installerCommand == #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#,
                "Homebrew installer command matches the official install script entrypoint")
+        // The terminal handoff: a script the person's own terminal runs once in
+        // their own shell, leaving nothing behind (issue #598).
+        do {
+            let folder = FileManager.default.temporaryDirectory
+                .appendingPathComponent("vorssaint-terminal-script-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            // A stand-in login shell that writes down the arguments it was given.
+            let shell = folder.appendingPathComponent("shell")
+            let received = folder.appendingPathComponent("received")
+            try? "#!/bin/sh\nprintf '%s\\n' \"$@\" > \(HomebrewCommandBuilder.shellQuote(received.path))\n"
+                .write(to: shell, atomically: true, encoding: .utf8)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: shell.path)
+            let command = #"eval (/opt/homebrew/bin/brew shellenv fish); echo "it's $HOME" 'a\b'"#
+            let script = try? HomebrewTerminalScript.write(command: command, shellPath: shell.path, directory: folder)
+            let permissions = script
+                .flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path)[.posixPermissions] as? NSNumber }
+            suite.expect(script?.pathExtension == "" && permissions?.intValue == 0o700,
+                   "the terminal script has no extension, so macOS opens it in the terminal the person chose, "
+                   + "and only they can read or run it")
+            if let script {
+                let process = Process()
+                process.executableURL = script
+                try? process.run()
+                process.waitUntilExit()
+            }
+            let arguments = (try? String(contentsOf: received, encoding: .utf8))?
+                .split(separator: "\n", omittingEmptySubsequences: false).map(String.init) ?? []
+            suite.expect(arguments == ["-l", "-i", "-c", command, ""],
+                   "the terminal script hands the command, unchanged, to the person's own shell as a login "
+                   + "and interactive shell, the way Terminal ran it before, found \(arguments)")
+            suite.expect(script.map { !FileManager.default.fileExists(atPath: $0.path) } ?? false,
+                   "the terminal script deletes itself as it runs")
+            do {
+                for shellPath in ["/bin/csh", "/bin/tcsh"] {
+                    let output = folder.appendingPathComponent(URL(fileURLWithPath: shellPath).lastPathComponent)
+                    let command = "/usr/bin/printf '%s' 'terminal handoff' > "
+                        + HomebrewCommandBuilder.shellQuote(output.path)
+                    let script = try HomebrewTerminalScript.write(command: command,
+                                                                   shellPath: shellPath, directory: folder)
+                    let process = Process()
+                    process.executableURL = script
+                    let input = Pipe()
+                    process.standardInput = input
+                    try process.run()
+                    try input.fileHandleForWriting.close()
+                    process.waitUntilExit()
+                    suite.expect(process.terminationStatus == 0
+                                 && (try? String(contentsOf: output, encoding: .utf8)) == "terminal handoff",
+                                 "the production terminal script runs commands in \(shellPath)")
+                    suite.expect(!FileManager.default.fileExists(atPath: script.path),
+                                 "the \(shellPath) terminal script removes itself")
+                }
+            } catch {
+                suite.expect(false, "could not run the csh terminal handoff: \(error)")
+            }
+            suite.expect((try? HomebrewTerminalScript.write(command: command, shellPath: shell.path,
+                                                            directory: folder.appendingPathComponent("missing"))) == nil,
+                   "a terminal script that cannot be written reports an error instead of opening nothing")
+        }
         expectEqual(HomebrewCommandBuilder.shellProfilePath(homeDirectory: "/Users/test", shellPath: "/bin/zsh"),
                     "/Users/test/.zprofile",
                     "Homebrew shell setup uses zprofile for zsh")
@@ -1404,6 +1528,25 @@ enum RepositoryFeatureTests {
         suite.expect(!appSources.isEmpty && applicationRoleReads.isEmpty,
                "no application element is ever asked for its role: \(applicationRoleReads)")
 
+        // The snippet probe asks whatever app is in front while typing waits,
+        // so its questions share one deadline, and a spent one stops them: a
+        // zero timeout means the system default, which is seconds.
+        let readerLines = repository.lines(at: appPrefix + "Services/SelectedTextReader.swift")
+            .filter { !isCommentLine($0) }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        let focusedTextProbe = readerLines
+            .drop(while: { !$0.hasPrefix("func text(in range: NSRange)") })
+            .prefix(while: { !$0.hasPrefix("private static func limit(") })
+        suite.expect(readerLines.contains("guard left > 0 else { return false }")
+               && focusedTextProbe.filter { $0.contains("limit(") }.count == 5
+               && focusedTextProbe.filter { $0.contains("copyElement(") || $0.contains("copyValue(")
+                   || $0.contains("copyString(") }.count == 5
+               && focusedTextProbe.contains("guard textLength <= wholeValueLimit,")
+               && !focusedTextProbe.contains(where: {
+                   $0.contains("kAXRoleAttribute") || $0.contains("AXUIElementSetMessagingTimeout")
+               }),
+               "the focused text probe asks every question within one deadline, never a role, and copies only a short value whole")
+
         // A walk up kAXParent reaches an application element without naming it,
         // so every such walk must stop before asking that parent for its role.
         var unguardedParentWalks: [String] = []
@@ -1920,15 +2063,21 @@ enum RepositoryFeatureTests {
 
         // MARK: Secure input
 
+        // The session records the app that was active when secure input
+        // turned on, not the process holding it, and Settings makes
+        // Vorssaint that app.
+        let secureInputOwnPid: pid_t = 77
         suite.expect(SecureInputSupport.holder(isEnabled: false,
                                          read: .noHolder,
+                                         ownPid: secureInputOwnPid,
                                          runningApp: { _ in nil },
                                          isProcessAlive: { _ in true }) == .off,
-               "secure input off with no recorded holder is off")
+               "secure input off with no recorded app is off")
         var secureInputNameLookups = 0
         let secureInputOffWithPid = SecureInputSupport.holder(
             isEnabled: false,
             read: .holder(4242),
+            ownPid: secureInputOwnPid,
             runningApp: { pid in
                 secureInputNameLookups += 1
                 return ("SomeBrowser", pid)
@@ -1938,6 +2087,7 @@ enum RepositoryFeatureTests {
                "secure input off stays off even with a pid still recorded")
         suite.expect(SecureInputSupport.holder(isEnabled: false,
                                          read: .unavailable,
+                                         ownPid: secureInputOwnPid,
                                          runningApp: { _ in nil },
                                          isProcessAlive: { _ in true }) == .off,
                "secure input off stays off when the session cannot be read")
@@ -1946,6 +2096,7 @@ enum RepositoryFeatureTests {
 
         suite.expect(SecureInputSupport.holder(isEnabled: true,
                                          read: .holder(999),
+                                         ownPid: secureInputOwnPid,
                                          runningApp: { pid in
                                              pid == 999 ? ("SomeBrowser", 4242) : nil
                                          },
@@ -1954,35 +2105,82 @@ enum RepositoryFeatureTests {
                "a helper pid is attributed to the app responsible for it")
         suite.expect(SecureInputSupport.holder(isEnabled: true,
                                          read: .holder(4242),
+                                         ownPid: secureInputOwnPid,
                                          runningApp: { _ in nil },
                                          isProcessAlive: { _ in true }) == .unknown,
-               "a running holder that is no regular app is never sent to log out")
+               "a running process that is no regular app is never sent to log out")
         suite.expect(SecureInputSupport.holder(isEnabled: true,
                                          read: .holder(4242),
+                                         ownPid: secureInputOwnPid,
                                          runningApp: { _ in nil },
                                          isProcessAlive: { _ in false }) == .unattributed,
-               "a holder that has exited is what a new login session clears")
+               "once the recorded app has quit, a new login session is the fallback")
         suite.expect(SecureInputSupport.holder(isEnabled: true,
                                          read: .noHolder,
+                                         ownPid: secureInputOwnPid,
                                          runningApp: { _ in nil },
                                          isProcessAlive: { _ in true }) == .unattributed,
-               "secure input on with no recorded holder is unattributed")
+               "secure input on with no recorded app is unattributed")
         suite.expect(SecureInputSupport.holder(isEnabled: true,
                                          read: .holder(0),
+                                         ownPid: secureInputOwnPid,
                                          runningApp: { pid in ("SomeBrowser", pid) },
                                          isProcessAlive: { _ in true }) == .unattributed,
                "a zero pid is not an attribution")
         suite.expect(SecureInputSupport.holder(isEnabled: true,
                                          read: .holder(4242),
+                                         ownPid: secureInputOwnPid,
                                          runningApp: { pid in ("", pid) },
                                          isProcessAlive: { _ in false }) == .unattributed,
                "an empty app name is not an attribution")
+
+        var secureInputOwnLivenessChecks = 0
+        suite.expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(secureInputOwnPid),
+                                         ownPid: secureInputOwnPid,
+                                         runningApp: { pid in ("Vorssaint", pid) },
+                                         isProcessAlive: { _ in
+                                             secureInputOwnLivenessChecks += 1
+                                             return true
+                                         }) == .unknown,
+               "Vorssaint recorded as the active app is never named as holding secure input")
+        suite.expect(secureInputOwnLivenessChecks == 0,
+               "naming Vorssaint is refused before any liveness check")
+        suite.expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(5555),
+                                         ownPid: secureInputOwnPid,
+                                         runningApp: { _ in ("Vorssaint", secureInputOwnPid) },
+                                         isProcessAlive: { _ in true }) == .unknown,
+               "a recorded helper owned by Vorssaint is not named either")
+        suite.expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(secureInputOwnPid),
+                                         ownPid: secureInputOwnPid,
+                                         runningApp: { _ in nil },
+                                         isProcessAlive: { _ in true }) == .unknown,
+               "Vorssaint recorded while it is not a regular app is never sent to log out")
+        suite.expect(SecureInputSupport.holder(isEnabled: true,
+                                         read: .holder(4242),
+                                         ownPid: secureInputOwnPid,
+                                         runningApp: { pid in ("Vorssaint", pid) },
+                                         isProcessAlive: { _ in true })
+                   == .app(name: "Vorssaint", pid: 4242),
+               "another copy of the app is told apart from this one by pid, not by name")
+        // The rule above protects the row only if the monitor passes this
+        // process, and the harness does not compile `SecureInputMonitor`.
+        let secureInputMonitorCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Core/SecureInputMonitor.swift", encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        suite.expect(secureInputMonitorCode.contains("ownPid: getpid(),"),
+               "the secure input monitor passes its own pid, so the row never names Vorssaint")
 
         var secureInputUnavailableLookups = 0
         var secureInputUnavailableLivenessChecks = 0
         let secureInputUnavailable = SecureInputSupport.holder(
             isEnabled: true,
             read: .unavailable,
+            ownPid: secureInputOwnPid,
             runningApp: { pid in
                 secureInputUnavailableLookups += 1
                 return ("SomeBrowser", pid)

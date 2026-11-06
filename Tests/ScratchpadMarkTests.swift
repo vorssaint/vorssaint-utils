@@ -280,5 +280,131 @@ enum ScratchpadMarkTests {
         // picks up after a word stays outside the markers.
         expect(applying(.bold, to: "hello world", NSRange(location: 0, length: 6)).text == "**hello** world",
                "a trailing space stays outside the markers")
+
+        // Task lists: `- [ ]` and `- [x]` read as checkboxes, and a click
+        // edits the very box the parser drew it from, wherever its line sits.
+        func shownTasks(_ text: String) -> [(checked: Bool, box: Int, text: String)] {
+            ScratchpadSupport.markdownPreview(text).compactMap { block in
+                guard case .taskListItem(_, let checked, let box) = block.kind else { return nil }
+                return (checked, box, String(block.text.characters))
+            }
+        }
+        /// Clicks the `n`th checkbox the reading shows.
+        func clickingTask(_ n: Int, in text: String) -> String? {
+            let shown = shownTasks(text)
+            guard n < shown.count, let edit = ScratchpadSupport.taskToggleEdit(box: shown[n].box, in: text) else { return nil }
+            return (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
+        }
+        let source = "- [ ] first\n- [x] done\n- plain\n  - [] nested\n\n```\n- [ ] in code\n```\n> - [ ] quoted\n1. [ ] ordered"
+        let tasks = shownTasks(source)
+        expect(tasks.map(\.checked) == [false, true, false, false] && tasks.map(\.box) == [2, 14, 35, 72]
+               && tasks.map(\.text) == ["first", "done", "nested", "quoted"],
+               "task items read as checkboxes at their box in the text, with the marker off their text, and code and ordered items are not tasks")
+        expect(ScratchpadSupport.markdownPreview(source).contains {
+                   $0.kind == .unorderedListItem(depth: 1) && String($0.text.characters) == "plain" },
+               "a list item without a checkbox stays a bullet")
+        // A list inside a quote is still the quote's, and its tasks are still tasks.
+        func isTask(_ block: ScratchpadMarkdownBlock) -> Bool {
+            if case .taskListItem = block.kind { return true }
+            return false
+        }
+        let inQuote = ScratchpadSupport.markdownPreview("> Reminder\n> - [ ] Bring the key\n> - spare\n> > - [x] deep\n\n- [ ] home")
+        expect(inQuote.map(isTask) == [false, true, false, true, true]
+               && inQuote.map(\.quoteDepth) == [0, 1, 1, 2, 0]
+               && inQuote[0].kind == .quote(depth: 1) && inQuote[2].kind == .unorderedListItem(depth: 1),
+               "a task or bullet inside a quote keeps the quote's depth, and a task outside one has none")
+        expect(ScratchpadSupport.markdownPreview("- note\n\n  > aside").map(\.quoteDepth) == [0, 0],
+               "a quote inside a list item does not put the item in a quote")
+        expect(clickingTask(0, in: source)?.hasPrefix("- [x] first\n- [x] done") == true
+               && clickingTask(1, in: source)?.contains("- [ ] done") == true
+               && clickingTask(2, in: source)?.contains("  - [x] nested") == true
+               && clickingTask(3, in: source)?.contains("> - [x] quoted") == true
+               && clickingTask(3, in: source)?.contains("- [ ] in code") == true,
+               "a click checks or unchecks only its own box, never one inside code")
+        // The parser, not a count of lines, decides what is a task: a tab
+        // after a heading makes code, and a line indented under a paragraph
+        // or under a task joins it. A click still edits its own line.
+        expect(clickingTask(0, in: "# Today\n\t- [ ] call bob\n- [ ] email ann") == "# Today\n\t- [ ] call bob\n- [x] email ann"
+               && clickingTask(0, in: "Shopping\n    - [ ] eggs\n- [ ] milk") == "Shopping\n    - [ ] eggs\n- [x] milk"
+               && clickingTask(0, in: "- [ ] milk\n        - [ ] organic\n- [ ] bread") == "- [x] milk\n        - [ ] organic\n- [ ] bread"
+               && clickingTask(1, in: "- [ ] milk\n        - [ ] organic\n- [ ] bread") == "- [ ] milk\n        - [ ] organic\n- [x] bread",
+               "a click edits the box it was drawn from when an indented task reads as code or as part of a paragraph")
+        expect(shownTasks("- note\n\n  [ ] follow up").map(\.text) == ["follow up"]
+               && clickingTask(0, in: "- note\n\n  [ ] follow up") == "- note\n\n  [x] follow up",
+               "a box opening a later paragraph of a list item is a task of its own, and a click edits that line")
+        let wide = "Café ☕️ 👩‍👩‍👧 é\n- [ ] a\n- [x] b"
+        expect(clickingTask(0, in: wide) == "Café ☕️ 👩‍👩‍👧 é\n- [x] a\n- [x] b"
+               && clickingTask(1, in: wide) == "Café ☕️ 👩‍👩‍👧 é\n- [ ] a\n- [ ] b",
+               "box offsets count the text as the editor does, past accents and emoji")
+        expect(clickingTask(1, in: "- [ ] a\r\n- [ ] b") == "- [ ] a\r\n- [x] b",
+               "a box after a Windows line ending is found where it is")
+        // Foundation's own conversion of the parser's positions slips a line
+        // after a lazy continuation line or a NUL, onto a task that may read
+        // the same. Lines are counted here instead.
+        let nul = "- [ ] one\nx\u{0}\n- [ ] two\n- [ ] three"
+        let twins = "pasted\u{0}bytes\n- [ ] buy milk\n- [ ] buy milk\n- [x] call mom"
+        let lazy = "- [ ] buy milk\nnote\n- [ ] buy milk\n- [ ] buy milk"
+        expect(shownTasks(nul).map(\.box) == [2, 15, 25] && shownTasks(twins).map(\.box) == [15, 30, 45]
+               && shownTasks(lazy).map(\.box) == [2, 22, 37]
+               && clickingTask(1, in: twins) == "pasted\u{0}bytes\n- [ ] buy milk\n- [x] buy milk\n- [x] call mom"
+               && clickingTask(1, in: lazy) == "- [ ] buy milk\nnote\n- [x] buy milk\n- [ ] buy milk",
+               "a box after a NUL or a lazy continuation line is found on its own line, so a click edits that task")
+        expect(shownTasks("- [ ] a\nlazy\n- [ ] b\n- [ ] c\n- [ ] d\n- [ ] e").map(\.box) == [2, 15, 23, 31, 39]
+               && shownTasks("- [ ] groceries\n milk and eggs\n- [ ] gym\n- [ ] call mom").map(\.box) == [2, 33, 43]
+               && shownTasks("> - [ ] a\nlazy\n> - [ ] b\n> - [ ] b").map(\.box) == [4, 19, 29]
+               && shownTasks("- [ ] a\rb\r- [ ] c").map(\.box) == [2, 12],
+               "every task after a continuation line keeps its box, in a quote too and after a lone carriage return")
+        expect(shownTasks("- [ ] a  \n  b\n- [ ] c &amp; d \\* e\n- [ ] f https://example.com").map(\.box) == [2, 16, 37],
+               "a task with a line break, an entity, an escape or a bare link keeps its box")
+        expect(shownTasks("- \\[ ] escaped\n- &#91; ] encoded\n- `[ ]` code\n- *[ ]* emphasis").isEmpty,
+               "an escaped, encoded, code or emphasized bracket is text, not a box")
+        expect(ScratchpadSupport.markdownPreview("# Today\n\n- [ ] **call** bob\n- note").allSatisfy { block in
+                   block.text.runs.allSatisfy { $0.markdownSourcePosition == nil } },
+               "the reading's blocks carry no source positions")
+        expect(ScratchpadSupport.taskToggleEdit(box: 0, in: "- [ ] a") == nil
+               && ScratchpadSupport.taskToggleEdit(box: 2, in: "- [ a") == nil
+               && ScratchpadSupport.taskToggleEdit(box: 2, in: "- ( ] a") == nil
+               && ScratchpadSupport.taskToggleEdit(box: 2, in: "- [") == nil
+               && ScratchpadSupport.taskToggleEdit(box: 40, in: "- [ ] a") == nil,
+               "a box offset that no longer holds a box changes nothing")
+        let toggled = clickingTask(0, in: "- [ ] a\n- [ ] b") ?? ""
+        expect(clickingTask(0, in: toggled) == "- [ ] a\n- [ ] b",
+               "toggling twice restores the text")
+        let bare = clickingTask(0, in: "- [] a") ?? ""
+        expect(bare == "- [x] a" && clickingTask(0, in: bare) == "- [ ] a",
+               "a bare box checks, then unchecks to an empty box")
+        expect(ScratchpadSupport.completesEmptyTaskBox(before: "- [") && ScratchpadSupport.completesEmptyTaskBox(before: "  * [")
+               && ScratchpadSupport.completesEmptyTaskBox(before: "> - [") && ScratchpadSupport.completesEmptyTaskBox(before: "+  ["),
+               "a ] typed after a list item's [ closes an empty box")
+        expect(!ScratchpadSupport.completesEmptyTaskBox(before: "[") && !ScratchpadSupport.completesEmptyTaskBox(before: "see [")
+               && !ScratchpadSupport.completesEmptyTaskBox(before: "- text [") && !ScratchpadSupport.completesEmptyTaskBox(before: "- [ ")
+               && !ScratchpadSupport.completesEmptyTaskBox(before: "- "),
+               "a [ anywhere else is left alone")
+
+        // Shift-Return carries a list on, or ends it on an empty item.
+        func lineBreak(_ text: String, caretAt offset: Int? = nil) -> String {
+            let caret = offset ?? (text as NSString).length
+            let edit = ScratchpadSupport.lineBreakEdit(in: text, selection: NSRange(location: caret, length: 0))
+            return (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
+        }
+        expect(lineBreak("- [ ] buy milk") == "- [ ] buy milk\n- [ ] "
+               && lineBreak("- [x] done") == "- [x] done\n- [ ] "
+               && lineBreak("  * [] nested") == "  * [] nested\n  * [ ] ",
+               "Shift-Return after a task opens a fresh unchecked task, at the same depth")
+        expect(lineBreak("- item") == "- item\n- " && lineBreak("+ item") == "+ item\n+ "
+               && lineBreak("> - quoted") == "> - quoted\n> - ",
+               "Shift-Return after a bullet opens the same bullet")
+        expect(lineBreak("1. one") == "1. one\n2. " && lineBreak("9) nine") == "9) nine\n10) ",
+               "Shift-Return after a numbered item opens the next number")
+        expect(lineBreak("9223372036854775807. x") == "9223372036854775807. x\n9223372036854775807. ",
+               "Shift-Return after the largest number repeats it instead of overflowing")
+        expect(lineBreak("- [ ] ") == "" && lineBreak("a\n- \nb", caretAt: 4) == "a\n\nb"
+               && lineBreak("1. ") == "",
+               "Shift-Return on an empty item ends the list and takes the marker away")
+        expect(lineBreak("- [ ]") == "" && lineBreak("- [x]") == "" && lineBreak("a\n> - [ ]") == "a\n",
+               "Shift-Return right after a box with nothing past it ends the list too")
+        expect(lineBreak("plain text") == "plain text\n" && lineBreak("- [ ] split here", caretAt: 6) == "- [ ] \n- [ ] split here"
+               && lineBreak("- item", caretAt: 1) == "-\n item",
+               "Shift-Return outside a list is a plain line, and inside one splits the item at the caret")
     }
 }

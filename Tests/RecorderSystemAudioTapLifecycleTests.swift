@@ -17,6 +17,7 @@ enum RecorderSystemAudioTapLifecycleTests {
         let tapID = AudioObjectID(91)
         var stopped = false
         var deviceListenerClient = UnsafeMutableRawPointer(bitPattern: 7)
+        var processListenerClient = UnsafeMutableRawPointer(bitPattern: 8)
         var levelWatch: Watch? = Watch()
         var pipelineStops = 0
 
@@ -59,15 +60,15 @@ enum RecorderSystemAudioTapLifecycleTests {
         }
 
         guard stop(1) else { return }
-        suite.expect(tap.stopped && tap.deviceListenerClient == nil && tap.levelWatch == nil
-                        && watch.stops == 1 && tap.pipelineStops == 1
-                        && Fixture.trace.removed == [7] && Fixture.trace.destroyed == [91],
+        suite.expect(tap.stopped && tap.deviceListenerClient == nil && tap.processListenerClient == nil
+                        && tap.levelWatch == nil && watch.stops == 1 && tap.pipelineStops == 1
+                        && Fixture.trace.removed == [7, 8] && Fixture.trace.destroyed == [91],
                      "the first stop releases the listeners, level watch, pipeline and tap once")
         guard stop(1) else { return }
         suite.expect(Fixture.trace.destroyed == [91] && tap.pipelineStops == 1 && watch.stops == 1,
                      "finalization after cancelled startup never destroys a potentially reused tap ID")
         guard stop(8) else { return }
-        suite.expect(Fixture.trace.destroyed == [91] && Fixture.trace.removed == [7]
+        suite.expect(Fixture.trace.destroyed == [91] && Fixture.trace.removed == [7, 8]
                         && tap.pipelineStops == 1 && watch.stops == 1,
                      "concurrent repeated stops complete without releasing the same resources again")
     }

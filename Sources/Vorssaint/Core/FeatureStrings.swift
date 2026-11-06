@@ -156,7 +156,7 @@ extension ClipboardFeatureStrings {
         caption: "복사한 텍스트를 저장하여 나중에 다시 사용할 수 있습니다. 모든 항목은 로컬에 보관되며 언제든 지울 수 있습니다.",
         localNote: "모든 항목은 이 Mac에만 저장됩니다. 너무 큰 항목은 무시됩니다.",
         skipSensitive: "민감해 보이는 텍스트 건너뛰기",
-        skipSensitiveCaption: "암호, 토큰, 키처럼 보이는 짧고 공백 없는 문자열을 저장하지 않습니다.",
+        skipSensitiveCaption: "암호나 토큰처럼 보이는 일반 텍스트도 건너뛸 수 있습니다. 원본 앱이 기밀로 표시한 콘텐츠는 항상 제외됩니다.",
         limit: "제한",
         limitUnlimited: "무제한",
         showInPanel: "패널에 표시",
@@ -212,7 +212,8 @@ extension ClipboardFeatureStrings {
         clearRecentConfirmMessage: "고정된 항목과 이후에 복사한 내용은 유지됩니다. 되돌릴 수 없습니다.",
         historyLayout: "기록 레이아웃",
         historyLayoutCards: "카드",
-        historyLayoutList: "목록"
+        historyLayoutList: "목록",
+        showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시"
     )
 }
 
@@ -287,7 +288,7 @@ extension WindowLayoutFeatureStrings {
         fullScreen: "전체 화면",
         previousDisplay: "이전 디스플레이",
         edgeSnapEnable: "화면 가장자리에 윈도우 맞추기",
-        edgeSnapCaption: "켠 다음 윈도우 제목 막대를 아래의 강조된 영역 중 한 곳으로 드래그해 놓으세요. 영역을 클릭하면 윈도우가 놓일 위치를 고를 수 있습니다.",
+        edgeSnapCaption: "켠 다음 윈도우 제목 막대를 아래의 강조된 영역 중 한 곳으로 드래그해 놓으세요. 보조 키를 누른 채 옮긴 윈도우도 맞춰집니다. 영역을 클릭하면 윈도우가 놓일 위치를 고를 수 있습니다.",
         edgeSnapSystemConflict: "macOS가 같은 가장자리를 사용 중입니다. 데스크탑 및 Dock에서 윈도우 타일링을 끄면 Vorssaint가 사용할 수 있습니다.",
         edgeSnapOpenSystemSettings: "데스크탑 및 Dock 열기",
         edgeSnapWaitingForSystem: "Vorssaint에서 켜졌습니다. macOS 타일링을 끄면 바로 작동합니다.",
@@ -537,6 +538,7 @@ struct ClipboardFeatureStrings {
     let historyLayout: String
     let historyLayoutCards: String
     let historyLayoutList: String
+    let showSourceAppIconsInList: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -544,7 +546,7 @@ struct ClipboardFeatureStrings {
         caption: "Stores copied text so you can reuse it later. Everything stays local and can be cleared anytime.",
         localNote: "Everything stays on this Mac. Very large items are ignored.",
         skipSensitive: "Skip text that looks sensitive",
-        skipSensitiveCaption: "Avoids saving short no-space strings that look like passwords, tokens or keys.",
+        skipSensitiveCaption: "May skip ordinary text that resembles passwords or tokens. Content marked as confidential by its source app is always excluded.",
         limit: "Limit",
         limitUnlimited: "Unlimited",
         showInPanel: "Show in panel",
@@ -600,7 +602,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Pinned items stay, and so does anything copied after this. This can’t be undone.",
         historyLayout: "History layout",
         historyLayoutCards: "Cards",
-        historyLayoutList: "List"
+        historyLayoutList: "List",
+        showSourceAppIconsInList: "Show source app icons in list view"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -609,7 +612,7 @@ struct ClipboardFeatureStrings {
         caption: "Guarda textos copiados para reutilizar depois. Tudo fica local e pode ser apagado a qualquer momento.",
         localNote: "Tudo fica neste Mac. Itens muito grandes são ignorados.",
         skipSensitive: "Ignorar textos com aparência sensível",
-        skipSensitiveCaption: "Evita salvar textos curtos sem espaços que parecem senha, token ou chave.",
+        skipSensitiveCaption: "Pode ignorar textos comuns que pareçam senhas ou tokens. Conteúdo marcado como confidencial pelo aplicativo de origem nunca é salvo.",
         limit: "Limite",
         limitUnlimited: "Ilimitado",
         showInPanel: "Mostrar no painel",
@@ -665,7 +668,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Os itens fixados ficam, e o que for copiado depois disso também. Não dá para desfazer.",
         historyLayout: "Layout do histórico",
         historyLayoutCards: "Cartões",
-        historyLayoutList: "Lista"
+        historyLayoutList: "Lista",
+        showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -674,7 +678,7 @@ struct ClipboardFeatureStrings {
         caption: "Kopyalanan metinleri daha sonra yeniden kullanabilmen için saklar. Her şey yerel kalır ve istediğin zaman temizlenebilir.",
         localNote: "Her şey bu Mac’te kalır. Çok büyük öğeler yok sayılır.",
         skipSensitive: "Hassas görünen metinleri atla",
-        skipSensitiveCaption: "Parola, token veya anahtar gibi görünen kısa ve boşluksuz dizeleri kaydetmekten kaçınır.",
+        skipSensitiveCaption: "Parola veya token gibi görünen normal metinleri de atlayabilir. Kaynak uygulamanın gizli olarak işaretlediği içerik her zaman hariç tutulur.",
         limit: "Sınır",
         limitUnlimited: "Sınırsız",
         showInPanel: "Panelde göster",
@@ -730,7 +734,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Sabitlenen öğeler ve bundan sonra kopyalananlar kalır. Bu işlem geri alınamaz.",
         historyLayout: "Geçmiş yerleşimi",
         historyLayoutCards: "Kartlar",
-        historyLayoutList: "Liste"
+        historyLayoutList: "Liste",
+        showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -739,7 +744,7 @@ struct ClipboardFeatureStrings {
         caption: "Сохраняет скопированный текст, чтобы вы могли использовать его позже. Всё остаётся локально и может быть очищено в любой момент.",
         localNote: "Всё остаётся на этом Mac. Слишком большие элементы игнорируются.",
         skipSensitive: "Пропускать текст, похожий на конфиденциальный",
-        skipSensitiveCaption: "Не сохраняет короткие строки без пробелов, похожие на пароли, токены или ключи.",
+        skipSensitiveCaption: "Может пропускать обычный текст, похожий на пароли или токены. Содержимое, отмеченное исходным приложением как конфиденциальное, всегда исключается.",
         limit: "Лимит",
         limitUnlimited: "Без ограничений",
         showInPanel: "Показывать в панели",
@@ -795,7 +800,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Закреплённые останутся, как и всё, что скопировано после этого. Отменить нельзя.",
         historyLayout: "Макет истории",
         historyLayoutCards: "Карточки",
-        historyLayoutList: "Список"
+        historyLayoutList: "Список",
+        showSourceAppIconsInList: "Показывать значки исходных приложений в списке"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -804,7 +810,7 @@ struct ClipboardFeatureStrings {
         caption: "Guarda el texto copiado para reutilizarlo después. Todo queda local y se puede borrar cuando quieras.",
         localNote: "Todo se queda en este Mac. Los elementos muy grandes se ignoran.",
         skipSensitive: "Omitir texto que parezca sensible",
-        skipSensitiveCaption: "Evita guardar cadenas cortas sin espacios que parezcan contraseñas, tokens o claves.",
+        skipSensitiveCaption: "Puede omitir texto normal que parezca una contraseña o un token. El contenido marcado como confidencial por la app de origen siempre se excluye.",
         limit: "Límite",
         limitUnlimited: "Ilimitado",
         showInPanel: "Mostrar en el panel",
@@ -860,7 +866,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Los fijados se conservan, y también lo que copies después. No se puede deshacer.",
         historyLayout: "Diseño del historial",
         historyLayoutCards: "Tarjetas",
-        historyLayoutList: "Lista"
+        historyLayoutList: "Lista",
+        showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista"
     )
 
     static let sk = ClipboardFeatureStrings(
@@ -869,7 +876,7 @@ struct ClipboardFeatureStrings {
         caption: "Ukladá skopírovaný text, aby ste ho mohli neskôr znova použiť. Všetko zostáva lokálne a môžete to kedykoľvek vymazať.",
         localNote: "Všetko zostáva len na tomto Macu. Príliš veľké položky sa ignorujú.",
         skipSensitive: "Preskočiť text, ktorý vyzerá citlivo",
-        skipSensitiveCaption: "Zabráni uloženiu krátkych reťazcov bez medzier, ktoré vyzerajú ako heslá, tokeny alebo kľúče.",
+        skipSensitiveCaption: "Môže preskočiť aj bežný text, ktorý pripomína heslá alebo tokeny. Obsah označený zdrojovou aplikáciou ako dôverný sa vždy vylúči.",
         limit: "Limit",
         limitUnlimited: "Bez obmedzenia",
         showInPanel: "Zobraziť v paneli",
@@ -925,7 +932,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Pripnuté položky zostanú, rovnako ako všetko, čo skopírujete potom. Nedá sa to vrátiť späť.",
         historyLayout: "Rozloženie histórie",
         historyLayoutCards: "Karty",
-        historyLayoutList: "Zoznam"
+        historyLayoutList: "Zoznam",
+        showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -934,7 +942,7 @@ struct ClipboardFeatureStrings {
         caption: "Speichert kopierten Text, damit du ihn später wiederverwenden kannst. Alles bleibt lokal und kann jederzeit gelöscht werden.",
         localNote: "Alles bleibt auf diesem Mac. Sehr große Inhalte werden ignoriert.",
         skipSensitive: "Text überspringen, der sensibel wirkt",
-        skipSensitiveCaption: "Speichert keine kurzen Zeichenfolgen ohne Leerzeichen, die wie Passwörter, Token oder Schlüssel wirken.",
+        skipSensitiveCaption: "Kann auch normalen Text überspringen, der wie Passwörter oder Tokens aussieht. Von der Quell-App als vertraulich markierte Inhalte werden immer ausgeschlossen.",
         limit: "Limit",
         limitUnlimited: "Unbegrenzt",
         showInPanel: "Im Panel anzeigen",
@@ -990,7 +998,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Angeheftete bleiben, ebenso alles, was du danach kopierst. Das lässt sich nicht widerrufen.",
         historyLayout: "Verlaufslayout",
         historyLayoutCards: "Karten",
-        historyLayoutList: "Liste"
+        historyLayoutList: "Liste",
+        showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -999,7 +1008,7 @@ struct ClipboardFeatureStrings {
         caption: "Enregistre le texte copié pour le réutiliser plus tard. Tout reste local et peut être effacé à tout moment.",
         localNote: "Tout reste sur ce Mac. Les éléments très volumineux sont ignorés.",
         skipSensitive: "Ignorer le texte qui semble sensible",
-        skipSensitiveCaption: "Évite d’enregistrer les courtes chaînes sans espaces qui ressemblent à des mots de passe, jetons ou clés.",
+        skipSensitiveCaption: "Peut ignorer du texte ordinaire ressemblant à des mots de passe ou à des jetons. Le contenu marqué comme confidentiel par l’app source est toujours exclu.",
         limit: "Limite",
         limitUnlimited: "Illimité",
         showInPanel: "Afficher dans le panneau",
@@ -1055,7 +1064,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Les éléments épinglés restent, comme tout ce qui sera copié ensuite. Action irréversible.",
         historyLayout: "Disposition de l’historique",
         historyLayoutCards: "Cartes",
-        historyLayoutList: "Liste"
+        historyLayoutList: "Liste",
+        showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -1064,7 +1074,7 @@ struct ClipboardFeatureStrings {
         caption: "Salva il testo copiato per riutilizzarlo in seguito. Tutto resta locale e può essere cancellato in qualsiasi momento.",
         localNote: "Tutto resta su questo Mac. Gli elementi molto grandi vengono ignorati.",
         skipSensitive: "Ignora testo che sembra sensibile",
-        skipSensitiveCaption: "Evita di salvare stringhe brevi senza spazi che sembrano password, token o chiavi.",
+        skipSensitiveCaption: "Può ignorare anche testo normale che sembra una password o un token. I contenuti contrassegnati come riservati dall’app di origine vengono sempre esclusi.",
         limit: "Limite",
         limitUnlimited: "Illimitato",
         showInPanel: "Mostra nel pannello",
@@ -1120,7 +1130,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Gli elementi fissati restano, come tutto ciò che copi dopo. Non si può annullare.",
         historyLayout: "Layout cronologia",
         historyLayoutCards: "Schede",
-        historyLayoutList: "Elenco"
+        historyLayoutList: "Elenco",
+        showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -1129,7 +1140,7 @@ struct ClipboardFeatureStrings {
         caption: "コピーしたテキストを保存して、あとで再利用できます。すべてローカルに保存され、いつでも削除できます。",
         localNote: "すべてこのMacに残ります。大きすぎる項目は無視されます。",
         skipSensitive: "機密らしいテキストを無視",
-        skipSensitiveCaption: "パスワード、トークン、キーに見える短い空白なしの文字列を保存しません。",
+        skipSensitiveCaption: "パスワードやトークンに似た通常のテキストも除外される場合があります。コピー元のアプリが機密として指定した内容は常に除外されます。",
         limit: "上限",
         limitUnlimited: "無制限",
         showInPanel: "パネルに表示",
@@ -1185,7 +1196,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "固定済みの項目と、このあとにコピーした内容は残ります。元に戻せません。",
         historyLayout: "履歴のレイアウト",
         historyLayoutCards: "カード",
-        historyLayoutList: "リスト"
+        historyLayoutList: "リスト",
+        showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1194,7 +1206,7 @@ struct ClipboardFeatureStrings {
         caption: "保存拷贝过的文本，方便之后再次使用。所有内容都保存在本机，可随时清除。",
         localNote: "一切都保留在这台 Mac 上。特别大的内容会被忽略。",
         skipSensitive: "跳过疑似敏感文本",
-        skipSensitiveCaption: "避免保存像密码、令牌或密钥的短文本。",
+        skipSensitiveCaption: "可能会跳过看起来像密码或令牌的普通文本。来源应用标记为机密的内容始终不会保存。",
         limit: "数量上限",
         limitUnlimited: "无限制",
         showInPanel: "在面板中显示",
@@ -1250,7 +1262,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已固定的项目和此后拷贝的内容会保留。此操作无法撤销。",
         historyLayout: "历史布局",
         historyLayoutCards: "卡片",
-        historyLayoutList: "列表"
+        historyLayoutList: "列表",
+        showSourceAppIconsInList: "在列表中显示来源应用图标"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1259,7 +1272,7 @@ struct ClipboardFeatureStrings {
         caption: "儲存複製過的文字，方便之後再次使用。所有內容都會儲存在這台裝置上，並可隨時清除。",
         localNote: "一切都保留在這台 Mac 上。過大的內容會被略過。",
         skipSensitive: "略過可能含有敏感資料的文字",
-        skipSensitiveCaption: "避免儲存像是密碼、權杖或金鑰這類較短的文字。",
+        skipSensitiveCaption: "可能會略過看起來像密碼或權杖的一般文字。來源 App 標記為機密的內容一律不會儲存。",
         limit: "數量上限",
         limitUnlimited: "無限制",
         showInPanel: "在面板中顯示",
@@ -1315,7 +1328,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。",
         historyLayout: "剪貼簿紀錄佈局",
         historyLayoutCards: "卡片",
-        historyLayoutList: "列表"
+        historyLayoutList: "列表",
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1324,7 +1338,7 @@ struct ClipboardFeatureStrings {
         caption: "儲存複製過的文字，方便之後再次使用。所有內容都會儲存在此裝置上，並可隨時清除。",
         localNote: "一切都保留在這部 Mac 上。過大的內容會被略過。",
         skipSensitive: "略過可能含有敏感資料的文字",
-        skipSensitiveCaption: "避免儲存密碼、權杖或密鑰等較短文字。",
+        skipSensitiveCaption: "可能會略過看起來像密碼或權杖的一般文字。來源 App 標記為機密的內容一律不會儲存。",
         limit: "數量上限",
         limitUnlimited: "無限制",
         showInPanel: "在面板中顯示",
@@ -1380,7 +1394,8 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。",
         historyLayout: "剪貼簿記錄佈局",
         historyLayoutCards: "卡片",
-        historyLayoutList: "列表"
+        historyLayoutList: "列表",
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
     )
 }
 
@@ -1546,7 +1561,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Full Screen",
         previousDisplay: "Previous display",
         edgeSnapEnable: "Snap windows at screen edges",
-        edgeSnapCaption: "Turn this on and drag a window title bar to a highlighted area below. Click an area to choose where the window goes.",
+        edgeSnapCaption: "Turn this on and drag a window title bar to a highlighted area below. A window moved by holding the modifier keys snaps too. Click an area to choose where the window goes.",
         edgeSnapSystemConflict: "macOS is using the same edges. Turn off window tiling in Desktop & Dock so Vorssaint can take over.",
         edgeSnapOpenSystemSettings: "Open Desktop & Dock",
         edgeSnapWaitingForSystem: "Enabled in Vorssaint. It starts working as soon as macOS tiling is off.",
@@ -1639,7 +1654,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Tela cheia",
         previousDisplay: "Display anterior",
         edgeSnapEnable: "Encaixar janelas nas bordas da tela",
-        edgeSnapCaption: "Ative e arraste a barra de título de uma janela até uma das áreas destacadas abaixo. Clique em uma área para escolher onde a janela fica.",
+        edgeSnapCaption: "Ative e arraste a barra de título de uma janela até uma das áreas destacadas abaixo. Uma janela movida segurando as teclas modificadoras também se encaixa. Clique em uma área para escolher onde a janela fica.",
         edgeSnapSystemConflict: "O macOS está usando as mesmas bordas. Desligue o encaixe em Mesa e Dock para o Vorssaint assumir.",
         edgeSnapOpenSystemSettings: "Abrir Mesa e Dock",
         edgeSnapWaitingForSystem: "Ativado no Vorssaint. Começa a funcionar assim que o encaixe do macOS for desligado.",
@@ -1732,7 +1747,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Tam ekran",
         previousDisplay: "Önceki ekran",
         edgeSnapEnable: "Pencereleri ekran kenarlarına yerleştir",
-        edgeSnapCaption: "Açın ve pencerenin başlık çubuğunu aşağıdaki vurgulu alanlardan birine sürükleyip bırakın. Pencerenin nereye yerleşeceğini seçmek için bir alana tıklayın.",
+        edgeSnapCaption: "Açın ve pencerenin başlık çubuğunu aşağıdaki vurgulu alanlardan birine sürükleyip bırakın. Değiştirici tuşları basılı tutarak taşınan pencereler de yerleşir. Pencerenin nereye yerleşeceğini seçmek için bir alana tıklayın.",
         edgeSnapSystemConflict: "macOS aynı kenarları kullanıyor. Vorssaint’ın devralması için Masaüstü ve Dock’taki pencere döşemeyi kapatın.",
         edgeSnapOpenSystemSettings: "Masaüstü ve Dock’u Aç",
         edgeSnapWaitingForSystem: "Vorssaint’ta açık. macOS döşemesi kapanınca çalışmaya başlar.",
@@ -1825,7 +1840,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Во весь экран",
         previousDisplay: "Предыдущий дисплей",
         edgeSnapEnable: "Привязывать окна к краям экрана",
-        edgeSnapCaption: "Включите и перетащите заголовок окна к одной из подсвеченных областей ниже. Нажмите на область, чтобы выбрать, куда встанет окно.",
+        edgeSnapCaption: "Включите и перетащите заголовок окна к одной из подсвеченных областей ниже. Окна, перемещаемые с клавишами-модификаторами, тоже привязываются. Нажмите на область, чтобы выбрать, куда встанет окно.",
         edgeSnapSystemConflict: "macOS использует те же края. Отключите размещение окон в разделе «Рабочий стол и Dock», чтобы их использовал Vorssaint.",
         edgeSnapOpenSystemSettings: "Открыть «Рабочий стол и Dock»",
         edgeSnapWaitingForSystem: "Включено в Vorssaint. Заработает сразу после отключения размещения окон macOS.",
@@ -1918,7 +1933,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Pantalla completa",
         previousDisplay: "Pantalla anterior",
         edgeSnapEnable: "Ajustar ventanas a los bordes de la pantalla",
-        edgeSnapCaption: "Actívalo y arrastra la barra de título de una ventana hasta una de las áreas resaltadas de abajo. Haz clic en un área para elegir dónde se coloca la ventana.",
+        edgeSnapCaption: "Actívalo y arrastra la barra de título de una ventana hasta una de las áreas resaltadas de abajo. Las ventanas que muevas con las teclas de modificación también se ajustan. Haz clic en un área para elegir dónde se coloca la ventana.",
         edgeSnapSystemConflict: "macOS usa los mismos bordes. Desactiva el ajuste de ventanas en Escritorio y Dock para que Vorssaint tome el control.",
         edgeSnapOpenSystemSettings: "Abrir Escritorio y Dock",
         edgeSnapWaitingForSystem: "Activado en Vorssaint. Funcionará en cuanto se desactive el ajuste de ventanas de macOS.",
@@ -2011,7 +2026,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Celá obrazovka",
         previousDisplay: "Predchádzajúci displej",
         edgeSnapEnable: "Priťahovať okná k okrajom obrazovky",
-        edgeSnapCaption: "Zapnite to a presuňte záhlavie okna na jednu zo zvýraznených oblastí nižšie. Kliknutím na oblasť vyberiete, kam sa okno umiestni.",
+        edgeSnapCaption: "Zapnite to a presuňte záhlavie okna na jednu zo zvýraznených oblastí nižšie. Okno presúvané s podržanými modifikačnými klávesmi sa tiež pritiahne. Kliknutím na oblasť vyberiete, kam sa okno umiestni.",
         edgeSnapSystemConflict: "macOS používa rovnaké okraje. V Ploche a Docku vypnite dlaždicovanie okien, aby to mohol prevziať Vorssaint.",
         edgeSnapOpenSystemSettings: "Otvoriť Plochu a Dock",
         edgeSnapWaitingForSystem: "Zapnuté vo Vorssaint. Začne fungovať hneď po vypnutí dlaždicovania v macOS.",
@@ -2104,7 +2119,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Vollbild",
         previousDisplay: "Vorheriges Display",
         edgeSnapEnable: "Fenster an Bildschirmrändern einrasten",
-        edgeSnapCaption: "Einschalten und die Titelleiste eines Fensters zu einem der hervorgehobenen Bereiche unten ziehen. Klicke auf einen Bereich, um festzulegen, wohin das Fenster kommt.",
+        edgeSnapCaption: "Einschalten und die Titelleiste eines Fensters zu einem der hervorgehobenen Bereiche unten ziehen. Fenster, die du mit gedrückten Sondertasten bewegst, rasten ebenfalls ein. Klicke auf einen Bereich, um festzulegen, wohin das Fenster kommt.",
         edgeSnapSystemConflict: "macOS verwendet dieselben Ränder. Deaktiviere die Fensteranordnung unter Schreibtisch & Dock, damit Vorssaint übernimmt.",
         edgeSnapOpenSystemSettings: "Schreibtisch & Dock öffnen",
         edgeSnapWaitingForSystem: "In Vorssaint aktiviert. Es funktioniert, sobald die Fensteranordnung von macOS aus ist.",
@@ -2197,7 +2212,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Plein écran",
         previousDisplay: "Écran précédent",
         edgeSnapEnable: "Ancrer les fenêtres aux bords de l’écran",
-        edgeSnapCaption: "Activez, puis faites glisser la barre de titre d’une fenêtre vers l’une des zones surlignées ci-dessous. Cliquez sur une zone pour choisir où va la fenêtre.",
+        edgeSnapCaption: "Activez, puis faites glisser la barre de titre d’une fenêtre vers l’une des zones surlignées ci-dessous. Une fenêtre déplacée avec les touches de modification s’ancre aussi. Cliquez sur une zone pour choisir où va la fenêtre.",
         edgeSnapSystemConflict: "macOS utilise les mêmes bords. Désactivez le placement des fenêtres dans Bureau et Dock pour laisser Vorssaint prendre le relais.",
         edgeSnapOpenSystemSettings: "Ouvrir Bureau et Dock",
         edgeSnapWaitingForSystem: "Activé dans Vorssaint. Il fonctionnera dès que le placement des fenêtres de macOS sera désactivé.",
@@ -2290,7 +2305,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "Schermo intero",
         previousDisplay: "Display precedente",
         edgeSnapEnable: "Allinea le finestre ai bordi dello schermo",
-        edgeSnapCaption: "Attiva e trascina la barra del titolo di una finestra verso una delle aree evidenziate qui sotto. Fai clic su un’area per scegliere dove va la finestra.",
+        edgeSnapCaption: "Attiva e trascina la barra del titolo di una finestra verso una delle aree evidenziate qui sotto. Anche le finestre spostate tenendo premuti i tasti modificatori si allineano. Fai clic su un’area per scegliere dove va la finestra.",
         edgeSnapSystemConflict: "macOS usa gli stessi bordi. Disattiva l’affiancamento in Scrivania e Dock per lasciare il controllo a Vorssaint.",
         edgeSnapOpenSystemSettings: "Apri Scrivania e Dock",
         edgeSnapWaitingForSystem: "Attivato in Vorssaint. Funzionerà appena l’affiancamento di macOS sarà disattivato.",
@@ -2383,7 +2398,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "フルスクリーン",
         previousDisplay: "前のディスプレイ",
         edgeSnapEnable: "画面の端にウインドウをスナップ",
-        edgeSnapCaption: "オンにして、ウインドウのタイトルバーを下のハイライトされた領域のいずれかへドラッグします。領域をクリックすると、ウインドウの配置先を選べます。",
+        edgeSnapCaption: "オンにして、ウインドウのタイトルバーを下のハイライトされた領域のいずれかへドラッグします。修飾キーを押しながら移動したウインドウもスナップします。領域をクリックすると、ウインドウの配置先を選べます。",
         edgeSnapSystemConflict: "macOSが同じ画面端を使用しています。Vorssaintで使うには「デスクトップとDock」でウインドウのタイル表示をオフにしてください。",
         edgeSnapOpenSystemSettings: "デスクトップとDockを開く",
         edgeSnapWaitingForSystem: "Vorssaintでオンになっています。macOSのタイル表示をオフにすると動作します。",
@@ -2476,7 +2491,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "全屏幕",
         previousDisplay: "上一台显示器",
         edgeSnapEnable: "将窗口贴靠到屏幕边缘",
-        edgeSnapCaption: "开启后，将窗口标题栏拖到下方任一高亮区域即可。点按区域可选择窗口的放置位置。",
+        edgeSnapCaption: "开启后，将窗口标题栏拖到下方任一高亮区域即可。按住修饰键移动的窗口也会贴靠。点按区域可选择窗口的放置位置。",
         edgeSnapSystemConflict: "macOS 正在使用相同的屏幕边缘。请在“桌面与程序坞”中关闭窗口平铺，让 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "打开桌面与程序坞",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中开启。关闭 macOS 窗口平铺后即可使用。",
@@ -2569,7 +2584,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "全螢幕",
         previousDisplay: "上一台顯示器",
         edgeSnapEnable: "將視窗貼齊螢幕邊緣",
-        edgeSnapCaption: "開啟後，將視窗標題列拖到下方任一醒目區域即可。按一下區域可選擇視窗的擺放位置。",
+        edgeSnapCaption: "開啟後，將視窗標題列拖到下方任一醒目區域即可。按住輔助鍵移動的視窗也會貼齊。按一下區域可選擇視窗的擺放位置。",
         edgeSnapSystemConflict: "macOS 正在使用相同的螢幕邊緣。請在「桌面與 Dock」關閉視窗並排，讓 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "開啟桌面與 Dock",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中開啟。關閉 macOS 視窗並排後即可使用。",
@@ -2662,7 +2677,7 @@ struct WindowLayoutFeatureStrings {
         fullScreen: "全螢幕",
         previousDisplay: "上一部顯示器",
         edgeSnapEnable: "將視窗貼齊螢幕邊緣",
-        edgeSnapCaption: "開啟後，將視窗標題列拖到下方任一醒目區域即可。按一下區域可選擇視窗的擺放位置。",
+        edgeSnapCaption: "開啟後，將視窗標題列拖到下方任一醒目區域即可。按住輔助鍵移動的視窗也會貼齊。按一下區域可選擇視窗的擺放位置。",
         edgeSnapSystemConflict: "macOS 正在使用相同的螢幕邊緣。請在「桌面與 Dock」關閉視窗並排，讓 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "開啟桌面與 Dock",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中開啟。關閉 macOS 視窗並排後即可使用。",
@@ -3194,7 +3209,7 @@ extension ClipboardFeatureStrings {
         caption: "Зберігає скопійований текст, щоб ви могли використати його пізніше. Все залишається локальним і може бути очищене будь-коли.",
         localNote: "Все залишається на цьому Mac. Дуже великі елементи ігноруються.",
         skipSensitive: "Пропускати текст, схожий на конфіденційний",
-        skipSensitiveCaption: "Уникає збереження коротких рядків без пробілів, схожих на паролі, токени або ключі.",
+        skipSensitiveCaption: "Може пропускати звичайний текст, схожий на паролі або токени. Вміст, позначений вихідною програмою як конфіденційний, завжди виключається.",
         limit: "Ліміт",
         limitUnlimited: "Без обмежень",
         showInPanel: "Показати в панелі",
@@ -3250,7 +3265,8 @@ extension ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Закріплені залишаться, як і все, що скопійовано після цього. Скасувати не можна.",
         historyLayout: "Розкладка історії",
         historyLayoutCards: "Картки",
-        historyLayoutList: "Список"
+        historyLayoutList: "Список",
+        showSourceAppIconsInList: "Показувати значки вихідних програм у списку"
     )
 }
 
@@ -3325,7 +3341,7 @@ extension WindowLayoutFeatureStrings {
         fullScreen: "На весь екран",
         previousDisplay: "Попередній дисплей",
         edgeSnapEnable: "Прилипати вікнами до країв екрана",
-        edgeSnapCaption: "Увімкніть цю функцію й перетягніть заголовок вікна до однієї з підсвічених областей нижче. Натисніть область, щоб вибрати, куди стане вікно.",
+        edgeSnapCaption: "Увімкніть цю функцію й перетягніть заголовок вікна до однієї з підсвічених областей нижче. Вікна, переміщені з утриманням клавіш-модифікаторів, теж прилипають. Натисніть область, щоб вибрати, куди стане вікно.",
         edgeSnapSystemConflict: "macOS використовує ті самі краї. Вимкніть мозаїку вікон у розділі «Робочий стіл і Dock», щоб Vorssaint міг керувати ними.",
         edgeSnapOpenSystemSettings: "Відкрити «Робочий стіл і Dock»",
         edgeSnapWaitingForSystem: "Увімкнено в Vorssaint. Почне працювати, щойно мозаїку macOS буде вимкнено.",

@@ -16,47 +16,22 @@ enum CommandBarSelectionReader {
     /// retype it would be slower than doing it by hand.
     static let maximumLength = 20_000
 
-    /// The selected text of whatever is in front, read through Accessibility.
-    /// Blocking, so callers run it off the main thread. Empty when nothing is
-    /// selected, when the app does not tell Accessibility what is selected, or
-    /// when the front app is us (the field's own text is not a selection).
-    static func readSelectedText() -> String {
-        guard AXIsProcessTrusted() else { return "" }
+    /// The selected text of whatever is in front, read through Accessibility:
+    /// trimmed, and exactly as the app holds it. Blocking, so callers run it
+    /// off the main thread. Empty when nothing is selected, when the app does
+    /// not tell Accessibility what is selected, or when the front app is us
+    /// (the field's own text is not a selection). `typesOver` is false for a
+    /// web page read through a text marker range: typed letters reach the
+    /// page, not the selection.
+    static func readSelection() -> (text: String, exact: String, typesOver: Bool) {
+        guard AXIsProcessTrusted() else { return ("", "", false) }
         guard let front = NSWorkspace.shared.frontmostApplication,
-              front.bundleIdentifier != Bundle.main.bundleIdentifier else { return "" }
-        // Asked of the app in front, not of the system-wide element: a timeout
-        // set on the system-wide element is the DEFAULT FOR THE WHOLE PROCESS,
-        // and every other Accessibility call in the app would inherit this
-        // short leash for the rest of the session. The app in front is the one
-        // holding the selection anyway; the bar's panel takes keys without
-        // activating, so focus never left it.
-        let app = AXUIElementCreateApplication(front.processIdentifier)
-        // A hung app must not hold the opening of the bar.
-        AXUIElementSetMessagingTimeout(app, 0.35)
-        guard let focused = copyElement(app, kAXFocusedUIElementAttribute),
-              let text = copyString(focused, kAXSelectedTextAttribute) else { return "" }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.count <= maximumLength ? trimmed : ""
-    }
-
-    // MARK: - Accessibility reading
-
-    private static func copyElement(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
-        guard let raw = copyValue(element, attribute),
-              CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
-        return (raw as! AXUIElement)
-    }
-
-    private static func copyString(_ element: AXUIElement, _ attribute: String) -> String? {
-        guard let raw = copyValue(element, attribute),
-              CFGetTypeID(raw) == CFStringGetTypeID() else { return nil }
-        return raw as? String
-    }
-
-    private static func copyValue(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success
-        else { return nil }
-        return value
+              front.bundleIdentifier != Bundle.main.bundleIdentifier,
+              let selection = SelectedTextReader.read(processID: front.processIdentifier)
+        else { return ("", "", false) }
+        let trimmed = selection.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.count <= maximumLength
+            ? (trimmed, selection.text, !selection.fromTextMarkers)
+            : ("", "", false)
     }
 }

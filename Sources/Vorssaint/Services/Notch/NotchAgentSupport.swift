@@ -26,6 +26,9 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
 
     /// Charts need the island's width; everything else pairs up.
     var fullWidth: Bool { self == .trend || self == .activity }
+
+    /// Cards that cover the period chosen in the island's top row.
+    var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
 }
 
 /// What the closed island shows beside the camera while an agent works.
@@ -53,7 +56,11 @@ struct NotchAgentTile: Identifiable, Equatable {
     let card: NotchAgentCard
     /// The account a limits card belongs to.
     let provider: AgentProvider?
-    var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") }
+    /// An explicitly chosen account's card; nil for the default reading.
+    var accountID: String? = nil
+    /// The Resets card beside added Codex homes, which says whose resets they are.
+    var namesDefaultAccount = false
+    var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "") }
 }
 
 enum NotchAgentSupport {
@@ -107,6 +114,11 @@ enum NotchAgentSupport {
     static func cards(in defaults: UserDefaults = .standard) -> [NotchAgentCard] {
         let hidden = hiddenCards(in: defaults)
         return orderedCards(in: defaults).filter { !hidden.contains($0) }
+    }
+
+    /// Added Codex accounts have cards only in the Limits card's place.
+    static func showsCodexAccounts(in defaults: UserDefaults = .standard) -> Bool {
+        providers(in: defaults).contains(.codex) && !hiddenCards(in: defaults).contains(.limits)
     }
 
     static func period(in defaults: UserDefaults = .standard) -> AgentPeriod {
@@ -187,6 +199,16 @@ enum NotchAgentSupport {
         defaults.object(forKey: DefaultsKey.notchAgentsPriceUpdates) as? Bool ?? true
     }
 
+    /// Whether anything shows or alerts on the plan limits: their alerts, the
+    /// live reading when it shows a limit, the resting island's allowance or,
+    /// while the AI page shows, its Limits card. Nothing asks for them otherwise.
+    static func limitsInUse(pageShown: Bool, in defaults: UserDefaults = .standard) -> Bool {
+        limitThreshold(in: defaults) != nil
+            || (showsLiveActivity(in: defaults) && readout(in: defaults) == .limit)
+            || NotchSupport.idleContent(in: defaults) == .agents
+            || (pageShown && !hiddenCards(in: defaults).contains(.limits))
+    }
+
     // MARK: Strip
 
     /// A wing is never narrower than the music strip's, nor wide enough to
@@ -220,6 +242,36 @@ enum NotchAgentSupport {
         }
     }
 
+    /// Settings must illustrate the selected reading even before any agent
+    /// has reported an allowance. Example data stays in this preview copy.
+    static func stripSampleSnapshot(_ snapshot: AgentUsageSnapshot, provider: AgentProvider,
+                                    focus: NotchAgentLimitFocus, now: Date) -> AgentUsageSnapshot {
+        var sample = snapshot
+        if sample.live.isEmpty {
+            sample.live = [AgentLiveSession(id: "example", provider: provider, started: now.addingTimeInterval(-754),
+                                            lastActivity: now, model: "", project: "",
+                                            tokens: AgentTokens(input: 1_180_000, output: 20_000), cost: 4.56)]
+        }
+        let working = AgentProvider.allCases.first { provider in sample.live.contains { $0.provider == provider } } ?? provider
+        if focusedLimit(sample.limits[working], focus: focus, now: now) == nil {
+            sample.limits[working] = AgentLimits(provider: working, windows: [
+                AgentLimitWindow(id: "example-session", kind: .session, minutes: 300, scope: nil,
+                                 usedPercent: 32, resetsAt: now.addingTimeInterval(3600)),
+                AgentLimitWindow(id: "example-week", kind: .weekly, minutes: 10_080, scope: nil,
+                                 usedPercent: 57, resetsAt: now.addingTimeInterval(86_400))
+            ], observedAt: now, source: .sessionLog)
+        }
+        return sample
+    }
+
+    /// A limit's share on the island's card. It names which share it is:
+    /// a bare 99% left reads as 99% spent.
+    static func limitShare(_ window: AgentLimitWindow, display: NotchAgentLimitDisplay,
+                           text: NotchAgentStrings) -> String {
+        display == .remaining ? text.left(AgentFormat.percent(window.remainingFraction))
+            : text.usedShare(AgentFormat.percent(window.usedFraction))
+    }
+
     /// Every digit takes the same width, so a reading's shape, not its value,
     /// sets the strip's width: "12:34" and "59:59" match, "1:00:00" is wider.
     static func readingShape(_ reading: String) -> String {
@@ -231,15 +283,31 @@ enum NotchAgentSupport {
     static let spacing: CGFloat = 10
     static let cardHeight: CGFloat = 96
     static let chartHeight: CGFloat = 118
+    /// An account card also says when it was checked, and the Resets card
+    /// beside account cards names the account its resets belong to.
+    static let accountCardHeight: CGFloat = 116
+    /// An account card's reading, checked every five minutes, has missed two.
+    static let accountStaleness: TimeInterval = 10 * 60
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
-    static func tiles(cards: [NotchAgentCard], providers: [AgentProvider]) -> [NotchAgentTile] {
+    /// Codex homes the person added take the place of Codex's one limits
+    /// card, the usual home among them when they add it.
+    static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
+                      codexAccounts: [String] = [], claudeAccount: String? = nil) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
             switch card {
-            case .limits: return providers.filter(\.reportsLimits).map { NotchAgentTile(card: .limits, provider: $0) }
-            // Banked resets belong to a Codex account.
-            case .resets: return providers.contains(.codex) ? [NotchAgentTile(card: .resets, provider: .codex)] : []
+            case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
+                if provider == .claude, let claudeAccount {
+                    return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount)]
+                }
+                guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
+                return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
+            }
+            // Banked resets belong to a Codex account: the default one, which
+            // the card names once others have cards.
+            case .resets: return providers.contains(.codex)
+                ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
             default: return [NotchAgentTile(card: card, provider: nil)]
             }
         }
@@ -268,7 +336,26 @@ enum NotchAgentSupport {
     }
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
-        row.contains { $0.card.fullWidth } ? chartHeight : cardHeight
+        if row.contains(where: \.card.fullWidth) { return chartHeight }
+        return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
+    }
+
+    /// An account card's line in place of its windows while it has none, or
+    /// under them: a failure takes one of the two, never both.
+    static func accountNotes(hasWindows: Bool, checking: Bool, failure: String?, hint: String, loading: String,
+                             updated: String?) -> (placeholder: String?, caption: String?) {
+        guard hasWindows else { return (checking ? loading : failure ?? hint, nil) }
+        return (nil, failure ?? updated)
+    }
+
+    /// A reading old enough to have missed use elsewhere shows quieter: an
+    /// account card's after missed checks, and among the others only
+    /// Claude's, which the Claude app or Claude Code took a while ago.
+    static func limitsAreStale(_ limits: AgentLimits?, provider: AgentProvider, account: Bool, now: Date) -> Bool {
+        guard let limits else { return false }
+        let age = now.timeIntervalSince(limits.observedAt)
+        if account { return age >= accountStaleness }
+        return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 
     static func contentHeight(_ rows: [[NotchAgentTile]]) -> CGFloat {
