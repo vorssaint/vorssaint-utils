@@ -335,17 +335,13 @@ struct SettingsView: View {
     @ViewBuilder
     private var normalSidebarRows: some View {
         let sections = sidebarSections
-        let items = directoryCache.items
-        let selectedID = SettingsSidebarSupport.selection(for: router.destination, in: items,
-                                                          preferredID: router.sidebarFeature.map { .feature($0) })
         ForEach(sections) { section in
             Section {
                 if !collapsedSectionIDs.contains(section.id) {
                     ForEach(section.items) { item in
                         HStack(spacing: 9) {
                             Image(systemName: item.icon)
-                                .foregroundStyle(selectedID == item.id
-                                    ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
+                                .foregroundStyle(.primary)
                                 .frame(width: 18)
                             Text(item.title)
                         }
