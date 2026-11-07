@@ -47,6 +47,7 @@ Thanks to @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @heyseere, @j
 More reliable window switching, audio, screenshots and display recovery, with safer file handling and app removal. New options include an all-windows shortcut, Claude account selection, scroll-to-zoom, a Quit apps panel and more flexible calendar countdowns.
 
 ### Added
+- The scratchpad's formatted reading sets the tasks that are done aside under a closed "Completed" line at the end, which opens to uncheck them.
 - The window switcher has an optional All windows shortcut that cycles through individual windows across apps in every layout, including Large icons. Settings → Window switcher → All windows. Thanks to BrainAPP for the suggestion.
 - AI Agents can select an existing Claude Code account profile and show the monitored account. Local usage and plan limits follow the selected profile. Settings → Dynamic Island → Content → AI Agents → Claude account.
 - Dynamic Island level controls and the menu panel's mixer can be adjusted with a mouse wheel or trackpad. Thanks to @JB-OD.
