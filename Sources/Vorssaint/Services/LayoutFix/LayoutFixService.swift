@@ -81,9 +81,14 @@ final class LayoutFixService: ObservableObject {
             forName: NSNotification.Name(kTISNotifyEnabledKeyboardInputSourcesChanged as String),
             object: nil, queue: .main
         ) { [weak self] _ in self?.refreshLayouts() })
+        // Every setting Vorssaint writes posts this; only the layout list
+        // here needs new key tables.
         observers.append(NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.refreshLayouts() })
+        ) { [weak self] _ in
+            guard let self, Self.excludedLayouts() != self.excludedAtRefresh else { return }
+            self.refreshLayouts()
+        })
         for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
             observers.append(NotificationCenter.default.addObserver(
                 forName: name, object: nil, queue: .main
@@ -108,9 +113,17 @@ final class LayoutFixService: ObservableObject {
         distributedObservers.removeAll()
     }
 
+    /// The exclusions the layouts were last built with.
+    private var excludedAtRefresh: Set<String>?
+
+    private static func excludedLayouts() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: DefaultsKey.layoutFixExcludedLayouts) ?? [])
+    }
+
     /// The enabled layouts taking part, in the Input menu order.
     private func refreshLayouts() {
-        let excluded = Set(UserDefaults.standard.stringArray(forKey: DefaultsKey.layoutFixExcludedLayouts) ?? [])
+        let excluded = Self.excludedLayouts()
+        excludedAtRefresh = excluded
         let refreshed = Self.enabledLayouts().filter { !excluded.contains($0.id) }
         if refreshed != layouts { layouts = refreshed }
     }
@@ -238,6 +251,8 @@ final class LayoutFixService: ObservableObject {
         case .selection:
             if let selected = field.flatMap({ $0.text(in: $0.range) }),
                fixSelection(selected, generation: now) { return }
+            NSSound.beep()
+        case .selectionTooLong:
             NSSound.beep()
         case .lastWord:
             guard let word else { return }
@@ -530,7 +545,9 @@ final class LayoutFixService: ObservableObject {
             let down = Self.modifierIsDown(keyCode: keyCode, flags: flags)
             let fired = inputLock.withLock { () -> LayoutFixBuffer? in
                 let event: LayoutFixTriggerEvent = down
-                    ? .modifierDown(keyCode: keyCode, timestamp: timestamp)
+                    ? .modifierDown(keyCode: keyCode, timestamp: timestamp,
+                                    othersHeld: LayoutFixSupport.otherModifiersHeld(keyCode: keyCode,
+                                                                                    flags: flags.rawValue))
                     : .modifierUp(keyCode: keyCode, timestamp: timestamp)
                 return triggerState.fires(event) ? buffer : nil
             }

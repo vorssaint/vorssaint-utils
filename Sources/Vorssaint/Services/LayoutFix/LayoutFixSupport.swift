@@ -207,7 +207,8 @@ enum LayoutFixTrigger: String, CaseIterable, Identifiable {
 /// A keyboard or mouse event, reduced to what the trigger needs.
 enum LayoutFixTriggerEvent: Equatable {
     /// A modifier key went down or up; timestamps in nanoseconds.
-    case modifierDown(keyCode: Int, timestamp: UInt64)
+    /// `othersHeld`: another modifier was already down, so this is a chord.
+    case modifierDown(keyCode: Int, timestamp: UInt64, othersHeld: Bool = false)
     case modifierUp(keyCode: Int, timestamp: UInt64)
     case otherKey
     case mouse
@@ -233,13 +234,14 @@ struct LayoutFixTriggerState {
 
     mutating func fires(_ event: LayoutFixTriggerEvent) -> Bool {
         switch event {
-        case .modifierDown(let keyCode, let timestamp):
+        case .modifierDown(let keyCode, let timestamp, let othersHeld):
             if pressedKey != nil {
                 alone = false
             } else if trigger.keyCodes.contains(keyCode) {
                 pressedKey = keyCode
                 pressedAt = timestamp
-                alone = true
+                alone = !othersHeld
+                if othersHeld { firstShiftTap = nil }
             } else {
                 firstShiftTap = nil
             }
@@ -279,8 +281,14 @@ enum LayoutFixGuard: Equatable {
 
 /// What one tap fixes.
 enum LayoutFixTarget: Equatable {
-    case selection, lastWord, nothing
+    case selection, selectionTooLong, lastWord, nothing
 }
+
+/// The side-specific modifier bits of an event's flags (`NX_DEVICE*KEYMASK`).
+private let layoutFixDeviceModifierBits: [Int: UInt64] = [
+    kVK_Control: 0x1, kVK_Shift: 0x2, kVK_RightShift: 0x4, kVK_Command: 0x8,
+    kVK_RightCommand: 0x10, kVK_Option: 0x20, kVK_RightOption: 0x40, kVK_RightControl: 0x2000,
+]
 
 /// The pure half of Layout Fix: key tables, the keystroke buffer, ranking of
 /// the layouts a word could have been meant in, and the tap state machine.
@@ -635,6 +643,14 @@ enum LayoutFixSupport {
 
     /// Our own retype is skipped; anything else Vorssaint posts (a snippet
     /// expansion, a pasted clip) changes the field behind the buffer's back.
+    /// Whether a modifier other than `keyCode` is down, read from the
+    /// side-specific bits so the other ⌥ counts. Caps Lock and Fn do not.
+    static func otherModifiersHeld(keyCode: Int, flags: UInt64) -> Bool {
+        let all = layoutFixDeviceModifierBits.values.reduce(0, |)
+        let own = layoutFixDeviceModifierBits[keyCode] ?? 0
+        return flags & (all & ~own) != 0
+    }
+
     static func ownEvent(userData: Int64, isPosted: Bool) -> LayoutFixOwnEvent {
         guard isPosted else { return .typing }
         return userData == OwnKeyEvent.layoutFixMarker ? .retype : .otherFeature
@@ -643,12 +659,16 @@ enum LayoutFixSupport {
     /// A selection is fixed only where typing replaces it: an ordinary text
     /// field. A web page selection (text markers) and a terminal selection
     /// fall back to the last typed word.
+    /// The longest selection retyped, in UTF-16 units: a few paragraphs.
+    /// More (a whole document) would hold the keyboard for a long while.
+    static let selectionMaxLength = 2_000
+
     static func target(selectionLength: Int, selectionFromTextMarkers: Bool,
                        bundleID: String?, hasWord: Bool,
                        selectionIsCompletion: Bool = false) -> LayoutFixTarget {
         let inTerminal = bundleID.map(terminalBundleIDs.contains) ?? false
         if selectionLength > 0, !selectionFromTextMarkers, !inTerminal, !selectionIsCompletion {
-            return .selection
+            return selectionLength > selectionMaxLength ? .selectionTooLong : .selection
         }
         return hasWord ? .lastWord : .nothing
     }

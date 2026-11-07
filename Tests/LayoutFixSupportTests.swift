@@ -366,6 +366,34 @@ enum LayoutFixSupportTests {
                          "another modifier during the press is a chord")
         }
 
+        suite.run("LayoutFix modifierHeldBeforeTheTap") {
+            let command = kVK_Command
+            suite.expect(fires(.rightOption, [.modifierDown(keyCode: command, timestamp: t),
+                                              .modifierDown(keyCode: right, timestamp: t + 10 * ms, othersHeld: true),
+                                              .modifierUp(keyCode: right, timestamp: t + 60 * ms)]).last == false,
+                         "⌘ held first, then a tap of ⌥, is the ⌘⌥ chord")
+            suite.expect(fires(.doubleShift, [.modifierDown(keyCode: shift, timestamp: t, othersHeld: true),
+                                              .modifierUp(keyCode: shift, timestamp: t + 50 * ms),
+                                              .modifierDown(keyCode: shift, timestamp: t + 150 * ms, othersHeld: true),
+                                              .modifierUp(keyCode: shift, timestamp: t + 200 * ms)]).last == false,
+                         "⇧ taps under ⌃ are a chord")
+            // Device bits: left ⌃ 0x1, left ⇧ 0x2, right ⇧ 0x4, left ⌘ 0x8,
+            // right ⌘ 0x10, left ⌥ 0x20, right ⌥ 0x40, right ⌃ 0x2000.
+            let capsLock: UInt64 = 0x10000, fn: UInt64 = 0x800000
+            suite.expect(!LayoutFixSupport.otherModifiersHeld(keyCode: right, flags: 0x40 | 0x80000),
+                         "right ⌥ alone")
+            suite.expect(LayoutFixSupport.otherModifiersHeld(keyCode: right, flags: 0x40 | 0x8),
+                         "left ⌘ is held")
+            suite.expect(LayoutFixSupport.otherModifiersHeld(keyCode: right, flags: 0x40 | 0x20),
+                         "left ⌥ is held while the right one is tapped")
+            suite.expect(LayoutFixSupport.otherModifiersHeld(keyCode: left, flags: 0x20 | 0x2000),
+                         "right ⌃ is held")
+            suite.expect(!LayoutFixSupport.otherModifiersHeld(keyCode: right, flags: 0x40 | capsLock | fn),
+                         "Caps Lock and Fn do not make a chord")
+            suite.expect(!LayoutFixSupport.otherModifiersHeld(keyCode: shift, flags: 0x2),
+                         "left ⇧ alone")
+        }
+
         suite.run("LayoutFix mouseCancelsTap") {
             suite.expect(fires(.rightOption, [.modifierDown(keyCode: right, timestamp: t), .mouse,
                                               .modifierUp(keyCode: right, timestamp: t + 50 * ms)]).last == false,
@@ -434,6 +462,9 @@ enum LayoutFixSupportTests {
             suite.expect(target(0) == .lastWord, "no selection fixes the last word")
             suite.expect(target(0, word: false) == .nothing, "nothing to fix")
             suite.expect(LayoutFixSupport.terminalBundleIDs.contains("com.googlecode.iterm2"), "iTerm is a terminal")
+            suite.expect(target(LayoutFixSupport.selectionMaxLength) == .selection, "a long paragraph is still fixed")
+            suite.expect(target(LayoutFixSupport.selectionMaxLength + 1) == .selectionTooLong,
+                         "a whole document selected is not retyped key by key")
         }
     }
 
