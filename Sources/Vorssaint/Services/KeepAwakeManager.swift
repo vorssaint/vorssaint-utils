@@ -283,6 +283,14 @@ final class KeepAwakeManager: ObservableObject {
         } else {
             endDate = nil
         }
+        // A session the user started is written down so a relaunch picks it
+        // up again. An automatic one is not: its conditions start it anew.
+        if trigger == .manual {
+            UserDefaults.standard.set(end?.timeIntervalSinceReferenceDate ?? 0,
+                                      forKey: DefaultsKey.keepAwakeSessionEnd)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.keepAwakeSessionEnd)
+        }
         if !sessionPausedForScreenLock { startBatteryWatch() }
         syncMouseJiggleTimer()
         if clamshellPreferred, !sessionPausedForScreenLock {
@@ -291,11 +299,41 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     func activateOnLaunchIfNeeded() {
-        guard AppFeature.keepAwake.isAvailable,
+        guard !restoreSessionIfNeeded(),
+              AppFeature.keepAwake.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAutoStart),
               !isActive else { return }
         activate(minutes: Defaults.sanitizedDefaultDuration(
             UserDefaults.standard.integer(forKey: DefaultsKey.defaultDuration)))
+    }
+
+    /// Picks up the manual session that was running when the app last quit,
+    /// restarted or crashed. A timed one resumes with the time it has left;
+    /// one whose end passed while the app was closed stays ended.
+    private func restoreSessionIfNeeded() -> Bool {
+        let defaults = UserDefaults.standard
+        guard !isActive,
+              let stored = defaults.object(forKey: DefaultsKey.keepAwakeSessionEnd) as? Double
+        else { return false }
+        let end = stored > 0 ? Date(timeIntervalSinceReferenceDate: stored) : nil
+        guard end.map({ $0 > Date() }) ?? true else {
+            defaults.removeObject(forKey: DefaultsKey.keepAwakeSessionEnd)
+            return false
+        }
+        activate(end: end, trigger: .manual)
+        guard isActive else {
+            defaults.removeObject(forKey: DefaultsKey.keepAwakeSessionEnd)
+            return false
+        }
+        // The running session was also the last pick, so the same chip shows
+        // selected as before the relaunch.
+        let minutes = Defaults.sanitizedDefaultDuration(defaults.integer(forKey: DefaultsKey.defaultDuration))
+        if end == nil {
+            sessionMinutes = 0
+        } else if !defaults.bool(forKey: DefaultsKey.keepAwakeSwitchUsesUntil), minutes > 0 {
+            sessionMinutes = minutes
+        }
+        return true
     }
 
     func extend(minutes: Int) {
@@ -303,6 +341,10 @@ final class KeepAwakeManager: ObservableObject {
         let newEnd = max(current, Date()).addingTimeInterval(TimeInterval(minutes) * 60)
         endDate = newEnd
         scheduleEnd(at: newEnd)
+        if sessionTrigger == .manual {
+            UserDefaults.standard.set(newEnd.timeIntervalSinceReferenceDate,
+                                      forKey: DefaultsKey.keepAwakeSessionEnd)
+        }
     }
 
     func deactivate(reason: EndReason) {
@@ -316,6 +358,11 @@ final class KeepAwakeManager: ObservableObject {
         endTimer?.invalidate()
         endTimer = nil
         endDate = nil
+        // Quitting keeps the record so the next launch resumes the session;
+        // every other end, the user's own included, is final.
+        if reason != .quit {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.keepAwakeSessionEnd)
+        }
         releaseAssertions()
         sessionTrigger = nil
         sessionMinutes = nil

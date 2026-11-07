@@ -18,6 +18,8 @@ extension KeepAwakeLidSleepContract {
         static let defaultDuration = "defaultDuration"
         static let keepAwakeSwitchUsesUntil = "switchUsesUntil"
         static let keepAwakeUntilTime = "untilTime"
+        static let keepAwakeSessionEnd = "sessionEnd"
+        static let keepAwakeAutoStart = "autoStart"
     }
     enum UserDefaults {
         static let standard = Store()
@@ -171,6 +173,78 @@ enum KeepAwakeClamshellTests {
         prefs.standard.integers = [:]
         prefs.standard.set(false, forKey: Key.keepAwakeSwitchUsesUntil)
         prefs.standard.removeObject(forKey: Key.keepAwakeUntilTime)
+
+        // Each `reset()` stands for a fresh launch: the session state is gone,
+        // only what was written to preferences carries over.
+        func relaunch() -> C.Service {
+            let saved = (prefs.standard.values, prefs.standard.doubles, prefs.standard.integers)
+            let service = C.reset()
+            (prefs.standard.values, prefs.standard.doubles, prefs.standard.integers) = saved
+            service.recoverIfNeeded { service.activateOnLaunchIfNeeded() }
+            C.drain()
+            return service
+        }
+        let indefinite = C.reset()
+        indefinite.activate(minutes: 0)
+        indefinite.deactivate(reason: .quit); C.drain()
+        let resumedIndefinite = relaunch()
+        expect(resumedIndefinite.isActive && resumedIndefinite.endDate == nil
+                && resumedIndefinite.sessionMinutes == 0 && resumedIndefinite.assertionsHeld,
+               "a session until turned off resumes after a relaunch and keeps the Mac awake again")
+        resumedIndefinite.deactivate(reason: .manual); C.drain()
+        expect(!relaunch().isActive,
+               "turning the session off keeps it off after the next relaunch")
+
+        let timed = C.reset()
+        timed.activate(minutes: 30)
+        let timedEnd = timed.endDate
+        timed.deactivate(reason: .quit); C.drain()
+        let resumedTimed = relaunch()
+        expect(resumedTimed.isActive && resumedTimed.endDate == timedEnd && resumedTimed.sessionMinutes == 30,
+               "a timed session resumes with the end it had, not a fresh full duration")
+        resumedTimed.extend(minutes: 15)
+        let extendedEnd = resumedTimed.endDate
+        resumedTimed.deactivate(reason: .quit); C.drain()
+        expect(relaunch().endDate == extendedEnd, "an extended session resumes with its extended end")
+
+        let until = C.reset()
+        let untilEnd = Date().addingTimeInterval(3600)
+        until.activate(until: untilEnd)
+        until.deactivate(reason: .quit); C.drain()
+        let resumedUntil = relaunch()
+        expect(resumedUntil.endDate == untilEnd && resumedUntil.sessionMinutes == nil,
+               "an end-time session resumes with no duration chip selected")
+        resumedUntil.deactivate(reason: .quit); C.drain()
+        prefs.standard.set(Date().addingTimeInterval(-60).timeIntervalSinceReferenceDate,
+                           forKey: Key.keepAwakeSessionEnd)
+        let expired = relaunch()
+        expect(!expired.isActive && prefs.standard.object(forKey: Key.keepAwakeSessionEnd) == nil,
+               "a session whose end passed while the app was closed stays ended")
+
+        for reason in [C.EndReason.timer, .battery] {
+            let ended = C.reset()
+            ended.activate(minutes: 0)
+            ended.deactivate(reason: reason); C.drain()
+            expect(!relaunch().isActive, "a session that ended on its own is not brought back")
+        }
+        let automatic = C.reset()
+        automatic.activate(end: nil, trigger: .automation)
+        automatic.deactivate(reason: .quit); C.drain()
+        expect(!relaunch().isActive, "an automatic session is left to its conditions after a relaunch")
+        let handedOver = C.reset()
+        handedOver.activate(minutes: 30)
+        handedOver.activate(end: nil, trigger: .automation)
+        handedOver.deactivate(reason: .quit); C.drain()
+        expect(!relaunch().isActive, "a timed session handed to the automation is not resumed as manual")
+
+        prefs.standard.set(true, forKey: Key.keepAwakeAutoStart)
+        prefs.standard.set(30, forKey: Key.defaultDuration)
+        let autoStart = relaunch()
+        expect(autoStart.isActive && autoStart.sessionMinutes == 30,
+               "starting at launch still works with no session to resume")
+        autoStart.deactivate(reason: .manual); C.drain()
+        prefs.standard.values = [:]; prefs.standard.integers = [:]
+        prefs.standard.removeObject(forKey: Key.keepAwakeSessionEnd)
 
         let staleStatus = C.reset(); staleStatus.isActive = true
         staleStatus.refreshPasswordlessStatus()

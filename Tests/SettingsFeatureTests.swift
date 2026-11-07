@@ -441,6 +441,7 @@ enum SettingsFeatureTests {
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryEntries)
                 && !backupKeys.contains(DefaultsKey.shelfItems)
                 && !backupKeys.contains(DefaultsKey.sleepDisabledFlag)
+                && !backupKeys.contains(DefaultsKey.keepAwakeSessionEnd)
                 && !backupKeys.contains(DefaultsKey.micMuteActive)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedVolumes)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedChannelVolumes)
