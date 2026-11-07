@@ -356,7 +356,11 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
         let pending = pendingScrollEvents
         pendingScrollEvents.removeAll()
         switch outcome {
-        case .pass: SliderScroll.pass(event, from: self, after: pending)
+        case .pass:
+            // A gesture handed to the strip may never come back to end here,
+            // and a scroll left open would keep the hover ring on.
+            finishScrollEditing()
+            SliderScroll.pass(event, from: self, after: pending)
         case .hold: break
         case .move(let value):
             guard value != doubleValue else { return }
