@@ -15,7 +15,7 @@ cp ThirdParty/BlackHole/UPSTREAM.md "$bundle/Contents/Resources/BlackHole-UPSTRE
 # Ship exact Corresponding Source beside our compiled GPL driver, including
 # its wrapper, configuration, build script and driver-interface tests.
 source_dir="$bundle/Contents/Resources/CorrespondingSource"
-for file in LICENSE ThirdParty/BlackHole/BlackHole.c ThirdParty/BlackHole/LICENSE ThirdParty/BlackHole/UPSTREAM.md Sources/SoftwareVolumeDriver/Driver.c Sources/SoftwareVolumeDriver/CallerTrust.h Sources/SoftwareVolumePCM/PCM.h Sources/SoftwareVolumeDriver/Info.plist Tools/build-software-volume-driver.sh Tools/package-software-volume-driver.sh Tools/uninstall-software-volume-driver.sh Tests/SoftwareVolumeDriverTests.c; do
+for file in LICENSE ThirdParty/BlackHole/BlackHole.c ThirdParty/BlackHole/LICENSE ThirdParty/BlackHole/UPSTREAM.md Sources/SoftwareVolumeDriver/Driver.c Sources/SoftwareVolumeDriver/CallerTrust.h Sources/SoftwareVolumePCM/PCM.h Sources/SoftwareVolumePCM/Format.h Sources/SoftwareVolumeDriver/Info.plist Tools/build-software-volume-driver.sh Tools/package-software-volume-driver.sh Tools/uninstall-software-volume-driver.sh Tests/SoftwareVolumeDriverTests.c; do
     mkdir -p "$source_dir/$(dirname "$file")"
     cp "$file" "$source_dir/$file"
 done

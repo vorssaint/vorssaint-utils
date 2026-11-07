@@ -8,7 +8,7 @@ For a fixed-volume output such as a DisplayPort monitor:
 
 `Application output → optional per-app tap/gain → Vorssaint Audio output mix → bounded authorized PCM packets → output-only physical callback/master gain → physical output`
 
-Driver 1.2/build 4 has no input streams and publishes no hidden loopback input. The app obtains raw stereo output PCM through a custom HAL CFData property on a background queue. No property call, signature check, allocation or lock runs on the rendering thread. Rendering uses a bounded local ring with adaptive clock correction, clears unused channels and applies the current native master gain/mute exactly once.
+Driver 1.3/build 5 has no input streams and publishes no hidden loopback input. The app obtains raw 2–32-channel output PCM through a custom HAL CFData property on a background queue. No property call, signature check, allocation or lock runs on the rendering thread. Rendering uses a bounded local ring with adaptive clock correction, clears unused channels and applies the current native master gain/mute exactly once.
 
 ## Transport authorization
 
@@ -36,7 +36,7 @@ The code and tests are reviewable; they are not an independent security certific
 
 ## Local development signing and audit limits
 
-The installed local driver 1.2.0/build 4 passes strict signature verification. Its HAL directory and ancestors are owned by root, with no writable group/other permissions or symlinks found. The driver runs in a Core Audio host under `_coreaudiod`, rather than in the application's user process. Current driver/PCM/caller-trust source files match the installed Corresponding Source. A fresh untrusted-process probe was denied both the session-key property and a zero-frame PCM request; it recorded no sound or key material.
+The earlier local audit of driver 1.2.0/build 4 passed strict signature verification. Its HAL directory and ancestors are owned by root, with no writable group/other permissions or symlinks found. The driver runs in a Core Audio host under `_coreaudiod`, rather than in the application's user process. At that audit, driver/PCM/caller-trust source files matched the installed Corresponding Source. Build 5 requires a fresh installed-driver audit after its update. A fresh untrusted-process probe was denied both the session-key property and a zero-frame PCM request; it recorded no sound or key material.
 
 This Mac uses the repository's self-signed development certificate, not a notarized Developer ID release. The local signing setup makes that key available to this developer account; software that can use the key could sign an allowed app identity and satisfy the driver's certificate policy. The current local installer package is unsigned, although its contained driver and enclosing app have valid local signatures. These facts prevent a strong guarantee against malware with access to this user's signing key or a claim of public-release authenticity. Public distribution needs protected signing keys and an authenticated, appropriately signed release package.
 

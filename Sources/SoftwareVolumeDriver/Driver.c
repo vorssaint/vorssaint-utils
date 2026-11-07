@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint Audio contributors
 // GPL BlackHole supplies the HAL object and loopback implementation.
+#include "../SoftwareVolumePCM/Format.h"
+static _Atomic uint32_t afChannelCount = 2;
+#define kNumber_Of_Channels atomic_load_explicit(&afChannelCount, memory_order_relaxed)
 #define kDriver_Name "VorssaintAudio"
 #define kHas_Driver_Name_Format false
 #define kDevice_Name "Vorssaint Audio"
@@ -30,6 +33,63 @@ static pthread_mutex_t afOwnerMutex = PTHREAD_MUTEX_INITIALIZER;
 static pid_t afOwner = 0;
 static double afHeartbeat = 0;
 static dispatch_source_t afWatchdog;
+static VSOutputFormat afFormat = {
+    .version = VS_VERSION, .channels = 2, .stereo = {1, 2},
+    .descriptions = {{.mChannelLabel = kAudioChannelLabel_Left}, {.mChannelLabel = kAudioChannelLabel_Right}}
+};
+typedef struct {
+    VSOutputFormat format;
+    pid_t owner;
+    uint64_t generation;
+} AFFormatChange;
+static AFFormatChange *afPendingFormat;
+static const UInt64 AFFormatAction = 0x564d4301;
+
+static OSStatus AFPerformConfiguration(AudioServerPlugInDriverRef driver, AudioObjectID device, UInt64 action, void *info) {
+    if (action != AFFormatAction) {
+        if (action == ChangeAction_SetSampleRate) pthread_mutex_lock(&afOwnerMutex);
+        OSStatus status = BlackHole_PerformDeviceConfigurationChange(driver, device, action, info);
+        if (status == noErr && action == ChangeAction_SetSampleRate) {
+            vs_ack(&afPCM, vs_written(&afPCM));
+            afGeneration++;
+        }
+        if (action == ChangeAction_SetSampleRate) pthread_mutex_unlock(&afOwnerMutex);
+        return status;
+    }
+    if (driver != gAudioServerPlugInDriverRef || device != kObjectID_Device) return kAudioHardwareBadObjectError;
+    pthread_mutex_lock(&afOwnerMutex);
+    AFFormatChange *change = afPendingFormat;
+    if (!change || change != info) { pthread_mutex_unlock(&afOwnerMutex); return kAudioHardwareIllegalOperationError; }
+    afPendingFormat = NULL;
+    pthread_mutex_lock(&gPlugIn_StateMutex);
+    Boolean valid = change->owner == afOwner && change->generation == afGeneration && !gDevice_IOIsRunning;
+    if (valid) {
+        afFormat = change->format;
+        atomic_store(&afChannelCount, afFormat.channels);
+        vs_ack(&afPCM, vs_written(&afPCM));
+        afPCM.channels = afFormat.channels;
+        afGeneration++;
+    }
+    pthread_mutex_unlock(&gPlugIn_StateMutex);
+    pthread_mutex_unlock(&afOwnerMutex);
+    free(change);
+    if (!valid) return kAudioHardwareIllegalOperationError;
+    AudioObjectPropertyAddress property = {'vcfg', kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+    gPlugIn_Host->PropertiesChanged(gPlugIn_Host, device, 1, &property);
+    return noErr;
+}
+
+static OSStatus AFAbortConfiguration(AudioServerPlugInDriverRef driver, AudioObjectID device, UInt64 action, void *info) {
+    if (action != AFFormatAction) return BlackHole_AbortDeviceConfigurationChange(driver, device, action, info);
+    if (driver != gAudioServerPlugInDriverRef || device != kObjectID_Device) return kAudioHardwareBadObjectError;
+    pthread_mutex_lock(&afOwnerMutex);
+    AFFormatChange *change = afPendingFormat;
+    if (change != info) { pthread_mutex_unlock(&afOwnerMutex); return kAudioHardwareIllegalOperationError; }
+    afPendingFormat = NULL;
+    pthread_mutex_unlock(&afOwnerMutex);
+    free(change);
+    return noErr;
+}
 static double VorssaintAudioNow(void) {
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC_RAW, &now);
@@ -39,7 +99,8 @@ static Boolean afCustom(AudioObjectID object, const AudioObjectPropertyAddress *
     return object == kObjectID_Device && address
         && address->mScope == kAudioObjectPropertyScopeGlobal
         && address->mElement == kAudioObjectPropertyElementMain
-        && (address->mSelector == 'vown' || address->mSelector == 'vact' || address->mSelector == 'vpcm' || address->mSelector == 'vkey');
+        && (address->mSelector == 'vown' || address->mSelector == 'vact' || address->mSelector == 'vpcm'
+            || address->mSelector == 'vkey' || address->mSelector == 'vcfg');
 }
 static Boolean afDeviceList(AudioObjectID object, const AudioObjectPropertyAddress *address) {
     return address && ((object==kObjectID_PlugIn && address->mSelector==kAudioPlugInPropertyDeviceList)
@@ -54,7 +115,8 @@ static const AudioServerPlugInCustomPropertyInfo afProperties[] = {
     {'vown', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone},
     {'vact', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone},
     {'vpcm', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeCFPropertyList},
-    {'vkey', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone}
+    {'vkey', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone},
+    {'vcfg', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone}
 };
 static Boolean afIsActive(void) {
     pthread_mutex_lock(&afOwnerMutex);
@@ -102,7 +164,7 @@ static Boolean AFHas(AudioServerPlugInDriverRef driver, AudioObjectID object, pi
 static OSStatus AFSettable(AudioServerPlugInDriverRef driver, AudioObjectID object, pid_t pid, const AudioObjectPropertyAddress *address, Boolean *value) {
     if (driver != gAudioServerPlugInDriverRef || !value || !address) return kAudioHardwareIllegalOperationError;
     if (afInfo(object,address)) { *value=false; return noErr; }
-    if (afCustom(object,address)) { *value=address->mSelector=='vown'; return noErr; }
+    if (afCustom(object,address)) { *value=address->mSelector=='vown' || address->mSelector=='vcfg'; return noErr; }
     return BlackHole_IsPropertySettable(driver,object,pid,address,value);
 }
 static OSStatus AFSize(AudioServerPlugInDriverRef driver, AudioObjectID object, pid_t pid, const AudioObjectPropertyAddress *address, UInt32 qualifierSize, const void *qualifier, UInt32 *size) {
@@ -121,6 +183,37 @@ static OSStatus AFGet(AudioServerPlugInDriverRef driver, AudioObjectID object, p
     if (afInfo(object,address)) {
         if (capacity < sizeof(afProperties)) return kAudioHardwareBadPropertySizeError;
         memcpy(data,afProperties,sizeof(afProperties)); *size=sizeof(afProperties); return noErr;
+    }
+    if (afCustom(object,address) && address->mSelector=='vcfg') {
+        if (capacity < sizeof(CFPropertyListRef)) return kAudioHardwareBadPropertySizeError;
+        pthread_mutex_lock(&gPlugIn_StateMutex);
+        CFDataRef format = CFDataCreate(NULL, (const UInt8 *)&afFormat, sizeof(afFormat));
+        pthread_mutex_unlock(&gPlugIn_StateMutex);
+        if (!format) return kAudioHardwareUnspecifiedError;
+        *(CFPropertyListRef *)data = format;
+        *size = sizeof(CFPropertyListRef);
+        return noErr;
+    }
+    if (object == kObjectID_Device && address->mSelector == kAudioDevicePropertyPreferredChannelsForStereo) {
+        if (capacity < sizeof(afFormat.stereo)) return kAudioHardwareBadPropertySizeError;
+        pthread_mutex_lock(&gPlugIn_StateMutex);
+        memcpy(data, afFormat.stereo, sizeof(afFormat.stereo));
+        pthread_mutex_unlock(&gPlugIn_StateMutex);
+        *size = sizeof(afFormat.stereo);
+        return noErr;
+    }
+    if (object == kObjectID_Device && address->mSelector == kAudioDevicePropertyPreferredChannelLayout) {
+        pthread_mutex_lock(&gPlugIn_StateMutex);
+        UInt32 required = offsetof(AudioChannelLayout, mChannelDescriptions) + afFormat.channels * sizeof(AudioChannelDescription);
+        if (capacity < required) { pthread_mutex_unlock(&gPlugIn_StateMutex); return kAudioHardwareBadPropertySizeError; }
+        AudioChannelLayout *layout = data;
+        layout->mChannelLayoutTag = kAudioChannelLayoutTag_UseChannelDescriptions;
+        layout->mChannelBitmap = 0;
+        layout->mNumberChannelDescriptions = afFormat.channels;
+        memcpy(layout->mChannelDescriptions, afFormat.descriptions, afFormat.channels * sizeof(AudioChannelDescription));
+        pthread_mutex_unlock(&gPlugIn_StateMutex);
+        *size = required;
+        return noErr;
     }
     if (afCustom(object,address) && address->mSelector=='vkey') {
         if(capacity<sizeof(CFPropertyListRef))return kAudioHardwareBadPropertySizeError;
@@ -144,13 +237,22 @@ static OSStatus AFGet(AudioServerPlugInDriverRef driver, AudioObjectID object, p
         uint64_t cursor=request.cursor;
         if(!request.generation && !request.maxFrames) {cursor=vs_written(&afPCM);vs_ack(&afPCM,cursor);}
         else if(request.generation!=afGeneration || !vs_ack(&afPCM,cursor)) {pthread_mutex_unlock(&afOwnerMutex);return kAudioHardwareIllegalOperationError;}
-        VSPacket packet={.magic=VS_MAGIC,.version=VS_VERSION,.channels=2,.generation=afGeneration,.cursor=cursor,.nonce=request.nonce};
+        VSPacket packet={.magic=VS_MAGIC,.version=VS_VERSION,.channels=vs_channels(&afPCM),.generation=afGeneration,.cursor=cursor,.nonce=request.nonce};
         pthread_mutex_lock(&gPlugIn_StateMutex);
         packet.rate=gDevice_SampleRate;packet.gain=atomic_load(&gVolume_Master_Value);packet.muted=gMute_Master_Value;
         pthread_mutex_unlock(&gPlugIn_StateMutex);
-        float samples[VS_PACKET_FRAMES*2];packet.frames=vs_copy_generation(&afPCM,cursor,samples,request.maxFrames,packet.generation);packet.next=cursor+packet.frames;
-        CFMutableDataRef response=CFDataCreateMutable(NULL,sizeof(packet)+packet.frames*8);
-        if(response) {CFDataAppendBytes(response,(const UInt8*)&packet,sizeof(packet));CFDataAppendBytes(response,(const UInt8*)samples,packet.frames*8);}
+        uint64_t available = vs_written(&afPCM) - cursor;
+        UInt32 framesToCopy = available < request.maxFrames ? (UInt32)available : request.maxFrames;
+        size_t capacityBytes = sizeof(packet) + framesToCopy * packet.channels * sizeof(float);
+        CFMutableDataRef response = CFDataCreateMutable(NULL, capacityBytes);
+        if (response) {
+            CFDataSetLength(response, capacityBytes);
+            UInt8 *bytes = CFDataGetMutableBytePtr(response);
+            packet.frames = vs_copy_generation(&afPCM, cursor, (float *)(bytes + sizeof(packet)), framesToCopy, packet.generation);
+            packet.next = cursor + packet.frames;
+            memcpy(bytes, &packet, sizeof(packet));
+            CFDataSetLength(response, sizeof(packet) + packet.frames * packet.channels * sizeof(float));
+        }
         pthread_mutex_unlock(&afOwnerMutex);
         if(!response) return kAudioHardwareUnspecifiedError;
         *(CFPropertyListRef*)data=response;*size=sizeof(CFPropertyListRef);return noErr;
@@ -176,6 +278,30 @@ static OSStatus AFGet(AudioServerPlugInDriverRef driver, AudioObjectID object, p
 }
 static OSStatus AFSet(AudioServerPlugInDriverRef driver, AudioObjectID object, pid_t pid, const AudioObjectPropertyAddress *address, UInt32 qualifierSize, const void *qualifier, UInt32 size, const void *data) {
     if (driver != gAudioServerPlugInDriverRef || !data || !address) return kAudioHardwareIllegalOperationError;
+    if (afCustom(object,address) && address->mSelector=='vcfg') {
+        if (size != sizeof(CFPropertyListRef)) return kAudioHardwareBadPropertySizeError;
+        CFPropertyListRef payload = *(const CFPropertyListRef *)data;
+        if (!payload || CFGetTypeID(payload) != CFDataGetTypeID() || CFDataGetLength(payload) != sizeof(VSOutputFormat)) return kAudioHardwareBadPropertySizeError;
+        VSOutputFormat format;
+        memcpy(&format, CFDataGetBytePtr(payload), sizeof(format));
+        if (!vs_format_valid(&format)) return kAudioDeviceUnsupportedFormatError;
+        if (!afCallerTrusted(pid)) return kAudioDevicePermissionsError;
+        pthread_mutex_lock(&afOwnerMutex);
+        if (pid <= 0 || afOwner != pid) { pthread_mutex_unlock(&afOwnerMutex); return kAudioDevicePermissionsError; }
+        if (afPendingFormat || !gPlugIn_Host || !gPlugIn_Host->RequestDeviceConfigurationChange) {
+            pthread_mutex_unlock(&afOwnerMutex); return kAudioHardwareIllegalOperationError;
+        }
+        AFFormatChange *change = calloc(1, sizeof(*change));
+        if (!change) { pthread_mutex_unlock(&afOwnerMutex); return kAudioHardwareUnspecifiedError; }
+        change->format = format; change->owner = pid; change->generation = afGeneration;
+        afPendingFormat = change;
+        pthread_mutex_unlock(&afOwnerMutex);
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            OSStatus status = gPlugIn_Host->RequestDeviceConfigurationChange(gPlugIn_Host, kObjectID_Device, AFFormatAction, change);
+            if (status != noErr) AFAbortConfiguration(driver, kObjectID_Device, AFFormatAction, change);
+        });
+        return noErr;
+    }
     if (afCustom(object,address)) {
         if (address->mSelector!='vown') return kAudioHardwareIllegalOperationError;
         if (size!=sizeof(CFPropertyListRef)) return kAudioHardwareBadPropertySizeError;
@@ -222,6 +348,8 @@ static OSStatus AFDoIO(AudioServerPlugInDriverRef driver, AudioObjectID object, 
 }
 void *VorssaintAudio_Create(CFAllocatorRef allocator, CFUUIDRef type) {
     gAudioServerPlugInDriverInterface.Initialize=AFInitialize;
+    gAudioServerPlugInDriverInterface.PerformDeviceConfigurationChange=AFPerformConfiguration;
+    gAudioServerPlugInDriverInterface.AbortDeviceConfigurationChange=AFAbortConfiguration;
     gAudioServerPlugInDriverInterface.HasProperty=AFHas;
     gAudioServerPlugInDriverInterface.IsPropertySettable=AFSettable;
     gAudioServerPlugInDriverInterface.GetPropertyDataSize=AFSize;

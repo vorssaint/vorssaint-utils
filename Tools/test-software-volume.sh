@@ -10,7 +10,7 @@ xcrun swiftc Sources/Vorssaint/Services/QuickTools/MicMuteSupport.swift Sources/
 ./build/software-volume-bridge-tests
 python3 Tests/SoftwareVolume/UninstallTests.py
 
-for test in PCM Playback; do
+for test in PCM Playback Multichannel; do
     xcrun clang -std=gnu11 -O2 "Tests/SoftwareVolume${test}Tests.c" -framework CoreAudio -o "build/software-volume-${test:l}-tests"
     "build/software-volume-${test:l}-tests"
 done

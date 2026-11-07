@@ -12,9 +12,16 @@
 #define CreateDriver BlackHole_Create
 #endif
 static int failures = 0, checks = 0;
+static dispatch_semaphore_t configurationDone;
+static OSStatus configurationStatus;
+static OSStatus configure(AudioServerPlugInHostRef host, AudioObjectID object, UInt64 action, void *info) {
+    configurationStatus = (*gAudioServerPlugInDriverRef)->PerformDeviceConfigurationChange(gAudioServerPlugInDriverRef, object, action, info);
+    dispatch_semaphore_signal(configurationDone);
+    return noErr;
+}
 #define CHECK(test) do { checks++; if (!(test)) { fprintf(stderr,"FAIL %d: %s\n", __LINE__, #test); failures++; } } while (0)
 static OSStatus changed(AudioServerPlugInHostRef host, AudioObjectID object, UInt32 count, const AudioObjectPropertyAddress addresses[]) { return noErr; }
-static AudioServerPlugInHostInterface host = { .PropertiesChanged = changed };
+static AudioServerPlugInHostInterface host = { .PropertiesChanged = changed, .RequestDeviceConfigurationChange = configure };
 static AudioObjectPropertyAddress prop(UInt32 selector) { return (AudioObjectPropertyAddress){selector,kAudioObjectPropertyScopeGlobal,kAudioObjectPropertyElementMain}; }
 static OSStatus get32(AudioServerPlugInDriverRef driver, AudioObjectID object, UInt32 selector, UInt32 *value) {
  AudioObjectPropertyAddress address=prop(selector); UInt32 size=0;
@@ -33,6 +40,30 @@ static OSStatus owner(AudioServerPlugInDriverRef driver, pid_t pid, UInt32 value
  if (value>1) CFRelease(payload);
  return status;
 }
+static void check_channel_pcm(AudioServerPlugInDriverRef driver, unsigned channels) {
+ AudioObjectPropertyAddress keyAddress = prop('vkey'), pcm = prop('vpcm');
+ CFDataRef key = NULL; UInt32 size = 0;
+ CHECK((*driver)->GetPropertyData(driver,kObjectID_Device,getpid(),&keyAddress,0,NULL,sizeof(key),&size,&key)==noErr);
+ VSRequest request = vs_request(0,0,1,0,CFDataGetBytePtr(key)); CFRelease(key);
+ CFDataRef qualifier = CFDataCreate(NULL,(const UInt8 *)&request,sizeof(request)), response = NULL;
+ CHECK((*driver)->GetPropertyData(driver,kObjectID_Device,getpid(),&pcm,sizeof(qualifier),&qualifier,sizeof(response),&size,&response)==noErr);
+ VSPacket header; memcpy(&header,CFDataGetBytePtr(response),sizeof(header));
+ CHECK(header.channels==channels && header.frames==0);
+ CFRelease(response); CFRelease(qualifier);
+ unsigned frames = channels == VS_MAX_CHANNELS ? VS_PACKET_FRAMES : 4;
+ request.generation=header.generation; request.cursor=header.next; request.nonce=2; request.maxFrames=frames;
+ float *input=malloc(frames*channels*sizeof(float)); assert(input);
+ for(unsigned i=0;i<frames*channels;i++) input[i]=(i+1)*0.01f;
+ AudioServerPlugInIOCycleInfo cycle={0};
+ CHECK((*driver)->DoIOOperation(driver,kObjectID_Device,kObjectID_Stream_Output,0,kAudioServerPlugInIOOperationWriteMix,frames,&cycle,input,NULL)==noErr);
+ qualifier=CFDataCreate(NULL,(const UInt8 *)&request,sizeof(request));
+ CHECK((*driver)->GetPropertyData(driver,kObjectID_Device,getpid(),&pcm,sizeof(qualifier),&qualifier,sizeof(response),&size,&response)==noErr);
+ memcpy(&header,CFDataGetBytePtr(response),sizeof(header));
+ CHECK(header.channels==channels && header.frames==frames && CFDataGetLength(response)==sizeof(header)+sizeof(float)*channels*frames
+       && memcmp(CFDataGetBytePtr(response)+sizeof(header),input,sizeof(float)*channels*frames)==0);
+ CFRelease(response); CFRelease(qualifier);
+ free(input);
+}
 int main(void) {
  AudioServerPlugInDriverRef driver=CreateDriver(NULL,kAudioServerPlugInTypeUUID);
  CHECK(driver != NULL); gPlugIn_Host=&host;
@@ -42,7 +73,7 @@ int main(void) {
  AudioObjectPropertyAddress translation=prop(kAudioPlugInPropertyTranslateUIDToDevice);
  CHECK((*driver)->GetPropertyData(driver,kObjectID_PlugIn,getpid(),&translation,sizeof(uid),&uid,sizeof(translated),&translatedSize,&translated)==noErr && translated==kObjectID_Device);
  CHECK((*driver)->GetPropertyData(driver,kObjectID_PlugIn,getpid(),&translation,1,&uid,sizeof(translated),&translatedSize,&translated)==kAudioHardwareBadPropertySizeError);
- AudioServerPlugInCustomPropertyInfo info[4]; UInt32 infoSize=0;
+ AudioServerPlugInCustomPropertyInfo info[5]; UInt32 infoSize=0;
  AudioObjectPropertyAddress custom=prop(kAudioObjectPropertyCustomPropertyInfoList);
  CHECK((*driver)->GetPropertyData(driver,kObjectID_Device,getpid(),&custom,0,NULL,sizeof(info),&infoSize,info)==noErr
   && infoSize==sizeof(info) && info[0].mPropertyDataType==kAudioServerPlugInCustomPropertyDataTypeCFPropertyList);
@@ -52,6 +83,40 @@ int main(void) {
  CHECK(owner(driver,getpid(),1,sizeof(UInt16))==kAudioHardwareBadPropertySizeError);
  CHECK(owner(driver,getpid(),2,sizeof(CFPropertyListRef))==kAudioHardwareIllegalOperationError);
  CHECK(owner(driver,getpid(),1,sizeof(CFPropertyListRef))==noErr);
+ configurationDone = dispatch_semaphore_create(0);
+ unsigned layouts[] = {32,16,12,8,7,6,5,4,3,2};
+ for (unsigned index = 0; index < sizeof(layouts)/sizeof(layouts[0]); index++) {
+  unsigned channels = layouts[index];
+  VSOutputFormat format = vs_format_default(channels);
+  if (channels > 3) format.descriptions[3].mChannelLabel = kAudioChannelLabel_LFEScreen;
+  AudioObjectPropertyAddress address = prop('vcfg');
+  CFDataRef data = CFDataCreate(NULL, (const UInt8 *)&format, sizeof(format));
+  CHECK((*driver)->SetPropertyData(driver,kObjectID_Device,getppid(),&address,0,NULL,sizeof(data),&data)==kAudioDevicePermissionsError);
+  CHECK((*driver)->SetPropertyData(driver,kObjectID_Device,getpid(),&address,0,NULL,sizeof(data),&data)==noErr);
+  CHECK(dispatch_semaphore_wait(configurationDone,dispatch_time(DISPATCH_TIME_NOW,NSEC_PER_SEC))==0);
+  CHECK(configurationStatus==noErr);
+  CFRelease(data);
+  AudioStreamBasicDescription streamFormat = {0}; UInt32 formatSize = 0;
+  address = prop(kAudioStreamPropertyVirtualFormat);
+  CHECK((*driver)->GetPropertyData(driver,kObjectID_Stream_Output,getpid(),&address,0,NULL,sizeof(streamFormat),&formatSize,&streamFormat)==noErr
+        && streamFormat.mChannelsPerFrame==channels && streamFormat.mBytesPerFrame==channels*sizeof(float));
+  struct { AudioChannelLayoutTag tag; AudioChannelBitmap bitmap; UInt32 count; AudioChannelDescription descriptions[VS_MAX_CHANNELS]; } layout = {0};
+  address = prop(kAudioDevicePropertyPreferredChannelLayout); address.mScope = kAudioObjectPropertyScopeOutput;
+  CHECK((*driver)->GetPropertyData(driver,kObjectID_Device,getpid(),&address,0,NULL,sizeof(layout),&formatSize,&layout)==noErr
+        && layout.count==channels && memcmp(layout.descriptions,format.descriptions,channels*sizeof(AudioChannelDescription))==0);
+  AudioObjectPropertyAddress input = prop(kAudioDevicePropertyStreams); input.mScope = kAudioObjectPropertyScopeInput;
+  UInt32 inputBytes = 99;
+  CHECK((*driver)->GetPropertyDataSize(driver,kObjectID_Device,getpid(),&input,0,NULL,&inputBytes)==noErr && inputBytes==0);
+  check_channel_pcm(driver,channels);
+ }
+ for (unsigned rate = 48000; rate <= 192000; rate *= 2) {
+  uint64_t generation = afGeneration;
+  gDevice_RequestedSampleRate = rate;
+  CHECK((*driver)->PerformDeviceConfigurationChange(driver,kObjectID_Device,ChangeAction_SetSampleRate,NULL)==noErr
+        && gDevice_SampleRate==rate && afGeneration!=generation);
+ }
+ gDevice_RequestedSampleRate = 48000;
+ CHECK((*driver)->PerformDeviceConfigurationChange(driver,kObjectID_Device,ChangeAction_SetSampleRate,NULL)==noErr);
  CHECK(get32(driver,kObjectID_Device,'vact',&value)==noErr && value==1);
  CHECK(get32(driver,kObjectID_Device,kAudioDevicePropertyIsHidden,&value)==noErr && value==0);
  CHECK(get32(driver,kObjectID_Device,kAudioDevicePropertyDeviceIsAlive,&value)==noErr && value==1);

@@ -16,8 +16,12 @@ final class VirtualOutputBridge {
     }
     private final class Storage {
         let pointer: UnsafeMutableRawPointer
-        init(rate: Double) throws {
-            guard let pointer = vs_playback_create() else { throw Failure("Could not allocate playback buffer") }
+        init(rate: Double, channels: UInt32, channelMap: [UInt32]) throws {
+            guard let pointer = vs_playback_create_channels(channels) else { throw Failure("Could not allocate playback buffer") }
+            guard channelMap.withUnsafeBufferPointer({ vs_playback_set_channel_map(pointer, $0.baseAddress!, UInt32($0.count)) }) != 0 else {
+                vs_playback_destroy(pointer)
+                throw Failure("Could not configure physical output channel mapping")
+            }
             self.pointer = pointer
             vs_playback_rate(pointer, rate)
         }
@@ -26,6 +30,7 @@ final class VirtualOutputBridge {
     private final class Pump {
         private let device: AudioObjectID
         private let rate: Double
+        private let channels: UInt32
         private let storage: Storage
         private let key: Data
         private var generation: UInt64 = 0
@@ -35,9 +40,11 @@ final class VirtualOutputBridge {
         private var lastPoll: CFAbsoluteTime = 0
         private var largestGap: Double = 0
         private var lastReport: CFAbsoluteTime = 0
+        private var lastFailure: String?
+        private var didReportReady = false
         private static let log = Logger(subsystem: "com.vorssaint.utils", category: "output-pcm")
-        init(device: AudioObjectID, rate: Double, storage: Storage) throws {
-            self.device = device; self.rate = rate; self.storage = storage
+        init(device: AudioObjectID, rate: Double, channels: UInt32, storage: Storage) throws {
+            self.device = device; self.rate = rate; self.channels = channels; self.storage = storage
             var keyRef: Unmanaged<CFData>?
             guard VirtualOutputHAL.read(device, 0x766b6579, into: &keyRef), let keyRef else {
                 throw Failure("Could not authorize output transport", issue: .privacyUnverified)
@@ -52,6 +59,13 @@ final class VirtualOutputBridge {
             timer.schedule(deadline: .now(), repeating: .milliseconds(5), leeway: .milliseconds(1))
             timer.setEventHandler { [weak self] in _ = self?.poll() }
             self.timer = timer; timer.resume()
+        }
+        private func failedPoll(_ message: String) -> Bool {
+            if lastFailure != message {
+                Self.log.error("Output PCM polling failed: \(message, privacy: .public)")
+                lastFailure = message
+            }
+            return false
         }
         private func poll() -> Bool {
             let now = CFAbsoluteTimeGetCurrent()
@@ -68,13 +82,29 @@ final class VirtualOutputBridge {
             let status = withUnsafePointer(to: &qualifier) {
                 AudioObjectGetPropertyData(device, &address, UInt32(MemoryLayout<CFData>.size), $0, &size, &response)
             }
-            guard status == noErr, let response else { return false }
+            guard status == noErr else {
+                return failedPoll(Failure("Output PCM property read", status: status).localizedDescription)
+            }
+            guard let response else { return failedPoll("Output PCM response is missing") }
             let data = response.takeRetainedValue()
-            guard CFGetTypeID(data) == CFDataGetTypeID() else { return false }
+            guard CFGetTypeID(data) == CFDataGetTypeID() else { return failedPoll("Output PCM response type is invalid") }
             var header = VSPacket()
-            guard vs_packet_validate(CFDataGetBytePtr(data), CFDataGetLength(data), nonce, generation, cursor, rate, &header) != 0 else { return false }
+            guard vs_packet_validate_channels(CFDataGetBytePtr(data), CFDataGetLength(data), nonce, generation, cursor, rate, channels, &header) != 0 else {
+                guard CFDataGetLength(data) >= MemoryLayout<VSPacket>.size else {
+                    return failedPoll("Output PCM response header is truncated")
+                }
+                var observed = VSPacket()
+                _ = withUnsafeMutableBytes(of: &observed) { bytes in
+                    memcpy(bytes.baseAddress!, CFDataGetBytePtr(data), bytes.count)
+                }
+                return failedPoll("Output PCM packet rejected: version=\(observed.version) channels=\(observed.channels)/\(channels) rate=\(observed.rate)/\(rate) generationMatches=\(generation == 0 || observed.generation == generation) cursorMatches=\(generation == 0 || observed.cursor == cursor)")
+            }
             vs_playback_push(storage.pointer, CFDataGetBytePtr(data), CFDataGetLength(data))
             generation = header.generation; cursor = header.next
+            if !didReportReady || lastFailure != nil {
+                Self.log.notice("Output PCM transport ready: channels=\(self.channels, privacy: .public) sampleRate=\(self.rate, privacy: .public)")
+                didReportReady = true; lastFailure = nil
+            }
             if now - lastReport >= 1 {
                 let stats = vs_playback_stats(storage.pointer)
                 Self.log.debug("PCM queued=\(stats.queued) underruns=\(stats.underruns) trimmed=\(stats.trimmed) dropped=\(stats.dropped) maxPollGapMs=\(self.largestGap * 1000)")
@@ -93,14 +123,15 @@ final class VirtualOutputBridge {
     private var rate: Float64 = 0
     private var inputLayout: [UInt32] = []
     private var outputLayout: [UInt32] = []
+    private var outputConfiguration = Data()
+    private var outputChannelMap: [UInt32] = []
     private var pump: Pump?
     private var storage: Storage?
 
     init(virtual: AudioObjectID, physicalUID: String) throws {
         self.physicalUID = physicalUID
         guard let uid = VirtualOutputHAL.uid(virtual), uid == VirtualOutputSupport.deviceUID,
-              VirtualOutputHAL.channels(virtual, scope: kAudioObjectPropertyScopeInput).isEmpty,
-              VirtualOutputHAL.channels(virtual, scope: kAudioObjectPropertyScopeOutput) == [2] else {
+              VirtualOutputHAL.channels(virtual, scope: kAudioObjectPropertyScopeInput).isEmpty else {
             throw Failure("Output-only software volume component is required", issue: .privacyUnverified)
         }
         guard let physical = VirtualOutputHAL.device(physicalUID),
@@ -108,6 +139,23 @@ final class VirtualOutputBridge {
             throw Failure("Physical output is unavailable", issue: .outputUnavailable)
         }
         self.physical = physical
+        guard let configuration = VirtualOutputHAL.outputConfiguration(physical),
+              VirtualOutputHAL.configureOutput(virtual, configuration: configuration) else {
+            throw Failure("Could not match the physical output channel layout")
+        }
+        outputConfiguration = configuration
+        guard configuration.count == MemoryLayout<VSOutputFormat>.size else {
+            throw Failure("Invalid output channel layout metadata")
+        }
+        let expectedChannels = configuration.withUnsafeBytes { $0.loadUnaligned(as: VSOutputFormat.self).channels }
+        let channelCount = VirtualOutputHAL.channels(virtual, scope: kAudioObjectPropertyScopeOutput).reduce(0, +)
+        guard channelCount >= 2, channelCount <= VS_MAX_CHANNELS, channelCount == expectedChannels else {
+            throw Failure("Unsupported virtual output channel count")
+        }
+        guard let channelMap = VirtualOutputHAL.outputChannelMap(physical, configuration: configuration) else {
+            throw Failure("Physical output channel mapping is unavailable")
+        }
+        outputChannelMap = channelMap
         let rateStatus = VirtualOutputHAL.write(virtual, kAudioDevicePropertyNominalSampleRate, value: rate)
         guard rateStatus == noErr else {
             throw Failure("Could not match the virtual output sample rate", status: rateStatus)
@@ -132,10 +180,10 @@ final class VirtualOutputBridge {
         }
         inputLayout = VirtualOutputHAL.channels(physical, scope: kAudioObjectPropertyScopeInput)
         outputLayout = VirtualOutputHAL.channels(physical, scope: kAudioObjectPropertyScopeOutput)
-        guard outputLayout.reduce(0,+) >= 2 else { throw Failure("Stereo physical output is required") }
+        guard outputLayout.reduce(0,+) >= channelCount else { throw Failure("Physical output has fewer channels than its preferred layout") }
         do {
-            let storage = try Storage(rate: rate); self.storage = storage
-            pump = try Pump(device: virtual, rate: rate, storage: storage)
+            let storage = try Storage(rate: rate, channels: channelCount, channelMap: channelMap); self.storage = storage
+            pump = try Pump(device: virtual, rate: rate, channels: channelCount, storage: storage)
             let progress = progress
             let creationStatus = AudioDeviceCreateIOProcIDWithBlock(&ioProc, physical, nil, { _, _, _, output, _ in
                 _ = vs_playback_render(storage.pointer, output)
@@ -162,6 +210,8 @@ final class VirtualOutputBridge {
             && VirtualOutputHAL.read(physical, kAudioDevicePropertyBufferFrameSize, into: &frames) && frames > 0 && frames <= UInt32(VS_PACKET_FRAMES)
             && VirtualOutputHAL.channels(physical, scope: kAudioObjectPropertyScopeInput) == inputLayout
             && VirtualOutputHAL.channels(physical, scope: kAudioObjectPropertyScopeOutput) == outputLayout
+            && VirtualOutputHAL.outputConfiguration(physical) == outputConfiguration
+            && VirtualOutputHAL.outputChannelMap(physical, configuration: outputConfiguration) == outputChannelMap
             && VirtualOutputHAL.floatFormats(physical, scope: kAudioObjectPropertyScopeOutput)
     }
     func stop() {

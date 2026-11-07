@@ -86,6 +86,7 @@ final class AppVolumeMixer: ObservableObject {
     @Published private(set) var currentSystemSoundOutputDeviceUID: String?
     @Published private(set) var systemOutputVolume: Double?
     @Published private(set) var systemOutputMuted: Bool?
+    @Published private(set) var systemOutputLayout: VirtualOutputSupport.OutputLayout?
     @Published private(set) var outputSwitchError: String?
     /// Set when tap creation fails with a permission error, so the panel can
     /// point at the System Audio Recording consent.
@@ -326,6 +327,7 @@ final class AppVolumeMixer: ObservableObject {
         if !hiddenApps.isEmpty { hiddenApps = [] }
         if !outputDevices.isEmpty { outputDevices = [] }
         if currentOutputDeviceUID != nil { currentOutputDeviceUID = nil }
+        if systemOutputLayout != nil { systemOutputLayout = nil }
         if currentSystemSoundOutputDeviceUID != nil { currentSystemSoundOutputDeviceUID = nil }
         if systemOutputVolume != nil { systemOutputVolume = nil }
         if systemOutputMuted != nil { systemOutputMuted = nil }
@@ -1559,6 +1561,7 @@ final class AppVolumeMixer: ObservableObject {
         let defaultDeviceID: AudioObjectID?
         let systemOutputVolume: Double?
         let systemOutputMuted: Bool?
+        let systemOutputLayout: VirtualOutputSupport.OutputLayout?
         /// Nil where process taps do not exist (before macOS 14.4): the app
         /// list stays empty and no process object is looked at.
         let apps: [MixerApp]?
@@ -1669,6 +1672,7 @@ final class AppVolumeMixer: ObservableObject {
         if currentSystemSoundOutputDeviceUID != snapshot.systemSoundUID {
             currentSystemSoundOutputDeviceUID = snapshot.systemSoundUID
         }
+        if systemOutputLayout != snapshot.systemOutputLayout { systemOutputLayout = snapshot.systemOutputLayout }
         if snapshot.outputDevices != outputDevices {
             outputDevices = snapshot.outputDevices
         }
@@ -1726,6 +1730,7 @@ final class AppVolumeMixer: ObservableObject {
                 : nil
         }
         let systemOutputMuted = defaultDevice.flatMap { outputMuted(for: $0.audioObjectID) }
+        let systemOutputLayout = defaultDevice.flatMap { VirtualOutputHAL.outputLayout($0.audioObjectID) }
 
         guard request.includeApps, isSupported else {
             return RefreshSnapshot(defaultUID: defaultUID,
@@ -1734,6 +1739,7 @@ final class AppVolumeMixer: ObservableObject {
                                    defaultDeviceID: defaultDevice?.audioObjectID,
                                    systemOutputVolume: systemOutputVolume,
                                    systemOutputMuted: systemOutputMuted,
+                                   systemOutputLayout: systemOutputLayout,
                                    apps: nil,
                                    processObjects: [],
                                    lowered: lowered)
@@ -1869,6 +1875,7 @@ final class AppVolumeMixer: ObservableObject {
                                defaultDeviceID: defaultDevice?.audioObjectID,
                                systemOutputVolume: systemOutputVolume,
                                systemOutputMuted: systemOutputMuted,
+                               systemOutputLayout: systemOutputLayout,
                                apps: next,
                                processObjects: processObjects,
                                lowered: lowered)

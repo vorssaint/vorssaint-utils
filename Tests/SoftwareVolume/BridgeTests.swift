@@ -7,6 +7,18 @@ import Foundation
         var failures = 0, checks = 0
         func expect(_ value: Bool, _ label: String) { checks += 1; if !value { failures += 1; print("FAIL: \(label)") } }
         expect(VirtualOutputSupport.usesVirtualOutput(enabled: true, hardwareVolume: false), "Samsung fixed DisplayPort uses software fallback")
+        expect(VirtualOutputSupport.OutputLayout(labels: [1,2]).isStereo, "the active two-speaker layout is stereo")
+        expect(VirtualOutputSupport.OutputLayout(labels: [1,2,4]).notation == "2.1", "2.1 requires an actual LFE channel")
+        expect(VirtualOutputSupport.OutputLayout(labels: [1,2,3,4,5,6]).notation == "5.1", "six speakers including LFE display 5.1")
+        expect(VirtualOutputSupport.OutputLayout(labels: [1,2,3,4,5,6,10,11]).notation == "7.1", "eight speakers including LFE display 7.1")
+        expect(VirtualOutputSupport.OutputLayout(labels: [1,2,3]).notation == "3.0", "three channels without LFE cannot be labelled 2.1")
+        expect(VirtualOutputSupport.OutputLayout(labels: [65536,65537,65538]).notation == nil, "unknown discrete channels do not imply a speaker layout")
+        expect(VirtualOutputSupport.OutputLayout(labels: [1,2,3,4,5,6,14]).notation == "5.1.1", "a top-center speaker adds the third layout dimension")
+        expect(VirtualOutputSupport.OutputLayout(labels: [1,2,3,4,5,6,13,15]).notation == "5.1.2", "height channels are counted separately from floor speakers")
+        expect(VirtualOutputSupport.OutputLayout(labels: [1,2,3,4,5,6,10,11,13,15,52,54]).notation == "7.1.4", "twelve-channel height layouts retain all three numbers")
+        expect(VirtualOutputSupport.OutputLayout(labels: [1,2,4,37,62]).notation == "2.3", "all three Core Audio LFE roles count as subwoofers")
+        expect(VirtualOutputSupport.OutputLayout(labels: [1,2,3,4,5,6,13,15]).systemImage != VirtualOutputSupport.OutputLayout(labels: [1,2,3,4,5,6]).systemImage,
+               "height layouts have their own icon")
         expect(!VirtualOutputSupport.usesVirtualOutput(enabled: true, hardwareVolume: true), "AirPods native volume bypasses virtual processing")
         expect(!VirtualOutputSupport.usesVirtualOutput(enabled: false, hardwareVolume: false), "disabled fallback leaves native routing alone")
         expect(VirtualOutputSupport.restoreUID(current: "virtual", virtual: "virtual", previous: "monitor", available: ["monitor"]) == "monitor", "restore physical output we replaced")
@@ -27,7 +39,8 @@ import Foundation
         expect(VirtualOutputSupport.isSoftwareDevice(VirtualOutputSupport.loopbackUID), "legacy loopback is still excluded during migration")
         expect(VirtualOutputSupport.inputMask(streamCount: 0, source: .physicalOutput(streams: 0)) == [], "output-only hardware needs no capture streams")
         expect(VirtualOutputSupport.requiredComponentBuild(bundledBuild: 5) == 5, "a future app requires its bundled driver build")
-        expect(VirtualOutputSupport.requiredComponentBuild(bundledBuild: 1) >= 4, "metadata cannot lower the output-only driver requirement")
+        expect(VirtualOutputSupport.requiredComponentBuild(bundledBuild: 1) == 5, "metadata cannot lower the multichannel protocol driver requirement")
+        expect(VirtualOutputSupport.requiredComponentBuild(bundledBuild: nil) == 5, "missing app metadata still requires the multichannel driver")
         expect(VirtualOutputSupport.needsComponentUpdate(installed: true, build: 3, required: 4), "an installed duplex driver needs the output-only upgrade")
         expect(VirtualOutputSupport.needsComponentUpdate(installed: true, build: 4, required: 5), "a future bundled driver prompts an older installed build to update")
         expect(!VirtualOutputSupport.needsComponentUpdate(installed: true, build: 5, required: 5), "a current driver needs no reinstall")

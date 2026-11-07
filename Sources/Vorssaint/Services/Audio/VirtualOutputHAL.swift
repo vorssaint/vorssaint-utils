@@ -3,6 +3,7 @@
 import CoreAudio
 import AudioToolbox
 import Foundation
+import SoftwareVolumePCM
 
 enum VirtualOutputHAL {
     static let system = AudioObjectID(kAudioObjectSystemObject)
@@ -103,7 +104,7 @@ enum VirtualOutputHAL {
                   let device = device(component.uid) else { continue }
             // A newly copied plist must not make an old, still-loaded duplex
             // driver appear ready while Core Audio is restarting.
-            let selectors: [AudioObjectPropertySelector] = [VirtualOutputSupport.ownerSelector, 0x766b6579, 0x7670636d]
+            let selectors: [AudioObjectPropertySelector] = [VirtualOutputSupport.ownerSelector, 0x766b6579, 0x7670636d, 0x76636667]
             if selectors.allSatisfy({ selector in
                 var property = address(selector)
                 return AudioObjectHasProperty(device, &property)
@@ -112,6 +113,101 @@ enum VirtualOutputHAL {
         return nil
     }
     static func installedComponentExists() -> Bool { !installedComponents().isEmpty }
+    /// The preferred layout may describe fewer audible channels than the
+    /// stream's capacity (for example stereo on a six-channel HDMI stream).
+    static func outputConfiguration(_ device: AudioObjectID) -> Data? {
+        let capacity = channels(device, scope: kAudioObjectPropertyScopeOutput).reduce(0, +)
+        guard capacity >= 2 else { return nil }
+        var format = vs_format_default(capacity)
+        var property = address(kAudioDevicePropertyPreferredChannelLayout, scope: kAudioObjectPropertyScopeOutput)
+        var size: UInt32 = 0
+        if AudioObjectGetPropertyDataSize(device, &property, 0, nil, &size) == noErr {
+            guard size >= 12, size <= 65536 else { return nil }
+            var layout = Data(count: Int(size))
+            let status = layout.withUnsafeMutableBytes {
+                AudioObjectGetPropertyData(device, &property, 0, nil, &size, $0.baseAddress!)
+            }
+            guard status == noErr, let normalized = normalizedLayout(layout) else { return nil }
+            let count = normalized.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 8, as: UInt32.self) }
+            guard count >= 2, count <= capacity, count <= VS_MAX_CHANNELS else { return nil }
+            format = vs_format_default(count)
+            guard normalized.withUnsafeBytes({ vs_format_layout(&format, $0.baseAddress!, $0.count) }) != 0 else { return nil }
+        }
+        guard format.channels <= VS_MAX_CHANNELS else { return nil }
+        var stereo = [UInt32](repeating: 0, count: 2)
+        var stereoProperty = address(kAudioDevicePropertyPreferredChannelsForStereo, scope: kAudioObjectPropertyScopeOutput)
+        var stereoSize = UInt32(stereo.count * MemoryLayout<UInt32>.size)
+        if AudioObjectGetPropertyData(device, &stereoProperty, 0, nil, &stereoSize, &stereo) == noErr,
+           stereo[0] > 0, stereo[1] > 0, stereo[0] <= format.channels, stereo[1] <= format.channels,
+           stereo[0] != stereo[1] {
+            vs_format_preferred_stereo(&format, stereo[0], stereo[1])
+        }
+        return withUnsafeBytes(of: &format) { Data($0) }
+    }
+    private static func normalizedLayout(_ data: Data) -> Data? {
+        guard data.count >= 12 else { return nil }
+        let tag = data.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
+        if tag == kAudioChannelLayoutTag_UseChannelDescriptions { return data }
+        var value = tag == kAudioChannelLayoutTag_UseChannelBitmap
+            ? data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self) } : tag
+        let selector = tag == kAudioChannelLayoutTag_UseChannelBitmap
+            ? kAudioFormatProperty_ChannelLayoutForBitmap : kAudioFormatProperty_ChannelLayoutForTag
+        var size: UInt32 = 0
+        guard AudioFormatGetPropertyInfo(selector, 4, &value, &size) == noErr, size >= 12, size <= 65536 else { return nil }
+        var result = Data(count: Int(size))
+        let status = result.withUnsafeMutableBytes {
+            AudioFormatGetProperty(selector, 4, &value, &size, $0.baseAddress!)
+        }
+        guard status == noErr else { return nil }
+        result.withUnsafeMutableBytes {
+            $0.storeBytes(of: kAudioChannelLayoutTag_UseChannelDescriptions, as: UInt32.self)
+        }
+        return result
+    }
+    private static func configuredOutput(_ device: AudioObjectID) -> Data? {
+        var reference: Unmanaged<CFData>?
+        guard read(device, 0x76636667, into: &reference), let reference else { return nil }
+        let data = reference.takeRetainedValue()
+        guard CFGetTypeID(data) == CFDataGetTypeID(), CFDataGetLength(data) == MemoryLayout<VSOutputFormat>.size else { return nil }
+        return data as Data
+    }
+    static func outputChannelMap(_ device: AudioObjectID, configuration: Data) -> [UInt32]? {
+        guard configuration.count == MemoryLayout<VSOutputFormat>.size else { return nil }
+        var format = configuration.withUnsafeBytes { $0.loadUnaligned(as: VSOutputFormat.self) }
+        let capacity = channels(device, scope: kAudioObjectPropertyScopeOutput).reduce(0, +)
+        var preferred: [UInt32] = [1, 2]
+        var property = address(kAudioDevicePropertyPreferredChannelsForStereo, scope: kAudioObjectPropertyScopeOutput)
+        var size: UInt32 = 8
+        let status = preferred.withUnsafeMutableBufferPointer {
+            AudioObjectGetPropertyData(device, &property, 0, nil, &size, $0.baseAddress!)
+        }
+        if status != noErr || size != 8 { preferred = [1, 2] }
+        var result = [UInt32](repeating: 0, count: Int(VS_MAX_CHANNELS))
+        let valid = preferred.withUnsafeBufferPointer { stereo in
+            result.withUnsafeMutableBufferPointer { vs_format_channel_map(&format, capacity, stereo.baseAddress!, $0.baseAddress!) }
+        }
+        return valid != 0 ? Array(result.prefix(Int(format.channels))) : nil
+    }
+    static func outputLayout(_ device: AudioObjectID) -> VirtualOutputSupport.OutputLayout? {
+        if channels(device, scope: kAudioObjectPropertyScopeOutput).reduce(0, +) == 1 {
+            return .init(labels: [kAudioChannelLabel_Center])
+        }
+        guard let configuration = outputConfiguration(device), configuration.count == MemoryLayout<VSOutputFormat>.size else { return nil }
+        var format = configuration.withUnsafeBytes { $0.loadUnaligned(as: VSOutputFormat.self) }
+        let labels = withUnsafeBytes(of: &format.descriptions) { bytes in
+            bytes.bindMemory(to: AudioChannelDescription.self).prefix(Int(format.channels)).map(\.mChannelLabel)
+        }
+        return .init(labels: labels)
+    }
+    static func configureOutput(_ device: AudioObjectID, configuration: Data) -> Bool {
+        if configuredOutput(device) == configuration { return true }
+        guard write(device, 0x76636667, value: configuration as CFData) == noErr else { return false }
+        for _ in 0..<30 {
+            if configuredOutput(device) == configuration { return true }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return false
+    }
     static func restorableOutputs(systemSounds: Bool) -> [String] {
         objects(system, kAudioHardwarePropertyDevices).compactMap { device in
             var alive: UInt32 = 0, hidden: UInt32 = 0, eligible: UInt32 = 0

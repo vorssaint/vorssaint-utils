@@ -4,6 +4,33 @@ import CoreAudio
 import Foundation
 
 enum VirtualOutputSupport {
+    struct OutputLayout: Equatable {
+        let labels: [UInt32]
+        var isStereo: Bool {
+            labels.count == 2 && Set(labels) == Set([kAudioChannelLabel_Left, kAudioChannelLabel_Right])
+        }
+        var notation: String? {
+            guard !labels.isEmpty, labels.allSatisfy({
+                $0 >= kAudioChannelLabel_Left && $0 < kAudioChannelLabel_UseCoordinates
+            }) else { return nil }
+            // 62 is Core Audio's LFE3 label, also recognized with older SDKs.
+            let lfe = labels.filter { $0 == kAudioChannelLabel_LFEScreen || $0 == kAudioChannelLabel_LFE2 || $0 == 62 }.count
+            let floor = labels.count - lfe - heightChannels
+            return heightChannels > 0 ? "\(floor).\(lfe).\(heightChannels)" : "\(floor).\(lfe)"
+        }
+        var heightChannels: Int {
+            labels.filter {
+                (kAudioChannelLabel_TopCenterSurround...kAudioChannelLabel_TopBackRight).contains($0)
+                    || [kAudioChannelLabel_LeftTopMiddle, kAudioChannelLabel_RightTopMiddle,
+                        kAudioChannelLabel_LeftTopRear, kAudioChannelLabel_CenterTopRear, kAudioChannelLabel_RightTopRear,
+                        kAudioChannelLabel_LeftTopSurround, kAudioChannelLabel_RightTopSurround].contains($0)
+            }.count
+        }
+        var systemImage: String {
+            if heightChannels > 0 { return "square.3.layers.3d" }
+            return labels.count == 1 ? "speaker.fill" : isStereo ? "hifispeaker.2.fill" : "dot.radiowaves.left.and.right"
+        }
+    }
     /// Synchronizes the latest UI request with the serial HAL queue. No lock is
     /// held while calling Core Audio or while dispatching to the main queue.
     final class OutputRequests {
@@ -53,7 +80,7 @@ enum VirtualOutputSupport {
 
     /// The bundle stamps the exact optional-driver build it ships. Keep the
     /// output-only protocol floor even if that metadata is absent or invalid.
-    static func requiredComponentBuild(bundledBuild: Int?) -> Int { max(4, bundledBuild ?? 4) }
+    static func requiredComponentBuild(bundledBuild: Int?) -> Int { max(5, bundledBuild ?? 5) }
     static func needsComponentUpdate(installed: Bool, build: Int?, required: Int) -> Bool {
         installed && (build ?? 0) < required
     }

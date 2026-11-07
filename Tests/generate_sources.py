@@ -1048,6 +1048,10 @@ def main():
           + declaration("Sources/Vorssaint/Services/Audio/AudioPriorityService.swift", "    private func loadPreferences()").replace("private func", "func", 1)
           + "}\n")
     virtual_service = "Sources/Vorssaint/Services/Audio/VirtualOutputService.swift"
+    write("SoftwareVolumeFormat.swift", "import AudioToolbox\nimport Foundation\n"
+          + "extension SoftwareVolumeFormatTests.HAL {\n"
+          + declaration("Sources/Vorssaint/Services/Audio/VirtualOutputHAL.swift", "    private static func normalizedLayout(")
+            .replace("private static func", "static func", 1) + "}\n")
     output_bridge = "Sources/Vorssaint/Services/Audio/VirtualOutputBridge.swift"
     lifecycle = declaration(output_bridge, "final class VirtualOutputBridge {")
     for name in ("Storage", "Pump"):

@@ -52,6 +52,7 @@ struct MetricsTests {
             ("media-layout", { MediaWorkspaceLayoutTests.run(suite) }),
             ("mixer", {
                 MixerRenderContinuityTests.run(suite)
+                SoftwareVolumeFormatTests.run(suite)
                 MixerNativeDragTests.run(suite)
                 MixerOutputAdjustmentContract.run(suite)
                 MixerHeadphonesDisconnectContract.run(suite)

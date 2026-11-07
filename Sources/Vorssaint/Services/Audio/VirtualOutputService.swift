@@ -324,12 +324,16 @@ final class VirtualOutputService: ObservableObject {
         rememberLevel()
         if cycles != lastCycles {
             lastCycles = cycles; lastProgress = now
-            guard VirtualOutputHAL.write(virtual, VirtualOutputSupport.ownerSelector, value: kCFBooleanTrue!) == noErr else {
+            let ownerStatus = VirtualOutputHAL.write(virtual, VirtualOutputSupport.ownerSelector, value: kCFBooleanTrue!)
+            guard ownerStatus == noErr else {
+                let message = VirtualOutputBridge.Failure("Output owner renewal failed", status: ownerStatus).localizedDescription
+                Self.log.error("\(message, privacy: .public)")
                 deactivate(); suspended = true
                 publish(error: .stopped)
                 return
             }
         } else if now - lastProgress > 3 {
+            Self.log.error("Output playback health stopped progressing for more than three seconds")
             deactivate(); suspended = true
             publish(error: .stopped)
         }

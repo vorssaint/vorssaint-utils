@@ -1,6 +1,30 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint Audio contributors
+import Foundation
 struct VirtualOutputStrings {
+    static func outputLayout(_ layout: VirtualOutputSupport.OutputLayout, language: AppLanguage) -> (title: String, help: String) {
+        let stereo: String, mono: String, channels: String, help: String
+        switch language {
+        case .enUS: (stereo, mono, channels, help) = ("Stereo", "Mono", "%d channels", "Active output layout")
+        case .ptBR: (stereo, mono, channels, help) = ("Estéreo", "Mono", "%d canais", "Configuração da saída ativa")
+        case .tr: (stereo, mono, channels, help) = ("Stereo", "Mono", "%d kanal", "Etkin çıkış düzeni")
+        case .ru: (stereo, mono, channels, help) = ("Стерео", "Моно", "%d каналов", "Текущая схема выходных каналов")
+        case .es: (stereo, mono, channels, help) = ("Estéreo", "Mono", "%d canales", "Distribución de salida activa")
+        case .sk: (stereo, mono, channels, help) = ("Stereo", "Mono", "%d kanálov", "Aktívne rozloženie výstupu")
+        case .de: (stereo, mono, channels, help) = ("Stereo", "Mono", "%d Kanäle", "Aktive Ausgangskonfiguration")
+        case .fr: (stereo, mono, channels, help) = ("Stéréo", "Mono", "%d canaux", "Disposition de sortie active")
+        case .it: (stereo, mono, channels, help) = ("Stereo", "Mono", "%d canali", "Disposizione dell’uscita attiva")
+        case .ja: (stereo, mono, channels, help) = ("ステレオ", "モノラル", "%dチャンネル", "現在の出力チャンネル構成")
+        case .ko: (stereo, mono, channels, help) = ("스테레오", "모노", "%d채널", "현재 출력 채널 구성")
+        case .uk: (stereo, mono, channels, help) = ("Стерео", "Моно", "%d каналів", "Поточна схема вихідних каналів")
+        case .zhHans: (stereo, mono, channels, help) = ("立体声", "单声道", "%d声道", "当前输出声道布局")
+        case .zhTW: (stereo, mono, channels, help) = ("立體聲", "單聲道", "%d聲道", "目前輸出聲道配置")
+        case .zhHK: (stereo, mono, channels, help) = ("立體聲", "單聲道", "%d聲道", "目前輸出聲道配置")
+        }
+        let title = layout.labels.count == 1 ? mono : layout.isStereo ? stereo
+            : layout.notation ?? String(format: channels, layout.labels.count)
+        return (title, help)
+    }
     let title: String
     let caption: String
     let install: String

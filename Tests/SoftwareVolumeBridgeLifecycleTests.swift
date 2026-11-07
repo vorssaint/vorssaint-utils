@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import CoreAudio
 import Foundation
+import SoftwareVolumePCM
 
 /// The complete production bridge constructor/stop runs here; hardware IO and
 /// the authorized PCM pump are replaced, so no physical output is touched.
 enum SoftwareVolumeBridgeLifecycleTests {
     final class Storage {
         let pointer = UnsafeMutableRawPointer.allocate(byteCount: 1, alignment: 1)
-        init(rate: Double) throws {}
+        init(rate: Double, channels: UInt32, channelMap: [UInt32]) throws {}
         deinit { pointer.deallocate() }
     }
     final class Pump {
-        init(device: AudioObjectID, rate: Double, storage: Storage) throws { HAL.events.append("pump") }
+        init(device: AudioObjectID, rate: Double, channels: UInt32, storage: Storage) throws { HAL.events.append("pump") }
         func stop() { HAL.events.append("pump-stop") }
     }
     enum Clock { static func sleep(forTimeInterval: Double) {} }
@@ -20,13 +21,27 @@ enum SoftwareVolumeBridgeLifecycleTests {
         static var callback: AudioDeviceIOBlock?
         static var startStatus: OSStatus = noErr, createStatus: OSStatus = noErr
         static var isolated = true, deliverCallback = true
+        static var capacity: UInt32 = 2, semanticChannels: UInt32 = 2, virtualChannels: UInt32 = 2
+        static var rate: Double = 48000, layoutLabel: UInt32 = kAudioChannelLabel_Left
+        static var configurationSucceeds = true
         static func uid(_ device: AudioObjectID) -> String? { VirtualOutputSupport.deviceUID }
         static func device(_ uid: String) -> AudioObjectID? { 42 }
         static func channels(_ device: AudioObjectID, scope: AudioObjectPropertyScope) -> [UInt32] {
-            scope == kAudioObjectPropertyScopeInput ? [] : [2]
+            scope == kAudioObjectPropertyScopeInput ? [] : [device == 99 ? virtualChannels : capacity]
         }
+        static func outputConfiguration(_ device: AudioObjectID) -> Data? {
+            var format = vs_format_default(semanticChannels)
+            format.descriptions.0.mChannelLabel = layoutLabel
+            return withUnsafeBytes(of: &format) { Data($0) }
+        }
+        static func configureOutput(_ device: AudioObjectID, configuration: Data) -> Bool {
+            events.append("configure")
+            if configurationSucceeds { virtualChannels = semanticChannels }
+            return configurationSucceeds
+        }
+        static func outputChannelMap(_ device: AudioObjectID, configuration: Data) -> [UInt32]? { Array(0..<semanticChannels) }
         static func read<T>(_ device: AudioObjectID, _ selector: AudioObjectPropertySelector, into value: inout T) -> Bool {
-            if selector == kAudioDevicePropertyNominalSampleRate { value = Double(48000) as! T }
+            if selector == kAudioDevicePropertyNominalSampleRate { value = rate as! T }
             else if selector == kAudioDevicePropertyBufferFrameSize { value = UInt32(512) as! T }
             else if selector == kAudioDevicePropertyDeviceIsAlive { value = UInt32(1) as! T }
             else { return false }
@@ -64,10 +79,39 @@ enum SoftwareVolumeBridgeLifecycleTests {
         static func reset() {
             events = []; callback = nil; startStatus = noErr; createStatus = noErr
             isolated = true; deliverCallback = true
+            capacity = 2; semanticChannels = 2; virtualChannels = 2
+            rate = 48000; layoutLabel = kAudioChannelLabel_Left; configurationSucceeds = true
         }
     }
     static func run(_ suite: TestSuite) {
         defer { HAL.reset() }
+        for channels: UInt32 in [2, 6, 8] {
+            for rate: Double in [48000, 96000, 192000] {
+                HAL.reset(); HAL.capacity = channels; HAL.semanticChannels = channels; HAL.rate = rate
+                do {
+                    let bridge = try Bridge(virtual: 99, physicalUID: "hdmi")
+                    suite.expect(bridge.configurationIsCurrent() && HAL.virtualChannels == channels,
+                                 "channel-aware output starts at \(channels) channels and \(rate) Hz")
+                    suite.expect(HAL.events.first == "configure" && HAL.events.contains("isolate"),
+                                 "output layout settles before pump/IO and physical input isolation remains required")
+                    HAL.layoutLabel = kAudioChannelLabel_Center
+                    suite.expect(!bridge.configurationIsCurrent(), "a channel-label change rebuilds the bridge even at the same channel count")
+                    HAL.layoutLabel = kAudioChannelLabel_Left; HAL.rate *= 2
+                    suite.expect(!bridge.configurationIsCurrent(), "a sample-rate change invalidates the previous PCM session")
+                    bridge.stop()
+                } catch { suite.expect(false, "supported multichannel output starts") }
+            }
+        }
+        HAL.reset(); HAL.capacity = 6
+        do {
+            let bridge = try Bridge(virtual: 99, physicalUID: "stereo-in-wide-stream")
+            suite.expect(HAL.virtualChannels == 2 && bridge.configurationIsCurrent(),
+                         "a stereo layout on a six-channel HDMI stream stays stereo")
+            bridge.stop()
+        } catch { suite.expect(false, "stereo topology in a wider stream is preserved") }
+        HAL.reset(); HAL.configurationSucceeds = false
+        do { _ = try Bridge(virtual: 99, physicalUID: "hdmi"); suite.expect(false, "failed layout negotiation aborts startup") }
+        catch { suite.expect(!HAL.events.contains("create"), "an unverified channel layout never starts output IO") }
         HAL.reset(); HAL.startStatus = kAudioHardwareNotRunningError
         do {
             _ = try Bridge(virtual: 99, physicalUID: "hdmi")

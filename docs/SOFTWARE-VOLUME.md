@@ -22,11 +22,19 @@ The Sound output switcher package and audio output priority use the underlying p
 
 Audio priority retains disconnected hardware in its saved order and marks it unavailable until it returns. Missing last-known names fall back to device UIDs. On upgrade, both input and output priority lists persistently remove the old private `com.vorssaint.utils.software-volume.bridge.*` identities and internal driver UIDs; unavailable hardware and other vendors' virtual devices are retained. These lists are local preferences, not preconfigured devices shipped to other users.
 
-Driver 1.2/build 4 exposes an output-only device with no hidden input. A bounded PCM property transfers playback to the app's background pump; the physical output callback never reads an input. Access requires the main/development app signed by the driver's leaf certificate, in addition to exclusive PID ownership. Native gain/mute are applied once at final playback. Per-app taps retain their System Audio Recording permission. Physical input streams are disabled and read back before IO starts. The local bridge/component does not save or upload audio. See [microphone boundaries and verification](SOFTWARE-VOLUME-PRIVACY.md).
+Driver 1.3/build 5 exposes an output-only device with no hidden input. A bounded PCM property transfers playback to the app's background pump; the physical output callback never reads an input. Access requires the main/development app signed by the driver's leaf certificate, in addition to exclusive PID ownership. Native gain/mute are applied once at final playback. Per-app taps retain their System Audio Recording permission. Physical input streams are disabled and read back before IO starts. The local bridge/component does not save or upload audio. See [microphone boundaries and verification](SOFTWARE-VOLUME-PRIVACY.md).
 
-The app requires build 4 and never falls back to the old hidden input. An older installed driver triggers the optional installer when enabling fallback. App and driver must use the same signing certificate; ad-hoc drivers cannot authorize this transport. A local development installation uses the existing stable signing identity.
+The app requires build 5 and the multichannel configuration interface; playback remains output-only. An older installed driver triggers the optional installer when enabling fallback. App and driver must use the same signing certificate; ad-hoc drivers cannot authorize this transport. A local development installation uses the existing stable signing identity.
 
 The app has separate preferences/permissions under `com.vorssaint.utils.dev`; it does not replace the official app and does not auto-update from official releases.
+
+## Output channel layouts
+
+Driver build 5 carries 2–32 channels of Float32 LPCM. The app mirrors the physical output’s preferred channel descriptions and stereo channel assignments. The preferred layout can be smaller than the stream capacity; only its channels are rendered and unused physical channels stay silent. Channel order, center, LFE and height roles are retained. Supported physical sample rates are matched by the virtual output, including 48/96/192 kHz. Channel layout, stereo-map and sample-rate changes invalidate the old playback session and rebuild the bridge.
+
+Format changes use a HAL configuration transaction with virtual IO stopped. The PCM protocol checks channel count, rate, size and session generation. Frames queued before a format change cannot be delivered as the new format. Older installed components use the existing driver-update prompt.
+
+The mixer shows an icon and active output-layout badge in both the menu-bar panel and Settings. Stereo/Mono names and help text are localized. Numbered layouts use channel roles, for example 2.1, 5.1, 7.1 and 5.1.2. Unknown/discrete roles display a channel count. The badge describes the selected output configuration; a media file’s own channel layout can differ. Height notation depends on the labels exposed by Core Audio. Real multichannel HDMI and high-rate playback require validation on the target hardware.
 
 ## Remove component
 
@@ -68,6 +76,18 @@ Each app bundle records the exact driver build it ships in `VorssaintAudioDriver
 The installed version is checked again when opening Installer, so a stale alert cannot launch a downgrade after another update completed. Package metadata also enables version and strict-identifier checks, treats Corresponding Source as data rather than another installable bundle, and preserves a newer legacy component. Installation uses the bundled package and standard macOS administrator approval. No driver binary is downloaded silently. Readiness requires the loaded HAL to expose the owner, session-key and output-PCM interfaces, rather than accepting only a newly copied plist.
 
 Increment the driver build whenever a new driver/protocol or signing-certificate change requires users to reinstall it. Release app and driver signing identities must satisfy the same certificate requirement. The current local development package is unsigned and must not be represented as a notarized public release.
+
+## Multichannel validation, 2026-11-07
+
+Driver 1.3.0/build 5 was installed and tested on Mac Studio with a Samsung Odyssey G85SB DisplayPort output and on MacBook Pro with a Samsung QCQ90S TV connected directly over HDMI. The DisplayPort route retained stereo. The successful HDMI retest reported six-channel, 48 kHz PCM transport, with Vorssaint Audio selected for normal and system sounds and a 5.1 badge in the mixer. The user confirmed playback, native system volume/OSD/mute, and smooth per-app 50% → reset 100% → wait → 110% without the orange microphone indicator. Individual physical surround/LFE speakers and higher hardware sample rates were not independently tested.
+
+The latest optimized builds use macOS SDK 27.2 and Swift 6.4.2. Automated multichannel tests cover every channel count from 2–32 at 48/96/192 kHz, planar/interleaved output and physical channel mapping. Packet/session validation, bounded queues, concurrent PCM, buffered mute and playback drift checks pass. The complete suite including the diagnostic logging follow-up passed 121934/121935 checks; the sole failure remains the baseline `Tests/NotchCompactTests.swift:339` case. The follow-up build, app selftest, driver183, bridge51, uninstall10 and PCM/playback/multichannel suites passed.
+
+PCM polling logs the first distinct failure and subsequent recovery, including OSStatus or non-audio packet-format mismatch details. Owner-renewal failures and stalled playback health are logged separately. No PCM samples, session keys, nonces, device names or UIDs are logged, and logging remains outside the rendering callback.
+
+App/driver signatures passed local packaging and ZIP extraction checks. On the MacBook, strict static app verification also reported added `com.apple.FinderInfo` metadata during successful playback; the installed driver passed verification and the signing certificates matched. A controlled metadata reproduction still passed dynamic caller validation. This does not establish a general explanation for startup failures.
+
+Sleep/wake, HDMI reconnect, physical surround-channel identity and high-rate hardware coverage remain to be repeated with the multichannel revision. The older validation records below describe earlier revisions. Current Stereo, HDMI 5.1 and expanded-Options screenshots are in [the multichannel capture set](pr-assets/software-volume-multichannel/README.md).
 
 ## Local validation, 2026-10-31
 

@@ -121,18 +121,39 @@ struct MixerSection: View {
 
     private var universalOutputPicker: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Label {
-                    Text(l10n.s.mixerSystemOutputTitle)
-                        .font(.system(size: 11.5, weight: .medium))
-                } icon: {
-                    Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .frame(width: 16)
+            HStack(spacing: 3) {
+                HStack(spacing: 3) {
+                    Label {
+                        Text(l10n.s.mixerSystemOutputTitle)
+                            .font(.system(size: 11.5, weight: .medium))
+                    } icon: {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .frame(width: 16)
+                    }
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: true, vertical: false)
+                    if let layout = mixer.systemOutputLayout {
+                        let text = VirtualOutputStrings.outputLayout(layout, language: l10n.language)
+                        HStack(spacing: 2) {
+                            Image(systemName: layout.systemImage)
+                                .font(.system(size: settingsMode ? 9.5 : 7.5))
+                            Text(text.title)
+                                .font(.system(size: settingsMode ? 10 : 8.5, weight: .medium))
+                                .lineLimit(1)
+                                .minimumScaleFactor(settingsMode ? 1 : 0.75)
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, settingsMode ? 5 : 3)
+                        .padding(.vertical, settingsMode ? 2 : 1)
+                        .background(.quaternary, in: Capsule())
+                        .help(text.help)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(text.help), \(text.title)")
+                    }
                 }
-                .foregroundStyle(.secondary)
 
-                Spacer(minLength: 6)
+                Spacer(minLength: 0)
 
                 Picker(l10n.s.mixerSystemOutputTooltip, selection: universalOutputSelectionBinding) {
                     if mixer.currentOutputDeviceUID == nil {
