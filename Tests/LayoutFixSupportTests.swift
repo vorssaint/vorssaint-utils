@@ -570,6 +570,30 @@ enum LayoutFixSupportTests {
                          "typing in another app starts over")
         }
 
+        suite.run("LayoutFix autoCapitalizedWordMatches") {
+            // macOS capitalizes the first word of a sentence once a space
+            // follows it ("Capitalize words automatically", on by default).
+            let field = "Ghbdtn " as NSString
+            func before(_ range: NSRange) -> String? { field.substring(with: range) }
+            let caret = NSRange(location: field.length, length: 0)
+            suite.expect(LayoutFixSupport.fieldGuard(selection: caret, textLength: field.length,
+                                                     expected: "ghbdtn ", textBefore: before) == .matchCapitalized,
+                         "the word with its first letter capitalized by the system still matches")
+            suite.expect(LayoutFixSupport.fieldGuard(selection: caret, textLength: field.length,
+                                                     expected: "Ghbdtn ", textBefore: before) == .match,
+                         "a word typed with a capital matches as is")
+            let shouting = "GHBDTN " as NSString
+            suite.expect(LayoutFixSupport.fieldGuard(selection: NSRange(location: shouting.length, length: 0),
+                                                     textLength: shouting.length, expected: "ghbdtn ",
+                                                     textBefore: { shouting.substring(with: $0) }) == .mismatch,
+                         "only the first letter may differ")
+            suite.expect(LayoutFixSupport.capitalizingFirst("привет ") == "Привет ", "Cyrillic")
+            suite.expect(LayoutFixSupport.capitalizingFirst("іні") == "Іні", "Kazakh і")
+            suite.expect(LayoutFixSupport.capitalizingFirst("[vtn") == nil, "punctuation has no capital")
+            suite.expect(LayoutFixSupport.capitalizingFirst("ßa") == nil, "a capital that changes the length is refused")
+            suite.expect(LayoutFixSupport.capitalizingFirst("") == nil, "empty")
+        }
+
         suite.run("LayoutFix deadKeysAreNotFixed") {
             let acute = LayoutFixKey(keyCode: 14, shift: false, option: true, capsLock: false, layoutID: abc.id)
             suite.expect(abc.deadChords.contains(acute.chord), "⌥e is a dead key on ABC")

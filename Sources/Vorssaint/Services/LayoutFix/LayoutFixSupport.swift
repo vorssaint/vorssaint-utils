@@ -272,7 +272,9 @@ struct LayoutFixTriggerState {
 
 /// Whether the field shows what the fix is about to delete.
 enum LayoutFixGuard: Equatable {
-    case match, mismatch, unknown
+    /// `matchCapitalized`: the field shows the word with its first letter
+    /// capitalized by the system, so the retype is capitalized too.
+    case match, matchCapitalized, mismatch, unknown
 }
 
 /// What one tap fixes.
@@ -578,7 +580,22 @@ enum LayoutFixSupport {
     /// meant for. A field that does not answer cannot be checked.
     static func guardDecision(expected: String, textBeforeCaret: String?) -> LayoutFixGuard {
         guard let textBeforeCaret else { return .unknown }
-        return textBeforeCaret.hasSuffix(expected) ? .match : .mismatch
+        if textBeforeCaret.hasSuffix(expected) { return .match }
+        // "Capitalize words automatically" turns the first word of a
+        // sentence into `Ghbdtn` once a space follows it.
+        if let capitalized = capitalizingFirst(expected), textBeforeCaret.hasSuffix(capitalized) {
+            return .matchCapitalized
+        }
+        return .mismatch
+    }
+
+    /// The text with its first letter upper-cased, or nil when it does not
+    /// start with a lowercase letter or the capital would change its length.
+    static func capitalizingFirst(_ text: String) -> String? {
+        guard let first = text.first, first.isLowercase else { return nil }
+        let upper = String(first).uppercased()
+        guard (upper as NSString).length == (String(first) as NSString).length else { return nil }
+        return upper + text.dropFirst()
     }
 
     /// An inline completion: the field selected what it suggests after the

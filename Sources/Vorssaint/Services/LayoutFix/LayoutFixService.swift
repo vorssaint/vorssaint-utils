@@ -317,9 +317,13 @@ final class LayoutFixService: ObservableObject {
         // Asking the field takes time; a key typed meanwhile sits after the
         // word, and the backspaces would take it instead.
         guard inputLock.withLock({ buffer.generation }) == generation else { return abandon() }
+        // The system capitalized the word: the field keeps its capital.
+        func shownAsInField(_ text: String) -> String {
+            check == .matchCapitalized ? LayoutFixSupport.capitalizingFirst(text) ?? text : text
+        }
         let posted = TextSnippetService.postExpansion(deleteCount: shown.text.count + updated.trailingSpaces,
-                                                      typedTrigger: expected,
-                                                      text: next.text + spaces,
+                                                      typedTrigger: shownAsInField(expected),
+                                                      text: shownAsInField(next.text) + spaces,
                                                       trailingKeyCode: nil,
                                                       trailingFlags: [],
                                                       marker: OwnKeyEvent.layoutFixMarker)
