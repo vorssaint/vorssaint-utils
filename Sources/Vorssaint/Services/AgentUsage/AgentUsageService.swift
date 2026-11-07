@@ -5,15 +5,17 @@ import Combine
 import Foundation
 import Network
 
-/// Reads Claude Code, Codex and GitHub Copilot usage from local session logs, and
-/// OpenCode usage from its database, while the AI section is on, along with
-/// the plan limits the Claude app saves. The files are read where they are,
-/// incrementally, and nothing is copied or sent: only counters are kept, in
-/// memory and in the app's private folder so the next launch reads only what
-/// the agents wrote meanwhile. OpenCode's stay in memory only, and its
-/// database is read again at each launch. Claude Code checks account-wide
-/// limits through its own CLI, including use on other machines. The public
-/// price list is fetched only when the person keeps prices up to date.
+/// Reads Claude Code, Codex, GitHub Copilot and Antigravity usage from their
+/// local session logs, and OpenCode usage from its database, while the AI
+/// section is on, along with the plan limits the Claude app saves.
+/// Antigravity's transcripts carry no token counts, so only its responses
+/// are counted. The files are read where they are, incrementally, and nothing
+/// is copied or sent: only counters are kept, in memory and in the app's
+/// private folder so the next launch reads only what the agents wrote
+/// meanwhile. OpenCode's stay in memory only, and its database is read again
+/// at each launch. Claude Code checks account-wide limits through its own
+/// CLI, including use on other machines. The public price list is fetched
+/// only when the person keeps prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
 /// work to each other asynchronously, except that a stop waits for progress
@@ -299,6 +301,8 @@ final class AgentUsageService: ObservableObject {
             // Keep the loading state until all initial history has been read.
             let horizon = Date().addingTimeInterval(-Self.horizon)
             let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile).filter { providers.contains($0.provider) }
+            // Cursors find an Antigravity conversation relative to its root.
+            watchedRoots = roots.filter(\.exists)
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
             if let saved = AgentUsageArchive.load(), saved.providers == providers {
@@ -325,7 +329,7 @@ final class AgentUsageService: ObservableObject {
             // A budget already passed before launch is history, not news.
             let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
             if let budget = NotchAgentSupport.dailyBudget(),
-               store.records.lazy.filter({ $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
+               store.records.lazy.filter({ $0.provider != .antigravity && $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
                 budgetDay = today
             }
             watch(roots)
@@ -503,7 +507,7 @@ final class AgentUsageService: ObservableObject {
             cursors[path] = nil
             return store.forget(file: path)
         }
-        let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
+        let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider, roots: watchedRoots)
         cursors[path] = cursor
         var changed = false
         let now = Date()
@@ -713,7 +717,9 @@ final class AgentUsageService: ObservableObject {
     private func checkBudget(_ snapshot: AgentUsageSnapshot) {
         guard store.reportsTransitions, let budget = NotchAgentSupport.dailyBudget() else { return }
         let today = Calendar.autoupdatingCurrent.startOfDay(for: snapshot.now)
-        let spent = snapshot.usage(.today).total.cost
+        let spent = snapshot.usage(.today).byProvider
+            .filter { $0.key != .antigravity }
+            .values.reduce(0.0) { $0 + $1.cost }
         guard spent >= budget, budgetDay != today else { return }
         budgetDay = today
         report(.budgetReached(spent: spent, budget: budget))
