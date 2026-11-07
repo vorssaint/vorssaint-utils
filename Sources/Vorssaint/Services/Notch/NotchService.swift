@@ -2360,7 +2360,8 @@ final class NotchService: ObservableObject {
     }
 
     func activateNotice(_ selectedNotice: NotchNotice) {
-        guard notice == selectedNotice else { return }
+        // A closing notice is still on screen, and still takes its click.
+        guard notice == selectedNotice || departingNotice == selectedNotice else { return }
         if let id = selectedNotice.notificationID {
             guard NotchNotificationService.shared.openingID == nil else { return }
             // The pointer stays where the banner was; like a click on the
@@ -2378,6 +2379,8 @@ final class NotchService: ObservableObject {
              : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents
              : selectedNotice.event == .track ? .music : selectedNotice.event == .microphone ? .mixer
              : selectedNotice.event == .watch ? .watch : .controls)
+        // The notice grows into the page it led to, and stays gone after it closes.
+        if expanded { dismissNotice() }
     }
 
     /// Skipping through songs, or a title that lands before its artist, shows
@@ -3337,10 +3340,14 @@ final class NotchService: ObservableObject {
     }
 
     private var screenEdgeClickArea: CGRect? {
-        guard running, !suspended, !expanded, captureControls == nil, notice == nil,
+        // A notice takes these clicks as well, but a held preview has its own controls.
+        guard running, !suspended, !expanded, captureControls == nil, !noticeExpanded,
               !dragPlaceholder, !heldDrag, let panel, panel.isVisible, !panel.ignoresMouseEvents else { return nil }
         let geometry = compactActivityIsVisible ? compactActivityGeometry : self.geometry
-        let area = geometry.activationArea(in: surfaceSize, hasHeader: peeking, compactActivity: compactActivityIsVisible)
+        // The menu bar still gets these clicks, so beside a camera a notice
+        // leaves the items under its wings alone, as an activity's strip does.
+        let area = geometry.activationArea(in: surfaceSize, hasHeader: peeking,
+                                           compactActivity: compactActivityIsVisible || notice != nil)
         guard !area.isEmpty else { return nil }
         let frame = geometry.frame(for: surfaceSize)
         return CGRect(x: frame.minX + area.minX, y: frame.maxY - area.maxY, width: area.width, height: area.height)
@@ -3392,7 +3399,8 @@ final class NotchService: ObservableObject {
             guard let pressed = pressedArea,
                   NotchSupport.screenEdgeArea(pressed, contains: point) || NotchSupport.screenEdgeArea(area, contains: point),
                   windowHost?.containsDestination(point) == true else { return }
-            if compactActivity == .calendar { openCountdownEvent() } else { open() }
+            if let notice { activateNotice(notice) }
+            else if compactActivity == .calendar { openCountdownEvent() } else { open() }
         case .leftMouseDragged:
             // A press at the screen's edge reports a drag at once, often without
             // moving. Only a drag that leaves the island cancels the click.
