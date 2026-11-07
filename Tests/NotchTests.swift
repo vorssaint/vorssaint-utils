@@ -1771,6 +1771,18 @@ enum NotchTests {
                                  DefaultsKey.notchRestingGlassFrost]
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: keys),
                "resting glass and its levels travel in backup")
+
+        suite.expect(NotchRestingBrightness.level(in: defaults) == NotchRestingBrightness.full,
+               "the closed island's content starts at full brightness")
+        defaults.set(0.4, forKey: DefaultsKey.notchRestingBrightness)
+        suite.expect(NotchRestingBrightness.opacity(level: NotchRestingBrightness.level(in: defaults), awake: false) == 0.4
+                && NotchRestingBrightness.opacity(level: NotchRestingBrightness.level(in: defaults), awake: true) == 1,
+               "dimmed content rests dim and returns to full brightness on hover or when the island opens")
+        suite.expect(NotchRestingBrightness.level(0) == NotchRestingBrightness.range.lowerBound
+                && NotchRestingBrightness.level(3) == 1 && NotchRestingBrightness.level(.nan) == 1,
+               "resting brightness never hides the content and ignores values that are not numbers")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchRestingBrightness),
+               "resting brightness travels in backup")
     }
 
     static func run(_ suite: TestSuite) {

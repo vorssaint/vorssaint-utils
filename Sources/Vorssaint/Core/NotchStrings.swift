@@ -102,6 +102,8 @@ struct NotchStrings {
     let restingGlassTransparencyHint: String
     let restingGlassFrost: String
     let restingGlassFrostHint: String
+    let restingBrightness: String
+    let restingBrightnessHint: String
 }
 
 extension FeatureStrings {
@@ -225,7 +227,9 @@ extension NotchStrings {
         restingGlassTransparency: "Transparency",
         restingGlassTransparencyHint: "At 100%, the glass is not darkened.",
         restingGlassFrost: "Frost",
-        restingGlassFrostHint: "How strongly the glass blurs what is behind it. At 0%, it stays clear."
+        restingGlassFrostHint: "How strongly the glass blurs what is behind it. At 0%, it stays clear.",
+        restingBrightness: "Brightness at rest",
+        restingBrightnessHint: "Dims the icons and text of the closed Dynamic Island. Opening it brings full brightness back."
     )
 
     static let ptBR = NotchStrings(
@@ -326,7 +330,9 @@ extension NotchStrings {
         restingGlassTransparency: "Transparência",
         restingGlassTransparencyHint: "Em 100%, o vidro não é escurecido.",
         restingGlassFrost: "Fosco",
-        restingGlassFrostHint: "Quanto o vidro desfoca o que está atrás dele. Em 0%, ele fica nítido."
+        restingGlassFrostHint: "Quanto o vidro desfoca o que está atrás dele. Em 0%, ele fica nítido.",
+        restingBrightness: "Brilho em repouso",
+        restingBrightnessHint: "Escurece os ícones e o texto da Dynamic Island fechada. Ao abrir, o brilho total volta."
     )
 
     static let es = NotchStrings(
@@ -427,7 +433,9 @@ extension NotchStrings {
         restingGlassTransparency: "Transparencia",
         restingGlassTransparencyHint: "Al 100 %, el cristal no se oscurece.",
         restingGlassFrost: "Esmerilado",
-        restingGlassFrostHint: "Cuánto desenfoca el cristal lo que hay detrás. Al 0 %, queda nítido."
+        restingGlassFrostHint: "Cuánto desenfoca el cristal lo que hay detrás. Al 0 %, queda nítido.",
+        restingBrightness: "Brillo en reposo",
+        restingBrightnessHint: "Atenúa los iconos y el texto de Dynamic Island cerrada. Al abrirla, recupera todo el brillo."
     )
 
     static let sk = NotchStrings(
@@ -528,7 +536,9 @@ extension NotchStrings {
         restingGlassTransparency: "Priehľadnosť",
         restingGlassTransparencyHint: "Pri 100 % sa sklo nestmavuje.",
         restingGlassFrost: "Matnosť",
-        restingGlassFrostHint: "Ako silno sklo rozmazáva obsah za sebou. Pri 0 % zostáva čisté."
+        restingGlassFrostHint: "Ako silno sklo rozmazáva obsah za sebou. Pri 0 % zostáva čisté.",
+        restingBrightness: "Jas v pokoji",
+        restingBrightnessHint: "Stlmí ikony a text zatvoreného Dynamic Island. Po otvorení sa vráti plný jas."
     )
 
     static let de = NotchStrings(
@@ -629,7 +639,9 @@ extension NotchStrings {
         restingGlassTransparency: "Transparenz",
         restingGlassTransparencyHint: "Bei 100 % wird das Glas nicht abgedunkelt.",
         restingGlassFrost: "Frost",
-        restingGlassFrostHint: "Wie stark das Glas verwischt, was dahinter liegt. Bei 0 % bleibt es klar."
+        restingGlassFrostHint: "Wie stark das Glas verwischt, was dahinter liegt. Bei 0 % bleibt es klar.",
+        restingBrightness: "Helligkeit in Ruhe",
+        restingBrightnessHint: "Dimmt Symbole und Text der geschlossenen Dynamic Island. Geöffnet ist sie wieder voll hell."
     )
 
     static let fr = NotchStrings(
@@ -730,7 +742,9 @@ extension NotchStrings {
         restingGlassTransparency: "Transparence",
         restingGlassTransparencyHint: "À 100 %, le verre n’est pas assombri.",
         restingGlassFrost: "Givre",
-        restingGlassFrostHint: "Intensité du flou de ce qui se trouve derrière le verre. À 0 %, il reste net."
+        restingGlassFrostHint: "Intensité du flou de ce qui se trouve derrière le verre. À 0 %, il reste net.",
+        restingBrightness: "Luminosité au repos",
+        restingBrightnessHint: "Atténue les icônes et le texte de Dynamic Island fermée. À l’ouverture, la luminosité complète revient."
     )
 
     static let it = NotchStrings(
@@ -831,7 +845,9 @@ extension NotchStrings {
         restingGlassTransparency: "Trasparenza",
         restingGlassTransparencyHint: "Al 100% il vetro non viene scurito.",
         restingGlassFrost: "Satinatura",
-        restingGlassFrostHint: "Quanto il vetro sfoca ciò che c’è dietro. Allo 0% resta nitido."
+        restingGlassFrostHint: "Quanto il vetro sfoca ciò che c’è dietro. Allo 0% resta nitido.",
+        restingBrightness: "Luminosità a riposo",
+        restingBrightnessHint: "Attenua icone e testo di Dynamic Island chiusa. All’apertura torna la luminosità piena."
     )
 
     static let ru = NotchStrings(
@@ -932,7 +948,9 @@ extension NotchStrings {
         restingGlassTransparency: "Прозрачность",
         restingGlassTransparencyHint: "При 100% стекло не затемняется.",
         restingGlassFrost: "Матовость",
-        restingGlassFrostHint: "Насколько стекло размывает то, что под ним. При 0% оно остаётся чистым."
+        restingGlassFrostHint: "Насколько стекло размывает то, что под ним. При 0% оно остаётся чистым.",
+        restingBrightness: "Яркость в покое",
+        restingBrightnessHint: "Приглушает значки и текст закрытого Dynamic Island. При открытии возвращается полная яркость."
     )
 
     static let tr = NotchStrings(
@@ -1033,7 +1051,9 @@ extension NotchStrings {
         restingGlassTransparency: "Saydamlık",
         restingGlassTransparencyHint: "%100'de cam karartılmaz.",
         restingGlassFrost: "Buzlu cam",
-        restingGlassFrostHint: "Camın arkasındakini ne kadar bulanıklaştırdığı. %0'da net kalır."
+        restingGlassFrostHint: "Camın arkasındakini ne kadar bulanıklaştırdığı. %0'da net kalır.",
+        restingBrightness: "Bekleme parlaklığı",
+        restingBrightnessHint: "Kapalı Dynamic Island'ın simgelerini ve metnini soluklaştırır. Açıldığında tam parlaklık geri gelir."
     )
 
     static let ja = NotchStrings(
@@ -1134,7 +1154,9 @@ extension NotchStrings {
         restingGlassTransparency: "透明度",
         restingGlassTransparencyHint: "100% ではガラスを暗くしません。",
         restingGlassFrost: "すりガラス",
-        restingGlassFrostHint: "背後をぼかす強さです。0% では透明なままです。"
+        restingGlassFrostHint: "背後をぼかす強さです。0% では透明なままです。",
+        restingBrightness: "待機中の明るさ",
+        restingBrightnessHint: "閉じた Dynamic Island のアイコンと文字を暗くします。開くと元の明るさに戻ります。"
     )
 
     static let ko = NotchStrings(
@@ -1235,7 +1257,9 @@ extension NotchStrings {
         restingGlassTransparency: "투명도",
         restingGlassTransparencyHint: "100%에서는 유리를 어둡게 하지 않습니다.",
         restingGlassFrost: "반투명 효과",
-        restingGlassFrostHint: "유리가 뒤쪽을 흐리게 하는 정도입니다. 0%에서는 선명하게 유지됩니다."
+        restingGlassFrostHint: "유리가 뒤쪽을 흐리게 하는 정도입니다. 0%에서는 선명하게 유지됩니다.",
+        restingBrightness: "대기 중 밝기",
+        restingBrightnessHint: "닫힌 Dynamic Island의 아이콘과 텍스트를 어둡게 합니다. 열면 원래 밝기로 돌아옵니다."
     )
 
     static let zhHans = NotchStrings(
@@ -1336,7 +1360,9 @@ extension NotchStrings {
         restingGlassTransparency: "透明度",
         restingGlassTransparencyHint: "为 100% 时玻璃不会变暗。",
         restingGlassFrost: "磨砂",
-        restingGlassFrostHint: "玻璃模糊后方内容的程度。为 0% 时保持清晰。"
+        restingGlassFrostHint: "玻璃模糊后方内容的程度。为 0% 时保持清晰。",
+        restingBrightness: "静止时亮度",
+        restingBrightnessHint: "调暗收起的 Dynamic Island 中的图标和文字。展开后恢复完整亮度。"
     )
 
     static let zhTW = NotchStrings(
@@ -1437,7 +1463,9 @@ extension NotchStrings {
         restingGlassTransparency: "透明度",
         restingGlassTransparencyHint: "設為 100% 時玻璃不會變暗。",
         restingGlassFrost: "霧面",
-        restingGlassFrostHint: "玻璃模糊後方內容的程度。設為 0% 時保持清晰。"
+        restingGlassFrostHint: "玻璃模糊後方內容的程度。設為 0% 時保持清晰。",
+        restingBrightness: "靜止時亮度",
+        restingBrightnessHint: "調暗收合的 Dynamic Island 中的圖示與文字。展開後恢復完整亮度。"
     )
 
     static let zhHK = NotchStrings(
@@ -1538,7 +1566,9 @@ extension NotchStrings {
         restingGlassTransparency: "透明度",
         restingGlassTransparencyHint: "設為 100% 時玻璃不會變暗。",
         restingGlassFrost: "霧面",
-        restingGlassFrostHint: "玻璃模糊後方內容的程度。設為 0% 時保持清晰。"
+        restingGlassFrostHint: "玻璃模糊後方內容的程度。設為 0% 時保持清晰。",
+        restingBrightness: "靜止時亮度",
+        restingBrightnessHint: "調暗收合的 Dynamic Island 中的圖示與文字。展開後恢復完整亮度。"
     )
 
     static let uk = NotchStrings(
@@ -1639,7 +1669,9 @@ extension NotchStrings {
         restingGlassTransparency: "Прозорість",
         restingGlassTransparencyHint: "Зі 100% скло не затемнюється.",
         restingGlassFrost: "Матовість",
-        restingGlassFrostHint: "Наскільки скло розмиває вміст позаду. При 0% воно залишається чистим."
+        restingGlassFrostHint: "Наскільки скло розмиває вміст позаду. При 0% воно залишається чистим.",
+        restingBrightness: "Яскравість у спокої",
+        restingBrightnessHint: "Приглушує значки й текст закритого Dynamic Island. Після відкриття повертається повна яскравість."
     )
 
 }

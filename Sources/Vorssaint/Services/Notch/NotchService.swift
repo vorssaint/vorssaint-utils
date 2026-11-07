@@ -206,8 +206,13 @@ final class NotchService: ObservableObject {
     private var captureHover: ((Bool) -> Void)?
     private var captureClosesOnCollapse = false
     private var inside = false {
-        didSet { windowHost?.setPointerOver(inside) }
+        didSet {
+            if pointerOver != inside { pointerOver = inside }
+            windowHost?.setPointerOver(inside)
+        }
     }
+    /// Whether the pointer is over the island, published for resting brightness.
+    @Published private(set) var pointerOver = false
     private var hoverEmphasized = false
     private var activitySelection = NotchActivitySelection()
     private var activityPickerMenuOpen = false

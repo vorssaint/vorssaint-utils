@@ -3225,6 +3225,29 @@ enum NotchRestingGlass {
     }
 }
 
+/// How bright the closed island's content is. Static icons and text are what
+/// an OLED panel keeps lit at one place longest, so they can rest dimmer and
+/// return to full brightness while the pointer is on the island, or it opens
+/// or shows a notice.
+enum NotchRestingBrightness {
+    static let full = 1.0
+    static let range: ClosedRange<Double> = 0.2...1
+
+    static func level(_ value: Double) -> Double {
+        value.isFinite ? min(max(value, range.lowerBound), range.upperBound) : full
+    }
+
+    static func level(in defaults: UserDefaults = .standard) -> Double {
+        level(defaults.double(forKey: DefaultsKey.notchRestingBrightness))
+    }
+
+    /// The content's opacity: dimmed only while the pointer is away and
+    /// nothing opens the surface.
+    static func opacity(level: Double, awake: Bool) -> Double {
+        awake ? full : self.level(level)
+    }
+}
+
 /// The black tint over the open island's translucent background, measured in
 /// points from the top: fully black over the camera strip at every island
 /// height (the hover preview is only the strip plus 62 points), then easing

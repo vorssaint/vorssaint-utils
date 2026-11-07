@@ -852,6 +852,8 @@ enum DefaultsKey {
     static let notchRestingGlass = "notchRestingGlass"
     static let notchRestingGlassTint = "notchRestingGlassTint"
     static let notchRestingGlassFrost = "notchRestingGlassFrost"
+    // How bright the closed island's icons and text are, from dim to full.
+    static let notchRestingBrightness = "notchRestingBrightness"
     static let notchShelf = "notchShelf"
     static let notchDragReveal = "notchDragReveal"
     static let notchCaptureControls = "notchCaptureControls"
@@ -1469,6 +1471,7 @@ enum Defaults {
         DefaultsKey.notchRestingGlass: false,
         DefaultsKey.notchRestingGlassTint: NotchRestingGlass.defaultTint,
         DefaultsKey.notchRestingGlassFrost: NotchRestingGlass.defaultFrost,
+        DefaultsKey.notchRestingBrightness: NotchRestingBrightness.full,
         DefaultsKey.notchShelf: true,
         DefaultsKey.notchDragReveal: true,
         DefaultsKey.notchCaptureControls: true,

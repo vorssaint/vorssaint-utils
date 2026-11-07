@@ -11,6 +11,7 @@ struct NotchView: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
+    @AppStorage(DefaultsKey.notchRestingBrightness) private var restingBrightness = NotchRestingBrightness.full
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -18,6 +19,10 @@ struct NotchView: View {
 
     var body: some View {
         surface
+            // Resting content can be dimmed; the pointer on the island, or
+            // anything that opens the surface, brings full brightness back.
+            .opacity(NotchRestingBrightness.opacity(level: restingBrightness, awake: restingContentAwake))
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: restingContentAwake)
             // An activity arriving over the resting companion fades in as the
             // companion fades out, and one ending fades back into it, instead
             // of cutting from one to the other in a frame. A song leaving has its
@@ -62,6 +67,8 @@ struct NotchView: View {
             .tint(.white)
             .accessibilityIdentifier("notch.surface")
     }
+
+    private var restingContentAwake: Bool { service.usesGlassSurface || service.pointerOver }
 
     private var usesGlassSurface: Bool {
 #if compiler(>=6.2)

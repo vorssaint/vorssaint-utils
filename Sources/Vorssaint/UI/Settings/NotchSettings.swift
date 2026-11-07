@@ -96,6 +96,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchRestingGlass) private var restingGlass = false
     @AppStorage(DefaultsKey.notchRestingGlassTint) private var restingGlassTint = NotchRestingGlass.defaultTint
     @AppStorage(DefaultsKey.notchRestingGlassFrost) private var restingGlassFrost = NotchRestingGlass.defaultFrost
+    @AppStorage(DefaultsKey.notchRestingBrightness) private var restingBrightness = NotchRestingBrightness.full
     @AppStorage(DefaultsKey.notchShelf) private var shelfWindow = true
     @AppStorage(DefaultsKey.notchDragReveal) private var dragReveal = true
     @AppStorage(DefaultsKey.notchCaptureControls) private var captureControls = true
@@ -268,6 +269,10 @@ struct NotchSettings: View {
                                            get: { NotchRestingGlass.level(restingGlassFrost, fallback: NotchRestingGlass.defaultFrost) },
                                            set: { restingGlassFrost = NotchRestingGlass.level($0, fallback: NotchRestingGlass.defaultFrost) }))
                 }
+                restingGlassSlider(text.restingBrightness, hint: text.restingBrightnessHint,
+                                   value: Binding(get: { NotchRestingBrightness.level(restingBrightness) },
+                                                  set: { restingBrightness = NotchRestingBrightness.level($0) }),
+                                   range: NotchRestingBrightness.range)
             }
             // Only a display without a camera can float the island.
             if NotchSupport.hasDisplayWithoutNotch {
@@ -1016,7 +1021,8 @@ struct NotchSettings: View {
         }.disabled(!available)
     }
 
-    private func restingGlassSlider(_ title: String, hint: String, value: Binding<Double>) -> some View {
+    private func restingGlassSlider(_ title: String, hint: String, value: Binding<Double>,
+                                    range: ClosedRange<Double> = 0...1) -> some View {
         let formatted = value.wrappedValue.formatted(.percent.precision(.fractionLength(0))
             .locale(Locale(identifier: l10n.language.rawValue)))
         return VStack(alignment: .leading, spacing: 6) {
@@ -1025,7 +1031,7 @@ struct NotchSettings: View {
                 Spacer()
                 Text(formatted).monospacedDigit().foregroundStyle(.secondary)
             }
-            Slider(value: value, in: 0...1, step: 0.05) {
+            Slider(value: value, in: range, step: 0.05) {
                 Text(title)
             }.labelsHidden().accessibilityValue(formatted)
             Text(hint).font(.caption).foregroundStyle(.secondary)
