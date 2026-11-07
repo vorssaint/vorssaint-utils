@@ -84,7 +84,11 @@ struct NotchLevelSlider: NSViewRepresentable {
         (slider.cell as? NotchLevelCell)?.marker = marker
         (slider.cell as? NotchLevelCell)?.trackThickness = trackThickness
         let bounded = value.isFinite ? min(upper, max(lower, value)) : lower
-        if slider.doubleValue != bounded, (slider as? NotchLevelControl)?.isGliding != true {
+        // A drag owns the bar until it lets go. A level moving meanwhile, as
+        // a playing song's position does each frame, would pull the bar back
+        // and forth under the pointer.
+        if slider.doubleValue != bounded, (slider as? NotchLevelControl)?.isGliding != true,
+           (slider.cell as? NotchLevelCell)?.isTracking != true {
             let cell = slider.cell as? NotchLevelCell
             let drawn = cell?.drawnValue ?? slider.doubleValue
             slider.doubleValue = bounded

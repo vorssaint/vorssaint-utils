@@ -178,6 +178,12 @@ enum NotchLevelTrackingTests {
             suite.expect(state.edits == [true] && state.commits.isEmpty && !state.wroteOutsideEdit,
                          "\(name): continuous updates do not finish or restart the edit")
             let tracked = slider.doubleValue
+            // A level that moves elsewhere mid-drag, as a playing song's
+            // position does, must not pull the bar from under the pointer.
+            state.value = tracked < maximum / 2 ? maximum : 0
+            settle { slider.doubleValue != tracked }
+            suite.expect(slider.doubleValue == tracked,
+                         "\(name): a drag keeps the bar under the pointer while the level changes elsewhere")
             slider.sendAction(slider.action, to: slider.target)
             slider.sendAction(slider.action, to: slider.target)
             suite.expect(slider.doubleValue == tracked && state.value == tracked,
