@@ -131,7 +131,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Scroll sideways while holding a key.** Turn vertical wheel movement into horizontal scrolling while holding a chosen key.
 - **Side buttons.** Use mouse Back and Forward buttons in Finder, browsers and compatible apps.
 - **Mouse button shortcuts.** Assign keys to extra buttons and side wheels, or use button-drag gestures for Spaces and Mission Control.
-- **Middle click.** Turn a three-finger trackpad press into a middle click.
+- **Middle click.** Turn a three-finger trackpad press, a key + click, or both into a middle click.
 - **Apps to leave alone.** Exclude chosen apps from mouse enhancements.
 - **Extra click filter.** Ignore accidental rapid clicks from worn mouse buttons without delaying normal clicks.
 - **Key debounce.** Filter repeated letters caused by a worn keyboard.

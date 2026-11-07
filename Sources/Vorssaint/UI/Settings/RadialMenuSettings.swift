@@ -16,6 +16,7 @@ struct RadialMenuSettings: View {
     @AppStorage(DefaultsKey.radialMenuActivationMode) private var activationModeRaw =
         RadialMenuActivationMode.pressOrHold.rawValue
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
+    @AppStorage(DefaultsKey.middleClickThreeFingerEnabled) private var middleClickThreeFinger = true
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
 
     @State private var profiles: [RadialMenuProfile] = RadialMenuSupport.decodeProfiles(
@@ -381,7 +382,7 @@ struct RadialMenuSettings: View {
         if profile.trackpadTap, MiddleClickSupport.radialMenuTapFingers(
             radialMenuWantsTap: true,
             middleClickTapFingers: AppFeature.middleClick.isAvailable && middleClickEnabled
-                ? middleClickTapFingers : 0) == 0 {
+                && middleClickThreeFinger ? middleClickTapFingers : 0) == 0 {
             Text(text.trackpadTapConflict)
                 .font(.caption)
                 .foregroundStyle(.orange)

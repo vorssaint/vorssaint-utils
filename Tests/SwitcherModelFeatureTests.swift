@@ -5167,6 +5167,113 @@ enum SwitcherModelFeatureTests {
                                                  sinceLastTransformEnd: 0.1,
                                                  systemDragGestureEnabled: true) == .swallow,
                "middle click drops the bounce after a four-finger transform")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 0, frameAge: 9, settledFor: 0,
+                                                 sinceLastTransformEnd: nil,
+                                                 systemDragGestureEnabled: false,
+                                                 keyClick: true) == .transform,
+               "a key + click needs no fingers on a trackpad, so a mouse works too")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
+                                                 sinceLastTransformEnd: 0.1,
+                                                 systemDragGestureEnabled: false,
+                                                 keyClick: true) == .transform,
+               "two quick key + clicks are a double click, not a bounce to drop")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 1, frameAge: 0.05, settledFor: 0.2,
+                                                 sinceLastTransformEnd: nil,
+                                                 systemDragGestureEnabled: false,
+                                                 keyClick: false) == .passThrough,
+               "a one-finger click without the chord stays a plain click")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
+                                                 sinceLastTransformEnd: nil,
+                                                 systemDragGestureEnabled: false,
+                                                 fingerPressOn: false) == .passThrough,
+               "with the three-finger trigger off a three-finger press stays a plain click")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 1, frameAge: 9, settledFor: 0,
+                                                 sinceLastTransformEnd: nil,
+                                                 systemDragGestureEnabled: false,
+                                                 keyClick: true, fingerPressOn: false) == .transform,
+               "key + click keeps working with the three-finger trigger off")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
+                                                 sinceLastTransformEnd: nil,
+                                                 systemDragGestureEnabled: false,
+                                                 keyClick: false, fingerPressOn: true) == .transform,
+               "the three-finger press keeps working with key + click off")
+        do {
+            let fnKey = MiddleClickKey.fn.flag
+            let controlOption: CGEventFlags = [.maskControl, .maskAlternate]
+            suite.expect(MiddleClickSupport.isKeyClick(type: .leftMouseDown, flags: fnKey, keys: fnKey)
+                            && MiddleClickSupport.isKeyClick(type: .leftMouseDown, flags: controlOption,
+                                                             keys: controlOption),
+                   "a primary click with exactly the chosen keys qualifies")
+            suite.expect(MiddleClickSupport.isKeyClick(type: .leftMouseDown,
+                                                       flags: [.maskSecondaryFn, .maskAlphaShift], keys: fnKey),
+                   "Caps Lock is not part of the chord, so it cannot break a key + click")
+            suite.expect(!MiddleClickSupport.isKeyClick(type: .leftMouseDown, flags: [.maskCommand, .maskControl],
+                                                        keys: .maskCommand),
+                   "a chord of command leaves the control + command window gesture click alone")
+            suite.expect(!MiddleClickSupport.isKeyClick(type: .leftMouseDown, flags: .maskControl,
+                                                        keys: controlOption),
+                   "holding only part of the chord stays a plain click")
+            suite.expect(!MiddleClickSupport.isKeyClick(type: .leftMouseDown, flags: fnKey, keys: []),
+                   "key + click turned off never qualifies")
+            suite.expect(!MiddleClickSupport.isKeyClick(type: .rightMouseDown, flags: fnKey, keys: fnKey),
+                   "fn + right click stays a right click")
+            suite.expect(MiddleClickSupport.clickKeys(from: nil) == fnKey
+                            && MiddleClickSupport.clickKeys(from: "") == fnKey
+                            && MiddleClickSupport.clickKeys(from: "control+bogus") == fnKey
+                            && MiddleClickSupport.clickKeys(from: "shift") == fnKey,
+                   "an unreadable or Shift-only chord falls back to fn")
+            suite.expect(MiddleClickSupport.clickKeys(from: MiddleClickSupport.storageValue(forClickKeys: controlOption))
+                            == controlOption,
+                   "a chord survives being saved and read back")
+            suite.expect(MiddleClickSupport.togglingClickKey(.fn, in: fnKey) == nil
+                            && MiddleClickSupport.togglingClickKey(.fn, in: [.maskSecondaryFn, .maskShift]) == nil,
+                   "the last deliberate key stays selected, even with Shift still in the chord")
+            suite.expect(MiddleClickSupport.togglingClickKey(.option, in: fnKey) == [.maskSecondaryFn, .maskAlternate]
+                            && MiddleClickSupport.togglingClickKey(.fn, in: [.maskSecondaryFn, .maskAlternate])
+                                == .maskAlternate,
+                   "keys join and leave the chord freely otherwise")
+            suite.expect(Defaults.registeredDefaults[DefaultsKey.middleClickThreeFingerEnabled] as? Bool == true
+                            && Defaults.registeredDefaults[DefaultsKey.middleClickKeyClickEnabled] as? Bool == false,
+                   "upgrading keeps the three-finger click and leaves key + click off")
+
+            suite.expect(!MiddleClickSupport.triggers(featureOn: false, threeFingerOn: true, keyClickOn: true,
+                                                      storedKeys: "command").anyOn,
+                   "neither trigger arms while the feature is off")
+            let bothTriggers = MiddleClickSupport.triggers(featureOn: true, threeFingerOn: true, keyClickOn: true,
+                                                           storedKeys: "control+option")
+            suite.expect(bothTriggers.threeFinger && bothTriggers.keys == controlOption,
+                   "the two triggers run side by side")
+            let fingersOnly = MiddleClickSupport.triggers(featureOn: true, threeFingerOn: true, keyClickOn: false,
+                                                          storedKeys: "command")
+            suite.expect(fingersOnly.threeFinger && fingersOnly.keys.isEmpty && fingersOnly.anyOn,
+                   "the three-finger click arms alone with key + click off")
+            let keysOnly = MiddleClickSupport.triggers(featureOn: true, threeFingerOn: false, keyClickOn: true,
+                                                       storedKeys: nil)
+            suite.expect(!keysOnly.threeFinger && keysOnly.keys == fnKey && keysOnly.anyOn,
+                   "key + click arms alone with the three-finger click off, on fn until keys are saved")
+            suite.expect(!MiddleClickSupport.triggers(featureOn: true, threeFingerOn: false, keyClickOn: false,
+                                                      storedKeys: "command").anyOn,
+                   "with both triggers off nothing is armed, so the event tap can stop")
+
+            let keyPress = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,
+                                   mouseCursorPosition: CGPoint(x: 10, y: 20), mouseButton: .left)
+            keyPress?.flags = [.maskSecondaryFn, .maskShift]
+            let keyMiddle = keyPress.map { MiddleClickSupport.asMiddle($0, type: .otherMouseDown, dropping: fnKey) }
+            suite.expect(keyMiddle?.type == .otherMouseDown
+                            && keyMiddle?.getIntegerValueField(.mouseEventButtonNumber) == 2
+                            && keyMiddle?.location == CGPoint(x: 10, y: 20)
+                            && keyMiddle?.flags.contains(.maskSecondaryFn) == false
+                            && keyMiddle?.flags.contains(.maskShift) == true,
+                   "a key + click reaches apps as a middle click without its chord, keeping other modifiers")
+            let fingerPress = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp,
+                                      mouseCursorPosition: CGPoint(x: 10, y: 20), mouseButton: .left)
+            fingerPress?.flags = [.maskCommand, .maskSecondaryFn]
+            let fingerMiddle = fingerPress.map { MiddleClickSupport.asMiddle($0, type: .otherMouseUp, dropping: []) }
+            suite.expect(fingerMiddle?.type == .otherMouseUp
+                            && fingerMiddle?.flags.contains(.maskCommand) == true
+                            && fingerMiddle?.flags.contains(.maskSecondaryFn) == true,
+                   "a three-finger press keeps every modifier it arrived with")
+        }
 
         expectEqual(ColorValue.string(red: 1, green: 0, blue: 0, format: .hex), "#FF0000",
                     "color picker formats pure red as hex")
