@@ -634,6 +634,8 @@ struct NotchMusicTimeline: View {
     @State private var scrubTrack: RadialNowPlayingSnapshot?
     @State private var scrubContext: NotchPlaybackContext?
     @State private var pendingSeek: UUID?
+    /// Where the song was, and when, as the seek was sent.
+    @State private var leftBehind: (position: Double, at: Date)?
 
     var body: some View {
         if playback.duration > 0 {
@@ -676,8 +678,9 @@ struct NotchMusicTimeline: View {
             .onChange(of: playback.track) { clearScrub() }
             .onChange(of: playback.commandContext) { clearScrub() }
             .onChange(of: playback.sampledAt) {
-                if pendingSeek != nil, let scrubPosition,
-                   abs(playback.position(at: Date()) - scrubPosition) <= 2 { clearScrub() }
+                if pendingSeek != nil, let scrubPosition, let leftBehind,
+                   playback.confirmsSeek(to: scrubPosition, from: leftBehind.position,
+                                         sentAt: leftBehind.at, now: Date()) { clearScrub() }
             }
             .task(id: pendingSeek) {
                 guard pendingSeek != nil else { return }
@@ -709,6 +712,8 @@ struct NotchMusicTimeline: View {
                     if editing {
                         pendingSeek = nil
                     } else if let scrubPosition, let scrubTrack {
+                        let now = Date()
+                        leftBehind = (playback.position(at: now), now)
                         service.seek(to: scrubPosition, in: scrubTrack, context: scrubContext)
                         pendingSeek = UUID()
                     }
@@ -728,6 +733,7 @@ struct NotchMusicTimeline: View {
         scrubPosition = nil
         scrubTrack = nil
         scrubContext = nil
+        leftBehind = nil
     }
 
     private func timestamp(_ interval: TimeInterval) -> String {
