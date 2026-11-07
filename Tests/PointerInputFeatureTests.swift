@@ -4276,6 +4276,7 @@ enum MiddleClickTrackpadContract {
         typealias MiddleClickService = Service
         var deviceList: CFArray?
         var touchDeviceMissing = false
+        var touchWanted = true
         var isRunning = false
         var tap: Int? = 1
         var runLoopSource: CFRunLoopSource?
@@ -4318,6 +4319,23 @@ enum MiddleClickTrackpadContract {
         Multitouch.devices = [NSObject()] as CFArray
         IO.emit(kIOFirstMatchNotification)
         suite.expect(!service.touchDeviceMissing, "reconnecting a trackpad clears the warning again")
+        service.touchWanted = false
+        service.syncMultitouch()
+        suite.expect(service.deviceList == nil && !service.touchDeviceMissing,
+                     "key + click alone stops the contact callbacks it has no use for")
+        IO.emit(kIOFirstMatchNotification)
+        suite.expect(service.deviceList == nil,
+                     "a trackpad arriving starts no contact callbacks while nothing reads them")
+        Multitouch.devices = nil
+        service.touchDeviceMissing = true
+        service.syncMultitouch()
+        suite.expect(!service.touchDeviceMissing,
+                     "a Mac with no trackpad shows no warning while only key + click is on")
+        service.touchWanted = true
+        Multitouch.devices = [NSObject()] as CFArray
+        service.syncMultitouch()
+        suite.expect(service.deviceList != nil && !service.touchDeviceMissing,
+                     "turning a touch trigger back on starts the contact callbacks again")
         Multitouch.devices = nil
         IO.emit(kIOFirstMatchNotification)
         suite.expect(service.touchDeviceMissing,

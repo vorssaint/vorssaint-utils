@@ -7,16 +7,17 @@ import CoreGraphics
 import Foundation
 import IOKit
 
-/// Middle-click emulation for trackpads: a three-finger PHYSICAL click (four
-/// while macOS three-finger drag owns three fingers) becomes a middle click
-/// (mouse wheel click), and an opt-in tap mode fires
-/// it from a light three or four finger tap (issue #161). By default taps,
-/// swipes and resting fingers never click. Contact data comes from the
-/// MultitouchSupport private framework (the only source; every middle-click
-/// utility uses it), loaded via dlopen/dlsym so a macOS that changes it
-/// degrades to the feature simply staying off. Requires Accessibility for
-/// the event tap. The same tap recognizer also opens the radial menu from a
-/// four-finger tap, so the service runs for either feature.
+/// Middle-click emulation, from two triggers that work together or alone. A
+/// three-finger PHYSICAL click (four while macOS three-finger drag owns three
+/// fingers) becomes a middle click (mouse wheel click), and an opt-in tap mode
+/// fires it from a light three or four finger tap (issue #161). An opt-in key
+/// + click fires it from any mouse or trackpad, read from the click's own
+/// flags. By default taps, swipes and resting fingers never click. Contact
+/// data comes from the MultitouchSupport private framework (the only source;
+/// every middle-click utility uses it), loaded via dlopen/dlsym so a macOS
+/// that changes it degrades to the touch triggers simply staying off. Requires
+/// Accessibility for the event tap. The same tap recognizer also opens the
+/// radial menu from a four-finger tap, so the service runs for either feature.
 final class MiddleClickService: ObservableObject {
     static let shared = MiddleClickService()
 
@@ -48,9 +49,20 @@ final class MiddleClickService: ObservableObject {
     /// Whether presses are turned into middle clicks. Off while the service
     /// runs only for the radial menu's tap. Guarded by `tapStateLock`.
     private var middleClickOn = false
+    /// The three-finger press trigger. Guarded by `tapStateLock`.
+    private var threeFingerOn = false
+    /// The chord whose click becomes a middle click, empty while key + click
+    /// is off. Guarded by `tapStateLock`.
+    private var keyClickKeys: CGEventFlags = []
+    /// A trigger reads trackpad contact. Key + click alone does not, so it
+    /// runs with no trackpad and leaves the contact callbacks off. Main thread.
+    private var touchWanted = false
     /// A physical primary or secondary press is currently being relayed as a
     /// middle button, so its drag and release must transform too.
     private var middleButtonHeld = false
+    /// The chord that started the held press, kept out of its drags and
+    /// release as well. Empty for a three-finger press.
+    private var middleButtonKeys: CGEventFlags = []
     /// A duplicate native down was dropped; its drag and up must be dropped as
     /// well instead of leaking an orphan event or ending the real held click.
     private var suppressedButtonSequence = false
@@ -105,7 +117,12 @@ final class MiddleClickService: ObservableObject {
         let defaults = UserDefaults.standard
         let enabled = AppFeature.middleClick.isAvailable
             && defaults.bool(forKey: DefaultsKey.middleClickEnabled)
-        let tap = enabled ? Defaults.sanitizedMiddleClickTapFingers(
+        let triggers = MiddleClickSupport.triggers(
+            featureOn: enabled,
+            threeFingerOn: defaults.bool(forKey: DefaultsKey.middleClickThreeFingerEnabled),
+            keyClickOn: defaults.bool(forKey: DefaultsKey.middleClickKeyClickEnabled),
+            storedKeys: defaults.string(forKey: DefaultsKey.middleClickKeyClickKeys))
+        let tap = triggers.threeFinger ? Defaults.sanitizedMiddleClickTapFingers(
             defaults.integer(forKey: DefaultsKey.middleClickTapFingers)) : 0
         let radialMenuTap = MiddleClickSupport.radialMenuTapFingers(
             radialMenuWantsTap: AppFeature.radialMenu.isAvailable
@@ -113,7 +130,12 @@ final class MiddleClickService: ObservableObject {
                 && RadialMenuSupport.decodeProfiles(defaults.data(forKey: DefaultsKey.radialMenuProfiles),
                                                     defaults: defaults).contains(where: \.trackpadTap),
             middleClickTapFingers: tap)
-        tapStateLock.withLock { middleClickOn = enabled }
+        tapStateLock.withLock {
+            middleClickOn = triggers.anyOn
+            threeFingerOn = triggers.threeFinger
+            keyClickKeys = triggers.keys
+        }
+        touchWanted = triggers.threeFinger || radialMenuTap > 0
         stateLock.lock()
         tapFingers = tap
         radialMenuTapFingers = radialMenuTap
@@ -121,7 +143,7 @@ final class MiddleClickService: ObservableObject {
         stateLock.unlock()
         refreshDragGestureConflict()
         if SessionActivitySupport.tapShouldRun(
-            featureWanted: enabled || radialMenuTap > 0,
+            featureWanted: triggers.anyOn || radialMenuTap > 0,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive
         ) {
@@ -139,8 +161,10 @@ final class MiddleClickService: ObservableObject {
         dragGestureCache = (enabled, ProcessInfo.processInfo.systemUptime)
         dragGestureRefreshScheduled = false
         dragLock.unlock()
-        if systemDragGestureConflict != enabled {
-            systemDragGestureConflict = enabled
+        // The system gesture only gets in the way of the three-finger press.
+        let conflict = enabled && tapStateLock.withLock { threeFingerOn }
+        if systemDragGestureConflict != conflict {
+            systemDragGestureConflict = conflict
         }
         stateLock.lock()
         tapDragConflict = enabled
@@ -183,8 +207,13 @@ final class MiddleClickService: ObservableObject {
     // MARK: - Lifecycle
 
     private func start() {
-        guard tapStateLock.withLock({ tap }) == nil else { return }
-        guard Multitouch.available else {
+        guard tapStateLock.withLock({ tap }) == nil else {
+            // Already running: the triggers may have changed.
+            syncMultitouch()
+            return
+        }
+        // Only the touch triggers need the framework; key + click does not.
+        guard Multitouch.available || tapStateLock.withLock({ !keyClickKeys.isEmpty }) else {
             touchDeviceMissing = true
             return
         }
@@ -217,7 +246,7 @@ final class MiddleClickService: ObservableObject {
         }
         CGEvent.tapEnable(tap: tap, enable: true)
 
-        startMultitouch()
+        syncMultitouch()
         installObservers()
         isRunning = true
     }
@@ -257,9 +286,20 @@ final class MiddleClickService: ObservableObject {
     /// Trackpads come and go across sleep and Bluetooth: drop every contact
     /// registration and rebuild from the current device list.
     private func restartMultitouch() {
-        guard tapStateLock.withLock({ tap }) != nil else { return }
+        guard touchWanted, tapStateLock.withLock({ tap }) != nil else { return }
         stopMultitouch()
         startMultitouch()
+    }
+
+    /// Contact frames run only while a trigger reads them, and without one a
+    /// missing trackpad is nothing to warn about.
+    private func syncMultitouch() {
+        if touchWanted {
+            startMultitouch()
+        } else {
+            stopMultitouch()
+            touchDeviceMissing = false
+        }
     }
 
     private func startMultitouch() {
@@ -559,13 +599,18 @@ final class MiddleClickService: ObservableObject {
             let age = now - lastFrameUptime
             let settledFor = now - fingerCountSince
             stateLock.unlock()
-            let sinceLastTransformEnd = tapStateLock.withLock { lastTransformEnd }
+            let (sinceLastTransformEnd, pressOn, clickKeys) = tapStateLock.withLock {
+                (lastTransformEnd, threeFingerOn, keyClickKeys)
+            }
+            let keyClick = MiddleClickSupport.isKeyClick(type: type, flags: event.flags, keys: clickKeys)
             let action = MiddleClickSupport.actionForClick(
                 fingerCount: count,
                 frameAge: age,
                 settledFor: settledFor,
                 sinceLastTransformEnd: sinceLastTransformEnd.map { now - $0 },
-                systemDragGestureEnabled: dragGestureEnabled(now: now)
+                systemDragGestureEnabled: dragGestureEnabled(now: now),
+                keyClick: keyClick,
+                fingerPressOn: pressOn
             )
             switch action {
             case .passThrough:
@@ -575,19 +620,23 @@ final class MiddleClickService: ObservableObject {
                 return nil
             case .transform:
                 let targetPID = event.getIntegerValueField(.eventTargetUnixProcessID)
+                let heldKeys: CGEventFlags = keyClick ? clickKeys : []
                 tapStateLock.withLock {
                     middleButtonHeld = true
                     middleButtonHeldSince = now
                     middleButtonTargetPID = targetPID > 0 ? pid_t(targetPID) : nil
+                    middleButtonKeys = heldKeys
                 }
-                return Unmanaged.passUnretained(asMiddle(event, type: .otherMouseDown))
+                return Unmanaged.passUnretained(
+                    MiddleClickSupport.asMiddle(event, type: .otherMouseDown, dropping: heldKeys))
             }
         case .leftMouseDragged, .rightMouseDragged:
-            let (held, suppressed) = tapStateLock.withLock {
-                (middleButtonHeld, suppressedButtonSequence)
+            let (held, suppressed, heldKeys) = tapStateLock.withLock {
+                (middleButtonHeld, suppressedButtonSequence, middleButtonKeys)
             }
             if held {
-                return Unmanaged.passUnretained(asMiddle(event, type: .otherMouseDragged))
+                return Unmanaged.passUnretained(
+                    MiddleClickSupport.asMiddle(event, type: .otherMouseDragged, dropping: heldKeys))
             }
             return suppressed ? nil : Unmanaged.passUnretained(event)
         case .leftMouseUp, .rightMouseUp:
@@ -603,9 +652,12 @@ final class MiddleClickService: ObservableObject {
             }
             middleButtonHeld = false
             middleButtonTargetPID = nil
+            let heldKeys = middleButtonKeys
+            middleButtonKeys = []
             lastTransformEnd = now
             tapStateLock.unlock()
-            return Unmanaged.passUnretained(asMiddle(event, type: .otherMouseUp))
+            return Unmanaged.passUnretained(
+                MiddleClickSupport.asMiddle(event, type: .otherMouseUp, dropping: heldKeys))
         default:
             return Unmanaged.passUnretained(event)
         }
@@ -621,6 +673,7 @@ final class MiddleClickService: ObservableObject {
             return
         }
         middleButtonHeld = false
+        middleButtonKeys = []
         let targetPID = middleButtonTargetPID
         middleButtonTargetPID = nil
         tapStateLock.unlock()
@@ -638,14 +691,6 @@ final class MiddleClickService: ObservableObject {
         // process alive just long enough for WindowServer to deliver the up.
         Thread.sleep(forTimeInterval: 0.02)
         tapStateLock.withLock { lastTransformEnd = ProcessInfo.processInfo.systemUptime }
-    }
-
-    /// Rewrites the event in place: same position, timestamp and modifiers,
-    /// but a middle-button event instead of its native button.
-    private func asMiddle(_ event: CGEvent, type: CGEventType) -> CGEvent {
-        event.type = type
-        event.setIntegerValueField(.mouseEventButtonNumber, value: 2)
-        return event
     }
 }
 

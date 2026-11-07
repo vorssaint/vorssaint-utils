@@ -40,7 +40,10 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
+    @AppStorage(DefaultsKey.middleClickThreeFingerEnabled) private var middleClickThreeFinger = true
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
+    @AppStorage(DefaultsKey.middleClickKeyClickEnabled) private var middleClickKeyClick = false
+    @AppStorage(DefaultsKey.middleClickKeyClickKeys) private var middleClickKeys = MiddleClickSupport.defaultClickKeysStorageValue
     @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
     @AppStorage(DefaultsKey.mouseClickDebounceWindowMs) private var mouseClickDebounceWindow =
         Defaults.defaultMouseClickDebounceWindowMs
@@ -525,32 +528,57 @@ struct MouseSettings: View {
                     }
             }
             if middleClickEnabled {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(l10n.s.middleClickTapPicker)
-                        .font(.subheadline.weight(.medium))
-                    HStack(spacing: 8) {
-                        tapChip(0, title: l10n.s.middleClickTapOff, symbol: "hand.raised.slash")
-                        tapChip(3, title: l10n.s.middleClickTapThreeFingers, symbol: "hand.tap")
-                        tapChip(4, title: l10n.s.middleClickTapFourFingers, symbol: "hand.tap")
-                    }
-                    Text(l10n.s.middleClickTapCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if middleClick.systemDragGestureConflict {
-                        Text(l10n.s.middleClickDragConflict)
+                SettingsRow(symbol: "rectangle.and.hand.point.up.left", title: l10n.s.middleClickThreeFinger,
+                            caption: l10n.s.middleClickThreeFingerCaption) {
+                    Toggle(l10n.s.middleClickThreeFinger, isOn: $middleClickThreeFinger)
+                        .labelsHidden()
+                        .onChange(of: middleClickThreeFinger) { _, _ in
+                            MiddleClickService.shared.syncWithPreferences()
+                        }
+                }
+                if middleClickThreeFinger {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(l10n.s.middleClickTapPicker)
+                            .font(.subheadline.weight(.medium))
+                        HStack(spacing: 8) {
+                            tapChip(0, title: l10n.s.middleClickTapOff, symbol: "hand.raised.slash")
+                            tapChip(3, title: l10n.s.middleClickTapThreeFingers, symbol: "hand.tap")
+                            tapChip(4, title: l10n.s.middleClickTapFourFingers, symbol: "hand.tap")
+                        }
+                        Text(l10n.s.middleClickTapCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
+                        if middleClick.systemDragGestureConflict {
+                            Text(l10n.s.middleClickDragConflict)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if middleClick.touchDeviceMissing {
+                            Text(l10n.s.middleClickNoTrackpad)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
-                    if middleClick.touchDeviceMissing {
-                        Text(l10n.s.middleClickNoTrackpad)
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    .padding(.leading, settingsRowTextInset)
                 }
-                .padding(.leading, settingsRowTextInset)
+                SettingsRow(symbol: "keyboard", title: l10n.s.middleClickKeyClick,
+                            caption: l10n.s.middleClickKeyClickCaption) {
+                    Toggle(l10n.s.middleClickKeyClick, isOn: $middleClickKeyClick)
+                        .labelsHidden()
+                        .onChange(of: middleClickKeyClick) { _, _ in
+                            MiddleClickService.shared.syncWithPreferences()
+                        }
+                }
+                if middleClickKeyClick {
+                    MiddleClickKeyPicker(storageValue: $middleClickKeys)
+                        .onChange(of: middleClickKeys) { _, _ in
+                            MiddleClickService.shared.syncWithPreferences()
+                        }
+                        .padding(.leading, settingsRowTextInset)
+                }
                 MouseExceptionsList(scope: .middleClick)
             }
         }
@@ -665,5 +693,30 @@ struct MouseSettings: View {
                 MouseClickDebounceService.shared.syncWithPreferences()
             }
         )
+    }
+}
+
+/// The keys held for key + click. Selecting them rather than recording them
+/// keeps fn, which the shortcut recorder rejects, on the same footing as the
+/// others; only modifiers can be held through a click without typing.
+private struct MiddleClickKeyPicker: View {
+    @Binding var storageValue: String
+
+    var body: some View {
+        HStack(spacing: 7) {
+            ForEach(MiddleClickKey.allCases, id: \.self) { key in
+                let next = MiddleClickSupport.togglingClickKey(key, in: keys)
+                ModifierKeyChip(symbol: key.symbol, name: key.name, selected: keys.contains(key.flag),
+                                locked: next == nil) {
+                    if let next {
+                        storageValue = MiddleClickSupport.storageValue(forClickKeys: next)
+                    }
+                }
+            }
+        }
+    }
+
+    private var keys: CGEventFlags {
+        MiddleClickSupport.clickKeys(from: storageValue)
     }
 }
