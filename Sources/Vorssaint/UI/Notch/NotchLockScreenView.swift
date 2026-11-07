@@ -160,7 +160,7 @@ struct NotchLockScreenPlayer: View {
     /// own player shows it, until the player says so.
     @State private var requestedPlaying: Bool?
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
-    private var accent: Color { music.artworkTint?.color ?? .white }
+    private var accent: Color { music.artworkTint?.controlColor ?? .white }
 
     var body: some View {
         let shown = model.showsMusic(music.playback)

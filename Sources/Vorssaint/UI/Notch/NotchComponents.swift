@@ -46,7 +46,14 @@ extension NotchArtworkTint {
         rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
         let ceiling = 0.35 + 0.65 * CGFloat(vibrance)
         return Color(nsColor: NSColor(hue: hue, saturation: min(saturation, ceiling),
-                                      brightness: 0.86 + 0.14 * CGFloat(vibrance), alpha: 1))
+                                      brightness: CGFloat(barBrightness), alpha: 1))
+    }
+
+    /// The colour of the controls beside the bars, so the progress bar, the
+    /// shuffle and play buttons read as one with them.
+    var controlColor: Color {
+        guard let shade = fieldControlColor else { return barColor }
+        return Color(.sRGB, red: shade.red, green: shade.green, blue: shade.blue, opacity: 1)
     }
 }
 

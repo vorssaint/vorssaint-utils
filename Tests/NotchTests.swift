@@ -3530,6 +3530,19 @@ enum NotchTests {
                      "a cover with colour is shaded the same whether or not greys are asked for")
         suite.expect(NotchArtworkTint.neutral(field: greys).isNeutral && !NotchArtworkTint(red: 1, green: 0, blue: 0).isNeutral,
                      "only a cover without colour is marked neutral")
+        // A pale cover with a little blue in it: the halo stretches that to
+        // pure blue, and the controls must keep to the bars' soft shade.
+        let paleBlue = Array(repeating: (red: 0.5, green: 0.5, blue: 0.62), count: 144)
+        let soft = NotchArtworkTint.from(red: 0.5, green: 0.5, blue: 0.62)?
+            .with(field: NotchArtworkTint.field(of: paleBlue, side: 12, vibrance: 0))
+        if let soft, let shade = soft.fieldControlColor {
+            suite.expect(soft.red < 0.1 && soft.blue > 0.9 && shade.red > 0.6 && abs(shade.blue - 0.86) < 0.001,
+                         "the controls take the bars' pale shade of a cover, not the halo's pure blue")
+        } else {
+            suite.expect(false, "a cover with a field gives the controls a colour")
+        }
+        suite.expect(NotchArtworkTint(red: 1, green: 0, blue: 0).fieldControlColor == nil,
+                     "without a field the controls have no field colour to take")
         suite.expect(NotchEqualizerView.fieldImage(field).map { $0.width == columns && $0.height == rows } == true
                      && NotchEqualizerView.fieldImage([0.5]) == nil,
                      "the bars paint a field as a small image they stretch over the row")

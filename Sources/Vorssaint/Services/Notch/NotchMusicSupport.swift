@@ -47,6 +47,22 @@ struct NotchArtworkTint: Equatable {
         return tint
     }
 
+    /// How bright the music bars and controls are: full on a vivid cover,
+    /// a little under it on a soft one.
+    var barBrightness: Double { 0.86 + 0.14 * vibrance }
+
+    /// The colour the bars' field comes to as a whole, at the bars' brightness,
+    /// for the controls beside them. Nil without a field. The halo's colour is
+    /// stretched to full strength, which would turn a faint cast into pure blue.
+    var fieldControlColor: (red: Double, green: Double, blue: Double)? {
+        guard !field.isEmpty, field.count.isMultiple(of: 3) else { return nil }
+        var sum = [0.0, 0.0, 0.0]
+        for (index, channel) in field.enumerated() { sum[index % 3] += channel }
+        guard let highest = sum.max(), highest > 0 else { return nil }
+        let lift = barBrightness / highest
+        return (sum[0] * lift, sum[1] * lift, sum[2] * lift)
+    }
+
     /// A cover's field from `side` by `side` of its pixels, top row first.
     /// Each colour is a wide Gaussian average around its point, a fifth of
     /// the cover across, over the middle four fifths of the cover's width
