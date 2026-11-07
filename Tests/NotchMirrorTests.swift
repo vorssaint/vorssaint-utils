@@ -55,6 +55,8 @@ enum NotchMirrorContract {
         func hide(animated: Bool) { hides += 1; hideAnimations.append(animated); panel.isVisible = false }
         func close() { closes += 1; panel.isVisible = false }
         func setOutline(enabled: Bool, color: NSColor) { outline = (enabled, color) }
+        func setRestingGlass(_ enabled: Bool) {}
+        func setPointerOver(_ over: Bool) {}
         func setActivationArea(_ rect: CGRect, title: String, willPress: @escaping () -> Void, activate: @escaping () -> Void) {
             activationRect = rect
             self.activate = activate
