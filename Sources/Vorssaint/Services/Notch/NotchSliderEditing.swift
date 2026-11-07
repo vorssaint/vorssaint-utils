@@ -52,6 +52,10 @@ struct NotchSliderEasing {
 /// gesture belongs to the bar only when it starts there: a list scrolling
 /// under a still pointer keeps scrolling, and the momentum of a flick that
 /// moved the bar is swallowed rather than moving the bar or the list.
+/// A vertical fader answers only to vertical movement. A trackpad gesture on
+/// one picks its axis once, after a little travel: a swipe that is not clearly
+/// vertical belongs to the strip around the fader for the rest of the gesture,
+/// so scrolling past a level can never change it.
 struct SliderScroll {
     enum Phase { case none, began, changed, ended, momentum }
     enum Outcome: Equatable { case pass, hold, move(Double) }
@@ -61,11 +65,19 @@ struct SliderScroll {
     static let pointStep = 0.005
     /// Trackpads may send one phaseless event between the lift and momentum.
     static let liftGap = 0.35
+    /// Finger travel a fader waits for before it picks the gesture's axis.
+    static let axisTravel = 6.0
+    /// How much steeper than sideways a swipe must be to move a fader. Doubt
+    /// goes to the strip, which only scrolls, rather than to the level.
+    static let verticalBias = 1.5
 
+    var verticalOnly = false
     /// Where the gesture on the bar is heading, ahead of a level that settles late.
     private var level: Double?
     private var coasting = false
     private var liftedAt: Double?
+    /// Travel so far of a gesture on a fader that has not picked its axis.
+    private var unsettled: (dx: Double, dy: Double)?
 
     static func step(dx: Double, dy: Double, precise: Bool, inverted: Bool) -> Double {
         let up = dy * (inverted ? -1 : 1)
@@ -75,12 +87,17 @@ struct SliderScroll {
         return precise ? amount * pointStep : (amount > 0 ? wheelStep : -wheelStep)
     }
 
+    private static func isSideways(dx: Double, dy: Double) -> Bool {
+        abs(dy) < abs(dx) * verticalBias
+    }
+
     mutating func handle(_ phase: Phase, dx: Double, dy: Double, precise: Bool, inverted: Bool,
                          timestamp: Double, current: Double, range: ClosedRange<Double>) -> Outcome {
         switch phase {
         case .began:
             level = current
             coasting = false
+            unsettled = verticalOnly ? (0, 0) : nil
         case .changed:
             guard level != nil else { coasting = false; return .pass }
         case .ended:
@@ -97,8 +114,25 @@ struct SliderScroll {
             }
             coasting = false
         }
+        var rise = dy
+        if verticalOnly {
+            if level != nil, var travel = unsettled {
+                travel.dx += dx
+                travel.dy += dy
+                unsettled = travel
+                guard max(abs(travel.dx), abs(travel.dy)) >= Self.axisTravel else { return .hold }
+                unsettled = nil
+                if Self.isSideways(dx: travel.dx, dy: travel.dy) {
+                    level = nil
+                    return .pass
+                }
+                rise = travel.dy
+            } else if level == nil, Self.isSideways(dx: dx, dy: dy) {
+                return .pass
+            }
+        }
         let span = range.upperBound - range.lowerBound
-        let step = Self.step(dx: dx, dy: dy, precise: precise, inverted: inverted)
+        let step = Self.step(dx: verticalOnly ? 0 : dx, dy: rise, precise: precise, inverted: inverted)
         guard span.isFinite, span > 0, step != 0 else { return .hold }
         let base = (level ?? current).isFinite ? (level ?? current) : range.lowerBound
         let next = min(range.upperBound, max(range.lowerBound, base + step * span))

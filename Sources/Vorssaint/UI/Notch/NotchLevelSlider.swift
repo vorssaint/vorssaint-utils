@@ -186,6 +186,7 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
                 finishScrollEditing()
             }
         }
+        scroll.verticalOnly = isVertical
         switch scroll.handle(event, current: doubleValue, range: minValue...maxValue) {
         case .pass: SliderScroll.pass(event, from: self)
         case .hold: break

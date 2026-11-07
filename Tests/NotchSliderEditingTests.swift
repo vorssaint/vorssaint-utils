@@ -100,5 +100,61 @@ enum NotchSliderEditingTests {
                      && pad.handle(.momentum, dx: 0, dy: -30, precise: true, inverted: true,
                                    timestamp: 5.1, current: 0.7, range: range) == .pass,
                "once another gesture scrolls past the bar, its momentum goes back to the list")
+
+        var swipe = SliderScroll()
+        swipe.verticalOnly = true
+        suite.expect(swipe.handle(.began, dx: 0, dy: 0, precise: true, inverted: true,
+                                  timestamp: 10, current: 0.5, range: range) == .hold
+                     && swipe.handle(.changed, dx: -3, dy: 1, precise: true, inverted: true,
+                                     timestamp: 10.1, current: 0.5, range: range) == .hold
+                     && swipe.handle(.changed, dx: -20, dy: -2, precise: true, inverted: true,
+                                     timestamp: 10.2, current: 0.5, range: range) == .pass,
+               "a sideways swipe that starts on a fader goes to the strip without moving the level")
+        suite.expect(swipe.handle(.changed, dx: 0, dy: -30, precise: true, inverted: true,
+                                  timestamp: 10.3, current: 0.5, range: range) == .pass
+                     && swipe.handle(.ended, dx: 0, dy: 0, precise: true, inverted: true,
+                                     timestamp: 10.4, current: 0.5, range: range) == .pass
+                     && swipe.handle(.momentum, dx: -30, dy: -5, precise: true, inverted: true,
+                                     timestamp: 10.5, current: 0.5, range: range) == .pass,
+               "a swipe given to the strip stays with it through any drift, the lift and its momentum")
+
+        var diagonal = SliderScroll()
+        diagonal.verticalOnly = true
+        _ = diagonal.handle(.began, dx: 0, dy: 0, precise: true, inverted: true,
+                            timestamp: 20, current: 0.5, range: range)
+        suite.expect(diagonal.handle(.changed, dx: 10, dy: -10, precise: true, inverted: true,
+                                     timestamp: 20.1, current: 0.5, range: range) == .pass,
+               "a swipe that is not clearly vertical scrolls the strip rather than changing the level")
+
+        var fader = SliderScroll()
+        fader.verticalOnly = true
+        suite.expect(fader.handle(.began, dx: 0, dy: -4, precise: true, inverted: true,
+                                  timestamp: 30, current: 0.5, range: range) == .hold
+                     && fader.handle(.changed, dx: 0, dy: -16, precise: true, inverted: true,
+                                     timestamp: 30.1, current: 0.5, range: range) == .move(0.6),
+               "a vertical swipe on a fader moves it by all its travel, including what it waited for")
+        suite.expect(fader.handle(.changed, dx: 40, dy: 0, precise: true, inverted: true,
+                                  timestamp: 30.2, current: 0.6, range: range) == .hold
+                     && fader.handle(.changed, dx: 40, dy: -20, precise: true, inverted: true,
+                                     timestamp: 30.3, current: 0.6, range: range) == .move(0.7),
+               "a vertical swipe that drifts sideways keeps the fader but moves it only by its vertical travel")
+        suite.expect(fader.handle(.ended, dx: 0, dy: 0, precise: true, inverted: true,
+                                  timestamp: 30.4, current: 0.7, range: range) == .hold
+                     && fader.handle(.momentum, dx: 30, dy: -30, precise: true, inverted: true,
+                                     timestamp: 30.5, current: 0.7, range: range) == .hold,
+               "the flick after a vertical swipe on a fader still neither moves it nor scrolls the strip")
+
+        var tilt = SliderScroll()
+        tilt.verticalOnly = true
+        suite.expect(tilt.handle(.none, dx: 1, dy: 0, precise: false, inverted: false,
+                                 timestamp: 40, current: 0.5, range: range) == .pass
+                     && tilt.handle(.none, dx: 0, dy: 1, precise: false, inverted: false,
+                                    timestamp: 41, current: 0.5, range: range) == .move(0.55),
+               "a sideways wheel passes a fader to the strip while the vertical wheel still steps it")
+
+        var bar = SliderScroll()
+        suite.expect(bar.handle(.began, dx: -20, dy: 0, precise: true, inverted: false,
+                                timestamp: 50, current: 0.5, range: range) == .move(0.6),
+               "a horizontal bar still follows a sideways swipe at once")
     }
 }
