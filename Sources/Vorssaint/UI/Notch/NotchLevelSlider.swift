@@ -224,7 +224,7 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
     }
 
     /// The bar shows it will take a scroll while the pointer is on it, and
-    /// keeps showing it for a swipe that drifts off. The ring fades in and out.
+    /// keeps showing it for a swipe that drifts off. The bar swells in and out.
     func refreshHover() {
         let target: CGFloat = acceptsSliderScroll && (hovering || scrolling) ? 1 : 0
         guard let cell = cell as? NotchLevelCell, hoverTarget != target else { return }
@@ -358,7 +358,7 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
         switch outcome {
         case .pass:
             // A gesture handed to the strip may never come back to end here,
-            // and a scroll left open would keep the hover ring on.
+            // and a scroll left open would keep the bar swelled.
             finishScrollEditing()
             SliderScroll.pass(event, from: self, after: pending)
         case .hold: break
@@ -383,13 +383,14 @@ private final class NotchLevelCell: NSSliderCell {
     var drawnValue: Double?
     /// Where the bar is drawn while it follows a scroll.
     var scrollDrawn: Double?
-    /// A bar that takes a scroll keeps room around it for its hover ring, so
-    /// the bar does not change size when the ring appears.
+    /// A bar that takes a scroll keeps room around it to swell into on hover,
+    /// so nothing beside it moves when it does.
     var leavesHoverRoom = false
-    private static let hoverGap: CGFloat = 2
-    private static let hoverLine: CGFloat = 1.5
-    private static var hoverRoom: CGFloat { hoverGap + hoverLine + 0.5 }
-    /// How far the hover ring has faded in, from 0 to 1.
+    private static let hoverRoom: CGFloat = 4
+    /// How much thicker a hovered bar draws on each side. Only its thickness
+    /// grows, so the level under the pointer stays where it was.
+    private static let hoverGrowth: CGFloat = 3
+    /// How far the bar has swelled for the hover, from 0 to 1.
     var hoverAmount: CGFloat = 0 {
         didSet { if hoverAmount != oldValue { controlView?.needsDisplay = true } }
     }
@@ -428,7 +429,8 @@ private final class NotchLevelCell: NSSliderCell {
     }
 
     override func drawBar(inside rect: NSRect, flipped: Bool) {
-        let track = barRect(flipped: flipped)
+        let grow = Self.hoverGrowth * hoverAmount
+        let track = barRect(flipped: flipped).insetBy(dx: isFader ? -grow : 0, dy: isFader ? 0 : -grow)
         guard track.width > 0, track.height > 0 else { return }
         let radius = min(track.width, track.height) / 2
         let outline = NSBezierPath(roundedRect: track, xRadius: radius, yRadius: radius)
@@ -456,14 +458,6 @@ private final class NotchLevelCell: NSSliderCell {
             }
         }
         NSGraphicsContext.restoreGraphicsState()
-        if hoverAmount > 0 {
-            let inset = Self.hoverGap + Self.hoverLine / 2
-            let ring = NSBezierPath(roundedRect: track.insetBy(dx: -inset, dy: -inset),
-                                    xRadius: radius + inset, yRadius: radius + inset)
-            NSColor.white.withAlphaComponent(0.55 * hoverAmount).setStroke()
-            ring.lineWidth = Self.hoverLine
-            ring.stroke()
-        }
     }
 
     override func drawKnob(_ knobRect: NSRect) {}
