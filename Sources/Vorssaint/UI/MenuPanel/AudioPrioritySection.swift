@@ -13,6 +13,7 @@ struct AudioPriorityDisclosure: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var priority = AudioPriorityService.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
+    @ObservedObject private var virtualOutput = VirtualOutputService.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
     private let showsHeader: Bool
     @State private var expanded: Bool
@@ -74,7 +75,8 @@ struct AudioPriorityDisclosure: View {
                 priorityUIDs: priority.outputPriorityUIDs,
                 isAvailable: priority.isOutputAvailable,
                 displayName: priority.displayName,
-                currentUID: mixer.currentOutputDeviceUID,
+                currentUID: VirtualOutputSupport.logicalOutputUID(current: mixer.currentOutputDeviceUID,
+                    physical: virtualOutput.physicalOutputUID, requested: virtualOutput.requestedOutputUID),
                 emptyText: l10n.s.mixerSystemOutputNoDevices,
                 onMove: { priority.setOutputPriorityUIDs($0) })
         }

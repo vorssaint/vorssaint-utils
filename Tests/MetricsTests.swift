@@ -52,6 +52,7 @@ struct MetricsTests {
             ("media-layout", { MediaWorkspaceLayoutTests.run(suite) }),
             ("mixer", {
                 MixerRenderContinuityTests.run(suite)
+                SoftwareVolumeFormatTests.run(suite)
                 MixerNativeDragTests.run(suite)
                 MixerOutputAdjustmentContract.run(suite)
                 MixerHeadphonesDisconnectContract.run(suite)
@@ -60,6 +61,8 @@ struct MetricsTests {
                 MixerGainRampContract.run(suite)
                 SoundOutputSwitchContract.run(suite)
                 MixerUniversalRoutingContract.run(suite)
+                SoftwareVolumeStartupTests.run(suite)
+                SoftwareVolumeBridgeLifecycleTests.run(suite)
                 AirPlayRingBufferContract.run(suite)
                 AirPlayRouteContract.run(suite)
                 AirPlayMixLimiterContract.run(suite)
