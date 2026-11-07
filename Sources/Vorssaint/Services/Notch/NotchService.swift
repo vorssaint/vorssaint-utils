@@ -182,6 +182,8 @@ final class NotchService: ObservableObject {
     private var eventMonitors: [Any] = []
     private var screenEdgeClickMonitors: [Any] = []
     private var screenEdgePressArea: CGRect?
+    private var screenEdgePressOpen = false
+    private var screenEdgeScrollMonitors: [Any] = []
     private var captureControlsMonitors: [Any] = []
     private var hiddenHoverMonitors: [Any] = []
     private var hoverExitMonitors: [Any] = []
@@ -205,7 +207,7 @@ final class NotchService: ObservableObject {
     private var captureDismiss: (() -> Void)?
     private var captureHover: ((Bool) -> Void)?
     private var captureClosesOnCollapse = false
-    private var inside = false
+    private var inside = false { didSet { syncScreenEdgeScrolls() } }
     private var hoverEmphasized = false
     private var activitySelection = NotchActivitySelection()
     private var activityPickerMenuOpen = false
@@ -3337,10 +3339,13 @@ final class NotchService: ObservableObject {
     }
 
     private var screenEdgeClickArea: CGRect? {
-        guard running, !suspended, !expanded, captureControls == nil, notice == nil,
+        guard running, !suspended, captureControls == nil, expanded || notice == nil,
               !dragPlaceholder, !heldDrag, let panel, panel.isVisible, !panel.ignoresMouseEvents else { return nil }
-        let geometry = compactActivityIsVisible ? compactActivityGeometry : self.geometry
-        let area = geometry.activationArea(in: surfaceSize, hasHeader: peeking, compactActivity: compactActivityIsVisible)
+        let geometry = expanded ? expandedGeometry : compactActivityIsVisible ? compactActivityGeometry : self.geometry
+        // The menu bar still gets these clicks, so the open island takes them
+        // over the camera only, leaving the items under its sides alone.
+        let area = geometry.activationArea(in: surfaceSize, hasHeader: expanded || peeking,
+                                           compactActivity: compactActivityIsVisible || expanded, expandedHeader: expanded)
         guard !area.isEmpty else { return nil }
         let frame = geometry.frame(for: surfaceSize)
         return CGRect(x: frame.minX + area.minX, y: frame.maxY - area.maxY, width: area.width, height: area.height)
@@ -3382,6 +3387,7 @@ final class NotchService: ObservableObject {
                   CGRect(x: 0, y: 0, width: area.width, height: 1 + (geometry.floatingGap ?? 0)).contains(local),
                   windowHost?.containsDestination(point) == true else { return }
             screenEdgePressArea = area
+            screenEdgePressOpen = expanded
             hoverWork?.cancel(); hoverWork = nil
             hoverState.close(pointerInside: true)
         case .leftMouseUp:
@@ -3389,10 +3395,12 @@ final class NotchService: ObservableObject {
             screenEdgePressArea = nil
             // The hover pulse can settle between press and release; the click
             // stays on the island in either size.
-            guard let pressed = pressedArea,
+            // Opening or closing another way during the press ends the click.
+            guard let pressed = pressedArea, screenEdgePressOpen == expanded,
                   NotchSupport.screenEdgeArea(pressed, contains: point) || NotchSupport.screenEdgeArea(area, contains: point),
                   windowHost?.containsDestination(point) == true else { return }
-            if compactActivity == .calendar { openCountdownEvent() } else { open() }
+            if expanded { collapse() }
+            else if compactActivity == .calendar { openCountdownEvent() } else { open() }
         case .leftMouseDragged:
             // A press at the screen's edge reports a drag at once, often without
             // moving. Only a drag that leaves the island cancels the click.
@@ -3408,6 +3416,36 @@ final class NotchService: ObservableObject {
         screenEdgeClickMonitors.forEach(NSEvent.removeMonitor)
         screenEdgeClickMonitors.removeAll()
         screenEdgePressArea = nil
+    }
+
+    /// A swipe in the menu bar's first row never reaches the panel either. It
+    /// is watched only while the pointer is on the island, so scrolling
+    /// anywhere else costs nothing.
+    private func syncScreenEdgeScrolls() {
+        guard running, !suspended, inside else { removeScreenEdgeScrollMonitors(); return }
+        guard screenEdgeScrollMonitors.isEmpty else { return }
+        if let token = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel, handler: { [weak self] event in
+            self?.handleScreenEdgeScroll(event)
+        }) { screenEdgeScrollMonitors.append(token) }
+        if let token = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel, handler: { [weak self] event in
+            self?.handleScreenEdgeScroll(event)
+            return event
+        }) { screenEdgeScrollMonitors.append(token) }
+    }
+
+    private func handleScreenEdgeScroll(_ event: NSEvent) {
+        // A scroll the panel receives reaches the gesture through the panel.
+        guard let panel, event.window !== panel, panel.isVisible, !panel.ignoresMouseEvents,
+              let location = event.cgEvent?.location, let primary = NSScreen.withMenuBar else { return }
+        let fromTop = geometry.screen.maxY - (primary.frame.maxY - location.y)
+        // The menu bar a capsule leaves above itself is the island's as well.
+        guard fromTop < 1 + (geometry.floatingGap ?? 0) else { return }
+        _ = handleGesture(event)
+    }
+
+    private func removeScreenEdgeScrollMonitors() {
+        screenEdgeScrollMonitors.forEach(NSEvent.removeMonitor)
+        screenEdgeScrollMonitors.removeAll()
     }
 
     private func stopMenuSpaceMonitoring() {
@@ -3963,8 +4001,12 @@ final class NotchService: ObservableObject {
     /// A screenshot preview closes through its controller, which keeps it
     /// while a share link is still being made.
     private func clickedElsewhere() {
+        // As the island opens, the shape on screen has yet to reach a click on
+        // what it is growing to cover. Closing here would leave the top-edge
+        // click's release to open it again.
         guard !keepsSurfaceOnClick,
               windowHost?.contains(NSEvent.mouseLocation) != true,
+              windowHost?.containsDestination(NSEvent.mouseLocation) != true,
               !mirrors.values.contains(where: { $0.model.shown && $0.host.contains(NSEvent.mouseLocation) }),
               (NSApp.delegate as? AppDelegate)?.isOverStatusItem(NSEvent.mouseLocation) != true,
               !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) else { return }
@@ -4022,7 +4064,8 @@ final class NotchService: ObservableObject {
             gesture = NotchGestureSupport()
             return false
         }
-        let screenPoint = panel.convertPoint(toScreen: event.locationInWindow)
+        // A scroll from the menu bar's row belongs to no window of this app.
+        let screenPoint = event.window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
         guard windowHost?.contains(screenPoint) == true else { gesture = NotchGestureSupport(); return false }
         let fromTop = panel.frame.maxY - screenPoint.y
         // A page with no top row keeps the strip above it for the gesture.
@@ -4032,7 +4075,7 @@ final class NotchService: ObservableObject {
                                                        safeTop: expanded ? (row ? page.headerTopInset : 0) : geometry.safeContentTop,
                                                        height: expanded ? (row ? page.headerRowHeight : page.pageTopInset)
                                                            : NotchLayout.headerHeight)
-        let interaction = NotchGestureSupport.nativeInteraction(at: panel.contentView?.hitTest(event.locationInWindow))
+        let interaction = NotchGestureSupport.nativeInteraction(at: panel.contentView?.hitTest(panel.convertPoint(fromScreen: screenPoint)))
         let musicSurface = modules.contains(.music)
             && (compactMusicIsVisible || (expanded && selected == .music && !showingAppPanel && !showingSections
                                           && !showingCommandBar))

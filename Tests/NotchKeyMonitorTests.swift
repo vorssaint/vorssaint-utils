@@ -48,6 +48,7 @@ enum NotchKeyMonitorTests {
     final class Host {
         var underPointer = false
         func contains(_ point: CGPoint) -> Bool { underPointer }
+        func containsDestination(_ point: CGPoint) -> Bool { contains(point) }
     }
     final class Mirror {
         final class Model { var shown = true }

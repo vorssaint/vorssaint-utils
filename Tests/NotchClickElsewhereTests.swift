@@ -17,8 +17,9 @@ enum NotchClickElsewhereTests {
         static func ownsCocoaPoint(_ point: CGPoint) -> Bool { active }
     }
     final class Host {
-        var underPointer = false
+        var underPointer = false, headingOver = false
         func contains(_ point: CGPoint) -> Bool { underPointer }
+        func containsDestination(_ point: CGPoint) -> Bool { headingOver }
     }
     final class Mirror {
         final class Model { var shown = true }
@@ -48,6 +49,8 @@ enum NotchClickElsewhereTests {
         }
         let plain = clicked()
         suite.expect(plain.collapses == 1 && plain.dismissals == 0, "a click elsewhere collapses the island")
+        let opening = clicked { $0.windowHost?.headingOver = true }
+        suite.expect(opening.collapses == 0, "a click on what the opening island is growing to cover is not a click elsewhere")
         let preview = clicked { $0.showsCapturePreview = true }
         suite.expect(preview.dismissals == 1 && preview.collapses == 0,
                      "a click elsewhere hands a screenshot preview to its controller instead of collapsing")

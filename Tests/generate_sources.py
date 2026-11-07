@@ -1487,10 +1487,13 @@ def main():
           + music_visibility + "}\n}\n")
     write("NotchScreenEdgeClicks.swift", "import AppKit\nextension NotchScreenEdgeClickTests {\nfinal class Service: State {\n"
           + "func open() { openings += 1; expanded = true; syncScreenEdgeClicks() }\n"
+          + "func collapse() { closings += 1; expanded = false; syncScreenEdgeClicks() }\n"
+          + "func handleGesture(_ event: NSEvent) -> Bool { gestures += 1; return true }\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private var screenEdgeClickArea:", "    private func syncScreenEdgeClicks(",
               "    private func handleScreenEdgeEvent(", "    private func handleScreenEdgeClick(",
-              "    private func removeScreenEdgeClickMonitors("])
+              "    private func removeScreenEdgeClickMonitors(", "    private func syncScreenEdgeScrolls(",
+              "    private func handleScreenEdgeScroll(", "    private func removeScreenEdgeScrollMonitors("])
           + "}\n}\n")
     write("NotchClickElsewhere.swift", "import AppKit\nextension NotchClickElsewhereTests {\nfinal class Service: State {\n"
           + declaration(notch, "    private func clickedElsewhere(").replace("    private ", "    ", 1)

@@ -43,17 +43,22 @@ enum NotchScreenEdgeClickTests {
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180)
         var compactActivityGeometry: NotchGeometry { geometry }
+        var expandedGeometry: NotchGeometry { geometry }
         var hoverEmphasized = false
         var surfaceSize: CGSize {
+            if expanded { return geometry.expanded }
             let size = peeking ? geometry.expanded : compactActivityIsVisible ? geometry.compactActivitySize : geometry.collapsed
             return hoverEmphasized ? NotchHoverEmphasis.size(from: size, geometry: geometry) : size
         }
         var screenEdgeClickMonitors: [Any] = []
         var screenEdgePressArea: CGRect?
+        var screenEdgePressOpen = false
+        var screenEdgeScrollMonitors: [Any] = []
+        var inside = false
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
         var compactActivity: NotchCompactActivity?
-        var openings = 0, countdownOpenings = 0
+        var openings = 0, countdownOpenings = 0, closings = 0, gestures = 0
         func openCountdownEvent() { countdownOpenings += 1; expanded = true }
     }
 
@@ -97,13 +102,16 @@ enum NotchScreenEdgeClickTests {
                 suite.expect(service.openings == 0 && pendingHover.isCancelled && service.hoverState.suppressed,
                        "pressing the edge cancels hover and waits for release")
                 send(.leftMouseUp, CGPoint(x: top.x, y: top.y - 0.5))
-                suite.expect(service.openings == 1 && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
-                       "a menu-bar click opens exactly once on either display, then removes both monitors")
+                suite.expect(service.openings == 1 && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                       "a menu-bar click opens exactly once on either display and keeps watching to close")
+                send(.leftMouseDown, top); send(.leftMouseUp, top)
+                suite.expect(service.closings == 1 && service.openings == 1 && !service.expanded,
+                       "a menu-bar click over the camera closes the open island exactly once on either display")
                 service.removeScreenEdgeClickMonitors()
             }
         }
         for disable in [
-            { (s: Service) in s.running = false }, { $0.suspended = true }, { $0.expanded = true },
+            { (s: Service) in s.running = false }, { $0.suspended = true },
             { $0.panel?.isVisible = false }, { $0.panel?.ignoresMouseEvents = true },
             { $0.captureControls = true }, { $0.notice = true }, { $0.dragPlaceholder = true }, { $0.heldDrag = true }
         ] {
@@ -153,7 +161,7 @@ enum NotchScreenEdgeClickTests {
         service.handleScreenEdgeClick(.leftMouseDown, at: point, isNotchWindow: false)
         service.handleScreenEdgeClick(.leftMouseUp, at: point, isNotchWindow: false)
         suite.expect(service.openings == 1 && service.screenEdgeClickMonitors.isEmpty,
-               "clicking the top edge opens a simulated notch exactly once and stops its closed-state monitors")
+               "clicking the top edge opens a simulated notch exactly once, and with no camera to close from stops its monitors")
         let countdown = Service()
         countdown.compactActivity = .calendar
         countdown.syncScreenEdgeClicks()
@@ -162,6 +170,7 @@ enum NotchScreenEdgeClickTests {
         countdown.handleScreenEdgeClick(.leftMouseUp, at: countdownPoint, isNotchWindow: false)
         suite.expect(countdown.countdownOpenings == 1 && countdown.openings == 0,
                      "clicking the top edge over an event countdown opens on its event")
+        countdown.removeScreenEdgeClickMonitors()
         // A capsule floats below the top edge; the menu bar above it still
         // opens it, and the capsule itself takes its own clicks.
         for (depth, opens) in [(CGFloat(0), true), (1.5, true), (2.5, true), (3.5, false)] {
@@ -176,5 +185,117 @@ enum NotchScreenEdgeClickTests {
                          "a click \(depth) points below the top edge \(opens ? "opens" : "leaves") a floating capsule")
             capsule.removeScreenEdgeClickMonitors()
         }
+        runOpenIsland(suite)
+        runScrolls(suite)
+    }
+
+    private static func runOpenIsland(_ suite: TestSuite) {
+        let open = Service()
+        open.expanded = true
+        open.syncScreenEdgeClicks()
+        let top = CGPoint(x: open.geometry.screen.midX, y: open.geometry.screen.maxY)
+        suite.expect(open.screenEdgeClickArea?.width == open.geometry.cameraWidth
+                     && open.screenEdgeClickArea?.midX == open.geometry.screen.midX,
+                     "the open island takes top-edge clicks over the camera only")
+        // The menu bar still gets the click, so its items beside the camera keep theirs alone.
+        let beside = CGPoint(x: top.x + open.geometry.cameraWidth, y: top.y)
+        open.handleScreenEdgeClick(.leftMouseDown, at: beside, isNotchWindow: false)
+        open.handleScreenEdgeClick(.leftMouseUp, at: beside, isNotchWindow: false)
+        open.handleScreenEdgeClick(.leftMouseDown, at: top, isNotchWindow: true)
+        open.handleScreenEdgeClick(.leftMouseUp, at: top, isNotchWindow: true)
+        suite.expect(open.closings == 0 && open.expanded,
+                     "menu items beside the camera and clicks the island's own window receives do not close it from here")
+        open.keepsWorkingSurface = true
+        open.handleScreenEdgeClick(.leftMouseDown, at: top, isNotchWindow: false)
+        open.handleScreenEdgeClick(.leftMouseUp, at: top, isNotchWindow: false)
+        open.keepsWorkingSurface = false
+        suite.expect(open.closings == 0, "a modal or menu in the open island keeps it open")
+        // A volume key can raise a notice under the open island.
+        open.notice = true
+        suite.expect(open.screenEdgeClickArea != nil, "a notice waiting behind the open island does not end its top-edge clicks")
+        open.notice = nil
+        open.handleScreenEdgeClick(.leftMouseDown, at: top, isNotchWindow: false)
+        open.handleScreenEdgeClick(.leftMouseUp, at: top, isNotchWindow: false)
+        suite.expect(open.closings == 1 && !open.expanded, "a top-edge click over the camera closes the open island")
+        open.removeScreenEdgeClickMonitors()
+        // Opening or closing another way during the press ends the click.
+        let opened = Service()
+        opened.syncScreenEdgeClicks()
+        opened.handleScreenEdgeClick(.leftMouseDown, at: top, isNotchWindow: false)
+        opened.expanded = true
+        opened.syncScreenEdgeClicks()
+        opened.handleScreenEdgeClick(.leftMouseUp, at: top, isNotchWindow: false)
+        suite.expect(opened.expanded && opened.closings == 0 && opened.openings == 0,
+                     "an island that opens during a press is not closed by its release")
+        opened.removeScreenEdgeClickMonitors()
+        let closed = Service()
+        closed.expanded = true
+        closed.syncScreenEdgeClicks()
+        closed.handleScreenEdgeClick(.leftMouseDown, at: top, isNotchWindow: false)
+        closed.expanded = false
+        closed.syncScreenEdgeClicks()
+        closed.handleScreenEdgeClick(.leftMouseUp, at: top, isNotchWindow: false)
+        suite.expect(!closed.expanded && closed.openings == 0, "an island that closes during a press is not reopened by its release")
+        closed.removeScreenEdgeClickMonitors()
+        // With no camera, an open island has nothing here to toggle from.
+        for silhouette in [NotchSilhouette.capsule, nil] {
+            let plain = Service()
+            plain.geometry = silhouette.map {
+                NotchGeometry(screen: plain.geometry.screen, safeAreaTop: 0, cameraWidth: 0, silhouette: $0)
+            } ?? NotchGeometry(screen: plain.geometry.screen, safeAreaTop: 0, cameraWidth: 0)
+            plain.expanded = true
+            suite.expect(plain.screenEdgeClickArea == nil, "an open island without a camera takes no top-edge clicks")
+        }
+    }
+
+    private static func runScrolls(_ suite: TestSuite) {
+        let service = Service()
+        service.syncScreenEdgeScrolls()
+        suite.expect(service.screenEdgeScrollMonitors.isEmpty, "scrolling elsewhere costs nothing while the pointer is off the island")
+        service.inside = true
+        for _ in 0..<100 { service.syncScreenEdgeScrolls() }
+        suite.expect(NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                     "the pointer on the island keeps exactly one pair of scroll monitors")
+        let top = CGPoint(x: service.geometry.screen.midX, y: service.geometry.screen.maxY)
+        func send(_ point: CGPoint, window: Panel? = nil) {
+            for handler in Array(NSEvent.global.values) { handler(NSEvent(.scrollWheel, point: point, window: window)) }
+        }
+        send(top)
+        suite.expect(service.gestures == 1, "a swipe in the menu bar's row reaches the gesture")
+        for handler in Array(NSEvent.local.values) {
+            let event = NSEvent(.scrollWheel, point: top)
+            suite.expect(handler(event) === event, "local observation preserves normal scroll delivery")
+        }
+        suite.expect(service.gestures == 2, "a swipe the app itself receives in that row reaches the gesture")
+        send(CGPoint(x: top.x, y: top.y - 2))
+        send(top, window: service.panel)
+        suite.expect(service.gestures == 2, "a swipe below that row, or one the panel receives, is left to the panel")
+        service.panel?.ignoresMouseEvents = true
+        send(top)
+        service.panel?.ignoresMouseEvents = false
+        service.panel?.isVisible = false
+        send(top)
+        service.panel?.isVisible = true
+        suite.expect(service.gestures == 2, "a hidden or click-through island ignores swipes in that row")
+        // The island can live on a display that does not hold the menu bar's origin.
+        let elsewhere = Service()
+        elsewhere.geometry = NotchGeometry(screen: CGRect(x: -1920, y: 956, width: 1920, height: 1080), safeAreaTop: 32, cameraWidth: 180)
+        elsewhere.handleScreenEdgeScroll(NSEvent(.scrollWheel, point: CGPoint(x: -960, y: 2036)))
+        suite.expect(elsewhere.gestures == 1, "the row is found on a display above the main one")
+        // The menu bar a capsule leaves above itself is the island's.
+        for (depth, reaches) in [(CGFloat(2.5), true), (3.5, false)] {
+            let capsule = Service()
+            capsule.geometry = NotchGeometry(screen: capsule.geometry.screen, safeAreaTop: 0, cameraWidth: 0, silhouette: .capsule)
+            capsule.handleScreenEdgeScroll(NSEvent(.scrollWheel, point: CGPoint(x: top.x, y: top.y - depth)))
+            suite.expect((capsule.gestures == 1) == reaches, "a swipe \(depth) points below the top edge \(reaches ? "reaches" : "leaves") a capsule")
+        }
+        service.inside = false
+        service.syncScreenEdgeScrolls()
+        suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty, "the pointer leaving the island removes the scroll monitors")
+        service.inside = true
+        service.syncScreenEdgeScrolls()
+        service.suspended = true
+        service.syncScreenEdgeScrolls()
+        suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty, "a suspended island removes the scroll monitors")
     }
 }
