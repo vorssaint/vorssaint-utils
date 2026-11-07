@@ -848,6 +848,12 @@ enum DefaultsKey {
     static let notchCameraFitHeight = "notchCameraFitHeight"
     static let notchHapticFeedback = "notchHapticFeedback"
     static let notchTranslucentBackground = "notchTranslucentBackground"
+    // Glass in place of the closed island's solid black, with its tint and blur.
+    static let notchRestingGlass = "notchRestingGlass"
+    static let notchRestingGlassTint = "notchRestingGlassTint"
+    static let notchRestingGlassFrost = "notchRestingGlassFrost"
+    // How bright the closed island's icons and text are, from dim to full.
+    static let notchRestingBrightness = "notchRestingBrightness"
     static let notchShelf = "notchShelf"
     static let notchDragReveal = "notchDragReveal"
     static let notchCaptureControls = "notchCaptureControls"
@@ -1462,6 +1468,10 @@ enum Defaults {
         DefaultsKey.notchCameraFitHeight: 0.0,
         DefaultsKey.notchHapticFeedback: true,
         DefaultsKey.notchTranslucentBackground: false,
+        DefaultsKey.notchRestingGlass: false,
+        DefaultsKey.notchRestingGlassTint: NotchRestingGlass.defaultTint,
+        DefaultsKey.notchRestingGlassFrost: NotchRestingGlass.defaultFrost,
+        DefaultsKey.notchRestingBrightness: NotchRestingBrightness.full,
         DefaultsKey.notchShelf: true,
         DefaultsKey.notchDragReveal: true,
         DefaultsKey.notchCaptureControls: true,

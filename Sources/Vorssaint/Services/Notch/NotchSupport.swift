@@ -3187,6 +3187,67 @@ enum NotchMenuBarLayout {
     }
 }
 
+/// Optional glass in place of the closed island's solid black, for panels
+/// such as OLED where a fixed black shape ages differently from the rest of
+/// the screen. A black tint lies over the system's behind-window blur; both
+/// are fractions from 0 to 1. Reduce Transparency keeps the island black.
+enum NotchRestingGlass {
+    static let defaultTint = 0.35
+    static let defaultFrost = 1.0
+
+    static func isEnabled(in defaults: UserDefaults = .standard,
+                          reduceTransparency: Bool = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency) -> Bool {
+        !reduceTransparency && defaults.bool(forKey: DefaultsKey.notchRestingGlass)
+    }
+
+    /// A stored level kept within 0...1; a value that is not a number falls back.
+    static func level(_ value: Double, fallback: Double) -> Double {
+        value.isFinite ? min(max(value, 0), 1) : fallback
+    }
+
+    static func tint(in defaults: UserDefaults = .standard) -> Double {
+        level(defaults.double(forKey: DefaultsKey.notchRestingGlassTint), fallback: defaultTint)
+    }
+
+    static func frost(in defaults: UserDefaults = .standard) -> Double {
+        level(defaults.double(forKey: DefaultsKey.notchRestingGlassFrost), fallback: defaultFrost)
+    }
+
+    /// The least tint while the pointer is on the island, so its content
+    /// reads clearly however light the glass rests.
+    static let hoverTint = 0.6
+
+    /// The tint and frost drawn: the stored levels at rest, darker full
+    /// frost glass while the pointer is on the island.
+    static func surface(tint: Double, frost: Double, pointerOver: Bool) -> (tint: Double, frost: Double) {
+        let tint = level(tint, fallback: defaultTint), frost = level(frost, fallback: defaultFrost)
+        return pointerOver ? (max(tint, hoverTint), 1) : (tint, frost)
+    }
+}
+
+/// How bright the closed island's content is. Static icons and text are what
+/// an OLED panel keeps lit at one place longest, so they can rest dimmer and
+/// return to full brightness while the pointer is on the island, or it opens
+/// or shows a notice.
+enum NotchRestingBrightness {
+    static let full = 1.0
+    static let range: ClosedRange<Double> = 0.2...1
+
+    static func level(_ value: Double) -> Double {
+        value.isFinite ? min(max(value, range.lowerBound), range.upperBound) : full
+    }
+
+    static func level(in defaults: UserDefaults = .standard) -> Double {
+        level(defaults.double(forKey: DefaultsKey.notchRestingBrightness))
+    }
+
+    /// The content's opacity: dimmed only while the pointer is away and
+    /// nothing opens the surface.
+    static func opacity(level: Double, awake: Bool) -> Double {
+        awake ? full : self.level(level)
+    }
+}
+
 /// The black tint over the open island's translucent background, measured in
 /// points from the top: fully black over the camera strip at every island
 /// height (the hover preview is only the strip plus 62 points), then easing

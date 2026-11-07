@@ -205,7 +205,14 @@ final class NotchService: ObservableObject {
     private var captureDismiss: (() -> Void)?
     private var captureHover: ((Bool) -> Void)?
     private var captureClosesOnCollapse = false
-    private var inside = false
+    private var inside = false {
+        didSet {
+            if pointerOver != inside { pointerOver = inside }
+            windowHost?.setPointerOver(inside)
+        }
+    }
+    /// Whether the pointer is over the island, published for resting brightness.
+    @Published private(set) var pointerOver = false
     private var hoverEmphasized = false
     private var activitySelection = NotchActivitySelection()
     private var activityPickerMenuOpen = false
@@ -2704,6 +2711,7 @@ final class NotchService: ObservableObject {
         if let windowHost, windowHost.targetSize != size { objectWillChange.send() }
         windowHost?.setOutline(enabled: !fullscreenCompact && UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
                                color: compactActivityIsVisible && compactActivity == .timer ? .systemOrange : .white)
+        windowHost?.setRestingGlass(NotchRestingGlass.isEnabled())
         // Something else took the place the stand-in was headed for, as music
         // arriving while the island closes: it goes now rather than stand
         // over what came instead.
@@ -3239,6 +3247,7 @@ final class NotchService: ObservableObject {
                 mirror.model.timerOutline = activity == .timer
                 mirror.host.setOutline(enabled: outline, color: activity == .timer ? .systemOrange : .white)
             }
+            mirror.host.setRestingGlass(NotchRestingGlass.isEnabled())
             let sharing: NSWindow.SharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
             if mirror.host.panel.sharingType != sharing { mirror.host.panel.sharingType = sharing }
             let revealing = !mirror.model.shown
