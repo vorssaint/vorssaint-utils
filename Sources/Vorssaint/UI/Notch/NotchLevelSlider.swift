@@ -270,6 +270,13 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
     override func mouseEntered(with event: NSEvent) { hovering = true }
     override func mouseExited(with event: NSEvent) { hovering = false }
 
+    /// As the level moves, AppKit marks only strips around the hidden knob
+    /// for redrawing. The cell draws the whole bar, fill and swell together,
+    /// so a strip redrawn alone left stale blocks of the old bar beside it.
+    override func setNeedsDisplay(_ invalidRect: NSRect) {
+        super.setNeedsDisplay(bounds)
+    }
+
     private func startGlide(from drawn: Double) {
         lastMove = CACurrentMediaTime()
         guard link == nil, window != nil else { return }
