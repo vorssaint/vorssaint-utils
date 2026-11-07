@@ -153,25 +153,18 @@ struct NotchLevelSlider: NSViewRepresentable {
             cell.drawnValue = step.value
             slider.needsDisplay = true
         }
-        /// While dragged, the level pauses at the marker with a click.
-        private func pauseAtMarker(_ slider: NSSlider) {
+        /// A drag that reaches the marker clicks, once.
+        private func clickAtMarker(_ slider: NSSlider) {
             guard let cell = slider.cell as? NotchLevelCell, cell.isTracking, let marker = parent.marker,
-                  // An action can come with no new pointer position. The level
-                  // it finds is already paused, and must not be paused again.
+                  // An action can come with no new pointer position.
                   slider.doubleValue != lastTracked else { return }
-            let track = cell.barRect(flipped: slider.isFlipped)
-            let band = NotchSliderPause.band(trackLength: Double(slider.isVertical ? track.height : track.width),
-                                             span: slider.maxValue - slider.minValue)
-            let level = NotchSliderPause.value(pointer: slider.doubleValue, stop: marker, band: band,
-                                                  range: slider.minValue...slider.maxValue)
-            if level != slider.doubleValue { slider.doubleValue = level }
-            if NotchSliderPause.arrived(from: lastTracked, to: level, stop: marker) { parent.onSnap?() }
-            lastTracked = level
+            if NotchSliderPause.arrived(from: lastTracked, to: slider.doubleValue, stop: marker) { parent.onSnap?() }
+            lastTracked = slider.doubleValue
         }
 
         @objc func changed(_ sender: NSSlider) {
             stopEasing()
-            pauseAtMarker(sender)
+            clickAtMarker(sender)
             editing.valueChanged({ parent.value = sender.doubleValue }, onEditingChanged: parent.onEditingChanged)
         }
     }
@@ -402,6 +395,7 @@ private final class NotchLevelCell: NSSliderCell {
         didSet { if hoverAmount != oldValue { controlView?.needsDisplay = true } }
     }
     private(set) var isTracking = false
+    private var pause = NotchSliderPause()
     private var isFader: Bool { isVertical }
 
     override func barRect(flipped: Bool) -> NSRect {
@@ -423,16 +417,86 @@ private final class NotchLevelCell: NSSliderCell {
         let started = super.startTracking(at: startPoint, in: controlView)
         if started {
             isTracking = true
+            pause.begin(at: place(of: startPoint, in: controlView))
             trackingChanged?(true)
         }
         return started
+    }
+
+    override func continueTracking(last lastPoint: NSPoint, current currentPoint: NSPoint,
+                                   in controlView: NSView) -> Bool {
+        let tracking = super.continueTracking(last: lastPoint, current: currentPoint, in: controlView)
+        pauseAtMarker(at: currentPoint, last: lastPoint, in: controlView)
+        return tracking
     }
 
     override func stopTracking(last lastPoint: NSPoint, current stopPoint: NSPoint,
                                in controlView: NSView, mouseIsUp flag: Bool) {
         super.stopTracking(last: lastPoint, current: stopPoint, in: controlView, mouseIsUp: flag)
         isTracking = false
+        // Never leave the pointer stuck on the marker after a drag.
+        if pause.holding { NotchPointer.current.release(nil) }
+        pause = NotchSliderPause()
         trackingChanged?(false)
+    }
+
+    /// Where a point lies along the bar, in points rising with the level.
+    private func place(of point: NSPoint, in view: NSView) -> Double {
+        let track = barRect(flipped: view.isFlipped)
+        if isFader { return Double(view.isFlipped ? track.maxY - point.y : point.y - track.minY) }
+        return Double(point.x - track.minX)
+    }
+
+    /// The point at a place along the bar, across the bar where `across` is.
+    private func point(at place: Double, across: NSPoint, in view: NSView) -> NSPoint {
+        let track = barRect(flipped: view.isFlipped)
+        if isFader {
+            return NSPoint(x: across.x, y: view.isFlipped ? track.maxY - place : track.minY + place)
+        }
+        return NSPoint(x: track.minX + place, y: across.y)
+    }
+
+    /// The same point in global display coordinates, which put the origin at
+    /// the top left of the main display.
+    private func displayPoint(_ point: NSPoint, in view: NSView) -> CGPoint? {
+        guard let window = view.window, let main = NSScreen.screens.first else { return nil }
+        let screen = window.convertPoint(toScreen: view.convert(point, to: nil))
+        return CGPoint(x: screen.x, y: main.frame.maxY - screen.y)
+    }
+
+    /// While dragged across its marker, the level stops there with the pointer
+    /// held on it, for a few points of the hand's travel.
+    private func pauseAtMarker(at current: NSPoint, last: NSPoint, in view: NSView) {
+        let span = maxValue - minValue
+        guard let marker, span > 0, marker > minValue, marker < maxValue else { return }
+        let track = barRect(flipped: view.isFlipped)
+        let length = Double(isFader ? track.height : track.width)
+        guard length > 0 else { return }
+        let stop = length * (marker - minValue) / span
+        let pointer = NotchPointer.current
+        let moved: Double
+        if pause.holding, pointer.freezes, let event = NSApp.currentEvent {
+            // A held pointer stays put; the hand's movement is in the event,
+            // whose rise is downward on screen.
+            moved = Double(isFader ? -event.deltaY : event.deltaX)
+        } else {
+            moved = place(of: current, in: view) - place(of: last, in: view)
+        }
+        let wasHolding = pause.holding
+        switch pause.step(to: place(of: current, in: view), moved: moved, stop: stop) {
+        case .follow:
+            break
+        case .hold:
+            doubleValue = marker
+            if !wasHolding, let held = displayPoint(point(at: stop, across: current, in: view), in: view) {
+                pointer.hold(held)
+            }
+        case .release(let place):
+            doubleValue = min(maxValue, max(minValue, minValue + place / length * span))
+            pointer.release(displayPoint(point(at: place, across: current, in: view), in: view))
+        case .stay(let place):
+            doubleValue = min(maxValue, max(minValue, minValue + place / length * span))
+        }
     }
 
     override func drawBar(inside rect: NSRect, flipped: Bool) {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
 
 /// Keyboard and accessibility actions have no mouse-tracking callbacks. They
@@ -48,25 +49,71 @@ struct NotchSliderEasing {
     }
 }
 
-/// A drag holds a level at the bar's marker for a few points of pointer travel,
-/// which makes it easy to hit, then goes on from there at the pointer's pace.
-/// The points the hold took are made up across the rest of the bar, too slowly
-/// to see, so the bar never jumps and still reaches both of its ends.
-enum NotchSliderPause {
-    static let points = 3.0
-
-    /// The level range a hold covers on a track of this length.
-    static func band(trackLength: Double, span: Double) -> Double {
-        trackLength > 0 ? points / trackLength * span : 0
+/// A drag stops the pointer on the bar's marker for a few points of travel,
+/// which makes the marker easy to hit. The level holds there with the pointer
+/// on it, and once the hand has moved on far enough the pointer is let go
+/// from the marker and the level follows it again. The level is always where
+/// the pointer is, so nothing has to be made up afterwards. A move that
+/// overshoots the marker by the whole hold passes straight through, so a fast
+/// flick never pulls the pointer back. Once let go, the pause waits until the
+/// pointer has moved well away before it can hold again, so one pass stops
+/// once rather than catching on the marker over and over.
+///
+/// Places are in points along the bar, rising with the level.
+struct NotchSliderPause {
+    enum Step: Equatable {
+        case follow
+        case hold
+        /// Let the pointer go at this place, past the marker on the side the
+        /// hand moved toward.
+        case release(Double)
+        /// The level stays where the pointer was let go: the event still
+        /// reports the pointer where it was held, from before it was let go.
+        case stay(Double)
     }
 
-    static func value(pointer: Double, stop: Double, band: Double, range: ClosedRange<Double>) -> Double {
-        let distance = abs(pointer - stop)
-        let end = pointer < stop ? stop - range.lowerBound : range.upperBound - stop
-        guard band > 0, end > band else { return pointer }
-        guard distance > band else { return stop }
-        let moved = (distance - band) * end / (end - band)
-        return pointer < stop ? stop - moved : stop + moved
+    static let points = 3.0
+    /// How far from the marker a let-go pointer must move before it can be
+    /// held again.
+    static let rearm = 6.0
+    private(set) var holding = false
+    private var place: Double?
+    private var travel = 0.0
+    /// Where the pointer was let go, until it moves far enough to re-arm.
+    private var released: Double?
+
+    mutating func begin(at place: Double) {
+        self = NotchSliderPause()
+        self.place = place
+    }
+
+    /// `place` is where the pointer now is, and `moved` how far the hand moved
+    /// since the last step; while the pointer is held, only the hand moves.
+    mutating func step(to place: Double, moved: Double, stop: Double) -> Step {
+        if holding {
+            travel += moved
+            guard abs(travel) >= Self.points else { return .hold }
+            let side: Double = travel > 0 ? 1 : -1
+            let released = stop + side * max(0.5, abs(travel) - Self.points)
+            self = NotchSliderPause()
+            self.place = released
+            self.released = released
+            return .release(released)
+        }
+        if let released {
+            if place == stop { return .stay(released) }
+            self.place = place
+            if abs(place - stop) >= Self.rearm { self.released = nil }
+            return .follow
+        }
+        let last = self.place ?? place
+        self.place = place
+        guard (last < stop) != (place < stop) || (place == stop && last != stop) else { return .follow }
+        guard abs(place - stop) < Self.points else { return .follow }
+        holding = true
+        travel = place - stop
+        self.place = stop
+        return .hold
     }
 
     /// Whether a move reached or crossed the marker, for a click.
@@ -75,6 +122,29 @@ enum NotchSliderPause {
         guard let previous else { return level == stop }
         return level == stop || (previous < stop) != (level < stop)
     }
+}
+
+/// Holds and lets go of the system pointer for a drag's pause. Tests stand
+/// in with one that leaves the real pointer alone.
+struct NotchPointer {
+    /// Puts the pointer at a point in global display coordinates and keeps it
+    /// there while the hand moves on.
+    var hold: (CGPoint) -> Void
+    /// Lets the pointer move with the hand again, from a point if one is given.
+    var release: (CGPoint?) -> Void
+    /// Whether a held pointer stays put, so the hand's movement comes from the
+    /// mouse event rather than the pointer's place.
+    var freezes: Bool
+
+    static let system = NotchPointer(hold: { point in
+        CGWarpMouseCursorPosition(point)
+        CGAssociateMouseAndMouseCursorPosition(0)
+    }, release: { point in
+        if let point { CGWarpMouseCursorPosition(point) }
+        CGAssociateMouseAndMouseCursorPosition(1)
+    }, freezes: true)
+    static let inert = NotchPointer(hold: { _ in }, release: { _ in }, freezes: false)
+    @MainActor static var current = system
 }
 
 /// A scrolled bar is drawn just behind its level, closing the gap on each

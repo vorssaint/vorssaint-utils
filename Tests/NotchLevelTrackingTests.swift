@@ -61,6 +61,8 @@ enum NotchLevelTrackingTests {
     static func run(_ suite: TestSuite) {
         MainActor.assumeIsolated {
             _ = NSApplication.shared
+            // The real pointer is never held or moved by a test.
+            NotchPointer.current = .inert
             check(suite, vertical: false, maximum: 1, thickness: 8, size: NSSize(width: 202, height: 24))
             check(suite, vertical: false, maximum: 300, thickness: nil, size: NSSize(width: 302, height: 10))
             check(suite, vertical: true, maximum: 1, thickness: 28, size: NSSize(width: 40, height: 182))
@@ -182,14 +184,9 @@ enum NotchLevelTrackingTests {
                          "\(name): an action with no new pointer position leaves the level where it is (\(tracked) became \(slider.doubleValue))")
         }
         func expectEdit(_ fraction: Double, _ action: String) {
-            var expected = min(1, max(0, fraction)) * maximum
-            if maximum == 2 {
-                // The fader with a marker pauses there and makes the points up slowly.
-                let track = cell.barRect(flipped: slider.isFlipped)
-                expected = NotchSliderPause.value(pointer: expected, stop: 1,
-                                                  band: NotchSliderPause.band(trackLength: Double(track.height), span: maximum),
-                                                  range: 0...maximum)
-            }
+            // A single jump across the marker overshoots its pause, so the
+            // level is wherever the pointer is.
+            let expected = min(1, max(0, fraction)) * maximum
             suite.expectClose(slider.doubleValue, expected, "\(name): \(action) follows the pointer", tol: tolerance)
             suite.expectClose(state.value, expected, "\(name): \(action) updates the binding", tol: tolerance)
             suite.expect(state.edits == [true, false] && state.commits.count == 1 && !state.wroteOutsideEdit,
@@ -213,6 +210,33 @@ enum NotchLevelTrackingTests {
             reset()
             drag(from: start, to: end)
             expectEdit(end, "drag from \(start) to \(end)")
+        }
+
+        if maximum == 2 {
+            // Crossing the marker by less than the pause holds the pointer on
+            // it; moving on past the pause lets it go beyond the marker.
+            var held = 0
+            var released = 0
+            NotchPointer.current = NotchPointer(hold: { _ in held += 1 }, release: { _ in released += 1 }, freezes: false)
+            defer { NotchPointer.current = .inert }
+            reset()
+            let point = 1 / Double(length)
+            let start = localPoint(0.4)
+            let crossed = localPoint(0.5 + point)
+            let beyond = localPoint(0.5 + point * 5)
+            if cell.startTracking(at: start, in: slider) {
+                _ = cell.continueTracking(last: start, current: crossed, in: slider)
+                suite.expect(slider.doubleValue == 1 && held == 1 && released == 0,
+                             "\(name): a drag just across the marker holds the level and the pointer on it")
+                _ = cell.continueTracking(last: crossed, current: beyond, in: slider)
+                suite.expectClose(slider.doubleValue, 1 + 2 * point * maximum,
+                                  "\(name): past the pause the level follows a pointer let go beyond the marker",
+                                  tol: tolerance)
+                suite.expect(held == 1 && released == 1, "\(name): the pointer is held and let go once each")
+                cell.stopTracking(last: crossed, current: beyond, in: slider, mouseIsUp: true)
+            } else {
+                suite.expect(false, "\(name): the native cell starts tracking for the pause")
+            }
         }
 
         // The preceding drag must leave editing closed for native movement

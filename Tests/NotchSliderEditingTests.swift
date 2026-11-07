@@ -343,20 +343,31 @@ enum NotchSliderEditingTests {
         suite.expect(abs(boostRise(from: 1.6, points: 40) - boostRise(from: 1.05, points: 40)) < 0.001,
                "a new swipe moves a boosted level just as easily wherever it starts, with no heavy top end")
 
-        let band = NotchSliderPause.band(trackLength: 180, span: 2)
-        func paused(_ pointer: Double) -> Double {
-            NotchSliderPause.value(pointer: pointer, stop: 1, band: band, range: 0...2)
-        }
-        suite.expect(paused(1) == 1 && paused(1 + band * 0.9) == 1 && paused(1 - band * 0.9) == 1,
-               "a drag pauses at the marker for a few points either side")
-        suite.expect(paused(0) == 0 && paused(2) == 2 && abs(paused(1.8) - 1.8) < band && abs(paused(0.2) - 0.2) < band,
-               "a dragged bar reaches both ends and stays within the hold of the pointer")
-        let pointerStep = 0.001
-        let leaving = stride(from: 1.0, through: 2.0, by: pointerStep).map(paused)
-        let pace = zip(leaving, leaving.dropFirst()).map { $1 - $0 }
-        suite.expect(pace.allSatisfy { $0 >= 0 && $0 < pointerStep * 1.1 }
-                     && leaving.contains { $0 > 1 && $0 <= 1.01 },
-               "a drag goes on from the pause at the pointer's pace, with no catching up, so 101% can be reached")
+        var pause = NotchSliderPause()
+        pause.begin(at: 50)
+        suite.expect(pause.step(to: 70, moved: 20, stop: 75) == .follow,
+               "a drag short of the marker follows the pointer")
+        suite.expect(pause.step(to: 76, moved: 6, stop: 75) == .hold && pause.holding,
+               "a drag that crosses the marker holds there with the pointer on it")
+        suite.expect(pause.step(to: 75, moved: 1, stop: 75) == .hold,
+               "the hold lasts while the hand travels less than the pause")
+        suite.expect(pause.step(to: 75, moved: 1.5, stop: 75) == .release(75.5) && !pause.holding,
+               "past the pause the pointer is let go beyond the marker, on the side the hand moved")
+        suite.expect(pause.step(to: 75, moved: 0, stop: 75) == .stay(75.5),
+               "an event still reporting the held pointer leaves the level where it was let go")
+        suite.expect(pause.step(to: 77, moved: 1.5, stop: 75) == .follow
+                     && pause.step(to: 74, moved: -3, stop: 75) == .follow,
+               "after the hold the level follows the pointer, and turning back close by does not hold again")
+        suite.expect(pause.step(to: 68, moved: -6, stop: 75) == .follow
+                     && pause.step(to: 76, moved: 8, stop: 75) == .hold,
+               "once the pointer has moved well away, the next pass holds again")
+        pause.begin(at: 80)
+        suite.expect(pause.step(to: 74, moved: -6, stop: 75) == .hold
+                     && pause.step(to: 75, moved: -3, stop: 75) == .release(74),
+               "a hold works the same from above, letting go below the marker")
+        pause.begin(at: 70)
+        suite.expect(pause.step(to: 80, moved: 10, stop: 75) == .follow,
+               "a move that overshoots the marker by the whole pause passes through")
         suite.expect(NotchSliderPause.arrived(from: 0.9, to: 1, stop: 1)
                      && NotchSliderPause.arrived(from: 1.2, to: 1, stop: 1)
                      && NotchSliderPause.arrived(from: 0.9, to: 1.2, stop: 1)
