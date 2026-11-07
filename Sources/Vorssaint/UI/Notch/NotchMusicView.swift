@@ -637,7 +637,10 @@ struct NotchMusicTimeline: View {
 
     var body: some View {
         if playback.duration > 0 {
-            TimelineView(.animation(minimumInterval: 1, paused: !playback.isPlaying)) { context in
+            // The bar sweeps with the clock rather than stepping each second;
+            // the times still read in whole seconds. Sixty frames a second is
+            // already well under a point of travel.
+            TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !playback.isPlaying)) { context in
                 let position = scrubPosition ?? playback.position(at: context.date)
                 Group {
                     if timesBeside {
@@ -700,8 +703,8 @@ struct NotchMusicTimeline: View {
                 label: FeatureStrings.notch(l10n.language).playbackPosition,
                 range: 0...playback.duration,
                 tint: tint,
+                trackThickness: 8,
                 valueLabel: timestamp(position),
-                scrollable: false,
                 onEditingChanged: { editing in
                     if editing {
                         pendingSeek = nil
@@ -710,7 +713,10 @@ struct NotchMusicTimeline: View {
                         pendingSeek = UUID()
                     }
                 })
-                .frame(height: 10)
+                // Room for the bar to swell into on hover, taken from the
+                // space around it so the row keeps its height.
+                .frame(height: 16)
+                .padding(-3)
                 .disabled(service.commandPending)
         } else {
             NotchMeter(value: position / playback.duration, height: 6, tint: tint)

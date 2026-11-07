@@ -108,7 +108,7 @@ enum SliderScrollRoutingTests {
         slider.isEnabled = true
         slider.scrollable = false
         suite.expect(Route.sidewaysStrip(at: slider) === strip,
-                     "a playback-position control does not claim scroll input")
+                     "a slider that does not scroll leaves scroll input to the strip")
         slider.scrollable = true
         suite.expect(Route.sidewaysStrip(at: document) === strip,
                      "scrolling the surrounding app list still navigates the strip")

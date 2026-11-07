@@ -24,8 +24,8 @@ struct NotchLevelSlider: NSViewRepresentable {
     /// A level moved from outside, by a key, eases to its new place; the
     /// playback position and a drag follow at once.
     var easesChanges = false
-    /// A scroll over the bar moves the level; the playback position is not
-    /// scrolled, since each step would seek.
+    /// A scroll over the bar moves the level. A swipe is one edit, so the
+    /// playback position seeks once, when the fingers lift.
     var scrollable = true
     var onEditingChanged: ((Bool) -> Void)?
     /// A scroll came to rest on `marker`.
