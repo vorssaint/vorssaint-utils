@@ -141,6 +141,7 @@ struct MetricsTests {
                 FeatureCatalogTests.run(suite)
                 MenuPanelSectionGateContract.run(suite)
             }),
+            ("shortcut-clearing", { ShortcutClearingTests.run(suite) }),
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)
                 TextSnippetExpansionTests.run(suite)
@@ -209,6 +210,8 @@ struct MetricsTests {
             ("uninstaller", {
                 HomebrewOwnershipTests.run(suite)
                 UninstallerFlowTests.run(suite)
+                UninstallerBulkSelectionTests.run(suite)
+                MixedStateCheckboxTests.run(suite)
                 UninstallerCommandBarCleanupTests.run(suite)
                 SelfUninstallContract.run(suite)
             }),
@@ -222,6 +225,7 @@ struct MetricsTests {
             }),
             ("spaces-order", { SpacesOrderTests.run(suite) }),
             ("switcher", {
+                SwitcherHoverSelectionTests.run(suite)
                 SwitcherAllWindowsTests.run(suite)
                 AXWindowResolverTests.run(suite)
                 SwitcherSearchLayoutTests.run(suite)
