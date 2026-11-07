@@ -636,6 +636,7 @@ struct NotchMusicTimeline: View {
     @State private var pendingSeek: UUID?
     /// Where the song was, and when, as the seek was sent.
     @State private var leftBehind: (position: Double, at: Date)?
+    @State private var hold = NotchPlaybackHold()
 
     var body: some View {
         if playback.duration > 0 {
@@ -643,7 +644,8 @@ struct NotchMusicTimeline: View {
             // the times still read in whole seconds. Sixty frames a second is
             // already well under a point of travel.
             TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !playback.isPlaying)) { context in
-                let position = scrubPosition ?? playback.position(at: context.date)
+                let position = scrubPosition
+                    ?? hold.position(playback.position(at: context.date), playing: playback.isPlaying)
                 Group {
                     if timesBeside {
                         HStack(spacing: 8) {
@@ -714,6 +716,10 @@ struct NotchMusicTimeline: View {
                     } else if let scrubPosition, let scrubTrack {
                         let now = Date()
                         leftBehind = (playback.position(at: now), now)
+                        // A scrub is a real move, back as well as forward.
+                        // Only here: Spotify names its song anew with each
+                        // reading, so the clears that follow are not scrubs.
+                        hold.reset()
                         service.seek(to: scrubPosition, in: scrubTrack, context: scrubContext)
                         pendingSeek = UUID()
                     }

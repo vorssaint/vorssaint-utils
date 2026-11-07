@@ -25,6 +25,24 @@ struct NotchArtworkTint: Equatable {
     }
 }
 
+/// A player can report a playing song a moment behind where the bar already
+/// showed it. Spotify does after each seek: it says it plays from the new
+/// place at once, then a second later from the same place again. The bar holds
+/// still for such a small step back until the song catches up, rather than
+/// jumping back. A larger step is a real move and shows at once.
+final class NotchPlaybackHold {
+    static let limit: TimeInterval = 2
+    private var shown: Double?
+
+    func position(_ reported: Double, playing: Bool) -> Double {
+        if playing, let shown, reported < shown, shown - reported <= Self.limit { return shown }
+        shown = reported
+        return reported
+    }
+
+    func reset() { shown = nil }
+}
+
 struct NotchPlayback: Equatable {
     /// How long a song stays shown after a reading finds nothing playing,
     /// which a player moving on to its next song can report for a moment.
