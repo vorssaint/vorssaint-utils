@@ -340,7 +340,7 @@ enum CommandBarCatalog {
             guard role.isAvailable(using: { $0.isAvailable }),
                   role.requiredEnableKeys.allSatisfy({ UserDefaults.standard.bool(forKey: $0) })
             else { return nil }
-            return role.savedShortcut
+            return role.assignedShortcut()
         }
         func accessibilityTrouble() -> CommandBarEntry.Trouble? {
             Permissions.shared.accessibility ? nil : .needsPermission
