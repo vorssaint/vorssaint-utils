@@ -8,6 +8,7 @@ struct LayoutFixSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = LayoutFixService.shared
+    @ObservedObject private var secureInput = SecureInputMonitor.shared
     @AppStorage(DefaultsKey.layoutFixEnabled) private var enabled = false
     @AppStorage(DefaultsKey.layoutFixTrigger) private var triggerRaw = LayoutFixTrigger.rightOption.rawValue
     @State private var excluded: [String] = UserDefaults.standard.stringArray(
@@ -46,6 +47,12 @@ struct LayoutFixSettings: View {
                 }
             }
 
+            // A browser can keep Secure Input on after its password field is
+            // gone, and every fix waits for it without a word.
+            if enabled, secureInput.holder != .off {
+                Section { SecureInputRow() }
+            }
+
             Section(text.triggerSection) {
                 Picker(text.triggerSection, selection: triggerBinding) {
                     ForEach(LayoutFixTrigger.allCases) { trigger in
@@ -81,6 +88,7 @@ struct LayoutFixSettings: View {
             }
         }
         .formStyle(.grouped)
+        .observesSecureInput(isActive: enabled)
     }
 
     private var triggerBinding: Binding<LayoutFixTrigger> {
