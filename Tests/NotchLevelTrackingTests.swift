@@ -175,9 +175,21 @@ enum NotchLevelTrackingTests {
                          "\(name): the control dispatches its updated tracking value")
             suite.expect(state.edits == [true] && state.commits.isEmpty && !state.wroteOutsideEdit,
                          "\(name): continuous updates do not finish or restart the edit")
+            let tracked = slider.doubleValue
+            slider.sendAction(slider.action, to: slider.target)
+            slider.sendAction(slider.action, to: slider.target)
+            suite.expect(slider.doubleValue == tracked && state.value == tracked,
+                         "\(name): an action with no new pointer position leaves the level where it is (\(tracked) became \(slider.doubleValue))")
         }
         func expectEdit(_ fraction: Double, _ action: String) {
-            let expected = min(1, max(0, fraction)) * maximum
+            var expected = min(1, max(0, fraction)) * maximum
+            if maximum == 2 {
+                // The fader with a marker pauses there and makes the points up slowly.
+                let track = cell.barRect(flipped: slider.isFlipped)
+                expected = NotchSliderPause.value(pointer: expected, stop: 1,
+                                                  band: NotchSliderPause.band(trackLength: Double(track.height), span: maximum),
+                                                  range: 0...maximum)
+            }
             suite.expectClose(slider.doubleValue, expected, "\(name): \(action) follows the pointer", tol: tolerance)
             suite.expectClose(state.value, expected, "\(name): \(action) updates the binding", tol: tolerance)
             suite.expect(state.edits == [true, false] && state.commits.count == 1 && !state.wroteOutsideEdit,

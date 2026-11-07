@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Foundation
+
 /// Keyboard and accessibility actions have no mouse-tracking callbacks. They
 /// form a complete edit around the value write; dragging keeps its one shared
 /// edit open until the native cell finishes tracking.
@@ -46,6 +48,61 @@ struct NotchSliderEasing {
     }
 }
 
+/// A drag holds a level at the bar's marker for a few points of pointer travel,
+/// which makes it easy to hit, then goes on from there at the pointer's pace.
+/// The points the hold took are made up across the rest of the bar, too slowly
+/// to see, so the bar never jumps and still reaches both of its ends.
+enum NotchSliderPause {
+    static let points = 3.0
+
+    /// The level range a hold covers on a track of this length.
+    static func band(trackLength: Double, span: Double) -> Double {
+        trackLength > 0 ? points / trackLength * span : 0
+    }
+
+    static func value(pointer: Double, stop: Double, band: Double, range: ClosedRange<Double>) -> Double {
+        let distance = abs(pointer - stop)
+        let end = pointer < stop ? stop - range.lowerBound : range.upperBound - stop
+        guard band > 0, end > band else { return pointer }
+        guard distance > band else { return stop }
+        let moved = (distance - band) * end / (end - band)
+        return pointer < stop ? stop - moved : stop + moved
+    }
+
+    /// Whether a move reached or crossed the marker, for a click.
+    static func arrived(from previous: Double?, to level: Double, stop: Double) -> Bool {
+        guard previous != stop else { return false }
+        guard let previous else { return level == stop }
+        return level == stop || (previous < stop) != (level < stop)
+    }
+}
+
+/// A scrolled bar is drawn just behind its level, closing the gap on each
+/// display frame, so uneven scroll events do not show as jitter.
+struct NotchSliderGlide {
+    /// Seconds over which the drawn bar catches up.
+    static let smoothing = 0.045
+    /// How long after the last move the level stays with the gesture. A level
+    /// that settles late, reported from elsewhere, would pull the bar back.
+    static let hold = 0.35
+    /// The level reaches its owner at this pace during a scroll. Each write
+    /// redraws the whole mixer, which would otherwise take frames from the bar.
+    static let writeInterval = 1.0 / 30
+
+    var drawn: Double
+
+    /// Moves toward `target` and reports whether it has arrived.
+    mutating func advance(toward target: Double, interval: Double, span: Double, reduceMotion: Bool) -> Bool {
+        let gap = target - drawn
+        guard !reduceMotion, abs(gap) > span * 0.0005, interval.isFinite else {
+            drawn = target
+            return true
+        }
+        drawn += gap * (1 - exp(-max(0, interval) / Self.smoothing))
+        return false
+    }
+}
+
 /// A scroll over a level bar moves it, so it can be set without dragging.
 /// Up and right raise it whichever way content scrolls. A wheel notch is one
 /// step, like a volume key; a trackpad moves it with the fingers. A trackpad
@@ -56,6 +113,13 @@ struct NotchSliderEasing {
 /// one picks its axis once, after a little travel: a swipe that is not clearly
 /// vertical belongs to the strip around the fader for the rest of the gesture,
 /// so scrolling past a level can never change it.
+/// A slow swipe sets a level finely and a fast one crosses more of the bar. A
+/// bar's `stop`, the top of its normal range, sets the rate and catches a swipe
+/// that crosses it: the level rests there for a little travel, then goes on, so
+/// either side is still easy to reach. Only a really fast swipe stays caught
+/// until the fingers lift. Rising beyond the stop slows the longer one swipe
+/// goes on, so its reach grows with the logarithm of its travel and a new swipe
+/// starts afresh: one gesture cannot run away, and none feels heavy.
 struct SliderScroll {
     enum Phase { case none, began, changed, ended, momentum }
     enum Outcome: Equatable { case pass, hold, move(Double) }
@@ -73,12 +137,44 @@ struct SliderScroll {
     /// Reversals under the threshold can last indefinitely. Give those to the
     /// strip before the control has to keep more native movement events.
     static let maxPendingSamples = 64
+    /// Scroll points a second at and below which a swipe has `fineGain`, and
+    /// at and above which it has `fastGain`. Gain runs evenly on a log scale
+    /// between them, as a change in speed is felt by its ratio.
+    static let slowSpeed = 30.0
+    static let fastSpeed = 1500.0
+    static let fineGain = 0.3
+    static let fastGain = 2.0
+    /// Finger travel beyond the stop in one swipe that halves its rate there.
+    static let boostFade = 300.0
+    /// Finger travel a level rests at the stop before it goes on.
+    static let snapTravel = 8.0
+    /// Finger travel over which the rate builds up again after the rest, from
+    /// `leavingGain`, so the level goes on from the stop rather than leaps off it.
+    static let leavingTravel = 30.0
+    static let leavingGain = 0.25
+    /// Scroll points a second from which a swipe rising to the stop stays there.
+    static let flickSpeed = 1000.0
+    /// Seconds over which the measured speed follows the fingers, so one
+    /// uneven sample does not make the bar lurch.
+    static let speedSmoothing = 0.05
+    /// Events can share a timestamp; this keeps their speed finite.
+    static let shortestInterval = 1.0 / 240
 
     var verticalOnly = false
+    var stop: Double?
     /// Where the gesture on the bar is heading, ahead of a level that settles late.
     private var level: Double?
     /// The strip or the slider keeps the same events between lift and momentum.
     private var tail: (outcome: Outcome, timestamp: Double)?
+    /// Travel at the stop so far, while the level rests there.
+    private var resting: Double?
+    private var flickCaught = false
+    private var boostTravel = 0.0
+    /// Travel since the level left its rest, while the rate builds up again.
+    private var leaving: Double?
+    private var didSnap = false
+    private var speed = 0.0
+    private var lastEvent: Double?
     /// Travel so far of a gesture on a fader that has not picked its axis.
     private var unsettled: (dx: Double, dy: Double, samples: Int)?
     var isChoosingAxis: Bool { unsettled != nil }
@@ -95,6 +191,26 @@ struct SliderScroll {
         abs(dy) < abs(dx) * verticalBias
     }
 
+    static func gain(speed: Double) -> Double {
+        guard speed.isFinite, speed > slowSpeed else { return fineGain }
+        guard speed < fastSpeed else { return fastGain }
+        let progress = log(speed / slowSpeed) / log(fastSpeed / slowSpeed)
+        return fineGain * pow(fastGain / fineGain, progress)
+    }
+
+    /// Whether the level reached the stop since this was last asked, for a click.
+    mutating func takeSnap() -> Bool {
+        defer { didSnap = false }
+        return didSnap
+    }
+
+    private mutating func trackSpeed(travel: Double, timestamp: Double) {
+        defer { lastEvent = timestamp }
+        guard let lastEvent, travel.isFinite else { return }
+        let interval = max(Self.shortestInterval, timestamp - lastEvent)
+        speed += (travel / interval - speed) * (1 - exp(-interval / Self.speedSmoothing))
+    }
+
     mutating func handle(_ phase: Phase, dx: Double, dy: Double, precise: Bool, inverted: Bool,
                          timestamp: Double, current: Double, range: ClosedRange<Double>) -> Outcome {
         switch phase {
@@ -102,6 +218,12 @@ struct SliderScroll {
             level = current
             tail = nil
             unsettled = verticalOnly ? (0, 0, 0) : nil
+            resting = current == stop ? 0 : nil
+            flickCaught = false
+            boostTravel = 0
+            leaving = nil
+            speed = 0
+            lastEvent = nil
         case .changed:
             guard level != nil else {
                 tail = verticalOnly ? (.pass, timestamp) : nil
@@ -126,6 +248,9 @@ struct SliderScroll {
             }
             tail = nil
         }
+        if level != nil {
+            trackSpeed(travel: verticalOnly ? abs(dy) : max(abs(dx), abs(dy)), timestamp: timestamp)
+        }
         var rise = dy
         if verticalOnly {
             if level != nil, var travel = unsettled {
@@ -148,11 +273,45 @@ struct SliderScroll {
                 return .pass
             }
         }
-        let span = range.upperBound - range.lowerBound
-        let step = Self.step(dx: verticalOnly ? 0 : dx, dy: rise, precise: precise, inverted: inverted)
-        guard span.isFinite, span > 0, step != 0 else { return .hold }
+        let span = min(range.upperBound, stop ?? range.upperBound) - range.lowerBound
         let base = (level ?? current).isFinite ? (level ?? current) : range.lowerBound
-        let next = min(range.upperBound, max(range.lowerBound, base + step * span))
+        var step = Self.step(dx: verticalOnly ? 0 : dx, dy: rise, precise: precise, inverted: inverted)
+        if precise, level != nil {
+            let gain = Self.gain(speed: speed)
+            if let travel = leaving {
+                step *= min(1, Self.leavingGain + (1 - Self.leavingGain) * travel / Self.leavingTravel)
+                let further = travel + (verticalOnly ? abs(rise) : max(abs(dx), abs(rise)))
+                leaving = further < Self.leavingTravel ? further : nil
+            }
+            if let stop, base >= stop, step > 0, range.upperBound > stop {
+                // A fast swipe gets no extra reach here.
+                step *= min(1, gain) / (1 + boostTravel / Self.boostFade)
+                if resting == nil { boostTravel += abs(rise) }
+            } else {
+                step *= gain
+            }
+        }
+        guard span.isFinite, span > 0, step != 0 else { return .hold }
+        if level != nil, let travel = resting {
+            if flickCaught, step > 0 { return .hold }
+            let amount = verticalOnly ? abs(rise) : max(abs(dx), abs(rise))
+            let moved = travel + (step > 0 ? 1 : -1) * amount
+            guard abs(moved) >= Self.snapTravel else { resting = moved; return .hold }
+            resting = nil
+            leaving = 0
+            // Only the travel past the rest moves the level, at the slowest rate.
+            step *= min(1, (abs(moved) - Self.snapTravel) / amount) * Self.leavingGain
+        }
+        var next = min(range.upperBound, max(range.lowerBound, base + step * span))
+        if let stop, base != stop, (base < stop) == (next >= stop) || next == stop {
+            next = stop
+            didSnap = true
+            if level != nil {
+                resting = 0
+                leaving = nil
+                flickCaught = step > 0 && speed >= Self.flickSpeed
+            }
+        }
         if level != nil { level = next }
         return .move(next)
     }

@@ -28,6 +28,8 @@ struct NotchLevelSlider: NSViewRepresentable {
     /// scrolled, since each step would seek.
     var scrollable = true
     var onEditingChanged: ((Bool) -> Void)?
+    /// A scroll came to rest on `marker`.
+    var onSnap: (() -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -45,6 +47,8 @@ struct NotchLevelSlider: NSViewRepresentable {
         cell.trackingChanged = { [weak coordinator = context.coordinator] editing in
             coordinator?.trackingChanged(editing)
         }
+        slider.snapped = { [weak coordinator = context.coordinator] in coordinator?.parent.onSnap?() }
+        slider.settled = { [weak coordinator = context.coordinator] in coordinator?.syncLevel() }
         slider.cell = cell
         slider.isVertical = vertical
         slider.minValue = 0
@@ -71,11 +75,13 @@ struct NotchLevelSlider: NSViewRepresentable {
         if slider.maxValue != upper { slider.maxValue = upper }
         if slider.isVertical != vertical { slider.isVertical = vertical }
         (slider as? NotchLevelControl)?.scrollable = scrollable
+        (slider as? NotchLevelControl)?.reducesMotion = context.environment.accessibilityReduceMotion
+        (slider.cell as? NotchLevelCell)?.leavesHoverRoom = scrollable
         (slider.cell as? NotchLevelCell)?.fill = NSColor(tint)
         (slider.cell as? NotchLevelCell)?.marker = marker
         (slider.cell as? NotchLevelCell)?.trackThickness = trackThickness
         let bounded = value.isFinite ? min(upper, max(lower, value)) : lower
-        if slider.doubleValue != bounded {
+        if slider.doubleValue != bounded, (slider as? NotchLevelControl)?.isGliding != true {
             let cell = slider.cell as? NotchLevelCell
             let drawn = cell?.drawnValue ?? slider.doubleValue
             slider.doubleValue = bounded
@@ -92,6 +98,7 @@ struct NotchLevelSlider: NSViewRepresentable {
         }
         slider.isEnabled = context.environment.isEnabled
         if !scrollable || !slider.isEnabled { (slider as? NotchLevelControl)?.cancelScroll() }
+        (slider as? NotchLevelControl)?.refreshHover()
         let span = upper - lower
         slider.setAccessibilityValueDescription(
             valueLabel ?? "\(Int((span > 0 ? (bounded - lower) / span * 100 : 0).rounded()))%")
@@ -104,10 +111,21 @@ struct NotchLevelSlider: NSViewRepresentable {
         private var editing = NotchSliderEditing()
         private var easing: NotchSliderEasing?
         private var timer: Timer?
+        private var lastTracked: Double?
         init(_ parent: NotchLevelSlider) { self.parent = parent }
         func trackingChanged(_ value: Bool) {
-            if value { stopEasing() }
+            if value {
+                stopEasing()
+                lastTracked = nil
+            }
             editing.trackingChanged(value, onEditingChanged: parent.onEditingChanged)
+        }
+
+        /// Takes up a level that changed while a scroll held it off.
+        func syncLevel() {
+            guard let slider, parent.value.isFinite else { return }
+            let bounded = min(slider.maxValue, max(slider.minValue, parent.value))
+            if slider.doubleValue != bounded { slider.doubleValue = bounded }
         }
 
         func ease(from: Double, to: Double) {
@@ -135,8 +153,25 @@ struct NotchLevelSlider: NSViewRepresentable {
             cell.drawnValue = step.value
             slider.needsDisplay = true
         }
+        /// While dragged, the level pauses at the marker with a click.
+        private func pauseAtMarker(_ slider: NSSlider) {
+            guard let cell = slider.cell as? NotchLevelCell, cell.isTracking, let marker = parent.marker,
+                  // An action can come with no new pointer position. The level
+                  // it finds is already paused, and must not be paused again.
+                  slider.doubleValue != lastTracked else { return }
+            let track = cell.barRect(flipped: slider.isFlipped)
+            let band = NotchSliderPause.band(trackLength: Double(slider.isVertical ? track.height : track.width),
+                                             span: slider.maxValue - slider.minValue)
+            let level = NotchSliderPause.value(pointer: slider.doubleValue, stop: marker, band: band,
+                                                  range: slider.minValue...slider.maxValue)
+            if level != slider.doubleValue { slider.doubleValue = level }
+            if NotchSliderPause.arrived(from: lastTracked, to: level, stop: marker) { parent.onSnap?() }
+            lastTracked = level
+        }
+
         @objc func changed(_ sender: NSSlider) {
             stopEasing()
+            pauseAtMarker(sender)
             editing.valueChanged({ parent.value = sender.doubleValue }, onEditingChanged: parent.onEditingChanged)
         }
     }
@@ -146,29 +181,144 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
     var scrollable = true
     var acceptsSliderScroll: Bool { scrollable && isEnabled }
     var trackingChanged: ((Bool) -> Void)?
+    var snapped: (() -> Void)?
+    var settled: (() -> Void)?
+    var reducesMotion = false
+    /// A level from outside waits while the drawn bar follows a scroll.
+    var isGliding: Bool { link != nil && CACurrentMediaTime() - lastMove < NotchSliderGlide.hold }
     private var scroll = SliderScroll()
-    private var scrolling = false
+    private var scrolling = false { didSet { refreshHover() } }
+    private var hovering = false { didSet { refreshHover() } }
+    private var hoverArea: NSTrackingArea?
+    private var hoverTarget: CGFloat = 0
+    private var hoverLink: CADisplayLink?
+    private var hoverFade = NotchSliderGlide(drawn: 0)
+    private var lastHoverFrame: CFTimeInterval?
+    private var link: CADisplayLink?
+    private var glide = NotchSliderGlide(drawn: 0)
+    private var lastFrame: CFTimeInterval?
+    private var lastMove: CFTimeInterval = 0
+    private var lastWrite: CFTimeInterval = 0
+    private var writePending = false
     private var pendingScrollEvents: [NSEvent] = []
 
     func cancelScroll() {
         finishScrollEditing()
         scroll = SliderScroll()
         pendingScrollEvents.removeAll()
+        stopGlide()
+    }
+
+    private func flushWrite() {
+        guard writePending else { return }
+        writePending = false
+        lastWrite = CACurrentMediaTime()
+        sendAction(action, to: target)
     }
 
     private func finishScrollEditing() {
+        flushWrite()
         guard scrolling else { return }
         scrolling = false
         trackingChanged?(false)
     }
 
+    /// The bar shows it will take a scroll while the pointer is on it, and
+    /// keeps showing it for a swipe that drifts off. The ring fades in and out.
+    func refreshHover() {
+        let target: CGFloat = acceptsSliderScroll && (hovering || scrolling) ? 1 : 0
+        guard let cell = cell as? NotchLevelCell, hoverTarget != target else { return }
+        hoverTarget = target
+        guard window != nil, !reducesMotion else {
+            stopHoverFade()
+            cell.hoverAmount = target
+            return
+        }
+        guard hoverLink == nil else { return }
+        hoverFade = NotchSliderGlide(drawn: Double(cell.hoverAmount))
+        lastHoverFrame = nil
+        let link = displayLink(target: self, selector: #selector(hoverFrame(_:)))
+        link.add(to: .main, forMode: .common)
+        hoverLink = link
+    }
+
+    private func stopHoverFade() {
+        hoverLink?.invalidate()
+        hoverLink = nil
+    }
+
+    @objc private func hoverFrame(_ link: CADisplayLink) {
+        let interval = lastHoverFrame.map { link.targetTimestamp - $0 } ?? link.targetTimestamp - link.timestamp
+        lastHoverFrame = link.targetTimestamp
+        let arrived = hoverFade.advance(toward: Double(hoverTarget), interval: interval, span: 1,
+                                        reduceMotion: reducesMotion)
+        (cell as? NotchLevelCell)?.hoverAmount = CGFloat(hoverFade.drawn)
+        if arrived { stopHoverFade() }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if hoverArea == nil {
+            let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                      owner: self)
+            addTrackingArea(area)
+            hoverArea = area
+        }
+        if let window { hovering = bounds.contains(convert(window.mouseLocationOutsideOfEventStream, from: nil)) }
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovering = true }
+    override func mouseExited(with event: NSEvent) { hovering = false }
+
+    private func startGlide(from drawn: Double) {
+        lastMove = CACurrentMediaTime()
+        guard link == nil, window != nil else { return }
+        glide = NotchSliderGlide(drawn: drawn)
+        (cell as? NotchLevelCell)?.scrollDrawn = drawn
+        lastFrame = nil
+        let link = displayLink(target: self, selector: #selector(glideFrame(_:)))
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
+        link.add(to: .main, forMode: .common)
+        self.link = link
+    }
+
+    private func stopGlide() {
+        link?.invalidate()
+        link = nil
+        guard let cell = cell as? NotchLevelCell, cell.scrollDrawn != nil else { return }
+        cell.scrollDrawn = nil
+        needsDisplay = true
+    }
+
+    @objc private func glideFrame(_ link: CADisplayLink) {
+        let now = CACurrentMediaTime()
+        // Stepped by when the frame shows, not when this runs, which varies.
+        let frame = link.targetTimestamp
+        let interval = lastFrame.map { frame - $0 } ?? link.targetTimestamp - link.timestamp
+        let arrived = glide.advance(toward: doubleValue, interval: interval, span: maxValue - minValue,
+                                    reduceMotion: reducesMotion)
+        lastFrame = frame
+        (cell as? NotchLevelCell)?.scrollDrawn = glide.drawn
+        needsDisplay = true
+        if now - lastWrite >= NotchSliderGlide.writeInterval { flushWrite() }
+        guard arrived, now - lastMove >= NotchSliderGlide.hold else { return }
+        flushWrite()
+        stopGlide()
+        settled?()
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window == nil { cancelScroll() }
+        if window == nil {
+            cancelScroll()
+            hovering = false
+            stopHoverFade()
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
         cancelScroll()
+        writePending = false
         super.mouseDown(with: event)
     }
 
@@ -193,6 +343,7 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
                 finishScrollEditing()
             }
         }
+        scroll.stop = (cell as? NotchLevelCell)?.marker
         let outcome = scroll.handle(event, current: doubleValue, range: minValue...maxValue)
         if scroll.isChoosingAxis {
             if event.phase.contains(.began) || event.scrollingDeltaX != 0 || event.scrollingDeltaY != 0 {
@@ -209,8 +360,12 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
         case .hold: break
         case .move(let value):
             guard value != doubleValue else { return }
+            startGlide(from: doubleValue)
             doubleValue = value
-            sendAction(action, to: target)
+            writePending = true
+            let snap = scroll.takeSnap()
+            if link == nil || snap || CACurrentMediaTime() - lastWrite >= NotchSliderGlide.writeInterval { flushWrite() }
+            if snap { snapped?() }
         }
     }
 }
@@ -222,21 +377,34 @@ private final class NotchLevelCell: NSSliderCell {
     var trackingChanged: ((Bool) -> Void)?
     /// Where the bar is drawn while it eases to the slider's value.
     var drawnValue: Double?
+    /// Where the bar is drawn while it follows a scroll.
+    var scrollDrawn: Double?
+    /// A bar that takes a scroll keeps room around it for its hover ring, so
+    /// the bar does not change size when the ring appears.
+    var leavesHoverRoom = false
+    private static let hoverGap: CGFloat = 2
+    private static let hoverLine: CGFloat = 1.5
+    private static var hoverRoom: CGFloat { hoverGap + hoverLine + 0.5 }
+    /// How far the hover ring has faded in, from 0 to 1.
+    var hoverAmount: CGFloat = 0 {
+        didSet { if hoverAmount != oldValue { controlView?.needsDisplay = true } }
+    }
     private(set) var isTracking = false
     private var isFader: Bool { isVertical }
 
     override func barRect(flipped: Bool) -> NSRect {
         let bounds = controlView?.bounds ?? .zero
+        let room = leavesHoverRoom ? Self.hoverRoom : 1
         if let trackThickness {
             return isFader
-                ? bounds.insetBy(dx: max(1, (bounds.width - trackThickness) / 2), dy: 1)
-                : bounds.insetBy(dx: 1, dy: max(1, (bounds.height - trackThickness) / 2))
+                ? bounds.insetBy(dx: max(room, (bounds.width - trackThickness) / 2), dy: room)
+                : bounds.insetBy(dx: room, dy: max(room, (bounds.height - trackThickness) / 2))
         }
         // Proportional so the same control reads as a chunky level bar and as
         // a slim playback position without a second cell.
         return isFader
-            ? bounds.insetBy(dx: max(1, bounds.width * 0.11), dy: 1)
-            : bounds.insetBy(dx: 1, dy: max(1, bounds.height * 0.11))
+            ? bounds.insetBy(dx: max(room, bounds.width * 0.11), dy: room)
+            : bounds.insetBy(dx: room, dy: max(room, bounds.height * 0.11))
     }
 
     override func startTracking(at startPoint: NSPoint, in controlView: NSView) -> Bool {
@@ -262,11 +430,11 @@ private final class NotchLevelCell: NSSliderCell {
         let outline = NSBezierPath(roundedRect: track, xRadius: radius, yRadius: radius)
         NSGraphicsContext.saveGraphicsState()
         outline.addClip()
-        NSColor.white.withAlphaComponent(0.14).setFill()
+        NSColor.white.withAlphaComponent(0.14 + 0.08 * hoverAmount).setFill()
         track.fill()
         let span = maxValue - minValue
-        let fraction = span > 0 ? min(1, max(0, ((drawnValue ?? doubleValue) - minValue) / span)) : 0
-        fill.withAlphaComponent(isEnabled ? 0.92 : 0.3).setFill()
+        let fraction = span > 0 ? min(1, max(0, ((scrollDrawn ?? drawnValue ?? doubleValue) - minValue) / span)) : 0
+        fill.withAlphaComponent(isEnabled ? 0.92 + 0.08 * hoverAmount : 0.3).setFill()
         if isFader {
             let height = track.height * fraction
             NSRect(x: track.minX, y: flipped ? track.maxY - height : track.minY, width: track.width, height: height).fill()
@@ -284,6 +452,14 @@ private final class NotchLevelCell: NSSliderCell {
             }
         }
         NSGraphicsContext.restoreGraphicsState()
+        if hoverAmount > 0 {
+            let inset = Self.hoverGap + Self.hoverLine / 2
+            let ring = NSBezierPath(roundedRect: track.insetBy(dx: -inset, dy: -inset),
+                                    xRadius: radius + inset, yRadius: radius + inset)
+            NSColor.white.withAlphaComponent(0.55 * hoverAmount).setStroke()
+            ring.lineWidth = Self.hoverLine
+            ring.stroke()
+        }
     }
 
     override func drawKnob(_ knobRect: NSRect) {}

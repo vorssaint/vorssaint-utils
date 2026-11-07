@@ -527,6 +527,15 @@ enum MixerRoutingSupport {
         return directTerms.contains { normalized.contains($0) }
     }
 
+    /// Taking a tap down or putting one up interrupts the app's sound, so an
+    /// app that plays keeps the tap it has, even at a level that needs none.
+    /// A swipe resting on 100% does not cut the music; the tap goes when the
+    /// app next stops, where nothing can be heard.
+    static func keepsEngine(hasEngine: Bool, isPlaying: Bool, hasAudioObjects: Bool,
+                            targetOutputDeviceUID: String?) -> Bool {
+        hasEngine && isPlaying && hasAudioObjects && targetOutputDeviceUID != nil
+    }
+
     static func requiresEngine(hasAudioObjects: Bool = true,
                                volume: Double,
                                selectedOutputDeviceUID: String?,
