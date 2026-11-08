@@ -337,6 +337,7 @@ enum SettingsSearchSupport {
                            screenshot.fullScreenShortcutTitle, screenshot.previewPositionLabel,
                            screenshot.previewFocusToggle, screenshot.confirmationPreviewToggle,
                            screenshot.confirmationPreviewDurationLabel,
+                           screenshot.copyImageOnlyToggle,
                            screenshot.pinButton, screenshot.toolPixelate, screenshot.toolBlur,
                            screenshot.toolArrow, screenshot.addToShelfToggle]),
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,

@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 enum WallpaperContract {
     static func run(_ suite: TestSuite) {
+        WallpaperPickerContract.run(suite)
         let gallery = WallpaperGalleryLifecycle()
         let firstViewer = UUID()
         let secondViewer = UUID()
@@ -270,5 +273,144 @@ enum WallpaperContract {
         ]
         suite.expect(!WallpaperSupport.patchStoreRoot(&badDisplays, imageURL: imageURL),
                      "store with a non-dict Displays value is rejected")
+    }
+}
+
+/// Add image and Add folder, compiled from the service against these doubles.
+/// The island never activates the app, and an inactive app's picker opens
+/// behind the active app's window, so every picker has to come forward.
+enum WallpaperPickerContract {
+    static var steps: [String] = []
+
+    final class Window {
+        struct Level { let rawValue: Int }
+        var level = Level(rawValue: 26)
+    }
+    final class Application {
+        func activate(ignoringOtherApps: Bool) { WallpaperPickerContract.steps.append("activate") }
+    }
+    final class Panel {
+        static var latest: Panel?
+        var canChooseFiles = true
+        var canChooseDirectories = false
+        var allowsMultipleSelection = false
+        var allowedContentTypes: [UTType] = []
+        var message = ""
+        var level = Window.Level(rawValue: 0)
+        var urls: [URL] = []
+        var completion: ((NSApplication.ModalResponse) -> Void)?
+        init() { Self.latest = self }
+        func begin(completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {
+            WallpaperPickerContract.steps.append("begin")
+            completion = completionHandler
+        }
+        func makeKeyAndOrderFront(_ sender: Any?) { WallpaperPickerContract.steps.append("front") }
+        func finish(_ response: NSApplication.ModalResponse) {
+            let callback = completion
+            completion = nil
+            callback?(response)
+        }
+    }
+    final class Island {
+        static let shared = Island()
+        var presentationWindow: Window?
+    }
+    final class Interaction {
+        static let shared = Interaction()
+        var isPresentingPopoverModal = false
+    }
+    class Fixture {
+        typealias NSOpenPanel = Panel
+        typealias NSWindow = Window
+        typealias NotchService = Island
+        typealias PanelInteractionState = Interaction
+        var NSApp = Application()
+        var isAvailable = true
+        var openPanel: Panel?
+        var remembered: [[URL]] = []
+        func remember(urls: [URL]) { remembered.append(urls) }
+    }
+
+    static func run(_ suite: TestSuite) {
+        defer {
+            steps = []
+            Panel.latest = nil
+            Island.shared.presentationWindow = nil
+            Interaction.shared.isPresentingPopoverModal = false
+        }
+        let picked = [URL(fileURLWithPath: "/tmp/one.png"), URL(fileURLWithPath: "/tmp/two.heic")]
+        for inNotch in [false, true] {
+            let host = inNotch ? "island" : "menu panel"
+            let island = Window()
+            Island.shared.presentationWindow = island
+            let service = Service()
+            steps = []
+            Panel.latest = nil
+            service.addImages(inNotch: inNotch)
+            guard let images = Panel.latest else {
+                suite.expect(false, "Add image opens a picker from the \(host)")
+                continue
+            }
+            suite.expect(steps == ["begin", "activate", "front"],
+                         "a picker from the \(host) activates the app and comes to the front")
+            suite.expect(inNotch ? images.level.rawValue > island.level.rawValue : images.level.rawValue == 0,
+                         inNotch ? "the island's picker opens above the island" : "the menu panel's picker keeps its level")
+            suite.expect(images.canChooseFiles && !images.canChooseDirectories && images.allowsMultipleSelection
+                            && Interaction.shared.isPresentingPopoverModal == !inNotch,
+                         "Add image picks several images and holds only the menu panel open")
+            steps = []
+            service.addFolder(inNotch: inNotch)
+            suite.expect(Panel.latest === images && steps == ["activate", "front"],
+                         "a click while the \(host)'s picker is up brings it forward instead of doing nothing")
+            images.urls = picked
+            images.finish(.OK)
+            suite.expect(service.remembered == [picked] && service.openPanel == nil
+                            && !Interaction.shared.isPresentingPopoverModal,
+                         "choosing images keeps them and frees the buttons")
+            steps = []
+            service.addFolder(inNotch: inNotch)
+            guard let folders = Panel.latest, folders !== images else {
+                suite.expect(false, "Add folder opens its own picker once the first one closed")
+                continue
+            }
+            suite.expect(!folders.canChooseFiles && folders.canChooseDirectories && !folders.allowsMultipleSelection
+                            && steps == ["begin", "activate", "front"],
+                         "Add folder opens a folder picker in front")
+            folders.finish(.cancel)
+            suite.expect(service.remembered == [picked] && service.openPanel == nil
+                            && !Interaction.shared.isPresentingPopoverModal,
+                         "cancelling keeps nothing and frees the buttons")
+        }
+        let lone = Service()
+        Island.shared.presentationWindow = nil
+        steps = []
+        Panel.latest = nil
+        lone.addImages(inNotch: true)
+        suite.expect(Panel.latest?.level.rawValue == 0 && steps == ["begin", "activate", "front"],
+                     "without an island window the picker still comes forward at its own level")
+        Panel.latest?.finish(.cancel)
+
+        let crossing = Service()
+        let crossingIsland = Window()
+        Island.shared.presentationWindow = crossingIsland
+        Panel.latest = nil
+        crossing.addImages(inNotch: false)
+        let fromMenuPanel = Panel.latest
+        steps = []
+        crossing.addFolder(inNotch: true)
+        suite.expect(fromMenuPanel != nil && Panel.latest === fromMenuPanel && steps == ["activate", "front"]
+                        && (fromMenuPanel?.level.rawValue ?? 0) > crossingIsland.level.rawValue,
+                     "a click from the island raises the menu panel's picker above the island")
+        fromMenuPanel?.finish(.cancel)
+        suite.expect(crossing.openPanel == nil && !Interaction.shared.isPresentingPopoverModal,
+                     "closing that picker frees the buttons and the menu panel")
+
+        let unavailable = Service()
+        unavailable.isAvailable = false
+        steps = []
+        Panel.latest = nil
+        unavailable.addImages(inNotch: false)
+        unavailable.addFolder(inNotch: true)
+        suite.expect(Panel.latest == nil && steps.isEmpty, "the feature turned off opens no picker")
     }
 }

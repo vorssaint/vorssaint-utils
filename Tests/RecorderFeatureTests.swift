@@ -14,6 +14,7 @@ import VMStatisticsCompat
 enum RecorderFeatureTests {
     static func run(_ suite: TestSuite) {
         RecorderSystemAudioTapLifecycleTests.run(suite)
+        RecorderSystemAudioTrustTests.run(suite)
         func pageVisible(_ page: SettingsPage, available: Set<AppFeature>) -> Bool {
             FeatureVisibilitySupport.isPageVisible(page) { available.contains($0) }
         }
@@ -204,8 +205,41 @@ enum RecorderFeatureTests {
         suite.expect(!systemAudioTapSource.contains("PropertyListenerBlock"),
                "the system audio tap never listens with a block it cannot remove")
         suite.expect(systemAudioTapSource.components(separatedBy: "Self.removeListener(deviceListenerClient, from:").count - 1 == 2
+                && systemAudioTapSource.components(separatedBy: "Self.removeListener(processListenerClient, from:").count - 1 == 2
                 && systemAudioTapSource.components(separatedBy: "Self.removeListener(rateListenerClient, from:").count - 1 == 2,
-               "the tap gives back its output listener on stop and deinit, and its rate listener with each aggregate and on deinit")
+               "the tap gives back its output and process listeners on stop and deinit, and its rate listener with each aggregate and on deinit")
+        suite.expect(RecorderSupport.systemAudioApp(windowOwner: nil, ownProcess: 50) == nil
+                && RecorderSupport.systemAudioApp(windowOwner: 50, ownProcess: 50) == nil
+                && RecorderSupport.systemAudioApp(windowOwner: 0, ownProcess: 50) == nil
+                && RecorderSupport.systemAudioApp(windowOwner: 77, ownProcess: 50) == 77,
+               "a window recording hears the app that owns the window, while displays, areas and this app's windows keep the whole Mac")
+        suite.expect(!RecorderSupport.rebuildsAppTap(tapped: Set<UInt32>([4, 9]), current: [9, 4])
+                && !RecorderSupport.rebuildsAppTap(tapped: Set<UInt32>([4]), current: [])
+                && RecorderSupport.rebuildsAppTap(tapped: Set<UInt32>([4]), current: [4, 9])
+                && RecorderSupport.rebuildsAppTap(tapped: Set<UInt32>([4, 9]), current: [4]),
+               "an app's tap is made again only when its processes really changed")
+        // The session is not compiled into the tests, so its wiring is read
+        // as source text.
+        let recorderSessionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Recorder/ScreenRecorderService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(recorderSessionSource.contains("RecorderSystemAudioTap.make(hearing: Self.windowOwner(of: region))")
+                && recorderSessionSource.contains("WindowServerSupport.ownerProcessID(ofWindowID:)"),
+               "a window recording hears the app that owns the window, found by its window number")
+        suite.expect(systemAudioTapSource.contains("awaitingApp = true")
+                && systemAudioTapSource.contains("continuation.resume(returning: aggregateID != 0 || awaitingApp)")
+                && systemAudioTapSource.contains("if awaitingApp {")
+                && systemAudioTapSource.contains("AppVolumeMixer.audioProcessObjects() where object != own"),
+               "an app's tap waits for the app's first audio process and never holds this app's own")
+        // Built again on every later change, a waiting tap would make a new
+        // tap each time and lose the one before without giving it back.
+        suite.expect(systemAudioTapSource.contains("awaitingApp = false\n            if buildTap(around: current) {"),
+               "a waiting tap is built once, by the first change that brings its app's processes")
+        // A refused rebuild leaves no tap behind, and stop must not give back
+        // an ID the audio system may have handed to another tap since.
+        suite.expect(systemAudioTapSource.contains(
+                "// The HAL may hand this ID to another tap from here on.\n        tapID = 0\n"),
+               "a rebuilt app tap forgets the ID it gave back")
         // The tap's mixdown keeps a quarter of what plays on an eight channel
         // output, and the recorder turns its copy of the samples back up.
         var restored: [Float] = [0.1, -0.2, 0.05, 0.6]
@@ -261,7 +295,7 @@ enum RecorderFeatureTests {
                "the high preset keeps every pixel")
         suite.expect(RecorderSupport.outputSize(source: CGSize(width: 2940, height: 1912), quality: .balanced)
                 == CGSize(width: 2940, height: 1912),
-               "the default preset keeps every pixel too, so text stays as sharp as on screen")
+               "balanced video keeps every pixel")
         let highRate = RecorderSupport.averageBitRate(width: 2940, height: 1912, fps: 60,
                                                       quality: .high)
         let balancedRate = RecorderSupport.averageBitRate(width: 2940, height: 1912, fps: 60,
@@ -269,7 +303,7 @@ enum RecorderFeatureTests {
         let smallRate = RecorderSupport.averageBitRate(width: 1470, height: 956, fps: 60,
                                                        quality: .small)
         suite.expect(highRate > balancedRate && balancedRate > smallRate,
-               "the presets differ by bits, and only the small one by pixels")
+               "the presets use progressively smaller dimensions and video bit rates")
         suite.expect(RecorderSupport.averageBitRate(width: 64, height: 64, fps: 30, quality: .small)
                 >= 800_000,
                "even a tiny area gets a usable stream")
@@ -506,13 +540,11 @@ enum RecorderFeatureTests {
 
         suite.expect(RecorderSupport.gifFrameCount(duration: 10, fps: 12) == 120,
                "a GIF holds one frame per tick of its own rate")
-        suite.expect(RecorderSupport.gifFitsBudget(duration: 10, fps: 12)
-                && !RecorderSupport.gifFitsBudget(duration: 120, fps: 12),
-               "a GIF long enough to eat the memory of the machine is refused before it starts")
-        suite.expect(Int(RecorderSupport.maximumGIFSeconds(fps: 12)) == 25,
-               "the refusal can say exactly how long a GIF may be at that rate")
-        suite.expect(RecorderSupport.gifDelay(fps: 10) == 0.1,
-               "the frame delay is the reciprocal of the rate")
+        suite.expect(RecorderSupport.gifFrameCount(duration: 120, fps: 12) == 1440,
+               "streaming GIFs retain all frames beyond the former duration cap")
+        suite.expect([Double.nan, .infinity, -1, 0, Double.greatestFiniteMagnitude].allSatisfy {
+            RecorderSupport.gifFrameCount(duration: $0, fps: 12) == 0
+        }, "invalid and unrepresentable GIF durations cannot overflow the frame count")
         let gifSize = RecorderSupport.gifOutputSize(source: CGSize(width: 2940, height: 1912),
                                                     size: .medium)
         suite.expect(max(gifSize.width, gifSize.height) <= RecorderSupport.GIFSize.medium.longEdge
@@ -528,6 +560,33 @@ enum RecorderFeatureTests {
                 && RecorderSupport.sanitizedAudioGain(3) == 1
                 && RecorderSupport.sanitizedAudioGain(.nan) == 1,
                "audio gain stays inside the editor's safe range")
+
+        let legacyExport = RecorderEditDocument.decoded(Data("{\"gifFrameRate\":24}".utf8))
+        suite.expect(legacyExport.resolvedExportFormat == .video
+                && legacyExport.resolvedGIFScalePercent == 75
+                && legacyExport.resolvedGIFFrameRate == 24,
+               "legacy documents default to video and 75 percent GIF while preserving custom FPS")
+        var independentExport = RecorderEditDocument(exportFormat: "gif", gifScalePercent: 37, gifFrameRate: 24)
+        independentExport.quality = "high"
+        suite.expect(independentExport.outputScale(for: .video) == 1
+                && independentExport.outputScale(for: .gif) == 0.37,
+               "video and GIF retain independent scales")
+        suite.expect(RecorderEditDocument.decoded(independentExport.encoded()) == independentExport,
+               "format, custom GIF scale and FPS round trip")
+        independentExport.exportFormat = "invalid"
+        independentExport.gifScalePercent = 999
+        independentExport.gifFrameRate = 51
+        let repairedExport = independentExport.sanitized(duration: 12)
+        suite.expect(repairedExport.exportFormat == "video" && repairedExport.gifScalePercent == 100
+                && repairedExport.gifFrameRate == 12,
+               "invalid export values fall back or clamp")
+        independentExport.gifScalePercent = -1
+        independentExport.gifFrameRate = 0
+        suite.expect(independentExport.resolvedGIFScalePercent == 1
+                && independentExport.resolvedGIFFrameRate == 12
+                && RecorderSupport.sanitizedGIFFrameRate(1) == 1
+                && RecorderSupport.sanitizedGIFFrameRate(50) == 50,
+               "GIF settings enforce both range boundaries")
 
         var document = RecorderEditDocument()
         suite.expect(!document.isEdited(duration: 12) && !document.zoomsOnTyping,
@@ -1184,6 +1243,12 @@ enum RecorderFeatureTests {
             encoding: .utf8)) ?? ""
         suite.expect(recorderControllerSource.contains("rect: rect,\n                                      strength: item.strength)"),
                "redrawing a blur's area keeps its strength")
+        let copyGIFSource = recorderControllerSource.components(separatedBy: "func copyGIF()").last?
+            .components(separatedBy: "\n    func ").first ?? ""
+        let clipboardLaneBody = copyGIFSource.components(separatedBy: "GeneralPasteboardAccess.shared.async({")
+            .dropFirst().first?.components(separatedBy: "}) {").first ?? ""
+        suite.expect(clipboardLaneBody.contains("RecorderGIFClipboard.publish(fileURL: url)"),
+               "Copy as GIF checks and publishes the file on the pasteboard lane, off the main thread")
         let blurredDocument = RecorderEditDocument.decoded(
             RecorderEditDocument(blurs: [blur]).encoded())
         suite.expect(blurredDocument.blurs == [blur],

@@ -9,15 +9,29 @@ import Carbon.HIToolbox
 enum NotchDestinationContract {
     enum ReviewDefaults { static var current: UserDefaults! }
     enum NotchContentTransition { case none, reveal, replace }
+    /// Like AppKit while Vorssaint stays active, makeKey and resignKey leave
+    /// the app's key window as it was; tests set that record by hand.
     final class Panel {
         var isKeyWindow = true
         var acceptsKeyFocus = false
-        func makeKey() {}
+        var isVisible = true
+        var isOnActiveSpace = true
+        var canBecomeMain = false
+        var keyRequests = 0
+        func makeKey() { keyRequests += 1 }
+        func resignKey() { isKeyWindow = false }
     }
+    enum NSWorkspace { static let shared = Workspace() }
+    final class Workspace { var frontmostApplication: RunningApplication? }
+    struct RunningApplication { let processIdentifier: Int32 }
     final class Host { func containsHover(_ point: CGPoint) -> Bool { false } }
     enum NSEvent { static let mouseLocation = CGPoint.zero }
     final class AppDelegate { func closePopover(preservingNotch: Bool) {} }
-    struct Application { let delegate: AnyObject? = nil }
+    final class Application {
+        let delegate: AnyObject? = nil
+        var keyWindow: Panel?
+        var orderedWindows: [Panel] = []
+    }
     static let NSApp = Application()
     enum ClipboardHistoryService {
         static let shared = Reader()
@@ -61,6 +75,16 @@ enum NotchDestinationContract {
         var revealing: String?
     }
     enum NotchCalendarService { static var shared = CountdownCalendar() }
+    final class Hotkey {
+        var onPress: (() -> Void)?
+        var refuses = false
+        var requests: [Bool] = []
+        func sync(enabled: Bool, shortcut: GlobalShortcut, storageKey: String) -> Bool {
+            requests.append(enabled)
+            return !(enabled && refuses)
+        }
+    }
+    enum ShortcutCapture { static var isCapturing = false }
 
     class State {
         var acceptsUserInteraction = true
@@ -75,13 +99,12 @@ enum NotchDestinationContract {
         var selected = NotchModule.controls
         var selectedMetric: MetricDetailKind?
         var expanded = false
+        var showsKeyboardFocus = false
         var showingAppPanel = false
         var showingSections = false
         var showingCommandBar = false
         var commandBarClosings = 0
         func commandBarDidClose() { commandBarClosings += 1 }
-        func mascotBridgeStart(opening: Bool) -> CGFloat? { nil }
-        func bridgeMascot(from: CGFloat, opening: Bool) {}
         var sectionQuery = ""
         var sectionRow = 0
         var highlightedSection: NotchModule?
@@ -109,6 +132,11 @@ enum NotchDestinationContract {
         func syncVisibleConsumers() { requestedDetail = selectedMetric }
         func provideHapticFeedback() {}
         func endCaptureControls() {}
+        let hotkey = Hotkey()
+        var shortcutFailureWrites = 0
+        var shortcutRegistrationFailed = false { didSet { shortcutFailureWrites += 1 } }
+        var captureControlsExpansions = 0
+        func expandCaptureControls() { captureControlsExpansions += 1 }
         func clearCapture() { captureControlsCancel = nil; captureClose = nil }
         func tearDownPresentation() { expanded = false; presentationTearDowns += 1 }
     }
@@ -130,6 +158,16 @@ enum NotchDestinationContract {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        let focus = Service()
+        focus.showsKeyboardFocus = true
+        focus.open(.controls)
+        suite.expect(!focus.showsKeyboardFocus, "reopening the island clears the previous automatic focus indicator")
+        focus.showsKeyboardFocus = true
+        focus.open(.music)
+        suite.expect(focus.showsKeyboardFocus, "changing pages in the open island preserves keyboard focus visibility")
+        focus.collapse()
+        focus.open(.controls, takeFocus: false)
+        suite.expect(!focus.showsKeyboardFocus, "hover opening starts without an automatic focus indicator")
         scratchpadContracts(defaults: defaults, suite: suite)
         reopeningContracts(defaults: defaults, suite: suite)
         countdownContracts(defaults: defaults, suite: suite)
@@ -222,6 +260,35 @@ enum NotchDestinationContract {
         suite.expect(launcher.selectedIndex == nil, "an empty Tools module leaves keyboard activation without a target")
         sessionContracts(suite)
         lockScreenContracts(defaults: defaults, suite: suite)
+        shortcutContracts(defaults: defaults, suite: suite)
+        captureControlsContracts(suite)
+    }
+
+    /// The capture controls cover the open page and hold collapsing off. While
+    /// they are up, a route that opens the island expands them instead, so no
+    /// page waits behind them to open by itself once they end.
+    private static func captureControlsContracts(_ suite: TestSuite) {
+        let shortcuts: [(String, NotchModule, (Service) -> Bool)] = [
+            ("Clipboard", .clipboard, { $0.showClipboard(toggle: true) }),
+            ("Scratchpad", .scratchpad, { $0.showScratchpad(toggle: true) }),
+            ("quick panel", .tools, { $0.openQuickPanel(toggle: true) }),
+            ("shelf", .files, { $0.openShelf(toggle: true) }),
+        ]
+        for (name, module, press) in shortcuts {
+            let service = Service()
+            service.captureControls = NSObject()
+            let presses = (0..<2).map { _ in press(service) && !service.expanded }
+            suite.expect(presses == [true, true] && service.captureControlsExpansions == 2,
+                         "the \(name) shortcut expands the capture controls on every press instead of opening the island behind them")
+            service.captureControls = nil
+            suite.expect(press(service) && service.expanded && service.selected == module,
+                         "once the capture controls end, the \(name) shortcut opens its page")
+        }
+        let page = Service()
+        page.captureControls = NSObject()
+        page.open(.music)
+        suite.expect(!page.expanded && page.captureControlsExpansions == 1,
+                     "opening a page while the capture controls are up expands them instead")
     }
 
     /// Escape steps back through what the island shows, then closes it.
@@ -326,6 +393,51 @@ enum NotchDestinationContract {
         }
     }
 
+    /// The island resigns by hand while it stays on screen. The keyboard goes
+    /// back to a regular Vorssaint window only while Vorssaint is in front.
+    private static func keyHandoffContracts(suite: TestSuite) {
+        let vorssaint = RunningApplication(processIdentifier: ProcessInfo.processInfo.processIdentifier)
+        /// Returns the windows that were made key, front to back.
+        func handoff(frontmost: RunningApplication?, keyIsPanel: Bool = true, settingsVisible: Bool = true,
+                     settingsIsRegular: Bool = true, otherSpaceInFront: Bool = false,
+                     regularBehind: Bool = false) -> [String] {
+            let service = Service()
+            guard let panel = service.panel else { return ["no panel"] }
+            let hidden = Panel(), otherSpace = Panel(), helper = Panel(), settings = Panel(), behind = Panel()
+            for window in [hidden, otherSpace, behind] { window.canBecomeMain = true }
+            hidden.isVisible = false
+            otherSpace.isOnActiveSpace = false
+            settings.canBecomeMain = settingsIsRegular
+            settings.isVisible = settingsVisible
+            let named = [("hidden", hidden), ("other Space", otherSpace), ("helper", helper),
+                         ("settings", settings), ("behind", behind)]
+                .filter { $0.0 != "other Space" || otherSpaceInFront }
+                .filter { $0.0 != "behind" || regularBehind }
+            NSApp.orderedWindows = [panel] + named.map(\.1)
+            NSApp.keyWindow = keyIsPanel ? panel : nil
+            NSWorkspace.shared.frontmostApplication = frontmost
+            service.resignPanelKey()
+            defer {
+                NSApp.orderedWindows = []
+                NSApp.keyWindow = nil
+                NSWorkspace.shared.frontmostApplication = nil
+            }
+            guard !panel.isKeyWindow else { return ["island"] }
+            return named.flatMap { name, window in Array(repeating: name, count: window.keyRequests) }
+        }
+        suite.expect(handoff(frontmost: vorssaint) == ["settings"],
+                     "closing the island hands the keyboard back to Settings while Vorssaint stays active")
+        suite.expect(handoff(frontmost: vorssaint, otherSpaceInFront: true, regularBehind: true) == ["settings"],
+                     "closing the island hands the keyboard to the frontmost regular window on this Space")
+        suite.expect(handoff(frontmost: RunningApplication(processIdentifier: 1)).isEmpty,
+                     "closing the island leaves the keyboard alone while another app takes over")
+        suite.expect(handoff(frontmost: vorssaint, keyIsPanel: false).isEmpty,
+                     "closing the island hands nothing over once AppKit has let it go")
+        suite.expect(handoff(frontmost: vorssaint, settingsVisible: false).isEmpty
+                     && handoff(frontmost: vorssaint, settingsIsRegular: false).isEmpty,
+                     "closing the island hands the keyboard only to a visible regular window")
+    }
+
     private static func scratchpadContracts(defaults: UserDefaults, suite: TestSuite) {
         let service = Service()
         suite.expect(service.showScratchpad(toggle: true) && service.expanded && service.selected == .scratchpad,
@@ -336,6 +448,26 @@ enum NotchDestinationContract {
         service.panel?.isKeyWindow = true
         suite.expect(service.showScratchpad(toggle: true) && !service.expanded,
                      "the shortcut closes a Scratchpad that already owns the keyboard")
+        keyHandoffContracts(suite: suite)
+        // While Vorssaint stays the active app, collapse() resigns by hand: the
+        // flag clears, AppKit keeps the island key, and makeKey changes neither.
+        NSApp.keyWindow = service.panel
+        service.panel?.isKeyWindow = false
+        _ = service.showScratchpad(toggle: true)
+        suite.expect(service.showScratchpad(toggle: true) && !service.expanded,
+                     "the shortcut closes a reopened Scratchpad AppKit still keeps as its key window")
+        NSApp.keyWindow = Panel()
+        _ = service.showScratchpad(toggle: true)
+        suite.expect(service.showScratchpad(toggle: true) && service.expanded,
+                     "a Scratchpad is focused, not closed, while another window holds the keyboard")
+        NSApp.keyWindow = nil
+        service.collapse()
+        let detached = Service()
+        _ = detached.showScratchpad(toggle: true)
+        detached.panel = nil
+        suite.expect(detached.showScratchpad(toggle: true) && detached.expanded,
+                     "an island without a panel is never taken for the key window")
+        service.panel?.isKeyWindow = true
         defaults.set(false, forKey: DefaultsKey.notchScratchpad)
         suite.expect(!service.showScratchpad() && !service.expanded,
                      "choosing a separate Scratchpad window leaves the island untouched")
@@ -705,5 +837,54 @@ enum NotchDestinationContract {
         service.updateSession { $0.onConsole = true }
         suite.expect(!timer.running && service.presentationSyncs == 2,
                "late session notifications cannot restart a stopped island or timer")
+    }
+
+    /// Like a click on the closed island, the shortcut expands the capture
+    /// controls while they are up and otherwise toggles the island. It holds its
+    /// key only while it is on and no other shortcut is recording.
+    private static func shortcutContracts(defaults: UserDefaults, suite: TestSuite) {
+        defer {
+            ShortcutCapture.isCapturing = false
+            defaults.set(false, forKey: DefaultsKey.notchShortcutEnabled)
+        }
+        func pressed(captureControls: Bool = false, interactive: Bool = true, presses: Int = 1) -> Service {
+            let service = Service()
+            service.installHotkey()
+            if captureControls { service.captureControls = NSObject() }
+            service.acceptsUserInteraction = interactive
+            for _ in 0..<presses { service.hotkey.onPress?() }
+            return service
+        }
+        let capture = pressed(captureControls: true)
+        suite.expect(capture.captureControlsExpansions == 1 && !capture.expanded,
+                     "the island shortcut expands the capture controls instead of opening the island behind them")
+        let away = [pressed(interactive: false), pressed(captureControls: true, interactive: false)]
+        suite.expect(away.allSatisfy { !$0.expanded && $0.captureControlsExpansions == 0 },
+                     "the island shortcut does nothing while the island does not accept user interaction")
+        suite.expect(pressed().expanded && !pressed(presses: 2).expanded,
+                     "the island shortcut opens the island and a second press closes it")
+
+        let registration = Service()
+        defaults.set(true, forKey: DefaultsKey.notchShortcutEnabled)
+        registration.syncShortcut()
+        ShortcutCapture.isCapturing = true
+        registration.syncShortcut()
+        ShortcutCapture.isCapturing = false
+        registration.syncShortcut()
+        defaults.set(false, forKey: DefaultsKey.notchShortcutEnabled)
+        registration.syncShortcut()
+        suite.expect(registration.hotkey.requests == [true, false, true, false],
+                     "the island shortcut lets its key go while another shortcut is recording and while it is off")
+        let refused = Service()
+        refused.hotkey.refuses = true
+        defaults.set(true, forKey: DefaultsKey.notchShortcutEnabled)
+        refused.syncShortcut()
+        refused.syncShortcut()
+        let failed = refused.shortcutRegistrationFailed
+        defaults.set(false, forKey: DefaultsKey.notchShortcutEnabled)
+        refused.syncShortcut()
+        refused.syncShortcut()
+        suite.expect(failed && !refused.shortcutRegistrationFailed && refused.shortcutFailureWrites == 2,
+                     "a refused island shortcut reports the failure and its end once each, not on every sync")
     }
 }

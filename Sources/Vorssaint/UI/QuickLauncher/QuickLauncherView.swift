@@ -30,11 +30,10 @@ struct QuickLauncherView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // In the notch the surrounding chrome already titles the panel and
-            // offers the customize toggle, so the launcher's own header would
-            // only add an empty band. It stays for the floating panel and for
-            // a hosted utility, which needs its back control.
-            if notchSize == nil || launcher.activeUtility != nil { header }
+            // In the notch the island's top row holds the customize toggle,
+            // and with a utility open the way back and the utility's name, so
+            // the launcher's own header stays for the floating panel.
+            if notchSize == nil { header }
             if notchSize != nil, launcher.activeUtility == nil, launcher.isEditing {
                 editHint
             }
@@ -58,6 +57,19 @@ struct QuickLauncherView: View {
         .frame(width: notchSize?.width ?? 420)
         .background { if notchSize == nil { HUDBackdrop(cornerRadius: 22, contrast: .high) } }
         .clipShape(RoundedRectangle(cornerRadius: notchSize == nil ? 22 : 0, style: .continuous))
+        .notchBand(leading: {
+            if notchSize != nil, let utility = launcher.activeUtility {
+                // The way back to the tools names the open one, as a detail's does.
+                NotchBandBackButton(title: title(for: utility), action: launcher.closeUtility)
+            }
+        }, trailing: {
+            if notchSize != nil, launcher.activeUtility == nil {
+                NotchIconButton(symbol: launcher.isEditing ? "checkmark" : "slider.horizontal.3",
+                                title: FeatureStrings.notch(l10n.language).customizeTools, selected: launcher.isEditing) {
+                    withAnimation(.easeOut(duration: 0.15)) { launcher.isEditing.toggle() }
+                }
+            }
+        })
         .onChange(of: features.revision, initial: true) { launcher.refreshAvailability() }
         .onChange(of: launcher.presentationID) { _, _ in
             hoveredItem = nil
@@ -111,21 +123,22 @@ struct QuickLauncherView: View {
                 }
             }
         }
-        .frame(height: notchSize.map { max(0, $0.height - 64) } ?? 470)
+        // The island's row holds the way back, so the utility has the page.
+        .frame(height: notchSize?.height ?? 470)
     }
 
     private var header: some View {
         VStack(spacing: 6) {
             ZStack {
                 // The same transparent mark the menu panel shows, centered.
-                if notchSize == nil { BrandMark(width: 52, tint: colorScheme == .light ? Color(white: 0.03) : .white)
+                BrandMark(width: 52, tint: colorScheme == .light ? Color(white: 0.03) : .white)
                     .frame(height: 30)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .accessibilityHidden(true) }
+                    .accessibilityHidden(true)
                 HStack {
                     if launcher.activeUtility != nil {
                         backButton
-                    } else if notchSize == nil {
+                    } else {
                         closeButton
                     }
                     Spacer()
@@ -200,12 +213,14 @@ struct QuickLauncherView: View {
                                             perRow: NotchLayout.railCapacity(width: notchSize.width, itemWidth: NotchLayout.toolWidth,
                                                                              spacing: NotchLayout.toolSpacing),
                                             rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing, height: notchSize.height)
+            let titleInset = NotchLayout.toolTitleInset(count: launcher.visibleItems.count, rows: rows, width: notchSize.width)
             NotchRail(items: launcher.visibleItems, rows: rows, itemWidth: NotchLayout.toolWidth, width: notchSize.width,
-                      spacing: NotchLayout.toolSpacing, rowSpacing: NotchLayout.toolSpacing,
+                      spacing: NotchLayout.toolSpacing, leastSpacing: NotchLayout.toolLeastSpacing,
+                      rowSpacing: NotchLayout.toolSpacing,
                       scrollTarget: launcher.keyboardIndex.flatMap { index in
                           launcher.visibleItems.indices.contains(index) ? launcher.visibleItems[index].id : nil
                       }) { item in
-                cell(item).frame(height: NotchLayout.toolHeight)
+                cell(item, titleInset: titleInset).frame(height: NotchLayout.toolHeight)
             }
         } else {
             LazyVGrid(columns: columns, spacing: notchSize == nil ? 10 : 6) {
@@ -221,8 +236,10 @@ struct QuickLauncherView: View {
         }
     }
 
+    /// `titleInset` keeps the title clear of its neighbours' where the
+    /// island's rail closes its gaps.
     @ViewBuilder
-    private func cell(_ item: QuickLauncherItem) -> some View {
+    private func cell(_ item: QuickLauncherItem, titleInset: CGFloat = 0) -> some View {
         let index = launcher.visibleItems.firstIndex(of: item)
         let isSelected = !launcher.isEditing && index != nil && index == launcher.selectedIndex
         let isHovered = hoveredItem == item
@@ -301,6 +318,7 @@ struct QuickLauncherView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2, reservesSpace: true)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, titleInset)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, notchSize == nil ? 9 : 4)

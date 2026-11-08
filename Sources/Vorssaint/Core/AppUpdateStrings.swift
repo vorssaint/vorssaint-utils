@@ -48,11 +48,14 @@ struct AppUpdateStrings {
     let skipVersionFormat: String
     let excludeApp: String
     let rulesTitle: String
+    let addException: String
     let skippedVersionFormat: String
     let excludedApp: String
     let removeRule: String
     let rulesHint: String
     let noVisibleUpdates: String
+    let uncomparableVersions: String
+    let uncomparableVersionsNote: String
 }
 
 extension FeatureStrings {
@@ -121,12 +124,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "The online check could not be completed. Other results are still shown.",
         skipVersionFormat: "Skip version %@",
         excludeApp: "Don’t check this app",
-        rulesTitle: "Update rules",
+        rulesTitle: "Update exceptions",
+        addException: "Add an app that should not be checked",
         skippedVersionFormat: "Skipped version %@",
         excludedApp: "Not checked until this rule is removed",
-        removeRule: "Remove rule",
+        removeRule: "Remove",
         rulesHint: "Skipping a version still allows newer releases. After removing an app exclusion, use Check now to refresh it.",
-        noVisibleUpdates: "No updates outside your rules"
+        noVisibleUpdates: "No updates outside your rules",
+        uncomparableVersions: "Versions not compared",
+        uncomparableVersionsNote: "No update is shown when an app’s own version can’t be compared with the catalog. Check for updates in the app itself."
     )
 
     static let ptBR = AppUpdateStrings(
@@ -172,12 +178,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "A verificação online não pôde ser concluída. Os demais resultados continuam visíveis.",
         skipVersionFormat: "Ignorar versão %@",
         excludeApp: "Não verificar este app",
-        rulesTitle: "Regras de atualização",
+        rulesTitle: "Exceções de atualização",
+        addException: "Adicionar um app que não deve ser verificado",
         skippedVersionFormat: "Versão %@ ignorada",
         excludedApp: "Não verificado até remover esta regra",
-        removeRule: "Remover regra",
+        removeRule: "Remover",
         rulesHint: "Ignorar uma versão não oculta versões mais novas. Após remover uma exclusão, use Verificar agora para atualizar a lista.",
-        noVisibleUpdates: "Nenhuma atualização fora das suas regras"
+        noVisibleUpdates: "Nenhuma atualização fora das suas regras",
+        uncomparableVersions: "Versões não comparadas",
+        uncomparableVersionsNote: "Nenhuma atualização é mostrada quando a versão informada pelo app não pode ser comparada com o catálogo. Procure atualizações no próprio app."
     )
 
     static let tr = AppUpdateStrings(
@@ -223,12 +232,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "Çevrimiçi denetleme tamamlanamadı. Diğer sonuçlar gösterilmeye devam ediyor.",
         skipVersionFormat: "%@ sürümünü atla",
         excludeApp: "Bu uygulamayı denetleme",
-        rulesTitle: "Güncelleme kuralları",
+        rulesTitle: "Güncelleme istisnaları",
+        addException: "Denetlenmemesi gereken bir uygulama ekle",
         skippedVersionFormat: "Atlanan sürüm: %@",
         excludedApp: "Bu kural kaldırılana kadar denetlenmez",
-        removeRule: "Kuralı kaldır",
+        removeRule: "Kaldır",
         rulesHint: "Bir sürümü atlamak daha yeni sürümleri gizlemez. Uygulama hariç tutma kuralını kaldırdıktan sonra Şimdi denetle ile listeyi yenile.",
-        noVisibleUpdates: "Kurallarının dışında güncelleme yok"
+        noVisibleUpdates: "Kurallarının dışında güncelleme yok",
+        uncomparableVersions: "Sürümler karşılaştırılamadı",
+        uncomparableVersionsNote: "Bir uygulamanın kendi sürümü katalogla karşılaştırılamadığında güncelleme gösterilmez. Güncellemeleri uygulamanın kendisinden denetle."
     )
 
     static let ru = AppUpdateStrings(
@@ -274,12 +286,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "Онлайн-проверку не удалось завершить. Остальные результаты по-прежнему показаны.",
         skipVersionFormat: "Пропустить версию %@",
         excludeApp: "Не проверять это приложение",
-        rulesTitle: "Правила обновлений",
+        rulesTitle: "Исключения обновлений",
+        addException: "Добавить приложение, которое не нужно проверять",
         skippedVersionFormat: "Пропущена версия %@",
         excludedApp: "Не проверяется до удаления правила",
-        removeRule: "Удалить правило",
+        removeRule: "Удалить",
         rulesHint: "Пропуск версии не скрывает новые выпуски. После удаления исключения нажмите «Проверить сейчас», чтобы обновить список.",
-        noVisibleUpdates: "Обновлений вне ваших правил нет"
+        noVisibleUpdates: "Обновлений вне ваших правил нет",
+        uncomparableVersions: "Не удалось сравнить версии",
+        uncomparableVersionsNote: "Обновление не показывается, если версию, которую сообщает приложение, нельзя сравнить с каталогом. Проверьте обновления в самом приложении."
     )
 
     static let es = AppUpdateStrings(
@@ -325,12 +340,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "No se pudo completar la revisión en línea. Los demás resultados siguen visibles.",
         skipVersionFormat: "Omitir versión %@",
         excludeApp: "No comprobar esta app",
-        rulesTitle: "Reglas de actualización",
+        rulesTitle: "Excepciones de actualización",
+        addException: "Añadir una app que no debe comprobarse",
         skippedVersionFormat: "Versión %@ omitida",
         excludedApp: "No se comprueba hasta eliminar esta regla",
-        removeRule: "Eliminar regla",
+        removeRule: "Eliminar",
         rulesHint: "Omitir una versión no oculta versiones posteriores. Tras eliminar una exclusión, usa Buscar ahora para actualizar la lista.",
-        noVisibleUpdates: "No hay actualizaciones fuera de tus reglas"
+        noVisibleUpdates: "No hay actualizaciones fuera de tus reglas",
+        uncomparableVersions: "Versiones sin comparar",
+        uncomparableVersionsNote: "No se muestra ninguna actualización cuando la versión que indica la app no se puede comparar con el catálogo. Busca actualizaciones en la propia app."
     )
 
     static let sk = AppUpdateStrings(
@@ -376,12 +394,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "Online kontrolu sa nepodarilo dokončiť. Ostatné výsledky sa aj tak zobrazujú.",
         skipVersionFormat: "Preskočiť verziu %@",
         excludeApp: "Nekontrolovať túto aplikáciu",
-        rulesTitle: "Pravidlá aktualizácií",
+        rulesTitle: "Výnimky aktualizácií",
+        addException: "Pridať aplikáciu, ktorá sa nemá kontrolovať",
         skippedVersionFormat: "Preskočená verzia %@",
         excludedApp: "Nekontroluje sa do odstránenia pravidla",
-        removeRule: "Odstrániť pravidlo",
+        removeRule: "Odstrániť",
         rulesHint: "Preskočenie verzie neskryje novšie vydania. Po odstránení výnimky obnovte zoznam cez Skontrolovať teraz.",
-        noVisibleUpdates: "Žiadne aktualizácie mimo vašich pravidiel"
+        noVisibleUpdates: "Žiadne aktualizácie mimo vašich pravidiel",
+        uncomparableVersions: "Verzie neboli porovnané",
+        uncomparableVersionsNote: "Aktualizácia sa nezobrazí, keď verziu, ktorú aplikácia uvádza, nemožno porovnať s katalógom. Aktualizácie skontrolujte priamo v aplikácii."
     )
 
     static let de = AppUpdateStrings(
@@ -427,12 +448,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "Die Online-Prüfung konnte nicht abgeschlossen werden. Andere Ergebnisse werden weiterhin angezeigt.",
         skipVersionFormat: "Version %@ überspringen",
         excludeApp: "Diese App nicht prüfen",
-        rulesTitle: "Update-Regeln",
+        rulesTitle: "Update-Ausnahmen",
+        addException: "App hinzufügen, die nicht geprüft werden soll",
         skippedVersionFormat: "Version %@ übersprungen",
         excludedApp: "Bis zum Entfernen dieser Regel nicht geprüft",
-        removeRule: "Regel entfernen",
+        removeRule: "Entfernen",
         rulesHint: "Eine übersprungene Version verbirgt keine neueren Versionen. Nach dem Entfernen eines App-Ausschlusses mit Jetzt prüfen aktualisieren.",
-        noVisibleUpdates: "Keine Updates außerhalb deiner Regeln"
+        noVisibleUpdates: "Keine Updates außerhalb deiner Regeln",
+        uncomparableVersions: "Versionen nicht verglichen",
+        uncomparableVersionsNote: "Es wird kein Update angezeigt, wenn sich die Version, die eine App meldet, nicht mit dem Katalog vergleichen lässt. Suche in der App selbst nach Updates."
     )
 
     static let fr = AppUpdateStrings(
@@ -478,12 +502,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "La vérification en ligne n’a pas pu aboutir. Les autres résultats restent affichés.",
         skipVersionFormat: "Ignorer la version %@",
         excludeApp: "Ne pas vérifier cette app",
-        rulesTitle: "Règles de mise à jour",
+        rulesTitle: "Exceptions de mise à jour",
+        addException: "Ajouter une app à ne pas vérifier",
         skippedVersionFormat: "Version %@ ignorée",
         excludedApp: "Non vérifiée jusqu’au retrait de cette règle",
-        removeRule: "Retirer la règle",
+        removeRule: "Retirer",
         rulesHint: "Ignorer une version ne masque pas les suivantes. Après avoir retiré une exclusion, utilisez Vérifier maintenant pour actualiser la liste.",
-        noVisibleUpdates: "Aucune mise à jour en dehors de vos règles"
+        noVisibleUpdates: "Aucune mise à jour en dehors de vos règles",
+        uncomparableVersions: "Versions non comparées",
+        uncomparableVersionsNote: "Aucune mise à jour n’est affichée lorsque la version indiquée par une app ne peut pas être comparée au catalogue. Recherchez les mises à jour dans l’app elle-même."
     )
 
     static let it = AppUpdateStrings(
@@ -529,12 +556,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "Non è stato possibile completare il controllo online. Gli altri risultati restano visibili.",
         skipVersionFormat: "Salta la versione %@",
         excludeApp: "Non controllare questa app",
-        rulesTitle: "Regole degli aggiornamenti",
+        rulesTitle: "Eccezioni degli aggiornamenti",
+        addException: "Aggiungi un’app da non controllare",
         skippedVersionFormat: "Versione %@ saltata",
         excludedApp: "Non controllata finché la regola non viene rimossa",
-        removeRule: "Rimuovi regola",
+        removeRule: "Rimuovi",
         rulesHint: "Saltare una versione non nasconde quelle successive. Dopo aver rimosso un’esclusione, usa Controlla ora per aggiornare l’elenco.",
-        noVisibleUpdates: "Nessun aggiornamento al di fuori delle tue regole"
+        noVisibleUpdates: "Nessun aggiornamento al di fuori delle tue regole",
+        uncomparableVersions: "Versioni non confrontate",
+        uncomparableVersionsNote: "Non viene mostrato alcun aggiornamento quando la versione indicata da un’app non si può confrontare con il catalogo. Cerca gli aggiornamenti nell’app stessa."
     )
 
     static let ja = AppUpdateStrings(
@@ -580,12 +610,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "オンライン確認を完了できませんでした。その他の結果は引き続き表示されます。",
         skipVersionFormat: "バージョン%@をスキップ",
         excludeApp: "このAppを確認しない",
-        rulesTitle: "アップデートのルール",
+        rulesTitle: "アップデートの例外",
+        addException: "確認しないAppを追加",
         skippedVersionFormat: "スキップしたバージョン: %@",
         excludedApp: "このルールを削除するまで確認しません",
-        removeRule: "ルールを削除",
+        removeRule: "削除",
         rulesHint: "バージョンをスキップしても新しいバージョンは表示されます。Appの除外を解除した後は「今すぐ確認」で更新してください。",
-        noVisibleUpdates: "ルールの対象外のアップデートはありません"
+        noVisibleUpdates: "ルールの対象外のアップデートはありません",
+        uncomparableVersions: "比較できないバージョン",
+        uncomparableVersionsNote: "Appが示すバージョンをカタログと比較できない場合、アップデートは表示されません。App自体でアップデートを確認してください。"
     )
 
     static let ko = AppUpdateStrings(
@@ -631,12 +664,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "온라인 확인을 완료하지 못했습니다. 다른 결과는 계속 표시됩니다.",
         skipVersionFormat: "%@ 버전 건너뛰기",
         excludeApp: "이 앱 확인 안 함",
-        rulesTitle: "업데이트 규칙",
+        rulesTitle: "업데이트 예외",
+        addException: "확인하지 않을 앱 추가",
         skippedVersionFormat: "건너뛴 버전: %@",
         excludedApp: "이 규칙을 제거할 때까지 확인하지 않음",
-        removeRule: "규칙 제거",
+        removeRule: "제거",
         rulesHint: "버전을 건너뛰어도 새 버전은 표시됩니다. 앱 제외를 해제한 후 지금 확인으로 목록을 새로 고치세요.",
-        noVisibleUpdates: "규칙 외의 업데이트가 없습니다"
+        noVisibleUpdates: "규칙 외의 업데이트가 없습니다",
+        uncomparableVersions: "비교할 수 없는 버전",
+        uncomparableVersionsNote: "앱이 표시하는 버전을 카탈로그와 비교할 수 없으면 업데이트가 표시되지 않습니다. 앱에서 직접 업데이트를 확인하세요."
     )
 
     static let zhHans = AppUpdateStrings(
@@ -682,12 +718,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "无法完成在线检查。其他结果仍会显示。",
         skipVersionFormat: "跳过版本 %@",
         excludeApp: "不检查此 App",
-        rulesTitle: "更新规则",
+        rulesTitle: "更新例外项",
+        addException: "添加不需要检查的 App",
         skippedVersionFormat: "已跳过版本 %@",
         excludedApp: "移除此规则前不检查",
-        removeRule: "移除规则",
+        removeRule: "移除",
         rulesHint: "跳过某个版本不会隐藏更新版本。移除 App 排除规则后，请使用“立即检查”刷新列表。",
-        noVisibleUpdates: "规则之外没有更新"
+        noVisibleUpdates: "规则之外没有更新",
+        uncomparableVersions: "无法比较的版本",
+        uncomparableVersionsNote: "当 App 报告的版本无法与目录比较时，不会显示更新。请在 App 内检查更新。"
     )
 
     static let zhTW = AppUpdateStrings(
@@ -733,12 +772,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "無法完成線上檢查。其他結果仍會顯示。",
         skipVersionFormat: "略過版本 %@",
         excludeApp: "不檢查此 App",
-        rulesTitle: "更新規則",
+        rulesTitle: "更新例外",
+        addException: "加入不需檢查的 App",
         skippedVersionFormat: "已略過版本 %@",
         excludedApp: "移除此規則前不檢查",
-        removeRule: "移除規則",
+        removeRule: "移除",
         rulesHint: "略過某個版本不會隱藏更新版本。移除 App 排除規則後，請使用「立即檢查」重新整理列表。",
-        noVisibleUpdates: "規則之外沒有更新"
+        noVisibleUpdates: "規則之外沒有更新",
+        uncomparableVersions: "無法比較的版本",
+        uncomparableVersionsNote: "當 App 回報的版本無法與目錄比較時，不會顯示更新。請在 App 內檢查更新。"
     )
 
     static let zhHK = AppUpdateStrings(
@@ -784,12 +826,15 @@ extension AppUpdateStrings {
         onlineUnavailable: "無法完成網上檢查。其他結果仍然會顯示。",
         skipVersionFormat: "略過版本 %@",
         excludeApp: "唔檢查呢個 App",
-        rulesTitle: "更新規則",
+        rulesTitle: "更新例外",
+        addException: "加入不需檢查的 App",
         skippedVersionFormat: "已略過版本 %@",
         excludedApp: "移除呢條規則前唔會檢查",
-        removeRule: "移除規則",
+        removeRule: "移除",
         rulesHint: "略過某個版本唔會隱藏更新版本。移除 App 排除規則後，請用「立即檢查」更新列表。",
-        noVisibleUpdates: "規則以外冇更新"
+        noVisibleUpdates: "規則以外冇更新",
+        uncomparableVersions: "無法比較嘅版本",
+        uncomparableVersionsNote: "當 App 回報嘅版本無法同目錄比較時，唔會顯示更新。請喺 App 入面檢查更新。"
     )
     static let uk = AppUpdateStrings(
         pageTitle: "Оновлення програм",
@@ -834,11 +879,14 @@ extension AppUpdateStrings {
         onlineUnavailable: "Онлайн-перевірку не вдалося завершити. Інші результати все ще показуються.",
         skipVersionFormat: "Пропустити версію %@",
         excludeApp: "Не перевіряти цю програму",
-        rulesTitle: "Правила оновлень",
+        rulesTitle: "Винятки оновлень",
+        addException: "Додати програму, яку не потрібно перевіряти",
         skippedVersionFormat: "Пропущена версія %@",
         excludedApp: "Не перевіряється до видалення правила",
-        removeRule: "Видалити правило",
+        removeRule: "Видалити",
         rulesHint: "Пропуск версії не приховує новіші випуски. Після видалення винятку натисніть «Перевірити зараз», щоб оновити список.",
-        noVisibleUpdates: "Немає оновлень поза вашими правилами"
+        noVisibleUpdates: "Немає оновлень поза вашими правилами",
+        uncomparableVersions: "Не вдалося порівняти версії",
+        uncomparableVersionsNote: "Оновлення не показується, якщо версію, яку повідомляє програма, не можна порівняти з каталогом. Перевірте оновлення в самій програмі."
     )
 }

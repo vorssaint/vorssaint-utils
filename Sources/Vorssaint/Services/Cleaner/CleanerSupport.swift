@@ -109,8 +109,10 @@ enum CleanerSupport {
         // An entry has one extension. Removing every match in turn also took
         // an identifier's last component when it is spelled like one, so
         // com.vendor.Service.plist was credited to com.vendor.
+        // A log file is a payload too: kept, its extension made a plain name
+        // such as MCXTools.log pass for a two component identifier.
         let lowered = name.lowercased()
-        if let suffix = [".plist", ".savedState", ".binarycookies", ".prefPane",
+        if let suffix = [".plist", ".log", ".savedState", ".binarycookies", ".prefPane",
                          ".qlgenerator", ".mdimporter", ".service", ".appex",
                          ".plugin", ".webplugin", ".saver", ".colorPicker",
                          ".wdgt", ".app", ".framework", ".component", ".vst",

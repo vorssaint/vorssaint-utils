@@ -148,12 +148,14 @@ No subscriber token or complete fetched song lyrics are bundled as test fixtures
 
 ## Recorded validation and remaining gaps
 
-Local validation used macOS 27.2 on an arm64 Mac17,3. The Developer build and its
-selftest passed. After rebasing onto upstream main, the latest Notch run passed 70,635 checks,
-Utilities passed 444, and Settings passed 494. These are assertion counts across the suites, not independent manual
-scenarios. The optimized build, its selftest and strict verification of the locally
-signed bundle also passed. Official Developer ID signing/notarization and other
-supported macOS runtimes remain unverified for this change.
+The Developer build and its selftest passed on macOS 27.2 on an arm64 Mac17,3.
+After merging upstream `26d3c9e1`, the Notch, Utilities and Settings suites
+passed 69,160 assertions on macOS 27.3. The tests cover switching providers
+during an in-flight lookup and discarding late replies from either provider.
+Native slider click assertions failed intermittently on the first run and
+also failed on unmodified upstream. The merged branch passed on rerun.
+Official Developer ID signing/notarization and other supported macOS runtimes
+remain unverified for this change.
 
 A repeated authenticated probe after the token-cache fix, using the production
 native provider/parser, retrieved Helium Balloon with 87 cues, 356 timed spans

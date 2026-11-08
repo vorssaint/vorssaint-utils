@@ -60,6 +60,8 @@ struct MixerEngineBuilds {
         tokens.removeValue(forKey: id)
     }
 
+    mutating func invalidate(_ id: String) { tokens.removeValue(forKey: id) }
+
     /// Marks everything in flight as stale. Tokens are never reused, so builds
     /// already queued can no longer be installed, while a fresh build for the
     /// same row can start right away.
@@ -172,8 +174,44 @@ enum MixerRoutingSupport {
 
     private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
 
+    /// The whole percent a slider position is shown as. A device can report a
+    /// level that is not a number, and converting that to an integer traps, so
+    /// it reads as 0% here instead of taking the app down.
+    static func displayPercent(forVolume volume: Double) -> Int {
+        guard volume.isFinite else { return 0 }
+        // Bound the value so an absurdly large finite level cannot overflow Int.
+        return Int((min(max(volume, -1000), 1000) * 100).rounded())
+    }
+
     static func isUnity(_ volume: Double) -> Bool {
         abs(volume - 1) < 0.005
+    }
+
+    /// The gain an app's slider position is played at.
+    ///
+    /// Loudness is heard on a logarithmic scale, so a slider used as the gain
+    /// itself keeps nearly all of its audible range in the bottom fifth: 50%
+    /// was only 6 dB down and hardly sounded quieter. Squaring the position
+    /// puts 50% at -12 dB and 25% at -24 dB, with silence still at 0 and an
+    /// untouched level at 100%. The boost range stays linear, so 200% is the
+    /// same +6 dB it always was.
+    static func gain(forVolume volume: Double) -> Float {
+        // Squaring would turn a level below zero into a positive gain. Such a
+        // level is silence, and one that is not a number plays the app
+        // untouched, the same reading a saved volume gets.
+        guard volume.isFinite else { return 1 }
+        let level = max(volume, 0)
+        return Float(level < 1 ? level * level : level)
+    }
+
+    /// The slider position that plays `gain`, the inverse of the curve above.
+    /// Volumes saved before the sliders followed perceived loudness were the
+    /// gain itself, and move here once so the update never changes how loud
+    /// an app plays, only where its slider sits.
+    static func volume(forGain gain: Double) -> Double {
+        guard gain.isFinite else { return 1 }
+        let level = max(gain, 0)
+        return level < 1 ? level.squareRoot() : level
     }
 
     /// The most a tap is ever turned back up: four channel pairs, the widest
@@ -309,6 +347,17 @@ enum MixerRoutingSupport {
         return streamChannels.first { $0 > 0 }
     }
 
+    /// Whether a level asked of the output also throws its mute switch, the
+    /// way the system's own volume keys and the Control Center slider do at
+    /// the bottom of the range, since some outputs still play there. A level
+    /// the percent labels show as 0% counts, the same half percent `isUnity`
+    /// allows at 100%: a key steps from the level the output reports, so a
+    /// coarse step down from a hair above one step lands just above zero.
+    /// The finest key step stays audible.
+    static func mutesOutput(atVolume volume: Double) -> Bool {
+        volume < 0.005
+    }
+
     /// Inactive apps with a custom volume or output remain visible so hiding
     /// idle rows can never conceal a setting the user may want to undo.
     static func shouldShowApp(isPlaying: Bool,
@@ -319,7 +368,7 @@ enum MixerRoutingSupport {
         return isPlaying || !isUnity(volume) || selectedOutputDeviceUID != nil
     }
 
-    /// Turns the text entered beside a mixer slider into its gain. The field
+    /// Turns the text entered beside a mixer slider into its level. The field
     /// accepts the same optional percent sign it displays, while the caller
     /// supplies the limit (100 for the system output, 200 for an app row).
     static func volumeFraction(fromPercentageText text: String,
@@ -387,6 +436,14 @@ enum MixerRoutingSupport {
         uid == AirPlayRouteManager.airPlaySentinelUID
     }
 
+    /// Whether an app keeps the AirPlay stream from pausing for silence: it
+    /// is producing sound, and that sound goes to AirPlay now. An app that is
+    /// merely open does not count, nor does one set to AirPlay that plays on
+    /// the Mac while no speaker is picked.
+    static func playsOnAirPlay(isPlaying: Bool, effectiveOutputDeviceUID: String?) -> Bool {
+        isPlaying && effectiveOutputDeviceUID.map(isAirPlaySentinel) == true
+    }
+
     /// The item in an app's output menu that opens the system's speaker list
     /// for every app set to AirPlay, without changing this app's output.
     static let airPlaySpeakerChoiceID = "vorssaint.output.airplay.choose"
@@ -443,7 +500,16 @@ enum MixerRoutingSupport {
 
     static func outputLooksLikeHeadphones(name: String,
                                           uid: String,
-                                          dataSourceName: String?) -> Bool {
+                                          dataSourceName: String?,
+                                          terminalTypes: [UInt32] = []) -> Bool {
+        // Stream terminals describe the hardware independently of its model
+        // or user-assigned name. Generic or unavailable terminals still need
+        // the existing name/data-source recognition.
+        if terminalTypes.contains(kAudioStreamTerminalTypeHeadphones) { return true }
+        if terminalTypes.contains(where: {
+            $0 == kAudioStreamTerminalTypeSpeaker || $0 == kAudioStreamTerminalTypeLFESpeaker
+                || $0 == kAudioStreamTerminalTypeReceiverSpeaker
+        }) { return false }
         let haystack = [name, uid, dataSourceName ?? ""]
             .joined(separator: " ")
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
@@ -625,6 +691,14 @@ enum MixerRoutingSupport {
         return abs(currentVolume - appliedVolume) < 0.005
     }
 
+    /// Level 0 is still faintly audible on some speakers (built-in MacBook Pro
+    /// speakers sit near -63 dB there), so a headphone disconnect lowered to 0
+    /// also mutes the output. An output that is already muted, or has no mute
+    /// switch, is left alone, so only a mute this feature set is undone later.
+    static func shouldMuteOutputLoweredForDisconnect(lowerToPercent: Int, currentlyMuted: Bool?) -> Bool {
+        lowerToPercent <= 0 && currentlyMuted == false
+    }
+
     /// Pro audio hosts (DAWs and live rack hosts) own their output device,
     /// clock and latency chain; the mixer's stereo-mixdown tap mutes their
     /// real output and replays it elsewhere, which silences them outright
@@ -640,6 +714,7 @@ enum MixerRoutingSupport {
         "com.cockos.reaper",
         "com.steinberg.",        // Cubase, Nuendo, Dorico
         "com.presonus.",         // Studio One
+        "com.fender.studioapp",  // Studio Pro
         "com.bitwig.",
         "com.image-line.",       // FL Studio
         "com.motu.",             // Digital Performer
@@ -704,7 +779,25 @@ enum MixerRoutingSupport {
         showFinder && !hasFinderRow
     }
 
-    static func bypassesProcessTap(bundleIdentifier: String?, name: String) -> Bool {
+    /// Replaying a call app's audio under our process defeats its screen-share
+    /// self-exclusion. Keep it untouched unless the user explicitly opts in.
+    /// Match bundle components, not arbitrary prefixes or localized app names.
+    static func needsScreenSharingProtection(bundleIdentifier: String?) -> Bool {
+        guard let bundle = bundleIdentifier?.lowercased() else { return false }
+        return ["com.hnc.discord", "com.hnc.discordptb", "com.hnc.discordcanary",
+                "com.hnc.discorddevelopment", "com.microsoft.teams", "com.microsoft.teams2"]
+            .contains { bundle == $0 || bundle.hasPrefix($0 + ".") }
+    }
+
+    static func sanitizedCallAppVolumeIDs(_ ids: [String]) -> Set<String> {
+        Set(ids.map { $0.lowercased() }.filter { needsScreenSharingProtection(bundleIdentifier: $0) })
+    }
+
+    static func bypassesProcessTap(bundleIdentifier: String?, name: String,
+                                  allowCallAppVolume: Bool = false) -> Bool {
+        if !allowCallAppVolume, needsScreenSharingProtection(bundleIdentifier: bundleIdentifier) {
+            return true
+        }
         let bundle = (bundleIdentifier ?? "")
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .lowercased()

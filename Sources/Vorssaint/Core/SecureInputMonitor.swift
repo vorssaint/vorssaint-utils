@@ -6,7 +6,8 @@ import Carbon.HIToolbox
 import Combine
 import IOKit
 
-/// Watches macOS Secure Event Input and reports who holds it.
+/// Watches macOS Secure Event Input and reports the app that was active when
+/// it turned on, the only lead macOS gives on who holds it.
 ///
 /// There is no notification for a secure input state change, so the state has
 /// to be sampled, and it is sampled only while a surface that shows it
@@ -64,8 +65,9 @@ final class SecureInputMonitor: ObservableObject {
         schedulePolling()
     }
 
-    /// Brings the holding app forward so the user can dismiss its password
-    /// field. Nothing to reveal when the holder is gone or unknown.
+    /// Brings the app that was active when it turned on forward, so the user
+    /// can dismiss its password field. Nothing to reveal when there is no
+    /// app to point at.
     func revealHolder() {
         guard case .app(_, let pid) = holder,
               let app = NSRunningApplication(processIdentifier: pid) else { return }
@@ -101,6 +103,7 @@ final class SecureInputMonitor: ObservableObject {
         let next = SecureInputSupport.holder(
             isEnabled: isEnabled,
             read: isEnabled ? Self.recordedHolder() : .noHolder,
+            ownPid: getpid(),
             runningApp: {
                 // Named the way every other surface names a process. The
                 // owner is already known to be a regular app, so the kernel
@@ -111,8 +114,8 @@ final class SecureInputMonitor: ObservableObject {
                         app.processIdentifier)
             },
             isProcessAlive: { pid in
-                // EPERM means the holder exists but is not ours to signal,
-                // which is what a system holder is; same shape as
+                // EPERM means the process exists but is not ours to signal,
+                // which is what a system process is; same shape as
                 // `AssistiveKeyboard`.
                 kill(pid, 0) == 0 || errno == EPERM
             })
@@ -125,8 +128,15 @@ final class SecureInputMonitor: ObservableObject {
         }
     }
 
-    /// What the window server records about this session's secure input
-    /// holder.
+    /// The app the window server recorded for this session's secure input.
+    ///
+    /// It is the session's foreground app at the moment secure input turned
+    /// on, not the process that asked for it. On macOS 27.2 a command-line
+    /// tool, an accessory app and a background-only app holding it each got
+    /// the app in front recorded, never themselves. The window server only
+    /// republishes the value when secure input turns on or off, the session
+    /// changes, or the foreground empties (which drops the key), so switching
+    /// apps afterwards does not move it.
     ///
     /// Three details are load-bearing. The property hangs off `IOResources`,
     /// not the service plane root, which answers nil. The key is absent, not
