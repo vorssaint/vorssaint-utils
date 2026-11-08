@@ -317,7 +317,8 @@ extension AppFeature {
     var hasHeroAction: Bool {
         switch self {
         case .quickLauncher, .quitApps, .cameraPreview, .scratchpad, .commandBar,
-             .radialMenu, .shelf, .notch, .cleaningMode:
+             .radialMenu, .shelf, .notch, .cleaningMode, .screenRecorder, .screenOCR,
+             .colorPicker, .micMute:
             return true
         default:
             return false

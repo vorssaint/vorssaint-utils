@@ -35,11 +35,13 @@ struct FeatureRecommendationSurvey: View {
     @State private var cardOffset: CGFloat = 0
     @State private var isAnimatingDecision = false
 
-    var applyTitle = "Use this selection"
     let onExit: () -> Void
     let onApply: (Set<AppFeature>) -> Void
 
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
+    private var survey: FeatureRecommendationStrings {
+        FeatureRecommendationStrings.localized(l10n.language)
+    }
     private var stepAnimation: Animation? {
         reduceMotion ? nil : .easeInOut(duration: 0.18)
     }
@@ -59,29 +61,29 @@ struct FeatureRecommendationSurvey: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(detailTopic?.title
-                         ?? (question == .flashcards ? "Find what fits" :
-                             question == .review ? "Your picks" : "Make Vorssaint fit your day"))
+                    Text(detailTopic?.title(survey)
+                         ?? (question == .flashcards ? survey.text(.headerFlashcards) :
+                             question == .review ? survey.text(.headerReview) : survey.text(.headerActivity)))
                         .font(.title3.weight(.semibold))
                     Text(question == .review
-                         ? "Your interested features, ranked by fit."
+                         ? survey.text(.headerReviewSubtitle)
                          : question == .flashcards
-                            ? "One idea at a time. Keep what interests you."
+                            ? survey.text(.headerFlashcardSubtitle)
                          : detailTopic == nil
-                            ? "A few quick questions about how you use your Mac."
-                            : "Select anything you might do. You can choose more than one.")
+                            ? survey.text(.headerQuestionSubtitle)
+                            : survey.text(.headerDetailSubtitle))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button(action: onExit) {
-                    Label("Close", systemImage: "xmark")
+                    Label(survey.text(.close), systemImage: "xmark")
                         .labelStyle(.titleAndIcon)
                         .font(.callout.weight(.medium))
                 }
                 .buttonStyle(.bordered)
                 .keyboardShortcut(.cancelAction)
-                .accessibilityLabel("Close recommendations")
+                .accessibilityLabel(survey.text(.closeAccessibility))
             }
             .padding(.bottom, 22)
 
@@ -89,7 +91,7 @@ struct FeatureRecommendationSurvey: View {
                 ProgressView(value: Double(questionIndex + 1),
                              total: Double(max(visibleSteps.count, 1)))
                     .tint(Color.accentColor)
-                Text("Step \(questionIndex + 1) of \(visibleSteps.count)")
+                Text(String(format: survey.text(.stepFormat), questionIndex + 1, visibleSteps.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
@@ -124,15 +126,15 @@ struct FeatureRecommendationSurvey: View {
 
             HStack(spacing: 12) {
                 if question == .flashcards && detailTopic == nil {
-                    Button("Finish matching") { finishFlashcards() }
+                    Button(survey.text(.finishMatching)) { finishFlashcards() }
                         .buttonStyle(.bordered)
                 } else if questionIndex > 0 {
-                    Button("Back", action: goBack)
+                    Button(survey.text(.back), action: goBack)
                         .buttonStyle(.bordered)
                 }
                 Spacer()
                 if detailTopic != nil {
-                    Button("Continue", action: goForward)
+                    Button(survey.text(.continue), action: goForward)
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
                 } else if question == .flashcards {
@@ -141,7 +143,7 @@ struct FeatureRecommendationSurvey: View {
                         Button {
                             decide(.notForMe)
                         } label: {
-                            Label("Not for me", systemImage: "xmark.circle.fill")
+                            Label(survey.text(.notForMe), systemImage: "xmark.circle.fill")
                                 .foregroundStyle(.red)
                         }
                         .buttonStyle(.bordered)
@@ -150,7 +152,7 @@ struct FeatureRecommendationSurvey: View {
                         Button {
                             decide(.interested)
                         } label: {
-                            Label("I’m interested", systemImage: "checkmark.circle.fill")
+                            Label(survey.text(.interested), systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
                         }
                         .buttonStyle(.borderedProminent)
@@ -159,7 +161,7 @@ struct FeatureRecommendationSurvey: View {
                         .disabled(currentFlashcard.isAvailable)
                     }
                 } else if question == .review {
-                    Button(applyTitle) {
+                    Button(survey.text(.applySelection)) {
                         onApply(FeatureRecommendationEngine.selectionPreservingInstalled(
                             proposedFeatures,
                             installed: installedFeatures))
@@ -167,13 +169,13 @@ struct FeatureRecommendationSurvey: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(proposedFeatures.isEmpty && installedFeatures.isEmpty)
                 } else {
-                    Button("Continue", action: goForward)
+                    Button(survey.text(.continue), action: goForward)
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
                 }
             }
 
-            Label("Your answers and relevant Mac details stay on this Mac. We never scan your apps or send this information.",
+            Label(survey.text(.privacyNote),
                   systemImage: "lock.shield")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -224,10 +226,10 @@ struct FeatureRecommendationSurvey: View {
 
     private var questionTitle: String {
         switch question {
-        case .activities: "How do you use your Mac?"
-        case .appCategories: "What kinds of apps do you use most?"
-        case .routines: "What does a typical session involve?"
-        case .captureNextStep: "After taking a screenshot or recording, what do you usually do next?"
+        case .activities: survey.text(.activitiesQuestion)
+        case .appCategories: survey.text(.categoriesQuestion)
+        case .routines: survey.text(.routinesQuestion)
+        case .captureNextStep: survey.text(.captureQuestion)
         case .flashcards: ""
         case .review: ""
         }
@@ -235,10 +237,10 @@ struct FeatureRecommendationSurvey: View {
 
     private var questionSubtitle: String {
         switch question {
-        case .activities: "Select all that apply. You’ll answer a few follow-up questions for each selection, in order."
-        case .appCategories: "Select any kinds of apps you use. You’ll answer a few follow-up questions for each selection; we never scan your apps."
-        case .routines: "Select any that fit. Your picks are ranked in the order you select them."
-        case .captureNextStep: "There’s no right answer; this just helps us find the most relevant tools."
+        case .activities: survey.text(.activitiesSubtitle)
+        case .appCategories: survey.text(.categoriesSubtitle)
+        case .routines: survey.text(.routinesSubtitle)
+        case .captureNextStep: survey.text(.captureSubtitle)
         case .flashcards: ""
         case .review: ""
         }
@@ -248,27 +250,27 @@ struct FeatureRecommendationSurvey: View {
         switch question {
         case .activities:
             FeatureSurveyActivity.allCases.map {
-                SurveyOption(id: $0.rawValue, title: $0.title,
-                             subtitle: $0.subtitle, symbol: $0.symbolName,
+                SurveyOption(id: $0.rawValue, title: survey.activityTitle($0),
+                             subtitle: survey.activitySubtitle($0), symbol: $0.symbolName,
                              isSelected: answers.activities.contains($0),
                              priority: answers.activityPriority.firstIndex(of: $0).map { $0 + 1 })
             }
         case .appCategories:
             FeatureSurveyAppCategory.allCases.map {
-                SurveyOption(id: $0.rawValue, title: $0.title,
+                SurveyOption(id: $0.rawValue, title: survey.categoryTitle($0),
                              subtitle: nil, symbol: appCategorySymbol($0),
                              isSelected: answers.appCategories.contains($0),
                              priority: answers.appCategoryPriority.firstIndex(of: $0).map { $0 + 1 })
             }
         case .routines:
             FeatureSurveyRoutine.allCases.map {
-                SurveyOption(id: $0.rawValue, title: $0.title,
+                SurveyOption(id: $0.rawValue, title: survey.routineTitle($0),
                              subtitle: nil, symbol: routineSymbol($0),
                              isSelected: answers.routines.contains($0), priority: nil)
             }
         case .captureNextStep:
             FeatureSurveyCaptureNextStep.allCases.map {
-                SurveyOption(id: $0.rawValue, title: $0.title,
+                SurveyOption(id: $0.rawValue, title: survey.captureTitle($0),
                              subtitle: nil, symbol: captureSymbol($0),
                              isSelected: answers.captureNextStep == $0, priority: nil)
             }
@@ -339,7 +341,7 @@ struct FeatureRecommendationSurvey: View {
                 Image(systemName: option.isSelected ? "checkmark.circle.fill" : "chevron.right")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(option.isSelected ? Color.accentColor : Color.secondary.opacity(0.65))
-                Text(option.isSelected ? "Selected" : "Choose")
+                Text(option.isSelected ? survey.text(.selected) : survey.text(.choose))
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(.secondary)
             }
@@ -348,12 +350,12 @@ struct FeatureRecommendationSurvey: View {
 
     private func detailPage(_ topic: FeatureSurveyTopic) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Label(topic.title, systemImage: topicSymbol(topic))
+            Label(topic.title(survey), systemImage: topicSymbol(topic))
                 .font(.callout.weight(.medium))
                 .foregroundStyle(Color.accentColor)
-            Text("Which of these do you do?")
+            Text(survey.text(.detailQuestion))
                 .font(.title2.weight(.semibold))
-            Text("Select all that apply. These choices help us rank relevant features.")
+            Text(survey.text(.detailSubtitle))
                 .font(.callout)
                 .foregroundStyle(.secondary)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 330), alignment: .top)],
@@ -362,7 +364,7 @@ struct FeatureRecommendationSurvey: View {
                     detailChoiceCard(choice, in: topic)
                 }
             }
-            Button("Remove this from my routine") {
+            Button(survey.text(.removeTopic)) {
                 remove(topic)
             }
             .buttonStyle(.borderless)
@@ -384,7 +386,7 @@ struct FeatureRecommendationSurvey: View {
                     .font(.system(size: 23, weight: .medium))
                     .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                     .frame(width: 38, height: 38)
-                Text(choice.title)
+                Text(survey.detailTitle(choice))
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
@@ -411,17 +413,18 @@ struct FeatureRecommendationSurvey: View {
     private var recommendationReview: some View {
         let selectedFeatures = recommendationOrder.filter(proposedFeatures.contains)
         return VStack(alignment: .leading, spacing: 12) {
-            Label("\(selectedFeatures.count) of \(recommendationOrder.count) features selected",
-                      systemImage: "sparkles")
+            Label(String(format: survey.text(.reviewCountFormat),
+                         selectedFeatures.count, recommendationOrder.count),
+                  systemImage: "sparkles")
                 .font(.callout.weight(.medium))
                 .foregroundStyle(.secondary)
 
-            Text("Adjust your choices here. Each suggestion includes a way it could fit your routine. Your existing features stay installed.")
+            Text(survey.text(.reviewExplanation))
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
             if recommendationOrder.isEmpty {
-                Text("Your current setup already covers these ideas.")
+                Text(survey.text(.currentSetup))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
@@ -587,7 +590,8 @@ struct FeatureRecommendationSurvey: View {
         VStack(spacing: 18) {
             if let feature = currentFlashcard {
                 HStack {
-                    Text("Suggestion \(flashcardIndex + 1) of \(recommendationOrder.count)")
+                    Text(String(format: survey.text(.suggestionCountFormat),
+                                flashcardIndex + 1, recommendationOrder.count))
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -606,7 +610,7 @@ struct FeatureRecommendationSurvey: View {
                     }
                     Divider()
                     VStack(alignment: .leading, spacing: 6) {
-                        Label("How it could fit your day", systemImage: "arrow.turn.down.right")
+                        Label(survey.text(.workflowTitle), systemImage: "arrow.turn.down.right")
                             .font(.callout.weight(.semibold))
                         Text(workflowDescription(for: feature))
                             .font(.callout)
@@ -633,9 +637,9 @@ struct FeatureRecommendationSurvey: View {
                 )
                 .accessibilityElement(children: .combine)
             } else {
-                ContentUnavailableView("No suggestions to review",
+                ContentUnavailableView(survey.text(.noSuggestionsTitle),
                                        systemImage: "sparkles",
-                                       description: Text("Your existing setup already covers the relevant features."))
+                                       description: Text(survey.text(.existingSetupDescription)))
             }
         }
         .frame(maxWidth: .infinity, minHeight: 390, alignment: .center)
@@ -650,39 +654,25 @@ struct FeatureRecommendationSurvey: View {
             .first { $0.features.contains(feature) }
         let context: String
         if let matchingTask {
-            context = matchingTask.title.lowercased()
+            context = survey.detailTitle(matchingTask)
         } else if let nextStep = answers.captureNextStep, nextStep.features.contains(feature) {
-            context = nextStep.title.lowercased()
+            context = survey.captureTitle(nextStep)
         } else if let routine = answers.routinePriority.first(where: {
             $0.features.contains(feature)
         }) ?? answers.routines.first(where: { $0.features.contains(feature) }) {
-            context = routine.title.replacingOccurrences(of: "I ", with: "").lowercased()
+            context = survey.routineTitle(routine)
         } else if let activity = answers.activityPriority.first(where: {
             $0.features.contains(feature) && $0 != .everydayMix
         }) ?? answers.activities.first(where: { $0.features.contains(feature) && $0 != .everydayMix }) {
-            context = activityWorkflow(activity)
+            context = survey.activityTitle(activity)
         } else if let category = answers.appCategoryPriority.first(where: {
             $0.features.contains(feature)
         }) ?? answers.appCategories.first(where: { $0.features.contains(feature) }) {
-            context = "use \(category.title.lowercased())"
+            context = survey.categoryTitle(category)
         } else {
-            context = "use your Mac in your everyday routine"
+            context = survey.text(.headerQuestionSubtitle)
         }
-        return "This may help when you \(context). \(feature.hubDescription(hub))"
-    }
-
-    private func activityWorkflow(_ activity: FeatureSurveyActivity) -> String {
-        switch activity {
-        case .browsingAndPeople: "browse, message, and keep up with people"
-        case .photosAndCreative: "take photos or make creative projects"
-        case .musicVideoAndGames: "listen, watch, or play"
-        case .personalPlanning: "plan your day and organize personal things"
-        case .movingBetweenApps: "move between apps"
-        case .makingOrSharingCaptures: "take or share screen captures"
-        case .workOrStudy: "work, study, or learn"
-        case .softwareDevelopment: "write code and switch between development tools"
-        case .everydayMix: "use your Mac throughout the day"
-        }
+        return String(format: survey.text(.workflowFormat), context, feature.hubDescription(hub))
     }
 
     @ViewBuilder

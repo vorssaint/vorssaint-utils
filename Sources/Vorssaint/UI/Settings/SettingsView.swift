@@ -53,6 +53,8 @@ struct SettingsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
     @ObservedObject private var features = FeatureRuntime.shared
+    @ObservedObject private var screenRecorder = ScreenRecorderService.shared
+    @ObservedObject private var micMute = MicMuteService.shared
     private let sidebarUndoManager: UndoManager?
     @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
         SuperKeySource.capsLock.rawValue
@@ -783,6 +785,13 @@ struct SettingsView: View {
     private func featureHeroActionTitle(for feature: AppFeature) -> String {
         switch feature {
         case .screenshot: "Take Screenshot"
+        case .screenRecorder:
+            screenRecorder.isRecording
+                ? FeatureStrings.recorder(l10n.language).stopButton
+                : FeatureStrings.recorder(l10n.language).startButton
+        case .screenOCR: l10n.s.ocrName
+        case .colorPicker: l10n.s.colorPickerPickNow
+        case .micMute: micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName
         case .cleaningMode: "Lock now"
         default: "Open"
         }
@@ -791,6 +800,10 @@ struct SettingsView: View {
     private func featureHeroActionSymbol(for feature: AppFeature) -> String {
         switch feature {
         case .screenshot: "camera.viewfinder"
+        case .screenRecorder: "record.circle"
+        case .screenOCR: "text.viewfinder"
+        case .colorPicker: "eyedropper"
+        case .micMute: micMute.isMuted ? "mic" : "mic.slash"
         case .cleaningMode: "lock.fill"
         default: "arrow.up.right"
         }
@@ -877,6 +890,14 @@ struct SettingsView: View {
             NotchService.shared.open()
         case .screenshot:
             ScreenCaptureService.shared.capture(initial: .screenshot)
+        case .screenRecorder:
+            ScreenRecorderService.shared.toggle()
+        case .screenOCR:
+            ScreenTextService.shared.capture()
+        case .colorPicker:
+            ColorSamplerService.shared.pick()
+        case .micMute:
+            MicMuteService.shared.toggle()
         case .cleaningMode:
             CleaningModeManager.shared.activate()
         default:

@@ -333,6 +333,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchMusicCommandWriter.swift
         Sources/Vorssaint/Core/FeatureCatalog.swift
         Sources/Vorssaint/Core/FeatureRecommendationSupport.swift
+        Sources/Vorssaint/Core/FeatureRecommendationStrings.swift
         Sources/Vorssaint/Core/FeaturePresets.swift
         Sources/Vorssaint/Core/FeatureHubStrings.swift
         Sources/Vorssaint/Core/MixerScreenSharingStrings.swift

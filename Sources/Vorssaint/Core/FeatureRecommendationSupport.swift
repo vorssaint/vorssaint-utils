@@ -103,34 +103,6 @@ enum FeatureSurveyActivity: String, CaseIterable, Identifiable {
 
     var id: Self { self }
 
-    var title: String {
-        switch self {
-        case .browsingAndPeople: "Browse, message, and keep up with people"
-        case .photosAndCreative: "Take photos or make creative projects"
-        case .musicVideoAndGames: "Listen, watch, or play"
-        case .personalPlanning: "Plan my day and keep personal things organized"
-        case .movingBetweenApps: "Move between lots of apps"
-        case .makingOrSharingCaptures: "Take screenshots or record my screen"
-        case .workOrStudy: "Work, study, or learn something"
-        case .softwareDevelopment: "Software development"
-        case .everydayMix: "A bit of everything — show me a few essentials"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .browsingAndPeople: "Web, messages, and everyday communication"
-        case .photosAndCreative: "Photos, drawing, music, and other hobbies"
-        case .musicVideoAndGames: "Entertainment and downtime"
-        case .personalPlanning: "Notes, plans, saved items, and files"
-        case .movingBetweenApps: "A mix of windows, tools, and tasks"
-        case .makingOrSharingCaptures: "Screenshots, recordings, or things I want to share"
-        case .workOrStudy: "Documents, research, meetings, coding, or classes"
-        case .softwareDevelopment: "Code, terminals, tools, and debugging"
-        case .everydayMix: "No need to know what you need yet"
-        }
-    }
-
     var symbolName: String {
         switch self {
         case .browsingAndPeople: "bubble.left.and.bubble.right"
@@ -172,78 +144,78 @@ enum FeatureSurveyActivity: String, CaseIterable, Identifiable {
         switch self {
         case .browsingAndPeople:
             [
-                .init(id: "web-links", title: "Keep links and bits of text handy", symbol: "link",
+                .init(id: "web-links", symbol: "link",
                       features: [.clipboardHistory, .shelf]),
-                .init(id: "messages", title: "Move between messages and other apps", symbol: "rectangle.on.rectangle",
+                .init(id: "messages", symbol: "rectangle.on.rectangle",
                       features: [.switcher, .dockPreview, .quickLauncher]),
-                .init(id: "notifications", title: "See useful updates at a glance", symbol: "bell",
+                .init(id: "notifications", symbol: "bell",
                       features: [.notchNotifications, .notch])
             ]
         case .photosAndCreative:
             [
-                .init(id: "photo-capture", title: "Capture and compare what’s on screen", symbol: "camera.viewfinder",
+                .init(id: "photo-capture", symbol: "camera.viewfinder",
                       features: [.screenshot, .screenRecorder]),
-                .init(id: "photo-text", title: "Copy text or details from an image", symbol: "text.viewfinder",
+                .init(id: "photo-text", symbol: "text.viewfinder",
                       features: [.screenOCR, .clipboardHistory]),
-                .init(id: "creative-tools", title: "Keep colors and creative tools close", symbol: "eyedropper",
+                .init(id: "creative-tools", symbol: "eyedropper",
                       features: [.colorPicker, .radialMenu])
             ]
         case .musicVideoAndGames:
             [
-                .init(id: "media-controls", title: "Control playback and audio", symbol: "waveform",
+                .init(id: "media-controls", symbol: "waveform",
                       features: [.mixer, .soundOutputSwitcher, .notchLyrics]),
-                .init(id: "media-window", title: "Keep a game or video window arranged", symbol: "macwindow",
+                .init(id: "media-window", symbol: "macwindow",
                       features: [.windowLayout, .dockPreview]),
-                .init(id: "media-timing", title: "Use timers while watching or playing", symbol: "timer",
+                .init(id: "media-timing", symbol: "timer",
                       features: [.notchTimer, .notch])
             ]
         case .personalPlanning:
             [
-                .init(id: "quick-notes", title: "Jot down notes and reminders", symbol: "note.text",
+                .init(id: "quick-notes", symbol: "note.text",
                       features: [.scratchpad, .notchCalendar]),
-                .init(id: "saved-items", title: "Collect things to find or use later", symbol: "tray.full",
+                .init(id: "saved-items", symbol: "tray.full",
                       features: [.shelf, .clipboardHistory]),
-                .init(id: "file-tidy", title: "Rename and organize personal files", symbol: "folder",
+                .init(id: "file-tidy", symbol: "folder",
                       features: [.finderRename, .finderCutPaste])
             ]
         case .movingBetweenApps:
             [
-                .init(id: "switch-apps", title: "Switch quickly between open apps", symbol: "rectangle.on.rectangle",
+                .init(id: "switch-apps", symbol: "rectangle.on.rectangle",
                       features: [.switcher, .quickLauncher]),
-                .init(id: "arrange-windows", title: "Arrange windows side by side", symbol: "macwindow",
+                .init(id: "arrange-windows", symbol: "macwindow",
                       features: [.windowLayout, .windowMaximizer]),
-                .init(id: "dock-apps", title: "Preview or reopen apps from the Dock", symbol: "dock.rectangle",
+                .init(id: "dock-apps", symbol: "dock.rectangle",
                       features: [.dockPreview, .dockClick])
             ]
         case .makingOrSharingCaptures:
             [
-                .init(id: "capture-edit", title: "Edit or mark up captures", symbol: "pencil.tip.crop.circle",
+                .init(id: "capture-edit", symbol: "pencil.tip.crop.circle",
                       features: [.screenshot, .screenRecorder, .mediaTools]),
-                .init(id: "capture-share", title: "Share captures with someone", symbol: "square.and.arrow.up",
+                .init(id: "capture-share", symbol: "square.and.arrow.up",
                       features: [.screenshot, .screenRecorder, .shelf]),
-                .init(id: "capture-text", title: "Find or copy text in a capture", symbol: "text.viewfinder",
+                .init(id: "capture-text", symbol: "text.viewfinder",
                       features: [.screenshot, .screenOCR, .clipboardHistory]),
-                .init(id: "capture-organize", title: "Save captures for later", symbol: "folder",
+                .init(id: "capture-organize", symbol: "folder",
                       features: [.screenshot, .screenRecorder, .shelf, .finderRename])
             ]
         case .workOrStudy:
             [
-                .init(id: "work-research", title: "Collect research and references", symbol: "books.vertical",
+                .init(id: "work-research", symbol: "books.vertical",
                       features: [.shelf, .clipboardHistory, .finderRename]),
-                .init(id: "work-documents", title: "Reuse text or work with documents", symbol: "doc.text",
+                .init(id: "work-documents", symbol: "doc.text",
                       features: [.textSnippets, .clipboardHistory, .pastePlain]),
-                .init(id: "work-meetings", title: "Switch between calls, notes, and other apps", symbol: "rectangle.on.rectangle",
+                .init(id: "work-meetings", symbol: "rectangle.on.rectangle",
                       features: [.switcher, .windowLayout, .scratchpad])
             ]
         case .softwareDevelopment:
             [
-                .init(id: "dev-copy", title: "Copy, compare, or reuse code and commands", symbol: "doc.on.clipboard",
+                .init(id: "dev-copy", symbol: "doc.on.clipboard",
                       features: [.clipboardHistory, .pastePlain, .textSnippets]),
-                .init(id: "dev-tools", title: "Switch between editor, terminal, and browser", symbol: "rectangle.on.rectangle",
+                .init(id: "dev-tools", symbol: "rectangle.on.rectangle",
                       features: [.switcher, .windowLayout, .quickLauncher]),
-                .init(id: "dev-repeat", title: "Run frequent actions or snippets quickly", symbol: "command",
+                .init(id: "dev-repeat", symbol: "command",
                       features: [.commandBar, .textSnippets, .radialMenu]),
-                .init(id: "dev-inspect", title: "Read text from screenshots or references", symbol: "text.viewfinder",
+                .init(id: "dev-inspect", symbol: "text.viewfinder",
                       features: [.screenOCR, .shelf])
             ]
         case .everydayMix:
@@ -262,18 +234,6 @@ enum FeatureSurveyAppCategory: String, CaseIterable, Identifiable {
     case developmentAndLearning
 
     var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .webAndMessaging: "Web and messaging"
-        case .photosAndVideo: "Photos and video"
-        case .musicAndMedia: "Music and media"
-        case .games: "Games"
-        case .notesAndDocuments: "Notes and documents"
-        case .creativeTools: "Creative tools"
-        case .developmentAndLearning: "Development or learning tools"
-        }
-    }
 
     var features: Set<AppFeature> {
         switch self {
@@ -309,7 +269,6 @@ enum FeatureSurveyAppCategory: String, CaseIterable, Identifiable {
 
 struct FeatureSurveyDetailChoice: Identifiable, Hashable {
     let id: String
-    let title: String
     let symbol: String
     let features: Set<AppFeature>
 }
@@ -318,10 +277,10 @@ enum FeatureSurveyTopic: Hashable {
     case activity(FeatureSurveyActivity)
     case appCategory(FeatureSurveyAppCategory)
 
-    var title: String {
+    func title(_ strings: FeatureRecommendationStrings) -> String {
         switch self {
-        case .activity(let activity): activity.title
-        case .appCategory(let category): category.title
+        case .activity(let activity): strings.activityTitle(activity)
+        case .appCategory(let category): strings.categoryTitle(category)
         }
     }
 
@@ -343,18 +302,6 @@ enum FeatureSurveyRoutine: String, CaseIterable, Identifiable {
     case useAccessories
 
     var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .switchBetweenApps: "I switch between apps and windows"
-        case .copyAndReuseThings: "I copy, paste, or reuse bits of information"
-        case .saveAndFindThings: "I save things and look for them later"
-        case .captureScreen: "I take screenshots or screen recordings"
-        case .repeatSteps: "I do the same small steps often"
-        case .focusOnOneApp: "I mostly stay focused in one app"
-        case .useAccessories: "I connect or manage accessories"
-        }
-    }
 
     var features: Set<AppFeature> {
         switch self {
@@ -384,16 +331,6 @@ enum FeatureSurveyCaptureNextStep: String, CaseIterable, Identifiable {
     case view
 
     var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .edit: "Edit or mark it up"
-        case .share: "Send or share it"
-        case .organize: "Save and organize it"
-        case .findText: "Find or copy text from it"
-        case .view: "Just look at it"
-        }
-    }
 
     var features: Set<AppFeature> {
         switch self {

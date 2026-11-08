@@ -13,13 +13,39 @@ enum FeatureRecommendationsTests {
                          $0.features.count >= FeatureRecommendationEngine.minimumFeaturesPerActivity
                      },
                      "the survey is available once every activity and app-use path maps to useful features")
-        suite.expect(FeatureSurveyActivity.softwareDevelopment.title == "Software development"
+        suite.expect(FeatureRecommendationStrings.localized(.enUS)
+                        .activityTitle(.softwareDevelopment) == "Software development"
                      && FeatureSurveyActivity.softwareDevelopment.detailChoices.count >= 2
                      && FeatureSurveyActivity.allCases
                         .filter { $0 != .everydayMix }
                         .allSatisfy { $0.detailChoices.count >= 2 }
                      && FeatureSurveyAppCategory.allCases.allSatisfy { !$0.detailChoices.isEmpty },
                      "every activity and app category opens a follow-up page with actionable multi-select choices")
+
+        for (language, _) in LocalizationTests.languages {
+            let strings = FeatureRecommendationStrings.localized(language)
+            let formatResults = [
+                String(format: strings.text(.stepFormat), 3, 9),
+                String(format: strings.text(.reviewCountFormat), 3, 9),
+                String(format: strings.text(.suggestionCountFormat), 3, 9),
+                String(format: strings.text(.workflowFormat), "Mac use", "a feature")
+            ]
+            suite.expect(strings.allUserVisibleCopy.allSatisfy {
+                            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                         }
+                         && formatResults.allSatisfy { !$0.contains("%") }
+                         && formatResults[0].contains("3") && formatResults[0].contains("9")
+                         && formatResults[1].contains("3") && formatResults[1].contains("9")
+                         && formatResults[2].contains("3") && formatResults[2].contains("9")
+                         && formatResults[3].contains("Mac use") && formatResults[3].contains("a feature"),
+                         "the complete recommendation survey catalog and format arguments are valid in \(language.rawValue)")
+            let detailChoices = Set(FeatureSurveyActivity.allCases.flatMap(\.detailChoices)
+                + FeatureSurveyAppCategory.allCases.flatMap(\.detailChoices))
+            suite.expect(detailChoices.allSatisfy {
+                            !strings.detailTitle($0).isEmpty
+                         },
+                         "every recommendation survey follow-up answer is localized in \(language.rawValue)")
+        }
 
         let noCaptureAnswers = FeatureRecommendationAnswers(
             activities: [.browsingAndPeople],
@@ -74,6 +100,13 @@ enum FeatureRecommendationsTests {
         let surveySource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/FeatureRecommendationSurvey.swift",
             encoding: .utf8)) ?? ""
+        let hardCodedSurveyCopy = (try? NSRegularExpression(
+            pattern: #"(?:Text|Button|Label|ContentUnavailableView)\("[^\\]"#))?
+            .firstMatch(in: surveySource,
+                        range: NSRange(surveySource.startIndex..., in: surveySource)) != nil
+        suite.expect(surveySource.contains("FeatureRecommendationStrings.localized(l10n.language)")
+                     && !hardCodedSurveyCopy,
+                     "all user-visible recommendation survey copy comes from the localized catalog")
         suite.expect(surveySource.contains("Button {\n            toggleChoice(option.id)")
                      && !surveySource.contains("openTopic(option.id)")
                      && !surveySource.contains("goForward()\n            }"),
