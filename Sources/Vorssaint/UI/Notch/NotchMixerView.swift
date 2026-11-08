@@ -184,36 +184,31 @@ private struct NotchEditablePercent: View {
     }
 }
 
-/// A fader's speaker: struck out when muted, otherwise with one, two or three
-/// waves. The waves are one symbol's layers, so on macOS 26 a wave draws in or
-/// out on its own as the level crosses a third, instead of the whole speaker
-/// being swapped; earlier systems dim the waves that are off.
+/// A fader's speaker: struck out when muted, otherwise two waves, with the
+/// second dimmed in the lowest third of the fader and a third wave in the top
+/// third. Between two and three waves the symbols share their speaker and
+/// first waves, so from macOS 15 only the third wave moves in or out.
 private struct NotchFaderSpeaker: View {
     let waves: Int
     let muted: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.3.fill",
-              variableValue: muted ? nil : MixerRoutingSupport.speakerValue(waves: waves))
-            .modifier(NotchSpeakerDrawsWaves())
-            .contentTransition(.symbolEffect(.automatic))
+        let symbol = MixerRoutingSupport.speakerSymbol(waves: waves)
+        Image(systemName: muted ? "speaker.slash.fill" : symbol.name, variableValue: muted ? nil : symbol.value)
+            .modifier(NotchSpeakerMagicReplace())
             .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: waves)
             .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
     }
 }
 
-private struct NotchSpeakerDrawsWaves: ViewModifier {
+private struct NotchSpeakerMagicReplace: ViewModifier {
     func body(content: Content) -> some View {
-#if compiler(>=6.2)
-        if #available(macOS 26, *) {
-            content.symbolVariableValueMode(.draw)
+        if #available(macOS 15, *) {
+            content.contentTransition(.symbolEffect(.replace.magic(fallback: .replace)))
         } else {
-            content
+            content.contentTransition(.symbolEffect(.replace))
         }
-#else
-        content
-#endif
     }
 }
 

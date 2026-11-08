@@ -41,11 +41,14 @@ enum MixerFeatureTests {
                      && MixerRoutingSupport.speakerWaves(volume: 1.5, maximum: 2) == 3
                      && MixerRoutingSupport.speakerWaves(volume: 0.9, maximum: 1) == 3
                      && MixerRoutingSupport.speakerWaves(volume: .nan, maximum: 2) == 1,
-                     "a fader's speaker gains a wave for each third of the fader its level reaches")
-        suite.expect((1...3).map { MixerRoutingSupport.speakerValue(waves: $0) }
-                         .enumerated().allSatisfy { index, value in
-                             value > Double(index) / 3 && value <= Double(index + 1) / 3 },
-                     "each wave count lights exactly that many waves of the speaker symbol")
+                     "a fader's level falls in the third of the fader it reaches")
+        let lowest = MixerRoutingSupport.speakerSymbol(waves: 1)
+        let middle = MixerRoutingSupport.speakerSymbol(waves: 2)
+        let top = MixerRoutingSupport.speakerSymbol(waves: 3)
+        suite.expect(lowest.name == "speaker.wave.2.fill" && (lowest.value ?? 1) > 0 && (lowest.value ?? 1) <= 0.5
+                     && middle.name == "speaker.wave.2.fill" && middle.value == 1
+                     && top.name == "speaker.wave.3.fill" && top.value == nil,
+                     "the lowest third dims the second wave, the middle shows two and only the top shows a third")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: -.infinity) == 0, "negative infinity shows as 0%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: .nan) == 0, "NaN shows as 0%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 1e300) == 100_000, "a huge finite volume cannot overflow")
