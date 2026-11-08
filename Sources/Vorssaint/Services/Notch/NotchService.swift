@@ -1113,6 +1113,14 @@ final class NotchService: ObservableObject {
     var acceptsSystemFeedback: Bool {
         acceptsUserInteraction && !hiddenInFullscreen
     }
+    var trashSuggestionAvailability: TrashSuggestionNotchAvailability {
+        TrashSuggestionSupport.notchAvailability(
+            expanded: expanded,
+            peeking: peeking,
+            occupied: dragPlaceholder || captureControls != nil || notice != nil || noticeExpanded,
+            acceptsSystemFeedback: acceptsSystemFeedback,
+            routeEnabled: NotchSupport.routes(.systemNotification))
+    }
     var showsSystemFeedback: Bool {
         acceptsSystemFeedback && (!hiddenUntilHover || NotchSupport.hiddenShowsActivity())
     }

@@ -17,6 +17,40 @@ enum AppManagementFeatureTests {
         suite.expect(registeredDefaults[DefaultsKey.trashSuggestionPresentation] as? String
                     == TrashSuggestionPresentation.notch.rawValue,
                     "Trash suggestions default to the Dynamic Island")
+        suite.expect(registeredDefaults[DefaultsKey.uninstallerTrashDetectionEnabled] as? Bool == false,
+                     "Trash monitoring is opt-in")
+        suite.expect(TrashSuggestionSupport.monitoringState(enabled: false, hasFullDiskAccess: false,
+                                                            streamStarted: false) == .disabled
+                     && TrashSuggestionSupport.monitoringState(enabled: true, hasFullDiskAccess: false,
+                                                               streamStarted: false) == .requiresFullDiskAccess
+                     && TrashSuggestionSupport.monitoringState(enabled: true, hasFullDiskAccess: true,
+                                                               streamStarted: false) == .failed
+                     && TrashSuggestionSupport.monitoringState(enabled: true, hasFullDiskAccess: true,
+                                                               streamStarted: true) == .monitoring,
+                     "Trash monitoring reports disabled, permission, startup failure and active states")
+        suite.expect(TrashSuggestionSupport.notchAvailability(
+                    expanded: true, peeking: false, occupied: false,
+                    acceptsSystemFeedback: true, routeEnabled: true) == .deferUntilAvailable
+                     && TrashSuggestionSupport.notchAvailability(
+                        expanded: false, peeking: true, occupied: false,
+                        acceptsSystemFeedback: true, routeEnabled: true) == .deferUntilAvailable
+                     && TrashSuggestionSupport.notchAvailability(
+                        expanded: false, peeking: false, occupied: false,
+                        acceptsSystemFeedback: false, routeEnabled: true) == .unavailable
+                     && TrashSuggestionSupport.notchAvailability(
+                        expanded: false, peeking: false, occupied: false,
+                        acceptsSystemFeedback: true, routeEnabled: true) == .available,
+                     "Trash notices wait for a busy island and fall back when it cannot present")
+        suite.expect(TrashSuggestionSupport.notchAvailability(
+                    expanded: false, peeking: false, occupied: true,
+                    acceptsSystemFeedback: true, routeEnabled: true) == .deferUntilAvailable,
+                     "Trash notices do not interrupt an island notice or capture in progress")
+        suite.expect(TrashSuggestionSupport.shouldSuggestCleanup(
+                        for: "com.example.editor", installedBundleIDs: [])
+                     && !TrashSuggestionSupport.shouldSuggestCleanup(
+                        for: "com.example.editor", installedBundleIDs: ["COM.EXAMPLE.EDITOR"])
+                     && !TrashSuggestionSupport.shouldSuggestCleanup(for: nil, installedBundleIDs: []),
+                     "cleanup is suggested only when no installed copy with the same bundle id remains")
         let currentTrashApps = [URL(fileURLWithPath: "/Users/test/.Trash/Example.app"),
                                 URL(fileURLWithPath: "/Users/test/.Trash/Other.app")]
         let knownTrashApps = Set([currentTrashApps[0].path])

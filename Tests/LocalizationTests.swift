@@ -70,7 +70,17 @@ enum LocalizationTests {
         for (language, strings) in languages {
             suite.expect(!strings.zoomControlNote.isEmpty,
                          "Pinch Zoom explains screen-zoom overlap in \(language.rawValue)")
+            suite.expect(!strings.uninstallerTrashDetectionTitle.isEmpty
+                         && !strings.uninstallerTrashDetectionCaption.isEmpty
+                         && !strings.uninstallerTrashDetectionNeedsFDA.isEmpty
+                         && !strings.uninstallerTrashDetectionFailed.isEmpty,
+                         "Trash monitoring text is localized in \(language.rawValue)")
             if language != .enUS {
+                suite.expect(strings.uninstallerTrashDetectionTitle != Strings.enUS.uninstallerTrashDetectionTitle
+                             && strings.uninstallerTrashDetectionCaption != Strings.enUS.uninstallerTrashDetectionCaption
+                             && strings.uninstallerTrashDetectionNeedsFDA != Strings.enUS.uninstallerTrashDetectionNeedsFDA
+                             && strings.uninstallerTrashDetectionFailed != Strings.enUS.uninstallerTrashDetectionFailed,
+                             "Trash monitoring strings are translated in \(language.rawValue)")
                 suite.expect(strings.zoomControlNote != Strings.enUS.zoomControlNote,
                              "the Zoom warning is translated in \(language.rawValue)")
             }

@@ -11,8 +11,9 @@ struct UninstallerView: View {
     @ObservedObject private var uninstaller = AppUninstaller.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var trashSuggestions = TrashSuggestionService.shared
     @AppStorage(DefaultsKey.uninstallerCommandBarEnabled) private var commandBarEnabled = false
-    @AppStorage(DefaultsKey.uninstallerTrashDetectionEnabled) private var trashDetectionEnabled = true
+    @AppStorage(DefaultsKey.uninstallerTrashDetectionEnabled) private var trashDetectionEnabled = false
     @State private var dropTargeted = false
     @State private var showingAppPicker = false
     @State private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
@@ -130,6 +131,11 @@ struct UninstallerView: View {
                 Text(l10n.s.uninstallerTrashDetectionCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let message = trashSuggestions.monitoringState.message(in: l10n.s) {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .formStyle(.grouped)

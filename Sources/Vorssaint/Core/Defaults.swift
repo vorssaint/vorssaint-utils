@@ -1594,7 +1594,7 @@ enum Defaults {
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.uninstallerCommandBarEnabled: false,
-        DefaultsKey.uninstallerTrashDetectionEnabled: true,
+        DefaultsKey.uninstallerTrashDetectionEnabled: false,
         DefaultsKey.killProcessCommandBarEnabled: true,
         DefaultsKey.killProcessGroupRelated: true,
         DefaultsKey.killProcessSortBy: "cpu",

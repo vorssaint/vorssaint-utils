@@ -14,7 +14,49 @@ enum TrashSuggestionPresentation: String {
     }
 }
 
+enum TrashSuggestionMonitoringState: Equatable {
+    case disabled
+    case requiresFullDiskAccess
+    case monitoring
+    case failed
+
+    func message(in strings: Strings) -> String? {
+        switch self {
+        case .disabled, .monitoring: return nil
+        case .requiresFullDiskAccess: return strings.uninstallerTrashDetectionNeedsFDA
+        case .failed: return strings.uninstallerTrashDetectionFailed
+        }
+    }
+}
+
+enum TrashSuggestionNotchAvailability: Equatable {
+    case available
+    case deferUntilAvailable
+    case unavailable
+}
+
 enum TrashSuggestionSupport {
+    static func monitoringState(enabled: Bool, hasFullDiskAccess: Bool,
+                                streamStarted: Bool) -> TrashSuggestionMonitoringState {
+        guard enabled else { return .disabled }
+        guard hasFullDiskAccess else { return .requiresFullDiskAccess }
+        return streamStarted ? .monitoring : .failed
+    }
+
+    static func notchAvailability(expanded: Bool, peeking: Bool, occupied: Bool,
+                                  acceptsSystemFeedback: Bool, routeEnabled: Bool)
+        -> TrashSuggestionNotchAvailability {
+        guard acceptsSystemFeedback, routeEnabled else { return .unavailable }
+        return expanded || peeking || occupied ? .deferUntilAvailable : .available
+    }
+
+    static func shouldSuggestCleanup(for bundleID: String?, installedBundleIDs: [String]) -> Bool {
+        guard let bundleID, !bundleID.isEmpty else { return false }
+        return !installedBundleIDs.contains {
+            $0.caseInsensitiveCompare(bundleID) == .orderedSame
+        }
+    }
+
     static func appURLs(in trashURL: URL, fileManager: FileManager = .default) -> [URL] {
         (try? fileManager.contentsOfDirectory(
             at: trashURL,

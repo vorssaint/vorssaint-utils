@@ -198,6 +198,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             }
             .store(in: &cancellables)
 
+        Permissions.shared.$fullDiskAccess
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { _ in TrashSuggestionService.shared.refreshPermissionState() }
+            .store(in: &cancellables)
+
         Permissions.shared.$screenRecording
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
