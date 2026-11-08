@@ -143,7 +143,9 @@ struct NotchControlsView: View {
         case .companion:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), active: NotchMascotSupport.isEnabled()) {
                 service.perform {
-                    NotchMascotSupport.toggleFromIsland()
+                    NotchMascotSupport.toggleFromIsland {
+                        FeatureRuntime.shared.setAvailable([.notchMascot], true)
+                    }
                     service.syncWithPreferences()
                 }
             }

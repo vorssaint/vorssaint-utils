@@ -1991,7 +1991,9 @@ final class NotchService: ObservableObject {
             case .calendar: select(.calendar)
             case .commandBar: perform { CommandBarService.shared.show() }
             case .companion:
-                NotchMascotSupport.toggleFromIsland()
+                NotchMascotSupport.toggleFromIsland {
+                    FeatureRuntime.shared.setAvailable([.notchMascot], true)
+                }
                 syncWithPreferences()
             case .scratchpad: openScratchpad()
             case .volume, .brightness, .keyboardLight: select(.controls)

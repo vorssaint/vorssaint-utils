@@ -331,7 +331,7 @@ extension FeatureStrings {
             stopwatch: "Kronometre",
             focus: "Odaklanma",
             focusStatusPermissionName: "Odak Durumu",
-            focusStatusPermissionExplanation: "Dynamic Island'ın bir Odak modunun açık olup olmadığını göstermesini sağlar.",
+            focusStatusPermissionExplanation: "Dynamic Island’ın bir Odak modunun açık olup olmadığını göstermesini sağlar.",
             focusStatusOn: "Açık",
             focusStatusOff: "Kapalı",
             shortBreak: "Kısa mola",

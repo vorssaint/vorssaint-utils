@@ -1215,13 +1215,14 @@ enum NotchMascotSupport {
             && defaults.bool(forKey: DefaultsKey.notchMascotEnabled)
     }
 
-    static func toggleFromIsland(in defaults: UserDefaults = .standard) {
-        if isEnabled(in: defaults) {
-            defaults.set(false, forKey: DefaultsKey.notchMascotEnabled)
-        } else {
-            defaults.set(true, forKey: AppFeature.notchMascot.availabilityKey)
-            defaults.set(true, forKey: DefaultsKey.notchMascotEnabled)
+    static func toggleFromIsland(in defaults: UserDefaults = .standard,
+                                 install: (() -> Void)? = nil) {
+        guard AppFeature.notchMascot.isAvailable(in: defaults) else {
+            install?()
+            return
         }
+        defaults.set(!defaults.bool(forKey: DefaultsKey.notchMascotEnabled),
+                     forKey: DefaultsKey.notchMascotEnabled)
     }
 
     static func visits(in defaults: UserDefaults = .standard) -> Bool {

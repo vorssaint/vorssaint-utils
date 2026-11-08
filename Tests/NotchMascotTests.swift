@@ -100,10 +100,15 @@ enum NotchMascotTests {
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         defaults.set(false, forKey: AppFeature.notchMascot.availabilityKey)
         defaults.set(false, forKey: DefaultsKey.notchMascotEnabled)
+        var requestedInstall = false
+        NotchMascotSupport.toggleFromIsland(in: defaults) { requestedInstall = true }
+        suite.expect(!AppFeature.notchMascot.isAvailable(in: defaults)
+                     && !defaults.bool(forKey: DefaultsKey.notchMascotEnabled) && requestedInstall,
+                     "the island Companion control requests centralized installation without bypassing its gate")
+        defaults.set(true, forKey: AppFeature.notchMascot.availabilityKey)
         NotchMascotSupport.toggleFromIsland(in: defaults)
-        suite.expect(AppFeature.notchMascot.isAvailable(in: defaults)
-                     && defaults.bool(forKey: DefaultsKey.notchMascotEnabled),
-                     "the island Companion control installs and enables the opt-in feature on its first use")
+        suite.expect(defaults.bool(forKey: DefaultsKey.notchMascotEnabled),
+                     "the island Companion control enables an installed companion")
         NotchMascotSupport.toggleFromIsland(in: defaults)
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchMascotEnabled),
                      "the island Companion control switches an enabled companion off")
