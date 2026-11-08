@@ -88,6 +88,16 @@ struct GeneralSettings: View {
         }
     }
 
+    /// The colour menu: a "Follow the Mac" row, a menu of named colours, and a
+    /// free colour well for anything else. Every control writes the same
+    /// `accentColor` property, so the row always shows one current choice.
+    private var accentColorRow: some View {
+        AccentColorControl(strings: appearanceStrings,
+                           selection: Binding(get: { appearance.accentColorHex },
+                                              set: { appearance.accentColorHex = $0 }))
+            .padding(.leading, settingsRowTextInset)
+    }
+
     private var appearanceCard: some View {
         SettingsCard(title: appearanceStrings.label) {
             HStack(spacing: 10) {
@@ -103,6 +113,8 @@ struct GeneralSettings: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            Divider()
+            accentColorRow
 #if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 Divider()
@@ -188,6 +200,88 @@ struct GeneralSettings: View {
         }
     }
 
+}
+
+/// The appearance menu's colour control: a labelled "follow the Mac" row, a
+/// menu of the named colours, and a colour well for anything else. It writes
+/// one `#RRGGBB` (or nil for "follow the Mac") through `selection`, which is
+/// the same preference the window tint reads, so the choice takes effect as
+/// soon as it is made.
+private struct AccentColorControl: View {
+    let strings: AppearanceStrings
+    @Binding var selection: String?
+    @ObservedObject private var l10n = L10n.shared
+
+    private var menuTitle: String {
+        guard let hex = AppAccentColor.sanitized(selection) else { return strings.accentColorSystem }
+        return AppAccentColor.presets.first { AppAccentColor.matches(hex, preset: $0) }
+            .map { $0.color.title(FeatureStrings.radialMenu(l10n.language)) } ?? hex
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Menu {
+                    Button(strings.accentColorFollowSystem) { selection = nil }
+                    Divider()
+                    ForEach(AppAccentColor.presets) { preset in
+                        Button {
+                            selection = preset.hex
+                        } label: {
+                            Label(preset.color.title(FeatureStrings.radialMenu(l10n.language)),
+                                  systemImage: AppAccentColor.matches(selection, preset: preset)
+                                      ? "checkmark.circle.fill" : "circle.fill")
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        swatch(for: selection)
+                        Text(menuTitle)
+                        Image(systemName: "chevron.up.chevron.down").font(.caption2)
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityLabel(strings.accentColor)
+                .accessibilityValue(menuTitle)
+
+                ColorPicker(strings.accentColor, selection: customBinding, supportsOpacity: false)
+                    .labelsHidden()
+                    .accessibilityLabel(strings.accentColorCaption)
+            }
+            Text(strings.accentColorCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The colour picker has no "no colour" state, so it writes and reads the
+    /// stored value while the menu row above owns the "follow the Mac" choice.
+    private var customBinding: Binding<Color> {
+        Binding {
+            guard let hex = AppAccentColor.sanitized(selection) else {
+                return Color(nsColor: .controlAccentColor)
+            }
+            let rgb = MenuBarUsageBarSupport.rgb(for: hex, fallback: MenuBarUsageBarSupport.defaultNormalColor)
+            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        } set: { color in
+            guard let converted = NSColor(color).usingColorSpace(.sRGB) else { return }
+            selection = AppAccentColor.hex(red: Double(converted.redComponent),
+                                           green: Double(converted.greenComponent),
+                                           blue: Double(converted.blueComponent))
+        }
+    }
+
+    @ViewBuilder
+    private func swatch(for hex: String?) -> some View {
+        if let hex = AppAccentColor.sanitized(hex) {
+            Circle().fill(Color(appAccentHex: hex)).frame(width: 13, height: 13)
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.2), lineWidth: 0.5))
+        } else {
+            Image(systemName: "circle.lefthalf.filled").font(.system(size: 12)).foregroundStyle(.secondary)
+        }
+    }
 }
 
 /// Three little desktops with a window on each: the same picture System

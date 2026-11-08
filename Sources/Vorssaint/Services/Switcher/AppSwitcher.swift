@@ -2312,7 +2312,7 @@ final class AppSwitcher: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        panel.contentViewController = NSHostingController(rootView: SwitcherView().environmentObject(self))
+        panel.contentViewController = NSHostingController(rootView: SwitcherView().environmentObject(self).appAccentTint())
         self.panel = panel
         return panel
     }

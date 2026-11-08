@@ -23,6 +23,17 @@ final class AppAppearanceController: ObservableObject {
         }
     }
 
+    /// The app's accent colour as `#RRGGBB`, or nil while it follows the Mac.
+    /// Published so every hosted window re-tints when the choice changes; only
+    /// window hosts observe it (nothing needs to be applied imperatively the
+    /// way the light/dark appearance is).
+    @Published var accentColorHex: String? {
+        didSet {
+            guard accentColorHex != oldValue else { return }
+            UserDefaults.standard.set(accentColorHex ?? "", forKey: DefaultsKey.appAccentColor)
+        }
+    }
+
     @Published var liquidGlassEnabled: Bool {
         didSet {
             guard liquidGlassEnabled != oldValue else { return }
@@ -41,6 +52,7 @@ final class AppAppearanceController: ObservableObject {
         appearance = AppAppearance.sanitized(
             UserDefaults.standard.string(forKey: DefaultsKey.appearance)
         )
+        accentColorHex = AppAccentColor.storedHex()
         liquidGlassEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.liquidGlassEnabled)
         notchLiquidGlassEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.notchLiquidGlassEnabled)
     }

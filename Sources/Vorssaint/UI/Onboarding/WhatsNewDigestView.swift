@@ -59,6 +59,10 @@ struct WhatsNewDigestView: View {
         // column width.
         .toolbar(removing: .sidebarToggle)
         .frame(width: size.width, height: size.height)
+        // Applied here rather than at the hosting site: this window's type is
+        // used for a cast in `centerIntroWindow`, so wrapping the root view
+        // there would change what that cast sees.
+        .appAccentTint()
         .onExitCommand(perform: onFinish)
         .onChange(of: selection) { _, selected in
             if case .row(let id) = selected { unread.remove(id) }

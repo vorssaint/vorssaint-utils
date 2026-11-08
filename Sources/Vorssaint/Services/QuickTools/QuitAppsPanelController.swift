@@ -56,7 +56,7 @@ final class QuitAppsPanelController {
             cancelTitle: L10n.shared.s.uninstallerCancel,
             quitOne: { [weak self] pid in self?.quitOne(pid) },
             activate: { [weak self] focus in self?.activate(focus) })
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.appAccentTint())
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
 

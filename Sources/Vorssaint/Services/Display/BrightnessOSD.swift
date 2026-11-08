@@ -185,5 +185,9 @@ struct BrightnessOSDView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(percentage)%")
         .accessibilityValue("\(percentage)%")
+        // Kept inside the view rather than at the hosting site: this OSD's
+        // controller stores `NSHostingController<BrightnessOSDView>`, so the
+        // root view's type has to stay exactly `BrightnessOSDView`.
+        .appAccentTint()
     }
 }
