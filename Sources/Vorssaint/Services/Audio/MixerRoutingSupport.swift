@@ -183,15 +183,15 @@ enum MixerRoutingSupport {
         return fraction < 2.0 / 3 ? 2 : 3
     }
 
-    /// A fader's speaker for each third. The middle third, which holds an
-    /// app's normal 100%, shows the usual two waves; the top third adds a
-    /// third, and the lowest dims the second. The value lights the waves of
-    /// `speaker.wave.2.fill`, whose second comes on above a half.
-    static func speakerSymbol(waves: Int) -> (name: String, value: Double?) {
-        switch waves {
-        case 3...: ("speaker.wave.3.fill", nil)
-        case 2: ("speaker.wave.2.fill", 1)
-        default: ("speaker.wave.2.fill", 0.4)
+    /// How much of a fader speaker's `wave`, 1 to 3 from the speaker out,
+    /// shows in that third of the fader. The middle third, which holds an
+    /// app's normal 100%, shows the usual two waves and no third at all; the
+    /// top third adds the third, and the lowest dims the second.
+    static func speakerWaveOpacity(_ wave: Int, third: Int) -> Double {
+        switch wave {
+        case 3...: third >= 3 ? 1 : 0
+        case 2: third >= 2 ? 1 : 0.4
+        default: 1
         }
     }
 

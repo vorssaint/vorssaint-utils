@@ -184,30 +184,55 @@ private struct NotchEditablePercent: View {
     }
 }
 
-/// A fader's speaker: struck out when muted, otherwise two waves, with the
-/// second dimmed in the lowest third of the fader and a third wave in the top
-/// third. Between two and three waves the symbols share their speaker and
-/// first waves, so from macOS 15 only the third wave moves in or out.
+/// A fader's speaker: struck out when muted, otherwise `speaker.wave.3.fill`
+/// with each wave faded on its own, so moving between thirds of the fader
+/// fades just the wave that changes.
 private struct NotchFaderSpeaker: View {
     let waves: Int
     let muted: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let symbol = MixerRoutingSupport.speakerSymbol(waves: waves)
-        Image(systemName: muted ? "speaker.slash.fill" : symbol.name, variableValue: muted ? nil : symbol.value)
-            .modifier(NotchSpeakerMagicReplace())
-            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: waves)
-            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
+        ZStack {
+            if muted {
+                Image(systemName: "speaker.slash.fill")
+            } else {
+                ForEach(1...3, id: \.self) { wave in
+                    Image(systemName: "speaker.wave.3.fill")
+                        .mask { NotchSpeakerWaveZone(wave: wave) }
+                        .opacity(MixerRoutingSupport.speakerWaveOpacity(wave, third: waves))
+                }
+            }
+        }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: waves)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
     }
 }
 
-private struct NotchSpeakerMagicReplace: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(macOS 15, *) {
-            content.contentTransition(.symbolEffect(.replace.magic(fallback: .replace)))
-        } else {
-            content.contentTransition(.symbolEffect(.replace))
+/// The part of `speaker.wave.3.fill` that holds one wave, with the speaker
+/// going with the first. The waves are arcs around one centre, so rings
+/// between them part them cleanly. Measured as fractions of the symbol's
+/// width at 12 and 15 points, medium weight, which the mixer uses; the bounds
+/// sit in the middle of the gaps between waves at both sizes.
+private struct NotchSpeakerWaveZone: Shape {
+    static let center = 0.405
+    static let firstGap = 0.25
+    static let secondGap = 0.40
+    let wave: Int
+
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.minX + rect.width * Self.center, y: rect.midY)
+        func circle(_ radius: Double) -> Path {
+            let r = rect.width * radius
+            return Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2))
+        }
+        let everything = Path(rect.insetBy(dx: -rect.width, dy: -rect.height))
+        let right = Path(CGRect(x: center.x, y: rect.minY - rect.height,
+                                width: rect.maxX - center.x + rect.width, height: rect.height * 3))
+        switch wave {
+        case 3...: return right.subtracting(circle(Self.secondGap))
+        case 2: return right.intersection(circle(Self.secondGap).subtracting(circle(Self.firstGap)))
+        default: return everything.subtracting(right.subtracting(circle(Self.firstGap)))
         }
     }
 }

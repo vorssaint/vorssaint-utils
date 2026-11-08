@@ -42,12 +42,8 @@ enum MixerFeatureTests {
                      && MixerRoutingSupport.speakerWaves(volume: 0.9, maximum: 1) == 3
                      && MixerRoutingSupport.speakerWaves(volume: .nan, maximum: 2) == 1,
                      "a fader's level falls in the third of the fader it reaches")
-        let lowest = MixerRoutingSupport.speakerSymbol(waves: 1)
-        let middle = MixerRoutingSupport.speakerSymbol(waves: 2)
-        let top = MixerRoutingSupport.speakerSymbol(waves: 3)
-        suite.expect(lowest.name == "speaker.wave.2.fill" && (lowest.value ?? 1) > 0 && (lowest.value ?? 1) <= 0.5
-                     && middle.name == "speaker.wave.2.fill" && middle.value == 1
-                     && top.name == "speaker.wave.3.fill" && top.value == nil,
+        func waves(_ third: Int) -> [Double] { (1...3).map { MixerRoutingSupport.speakerWaveOpacity($0, third: third) } }
+        suite.expect(waves(1) == [1, 0.4, 0] && waves(2) == [1, 1, 0] && waves(3) == [1, 1, 1],
                      "the lowest third dims the second wave, the middle shows two and only the top shows a third")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: -.infinity) == 0, "negative infinity shows as 0%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: .nan) == 0, "NaN shows as 0%")
