@@ -166,6 +166,7 @@ struct MetricsTests {
                 KeyboardFeatureTests.run(suite)
                 AssistiveKeyboardTests.run(suite)
                 ScreenshotToolShortcutTests.run(suite)
+                KeyboardRemappingTests.run(suite)
             }),
             ("storage", {
                 RecentCaptureStoreTests.run(suite)

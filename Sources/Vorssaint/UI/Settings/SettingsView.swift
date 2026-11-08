@@ -585,6 +585,7 @@ struct SettingsView: View {
         case .switcher: SwitcherSettings()
         case .dock: DockSettings()
         case .keyDebounce: KeyboardDebounceSettings()
+        case .keyRemapping: KeyboardRemappingSettings()
         case .superKey: SuperKeySettings()
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
